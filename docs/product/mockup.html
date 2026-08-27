@@ -448,6 +448,14 @@ function wrapText(text, maxWidth, font) {
 function prepare(data, rings) {
   const ringIndex = (r) => rings.findIndex((x) => x.toLowerCase() === String(r ?? "").trim().toLowerCase());
 
+  // FR-10 and FR-34 both require a *locale-independent* order. `localeCompare` is
+  // locale-sensitive by definition — the same two names can order differently under
+  // a different ICU locale, which would break NFR-4's byte-identical-across-machines
+  // guarantee in the real generator. `<` and `>` compare by code unit, which is what
+  // `str::cmp` over the lowercased strings does in Rust. Same rule the FR-9 label
+  // pick below already uses.
+  const ordinal = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
   // FR-9: group case-insensitively after trimming; the displayed label is the
   // ordinally first variant present, so it cannot shift with CSV row order.
   const labels = new Map();
@@ -457,7 +465,7 @@ function prepare(data, rings) {
     if (!labels.has(key) || label < labels.get(key)) labels.set(key, label);
   });
   // FR-10: case-insensitive alphabetical, no override flag.
-  const quadrants = [...labels.values()].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  const quadrants = [...labels.values()].sort((a, b) => ordinal(a.toLowerCase(), b.toLowerCase()));
   const qIndex = (q) => quadrants.findIndex((x) => x.toLowerCase() === String(q).trim().toLowerCase());
 
   // FR-17/FR-18: a ring outside the declared set has no band to plot in. Those rows
@@ -466,14 +474,17 @@ function prepare(data, rings) {
   const plotted = data.items.filter((it) => ringIndex(it.ring) !== -1);
   const unplotted = data.items.filter((it) => ringIndex(it.ring) === -1);
 
-  // FR-34: quadrant, then declared ring order, then name, then CSV order as the
-  // final tiebreak — a total order, which is what makes numbering reproducible.
+  // FR-34: quadrant, then ring in the order the legend presents it — the reverse of
+  // the declared centre-to-edge list (FR-35) — then name, then CSV order as the final
+  // tiebreak. Numbering follows presentation order so a quadrant's numbers ascend as
+  // the reader scans down its legend group, rather than descending (D-33). A total
+  // order, which is what makes numbering reproducible.
   const ordered = plotted
     .map((it, csvOrder) => ({ ...it, csvOrder }))
     .sort((a, b) =>
       qIndex(a.quadrant) - qIndex(b.quadrant) ||
-      ringIndex(a.ring) - ringIndex(b.ring) ||
-      a.name.toLowerCase().localeCompare(b.name.toLowerCase()) ||
+      ringIndex(b.ring) - ringIndex(a.ring) ||
+      ordinal(a.name.toLowerCase(), b.name.toLowerCase()) ||
       a.csvOrder - b.csvOrder);
   ordered.forEach((it, i) => (it.number = i + 1));
 
