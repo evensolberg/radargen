@@ -128,15 +128,27 @@
   .marker:focus-visible, .legend-row-g:focus-visible {
     outline: 2px solid var(--focus-ring); outline-offset: 2px;
   }
+  /* Selection shows on the marker AND the legend row, whichever was activated.
+     Without this the class is applied to the marker and styled nowhere, so
+     choosing a legend row left the radar with no indication of which dot the
+     open panel referred to. A rectangular outline rather than a ring: rings
+     around markers already mean status (FR-40), and a second one would read
+     as one. */
+  .marker.active { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
   .legend-heading { fill: var(--text-primary); font-size: 13px; font-weight: 600; }
   .legend-group-title { fill: var(--text-secondary); font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; }
   .legend-ring-title { fill: var(--text-muted); font-size: 10px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; }
   .legend-row-g { cursor: pointer; }
   .legend-row-bg { fill: transparent; }
+  /* Hover and selection had been styled identically, so a selected row was
+     indistinguishable from one the pointer happened to be over. Selection keeps
+     the fill and adds the same outline the marker gets. */
   .legend-row-g:hover .legend-row-bg,
-  .legend-row-g.hovered .legend-row-bg,
-  .legend-row-g.active .legend-row-bg { fill: var(--page); }
+  .legend-row-g.hovered .legend-row-bg { fill: var(--page); }
+  .legend-row-g.active .legend-row-bg {
+    fill: var(--page); stroke: var(--focus-ring); stroke-width: 1.5;
+  }
   /* Legend badges are smaller than radar markers (r=7 vs r=10): the badge is a
      list bullet, not a second copy of the marker, and the saved height compounds
      over a long legend. The hollow/solid encoding still has to survive the
