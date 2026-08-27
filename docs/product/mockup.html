@@ -375,6 +375,13 @@ const NARROW_DOC_W = 420;
 const MARKER_R = 10;
 const BADGE_R = 7;              // legend badge, deliberately smaller than the marker
 const LINE_H = 15;              // legend text line height
+// Three levels — quadrant, ring, item — each indented under the one above, so the
+// grouping is legible as structure rather than only as typographic weight. The ring
+// subheading previously sat further left than its own quadrant title, which read as
+// a flat list of alternating styles.
+const INDENT_QUADRANT = 16;
+const INDENT_RING = 24;
+const INDENT_ITEM = 32;
 const META_GAP = 8;             // space between an item name and its trailing meta
 const NAME_FONT = "600 12.5px system-ui, -apple-system, sans-serif";
 const META_FONT = "10.5px system-ui, -apple-system, sans-serif";
@@ -588,8 +595,8 @@ function buildLegend(items, quadrants, rings, legendW) {
   quadrants.forEach((q, qi) => {
     const color = SERIES[qi % SERIES.length];
     parts.push(`<circle cx="5" cy="${y - 4}" r="5" fill="${color}" />`);
-    parts.push(`<text class="legend-group-title" x="16" y="${y}">${esc(q)}</text>`);
-    y += 17;
+    parts.push(`<text class="legend-group-title" x="${INDENT_QUADRANT}" y="${y}">${esc(q)}</text>`);
+    y += 18;
 
     // FR-35: rings run in the reverse of the declared centre-to-edge order, so the
     // legend reads earliest lifecycle stage first.
@@ -598,12 +605,13 @@ function buildLegend(items, quadrants, rings, legendW) {
         it.quadrant.trim().toLowerCase() === q.toLowerCase() &&
         it.ring.trim().toLowerCase() === ring.toLowerCase());
       if (!ringItems.length) return;
-      parts.push(`<text class="legend-ring-title" x="4" y="${y}">${esc(ring)}</text>`);
-      y += 15;
+      parts.push(`<text class="legend-ring-title" x="${INDENT_RING}" y="${y}">${esc(ring)}</text>`);
+      y += 16;
 
       ringItems.forEach((it) => {
         const hollow = it.qualifier === "conditional";
-        const nameX = BADGE_R * 2 + 12;
+        const badgeCx = INDENT_ITEM + BADGE_R;
+        const nameX = INDENT_ITEM + BADGE_R * 2 + 8;
         const avail = legendW - nameX;
         const nameLines = wrapText(it.name, avail, NAME_FONT);
         const statusLabel = { new: "New", moved_in: "Moved in", moved_out: "Moved out" }[it.status] || "";
@@ -630,9 +638,9 @@ function buildLegend(items, quadrants, rings, legendW) {
         const top = y - blockH / 2 + 9;
 
         parts.push(`<g class="legend-row-g" data-number="${it.number}" tabindex="0" role="button" aria-label="${esc(it.number + ". " + it.name + ", " + ariaMeta)}">`);
-        parts.push(`<rect class="legend-row-bg" x="-4" y="${y - blockH / 2 - 3}" width="${legendW + 8}" height="${rowH}" rx="6" />`);
-        parts.push(`<circle cx="${BADGE_R + 2}" cy="${y}" r="${BADGE_R}" fill="${hollow ? "var(--surface-1)" : color}" stroke="${color}" stroke-width="${hollow ? 2 : 1.5}" />`);
-        parts.push(`<text class="legend-num-text" x="${BADGE_R + 2}" y="${y}" fill="${hollow ? "var(--text-primary)" : "#fff"}">${it.number}</text>`);
+        parts.push(`<rect class="legend-row-bg" x="${INDENT_ITEM - 6}" y="${y - blockH / 2 - 3}" width="${legendW - INDENT_ITEM + 10}" height="${rowH}" rx="6" />`);
+        parts.push(`<circle cx="${badgeCx}" cy="${y}" r="${BADGE_R}" fill="${hollow ? "var(--surface-1)" : color}" stroke="${color}" stroke-width="${hollow ? 2 : 1.5}" />`);
+        parts.push(`<text class="legend-num-text" x="${badgeCx}" y="${y}" fill="${hollow ? "var(--text-primary)" : "#fff"}">${it.number}</text>`);
         parts.push(`<text class="legend-name">${nameLines.map((l, i) => `<tspan x="${nameX}" y="${top + i * LINE_H}">${esc(l)}</tspan>`).join("")}</text>`);
         if (meta) {
           const mx = metaInline ? nameX + lastLineW + META_GAP : nameX;
