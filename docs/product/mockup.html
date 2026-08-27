@@ -67,7 +67,7 @@
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   body { padding: 24px; }
-  .wrap { max-width: 900px; margin: 0 auto; }
+  .wrap { max-width: 1240px; margin: 0 auto; }
 
   h1 { font-size: 1.25rem; margin: 0 0 4px; }
   .subtitle { color: var(--text-secondary); font-size: 0.9rem; margin: 0 0 20px; max-width: 70ch; }
@@ -89,24 +89,37 @@
   }
   .toolbar .note { font-size: 0.8rem; color: var(--text-muted); margin-left: auto; }
 
-  /* Radar + legend are now one SVG document (PRD §6.2a) — a single panel,
-     always vertically stacked (never side-by-side), so the same layout
-     scales from desktop down to phone width with nothing to switch at a
-     breakpoint. This is a deliberate reading of §6.2a + §6.2b together:
-     the PRD's "legend stacks below the radar under a breakpoint" language
-     predates the one-SVG-document decision, which makes a CSS breakpoint
-     unnecessary — vertical stacking becomes the only layout, not one of two. */
+  /* Two complete SVG documents, same layout engine, different arrangement
+     (PRD §6.3). One `viewBox` per <svg> and `viewBox` is not a CSS property,
+     so a media query cannot re-arrange a single document — it can only pick
+     between two. `display:none` (not visibility/opacity) is what keeps the
+     hidden copy out of both the tab order and the accessibility tree, so
+     exactly one set of markers and legend rows is ever exposed.
+     Stacked is the default; wide takes over above the breakpoint. */
   .visual-panel {
     background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
     padding: 16px;
   }
-  #visual { display: block; width: 100%; height: auto; }
+  #visual-wide, #visual-stacked { width: 100%; height: auto; }
+  #visual-wide { display: none; }
+  #visual-stacked { display: block; }
+  @media (min-width: 900px) {
+    #visual-wide { display: block; }
+    #visual-stacked { display: none; }
+  }
 
   .quadrant-label {
     fill: var(--text-secondary); font-size: 12px; font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.04em;
   }
   .ring-label { fill: var(--text-muted); font-size: 10px; }
+  /* In the narrow arrangement the radar group is scaled down, which would drag its
+     labels below legibility with it. Counter-scaling the type keeps ring and
+     quadrant names readable at the size the radar actually renders on a phone.
+     Marker numbers stay small — see the caption; the legend is the phone interface. */
+  .radar-narrow .ring-label { font-size: 16px; }
+  .radar-narrow .quadrant-label { font-size: 15px; }
+  .radar-narrow .item-number { font-size: 13px; }
   .divider { stroke: var(--gridline); stroke-width: 1; }
   .ring-circle { fill: none; stroke: var(--gridline); stroke-width: 1; }
   .item-number { font-size: 9px; font-weight: 600; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
@@ -124,19 +137,27 @@
   .legend-row-g:hover .legend-row-bg,
   .legend-row-g.hovered .legend-row-bg,
   .legend-row-g.active .legend-row-bg { fill: var(--page); }
-  .legend-num-text { font-size: 10px; font-weight: 700; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  /* Legend badges are smaller than radar markers (r=7 vs r=10): the badge is a
+     list bullet, not a second copy of the marker, and the saved height compounds
+     over a long legend. The hollow/solid encoding still has to survive the
+     reduction, so the hollow stroke thins to 2px to leave a visible fill gap. */
+  .legend-num-text { font-size: 9px; font-weight: 700; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
   .legend-name { fill: var(--text-primary); font-size: 12.5px; }
   .legend-meta { fill: var(--text-muted); font-size: 10.5px; }
 
-  .key {
-    display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px;
-    padding-top: 12px; border-top: 1px solid var(--gridline);
-    font-size: 0.78rem; color: var(--text-secondary);
-  }
-  .key-item { display: flex; align-items: center; gap: 6px; }
-  .key-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--text-muted); flex: 0 0 auto; }
-  .key-dot.hollow { background: transparent; border: 2px solid var(--text-muted); }
+  /* Title block and key live inside the SVG (PRD FR-65, FR-66) so they survive
+     PNG export. They were previously HTML siblings of the <svg>, which meant a
+     rasterised radar carried neither. */
+  .title-main { fill: var(--text-primary); font-size: 17px; font-weight: 700; }
+  .title-sub { fill: var(--text-secondary); font-size: 12px; }
+  .key-heading { fill: var(--text-primary); font-size: 13px; font-weight: 600; }
+  .key-label { fill: var(--text-secondary); font-size: 11px; }
+  .key-rule { stroke: var(--gridline); stroke-width: 1; }
   .caption { font-size: 0.78rem; color: var(--text-muted); margin-top: 14px; max-width: 80ch; }
+  .warn-note {
+    font-size: 0.78rem; color: var(--text-secondary); margin: 12px 0 0;
+    padding: 8px 10px; border-left: 3px solid var(--series-2); background: var(--page);
+  }
 
   .aux-panel {
     background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
@@ -170,6 +191,12 @@
     text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--gridline);
   }
   table.data-table th { color: var(--text-secondary); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+  /* FR-18/FR-41: unplotted rows are visibly flagged, not silently interleaved. */
+  table.data-table tr.unplotted td { color: var(--text-muted); }
+  table.data-table tr.unplotted .flag {
+    color: var(--series-2); font-weight: 600; font-size: 0.72rem;
+    text-transform: uppercase; letter-spacing: 0.03em;
+  }
 </style>
 </head>
 <body>
@@ -177,52 +204,43 @@
   <h1>Tech radar tool — layout mockup</h1>
   <p class="subtitle">
     Not the real tool — a static preview validating: an arbitrary (non-4) number of
-    quadrants, radar + legend as one SVG document (PRD §6.2a), keyboard/hover
-    interaction (§6.2b), and a single layout that scales from desktop to phone width
-    with no side-by-side/stacked breakpoint to maintain. Quadrants render in
-    case-insensitive alphabetical order (§9); rings are fixed here at this practice's
-    default — <strong>Retire → Adopt → Trial → Assess</strong>, center to edge — since
-    validating arbitrary <code>--rings</code> configurability doesn't need a second
-    rendering path, only a different band count, already proven by the quadrant case.
+    quadrants and an arbitrary ring count (PRD FR-8, FR-14); radar, legend, title block
+    and key as one SVG document (§6.3); and the two arrangements that document is
+    emitted in — <strong>side-by-side above 900px, stacked below</strong> — which is
+    what the HTML output ships both of and the PNG exports the wide one of (FR-51).
+    Resize the window past 900px to switch. Quadrants render in case-insensitive
+    alphabetical order (FR-10); rings come from the selector below, centre to edge,
+    exactly as <code>--rings</code> declares them.
   </p>
 
   <div class="toolbar">
-    <label for="dataset">Quadrant count</label>
+    <label for="dataset">Quadrants</label>
     <select id="dataset">
-      <option value="three">3 quadrants — Tool / Platform / Practice (current design)</option>
-      <option value="five">5 quadrants — stress test (+ Language/Framework, + Data)</option>
+      <option value="three">3 — Tool / Platform / Practice (current design)</option>
+      <option value="five">5 — stress test (+ Language/Framework, + Data)</option>
     </select>
+    <label for="ringset">Rings (centre → edge)</label>
+    <select id="ringset">
+      <option value="default">Retire, Adopt, Trial, Assess — in-house default</option>
+      <option value="thoughtworks">Adopt, Trial, Assess, Hold — ThoughtWorks</option>
+      <option value="five">Retire, Adopt, Trial, Assess, Watch — 5 bands</option>
+      <option value="two">Retire, Adopt — 2 bands</option>
+    </select>
+    <button id="toggle-title">Hide title block</button>
     <button id="toggle-table">Show as table</button>
     <button id="toggle-theme">☀️ Light mode</button>
     <span class="note">Click, or Tab + Enter/Space, a marker or legend row. Escape closes.</span>
   </div>
 
   <div class="visual-panel">
-    <svg id="visual" xmlns="http://www.w3.org/2000/svg"></svg>
-    <div class="key">
-      <div class="key-item"><span class="key-dot" style="background:var(--series-1)"></span> Adopt — Default (filled)</div>
-      <div class="key-item"><span class="key-dot hollow" style="border-color:var(--series-1)"></span> Adopt — Conditional (hollow)</div>
-      <div class="key-item"><span class="key-dot" style="background:var(--text-muted)"></span> Trial / Assess / Retire (filled, no Default/Conditional split)</div>
-    </div>
-    <div class="key">
-      <div class="key-item">
-        <svg width="14" height="14" style="color:var(--text-secondary)"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-        New this edition (full ring)
-      </div>
-      <div class="key-item">
-        <svg width="14" height="14" style="color:var(--text-secondary)"><path d="M7 2 A5 5 0 0 1 7 12" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-        Moved in — toward center, further along the lifecycle (half ring)
-      </div>
-      <div class="key-item">
-        <svg width="14" height="14" style="color:var(--text-secondary)"><path d="M7 2 A5 5 0 0 0 7 12" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-        Moved out — toward the edge, reverted (half ring)
-      </div>
-    </div>
+    <svg id="visual-wide" xmlns="http://www.w3.org/2000/svg"></svg>
+    <svg id="visual-stacked" xmlns="http://www.w3.org/2000/svg"></svg>
     <p class="caption">
-      Beyond 3 quadrants, sector color is a supporting cue, not the identity channel —
+      Beyond 3 quadrants, sector colour is a supporting cue, not the identity channel —
       angular position and the label at the sector's outer edge always disambiguate which
-      quadrant an item belongs to, independent of whether every color pair is distinguishable
-      on its own (§6.2's "quadrant identity never depends on color alone").
+      quadrant an item belongs to, independent of whether every colour pair is distinguishable
+      on its own (FR-39). Past five quadrants the palette cycles (FR-67), which is only
+      tolerable because of that.
     </p>
   </div>
 
@@ -234,6 +252,8 @@
     <p class="detail-placeholder" id="detail-placeholder">No item selected. Click, or Tab to a marker/legend row and press Enter or Space.</p>
   </div>
 
+  <p class="warn-note" id="warn-note" hidden></p>
+
   <table class="data-table" id="data-table">
     <thead>
       <tr><th>#</th><th>Name</th><th>Quadrant</th><th>Ring</th><th>Domain</th><th>Last affirmed</th><th>Exit commitment</th></tr>
@@ -243,77 +263,113 @@
 </div>
 
 <script>
-const RINGS = ["Retire", "Adopt", "Trial", "Assess"]; // center → edge, this practice's default
-const RING_BANDS = { Retire: [0, 80], Adopt: [80, 140], Trial: [140, 200], Assess: [200, 260] };
+// Ring sets stand in for --rings: an ordered list, centre → edge (FR-12). Bands are
+// derived from the list length rather than hardcoded, so N is a parameter of the
+// geometry and not a constant (FR-14, FR-32). Rings a dataset never uses still draw
+// their band (FR-19); dataset rings absent from the list go unplotted (FR-17).
+const RING_SETS = {
+  default:      ["Retire", "Adopt", "Trial", "Assess"],
+  thoughtworks: ["Adopt", "Trial", "Assess", "Hold"],
+  five:         ["Retire", "Adopt", "Trial", "Assess", "Watch"],
+  two:          ["Retire", "Adopt"]
+};
+const R_MAX = 260; // outermost band edge; bands divide this equally (FR-32)
 const SERIES = ["var(--series-1)", "var(--series-2)", "var(--series-3)", "var(--series-4)", "var(--series-5)"];
+
+// Every CSV-derived string passes through this before reaching markup (NFR-6). The
+// real tool escapes per output context; a prototype that concatenated raw values
+// into innerHTML would be teaching the wrong pattern to whoever ports it.
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
 
 const DATASETS = {
   three: {
     items: [
-      { name: "Terraform", quadrant: "Tool", ring: "Adopt", adopt: "default", domain: "Infrastructure as Code", lastAffirmed: "2026-06-01", exit: null, description: "Declarative infrastructure-as-code tool for provisioning cloud and on-prem resources.", rationale: "Default IaC tool across all managed environments; broadest team skill base and client-side familiarity." },
-      { name: "Pulumi", quadrant: "Tool", ring: "Adopt", adopt: "conditional", domain: "Infrastructure as Code", lastAffirmed: "2026-06-01", exit: null, status: "new", description: "Infrastructure-as-code authored in a general-purpose language instead of a domain-specific syntax.", rationale: "Acceptable where a client mandates a general-purpose language over HCL." },
-      { name: "Ansible", quadrant: "Tool", ring: "Trial", adopt: null, domain: "Configuration Management", lastAffirmed: "2026-05-12", exit: null, status: "moved_in", description: "Agentless configuration management and orchestration over SSH.", rationale: "Bounded trial on one managed estate to evaluate against the incumbent. Was Assess last edition." },
-      { name: "Packer", quadrant: "Tool", ring: "Assess", adopt: null, domain: "Image Build", lastAffirmed: "2026-04-20", exit: null, description: "Automated machine/container image builder for golden-image pipelines.", rationale: "Worth evaluating for golden-image pipelines; not yet used in anger." },
-      { name: "Chef", quadrant: "Tool", ring: "Retire", adopt: null, domain: "Configuration Management", lastAffirmed: "2026-03-15", exit: "2027-01-31", description: "Agent-based configuration management using a Ruby DSL.", rationale: "Superseded by the Ansible trial outcome; migration owned and scheduled." },
+      { name: "Terraform", quadrant: "Tool", ring: "Adopt", qualifier: "default", domain: "Infrastructure as Code", lastAffirmed: "2026-06-01", exit: null, description: "Declarative infrastructure-as-code tool for provisioning cloud and on-prem resources.", rationale: "Default IaC tool across all managed environments; broadest team skill base and client-side familiarity." },
+      { name: "Pulumi", quadrant: "Tool", ring: "Adopt", qualifier: "conditional", domain: "Infrastructure as Code", lastAffirmed: "2026-06-01", exit: null, status: "new", description: "Infrastructure-as-code authored in a general-purpose language instead of a domain-specific syntax.", rationale: "Acceptable where a client mandates a general-purpose language over HCL." },
+      { name: "Ansible", quadrant: "Tool", ring: "Trial", qualifier: null, domain: "Configuration Management", lastAffirmed: "2026-05-12", exit: null, status: "moved_in", description: "Agentless configuration management and orchestration over SSH.", rationale: "Bounded trial on one managed estate to evaluate against the incumbent. Was Assess last edition." },
+      { name: "Packer", quadrant: "Tool", ring: "Assess", qualifier: null, domain: "Image Build", lastAffirmed: "2026-04-20", exit: null, description: "Automated machine/container image builder for golden-image pipelines.", rationale: "Worth evaluating for golden-image pipelines; not yet used in anger." },
+      { name: "Chef", quadrant: "Tool", ring: "Retire", qualifier: null, domain: "Configuration Management", lastAffirmed: "2026-03-15", exit: "2027-01-31", description: "Agent-based configuration management using a Ruby DSL.", rationale: "Superseded by the Ansible trial outcome; migration owned and scheduled." },
 
-      { name: "Kubernetes", quadrant: "Platform", ring: "Adopt", adopt: "default", domain: "Container Orchestration", lastAffirmed: "2026-06-01", exit: null, description: "Container orchestration platform for deploying, scaling, and managing containerised workloads.", rationale: "Default for all new containerised workloads." },
-      { name: "Nomad", quadrant: "Platform", ring: "Adopt", adopt: "conditional", domain: "Container Orchestration", lastAffirmed: "2026-06-01", exit: null, description: "Lightweight workload orchestrator for containers and non-containerised applications.", rationale: "Acceptable for edge/low-footprint deployments where full Kubernetes is disproportionate." },
-      { name: "OpenShift", quadrant: "Platform", ring: "Assess", adopt: null, domain: "Container Orchestration", lastAffirmed: "2026-05-01", exit: null, description: "Red Hat's enterprise Kubernetes distribution with integrated developer and operations tooling.", rationale: "Assessing for a client already committed to the Red Hat ecosystem." },
-      { name: "Docker Swarm", quadrant: "Platform", ring: "Retire", adopt: null, domain: "Container Orchestration", lastAffirmed: "2026-02-10", exit: "2026-12-31", status: "moved_in", description: "Docker's native container orchestration mode.", rationale: "No new instances; existing estates migrating to Kubernetes. Just reached Retire this edition." },
+      { name: "Kubernetes", quadrant: "Platform", ring: "Adopt", qualifier: "default", domain: "Container Orchestration", lastAffirmed: "2026-06-01", exit: null, description: "Container orchestration platform for deploying, scaling, and managing containerised workloads.", rationale: "Default for all new containerised workloads." },
+      { name: "Nomad", quadrant: "Platform", ring: "Adopt", qualifier: "conditional", domain: "Container Orchestration", lastAffirmed: "2026-06-01", exit: null, description: "Lightweight workload orchestrator for containers and non-containerised applications.", rationale: "Acceptable for edge/low-footprint deployments where full Kubernetes is disproportionate." },
+      { name: "OpenShift", quadrant: "Platform", ring: "Assess", qualifier: null, domain: "Container Orchestration", lastAffirmed: "2026-05-01", exit: null, description: "Red Hat's enterprise Kubernetes distribution with integrated developer and operations tooling.", rationale: "Assessing for a client already committed to the Red Hat ecosystem." },
+      { name: "Docker Swarm", quadrant: "Platform", ring: "Retire", qualifier: null, domain: "Container Orchestration", lastAffirmed: "2026-02-10", exit: "2026-12-31", status: "moved_in", description: "Docker's native container orchestration mode.", rationale: "No new instances; existing estates migrating to Kubernetes. Just reached Retire this edition." },
 
-      { name: "Trunk-Based Development", quadrant: "Practice", ring: "Adopt", adopt: "default", domain: "Delivery Practice", lastAffirmed: "2026-06-01", exit: null, description: "A branching model where developers integrate small, frequent changes into a shared trunk.", rationale: "Default branching model for managed delivery teams." },
-      { name: "Feature Branching", quadrant: "Practice", ring: "Adopt", adopt: "conditional", domain: "Delivery Practice", lastAffirmed: "2026-06-01", exit: null, description: "A branching model where each feature is developed in an isolated, longer-lived branch.", rationale: "Acceptable where a client's own release process requires long-lived branches." },
-      { name: "ChatOps Incident Response", quadrant: "Practice", ring: "Trial", adopt: null, domain: "Operations Practice", lastAffirmed: "2026-05-20", exit: null, status: "moved_out", description: "Running incident response through commands and updates posted in a shared chat channel.", rationale: "Trialling on one 24x7 managed account before wider rollout. Walked back from Adopt — Conditional after the trial surfaced gaps." },
-      { name: "Platform Engineering / IDP", quadrant: "Practice", ring: "Assess", adopt: null, domain: "Delivery Practice", lastAffirmed: "2026-04-01", exit: null, status: "new", description: "Providing delivery teams a self-service internal developer platform for common infrastructure needs.", rationale: "Evaluating whether a self-service IDP reduces onboarding cost across accounts." },
-      { name: "Manual Change Approval Boards", quadrant: "Practice", ring: "Retire", adopt: null, domain: "Operations Practice", lastAffirmed: "2026-01-15", exit: "2026-09-30", description: "A human review board that approves changes before they go live.", rationale: "Being replaced by automated, policy-gated change windows." }
+      { name: "Trunk-Based Development", quadrant: "Practice", ring: "Adopt", qualifier: "default", domain: "Delivery Practice", lastAffirmed: "2026-06-01", exit: null, description: "A branching model where developers integrate small, frequent changes into a shared trunk.", rationale: "Default branching model for managed delivery teams." },
+      { name: "Feature Branching", quadrant: "Practice", ring: "Adopt", qualifier: "conditional", domain: "Delivery Practice", lastAffirmed: "2026-06-01", exit: null, description: "A branching model where each feature is developed in an isolated, longer-lived branch.", rationale: "Acceptable where a client's own release process requires long-lived branches." },
+      { name: "ChatOps Incident Response", quadrant: "Practice", ring: "Trial", qualifier: null, domain: "Operations Practice", lastAffirmed: "2026-05-20", exit: null, status: "moved_out", description: "Running incident response through commands and updates posted in a shared chat channel.", rationale: "Trialling on one 24x7 managed account before wider rollout. Walked back from Adopt — Conditional after the trial surfaced gaps." },
+      { name: "Platform Engineering / IDP", quadrant: "Practice", ring: "Assess", qualifier: null, domain: "Delivery Practice", lastAffirmed: "2026-04-01", exit: null, status: "new", description: "Providing delivery teams a self-service internal developer platform for common infrastructure needs.", rationale: "Evaluating whether a self-service IDP reduces onboarding cost across accounts." },
+      { name: "Manual Change Approval Boards", quadrant: "Practice", ring: "Retire", qualifier: null, domain: "Operations Practice", lastAffirmed: "2026-01-15", exit: "2026-09-30", description: "A human review board that approves changes before they go live.", rationale: "Being replaced by automated, policy-gated change windows." },
+      // Ring outside every declared set — exercises FR-17/FR-18: no band exists to
+      // plot it in, so it is dropped from the graphic and from the numbering, and
+      // surfaces only in the table view. Not an error; the catalogue is allowed to
+      // record states the radar has no band to draw (D-5).
+      { name: "Legacy Ticketing-Driven Change", quadrant: "Practice", ring: "Rejected", qualifier: null, domain: "Operations Practice", lastAffirmed: "2026-01-10", exit: null, description: "Manual, ticket-driven change approval replacing automated policy gates.", rationale: "Declined during the 2026 review — see the domain ADR." }
     ]
   },
   five: {
     items: [
-      { name: "Terraform", quadrant: "Tool", ring: "Adopt", adopt: "default", domain: "Infrastructure as Code", lastAffirmed: "2026-06-01", exit: null, description: "Declarative infrastructure-as-code tool for provisioning cloud and on-prem resources.", rationale: "Default IaC tool across all managed environments." },
-      { name: "Ansible", quadrant: "Tool", ring: "Trial", adopt: null, domain: "Configuration Management", lastAffirmed: "2026-05-12", exit: null, description: "Agentless configuration management and orchestration over SSH.", rationale: "Bounded trial on one managed estate." },
-      { name: "Chef", quadrant: "Tool", ring: "Retire", adopt: null, domain: "Configuration Management", lastAffirmed: "2026-03-15", exit: "2027-01-31", description: "Agent-based configuration management using a Ruby DSL.", rationale: "Superseded by the Ansible trial outcome." },
-      { name: "PostgreSQL", quadrant: "Tool", ring: "Adopt", adopt: "default", domain: "Relational Database", lastAffirmed: "2026-06-01", exit: null, description: "Open-source relational database with strong consistency and extensibility.", rationale: "Default relational store." },
-      { name: "MongoDB", quadrant: "Tool", ring: "Assess", adopt: null, domain: "Document Store", lastAffirmed: "2026-04-15", exit: null, status: "moved_out", description: "Document-oriented NoSQL database for flexible, schema-less data models.", rationale: "Assessing for a document-heavy client workload. Walked back from Trial to Assess after the pilot raised open questions on backup tooling." },
+      { name: "Terraform", quadrant: "Tool", ring: "Adopt", qualifier: "default", domain: "Infrastructure as Code", lastAffirmed: "2026-06-01", exit: null, description: "Declarative infrastructure-as-code tool for provisioning cloud and on-prem resources.", rationale: "Default IaC tool across all managed environments." },
+      { name: "Ansible", quadrant: "Tool", ring: "Trial", qualifier: null, domain: "Configuration Management", lastAffirmed: "2026-05-12", exit: null, description: "Agentless configuration management and orchestration over SSH.", rationale: "Bounded trial on one managed estate." },
+      { name: "Chef", quadrant: "Tool", ring: "Retire", qualifier: null, domain: "Configuration Management", lastAffirmed: "2026-03-15", exit: "2027-01-31", description: "Agent-based configuration management using a Ruby DSL.", rationale: "Superseded by the Ansible trial outcome." },
+      { name: "PostgreSQL", quadrant: "Tool", ring: "Adopt", qualifier: "default", domain: "Relational Database", lastAffirmed: "2026-06-01", exit: null, description: "Open-source relational database with strong consistency and extensibility.", rationale: "Default relational store." },
+      { name: "MongoDB", quadrant: "Tool", ring: "Assess", qualifier: null, domain: "Document Store", lastAffirmed: "2026-04-15", exit: null, status: "moved_out", description: "Document-oriented NoSQL database for flexible, schema-less data models.", rationale: "Assessing for a document-heavy client workload. Walked back from Trial to Assess after the pilot raised open questions on backup tooling." },
 
-      { name: "Kubernetes", quadrant: "Platform", ring: "Adopt", adopt: "default", domain: "Container Orchestration", lastAffirmed: "2026-06-01", exit: null, description: "Container orchestration platform for deploying, scaling, and managing containerised workloads.", rationale: "Default for all new containerised workloads." },
-      { name: "OpenShift", quadrant: "Platform", ring: "Assess", adopt: null, domain: "Container Orchestration", lastAffirmed: "2026-05-01", exit: null, description: "Red Hat's enterprise Kubernetes distribution with integrated developer and operations tooling.", rationale: "Assessing for a Red Hat-committed client." },
+      { name: "Kubernetes", quadrant: "Platform", ring: "Adopt", qualifier: "default", domain: "Container Orchestration", lastAffirmed: "2026-06-01", exit: null, description: "Container orchestration platform for deploying, scaling, and managing containerised workloads.", rationale: "Default for all new containerised workloads." },
+      { name: "OpenShift", quadrant: "Platform", ring: "Assess", qualifier: null, domain: "Container Orchestration", lastAffirmed: "2026-05-01", exit: null, description: "Red Hat's enterprise Kubernetes distribution with integrated developer and operations tooling.", rationale: "Assessing for a Red Hat-committed client." },
 
-      { name: "Trunk-Based Development", quadrant: "Practice", ring: "Adopt", adopt: "default", domain: "Delivery Practice", lastAffirmed: "2026-06-01", exit: null, description: "A branching model where developers integrate small, frequent changes into a shared trunk.", rationale: "Default branching model." },
-      { name: "Manual Change Approval Boards", quadrant: "Practice", ring: "Retire", adopt: null, domain: "Operations Practice", lastAffirmed: "2026-01-15", exit: "2026-09-30", description: "A human review board that approves changes before they go live.", rationale: "Being replaced by automated, policy-gated change windows." },
+      { name: "Trunk-Based Development", quadrant: "Practice", ring: "Adopt", qualifier: "default", domain: "Delivery Practice", lastAffirmed: "2026-06-01", exit: null, description: "A branching model where developers integrate small, frequent changes into a shared trunk.", rationale: "Default branching model." },
+      { name: "Manual Change Approval Boards", quadrant: "Practice", ring: "Retire", qualifier: null, domain: "Operations Practice", lastAffirmed: "2026-01-15", exit: "2026-09-30", description: "A human review board that approves changes before they go live.", rationale: "Being replaced by automated, policy-gated change windows." },
 
-      { name: "Go", quadrant: "Language/Framework", ring: "Adopt", adopt: "default", domain: "Automation Scripting", lastAffirmed: "2026-05-01", exit: null, status: "moved_in", description: "Compiled, statically-typed language designed for simple, efficient concurrent programs.", rationale: "Default for internal tooling — matches existing cargo/Rust-adjacent toolbelt conventions. Promoted from Trial this edition." },
-      { name: "Python", quadrant: "Language/Framework", ring: "Adopt", adopt: "conditional", domain: "Automation Scripting", lastAffirmed: "2026-05-01", exit: null, description: "Dynamically-typed, general-purpose scripting and data-science language.", rationale: "Acceptable where data-science or client-supplied libraries require it." },
-      { name: "Ad-hoc Bash", quadrant: "Language/Framework", ring: "Retire", adopt: null, domain: "Automation Scripting", lastAffirmed: "2026-02-01", exit: "2026-11-30", status: "new", description: "Shell scripts written informally over time, without shared ownership or a testing standard.", rationale: "Unowned scripts being formalised into Go tooling or removed." },
+      { name: "Go", quadrant: "Language/Framework", ring: "Adopt", qualifier: "default", domain: "Automation Scripting", lastAffirmed: "2026-05-01", exit: null, status: "moved_in", description: "Compiled, statically-typed language designed for simple, efficient concurrent programs.", rationale: "Default for internal tooling — matches existing cargo/Rust-adjacent toolbelt conventions. Promoted from Trial this edition." },
+      { name: "Python", quadrant: "Language/Framework", ring: "Adopt", qualifier: "conditional", domain: "Automation Scripting", lastAffirmed: "2026-05-01", exit: null, description: "Dynamically-typed, general-purpose scripting and data-science language.", rationale: "Acceptable where data-science or client-supplied libraries require it." },
+      { name: "Ad-hoc Bash", quadrant: "Language/Framework", ring: "Retire", qualifier: null, domain: "Automation Scripting", lastAffirmed: "2026-02-01", exit: "2026-11-30", status: "new", description: "Shell scripts written informally over time, without shared ownership or a testing standard.", rationale: "Unowned scripts being formalised into Go tooling or removed." },
 
-      { name: "Application Metrics", quadrant: "Data", ring: "Adopt", adopt: "default", domain: "Observability", lastAffirmed: "2026-06-01", exit: null, description: "Quantitative measurements of application behaviour — request rate, latency, error rate, resource use.", rationale: "Standard signal collected across every managed account." },
-      { name: "Centralized Logs", quadrant: "Data", ring: "Adopt", adopt: "default", domain: "Observability", lastAffirmed: "2026-06-01", exit: null, description: "Structured application and system log output shipped to a shared, searchable platform.", rationale: "Standard signal; shipped to the central log platform from day one of onboarding." },
-      { name: "Distributed Traces", quadrant: "Data", ring: "Trial", adopt: null, domain: "Observability", lastAffirmed: "2026-05-01", exit: null, status: "new", description: "Request-level tracing across service boundaries, showing where time is spent in a call chain.", rationale: "Piloting on one account's microservice estate before recommending it as a default signal." },
-      { name: "Failed Login Attempts", quadrant: "Data", ring: "Adopt", adopt: "default", domain: "Security Telemetry", lastAffirmed: "2026-06-01", exit: null, description: "Count of unsuccessful authentication attempts per account/system, used for security alerting.", rationale: "Foundational security signal — collected everywhere, feeds the standard alerting baseline." },
-      { name: "Support Call Duration", quadrant: "Data", ring: "Assess", adopt: null, domain: "Service Experience", lastAffirmed: "2026-04-10", exit: null, description: "Length of client support calls, tracked as a possible proxy for service friction.", rationale: "Evaluating whether this is a useful proxy for service friction, or just noise." }
+      { name: "Application Metrics", quadrant: "Data", ring: "Adopt", qualifier: "default", domain: "Observability", lastAffirmed: "2026-06-01", exit: null, description: "Quantitative measurements of application behaviour — request rate, latency, error rate, resource use.", rationale: "Standard signal collected across every managed account." },
+      { name: "Centralized Logs", quadrant: "Data", ring: "Adopt", qualifier: "default", domain: "Observability", lastAffirmed: "2026-06-01", exit: null, description: "Structured application and system log output shipped to a shared, searchable platform.", rationale: "Standard signal; shipped to the central log platform from day one of onboarding." },
+      { name: "Distributed Traces", quadrant: "Data", ring: "Trial", qualifier: null, domain: "Observability", lastAffirmed: "2026-05-01", exit: null, status: "new", description: "Request-level tracing across service boundaries, showing where time is spent in a call chain.", rationale: "Piloting on one account's microservice estate before recommending it as a default signal." },
+      { name: "Failed Login Attempts", quadrant: "Data", ring: "Adopt", qualifier: "default", domain: "Security Telemetry", lastAffirmed: "2026-06-01", exit: null, description: "Count of unsuccessful authentication attempts per account/system, used for security alerting.", rationale: "Foundational security signal — collected everywhere, feeds the standard alerting baseline." },
+      { name: "Support Call Duration", quadrant: "Data", ring: "Assess", qualifier: null, domain: "Service Experience", lastAffirmed: "2026-04-10", exit: null, description: "Length of client support calls, tracked as a possible proxy for service friction.", rationale: "Evaluating whether this is a useful proxy for service friction, or just noise." }
     ]
   }
 };
 
-const svg = document.getElementById("visual");
+const svgWide = document.getElementById("visual-wide");
+const svgStacked = document.getElementById("visual-stacked");
 const detailCard = document.getElementById("detail-card");
 const detailBody = document.getElementById("detail-body");
 const detailPlaceholder = document.getElementById("detail-placeholder");
 const tableBody = document.getElementById("data-table-body");
-// cx/svgWidth are recomputed per render (see computeCanvasWidth) since a wide
-// quadrant label (e.g. "Language/Framework") can need more horizontal room
-// than the 660px default — a fixed guess clipped that label at 5 quadrants.
-let cx = 320, cy = 320;
-let SVG_WIDTH = 660;
-let LEGEND_WIDTH = 620;
-const LEGEND_LEFT = 20;
-const RADAR_BLOCK_HEIGHT = 650; // radar + quadrant labels bottom out around here
-const MIN_SVG_WIDTH = 660;
+const warnNote = document.getElementById("warn-note");
+
+const CY = 320;                 // radar centre, relative to the radar block's own origin
+const DIVIDER_R = 262;
+const QLABEL_R = 300;
+const RADAR_BLOCK_H = 650;      // radar + quadrant labels bottom out around here
+const MIN_RADAR_W = 660;
+const MARGIN = 20;
+const COLUMN_GAP = 28;          // between radar column and legend column, wide only
+const LEGEND_W_WIDE = 440;
+// The narrow arrangement is not merely the wide one stacked. The radar needs ~700
+// user units to hold its labels; if the whole document is that wide, a phone scales
+// it to ~50% and 12.5px legend text lands at ~6px — unreadable, and exactly the
+// claim SC-6 makes. So the narrow document is authored at this width and the radar
+// is scaled down inside it, leaving text at its natural size. Text legibility wins
+// over radar size, because a legend you cannot read makes the radar useless anyway.
+const NARROW_DOC_W = 420;
+const MARKER_R = 10;
+const BADGE_R = 7;              // legend badge, deliberately smaller than the marker
 
 // --- geometry helpers -------------------------------------------------
-function polar(angleDeg, r) {
+// cx is passed rather than read from a module-level binding: the radar block is
+// positioned by a translate on its <g>, so its geometry is computed once in local
+// coordinates and reused by both arrangements.
+function polar(cx, angleDeg, r) {
   const a = (angleDeg * Math.PI) / 180;
-  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  return [cx + r * Math.cos(a), CY + r * Math.sin(a)];
 }
 function arcPoint(x, y, angleDeg, r) {
   const a = (angleDeg * Math.PI) / 180;
@@ -324,13 +380,16 @@ function halfRingPath(x, y, r, directionDeg) {
   const [x2, y2] = arcPoint(x, y, directionDeg + 90, r);
   return `M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`;
 }
-function statusRingMarkup(x, y, markerR, status, color) {
+// FR-40: New draws a full ring; Moved in/out draw a half-ring on the side facing
+// the centre or the edge respectively, so direction is derived from the marker's
+// own position rather than from a fixed angle.
+function statusRingMarkup(cx, x, y, markerR, status, color) {
   const ringR = markerR + 4;
   if (status === "new") {
     return `<circle cx="${x}" cy="${y}" r="${ringR}" fill="none" stroke="${color}" stroke-width="2" />`;
   }
   if (status === "moved_in" || status === "moved_out") {
-    const towardCenter = (Math.atan2(cy - y, cx - x) * 180) / Math.PI;
+    const towardCenter = (Math.atan2(CY - y, cx - x) * 180) / Math.PI;
     const direction = status === "moved_in" ? towardCenter : towardCenter + 180;
     return `<path d="${halfRingPath(x, y, ringR, direction)}" fill="none" stroke="${color}" stroke-width="2" />`;
   }
@@ -359,182 +418,294 @@ function wrapText(text, maxWidth, font) {
   return lines;
 }
 
-function render(datasetKey) {
-  const data = DATASETS[datasetKey];
-  // Quadrants: case-insensitive alphabetical order, not first-seen (PRD §9) —
-  // deterministic across editions without relying on stable CSV row order.
-  const quadrants = [...new Set(data.items.map((it) => it.quadrant))].sort((a, b) =>
-    a.toLowerCase().localeCompare(b.toLowerCase())
-  );
-  const quadrantCount = quadrants.length;
-  const sectorAngle = 360 / quadrantCount;
+// --- model preparation ------------------------------------------------
+// Everything below is arrangement-independent: which items plot, in what order,
+// and under which numbers. The two arrangements share this, which is the whole
+// point of one layout engine emitting two documents (PRD §6.3).
+function prepare(data, rings) {
+  const ringIndex = (r) => rings.findIndex((x) => x.toLowerCase() === String(r ?? "").trim().toLowerCase());
 
-  // Size the canvas to the widest quadrant label actually present, not a fixed
-  // guess — labels render uppercase with letter-spacing (CSS text-transform),
-  // so measure the uppercased string and pad for the letter-spacing the plain
-  // canvas measurement doesn't account for. Reserving the full label half-width
-  // as symmetric margin (rather than computing it per-angle) is a deliberate
-  // overestimate — simple, and there's no visible cost to a little extra margin.
-  measureCtx.font = "600 12px system-ui, -apple-system, sans-serif";
-  const maxLabelHalfWidth = quadrants.reduce(
-    (max, q) => Math.max(max, measureCtx.measureText(q.toUpperCase()).width * 1.2 / 2),
-    0
-  );
-  SVG_WIDTH = Math.max(MIN_SVG_WIDTH, Math.round(2 * (300 + maxLabelHalfWidth + 10)));
-  cx = SVG_WIDTH / 2;
-  LEGEND_WIDTH = SVG_WIDTH - 40;
-  // Top (12 o'clock, where ring labels sit) lands on a quadrant divider, not the
-  // center of whichever quadrant sorts first — markers are always inset from a
-  // divider, which guarantees no marker can land on a ring label (PRD §6.2).
+  // FR-9: group case-insensitively after trimming; the displayed label is the
+  // ordinally first variant present, so it cannot shift with CSV row order.
+  const labels = new Map();
+  data.items.forEach((it) => {
+    const key = it.quadrant.trim().toLowerCase();
+    const label = it.quadrant.trim();
+    if (!labels.has(key) || label < labels.get(key)) labels.set(key, label);
+  });
+  // FR-10: case-insensitive alphabetical, no override flag.
+  const quadrants = [...labels.values()].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  const qIndex = (q) => quadrants.findIndex((x) => x.toLowerCase() === String(q).trim().toLowerCase());
+
+  // FR-17/FR-18: a ring outside the declared set has no band to plot in. Those rows
+  // leave the graphic entirely and take no number, so numbering stays contiguous
+  // across plotted items; they resurface only in the table view.
+  const plotted = data.items.filter((it) => ringIndex(it.ring) !== -1);
+  const unplotted = data.items.filter((it) => ringIndex(it.ring) === -1);
+
+  // FR-34: quadrant, then declared ring order, then name, then CSV order as the
+  // final tiebreak — a total order, which is what makes numbering reproducible.
+  const ordered = plotted
+    .map((it, csvOrder) => ({ ...it, csvOrder }))
+    .sort((a, b) =>
+      qIndex(a.quadrant) - qIndex(b.quadrant) ||
+      ringIndex(a.ring) - ringIndex(b.ring) ||
+      a.name.toLowerCase().localeCompare(b.name.toLowerCase()) ||
+      a.csvOrder - b.csvOrder);
+  ordered.forEach((it, i) => (it.number = i + 1));
+
+  return { quadrants, items: ordered, unplotted, qIndex, ringIndex };
+}
+
+// --- block builders ---------------------------------------------------
+// Each returns markup in its own local coordinates plus the height it occupied,
+// so the caller places it with a translate and never has to know its internals.
+
+function buildTitle(title, subtitle) {
+  if (!title && !subtitle) return { markup: "", height: 0 }; // FR-65: omitted renders nothing
+  let y = 4, parts = [];
+  if (title) { y += 18; parts.push(`<text class="title-main" x="${MARGIN}" y="${y}">${esc(title)}</text>`); }
+  if (subtitle) { y += title ? 17 : 15; parts.push(`<text class="title-sub" x="${MARGIN}" y="${y}">${esc(subtitle)}</text>`); }
+  return { markup: parts.join("\n"), height: y + 14 };
+}
+
+function buildRadar(radarW, quadrants, rings, items, prep) {
+  const cx = radarW / 2;
+  const bandW = R_MAX / rings.length;      // FR-32: equal-width bands, N of them
+  const band = (i) => [i * bandW, (i + 1) * bandW];
+  const sectorAngle = 360 / quadrants.length;
+  // FR-31: 12 o'clock lands on a divider, never a sector centre, so a ring label
+  // can never collide with a marker — markers are inset from every divider.
   const startOffset = -90;
+  const parts = [];
 
-  const ringOrder = { Assess: 0, Trial: 1, Adopt: 2, Retire: 3 }; // lifecycle reading order
-  const items = [...data.items].sort((a, b) => {
-    const qa = quadrants.indexOf(a.quadrant), qb = quadrants.indexOf(b.quadrant);
-    if (qa !== qb) return qa - qb;
-    if (ringOrder[a.ring] !== ringOrder[b.ring]) return ringOrder[a.ring] - ringOrder[b.ring];
-    return a.name.localeCompare(b.name);
-  });
-  items.forEach((it, i) => (it.number = i + 1));
-
-  const buckets = {};
-  items.forEach((it) => {
-    const key = it.quadrant + "|" + it.ring;
-    (buckets[key] = buckets[key] || []).push(it);
+  rings.forEach((_, i) => {
+    parts.push(`<circle class="ring-circle" cx="${cx}" cy="${CY}" r="${band(i)[1]}" />`);
   });
 
-  let svgParts = [];
-
-  // ring circles
-  RINGS.forEach((ring) => {
-    const [, outer] = RING_BANDS[ring];
-    svgParts.push(`<circle class="ring-circle" cx="${cx}" cy="${cy}" r="${outer}" />`);
-  });
-
-  // quadrant dividers + labels
   quadrants.forEach((q, i) => {
-    const angle = startOffset + i * sectorAngle;
-    const [x, y] = polar(angle, 262);
-    svgParts.push(`<line class="divider" x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" />`);
-    const labelAngle = startOffset + (i + 0.5) * sectorAngle;
-    const [lx, ly] = polar(labelAngle, 300);
-    svgParts.push(`<text class="quadrant-label" x="${lx}" y="${ly}" text-anchor="middle">${q}</text>`);
+    const [x, y] = polar(cx, startOffset + i * sectorAngle, DIVIDER_R);
+    parts.push(`<line class="divider" x1="${cx}" y1="${CY}" x2="${x}" y2="${y}" />`);
+    const [lx, ly] = polar(cx, startOffset + (i + 0.5) * sectorAngle, QLABEL_R);
+    parts.push(`<text class="quadrant-label" x="${lx}" y="${ly}" text-anchor="middle">${esc(q)}</text>`);
   });
 
-  // ring labels — after dividers, so the label renders on top where they cross
-  RINGS.forEach((ring) => {
-    const [inner, outer] = RING_BANDS[ring];
-    const mid = (inner + outer) / 2;
-    svgParts.push(`<text class="ring-label" x="${cx}" y="${cy - mid}" text-anchor="middle">${ring}</text>`);
+  // FR-19: a declared ring with no matching rows still draws its band and label.
+  rings.forEach((ring, i) => {
+    const [inner, outer] = band(i);
+    parts.push(`<text class="ring-label" x="${cx}" y="${CY - (inner + outer) / 2}" text-anchor="middle">${esc(ring)}</text>`);
   });
 
-  // markers
-  Object.entries(buckets).forEach(([key, bucketItems]) => {
-    const [quadrant, ring] = key.split("|");
-    const qIndex = quadrants.indexOf(quadrant);
-    const quadStart = startOffset + qIndex * sectorAngle;
-    const [inner, outer] = RING_BANDS[ring];
-    const color = SERIES[qIndex % SERIES.length];
+  const buckets = new Map();
+  items.forEach((it) => {
+    const key = prep.qIndex(it.quadrant) + "|" + prep.ringIndex(it.ring);
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(it);
+  });
 
-    bucketItems.forEach((it, j) => {
-      const angleFrac = (j + 1) / (bucketItems.length + 1);
+  buckets.forEach((bucket, key) => {
+    const [qi, ri] = key.split("|").map(Number);
+    const quadStart = startOffset + qi * sectorAngle;
+    const [inner, outer] = band(ri);
+    const color = SERIES[qi % SERIES.length];   // FR-67: cycles past the palette size
+
+    bucket.forEach((it, j) => {
+      // FR-33: spread across the band's angular span, inset 8% from each divider,
+      // alternating radius so items in one band do not coincide.
+      const angleFrac = (j + 1) / (bucket.length + 1);
       const angle = quadStart + sectorAngle * (0.08 + angleFrac * 0.84);
-      const radiusFrac = j % 2 === 0 ? 0.38 : 0.68;
-      const r = inner + (outer - inner) * radiusFrac;
-      const [x, y] = polar(angle, r);
+      const r = inner + (outer - inner) * (j % 2 === 0 ? 0.38 : 0.68);
+      const [x, y] = polar(cx, angle, r);
 
-      const isHollow = it.adopt === "conditional";
-      const fill = isHollow ? "var(--surface-1)" : color;
-      const stroke = isHollow ? color : "var(--surface-1)";
-      const strokeWidth = isHollow ? 3 : 2;
-      const textColor = isHollow ? "var(--text-primary)" : "#fff";
+      const hollow = it.qualifier === "conditional";   // FR-20
+      const fill = hollow ? "var(--surface-1)" : color;
+      const stroke = hollow ? color : "var(--surface-1)";
+      const textColor = hollow ? "var(--text-primary)" : "#fff";
 
-      svgParts.push(
-        `<g class="marker" data-number="${it.number}" tabindex="0" role="button" aria-label="${it.number}. ${it.name}">
-           <title>${it.number}. ${it.name}</title>
-           ${statusRingMarkup(x, y, 10, it.status, color)}
-           <circle cx="${x}" cy="${y}" r="10" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" />
+      parts.push(
+        `<g class="marker" data-number="${it.number}" tabindex="0" role="button" aria-label="${esc(it.number + ". " + it.name)}">
+           <title>${esc(it.number + ". " + it.name)}</title>
+           ${statusRingMarkup(cx, x, y, MARKER_R, it.status, color)}
+           <circle cx="${x}" cy="${y}" r="${MARKER_R}" fill="${fill}" stroke="${stroke}" stroke-width="${hollow ? 3 : 2}" />
            <text class="item-number" x="${x}" y="${y}" fill="${textColor}">${it.number}</text>
-         </g>`
-      );
+         </g>`);
     });
   });
 
-  // --- legend, drawn as SVG below the radar, one shared document (§6.2a) ---
-  const legendRingOrder = ["Assess", "Trial", "Adopt", "Retire"];
-  let legendY = RADAR_BLOCK_HEIGHT;
-  svgParts.push(`<text class="legend-heading" x="${LEGEND_LEFT}" y="${legendY}">Legend</text>`);
-  legendY += 24;
+  return { markup: parts.join("\n"), height: RADAR_BLOCK_H };
+}
 
-  quadrants.forEach((q, i) => {
-    const color = SERIES[i % SERIES.length];
-    svgParts.push(`<circle cx="${LEGEND_LEFT + 5}" cy="${legendY - 4}" r="5" fill="${color}" />`);
-    svgParts.push(`<text class="legend-group-title" x="${LEGEND_LEFT + 16}" y="${legendY}">${q}</text>`);
-    legendY += 20;
+// FR-66: the key is part of the shared document, so a PNG carries it. One row per
+// encoding, always rendered — an absent row would be indistinguishable from an
+// unexplained diagram (D-25).
+function buildKey(width) {
+  const sample = "var(--text-secondary)";
+  const rows = [
+    { label: "Default, or no qualifier — solid marker",
+      draw: (x, y) => `<circle cx="${x}" cy="${y}" r="7" fill="${sample}" />` },
+    { label: "Conditional — hollow marker",
+      draw: (x, y) => `<circle cx="${x}" cy="${y}" r="7" fill="var(--surface-1)" stroke="${sample}" stroke-width="2.5" />` },
+    { label: "New this edition — full ring",
+      draw: (x, y) => `<circle cx="${x}" cy="${y}" r="5" fill="${sample}" /><circle cx="${x}" cy="${y}" r="9" fill="none" stroke="${sample}" stroke-width="2" />` },
+    { label: "Moved in — half-ring facing the centre",
+      draw: (x, y) => `<circle cx="${x}" cy="${y}" r="5" fill="${sample}" /><path d="${halfRingPath(x, y, 9, 180)}" fill="none" stroke="${sample}" stroke-width="2" />` },
+    { label: "Moved out — half-ring facing the outer edge",
+      draw: (x, y) => `<circle cx="${x}" cy="${y}" r="5" fill="${sample}" /><path d="${halfRingPath(x, y, 9, 0)}" fill="none" stroke="${sample}" stroke-width="2" />` }
+  ];
+  const parts = [`<line class="key-rule" x1="${MARGIN}" y1="0" x2="${width - MARGIN}" y2="0" />`,
+                 `<text class="key-heading" x="${MARGIN}" y="20">Key</text>`];
+  let y = 40;
+  rows.forEach((row) => {
+    parts.push(row.draw(MARGIN + 10, y));
+    parts.push(`<text class="key-label" x="${MARGIN + 28}" y="${y + 4}">${esc(row.label)}</text>`);
+    y += 22;
+  });
+  return { markup: parts.join("\n"), height: y + 4 };
+}
 
-    legendRingOrder.forEach((ring) => {
-      const ringItems = items.filter((it) => it.quadrant === q && it.ring === ring);
+function buildLegend(items, quadrants, rings, legendW) {
+  const parts = [];
+  let y = 14;
+  parts.push(`<text class="legend-heading" x="0" y="${y}">Legend</text>`);
+  y += 24;
+
+  quadrants.forEach((q, qi) => {
+    const color = SERIES[qi % SERIES.length];
+    parts.push(`<circle cx="5" cy="${y - 4}" r="5" fill="${color}" />`);
+    parts.push(`<text class="legend-group-title" x="16" y="${y}">${esc(q)}</text>`);
+    y += 20;
+
+    // FR-35: rings run in the reverse of the declared centre-to-edge order, so the
+    // legend reads earliest lifecycle stage first.
+    rings.slice().reverse().forEach((ring) => {
+      const ringItems = items.filter((it) =>
+        it.quadrant.trim().toLowerCase() === q.toLowerCase() &&
+        it.ring.trim().toLowerCase() === ring.toLowerCase());
       if (!ringItems.length) return;
-      svgParts.push(`<text class="legend-ring-title" x="${LEGEND_LEFT + 4}" y="${legendY}">${ring}</text>`);
-      legendY += 18;
+      parts.push(`<text class="legend-ring-title" x="4" y="${y}">${esc(ring)}</text>`);
+      y += 18;
 
       ringItems.forEach((it) => {
-        const isHollow = it.adopt === "conditional";
-        const badgeCx = LEGEND_LEFT + 10, badgeR = 10;
-        const nameX = LEGEND_LEFT + 28;
-        const nameMaxWidth = LEGEND_WIDTH - 28;
-        const nameFont = "600 12.5px system-ui, -apple-system, sans-serif";
-        const nameLines = wrapText(it.name, nameMaxWidth, nameFont);
+        const hollow = it.qualifier === "conditional";
+        const nameX = BADGE_R * 2 + 12;
+        const nameLines = wrapText(it.name, legendW - nameX, "600 12.5px system-ui, -apple-system, sans-serif");
         const statusLabel = { new: "New", moved_in: "Moved in", moved_out: "Moved out" }[it.status] || "";
-        const metaParts = [it.ring];
-        if (it.adopt) metaParts.push(it.adopt === "default" ? "Default" : "Conditional");
-        if (statusLabel) metaParts.push(statusLabel);
-        const meta = metaParts.join(" · ");
+        const meta = [ring, it.qualifier ? (it.qualifier === "default" ? "Default" : "Conditional") : null, statusLabel]
+          .filter(Boolean).join(" · ");
 
-        const rowTop = legendY - 14;
-        const nameBlockHeight = Math.max(20, nameLines.length * 15);
-        const rowHeight = nameBlockHeight + 16 + 6; // name lines + meta line + padding
+        const nameBlockH = Math.max(18, nameLines.length * 15);
+        const rowH = nameBlockH + 16 + 4;
 
-        svgParts.push(`<g class="legend-row-g" data-number="${it.number}" tabindex="0" role="button" aria-label="${it.number}. ${it.name}, ${meta}">`);
-        svgParts.push(`<rect class="legend-row-bg" x="${LEGEND_LEFT - 4}" y="${rowTop}" width="${LEGEND_WIDTH + 8}" height="${rowHeight}" rx="6" />`);
-
-        const numFill = isHollow ? "var(--surface-1)" : color;
-        const numStroke = color;
-        const numStrokeW = isHollow ? 3 : 2;
-        const numTextColor = isHollow ? "var(--text-primary)" : "#fff";
-        svgParts.push(`<circle cx="${badgeCx}" cy="${legendY}" r="${badgeR}" fill="${numFill}" stroke="${numStroke}" stroke-width="${numStrokeW}" />`);
-        svgParts.push(`<text class="legend-num-text" x="${badgeCx}" y="${legendY}" fill="${numTextColor}">${it.number}</text>`);
-
-        let lineY = legendY - (nameBlockHeight / 2) + 9;
-        const tspans = nameLines
-          .map((line, li) => `<tspan x="${nameX}" y="${lineY + li * 15}">${line}</tspan>`)
-          .join("");
-        svgParts.push(`<text class="legend-name">${tspans}</text>`);
-        svgParts.push(`<text class="legend-meta" x="${nameX}" y="${legendY - (nameBlockHeight / 2) + nameBlockHeight + 12}">${meta}</text>`);
-        svgParts.push(`</g>`);
-
-        legendY += rowHeight;
+        parts.push(`<g class="legend-row-g" data-number="${it.number}" tabindex="0" role="button" aria-label="${esc(it.number + ". " + it.name + ", " + meta)}">`);
+        parts.push(`<rect class="legend-row-bg" x="-4" y="${y - 13}" width="${legendW + 8}" height="${rowH}" rx="6" />`);
+        parts.push(`<circle cx="${BADGE_R + 2}" cy="${y}" r="${BADGE_R}" fill="${hollow ? "var(--surface-1)" : color}" stroke="${color}" stroke-width="${hollow ? 2 : 1.5}" />`);
+        parts.push(`<text class="legend-num-text" x="${BADGE_R + 2}" y="${y}" fill="${hollow ? "var(--text-primary)" : "#fff"}">${it.number}</text>`);
+        const top = y - nameBlockH / 2 + 9;
+        parts.push(`<text class="legend-name">${nameLines.map((l, i) => `<tspan x="${nameX}" y="${top + i * 15}">${esc(l)}</tspan>`).join("")}</text>`);
+        parts.push(`<text class="legend-meta" x="${nameX}" y="${top + nameBlockH + 3}">${esc(meta)}</text>`);
+        parts.push(`</g>`);
+        y += rowH;
       });
     });
-    legendY += 10; // gap between quadrant groups
+    y += 10;
   });
 
-  svg.setAttribute("viewBox", `0 0 ${SVG_WIDTH} ${legendY + 16}`);
-  svg.innerHTML = svgParts.join("\n");
+  return { markup: parts.join("\n"), height: y };
+}
 
-  // table view (accessibility fallback — unaffected by the SVG-legend change)
-  tableBody.innerHTML = items
-    .map(
-      (it) => `<tr>
-        <td>${it.number}</td><td>${it.name}</td><td>${it.quadrant}</td><td>${it.ring}${it.adopt ? " (" + it.adopt + ")" : ""}</td>
-        <td>${it.domain}</td><td>${it.lastAffirmed}</td><td>${it.exit || "—"}</td>
-      </tr>`
-    )
-    .join("");
+// --- document assembly ------------------------------------------------
+// The same blocks, positioned two ways. Only the translates and the viewBox
+// differ; nothing about what is drawn changes between arrangements, which is
+// what keeps the wide document and the PNG honest against the stacked one.
+function buildDocument(prep, rings, title, subtitle, arrangement) {
+  measureCtx.font = "600 12px system-ui, -apple-system, sans-serif";
+  const maxLabelHalf = prep.quadrants.reduce(
+    (m, q) => Math.max(m, (measureCtx.measureText(q.toUpperCase()).width * 1.2) / 2), 0);
+  const radarW = Math.max(MIN_RADAR_W, Math.round(2 * (QLABEL_R + maxLabelHalf + 10)));
 
-  // --- interactivity: click/keyboard to open detail, hover to cross-highlight ---
-  let activeNumber = null;
+  const wide = arrangement === "wide";
+  const totalW = wide ? radarW + COLUMN_GAP + LEGEND_W_WIDE + MARGIN : NARROW_DOC_W;
+  const radarScale = wide ? 1 : NARROW_DOC_W / radarW;
+  const legendW = wide ? LEGEND_W_WIDE : NARROW_DOC_W - 2 * MARGIN;
 
+  const titleBlock = buildTitle(title, subtitle);
+  const radar = buildRadar(radarW, prep.quadrants, rings, prep.items, prep);
+  const key = buildKey(totalW);
+  const legend = buildLegend(prep.items, prep.quadrants, rings, legendW);
+
+  const top = titleBlock.height;
+  const keyY = top + radar.height * radarScale;
+  const legendX = wide ? radarW + COLUMN_GAP : MARGIN;
+  const legendY = wide ? top + 14 : keyY + key.height + 8;
+  const totalH = wide
+    ? Math.max(keyY + key.height, legendY + legend.height) + MARGIN
+    : legendY + legend.height + MARGIN;
+
+  const markup = [
+    titleBlock.markup,
+    `<g${wide ? "" : ' class="radar-narrow"'} transform="translate(0, ${top}) scale(${radarScale})">${radar.markup}</g>`,
+    `<g transform="translate(0, ${keyY})">${key.markup}</g>`,
+    `<g transform="translate(${legendX}, ${legendY})">${legend.markup}</g>`
+  ].join("\n");
+
+  return { markup, width: totalW, height: totalH };
+}
+
+// --- render -----------------------------------------------------------
+let showTitle = true;
+
+function render() {
+  const data = DATASETS[document.getElementById("dataset").value];
+  const rings = RING_SETS[document.getElementById("ringset").value];
+  const prep = prepare(data, rings);
+
+  const title = showTitle ? "Technology Radar" : null;
+  const subtitle = showTitle ? "Edition 2026-09-01 · Tool / Platform / Practice" : null;
+
+  [[svgWide, "wide"], [svgStacked, "stacked"]].forEach(([el, arrangement]) => {
+    const doc = buildDocument(prep, rings, title, subtitle, arrangement);
+    el.setAttribute("viewBox", `0 0 ${doc.width} ${doc.height}`);
+    el.innerHTML = doc.markup;
+  });
+
+  // Table view (FR-41): the non-visual fallback, and the only place unplotted rows
+  // appear at all — visibly flagged rather than silently interleaved (FR-18).
+  tableBody.innerHTML = [
+    ...prep.items.map((it) => `<tr>
+        <td>${it.number}</td><td>${esc(it.name)}</td><td>${esc(it.quadrant)}</td>
+        <td>${esc(it.ring)}${it.qualifier ? " (" + esc(it.qualifier) + ")" : ""}</td>
+        <td>${esc(it.domain)}</td><td>${esc(it.lastAffirmed)}</td><td>${esc(it.exit || "—")}</td>
+      </tr>`),
+    ...prep.unplotted.map((it) => `<tr class="unplotted">
+        <td>—</td><td>${esc(it.name)}</td><td>${esc(it.quadrant)}</td>
+        <td>${esc(it.ring)} <span class="flag">not plotted</span></td>
+        <td>${esc(it.domain)}</td><td>${esc(it.lastAffirmed)}</td><td>${esc(it.exit || "—")}</td>
+      </tr>`)
+  ].join("");
+
+  // Stands in for the warnings the real tool writes to stderr (FR-17, NFR-8): the
+  // render succeeds, the row is kept, and the author is told which value had no band.
+  if (prep.unplotted.length) {
+    const names = [...new Set(prep.unplotted.map((it) => it.ring))].map((r) => `"${r}"`).join(", ");
+    warnNote.textContent =
+      `${prep.unplotted.length} row(s) carry a ring outside the declared set (${names}). ` +
+      `They are omitted from the graphic and the numbering, and appear in the table view only. ` +
+      `Not an error — the render succeeds.`;
+    warnNote.hidden = false;
+  } else {
+    warnNote.hidden = true;
+  }
+
+  bindInteractions(prep.items);
+}
+
+// --- interactivity ----------------------------------------------------
+// Both documents are wired, though only one is ever displayed. Selecting across
+// `document` rather than one <svg> keeps hover and active state consistent if the
+// viewport crosses the breakpoint while an item is open.
+let activeNumber = null;
+
+function bindInteractions(items) {
   function setActiveClasses() {
     document.querySelectorAll(".marker, .legend-row-g").forEach((el) => {
       el.classList.toggle("active", el.dataset.number === String(activeNumber));
@@ -546,15 +717,18 @@ function render(datasetKey) {
     if (!it) return;
     activeNumber = Number(number);
     const statusLabel = { new: "New", moved_in: "Moved in", moved_out: "Moved out" }[it.status] || "No change";
+    const qualifier = it.qualifier ? " — " + (it.qualifier === "default" ? "Default" : "Conditional") : "";
+    // FR-29: an absent optional field is omitted, never rendered as an empty label.
+    const optional = (label, value) => (value ? `<dt>${label}</dt><dd>${esc(value)}</dd>` : "");
     detailBody.innerHTML = `
-      <dt>${it.number}. ${it.name}</dt>
-      <dd>${it.quadrant} · ${it.ring}${it.adopt ? " — " + (it.adopt === "default" ? "Default" : "Conditional") : ""}</dd>
+      <dt>${it.number}. ${esc(it.name)}</dt>
+      <dd>${esc(it.quadrant)} · ${esc(it.ring)}${esc(qualifier)}</dd>
       <dt>Status</dt><dd>${statusLabel}</dd>
-      <dt>Description</dt><dd>${it.description}</dd>
-      <dt>Domain</dt><dd>${it.domain}</dd>
-      <dt>Rationale</dt><dd>${it.rationale}</dd>
-      <dt>Last affirmed</dt><dd>${it.lastAffirmed}</dd>
-      ${it.exit ? `<dt>Exit commitment</dt><dd>${it.exit}</dd>` : ""}
+      ${optional("Description", it.description)}
+      ${optional("Domain", it.domain)}
+      ${optional("Rationale", it.rationale)}
+      ${optional("Last affirmed", it.lastAffirmed)}
+      ${optional("Exit commitment", it.exit)}
     `;
     detailCard.classList.add("visible");
     detailPlaceholder.style.display = "none";
@@ -568,51 +742,52 @@ function render(datasetKey) {
     setActiveClasses();
   }
 
-  function toggleDetail(number) {
-    number = Number(number);
-    if (activeNumber === number) closeDetail();
-    else openDetail(number);
-  }
-
   function setHover(number, on) {
     document.querySelectorAll(`[data-number="${number}"]`).forEach((el) => el.classList.toggle("hovered", on));
   }
 
-  svg.querySelectorAll(".marker, .legend-row-g").forEach((el) => {
-    el.addEventListener("click", () => toggleDetail(el.dataset.number));
+  document.querySelectorAll(".marker, .legend-row-g").forEach((el) => {
+    const n = el.dataset.number;
+    el.addEventListener("click", () => (activeNumber === Number(n) ? closeDetail() : openDetail(n)));
     el.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        toggleDetail(el.dataset.number);
+        activeNumber === Number(n) ? closeDetail() : openDetail(n);
       }
     });
-    el.addEventListener("pointerenter", () => setHover(el.dataset.number, true));
-    el.addEventListener("pointerleave", () => setHover(el.dataset.number, false));
-    el.addEventListener("focus", () => setHover(el.dataset.number, true));
-    el.addEventListener("blur", () => setHover(el.dataset.number, false));
+    el.addEventListener("pointerenter", () => setHover(n, true));
+    el.addEventListener("pointerleave", () => setHover(n, false));
+    el.addEventListener("focus", () => setHover(n, true));
+    el.addEventListener("blur", () => setHover(n, false));
   });
 
-  detailCard.classList.remove("visible");
-  detailPlaceholder.style.display = "";
   document.getElementById("detail-close").onclick = closeDetail;
+  closeDetail();
 }
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
+    activeNumber = null;
     detailCard.classList.remove("visible");
     detailPlaceholder.style.display = "";
     document.querySelectorAll(".marker.active, .legend-row-g.active").forEach((el) => el.classList.remove("active"));
   }
 });
 
-document.getElementById("dataset").addEventListener("change", (e) => render(e.target.value));
+document.getElementById("dataset").addEventListener("change", render);
+document.getElementById("ringset").addEventListener("change", render);
+document.getElementById("toggle-title").addEventListener("click", (e) => {
+  showTitle = !showTitle;
+  e.target.textContent = showTitle ? "Hide title block" : "Show title block";
+  render();
+});
 document.getElementById("toggle-table").addEventListener("click", (e) => {
   const table = document.getElementById("data-table");
   table.classList.toggle("visible");
   e.target.textContent = table.classList.contains("visible") ? "Hide table" : "Show as table";
 });
 
-render("three");
+render();
 
 const themeBtn = document.getElementById("toggle-theme");
 let currentTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
