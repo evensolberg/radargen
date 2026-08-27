@@ -7,7 +7,7 @@ tags:
 Document Type: specification
 Synopsis: PRD for a lightweight CSV-to-HTML/PNG/SVG technology radar renderer with an arbitrary number of quadrants and a configurable ring set, to replace the stock ThoughtWorks BYOR clone as the rendering step for an in-house technology radar.
 Status: draft
-Version: 0.3
+Version: 0.4
 Author:
   - Solberg, Even
 Company:
@@ -23,6 +23,7 @@ date modified: 2026-08-26
 > **§§3–7 are normative.** Every requirement carries an ID (`FR-n`, `NFR-n`) and is written to be directly testable. Requirement text states *what* the tool does, not why.
 > **§9 is the decision log.** It holds the reasoning — including options considered and rejected — so settled arguments don't get re-litigated. Decisions carry `D-n` IDs and are referenced from the requirements they explain.
 > If §6/§7 and §9 ever disagree, **the requirement wins** and the decision log needs updating.
+> **IDs are permanent labels, not positions.** A requirement added in a later revision takes the next free number and sits with the requirements it belongs beside, so IDs within a table are not always ascending. Renumbering would invalidate every cross-reference in §9 and §12 for no gain.
 
 ## 1) Summary
 
@@ -52,6 +53,7 @@ A prior, more ambitious attempt (a Rust CLI + TOML catalogue, designed 2026-08-0
 - **G-6** Output a **single self-contained HTML file** — no server, no build step to view it, safe to commit to the published-editions folder or email to a client.
 - **G-7** Output a **PNG and an SVG** of the same radar + legend for slides, PDFs, print, and vector-editing tools — one shared visual, not two or three things to keep in sync.
 - **G-8** Ship as a single compiled binary (Rust), consistent with the existing cargo-based toolbelt.
+- **G-9** Make the shareable graphic **self-explanatory on its own**: it carries the edition's identity and a key to its own visual encodings, so a PNG pasted into a slide is not an unlabelled diagram of numbered dots. The HTML output can lean on a tooltip and a detail panel to explain itself; a static image has neither.
 
 ## 4) Non-Goals
 
@@ -87,6 +89,7 @@ A prior, more ambitious attempt (a Rust CLI + TOML catalogue, designed 2026-08-0
 | **FR-2** | A leading UTF-8 byte-order mark is stripped before parsing. *(Excel emits one by default; without this the first header reads as `﻿name` and FR-5 fails on a file that looks correct — see D-11.)* |
 | **FR-3** | The first row is a header row. Header names are matched **case-insensitively after trimming leading/trailing whitespace**, the same normalisation applied to values (FR-8). |
 | **FR-4** | A duplicate header name, or a row whose field count doesn't match the header, is a hard error (NFR-8) naming the 1-based line number. |
+| **FR-61** | An input path that does not exist, cannot be read, or does not decode as UTF-8 is a hard error. The decoding error names the 1-based line number where decoding failed and says what to do about it — re-save as UTF-8 — because the likely cause is an Excel export in a legacy code page, and "invalid utf-8 sequence" alone doesn't tell an author that (D-27). No transcoding is attempted and no encoding flag is offered. |
 
 #### 6.1.2 Required columns
 
@@ -108,7 +111,7 @@ A prior, more ambitious attempt (a Rust CLI + TOML catalogue, designed 2026-08-0
 | ID | Requirement |
 | --- | --- |
 | **FR-8** | `quadrant` is free text. Whatever distinct set of values appears in the CSV becomes that render's quadrant set — no fixed vocabulary, no config file. |
-| **FR-9** | Values are grouped **case-insensitively after trimming leading/trailing whitespace**, so `Tool`, `tool`, and `Tool ` are one quadrant, not three. The displayed label takes its casing from the first row the value appears in (in CSV order). |
+| **FR-9** | Values are grouped **case-insensitively after trimming leading/trailing whitespace**, so `Tool`, `tool`, and `Tool ` are one quadrant, not three. Where the variants differ in casing, the displayed label is the **ordinally first** of them — a stable choice that does not depend on CSV row order (D-29). |
 | **FR-10** | Quadrants render in **case-insensitive, locale-independent alphabetical order** (D-7). There is no override flag. |
 | **FR-11** | Near-duplicate names that differ by more than case or boundary whitespace — `Tool` vs `Tools` — are **not** normalised, merged, or flagged (D-8). |
 
@@ -122,6 +125,7 @@ Unlike `quadrant`, `ring` carries a meaningful order — a lifecycle progression
 | **FR-13** | Omitting `--rings` yields the default `Retire,Adopt,Trial,Assess` — the in-house lifecycle described in §1 — so a radar already using it renders with zero configuration. |
 | **FR-14** | Ring count is N, matching whatever `--rings` declares, using the same equal-width-band geometry as any other count. `--rings "Adopt,Trial,Assess,Hold"` gives the ThoughtWorks convention. |
 | **FR-15** | Each comma-separated entry is trimmed of **leading/trailing** whitespace only, so `"Adopt, Trial, Assess, Hold"` and `"Adopt,Trial,Assess,Hold"` parse identically, while a multi-word ring name keeps its internal spaces. |
+| **FR-63** | The declared list must yield **at least one** ring, with **no empty entry** (`"Adopt,,Trial"`) and **no duplicate** after the same trim-and-fold used for matching (`"Adopt,adopt"`). Each violation is a hard error naming the offending entry. A duplicate would make FR-16's match ambiguous and FR-32's band order undefined; an empty entry would draw a nameless band. Neither can be resolved by guessing what the author meant. |
 | **FR-16** | A row's `ring` is matched against the declared list case-insensitively, both sides trimmed. |
 | **FR-17** | A `ring` value outside the declared set is **not an error**. The row is omitted from the polar plot (there is no band for it), included in the table view flagged as unplotted, and a warning is emitted. Exit code stays 0 (D-5). |
 | **FR-18** | Unplotted rows are **not numbered and get no legend entry**. Item numbers remain contiguous across plotted items only. |
@@ -177,24 +181,29 @@ The last row (`ring = Rejected`) exercises FR-17/FR-18: not a declared ring, so 
 | **FR-36** | Hovering a marker shows its number and name as a native tooltip (an SVG `<title>`). A number on a dot is not identifiable without it. |
 | **FR-37** | Hovering a marker highlights its legend row, and vice versa — **on hover, not only on click**. Scanning a long legend to match a numbered dot is real friction at the item counts a mature radar accumulates. |
 | **FR-38** | Clicking a marker or legend row opens a detail panel showing `description` plus whatever optional-column data is present. Clicking the same target again, pressing Escape, or using an explicit close control closes the panel **and** clears the legend highlight. There is no state where a panel is open but nothing indicates why, and no state the user cannot return to nothing-selected from. |
-| **FR-39** | **Quadrant identity never depends on colour alone.** Angular position and the sector-edge label always disambiguate an item's quadrant, independent of whether that quadrant's colour is distinguishable at a glance. Necessary once quadrant count exceeds the 3–4 colours that read reliably on their own. |
+| **FR-67** | Each quadrant takes the palette entry at its **index in the sorted quadrant order** (FR-10), cycling from the start when quadrants outnumber palette entries. Colour is therefore a function of the quadrant names alone, which is what makes it reproducible across runs and machines (NFR-4). Repeated colours at high quadrant counts are tolerable only because of FR-39. |
+| **FR-39** | **Quadrant identity never depends on colour alone.** Angular position and the sector-edge label always disambiguate an item's quadrant, independent of whether that quadrant's colour is distinguishable at a glance. Necessary once quadrant count exceeds the 3–4 colours that read reliably on their own — and once FR-67 starts reusing them. |
 | **FR-40** | `status` is drawn on the marker itself, following the original ThoughtWorks convention rather than an icon or colour badge: **New** — a full ring around the marker; **Moved In** — a half-ring on the side facing the radar's centre; **Moved Out** — a half-ring on the side facing the outer edge; **No Change** or absent — the plain marker. |
 | **FR-41** | A plain HTML table of every item is available as a toggle — the non-visual fallback, the only way to see unplotted rows (FR-17), and the easiest way to eyeball the whole dataset at once. Unplotted rows are visibly flagged, not silently interleaved. |
 | **FR-42** | A CSV with **zero data rows** (headers only) renders a valid empty state — ring circles, no quadrant dividers or labels — not a divide-by-zero or a crash. Since `quadrant` is required on every row that exists (FR-6), this is the only input shape where quadrant count reaches zero. |
 | **FR-43** | Quadrant counts of **1 and 2** render correctly: N=1 draws a single divider at 12 o'clock with one full-circle sector; N=2 draws two dividers. Neither is a special case in the geometry. |
 
-### 6.3 Radar and legend as one SVG document
+### 6.3 Radar, legend, and key as one SVG document
 
 | ID | Requirement |
 | --- | --- |
-| **FR-44** | The radar **and** the legend are authored as a **single self-contained SVG document**, not an SVG radar beside an HTML legend. This is what makes PNG export cheap instead of requiring a full HTML/CSS rendering engine (D-14). |
+| **FR-44** | The radar, the legend, **and** the key (FR-66) are authored as a **single self-contained SVG document**, not an SVG radar beside an HTML legend. This is what makes PNG export cheap instead of requiring a full HTML/CSS rendering engine (D-14). |
+| **FR-65** | `--title <text>` and `--subtitle <text>` render into the shared document above the radar, so every output format carries the edition's identity (G-9). Both are optional and independent: an omitted flag renders **nothing at all** — no placeholder, no reserved blank space, and the block below moves up. Neither value is derived from the output filename, the CSV, or the clock (D-24). |
+| **FR-66** | The shared document includes a **key** to the marker encodings the reader cannot otherwise decode: hollow versus solid (`qualifier`, FR-20) and the three `status` treatments (FR-40). The key names each encoding in words beside a sample marker drawn the same way the radar draws it. It is rendered **whenever the radar is** — a fixed block, not one that varies with which encodings this dataset happens to use (D-25). Quadrant colours are not part of the key; the legend already groups by quadrant with a colour swatch, and FR-39 means colour is never load-bearing anyway. |
 | **FR-45** | The HTML output embeds this document; SVG export writes it out directly; PNG export rasterises it. **One visual, three output modes** — not three separately-maintained renderings. |
 | **FR-46** | Long item names are **wrapped, not truncated** — the generator measures text and line-breaks into multiple `<tspan>`s itself. Full names matter more on a shareable static graphic than they would on an interactive page where a tooltip could cover for a truncated label. |
 | **FR-47** | `<foreignObject>` must **not** be used. See D-15. |
 
-**Scope boundary — what is inside the shared SVG:** the radar circle, its markers, and the legend (the "shareable graphic" a PNG must reproduce). The detail panel and table-view toggle are auxiliary HTML/CSS/JS chrome around that graphic, present in the HTML output only — a static image has no interactive drill-down to reproduce.
+**Scope boundary — what is inside the shared SVG:** the title block (FR-65), the radar circle, its markers, the legend, and the key (FR-66) — the "shareable graphic" a PNG must reproduce. The detail panel and table-view toggle are auxiliary HTML/CSS/JS chrome around that graphic, present in the HTML output only — a static image has no interactive drill-down to reproduce.
 
-**Consequence, accepted:** the legend has **no independent inner scroll**; the page scrolls as a whole. SVG has no equivalent of `overflow-y: auto` for arbitrary content. Nobody has asked for independent-panel scroll as a requirement — it was an artefact of prototyping in HTML, not a stated need.
+**Consequence, accepted — per-item prose is HTML-only:** the per-item prose — `description`, `domain`, `rationale`, `last_affirmed`, `exit_date` — reaches the reader **only through the HTML output's detail panel and table view**. PNG and SVG carry the graphic, not the write-ups. This is deliberate rather than an oversight (D-26): rendering every item's prose into the shared document would make a forty-item edition's PNG mostly text, and would load the riskiest part of the build (text measurement, R-1) with the work least worth its cost. The formats divide by job — the image is for *showing* the estate's shape, the HTML for *consulting* it (UC-2 versus UC-3). SC-7 is scoped to match.
+
+**Consequence, accepted — no inner scroll:** the legend has **no independent inner scroll**; the page scrolls as a whole. SVG has no equivalent of `overflow-y: auto` for arbitrary content. Nobody has asked for independent-panel scroll as a requirement — it was an artefact of prototyping in HTML, not a stated need.
 
 ### 6.4 Accessibility and responsiveness
 
@@ -210,12 +219,14 @@ The last row (`ring = Rejected`) exercises FR-17/FR-18: not a declared ring, so 
 
 | ID | Requirement |
 | --- | --- |
-| **FR-52** | Output format is inferred from the `-o` file extension — `.html`, `.png`, `.svg` — not a separate flag. An unrecognised extension is a hard error. |
+| **FR-52** | Output format is inferred from the `-o` file extension — `.html`, `.png`, `.svg` — not a separate flag. Matched case-insensitively, so `.PNG` works. An unrecognised or absent extension is a hard error. |
+| **FR-62** | `-o` **overwrites an existing file without prompting** — editions are re-rendered constantly during authoring, and a confirmation prompt would break the non-interactive use the tool is built for. It does **not** create missing parent directories: a mistyped path should fail loudly rather than silently produce a tree nobody meant to make. A missing parent directory is a hard error naming the path. |
 | **FR-53** | **HTML**: the shared SVG embedded in a self-contained file with the full interactive layer (§6.2, §6.4) as inline JS/CSS. |
 | **FR-54** | **SVG**: the shared document (FR-44) written directly, no rasterisation. Vector output stays crisp at any zoom or print size and opens in PowerPoint, Figma, and Illustrator for touch-up without the original CSV. |
 | **FR-55** | **PNG**: the shared document rasterised via a pure-Rust renderer — [`resvg`](https://github.com/RazrFalcon/resvg) is the library-first choice, avoiding a headless-browser dependency entirely. |
 | **FR-56** | `--theme light\|dark`, default `light`. **Applies to PNG and SVG only** — both are fixed snapshots with no viewer-side choice, so the tool must resolve colours at generation time. Light is the default as the safer assumption for slide decks and PDFs. **Ignored, not an error, on HTML output**, which carries both palettes and lets the viewer choose via `prefers-color-scheme` plus an in-page toggle. |
 | **FR-57** | `--width <pixels>`, default the shared SVG's native width. Height is **always** computed from the SVG's own aspect ratio and is never a second flag — the radar+legend document is not fixed 1:1 (legend height varies with item count and wrapping), so an independent `--height` could silently distort it. Applies to SVG too, where it sets the embedded intrinsic size. **Ignored, not an error, on HTML output.** |
+| **FR-64** | `--width` accepts **320–10000** inclusive; anything outside is a hard error, enforced by clap's ranged value parser so the message is standard usage output. The floor is where the radar stops being legible at all; the ceiling stops a fat-fingered digit turning into a multi-gigabyte rasterisation. Neither bound is a considered aesthetic judgement — they exist so the failure is a usage error rather than an unreadable file or an out-of-memory kill. |
 | **FR-58** | **Printing the HTML output directly is not a supported path.** The interactive HTML carries toolbar chrome, a detail panel, and a table toggle that are not meant for paper, and no print stylesheet is specified. PNG or SVG export is the answer for print, slides, and PDFs — that is what they exist for (G-7). |
 
 **Explicitly excluded from this version:** JPEG output (D-17), batch/glob multi-radar rendering (D-18), and auto-computed `status` by diffing editions (D-9). The `status` *column* itself is in scope (FR-26); only its automatic computation is deferred.
@@ -224,37 +235,44 @@ The last row (`ring = Rejected`) exercises FR-17/FR-18: not a declared ring, so 
 
 *The name `radar` below is a placeholder — see OQ-1. Exact flag spelling (`--width` vs `-w`) is settled at implementation planning; what is fixed here is the set of options and their behaviour.*
 
-| Flag | Applies to | Default | Meaning |
+**No subcommand.** The tool does one thing — one CSV in, one file out — so the input is a positional argument and there is no verb to name (D-28). `--help` and `--version` come from clap and are not enumerated below.
+
+| Argument / flag | Applies to | Default | Meaning |
 | --- | --- | --- | --- |
-| `-o, --output <path>` | all | *(required)* | Output path; format inferred from the extension (FR-52). |
+| `<csv-path>` | all | *(required)* | Positional. Path to the input CSV (§6.1). Exactly one; there is no glob or multi-file form (FR-60, D-18). Read errors are fatal (FR-61). |
+| `-o, --output <path>` | all | *(required)* | Output path; format inferred from the extension (FR-52). Overwrites; does not create parent directories (FR-62). |
+| `--title <text>` | all | *(none)* | Rendered above the radar in the shared document. Omitted renders nothing (FR-65). |
+| `--subtitle <text>` | all | *(none)* | Second line of the title block — the edition date in practice, though the tool attaches no meaning to it and never supplies one (FR-65, D-24). |
 | `--rings "<N1>,<N2>,…"` | all | `Retire,Adopt,Trial,Assess` | Centre-to-edge ordered ring list (FR-12–FR-15). |
 | `--theme <light\|dark>` | PNG, SVG | `light` | Resolves the static snapshot's colours at generation time (FR-56). |
-| `--width <pixels>` | PNG, SVG | SVG's native width | Sets output width; height auto-computed (FR-57). |
+| `--width <pixels>` | PNG, SVG | SVG's native width | Sets output width; height auto-computed (FR-57). Range 320–10000 (FR-64). |
 | `--palette <file.css>` | all | built-in palette | **Provisional — see OQ-6.** Overrides the colour roles (`--series-1..5`, `--surface-1`, `--text-primary`, …). Format: CSS custom-property declarations, the representation the HTML output already uses internally. **Exactly one set of colours, not a light/dark pair.** **Mutually exclusive with `--theme` — supplying both is a CLI error** (FR-59), since a single-variant palette leaves nothing to choose between. On HTML output, `--palette` means the theme toggle and `prefers-color-scheme` handling are absent from that build. Palette correctness — contrast, colour-vision-deficiency safety — is the **user's responsibility**; the tool does not validate it. A sample file ships as a starting point. |
 
 | ID | Requirement |
 | --- | --- |
+| **FR-60** | The input CSV is a **required positional argument**, and exactly one is accepted. There is no subcommand (D-28), no stdin form, and no way to pass several files. Invoked with no arguments, the tool prints usage and exits non-zero. |
 | **FR-59** | `--theme` and `--palette` are mutually exclusive, enforced via clap's `conflicts_with`/`ArgGroup` so the error message is standard usage output, not hand-rolled validation. |
 
 **Three outcomes, not a matrix of interacting flags:** neither flag → built-in light theme; `--theme dark` → built-in dark theme; `--palette <file>` → exactly what the file contains.
 
 ```sh
 # Today's default radar (the built-in in-house ring set), rendered to HTML
-radar render entries.csv -o 2026-09-01.html
+radar entries.csv -o 2026-09-01.html
 
-# A PNG sized for a slide deck, dark theme
-radar render entries.csv -o 2026-09-01.png --theme dark --width 1920
+# A PNG sized for a slide deck, dark theme, labelled so it stands alone (FR-65)
+radar entries.csv -o 2026-09-01.png --theme dark --width 1920 \
+  --title "Technology Radar" --subtitle "Edition 2026-09-01"
 
 # The same edition as an editable vector file, for touch-up in Figma/Illustrator
-radar render entries.csv -o 2026-09-01.svg --theme dark
+radar entries.csv -o 2026-09-01.svg --theme dark
 
 # A different organisation's ring set (the ThoughtWorks convention), same tool.
 # Spaces after the commas are fine — each entry is trimmed (FR-15)
-radar render entries.csv -o edition.html --rings "Adopt, Trial, Assess, Hold"
+radar entries.csv -o edition.html --rings "Adopt, Trial, Assess, Hold"
 
 # A corporate colour scheme instead of the built-in palette (OQ-6).
 # --theme is omitted deliberately: combining the two is a CLI error (FR-59)
-radar render entries.csv -o edition.html --palette corporate-palette.css
+radar entries.csv -o edition.html --palette corporate-palette.css
 ```
 
 ## 7) Non-Functional Requirements
@@ -269,8 +287,10 @@ radar render entries.csv -o edition.html --palette corporate-palette.css
 | **NFR-6** | **All CSV-derived text is escaped for its output context.** Values are emitted as text nodes or attribute values, never as markup, script, or CSS. A `description` containing `<script>`, `&`, `"`, or `]]>` renders as literal characters. This is a security requirement, not a cosmetic one: output is emailed to clients and opened from disk, and the CSV is authored upstream of this tool. |
 | **NFR-7** | **Fonts are pinned, not inherited.** The shared SVG declares an explicit font stack rather than `system-ui`, and PNG rasterisation loads a known font, so the same input renders identically regardless of what is installed on the rendering machine. Required for NFR-4 to hold for PNG. |
 | **NFR-8** | **Exit codes.** `0` — render succeeded, with or without warnings. Non-zero — nothing was written. Warnings go to stderr; the rendered file goes to `-o`, never to stdout. |
-| **NFR-9** | **Hard errors** (non-zero exit, no output): missing required column (FR-5), empty `name`/`quadrant`/`ring` (FR-6), malformed row or duplicate header (FR-4), unrecognised `-o` extension (FR-52), conflicting flags (FR-59). **Warnings** (exit 0, output written): unrecognised `ring` (FR-17), blank or unrecognised `qualifier` (FR-20), empty `description` (FR-7), unparsable date (FR-24), unrecognised `status` (FR-26), duplicate `name` (FR-28). |
-| **NFR-10** | Every warning and error names the **1-based CSV line number** and the column it concerns. |
+| **NFR-9** | **Hard errors** (non-zero exit, no output): unreadable or non-UTF-8 input (FR-61), missing required column (FR-5), empty `name`/`quadrant`/`ring` (FR-6), malformed row or duplicate header (FR-4), unrecognised or absent `-o` extension (FR-52), missing output parent directory (FR-62), an empty/duplicated `--rings` entry (FR-63), `--width` out of range (FR-64), conflicting flags (FR-59). **Warnings** (exit 0, output written): unrecognised `ring` (FR-17), blank or unrecognised `qualifier` (FR-20), empty `description` (FR-7), unparsable date (FR-24), unrecognised `status` (FR-26), duplicate `name` (FR-28). The dividing line is consistent: **structure is fatal, content is not** — the tool refuses what it cannot parse or place, and tolerates what it can render but doubts (D-5, D-12, D-27). |
+| **NFR-10** | Every warning and error concerning a row names the **1-based CSV line number** and the column it concerns. Errors raised before or independently of row parsing — flag validation, output-path problems — name the argument or path instead. |
+| **NFR-11** | Warnings are emitted in **ascending CSV line order**, and within a line in column order as declared by the header. Diagnostics are part of the tool's observable output: golden-file tests (SC-8, SC-10) cannot assert against a set that arrives in hash-map order. |
+| **NFR-12** | Releases follow [semver](https://semver.org). **Any change that alters rendered output for unchanged input is at least a minor bump**, so a re-rendered edition that diffs can be explained by a version rather than investigated. No version string is embedded in the output itself — that would defeat NFR-4's diffability exactly as a timestamp would (D-19). |
 
 ## 8) Relationship to existing tools
 
@@ -319,8 +339,25 @@ Left unresolved because the decision didn't turn on them: whether it visually di
 | **D-21** | **CSV richness is surfaced, not just passed through** (FR-22–FR-26). | The concrete, demonstrable improvement over BYOR: showing domain/rationale/last-affirmed/exit data that BYOR silently drops. |
 | **D-22** | **PNG and SVG export are both in scope, not deferred** (FR-54, FR-55). | PNG via `resvg` rasterising the shared document. SVG is nearly free given PNG already requires that document to exist in valid standalone form — this *is* that document, unrasterised — and independently useful for vector editing and print. |
 | **D-23** | **Output escaping is a stated requirement** (NFR-6). | *Added on this review.* Previously unstated in any form. The stated delivery path is "email an HTML file to a client," and the CSV is authored upstream — that combination makes unescaped interpolation a real injection vector, not a theoretical one. Cheap to get right from the first line of the generator; expensive to retrofit across three output paths. |
+| **D-24** | **Edition identity comes from `--title`/`--subtitle`, not from the filename or the clock** (FR-65). | *Added on this review.* UC-1 publishes dated editions and UC-3 pastes the PNG into a slide deck — where the filename does not travel with the image, leaving an unlabelled diagram of numbered dots. Deriving a subtitle from the `-o` basename was considered and rejected: it makes the *content* of the output depend on *where* it is written, so rendering to a temp path and moving the file would change the graphic. Injecting today's date was rejected outright — it breaks NFR-4 for the same reason D-19 rejects a timestamp. Explicit flags leave the caller in charge and the output a pure function of its inputs. |
+| **D-25** | **The encoding key lives in the shared SVG, not the HTML chrome** (FR-66). | *Added on this review.* FR-20 and FR-40 define encodings — hollow for conditional, rings for movement — that nothing then explains. In HTML the detail panel covers for that; in a PNG the reader has no way to learn what a half-ring means, which undercuts G-7's whole claim that the image is shareable. Rendering the key only when the dataset uses an encoding was considered and rejected: it makes the graphic's height vary in one more dataset-dependent way, and an absent key row is itself information ("no conditional adoptions this edition") that a reader cannot distinguish from an unexplained diagram. |
+| **D-26** | **Per-item prose is an HTML-only affordance; SC-7 is scoped to the shared graphic** (§6.3). | *Resolved on this review.* SC-7 as written required "no information present in one format but silently missing from another," which the §6.3 scope boundary directly contradicted — the detail panel is HTML-only, so PNG and SVG never carried `description`, `rationale`, or the dates. Rendering that prose into the shared document was the alternative: it would honour the old wording, and it would make a forty-item PNG mostly body text while loading R-1, the riskiest part of the build, with the least valuable work. The formats divide by job, so the criterion divides with them: parity is asserted over the *visual*, and the split is stated in §6.3 rather than left for an implementer to discover. |
+| **D-27** | **Input is strictly UTF-8; encoding and I/O failures are fatal** (FR-61). | *Added on this review.* Sits deliberately opposite D-5's tolerance, on the same structure-versus-content line NFR-9 draws: a file that will not decode has no rows to be lenient about. No `--encoding` flag and no transcoding — guessing a code page silently corrupts names in ways nobody notices until a client reads them. The mitigation is the message, not a fallback: name the line and say "re-save as UTF-8", because the likely cause is an Excel export and a raw decoder error tells that author nothing. Same reasoning as D-11, one layer lower. |
+| **D-28** | **No subcommand; the CSV is a positional argument** (§6.6). | *Added on this review.* The examples used `radar render entries.csv` while the flag table defined no subcommand — and, separately, never defined the input argument at all. Resolved toward the simpler shape: one input, one output, nothing else the tool does, so there is no verb worth naming. Reserving `render` against a hypothetical future `diff` (D-9) would tax every invocation now for a command that may never exist; adding a subcommand later is a breaking change made deliberately, which NFR-12 already accounts for. |
+| **D-29** | **Quadrant label casing is row-order-independent** (FR-9). | *Corrected on this review.* D-7 removed CSV row order from quadrant *ordering* because the export step is not guaranteed to emit rows stably — then FR-9 reintroduced exactly that dependency for the displayed *label*, so a reordered export could flip `Tool` to `tool` between editions with nothing underlying having changed. Picking the ordinally first variant is stable from the names alone. Which casing wins is arbitrary; that it cannot change without the data changing is the point. |
+| **D-30** | **Released in two slices: v1.0 replaces BYOR, v1.1 adds the static formats** (§14.1). | *Added on this review.* §14 costed 10–15 days as one indivisible lump, with no point at which BYOR could be retired. SC-1 and SC-2 — the criteria that actually justify the project — are met by HTML alone; PNG and SVG serve UC-3, which is real but not blocking. Slicing by risk instead (spike → shared SVG → all three formats) was considered, and the text-metrics spike stays first either way, since R-1 gates both slices. The split is a release boundary, not a build order: D-22's point that SVG is nearly free once PNG works still holds, which is why the two ship together rather than as separate slices. |
 
 ## 10) Risks and assumptions
+
+### What `mockup.html` validates — and what it doesn't
+
+The prototype in this folder is a **layout validation artefact**, not a reference implementation. Reading it as a specification would import decisions it never made.
+
+**It validates:** the polar geometry at 3, 4, and 5 quadrants; the divider-at-12-o'clock rule (FR-31); marker distribution within a band (FR-33); the legend authored in SVG within one shared document (FR-44); marker↔legend cross-highlighting on hover and focus (FR-37); keyboard operability and the detail panel's open/close behaviour (FR-38, FR-48–FR-50); the table-view fallback (FR-41); and single-column stacking at every width (FR-51).
+
+**It does not validate, and must not be copied from:** anything requiring real font metrics — it measures text through the browser's Canvas API, which has no Rust equivalent and is the whole of R-1; ring configurability, since it hardcodes the four default rings; the title block (FR-65) and the key (FR-66), both added after it was written; output escaping (NFR-6), as it interpolates its dataset straight into `innerHTML`; and colour assignment beyond the cycling rule FR-67 now states.
+
+**It is not the source of truth for anything.** Where the prototype and §§3–7 disagree, the requirement wins and the prototype is simply out of date.
 
 | ID | Risk | Impact | Response |
 | --- | --- | --- | --- |
@@ -359,7 +396,9 @@ Left unresolved because the decision didn't turn on them: whether it visually di
 | **SC-4** | A CSV containing rows outside the core model — a locally-tracked ring like `Rejected`, extra columns nobody asked for — renders successfully, with those rows surfacing in the table view rather than failing the edition. | FR-17, FR-18, FR-27, FR-41 |
 | **SC-5** | Every marker and legend row is reachable and activatable by keyboard alone, with visible focus at every step. | FR-48–FR-50, NFR-1 |
 | **SC-6** | The HTML output is legible and usable at phone width, unmodified from what gets emailed or committed. | FR-51 |
-| **SC-7** | The same edition renders as HTML, PNG, and SVG from one CSV with **no information present in one format but silently missing from another**, and identical layout and wrap points across all three. | FR-44, FR-45, NFR-7 |
+| **SC-7** | The **shared graphic** — title block, radar, markers, legend, key — is identical across HTML, PNG, and SVG for one CSV: same items, same positions, same marker treatments, same wrap points. Per-item prose is HTML-only by design (§6.3, D-26); what this criterion forbids is the *visual* diverging between formats, not the detail panel being absent from an image. | FR-44, FR-45, FR-65, FR-66, NFR-7 |
+| **SC-10** | Each hard error in NFR-9 exits non-zero having written **no output file**, and each warning exits 0 having written one; every message names its line and column (NFR-10) and the messages arrive in a stable order (NFR-11). | NFR-8–NFR-11, FR-61–FR-64 |
+| **SC-11** | A PNG opened by someone who has never seen the CSV states which radar and which edition it is (FR-65) and lets them work out what a hollow marker and a half-ring mean (FR-66), without recourse to the HTML output. | G-9, FR-65, FR-66 |
 | **SC-8** | Re-running the tool on an unchanged CSV produces a byte-identical file, on the same machine and on a different one. | NFR-4 |
 | **SC-9** | A CSV whose free-text fields contain `<script>`, `&`, `"`, and `]]>` renders those characters as literal text in all three outputs, with no markup or script execution. | NFR-6 |
 
@@ -367,24 +406,43 @@ Left unresolved because the decision didn't turn on them: whether it visually di
 
 Restating §4 for emphasis: no decision-link graph, no policy enforcement, no live reading of a standards catalogue, no server or dashboard mode. Additionally excluded by decision: JPEG output (D-17), batch rendering (D-18), auto-computed `status` (D-9), and a print stylesheet for the HTML output (FR-58).
 
-## 14) Rough implementation estimate
+## 14) Release plan and implementation estimate
 
-*Rough, not committed — there is no historical velocity for this shape of tool. Covers all three output formats, the accessibility and responsiveness requirements, and configurable rings.*
+### 14.1 Release slices
 
-| Area | Estimate | Notes |
+Two slices, so BYOR can be retired without waiting for the whole scope (D-30). The boundary is drawn where the *justification* is: SC-1 and SC-2 — replacing BYOR, rendering three quadrants without workarounds — are the criteria that make this project worth doing at all, and HTML alone satisfies both.
+
+| Slice | Contains | Met when |
 | --- | --- | --- |
-| **Text-metrics spike** | **0.5 day** | **Do this first.** Retires R-1 before it can distort everything downstream: measure a string through `resvg`'s font stack, confirm wrap points match what the HTML output will produce. If this spike overruns, the two estimates below move with it. |
-| Project scaffold (cargo, CLI args, error types) | 0.5 day | `--rings`, `--theme`, `--width`, `--palette`, extension-based format inference, the `conflicts_with` group (FR-59), and the warning/error taxonomy (NFR-8–NFR-10) |
-| CSV parsing and validation | 1.5–2 days | Required/optional columns, BOM handling, header normalisation, ring validation against a configurable list with warn-not-error handling, the `qualifier` asymmetric fallback with distinct messages, `status`, date tolerance, duplicate-name warning, per-row error reporting with line numbers |
-| Layout engine (quadrant angles, ring bands, placement, numbering) | 1–1.5 days | Geometry already validated in `mockup.html`; this ports it. Ring bands generalise from a fixed 4 to N the same way sectors already do — a small generalisation of solved geometry. Includes the N=0/1/2 cases (FR-42, FR-43) and the full numbering tiebreak chain (FR-34) |
-| Shared SVG generation (radar + legend) | 2.5–3.5 days | The real new scope: legend built in SVG rather than ported from the prototype's flexbox version — manual text layout and wrapping (depends on the spike above). Includes resolving the theme to concrete colours at generation time, since a static document has no media query to lean on, and context-correct escaping throughout (NFR-6) |
-| HTML output wrapper | 1.5–2.5 days | Embeds the shared SVG; adds the interactive layer as inline JS/CSS — hover tooltip, marker↔legend cross-highlight, click-through detail panel with a real close affordance, table-view toggle, keyboard operability, and the fluid single-column layout. Larger than a naive estimate because accessibility and responsiveness are requirements here, not afterthoughts |
-| PNG + SVG export | 1–1.5 days | `resvg` integration for PNG with pinned font loading (NFR-7); SVG export writes the already-generated document directly, effectively free once rasterisation works. `--theme`/`--width` plumbing |
-| Tests | folded into each area (TDD) | Unit tests for CSV edge cases and layout maths; golden-file snapshot tests for all three outputs (SC-8); an escaping test with hostile input (SC-9); a keyboard-navigation test (SC-5) |
-| Docs, CLI help, packaging | 0.5–1 day | Three output modes, three confirmed flags, plus `--palette` if OQ-6 resolves yes |
-| Review cycle (code-review → Copilot → simplify → code-review) | 0.5–1 day | Per the standing workflow, not optional |
+| **v1.0 — replaces BYOR** | The whole CSV contract (§6.1), the layout engine (§6.2), the shared SVG document including title block and key (§6.3), accessibility and responsiveness (§6.4), HTML output, `--rings`, `--title`, `--subtitle`, `--theme`'s HTML behaviour, and the full error/warning taxonomy (§7). | SC-1, SC-2, SC-3, SC-4, SC-5, SC-6, SC-8, SC-9, SC-10 |
+| **v1.1 — the static formats** | PNG and SVG export, `--width`, `--theme` resolving colours at generation time, pinned-font rasterisation (NFR-7), and `--palette` if OQ-6 resolves yes. | SC-7, SC-11 |
 
-**Total: roughly 10–15 focused working days**, with the text-metrics spike (R-1) as the dominant source of variance. Auto-computed `status` (D-9) is excluded.
+`--palette` sits in v1.1 even though it applies to every format, because OQ-6's own argument for it is a PNG argument: HTML colours can be hand-edited in the `<style>` block and an SVG can be recoloured in a design tool, but a rasterised PNG cannot be re-themed at all. Without PNG in the slice, the flag has no case that a text editor doesn't already answer. `--theme` and `--width` are accepted in v1.0 and ignored there, exactly as FR-56 and FR-57 already require them to be on HTML output — so carrying them in a v1.0 invocation is harmless rather than a usage error. A `-o` naming a `.png` or `.svg`, by contrast, fails on a v1.0 binary: those extensions are unrecognised until v1.1 ships them (FR-52).
+
+**The shared SVG document is built in v1.0, not deferred with the formats it enables.** That looks like carrying cost early — the whole point of FR-44 is cheap PNG export, which v1.0 does not ship. It is deliberate: retrofitting the legend from HTML into SVG afterwards would mean building the legend twice, and D-14 and D-15 are load-bearing enough that discovering a problem with them in v1.1 is far worse than discovering it in v1.0. The text-metrics spike (R-1) therefore stays the first task of the project, not the first task of v1.1.
+
+**What this ordering costs:** UC-3 — the slide deck and the vector touch-up — is unavailable until v1.1, and G-7 is not met by v1.0. Anyone needing an image in the interim screenshots the HTML, as they do today. That is a real gap, accepted for a bounded period, not a claim that the static formats are optional.
+
+### 14.2 Rough estimate
+
+*Rough, not committed — there is no historical velocity for this shape of tool. Covers both slices: all three output formats, the accessibility and responsiveness requirements, and configurable rings.*
+
+| Area | Slice | Estimate | Notes |
+| --- | --- | --- | --- |
+| **Text-metrics spike** | before both | **0.5 day** | **Do this first.** Retires R-1 before it can distort everything downstream: measure a string through `resvg`'s font stack, confirm wrap points match what the HTML output will produce. If this spike overruns, the two estimates below move with it. |
+| Project scaffold (cargo, CLI args, error types) | v1.0 | 0.5 day | Positional input (FR-60), `--rings`, `--title`, `--subtitle`, `--theme`, `--width` with ranged parsing (FR-64), extension-based format inference, output-path checks (FR-62), and the warning/error taxonomy (NFR-8–NFR-11). `--palette` and its `conflicts_with` group (FR-59) land with v1.1 |
+| CSV parsing and validation | v1.0 | 1.5–2 days | Required/optional columns, BOM and encoding handling (FR-2, FR-61), header normalisation, ring validation against a configurable list with warn-not-error handling, `--rings` list validation (FR-63), the `qualifier` asymmetric fallback with distinct messages, `status`, date tolerance, duplicate-name warning, per-row error reporting with line numbers in stable order |
+| Layout engine (quadrant angles, ring bands, placement, numbering) | v1.0 | 1–1.5 days | Geometry already validated in `mockup.html`; this ports it. Ring bands generalise from a fixed 4 to N the same way sectors already do — a small generalisation of solved geometry. Includes the N=0/1/2 cases (FR-42, FR-43), the full numbering tiebreak chain (FR-34), and palette cycling (FR-67) |
+| Shared SVG generation (radar + legend + title + key) | v1.0 | 3–4 days | The real new scope: legend built in SVG rather than ported from the prototype's flexbox version — manual text layout and wrapping (depends on the spike above). Adds the title block (FR-65) and the key (FR-66), neither prototyped, both needing the same manual measurement as the legend. Includes resolving the theme to concrete colours at generation time, since a static document has no media query to lean on, and context-correct escaping throughout (NFR-6) |
+| HTML output wrapper | v1.0 | 1.5–2.5 days | Embeds the shared SVG; adds the interactive layer as inline JS/CSS — hover tooltip, marker↔legend cross-highlight, click-through detail panel with a real close affordance, table-view toggle, keyboard operability, and the fluid single-column layout. Larger than a naive estimate because accessibility and responsiveness are requirements here, not afterthoughts |
+| PNG + SVG export | v1.1 | 1–1.5 days | `resvg` integration for PNG with pinned font loading (NFR-7); SVG export writes the already-generated document directly, effectively free once rasterisation works. `--theme`/`--width` plumbing |
+| Tests | folded into each area (TDD) | — | Unit tests for CSV edge cases and layout maths; golden-file snapshot tests per format (SC-8); an escaping test with hostile input (SC-9); a keyboard-navigation test (SC-5); an exit-code and diagnostics-ordering suite (SC-10) |
+| Docs, CLI help, packaging | split across both | 0.5–1 day | Three output modes and the flag set, plus `--palette` if OQ-6 resolves yes |
+| Review cycle (code-review → Copilot → simplify → code-review) | per slice | 0.5–1 day | Per the standing workflow, not optional |
+
+**Total: roughly 10.5–15.5 focused working days** — of which **v1.0 is roughly 9–12.5** — counting the review cycle once per slice and splitting the docs line between them. The text-metrics spike (R-1) remains the dominant source of variance, and it is charged to v1.0 despite being what makes v1.1 cheap. Up from v0.3's 10–15 by the title block and key added on this review; nothing else was re-scoped. Auto-computed `status` (D-9) is excluded.
+
+**v1.0 is not much cheaper than the whole thing, and that is the honest reading of this table.** Slicing buys a working replacement for BYOR roughly 1.5–3 days sooner and a review checkpoint at a natural boundary — not a materially smaller first delivery. The reason is FR-44: the expensive part is the shared SVG document, which v1.0 builds and v1.1 merely rasterises. If that trade doesn't look worth the release overhead once the spike lands, collapsing back to a single v1.0 costs nothing but this section.
 
 ## 15) Revision history
 
@@ -393,3 +451,4 @@ Restating §4 for emphasis: no decision-link graph, no policy enforcement, no li
 | 0.1 | 2026-08-25 | Initial brief from the brainstorming session. |
 | 0.2 | 2026-08-26 | SVG legend, PNG and SVG export, configurable `--rings`, accessibility and responsiveness sections added on review. |
 | 0.3 | 2026-08-26 | Restructured: §§3–7 made normative with requirement IDs; rationale consolidated into the §9 decision log. Corrected stale claims about `mockup.html`, which now implements the SVG legend and the keyboard/focus/responsive requirements. Added output escaping (NFR-6), font pinning (NFR-7), BOM handling (FR-2), header normalisation (FR-3), the numbering tiebreak chain (FR-34), unplotted-row legend behaviour (FR-18), date and duplicate-name tolerance (FR-24, FR-28), N=1/2 geometry (FR-43), and marker distribution (FR-33). Resolved the empty-required-value ambiguity (D-12), the determinism timestamp hedge (D-19), the accessibility target (NFR-1), the breakpoint-vs-always-stacked contradiction (D-16), and the code location conflict (D-20). Added §10 Risks and §15; added SC-8, SC-9 and traceability to §12. Decoupled from Obsidian: `[[wikilinks]]`, vault-relative folder paths, and the Breadcrumbs frontmatter fields (`up`/`down`/`same`/`next`) replaced with plain prose or removed, since the document now lives outside the vault. Removed all citations of the external capability-2.5 document; the ring-set default, the Adopt qualifier (G-3), and the tolerate-unknown-rings rule (D-5) now carry their own reasoning, and §1/D-4 explain why Assess/Trial/Adopt/Retire suits an in-house radar better than the ThoughtWorks Adopt/Trial/Assess/Hold set. Generalised the framing throughout — "a standards catalogue" rather than "the Standards Catalogue", "radar maintainer" rather than "practice architect" — with the originating three-category Tool/Platform/Practice case retained and labelled as such where it motivates a decision (§2, D-7, R-4, SC-2). |
+| 0.4 | 2026-08-26 | Product review. **Contradictions resolved:** SC-7 required parity between formats that §6.3 ruled out, and is now scoped to the shared graphic with the HTML-only split stated outright (D-26); FR-9 made the displayed quadrant label depend on CSV row order, which D-7 had removed for exactly the same reason (D-29); §1 pointed at §10 for what `mockup.html` proves, which §10 never said — §10 now says it, including what the prototype must *not* be copied from. **Gaps closed:** the CLI never defined its input argument, and the examples used a `render` subcommand the flag table didn't have (D-28); the marker encodings of FR-20 and FR-40 were nowhere explained to a reader holding only a PNG (FR-66, D-25); nothing put the edition's identity on the graphic that gets pasted into a slide (FR-65, G-9, D-24). **Behaviours previously left to the implementer:** input encoding and I/O failure (FR-61, D-27), output overwrite and parent directories (FR-62), `--rings` duplicates and empty entries (FR-63), `--width` bounds (FR-64), quadrant-colour assignment when quadrants outnumber the palette (FR-67), and warning order (NFR-11); NFR-9's error list extended to match, with the structure-fatal/content-tolerated line made explicit. Added a semver policy for a tool whose output is committed (NFR-12), success criteria for the diagnostics taxonomy and for a PNG standing alone (SC-10, SC-11), and a two-slice release plan separating "replaces BYOR" from "ships the static formats" (§14.1, D-30). Estimate 10–15 → 10.5–15.5 days, v1.0 alone 9–12.5 — with the caveat, stated in §14.2, that v1.0 is only marginally cheaper than the whole scope because FR-44 puts the expensive work in the first slice. Established that requirement IDs are permanent labels, so new requirements take new numbers rather than renumbering the document. |
