@@ -374,6 +374,10 @@ const LEGEND_W_WIDE = 440;
 const NARROW_DOC_W = 420;
 const MARKER_R = 10;
 const BADGE_R = 7;              // legend badge, deliberately smaller than the marker
+const LINE_H = 15;              // legend text line height
+const META_GAP = 8;             // space between an item name and its trailing meta
+const NAME_FONT = "600 12.5px system-ui, -apple-system, sans-serif";
+const META_FONT = "10.5px system-ui, -apple-system, sans-serif";
 
 // --- geometry helpers -------------------------------------------------
 // cx is passed rather than read from a module-level binding: the radar block is
@@ -579,13 +583,13 @@ function buildLegend(items, quadrants, rings, legendW) {
   const parts = [];
   let y = 14;
   parts.push(`<text class="legend-heading" x="0" y="${y}">Legend</text>`);
-  y += 24;
+  y += 22;
 
   quadrants.forEach((q, qi) => {
     const color = SERIES[qi % SERIES.length];
     parts.push(`<circle cx="5" cy="${y - 4}" r="5" fill="${color}" />`);
     parts.push(`<text class="legend-group-title" x="16" y="${y}">${esc(q)}</text>`);
-    y += 20;
+    y += 17;
 
     // FR-35: rings run in the reverse of the declared centre-to-edge order, so the
     // legend reads earliest lifecycle stage first.
@@ -595,31 +599,51 @@ function buildLegend(items, quadrants, rings, legendW) {
         it.ring.trim().toLowerCase() === ring.toLowerCase());
       if (!ringItems.length) return;
       parts.push(`<text class="legend-ring-title" x="4" y="${y}">${esc(ring)}</text>`);
-      y += 18;
+      y += 15;
 
       ringItems.forEach((it) => {
         const hollow = it.qualifier === "conditional";
         const nameX = BADGE_R * 2 + 12;
-        const nameLines = wrapText(it.name, legendW - nameX, "600 12.5px system-ui, -apple-system, sans-serif");
+        const avail = legendW - nameX;
+        const nameLines = wrapText(it.name, avail, NAME_FONT);
         const statusLabel = { new: "New", moved_in: "Moved in", moved_out: "Moved out" }[it.status] || "";
-        const meta = [ring, it.qualifier ? (it.qualifier === "default" ? "Default" : "Conditional") : null, statusLabel]
+
+        // The ring is dropped from the visible meta — the row already sits under
+        // its ring heading, so repeating it on every row is noise. It stays in the
+        // aria-label, where that visual grouping conveys nothing.
+        const meta = [it.qualifier ? (it.qualifier === "default" ? "Default" : "Conditional") : null, statusLabel]
+          .filter(Boolean).join(" · ");
+        const ariaMeta = [ring, it.qualifier ? (it.qualifier === "default" ? "Default" : "Conditional") : null, statusLabel]
           .filter(Boolean).join(" · ");
 
-        const nameBlockH = Math.max(18, nameLines.length * 15);
-        const rowH = nameBlockH + 16 + 4;
+        // Meta rides on the last line of the name when it fits, and takes its own
+        // line when it doesn't — never truncated, never overflowing the row.
+        measureCtx.font = NAME_FONT;
+        const lastLineW = measureCtx.measureText(nameLines[nameLines.length - 1]).width;
+        measureCtx.font = META_FONT;
+        const metaW = meta ? measureCtx.measureText(meta).width : 0;
+        const metaInline = Boolean(meta) && lastLineW + META_GAP + metaW <= avail;
+        const lineCount = nameLines.length + (meta && !metaInline ? 1 : 0);
 
-        parts.push(`<g class="legend-row-g" data-number="${it.number}" tabindex="0" role="button" aria-label="${esc(it.number + ". " + it.name + ", " + meta)}">`);
-        parts.push(`<rect class="legend-row-bg" x="-4" y="${y - 13}" width="${legendW + 8}" height="${rowH}" rx="6" />`);
+        const blockH = Math.max(17, lineCount * LINE_H);
+        const rowH = blockH + 7;
+        const top = y - blockH / 2 + 9;
+
+        parts.push(`<g class="legend-row-g" data-number="${it.number}" tabindex="0" role="button" aria-label="${esc(it.number + ". " + it.name + ", " + ariaMeta)}">`);
+        parts.push(`<rect class="legend-row-bg" x="-4" y="${y - blockH / 2 - 3}" width="${legendW + 8}" height="${rowH}" rx="6" />`);
         parts.push(`<circle cx="${BADGE_R + 2}" cy="${y}" r="${BADGE_R}" fill="${hollow ? "var(--surface-1)" : color}" stroke="${color}" stroke-width="${hollow ? 2 : 1.5}" />`);
         parts.push(`<text class="legend-num-text" x="${BADGE_R + 2}" y="${y}" fill="${hollow ? "var(--text-primary)" : "#fff"}">${it.number}</text>`);
-        const top = y - nameBlockH / 2 + 9;
-        parts.push(`<text class="legend-name">${nameLines.map((l, i) => `<tspan x="${nameX}" y="${top + i * 15}">${esc(l)}</tspan>`).join("")}</text>`);
-        parts.push(`<text class="legend-meta" x="${nameX}" y="${top + nameBlockH + 3}">${esc(meta)}</text>`);
+        parts.push(`<text class="legend-name">${nameLines.map((l, i) => `<tspan x="${nameX}" y="${top + i * LINE_H}">${esc(l)}</tspan>`).join("")}</text>`);
+        if (meta) {
+          const mx = metaInline ? nameX + lastLineW + META_GAP : nameX;
+          const my = top + (metaInline ? nameLines.length - 1 : nameLines.length) * LINE_H;
+          parts.push(`<text class="legend-meta" x="${mx}" y="${my}">${esc(meta)}</text>`);
+        }
         parts.push(`</g>`);
         y += rowH;
       });
     });
-    y += 10;
+    y += 8;
   });
 
   return { markup: parts.join("\n"), height: y };
