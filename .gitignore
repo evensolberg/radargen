@@ -1,0 +1,15 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# crumbs — regenerated on every write, should not be tracked
+.crumbs/index.csv
+
+# macOS
+.DS_Store
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
