@@ -451,9 +451,13 @@ function prepare(data, rings) {
   // FR-10 and FR-34 both require a *locale-independent* order. `localeCompare` is
   // locale-sensitive by definition — the same two names can order differently under
   // a different ICU locale, which would break NFR-4's byte-identical-across-machines
-  // guarantee in the real generator. `<` and `>` compare by code unit, which is what
-  // `str::cmp` over the lowercased strings does in Rust. Same rule the FR-9 label
-  // pick below already uses.
+  // guarantee in the real generator. `<` and `>` compare by UTF-16 code unit instead,
+  // which is deterministic everywhere and matches Rust's `str::cmp` (UTF-8 bytes, so
+  // code point order) for all BMP text — but NOT beyond it: an astral character sorts
+  // *below* U+E000..U+FFFF here and *above* it in Rust. Every name is ASCII today, so
+  // the two agree; crumb rg-wld holds the decision the PRD owes a Rust port before it
+  // relies on this. Same rule the FR-9 label pick below already uses, with the same
+  // caveat.
   const ordinal = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
   // FR-9: group case-insensitively after trimming; the displayed label is the
@@ -485,7 +489,8 @@ function prepare(data, rings) {
       qIndex(a.quadrant) - qIndex(b.quadrant) ||
       ringIndex(b.ring) - ringIndex(a.ring) ||
       ordinal(a.name.toLowerCase(), b.name.toLowerCase()) ||
-      a.csvOrder - b.csvOrder);
+      ordinal(a.name, b.name) ||          // FR-34: case-only differences must not
+      a.csvOrder - b.csvOrder);           // reach row order, which is not stable
   ordered.forEach((it, i) => (it.number = i + 1));
 
   return { quadrants, items: ordered, unplotted, qIndex, ringIndex };
