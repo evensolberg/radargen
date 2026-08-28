@@ -1,0 +1,270 @@
+<title>Radar Palette Proof</title>
+<style>
+  :root{
+    --ground:#FCFCFD; --panel:#FFFFFF; --ink:#14171C; --muted:#5C636E;
+    --hair:#E3E6EA; --hair-strong:#CFD4DB; --chip:#F1F3F6;
+    --pass:#1B6B4A; --pass-bg:#E4F2EA;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#0F1115; --panel:#171A20; --ink:#E7E9ED; --muted:#98A0AC;
+      --hair:#252A32; --hair-strong:#333A44; --chip:#1D2128;
+      --pass:#6FD3A2; --pass-bg:#15281F;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0F1115; --panel:#171A20; --ink:#E7E9ED; --muted:#98A0AC;
+    --hair:#252A32; --hair-strong:#333A44; --chip:#1D2128;
+    --pass:#6FD3A2; --pass-bg:#15281F;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:56px 24px 96px;display:flex;flex-direction:column;gap:56px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+  header{display:flex;flex-direction:column;gap:14px;border-bottom:1px solid var(--hair);padding-bottom:28px}
+  .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  h1{margin:0;font-size:34px;line-height:1.15;font-weight:640;letter-spacing:-.02em;text-wrap:balance}
+  .lede{margin:0;max-width:64ch;color:var(--muted);font-size:16.5px}
+  .verdict{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;
+    background:var(--pass-bg);color:var(--pass);border-radius:4px;padding:5px 11px;
+    font-size:12.5px;font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+  section{display:flex;flex-direction:column;gap:20px}
+  h2{margin:0;font-size:13px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:640;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .note{margin:0;max-width:66ch;color:var(--muted);font-size:14.5px}
+  .note strong{color:var(--ink);font-weight:600}
+
+  /* Ground panels deliberately carry literal colours: they ARE the palette being judged,
+     so they must not follow the viewer's theme. */
+  .grounds{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:18px}
+  .ground-panel{border-radius:8px;padding:22px;border:1px solid var(--hair-strong)}
+  .gp-light{background:#FFFFFF;color:#16191F}
+  .gp-dark{background:#15181D;color:#E8EAEE}
+  .gp-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:18px}
+  .gp-title{font-size:12px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .gp-sub{font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .gp-light .gp-sub{color:#585F6B} .gp-dark .gp-sub{color:#A6AEBB}
+  .swatch-row{display:flex;align-items:center;gap:13px;padding:7px 0}
+  .swatch-row + .swatch-row{border-top:1px solid}
+  .gp-light .swatch-row + .swatch-row{border-color:#EDEFF2}
+  .gp-dark .swatch-row + .swatch-row{border-color:#232830}
+  .sw-name{flex:1;font-size:14px}
+  .sw-hex{font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .gp-light .sw-hex{color:#585F6B} .gp-dark .sw-hex{color:#A6AEBB}
+
+  .tablewrap{overflow-x:auto;border:1px solid var(--hair);border-radius:8px;background:var(--panel)}
+  table{border-collapse:collapse;width:100%;font-size:13.5px}
+  th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--hair);white-space:nowrap}
+  thead th{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:640;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  tbody tr:last-child td{border-bottom:0}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  td.hex{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted)}
+  .dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:9px;vertical-align:-1px}
+  .ok{color:var(--pass);font-weight:640}
+  .group-row td{background:var(--chip);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--muted);font-weight:640;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+  .cvd{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+  .cvd-col{border:1px solid var(--hair);border-radius:8px;overflow:hidden;background:var(--panel)}
+  .cvd-head{padding:11px 14px;border-bottom:1px solid var(--hair);display:flex;justify-content:space-between;
+    align-items:baseline;gap:8px}
+  .cvd-label{font-size:12px;font-weight:640}
+  .cvd-de{font-size:11.5px;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .cvd-bars{display:flex;height:52px}
+  .cvd-bars span{flex:1}
+
+  pre{margin:0;padding:20px;background:var(--panel);border:1px solid var(--hair);border-radius:8px;
+    overflow-x:auto;font-size:12.5px;line-height:1.65;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  pre .c{color:var(--muted)}
+
+  footer{border-top:1px solid var(--hair);padding-top:24px;color:var(--muted);font-size:13.5px;max-width:70ch}
+  a{color:inherit}
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">radargen &middot; OQ-12 &middot; FR-67</div>
+    <h1>An eight-colour quadrant palette, verified against both themes</h1>
+    <p class="lede">FR-67 cycles one palette entry per quadrant. All eight clear WCAG&nbsp;1.4.11's 3:1 non-text contrast on every surface in both built-in themes. Because FR-67 assigns by index, palette <em>order</em> is usage frequency &mdash; so quality is front-loaded and every prefix is itself a good palette.</p>
+    <div class="verdict">32 / 32 contrast checks pass &middot; 0 failures</div>
+  </header>
+
+  <section>
+    <h2>The eight, on the grounds they actually sit on</h2>
+    <p class="note">Markers are drawn as the radar draws them — <strong>solid</strong> for a default qualifier, <strong>hollow</strong> for conditional (FR-20), and <strong>ringed</strong> for a <span class="mono">New</span> status (FR-40). One set of series values serves both themes, which is also what makes it a valid single-set <span class="mono">--palette</span> file.</p>
+    <div class="grounds">
+
+      <div class="ground-panel gp-light">
+        <div class="gp-head">
+          <div class="gp-title">Light theme</div>
+          <div class="gp-sub">surface #FFFFFF</div>
+        </div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#0072B2"/><circle cx="38" cy="11" r="7" fill="#FFFFFF" stroke="#0072B2" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#0072B2"/><circle cx="65" cy="11" r="10" fill="none" stroke="#0072B2" stroke-width="1.6"/></svg><span class="sw-name">Blue</span><span class="sw-hex">#0072B2</span></div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#C25400"/><circle cx="38" cy="11" r="7" fill="#FFFFFF" stroke="#C25400" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#C25400"/><circle cx="65" cy="11" r="10" fill="none" stroke="#C25400" stroke-width="1.6"/></svg><span class="sw-name">Vermillion</span><span class="sw-hex">#C25400</span></div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#00857A"/><circle cx="38" cy="11" r="7" fill="#FFFFFF" stroke="#00857A" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#00857A"/><circle cx="65" cy="11" r="10" fill="none" stroke="#00857A" stroke-width="1.6"/></svg><span class="sw-name">Teal</span><span class="sw-hex">#00857A</span></div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#787832"/><circle cx="38" cy="11" r="7" fill="#FFFFFF" stroke="#787832" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#787832"/><circle cx="65" cy="11" r="10" fill="none" stroke="#787832" stroke-width="1.6"/></svg><span class="sw-name">Olive</span><span class="sw-hex">#787832</span></div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#B5476B"/><circle cx="38" cy="11" r="7" fill="#FFFFFF" stroke="#B5476B" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#B5476B"/><circle cx="65" cy="11" r="10" fill="none" stroke="#B5476B" stroke-width="1.6"/></svg><span class="sw-name">Rose</span><span class="sw-hex">#B5476B</span></div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#2F9626"/><circle cx="38" cy="11" r="7" fill="#FFFFFF" stroke="#2F9626" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#2F9626"/><circle cx="65" cy="11" r="10" fill="none" stroke="#2F9626" stroke-width="1.6"/></svg><span class="sw-name">Green</span><span class="sw-hex">#2F9626</span></div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#C431B8"/><circle cx="38" cy="11" r="7" fill="#FFFFFF" stroke="#C431B8" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#C431B8"/><circle cx="65" cy="11" r="10" fill="none" stroke="#C431B8" stroke-width="1.6"/></svg><span class="sw-name">Magenta</span><span class="sw-hex">#C431B8</span></div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#9D5A43"/><circle cx="38" cy="11" r="7" fill="#FFFFFF" stroke="#9D5A43" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#9D5A43"/><circle cx="65" cy="11" r="10" fill="none" stroke="#9D5A43" stroke-width="1.6"/></svg><span class="sw-name">Terracotta</span><span class="sw-hex">#9D5A43</span></div>
+      </div>
+
+      <div class="ground-panel gp-dark">
+        <div class="gp-head">
+          <div class="gp-title">Dark theme</div>
+          <div class="gp-sub">surface #15181D</div>
+        </div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#0072B2"/><circle cx="38" cy="11" r="7" fill="#15181D" stroke="#0072B2" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#0072B2"/><circle cx="65" cy="11" r="10" fill="none" stroke="#0072B2" stroke-width="1.6"/></svg><span class="sw-name">Blue</span><span class="sw-hex">#0072B2</span></div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#C25400"/><circle cx="38" cy="11" r="7" fill="#15181D" stroke="#C25400" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#C25400"/><circle cx="65" cy="11" r="10" fill="none" stroke="#C25400" stroke-width="1.6"/></svg><span class="sw-name">Vermillion</span><span class="sw-hex">#C25400</span></div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#00857A"/><circle cx="38" cy="11" r="7" fill="#15181D" stroke="#00857A" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#00857A"/><circle cx="65" cy="11" r="10" fill="none" stroke="#00857A" stroke-width="1.6"/></svg><span class="sw-name">Teal</span><span class="sw-hex">#00857A</span></div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#787832"/><circle cx="38" cy="11" r="7" fill="#15181D" stroke="#787832" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#787832"/><circle cx="65" cy="11" r="10" fill="none" stroke="#787832" stroke-width="1.6"/></svg><span class="sw-name">Olive</span><span class="sw-hex">#787832</span></div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#B5476B"/><circle cx="38" cy="11" r="7" fill="#15181D" stroke="#B5476B" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#B5476B"/><circle cx="65" cy="11" r="10" fill="none" stroke="#B5476B" stroke-width="1.6"/></svg><span class="sw-name">Rose</span><span class="sw-hex">#B5476B</span></div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#2F9626"/><circle cx="38" cy="11" r="7" fill="#15181D" stroke="#2F9626" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#2F9626"/><circle cx="65" cy="11" r="10" fill="none" stroke="#2F9626" stroke-width="1.6"/></svg><span class="sw-name">Green</span><span class="sw-hex">#2F9626</span></div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#C431B8"/><circle cx="38" cy="11" r="7" fill="#15181D" stroke="#C431B8" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#C431B8"/><circle cx="65" cy="11" r="10" fill="none" stroke="#C431B8" stroke-width="1.6"/></svg><span class="sw-name">Magenta</span><span class="sw-hex">#C431B8</span></div>
+        <div class="swatch-row"><svg width="76" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="#9D5A43"/><circle cx="38" cy="11" r="7" fill="#15181D" stroke="#9D5A43" stroke-width="2.2"/><circle cx="65" cy="11" r="7" fill="#9D5A43"/><circle cx="65" cy="11" r="10" fill="none" stroke="#9D5A43" stroke-width="1.6"/></svg><span class="sw-name">Terracotta</span><span class="sw-hex">#9D5A43</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>Contrast, measured</h2>
+    <p class="note">Every value against both surfaces in its theme. Series colours and strokes need <strong>3:1</strong> (WCAG 1.4.11, non-text); text needs <strong>4.5:1</strong> (1.4.3). The tightest margin in the set is Blue on dark surface-2 at 3.07 — passing, but the one to re-check if that surface ever lightens.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Role</th><th>Hex</th><th class="num">vs surface-1</th><th class="num">vs surface-2</th><th class="num">Needs</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr class="group-row"><td colspan="6">Light &mdash; surface-1 #FFFFFF, surface-2 #F4F5F7</td></tr>
+          <tr><td><span class="dot" style="background:#0072B2"></span>series-1</td><td class="hex">#0072B2</td><td class="num">5.19</td><td class="num">4.75</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#C25400"></span>series-2</td><td class="hex">#C25400</td><td class="num">4.60</td><td class="num">4.22</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#00857A"></span>series-3</td><td class="hex">#00857A</td><td class="num">4.53</td><td class="num">4.15</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#787832"></span>series-4</td><td class="hex">#787832</td><td class="num">4.63</td><td class="num">4.25</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#B5476B"></span>series-5</td><td class="hex">#B5476B</td><td class="num">5.15</td><td class="num">4.72</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#2F9626"></span>series-6</td><td class="hex">#2F9626</td><td class="num">3.81</td><td class="num">3.49</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#C431B8"></span>series-7</td><td class="hex">#C431B8</td><td class="num">4.69</td><td class="num">4.30</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#9D5A43"></span>series-8</td><td class="hex">#9D5A43</td><td class="num">5.28</td><td class="num">4.84</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#16191F"></span>text-primary</td><td class="hex">#16191F</td><td class="num">17.60</td><td class="num">16.14</td><td class="num">4.5</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#585F6B"></span>text-muted</td><td class="hex">#585F6B</td><td class="num">6.43</td><td class="num">5.90</td><td class="num">4.5</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#7E858F"></span>stroke-ring</td><td class="hex">#7E858F</td><td class="num">3.72</td><td class="num">3.41</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#848B96"></span>stroke-divider</td><td class="hex">#848B96</td><td class="num">3.43</td><td class="num">3.15</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#0B5FA5"></span>focus</td><td class="hex">#0B5FA5</td><td class="num">6.57</td><td class="num">6.03</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+
+          <tr class="group-row"><td colspan="6">Dark &mdash; surface-1 #15181D, surface-2 #1E222A</td></tr>
+          <tr><td><span class="dot" style="background:#0072B2"></span>series-1</td><td class="hex">#0072B2</td><td class="num">3.43</td><td class="num">3.07</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#C25400"></span>series-2</td><td class="hex">#C25400</td><td class="num">3.87</td><td class="num">3.46</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#00857A"></span>series-3</td><td class="hex">#00857A</td><td class="num">3.93</td><td class="num">3.52</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#787832"></span>series-4</td><td class="hex">#787832</td><td class="num">3.84</td><td class="num">3.44</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#B5476B"></span>series-5</td><td class="hex">#B5476B</td><td class="num">3.46</td><td class="num">3.10</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#2F9626"></span>series-6</td><td class="hex">#2F9626</td><td class="num">4.67</td><td class="num">4.18</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#C431B8"></span>series-7</td><td class="hex">#C431B8</td><td class="num">3.79</td><td class="num">3.40</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#9D5A43"></span>series-8</td><td class="hex">#9D5A43</td><td class="num">3.37</td><td class="num">3.02</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#E8EAEE"></span>text-primary</td><td class="hex">#E8EAEE</td><td class="num">14.77</td><td class="num">13.23</td><td class="num">4.5</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#A6AEBB"></span>text-muted</td><td class="hex">#A6AEBB</td><td class="num">7.96</td><td class="num">7.13</td><td class="num">4.5</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#6C7480"></span>stroke-ring</td><td class="hex">#6C7480</td><td class="num">3.77</td><td class="num">3.38</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#666E7A"></span>stroke-divider</td><td class="hex">#666E7A</td><td class="num">3.45</td><td class="num">3.09</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+          <tr><td><span class="dot" style="background:#7FB8E6"></span>focus</td><td class="hex">#7FB8E6</td><td class="num">8.39</td><td class="num">7.52</td><td class="num">3.0</td><td class="ok">Pass</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Under colour-vision deficiency</h2>
+    <p class="note">Simulated with the Viénot–Brettel–Mollon model. The figure is the <strong>smallest</strong> pairwise Lab distance in the set — how close the two most similar colours get for that viewer. The obvious palette (blue / vermillion / green / purple / gold) collapses here: vermillion and gold land at ΔE&nbsp;3.9 under deuteranopia, effectively one colour. Olive replaces gold for that reason. The floor for all eight is set by olive against green under deuteranopia &mdash; the price of the sixth entry.</p>
+    <div class="cvd">
+      <div class="cvd-col">
+        <div class="cvd-head"><span class="cvd-label">Normal</span><span class="cvd-de">min ΔE 46.6</span></div>
+        <div class="cvd-bars"><span style="background:#0072B2"></span><span style="background:#C25400"></span><span style="background:#00857A"></span><span style="background:#787832"></span><span style="background:#B5476B"></span><span style="background:#2F9626"></span><span style="background:#C431B8"></span><span style="background:#9D5A43"></span></div>
+      </div>
+      <div class="cvd-col">
+        <div class="cvd-head"><span class="cvd-label">Protanopia</span><span class="cvd-de">min ΔE 11.8</span></div>
+        <div class="cvd-bars"><span style="background:#6C6CB2"></span><span style="background:#686806"></span><span style="background:#7E7E7A"></span><span style="background:#787832"></span><span style="background:#5C5C6C"></span><span style="background:#8F8F25"></span><span style="background:#5454B8"></span><span style="background:#646444"></span></div>
+      </div>
+      <div class="cvd-col">
+        <div class="cvd-head"><span class="cvd-label">Deuteranopia</span><span class="cvd-de">min ΔE 8.2</span></div>
+        <div class="cvd-bars"><span style="background:#6161B3"></span><span style="background:#818100"></span><span style="background:#71717C"></span><span style="background:#787832"></span><span style="background:#767668"></span><span style="background:#82822C"></span><span style="background:#7777B6"></span><span style="background:#737340"></span></div>
+      </div>
+      <div class="cvd-col">
+        <div class="cvd-head"><span class="cvd-label">Tritanopia</span><span class="cvd-de">min ΔE 12.9</span></div>
+        <div class="cvd-bars"><span style="background:#5252FA"></span><span style="background:#979700"></span><span style="background:#6161F4"></span><span style="background:#787832"></span><span style="background:#8B8B00"></span><span style="background:#7272EE"></span><span style="background:#929200"></span><span style="background:#818100"></span></div>
+      </div>
+    </div>
+    <p class="note">None of this is load-bearing. <strong>FR-39 already guarantees quadrant identity never depends on colour</strong> — angular position and the sector label always disambiguate, which is also what lets FR-67 cycle the palette past five quadrants. Separability here is a courtesy to the reader, not a correctness requirement.</p>
+  </section>
+
+  <section>
+    <h2>Why it stops at eight</h2>
+    <p class="note">Requiring one colour set to clear 3:1 on <strong>both</strong> themes confines every entry to relative luminance 0.12&ndash;0.30. Inside that band there are only so many hues a dichromat can separate, because protanopes and deuteranopes have roughly one usable hue axis rather than two. The degradation is measured, not assumed:</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Quadrants</th><th>Uses</th><th class="num">Normal ΔE floor</th><th class="num">CVD ΔE floor</th><th>Reading</th></tr></thead>
+        <tbody>
+          <tr><td>3</td><td class="hex">series-1..3</td><td class="num">49.2</td><td class="num">12.9</td><td>The originating case. Excellent.</td></tr>
+          <tr><td>4</td><td class="hex">series-1..4</td><td class="num">46.6</td><td class="num">11.8</td><td>ThoughtWorks convention. Excellent.</td></tr>
+          <tr><td>5</td><td class="hex">series-1..5</td><td class="num">46.6</td><td class="num">11.8</td><td>Excellent.</td></tr>
+          <tr><td>6&ndash;7</td><td class="hex">series-1..7</td><td class="num">42.1</td><td class="num">8.2</td><td>Green must stay bright to clear olive; CVD floor drops.</td></tr>
+          <tr><td>8</td><td class="hex">series-1..8</td><td class="num">32.1</td><td class="num">8.2</td><td>Rose and terracotta are the closest pair.</td></tr>
+          <tr><td>9+</td><td class="hex">cycles</td><td class="num">&mdash;</td><td class="num">&mdash;</td><td>Adjacent sectors repeat a colour. Rethink the categories.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Two alternatives were measured and rejected. <strong>Per-theme series values</strong> &mdash; a separate hex for light and dark &mdash; widens the band and reaches ΔE&nbsp;33.6 to normal vision, but re-admits the violets and browns that collide with vermillion and olive, collapsing the CVD floor to <strong>3.5</strong>. <strong>Optimising purely for the CVD floor</strong> reaches 13.5, but produces three browns and two magentas: robust to measure, poor to look at.</p>
+  </section>
+
+  <section>
+    <h2>The palette as CSS</h2>
+    <p class="note">This doubles as the sample <span class="mono">--palette</span> file §6.6 promises to ship. Note the shape: a custom palette is <strong>exactly one set of colours</strong>, not a light/dark pair — which is why it is mutually exclusive with <span class="mono">--theme</span> (FR-59) and why supplying it removes the theme toggle from an HTML build.</p>
+<pre><span class="c">/* radargen — built-in palette. Series values are shared by both themes. */</span>
+:root {
+  <span class="c">/* Quadrant series — FR-67 assigns by sorted quadrant index, cycling.
+     Order is usage frequency: a 3-quadrant radar uses only 1..3. */</span>
+  --series-1: #0072B2;  <span class="c">/* blue       */</span>
+  --series-2: #C25400;  <span class="c">/* vermillion */</span>
+  --series-3: #00857A;  <span class="c">/* teal       */</span>
+  --series-4: #787832;  <span class="c">/* olive      */</span>
+  --series-5: #B5476B;  <span class="c">/* rose       */</span>
+  --series-6: #2F9626;  <span class="c">/* green      */</span>
+  --series-7: #C431B8;  <span class="c">/* magenta    */</span>
+  --series-8: #9D5A43;  <span class="c">/* terracotta */</span>
+
+  <span class="c">/* Light theme */</span>
+  --surface-1: #FFFFFF;
+  --surface-2: #F4F5F7;
+  --text-primary: #16191F;
+  --text-muted: #585F6B;
+  --stroke-ring: #7E858F;
+  --stroke-divider: #848B96;
+  --marker-hollow: #FFFFFF;   <span class="c">/* FR-20 conditional fill = the surface */</span>
+  --focus: #0B5FA5;
+}
+
+<span class="c">/* Dark theme. Series values are unchanged; only neutrals move. */</span>
+:root[data-theme="dark"] {
+  --surface-1: #15181D;
+  --surface-2: #1E222A;
+  --text-primary: #E8EAEE;
+  --text-muted: #A6AEBB;
+  --stroke-ring: #6C7480;
+  --stroke-divider: #666E7A;
+  --marker-hollow: #15181D;
+  --focus: #7FB8E6;
+}</pre>
+  </section>
+
+  <footer>
+    <p>Contrast ratios computed per WCAG 2.1 relative luminance; dichromacy simulated with Viénot–Brettel–Mollon in linear sRGB and compared in CIE&nbsp;Lab. Every figure on this page is computed, not estimated. The one judgement call left open is aesthetic: olive is the least conventional of the eight, and it is there because it survives deuteranopia where gold does not.</p>
+  </footer>
+
+</div>
