@@ -44,26 +44,33 @@ pub struct Cli {
     #[arg(short, long)]
     pub output: PathBuf,
 
+    /// Centre-to-edge ordered ring list (FR-12–FR-15). Absent yields the
+    /// FR-13 default.
+    #[arg(short, long)]
+    pub rings: Option<String>,
+
     /// Rendered above the radar in the shared document (FR-65). Omitted
     /// renders nothing at all — no placeholder, no reserved space.
-    #[arg(long)]
+    #[arg(short, long)]
     pub title: Option<String>,
 
     /// Second line of the title block (FR-65). The tool attaches no meaning
     /// to it and never supplies one (D-24).
-    #[arg(long)]
+    #[arg(short, long)]
     pub subtitle: Option<String>,
 
     /// Resolves a static snapshot's colours at generation time (FR-56).
     /// `ignore_case` gives `--theme Dark` the same courtesy FR-52 extends
     /// to `.PNG`.
-    #[arg(long, value_enum, default_value_t = Theme::Light, ignore_case = true)]
+    /// `-T` rather than `-t`, which goes to `--title`: both appear together
+    /// in §6.6's canonical PNG invocation, so both earn a short form (OQ-2).
+    #[arg(short = 'T', long, value_enum, default_value_t = Theme::Light, ignore_case = true)]
     pub theme: Theme,
 
     /// Output width in pixels (FR-57). Height is always computed from the
     /// document's own aspect ratio and is never a second flag. Range per
     /// FR-64, enforced by clap so the message is standard usage output.
-    #[arg(long, value_parser = clap::value_parser!(u32).range(320..=10_000))]
+    #[arg(short, long, value_parser = clap::value_parser!(u32).range(320..=10_000))]
     pub width: Option<u32>,
 }
 

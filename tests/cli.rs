@@ -106,3 +106,29 @@ fn theme_defaults_to_light_and_ignores_case() {
 fn an_unknown_theme_is_a_usage_error() {
     assert!(parse(&["in.csv", "-o", "e.png", "--theme", "sepia"]).is_err());
 }
+
+// ---- OQ-2: short forms where practical. Settled at implementation planning,
+// which §6.6 says is where this belongs.
+
+#[test]
+fn every_flag_has_a_short_form() {
+    let cli = parse(&[
+        "in.csv", "-o", "e.html", "-r", "Adopt,Trial", "-t", "Radar", "-s", "2026-09",
+    ])
+    .expect("short forms parse");
+    assert_eq!(cli.output.to_str(), Some("e.html"));
+    assert_eq!(cli.rings.as_deref(), Some("Adopt,Trial"));
+    assert_eq!(cli.title.as_deref(), Some("Radar"));
+    assert_eq!(cli.subtitle.as_deref(), Some("2026-09"));
+}
+
+#[test]
+fn theme_takes_capital_t_and_title_takes_lowercase() {
+    // Both appear together in §6.6's canonical PNG invocation, so both earn a
+    // short form and one of them has to be the capital.
+    let cli = parse(&["in.csv", "-o", "e.png", "-t", "Radar", "-T", "dark", "-w", "1920"])
+        .expect("parses");
+    assert_eq!(cli.title.as_deref(), Some("Radar"));
+    assert_eq!(cli.theme, Theme::Dark);
+    assert_eq!(cli.width, Some(1920));
+}

@@ -1,7 +1,8 @@
 [package]
 name = "radargen"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 description = "Render a technology radar from CSV to a self-contained HTML page, PNG, or SVG"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/evensolberg/radargen"
@@ -12,6 +13,7 @@ categories = ["command-line-utilities", "visualization"]
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 rustybuzz = "0.20"
+thiserror = "2.0.20"
 ttf-parser = "0.25"
 
 [dev-dependencies]
