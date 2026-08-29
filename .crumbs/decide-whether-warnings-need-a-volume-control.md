@@ -33,3 +33,20 @@ threshold or people learn to ignore it, which is why FR-33 still declines to
 warn about items-per-band. That is the volume problem stated as a credibility
 problem. Worth weighing together when deciding (a) a verbosity flag and
 (b) whether blank-qualifier should warn at all.
+
+## The case that makes this bite (PRD v0.33, D-50)
+
+D-50 records a pattern where an organisation keeps `In Use` rows in the CSV but
+leaves that ring **out** of `--rings`, so the inventory is tracked and appears
+in the table view without crowding the graphic (FR-17, FR-18, FR-78).
+
+FR-17 warns per unplotted row. A forty-item inventory therefore prints **forty
+warnings on every render**, every time, for a configuration the author chose
+deliberately and will not be changing.
+
+That moves this crumb from "stderr is noisy" to "a documented, recommended
+pattern is unusable without a verbosity control". Worth weighing as a third
+question alongside (a) a verbosity flag and (b) blank-qualifier: should a
+warning that fires for a deliberate, repeated configuration be suppressible —
+or summarised, e.g. one line naming the count and the ring rather than one per
+row?
