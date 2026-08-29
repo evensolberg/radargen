@@ -1,0 +1,21 @@
+[package]
+name = "radargen"
+version = "0.1.0"
+edition = "2021"
+description = "Render a technology radar from CSV to a self-contained HTML page, PNG, or SVG"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/evensolberg/radargen"
+readme = "README.md"
+keywords = ["radar", "technology-radar", "svg", "visualisation", "cli"]
+categories = ["command-line-utilities", "visualization"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+rustybuzz = "0.20"
+ttf-parser = "0.25"
+
+[dev-dependencies]
+resvg = "0.45"
+usvg = "0.45"
+tiny-skia = "0.11"
+fontdb = "0.23"

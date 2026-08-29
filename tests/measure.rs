@@ -1,4 +1,4 @@
-use text_metrics_spike::FontMetrics;
+use radargen::text::FontMetrics;
 
 const FONT: &[u8] = include_bytes!("../assets/LibertinusSans-Regular.ttf");
 

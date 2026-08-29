@@ -7,7 +7,7 @@
 //! must fall outside a box deliberately shrunk below it.
 
 use std::sync::Arc;
-use text_metrics_spike::FontMetrics;
+use radargen::text::FontMetrics;
 
 const FONT: &[u8] = include_bytes!("../assets/LibertinusSans-Regular.ttf");
 const FAMILY: &str = "Libertinus Sans";

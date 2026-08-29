@@ -11,7 +11,7 @@
 //! read the advance straight off it, with no sentinel and no bearing algebra.
 
 use std::sync::Arc;
-use text_metrics_spike::FontMetrics;
+use radargen::text::FontMetrics;
 
 const FONT: &[u8] = include_bytes!("../assets/LibertinusSans-Regular.ttf");
 const SIZE: f64 = 12.5;

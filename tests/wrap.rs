@@ -1,7 +1,7 @@
 //! FR-79: greedy first-fit against a fixed maximum column width, with a
 //! mid-token break for a single token wider than the column.
 
-use text_metrics_spike::{wrap, FontMetrics};
+use radargen::text::{wrap, FontMetrics};
 
 const FONT: &[u8] = include_bytes!("../assets/LibertinusSans-Regular.ttf");
 const SIZE: f64 = 12.5;
