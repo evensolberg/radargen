@@ -1,7 +1,7 @@
 ---
 id: rg-m59
 title: Decide whether warnings need a volume control
-status: open
+status: in-progress
 type: task
 priority: 3
 tags:
@@ -50,3 +50,22 @@ question alongside (a) a verbosity flag and (b) blank-qualifier: should a
 warning that fires for a deliberate, repeated configuration be suppressible —
 or summarised, e.g. one line naming the count and the ring rather than one per
 row?
+
+## Resolved in PRD v0.34 — questions (a) and (c)
+
+**(a) verbosity flag → no.** NFR-20 summarises repeated warnings instead: one
+line per group, a group being a warning class plus the value that triggered it.
+D-51 rejects `--quiet`/`--no-warnings` on two grounds — NFR-8 already routes
+warnings to stderr so `2>/dev/null` is the same capability, and blanket
+suppression discards the accidental warnings (duplicate name, bad date) along
+with the deliberate ones.
+
+**(c) the D-50 In Use case → fixed by the same change.** Forty unplotted rows
+now print one warning naming the count, the ring value and the first line, and
+FR-78's table view still carries every row.
+
+**(b) remains open:** should a blank `qualifier` warn at all, given FR-29 treats
+every other absent optional column as normal? FR-20 scoped the warning in v0.13
+to fire only where the column is present, which removes the worst case but not
+the general one. NFR-20 reduces its volume to a single line, which lowers the
+urgency without answering the question.
