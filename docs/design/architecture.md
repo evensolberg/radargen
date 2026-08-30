@@ -133,7 +133,7 @@ declarations only and are not listed.
 | `src/emit/html/mod.rs` | Self-contained HTML: both arrangements, FR-69's computed media-query switch, FR-56's theme override, inline JS/CSS and font | v1.0 |
 | `src/emit/html/table.rs` | The table view (FR-41, FR-78) — every CSV row, every declared column | v1.0 |
 | `src/emit/write.rs` | NFR-14's atomic write: temp file in the same directory, flush, rename | v1.0 |
-| `src/emit/svg.rs` | The document written directly | v1.1 |
+| `src/emit/svg.rs` | The document with its text outlined and deduplicated through `<use>` (§11) | v1.1 |
 | `src/emit/png.rs` | `resvg` rasterisation | v1.1 |
 | `assets/` | The vendored font — TTF to measure and rasterise, WOFF2 to inline — and its OFL notice (FR-85, NFR-5), `include_bytes!` into the binary | *stand-in* |
 
@@ -175,9 +175,12 @@ Six of these are corrections rather than additions, and each has a reason:
 **`assets/` currently holds Libertinus Sans**, the spike's stand-in. FR-85 pins
 **Inter**, two static instances, Latin-subset. Swapping it is a scheduled task,
 not a decision: the mechanism is font-independent (spike findings), only the
-numbers move. R-7's remaining question — whether the face declares a Reserved
-Font Name, which would forbid keeping the original name on a subset — is
-answered at that point, not before.
+numbers move. R-7's remaining question is **answered**: Inter's `LICENSE.txt`
+declares no Reserved Font Name — OFL 1.1 defines one as a name *"specified as
+such after the copyright statement(s)"* and Inter's copyright line specifies
+none — so a Latin subset may keep the name. Only the measured subset size is
+still open, and that is a number rather than a decision
+(`docs/spikes/svg-font.md`).
 
 ## 4. The `Block` abstraction
 
@@ -461,7 +464,7 @@ interface that has not been agreed. Each step is testable when it lands.
 | 4 | `layout/{title,radar,legend,key}.rs`, `arrange.rs` | 3, `text.rs` | layout engine |
 | 5 | `svg/`, `emit/write.rs` | 4 | shared SVG generation |
 | 6 | `emit/html/` | 5, `Catalogue` from 2 | HTML output wrapper |
-| 7 | `emit/{svg,png}.rs`, `--palette`, `--theme`/`--width` plumbing | 5 | PNG + SVG export — **v1.1** |
+| 7 | `emit/{svg,png}.rs`, `--palette`, `--theme`/`--width` plumbing | 5, `text.rs` *(svg outlines re-shape)* | PNG + SVG export — **v1.1** |
 
 Steps 1–6 are v1.0; step 7 is v1.1. The font swap (Libertinus → Inter, FR-85)
 must land **before step 4**, not with packaging: every measured size in `Blocks`
@@ -490,7 +493,7 @@ is on plan, not short.
 | --- | --- | --- |
 | Unit | Pure functions: `normalise`, comparators, geometry, `fmt_coord`, escaping, capacity | Beside the module, `#[cfg(test)]` |
 | Contract | The CLI surface, the diagnostic taxonomy, `--rings` validation | `tests/cli.rs`, `tests/diagnostics.rs`, `tests/rings.rs` |
-| Oracle | Our measurement against the thing that rasterises it | `tests/agrees_with_resvg.rs`, `tests/rasterises_within_measurement.rs` |
+| Oracle | Our measurement against the thing that rasterises it; and §11's outlining against the `<text>` it replaces | `tests/agrees_with_resvg.rs`, `tests/rasterises_within_measurement.rs`, `tests/outlines_match_text.rs` |
 | Golden | CSV in → exact bytes out, per format and per ring set | `tests/golden/` |
 | Determinism | Two **separate process invocations**, byte-compared | `tests/determinism.rs` |
 | Behaviour | Keyboard operability, focus, panel open/close | `tests/a11y.rs`, headless browser |
@@ -561,21 +564,45 @@ appears without one is the signal, not the noise.
   helper** where NFR-6 needs five. Both are specified differently from what the
   prototype does; the port fixes them rather than carrying them.
 - **`--palette` parsing.** v1.1, and FR-86/FR-87 already fix its rules.
-- **PNG and SVG emitters.** v1.1. `Document` exists so they are thin — with one
-  caveat, immediately below, that could make the SVG one not thin.
-- **How the exported SVG carries its font.** SC-15 forbids an external font
-  reference in the SVG as firmly as NFR-5 does in the HTML, and FR-54 sells that
-  file on opening in PowerPoint, Figma and Illustrator for touch-up. The two pull
-  against each other, and the PRD asserts both without noticing they meet here.
-  A base64 `@font-face` in `<defs>` keeps the text editable and is honoured far
-  more reliably by browsers than by design tools; converting text to outlines
-  guarantees the glyphs and costs exactly the touch-up FR-54 names. **This is the
-  one thing that could make `emit/svg.rs` a converter rather than a serialiser**
-  — outlining needs glyph contours from `ttf-parser` and a pass over `Document`,
-  which is a different shape of work from writing it out. It is v1.1, so there is
-  time; it wants a short spike against the three named applications before v1.1
-  is planned, and a question in the PRD, since neither FR-54 nor SC-15 can be
-  quietly narrowed to make it go away.
+- **The PNG emitter.** v1.1, and thin: it rasterises the `<text>` document
+  through our own `fontdb`.
+- **The SVG emitter's internals.** v1.1 — and *not* thin, which §12 records.
+  How that file carries its font is **closed**, below.
+
+**The exported SVG outlines its text** (`docs/spikes/svg-font.md`). SC-15
+forbids an external font reference in that file and FR-54 sells it on opening in
+PowerPoint, Figma and Illustrator; the two candidates were a base64 `@font-face`
+and converting text to outlines. Embedding is not a trade-off that went the other
+way — Microsoft's own support answer says PowerPoint ignores it because
+*"PowerPoint does not use CSS as a styling mechanism"*, and **`resvg` renders an
+embedded face as nothing at all: 0 inked pixels, measured**. A mechanism that
+produces an empty rectangle in the renderer we ship is not one to hand to three
+applications we do not control.
+
+Three consequences the design carries:
+
+- **`emit/svg.rs` is a converter, not a serialiser.** It needs glyph outlines
+  from `ttf-parser` and a shaping pass it shares with `text.rs`. No new
+  dependency — both are already direct — but §14.2's "SVG export … effectively
+  free once rasterisation works" no longer holds, and the file is worth half a
+  day to a day of its own.
+- **Outlines are deduplicated through `<use>`.** One `<path>` per distinct glyph
+  in `<defs>`, placed by `<use x= y=>`. A realistic edition is 749 glyph
+  instances over 56 distinct glyphs, so the per-instance form costs nearly nine
+  times as much — 646 kB against 74 kB. Ids are fine here: §5 bans them because
+  the HTML holds two arrangements in one DOM, and this file holds one.
+- **Nothing about the HTML changes.** It keeps `<text>` and an inlined WOFF2 —
+  browsers do honour `@font-face`, and FR-46's explicit `<tspan>`s mean the
+  browser never re-wraps. Outlining is the SVG emitter's business alone, which is
+  why the waist survives it: `Document` is unchanged and one emitter reads it
+  differently, exactly as §5's colour binding already does.
+
+Outlining is **visually** identical to `<text>`, not bit-identical — 82 differing
+subpixels in 3.96 million, spread one or two per scanline, of which about 30
+survive at any precision. That costs nothing specified: NFR-4 is byte-identity of
+our own output, and SC-7's parity is about items, positions and wrap points, all
+upstream of it. Recorded because "outlining is lossless" is the kind of claim
+that outlives the measurement behind it.
 
 ## 12. Risks this design accepts
 
@@ -587,5 +614,5 @@ appears without one is the signal, not the noise.
 | The `Catalogue` side-channel could become a second data path that drifts from the graphic (**§2**) | It is read-only and additive — the HTML emitter reads prose and unplotted rows from it, never geometry or numbering. Anything the two could disagree about comes from `Document` |
 | Legend height sets the document height past ~25 items (**R-3**) | Accepted for this version, per the PRD. The `Block` shape is what makes the likely answer — a multi-column legend in the wide arrangement — a change inside `layout/legend.rs` and nowhere else |
 | The pinned font is still the spike's stand-in (**R-7**) | Swapped before step 4 of §9, for the reason given there. Measured subset size and any Reserved Font Name are confirmed at that point |
-| The exported SVG's font has no decided mechanism, and one of the two candidates makes `emit/svg.rs` a converter rather than a serialiser (**§11**) | v1.1, spiked before it is planned. Nothing in v1.0 turns on the answer and the HTML's inlined WOFF2 is unaffected either way, so the risk is bounded to one slice and one file |
+| `emit/svg.rs` outlines its text, so it is a converter rather than a serialiser and costs more than §14.2 assumed (**§11**) | Accepted — the spike showed the alternative fails in two of the consumers tested, including our own `resvg`. Bounded to one file in v1.1; `Document` and the HTML output are untouched. Illustrator and Figma rest on secondary reports and are worth confirming first-hand while building v1.1, but no decision waits on that |
 | Both arrangements live in one DOM, so every interactive element exists twice and a breakpoint change can move the focused one out of the tree (**§5**) | No `id`s, identity as `data-item`, selection and focus-return keyed on the item rather than the element. The rule sits in `Document`'s shape, so the interactive layer cannot reintroduce it by forgetting |

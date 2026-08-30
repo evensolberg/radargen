@@ -404,6 +404,7 @@ dependencies = [
 name = "radargen"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "clap",
  "fontdb",
  "resvg",
