@@ -15,7 +15,7 @@
 
 | Decision | Value | Source |
 | --- | --- | --- |
-| Edition / MSRV | **2024**, `rust-version = "1.85"` | Review, 2026-08-29 |
+| Edition | **2024**. No `rust-version` — the edition already floors the toolchain at 1.85, and the field is left off until a real MSRV rises above that floor | Review, 2026-08-29 |
 | Flag short forms | Every flag gets one (OQ-2 closed) | Review, 2026-08-29 |
 | Error strategy | **One structured taxonomy**, `thiserror`; not `anyhow` | Review, 2026-08-29 |
 | Licence | GPL-3.0-or-later | NFR-18, D-45 |
@@ -34,7 +34,7 @@ messages. Type erasure would be fought at every one of those points.
 One direction, no cycles. Each stage is a pure function of its input plus the
 diagnostics it may add.
 
-```
+```text
   bytes                                                    §6.1
     │  decode        strip BOM, require UTF-8              FR-1, FR-2, FR-61
     ▼
