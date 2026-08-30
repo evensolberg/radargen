@@ -81,6 +81,15 @@ are HTML chrome around the graphic, not part of it. So the HTML emitter takes
 `(&Document wide, &Document narrow, &Catalogue)` and the static emitters take
 `(&Document wide)` alone.
 
+**`Catalogue` therefore keeps the CSV's shape, not only its meaning.** FR-27
+ignores unrecognised columns and FR-78 puts every one of them in the table, in
+header order — so an `Item` of named, typed fields cannot serve the table on its
+own, and reaching back past the waist to `records` would give the HTML emitter a
+second input to keep in step. `Catalogue` carries the declared header as an
+ordered list and each row's unrecognised cells beside its typed ones, which
+makes FR-78's "every optional column the header declared" a lookup rather than a
+re-parse.
+
 That asymmetry is not a leak in the waist — it is D-26 expressed as a type
 signature. A static image has nothing to put the prose in, and it is structurally
 incapable of receiving it. SC-19's "unplotted rows reachable" and SC-11's "the
@@ -106,10 +115,10 @@ declarations only and are not listed.
 | `src/rings.rs` | `--rings` parsing and FR-63 validation | *exists* |
 | `src/csv/decode.rs` | Bytes → `String`: BOM, UTF-8, line numbering (FR-1, FR-2, FR-61) | v1.0 |
 | `src/csv/parse.rs` | String → records; header, field counts (FR-3, FR-4) | v1.0 |
-| `src/model.rs` | `Item`, `Catalogue`; column validation (FR-5–FR-29); `accessible_name()` (FR-50, FR-75) | v1.0 |
+| `src/model.rs` | `Item`, `Catalogue`; column validation (FR-5–FR-29); the declared header order and each row's unrecognised cells (FR-27, FR-78); `accessible_name()` (FR-50, FR-75) | v1.0 |
 | `src/order.rs` | Every comparator: quadrants (FR-10), items (FR-34), `compare_names` | v1.0 |
-| `src/style.rs` | Every layout constant: type scale, the legend's three indents (FR-35), marker radius, band label offsets, legend column maximum (FR-79) | v1.0 |
-| `src/palette.rs` | `Role`; FR-81/FR-82 built-in values; `--palette` parsing and FR-86/FR-87 validation | v1.0 / v1.1 |
+| `src/style.rs` | Every layout constant: type scale, the legend's three indents (FR-35), marker radius, band label offsets, legend column maximum (FR-79), and the legibility floor FR-69's breakpoint is computed from (§4) | v1.0 |
+| `src/palette.rs` | `Role`; FR-81/FR-82 built-in values; FR-67's quadrant index → series entry, including its cycling; `--palette` parsing and FR-86/FR-87 validation | v1.0 / v1.1 |
 | `src/layout/geometry.rs` | Angles, bands, marker placement (FR-30–FR-33, FR-43, FR-77) and FR-89's computed band capacity | v1.0 |
 | `src/layout/block.rs` | The `Block` trait, `Size`, `Placement`; nothing domain-specific | v1.0 |
 | `src/layout/title.rs` | Title block (FR-65) | v1.0 |
@@ -120,15 +129,15 @@ declarations only and are not listed.
 | `src/svg/mod.rs` | `Node`, `Document` — the SVG tree and its serialiser | v1.0 |
 | `src/escape.rs` | NFR-6's five output contexts, one function each | v1.0 |
 | `src/num.rs` | `fmt_coord()` — NFR-17's rounding, used by every emitter | v1.0 |
-| `src/text.rs` | Shaped measurement and FR-79 wrapping | *exists — from the spike* |
-| `src/emit/html/mod.rs` | Self-contained HTML: both arrangements, the media-query switch (FR-69), inline JS/CSS | v1.0 |
+| `src/text.rs` | Shaped measurement and FR-79 wrapping, over **both** of FR-85's faces | *exists — from the spike* |
+| `src/emit/html/mod.rs` | Self-contained HTML: both arrangements, FR-69's computed media-query switch, FR-56's theme override, inline JS/CSS and font | v1.0 |
 | `src/emit/html/table.rs` | The table view (FR-41, FR-78) — every CSV row, every declared column | v1.0 |
 | `src/emit/write.rs` | NFR-14's atomic write: temp file in the same directory, flush, rename | v1.0 |
 | `src/emit/svg.rs` | The document written directly | v1.1 |
 | `src/emit/png.rs` | `resvg` rasterisation | v1.1 |
-| `assets/` | The vendored font and its OFL notice (FR-85, NFR-5), `include_bytes!` into the binary | *stand-in* |
+| `assets/` | The vendored font — TTF to measure and rasterise, WOFF2 to inline — and its OFL notice (FR-85, NFR-5), `include_bytes!` into the binary | *stand-in* |
 
-Four of these are corrections rather than additions, and each has a reason:
+Six of these are corrections rather than additions, and each has a reason:
 
 - **`escape.rs` and `num.rs` sit at the crate root, not under `svg/`.** Two of
   NFR-6's five contexts — the JavaScript/JSON island and the CSS custom-property
@@ -149,6 +158,19 @@ Four of these are corrections rather than additions, and each has a reason:
 - **`emit/write.rs` owns the atomic write.** NFR-14 is the requirement most
   easily satisfied by accident and lost by accident — `fs::write` is one call and
   wrong. Isolating it makes SC-18 testable against a single function.
+- **`text.rs` measures over two faces, not one.** FR-85 pins Inter Regular *and*
+  SemiBold, and FR-35 separates the legend's three levels by type style as well
+  as by indentation — so a measurement is `(face, size, letter-spacing)` and
+  never `(size, letter-spacing)`. The spike's `FontMetrics` holds a single face
+  because one was all R-1 needed; every `Block::size` reads both, so they are
+  loaded once at startup and passed down rather than re-parsed per call.
+- **`assets/` holds two encodings of one face, and they must stay one face.**
+  `text.rs` and `resvg` work from the TTF; the HTML inlines the WOFF2, since
+  NFR-5 and SC-15 forbid fetching it. FR-46's explicit `<tspan>`s bound the
+  damage — the browser never re-wraps, so a metric difference cannot move a wrap
+  point — but positions computed against one face and painted with another set
+  text visibly off its column. Both files are subset from one source in one step
+  and versioned together.
 
 **`assets/` currently holds Libertinus Sans**, the spike's stand-in. FR-85 pins
 **Inter**, two static instances, Latin-subset. Swapping it is a scheduled task,
@@ -205,6 +227,19 @@ come from the same `Blocks`, which is what makes FR-68's "same items, same
 numbering, same marker treatments" true by construction rather than by
 discipline.
 
+**FR-69's breakpoint is computed from the wide document, not picked.** The PRD
+calls the value an implementation detail and records that `mockup.html` uses
+900px — but the prototype had one dataset and a legend of fixed width. FR-51
+scales each arrangement fluidly over its own `viewBox`, so at viewport width `V`
+the wide arrangement's 12.5-unit legend text renders at `12.5 × V / W` px, where
+`W` is *that document's* width — and `W` grows with the legend, whose column
+FR-79 sizes from the longest measured line. A constant breakpoint therefore
+means a different rendered text size for every radar, and FR-70 exists precisely
+because that number going small is what SC-6 fails on. So the switch is emitted
+per document, at `W × (MIN_LEGIBLE_PX / LEGEND_SIZE_PX)` rounded to an integer,
+with the floor living in `style.rs` beside the type scale it is a floor for. The
+narrow arrangement's own width bounds it from below.
+
 `Blocks` is a struct of four concrete fields — title, radar, legend, key — not a
 `Vec<Box<dyn Block>>`. The trait exists to *impose a shape* on four types, not to
 make them interchangeable at runtime: nothing ever iterates blocks without
@@ -221,14 +256,31 @@ pub enum Node { Group { .. }, Path { .. }, Text { .. }, Title(String), .. }
 pub enum Paint { Role(palette::Role), None }
 ```
 
+`Paint::None` is the SVG `none` — the stroked-but-unfilled shapes: ring circles,
+quadrant dividers, FR-40's status rings and half-rings. It is **not** FR-20's
+hollow marker, which takes `Role::MarkerHollow`. FR-82 equals that role to the
+radar ground in both built-in themes, so on the radar the two are
+indistinguishable and the mistake is invisible — but FR-66 draws the key's sample
+markers *"the same way the radar draws it"* against a different background, where
+`none` shows that background and the role shows the radar ground. It is listed as
+its own overridable role for the same reason, and a `--palette` may set the two
+apart.
+
 **No node carries a hex value.** Fills, strokes and text colours name a
 `palette::Role` — FR-82's eight neutrals and FR-81's indexed series entries — and
 the *emitter* binds it:
 
 | Emitter | Binding | Why |
 | --- | --- | --- |
-| HTML | `var(--series-1)`, with both palettes in one inline `<style>` and a `prefers-color-scheme` media query | FR-56: `--theme` is ignored on HTML because the viewer chooses; both palettes must be present at once |
+| HTML | `var(--series-1)`, with both palettes in one inline `<style>`: a default block, a `prefers-color-scheme` override, and a `[data-theme]` override the in-page toggle sets | FR-56: `--theme` is ignored on HTML because the viewer chooses; both palettes must be present at once, and §14.1 puts the toggle in v1.0 |
 | SVG, PNG | the literal value resolved for `--theme` at generation time | FR-56: a static snapshot has no viewer-side choice — and `resvg` does not resolve CSS custom properties, so a `var()` in a rasterised document silently renders **black** — verified, not assumed |
+
+**Three declarations rather than two, because FR-56 gives the viewer two ways to
+choose.** The media query is the default and the toggle overrides it, so the
+override has to be a selector the palettes are declared under — flipping one
+attribute on the root — and not JavaScript rewriting values. A toggle that
+rewrote values would have to enumerate every role by name, in a second place,
+which is the duplication `Role` exists to prevent.
 
 This is the one place a single `Document` legitimately serialises differently per
 format, and it is what makes FR-56's "ignored, not an error, on HTML output" a
@@ -246,6 +298,47 @@ whether it is a rasteriser.
 `Role` is an enum for the eight neutrals and an index for the series, since
 FR-87 makes the series count a property of the file rather than a constant.
 
+**That index is the quadrant's position in FR-10's order, and it is not reduced
+before the emitter sees it.** FR-67 cycles when quadrants outnumber palette
+entries, and FR-87 makes the number of entries a property of a file the layout
+never reads. Taking the modulo during layout would put the palette's length
+inside `Document` and make one radar two different documents under two palettes
+of different lengths — so the wrapping happens at bind time,
+`entries[i % entries.len()]`, and `Document` stays a function of the CSV and the
+geometry alone. §14.2 costs FR-67 against the layout engine; what belongs there
+is the *index*, which is FR-10's order, and what belongs in `palette.rs` is the
+cycling. Late binding is the second thing this buys after FR-56.
+
+### Identity in the output, and why there are no `id`s
+
+FR-69 puts **both arrangements in one HTML document**, one of them
+`display: none`. Every marker and legend row therefore exists twice in a single
+DOM, and with the table (FR-78) an item can have four elements. Two consequences
+the `Document` type has to carry, because the emitter is the only stage that
+knows there are two of anything:
+
+- **No node emits an `id`, and nothing references `url(#…)`.** Duplicated ids
+  are invalid, and `url(#…)` resolves to the first match in document order — so a
+  clip path, symbol or gradient defined in the wide arrangement would silently
+  paint the narrow one, which is a class of bug that renders correctly in the
+  exported SVG and wrongly in the HTML. Anything wanting an id is inlined at each
+  use; if something one day cannot be, the HTML emitter namespaces it per
+  arrangement and `Document` still does not.
+- **Identity travels as `data-row`, carrying the CSV line — not FR-34's number.**
+  One key space rather than two: the number is contiguous over plotted items
+  only (FR-18), so it cannot name the unplotted rows FR-78 puts in the table, and
+  a second key for those would be a second thing to collide. The line is unique
+  for every row, stable across renders, and NFR-10 already assigns it. The
+  number stays what it is — a label the reader sees.
+
+  The interactive layer's job (FR-38, FR-72, FR-49) is to relate a marker, a
+  legend row and a table row for one item, and to survive a breakpoint change
+  while a panel is open — which moves the element the reader activated into a
+  hidden subtree, taking the focus FR-49 promised to return with it. Keying
+  selection and focus-return on the *item* makes that a lookup in whichever
+  arrangement is displayed rather than a reference into one that is not. The same
+  attribute is what makes FR-72's indication symmetric.
+
 ## 6. Determinism, enforced structurally
 
 NFR-4 and NFR-17 are easy to satisfy once and lose later. Three structural
@@ -262,6 +355,15 @@ choices instead of vigilance:
   no two items ever compare equal and sort stability cannot be load-bearing. That
   is asserted in `order.rs`'s tests rather than assumed, because the moment it
   stops being true the failure is a reordering nobody can reproduce.
+
+- **Comparators read a pre-computed normalised key.** FR-76 makes FR-10's and
+  FR-34's comparisons run on *normalised* values, and `normalise()` allocates.
+  Folding inside the comparator would put an allocation in every comparison and,
+  worse, makes it possible to normalise one operand and not the other — which is
+  the mistake FR-76 exists to prevent, and one a passing test suite would not
+  notice until a stray leading space sorted an item away from the name it
+  duplicates. The key is computed once when the `Item` is built; "both operands
+  normalised" is then a property of construction, not of every call site.
 
 Byte-identity is asserted for HTML and SVG; PNG is compared by decoded pixels
 (NFR-4, D-40).
@@ -293,6 +395,25 @@ errors — returns a single `Fatal` and aborts, because nothing parsed.
 the title strings. It is built once in `main.rs` from `Cli` plus `rings.rs` plus
 `palette.rs` and is read-only thereafter, so no stage below can reinterpret a
 flag differently from another.
+
+**There is a third failure point below both tiers, and NFR-14 makes it the
+delicate one.** NFR-15's runtime failures — an unwritable path, a path naming a
+directory, no space left, a rasterisation failure — arise *after* the pipeline
+has run, and for the write itself after warnings have already reached stderr.
+They return a single `Fatal` as tier one does, but the exit path carries one
+extra obligation: **`emit/write.rs` removes its temporary file before
+returning.** NFR-8 promises that a non-zero exit means nothing was written, and
+SC-18 tests that promise by hashing the file at the `-o` path — which a leftover
+`radar.a1b2c3.tmp` sitting beside it passes while plainly breaking it. The temp
+file is therefore owned by a guard that deletes on drop and is disarmed only by a
+successful rename, so cleanup is not a path anybody has to remember to take.
+
+NFR-15 lists a `--palette` file that cannot be read or will not parse alongside
+those, but it is not one of them here: the palette is read while `Config` is
+built, before a byte of CSV is parsed, so it is **tier one** and never reaches
+the emitter. That is the right place for it — a bad palette costs nothing to find
+out early, and SC-18 names it as one of its part-way failures precisely because
+the naive implementation finds it late.
 
 **`Warnings` is a `Vec<Warning>` with grouping applied at print time, not at push
 time.** NFR-20 groups by class and enumerates the distinct values that triggered
@@ -345,7 +466,23 @@ interface that has not been agreed. Each step is testable when it lands.
 Steps 1–6 are v1.0; step 7 is v1.1. The font swap (Libertinus → Inter, FR-85)
 must land **before step 4**, not with packaging: every measured size in `Blocks`
 is face-specific, so changing the face after the golden files exist rewrites all
-of them and hides any real regression in the diff.
+of them and hides any real regression in the diff. It brings a second face with
+it (§3), so `text.rs` gains its weight parameter at the same moment.
+
+**The critical path is 3 → 4 → 5 → 6**, and it carries §14.2's two most
+expensive lines. Steps 1 and 2 are independent of each other and can run in
+either order or together; nothing after step 3 can. So the two things worth
+front-loading are the font swap and step 3's geometry — everything else waits on
+them, and neither is large.
+
+**§12's success criteria do not divide evenly across the slices, and v1.0's
+acceptance gate is the subset that does not need a static format.** SC-7 (parity
+between formats), SC-11 (the PNG standing alone) and SC-21 (`--palette`) are v1.1
+by definition; SC-8, SC-9, SC-10 and SC-15 are met for HTML in v1.0 and extended
+to PNG and SVG in v1.1. Everything else is v1.0's, with SC-3 additionally waiting
+on OQ-4's backfill, which is not code. Worth stating because the two most
+quotable criteria — SC-7 and SC-11 — are both v1.1: a v1.0 shipping without them
+is on plan, not short.
 
 ## 10. Testing
 
@@ -371,7 +508,11 @@ order.
 one process shares an allocator and a hash state, so it is the weaker assertion
 and would pass through the failure NFR-4 is written against. SC-8's cross-machine
 arm is a CI matrix over NFR-13's three platforms, not a local test — it cannot
-be one.
+be one — **and the matrix has to compare between jobs, not within them.** Three
+jobs each checking that its own output is self-consistent would pass on three
+platforms that disagree with each other, which is exactly the failure NFR-4 is
+written against. Each job publishes its HTML and SVG hashes and its decoded PNG;
+a final job compares them across the three.
 
 **Golden fixtures** live in `tests/fixtures/` as CSVs, with expected output in
 `tests/golden/`. The set is driven by the success criteria, not by intuition:
@@ -388,12 +529,22 @@ be one.
 | `warnings.csv` | SC-24 — 40 rows of one undeclared ring plus one typo |
 | `seven-quadrant.csv` | SC-22 — one FR-88 warning, not seven, and not at six |
 | `wide.csv` | SC-9's escaping is not enough on its own: a name long enough to force FR-79's mid-token break, which is the wrap path least likely to be exercised by real data |
+| `one-quadrant.csv` | FR-43 — N=1, where the single divider is both edges and FR-33's 8% inset applies to each side of a full circle. The geometry says this is not a special case; this is what checks that it isn't |
+| `twelve-quadrant.csv` | SC-22's twelve case *and* FR-67's cycling — the ninth quadrant repeats the first's colour, and one FR-88 warning covers the lot |
+| `treatments.csv` | SC-14 — every `qualifier` × `status` combination, so FR-20's two fills and FR-40's three ring treatments are each drawn at least once. Nothing else in this table draws a half-ring |
+| `row-errors.csv` | NFR-16 **tier two** — several rows each failing FR-4, FR-5 or FR-6, reported in one run. §7's `Vec<Fatal>` exists for this and no other fixture reaches it |
+| `quoted-newline.csv` | NFR-10 — a quoted field containing a newline, after which the physical line and the record ordinal diverge permanently. D-37 chose the physical line; every other fixture agrees with both |
 
-Three success criteria are not fixture-shaped and get their own tests rather than
+Four success criteria are not fixture-shaped and get their own tests rather than
 being quietly dropped: **SC-15** greps each output for an external reference and
 loads the HTML with no network; **SC-18** hashes an existing file at the `-o`
-path before and after a deliberately failing render; **SC-16** runs the released
-binary on a clean machine, which is a CI job and not a `cargo test`.
+path before and after a deliberately failing render, and asserts no temporary
+file was left beside it (§7); **SC-16** runs the released binary on a clean
+machine, which is a CI job and not a `cargo test`; and **SC-22's last sentence**
+— that the README and `--help` both state the rendered range (NFR-19) — splits,
+the `--help` half being a contract assertion in `tests/cli.rs` and the README
+half a release-checklist item nothing in `cargo test` can reach. §1's
+`cargo-deny` gate is the same shape: CI, not a test.
 
 A golden file is regenerated only by a deliberate `UPDATE_GOLDEN=1` run, never
 silently — NFR-12 makes a changed output a version-bumping event, so a diff that
@@ -410,7 +561,21 @@ appears without one is the signal, not the noise.
   helper** where NFR-6 needs five. Both are specified differently from what the
   prototype does; the port fixes them rather than carrying them.
 - **`--palette` parsing.** v1.1, and FR-86/FR-87 already fix its rules.
-- **PNG and SVG emitters.** v1.1. `Document` exists so they are thin.
+- **PNG and SVG emitters.** v1.1. `Document` exists so they are thin — with one
+  caveat, immediately below, that could make the SVG one not thin.
+- **How the exported SVG carries its font.** SC-15 forbids an external font
+  reference in the SVG as firmly as NFR-5 does in the HTML, and FR-54 sells that
+  file on opening in PowerPoint, Figma and Illustrator for touch-up. The two pull
+  against each other, and the PRD asserts both without noticing they meet here.
+  A base64 `@font-face` in `<defs>` keeps the text editable and is honoured far
+  more reliably by browsers than by design tools; converting text to outlines
+  guarantees the glyphs and costs exactly the touch-up FR-54 names. **This is the
+  one thing that could make `emit/svg.rs` a converter rather than a serialiser**
+  — outlining needs glyph contours from `ttf-parser` and a pass over `Document`,
+  which is a different shape of work from writing it out. It is v1.1, so there is
+  time; it wants a short spike against the three named applications before v1.1
+  is planned, and a question in the PRD, since neither FR-54 nor SC-15 can be
+  quietly narrowed to make it go away.
 
 ## 12. Risks this design accepts
 
@@ -422,3 +587,5 @@ appears without one is the signal, not the noise.
 | The `Catalogue` side-channel could become a second data path that drifts from the graphic (**§2**) | It is read-only and additive — the HTML emitter reads prose and unplotted rows from it, never geometry or numbering. Anything the two could disagree about comes from `Document` |
 | Legend height sets the document height past ~25 items (**R-3**) | Accepted for this version, per the PRD. The `Block` shape is what makes the likely answer — a multi-column legend in the wide arrangement — a change inside `layout/legend.rs` and nowhere else |
 | The pinned font is still the spike's stand-in (**R-7**) | Swapped before step 4 of §9, for the reason given there. Measured subset size and any Reserved Font Name are confirmed at that point |
+| The exported SVG's font has no decided mechanism, and one of the two candidates makes `emit/svg.rs` a converter rather than a serialiser (**§11**) | v1.1, spiked before it is planned. Nothing in v1.0 turns on the answer and the HTML's inlined WOFF2 is unaffected either way, so the risk is bounded to one slice and one file |
+| Both arrangements live in one DOM, so every interactive element exists twice and a breakpoint change can move the focused one out of the tree (**§5**) | No `id`s, identity as `data-item`, selection and focus-return keyed on the item rather than the element. The rule sits in `Document`'s shape, so the interactive layer cannot reintroduce it by forgetting |
