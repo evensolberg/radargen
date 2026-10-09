@@ -15,13 +15,13 @@ radargen entries.csv -o edition.html --rings "Adopt, Trial, Assess, Hold"
 ## Status
 
 **Pre-release.** The specification is complete — see
-[`docs/product/PRD.md`](docs/product/PRD.md) — and implementation is underway.
+[`docs/product/radargen-prd.md`](docs/product/radargen-prd.md) — and implementation is underway.
 v1.0 ships HTML output; PNG and SVG arrive in v1.1, and a `-o` naming those
 extensions fails with a message saying so.
 
 ## Documentation
 
-- [`docs/product/PRD.md`](docs/product/PRD.md) — requirements, decisions, and
+- [`docs/product/radargen-prd.md`](docs/product/radargen-prd.md) — requirements, decisions, and
   the reasoning behind both
 - [`docs/product/mockup.html`](docs/product/mockup.html) — layout prototype
 - [`docs/product/palette-proof.html`](docs/product/palette-proof.html) — the

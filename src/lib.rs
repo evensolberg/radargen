@@ -1,6 +1,6 @@
 //! radargen — CSV to technology radar.
 //!
-//! See `docs/product/PRD.md`. Requirement IDs in comments refer to it.
+//! See `docs/product/radargen-prd.md`. Requirement IDs in comments refer to it.
 
 pub mod cli;
 pub mod rings;
