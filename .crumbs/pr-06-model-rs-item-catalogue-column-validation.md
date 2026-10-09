@@ -1,6 +1,6 @@
 ---
 id: rg-rnc
-title: 'PR 6: model.rs — Item, Catalogue, column validation'
+title: 'PR 06: model.rs — Item, Catalogue, column validation'
 status: blocked
 type: task
 priority: 2
@@ -20,6 +20,6 @@ blocked_by:
 phase: v1.0
 ---
 
-# PR 6: model.rs — Item, Catalogue, column validation
+# PR 06: model.rs — Item, Catalogue, column validation
 
 FR-5–FR-29, FR-27/FR-78 (declared header order, unrecognised cells kept), accessible_name() (FR-50, FR-75). build_catalogue returns Result<_, Vec<Fatal>> (NFR-16 tier two). Normalised sort keys computed once at construction.

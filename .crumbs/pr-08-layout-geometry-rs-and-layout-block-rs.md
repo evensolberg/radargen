@@ -1,6 +1,6 @@
 ---
 id: rg-48z
-title: 'PR 8: layout/geometry.rs and layout/block.rs'
+title: 'PR 08: layout/geometry.rs and layout/block.rs'
 status: blocked
 type: task
 priority: 1
@@ -20,6 +20,6 @@ blocked_by:
 phase: v1.0
 ---
 
-# PR 8: layout/geometry.rs and layout/block.rs
+# PR 08: layout/geometry.rs and layout/block.rs
 
 FR-30–FR-33, FR-43, FR-77, FR-89 capacity. Block trait, Size, Placement (with scale, for FR-70). Start of the critical path.

@@ -1,6 +1,6 @@
 ---
 id: rg-efx
-title: 'PR 7: order.rs — quadrant and item comparators'
+title: 'PR 07: order.rs — quadrant and item comparators'
 status: blocked
 type: task
 priority: 2
@@ -18,6 +18,6 @@ blocked_by:
 phase: v1.0
 ---
 
-# PR 7: order.rs — quadrant and item comparators
+# PR 07: order.rs — quadrant and item comparators
 
 FR-10, FR-34, compare_names. Every comparator total; asserted in tests. Waits on rg-wld (non-ASCII ordering).
