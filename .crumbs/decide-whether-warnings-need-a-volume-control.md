@@ -1,7 +1,7 @@
 ---
 id: rg-m59
 title: Decide whether warnings need a volume control
-status: in_progress
+status: closed
 type: task
 priority: 3
 tags:
@@ -69,3 +69,11 @@ every other absent optional column as normal? FR-20 scoped the warning in v0.13
 to fire only where the column is present, which removes the worst case but not
 the general one. NFR-20 reduces its volume to a single line, which lowers the
 urgency without answering the question.
+
+## Resolved in PRD v0.36 — question (b)
+
+**(b) blank qualifier → no warning.** FR-20 now matches FR-26: an unrecognised
+non-blank value warns, a blank or absent one does not. FR-21's ring-agnostic
+rule meant the warning fired mostly on Trial/Assess rows where blank is
+correct, and solid is already the safe fallback (D-6). All three questions are
+now closed.
