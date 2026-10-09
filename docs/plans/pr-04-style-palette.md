@@ -1,0 +1,644 @@
+# PR 04 — `style.rs` and the built-in `palette.rs`: Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Crumb:** `rg-bkm` · **Phase:** v1.0 · **Blocked by:** `rg-osr` (PR 01: `text::Weight` and `Fonts`) · **Blocks:** `rg-48z` (PR 08)
+
+**Goal:** Give every layout constant one home (`style.rs`). Define the colour roles and the two built-in palettes (`palette.rs`), with FR-67's cycling applied at bind time.
+
+**Architecture:** `style.rs` is data plus one pure function: the type scale as `TextStyle` values (weight, size, letter-spacing), the FR-35 indents, the marker radius, the FR-79 legend maximum, the arrangement metrics, and FR-69's legibility floor with the breakpoint it computes. `palette.rs` defines `Role`: eight named neutrals plus a series **index** that is never reduced before binding (architecture §5). It also defines `Palette`, which binds a role either to a literal value (SVG/PNG) or to a `var()` (HTML), applying `index % len` only at that point. `Theme` moves here from `cli.rs`, because choosing a theme means choosing a palette. `--palette` parsing is PR 18.
+
+**Tech Stack:** Rust 2024; `clap` (`ValueEnum` on `Theme`, as today).
+
+**Spec:** `docs/product/radargen-prd.md` v0.37: FR-35, FR-56, FR-67, FR-69, FR-70, FR-79, FR-81, FR-82, FR-85, FR-87, OQ-16. Design: `docs/design/architecture.md` §3 (the `style.rs` and `palette.rs` rows and the paragraph on `style.rs`), §4 (the breakpoint formula) and §5 (late binding, the `Paint`/`Role` split, and why the modulo sits in `palette.rs`). Normative data: `docs/product/palette.sample.css`.
+
+## Global Constraints
+
+- **FR-81, verbatim and in order:** `#0072B2`, `#C25400`, `#00857A`, `#787832`, `#B5476B`, `#2F9626`, `#C431B8`, `#9D5A43`. Shared by both themes.
+- **FR-82, in role order** surface-1, surface-2, text-primary, text-muted, stroke-ring, stroke-divider, marker-hollow, focus:
+  - Light: `#FFFFFF`, `#F4F5F7`, `#16191F`, `#585F6B`, `#7E858F`, `#848B96`, `#FFFFFF`, `#0B5FA5`
+  - Dark: `#15181D`, `#1E222A`, `#E8EAEE`, `#A6AEBB`, `#6C7480`, `#666E7A`, `#15181D`, `#7FB8E6`
+- **FR-67:** colour is the series entry at the quadrant's index in FR-10's order, **cycling**. The modulo happens at bind time, never in layout (§5).
+- **FR-85:** two weights only. The mockup's `700` becomes SemiBold `600`.
+- **FR-69 breakpoint:** `W × (MIN_LEGIBLE_PX / LEGEND_NAME.size)`, rounded to an integer (§4).
+- `cargo clippy --all-targets -- -D warnings` is clean. Keep new code clean under `-D clippy::pedantic` too (gate pending, `rg-q3w`).
+- Commits: `type(scope): description`, plus the session's `Co-Authored-By` trailer. Run `git-mit es` first if present.
+
+## Review Focus
+
+1. **The ninth quadrant.** FR-67 says it repeats the first colour. An off-by-one in the modulo would give the ninth quadrant the second colour, or panic. *Test: Task 3, `series_cycles_from_the_start`, which includes index 8 and index 17.*
+2. **HTML and static output binding the same role differently.** `var()` and the literal value must name the same entry for any index, or the HTML and PNG would colour a quadrant differently. *Test: Task 3, `var_and_value_name_the_same_entry`.*
+3. **`palette.sample.css` drifting from the built-ins.** It ships as the `--palette` starting point (FR-81), so an author copying it must get exactly what the tool draws. *Test: Task 3, `built_ins_match_palette_sample_css`.*
+4. **A marker number that doesn't fit its marker.** Two-digit numbers are the common case at realistic item counts. *Test: Task 1, `two_digit_numbers_fit_inside_the_marker`.*
+5. **Legend levels that read as one level.** FR-35 requires the three levels to differ in indentation *and* type style. *Test: Task 1, `legend_levels_differ_in_indent_and_style`.*
+
+## Decisions taken in this plan (flag on review)
+
+- **Values come from `mockup.html`** (lines 360–386 and its CSS), the prototype the PRD cites, with three changes:
+  - Its `700` weights become `600` (FR-85).
+  - The legend name is **Regular** 12.5px. The mockup's CSS uses normal weight while its measuring font string says 600. The CSS is what renders, so it wins.
+  - **There's no uppercase transform** on legend headings. The mockup uppercases with CSS `text-transform`, which `resvg` would not apply and our measurement would not see. Doing it honestly means changing the displayed string, which FR-76 says we don't do to labels. Headings differ by weight, size, letter-spacing and indent instead.
+- **`MIN_LEGIBLE_PX = 10.0`.** The PRD calls the value an implementation detail. With the mockup's wide width of 1148, it gives a 918 px breakpoint against the mockup's 900. This is the number most worth a second look.
+- **Radar and arrangement metrics live here too** (`BAND_OUTER_RADIUS`, `DIVIDER_RADIUS`, `QUADRANT_LABEL_RADIUS`, the margins, `NARROW_WIDTH`), because architecture §3 says every layout constant does. The narrow counter-scaled label sizes (FR-70) aren't here: PR 10 computes them from these sizes and the scale.
+- **`Role` is `Neutral(Neutral) | Series(usize)`.** Indexing the neutrals is then an enum cast, with no panic path.
+- **`Theme` moves to `palette.rs`**, and `cli.rs` re-exports it, so `radargen::cli::Theme` and `tests/cli.rs` keep working.
+- **No version bump.** Nothing renders yet.
+
+---
+
+### Task 1: `style.rs`
+
+**Files:**
+- Create: `src/style.rs`
+- Modify: `src/lib.rs` (add `pub mod style;`)
+
+**Interfaces:**
+- Consumes: `radargen::text::{Weight, Fonts}` (PR 01).
+- Produces, in `radargen::style`:
+  - `#[derive(Debug, Clone, Copy, PartialEq)] pub struct TextStyle { pub weight: Weight, pub size: f64, pub letter_spacing: f64 }`
+  - These `TextStyle` constants: `TITLE`, `SUBTITLE`, `QUADRANT_LABEL`, `RING_LABEL`, `MARKER_NUMBER`, `LEGEND_QUADRANT`, `LEGEND_RING`, `LEGEND_NAME`, `LEGEND_META`, `LEGEND_BADGE_NUMBER`, `KEY_HEADING`, `KEY_LABEL`
+  - These `f64` constants: `LINE_HEIGHT`, `INDENT_QUADRANT`, `INDENT_RING`, `INDENT_ITEM`, `META_GAP`, `LEGEND_WIDTH_MAX`, `MARKER_RADIUS`, `BADGE_RADIUS`, `STATUS_RING_GAP`, `STATUS_RING_STROKE`, `BAND_OUTER_RADIUS`, `DIVIDER_RADIUS`, `QUADRANT_LABEL_RADIUS`, `MARGIN`, `COLUMN_GAP`, `NARROW_WIDTH`, `MIN_RADAR_WIDTH`, `MIN_LEGIBLE_PX`
+  - `pub fn breakpoint_px(wide_width: f64) -> u32`
+
+  Layout blocks (PR 08–12) read these constants. PR 14 calls `breakpoint_px` for FR-69's media query.
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `src/style.rs` with only the test module:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::text::Fonts;
+
+    /// FR-35: three levels, each stepped in under the one above, and each
+    /// distinguished by type style as well.
+    #[test]
+    fn legend_levels_differ_in_indent_and_style() {
+        assert!(INDENT_QUADRANT < INDENT_RING && INDENT_RING < INDENT_ITEM);
+        let levels = [LEGEND_QUADRANT, LEGEND_RING, LEGEND_NAME];
+        for (i, a) in levels.iter().enumerate() {
+            for b in &levels[i + 1..] {
+                assert!(a != b, "two legend levels share a style: {a:?}");
+            }
+        }
+    }
+
+    /// OQ-16 (d): the marker must hold its number. Two digits is the common
+    /// case at realistic item counts; three is OQ-16's problem, not this one's.
+    #[test]
+    fn two_digit_numbers_fit_inside_the_marker() {
+        let fonts = Fonts::embedded().expect("faces");
+        let m = fonts.face(MARKER_NUMBER.weight);
+        let widest = ["88", "99", "00", "44"]
+            .iter()
+            .map(|s| m.measure(s, MARKER_NUMBER.size, MARKER_NUMBER.letter_spacing))
+            .fold(0.0_f64, f64::max);
+        assert!(widest < 2.0 * MARKER_RADIUS, "{widest} does not fit a {MARKER_RADIUS} radius");
+    }
+
+    #[test]
+    fn badge_is_smaller_than_the_marker() {
+        // mockup.html: the badge is a list bullet, not a second copy of the marker.
+        assert!(BADGE_RADIUS < MARKER_RADIUS);
+    }
+
+    /// Architecture §4: W × (floor / legend size), rounded. 1148 is the
+    /// mockup's wide width (660 + 28 + 440 + 20), whose fixed breakpoint was 900.
+    #[test]
+    fn breakpoint_is_computed_from_the_wide_width() {
+        assert_eq!(breakpoint_px(1148.0), 918);
+        assert_eq!(breakpoint_px(1250.0), 1000);
+    }
+
+    #[test]
+    fn breakpoint_puts_legend_text_at_the_floor() {
+        let w = 1400.0;
+        let rendered = LEGEND_NAME.size * f64::from(breakpoint_px(w)) / w;
+        assert!((rendered - MIN_LEGIBLE_PX).abs() < 0.01, "{rendered}");
+    }
+}
+```
+
+Add `pub mod style;` to `src/lib.rs`.
+
+- [ ] **Step 2: Run them to see them fail**
+
+Run: `cargo test --lib style`
+Expected: a compile error, `cannot find value INDENT_QUADRANT`.
+
+- [ ] **Step 3: Implement**
+
+Put this above the test module:
+
+```rust
+//! Every layout constant, in one home (architecture §3). Read by two or three
+//! of `layout/*` each; scattered, they drift apart under maintenance.
+//!
+//! Values are user units at scale 1 (px when rendered 1:1), taken from
+//! `docs/product/mockup.html` with its 700 weights mapped to SemiBold 600 —
+//! FR-85 ships two weights. No uppercase transform: CSS `text-transform` is
+//! invisible to our measurement and to `resvg`, and doing it for real would
+//! edit a label, which FR-76 rules out.
+
+use crate::text::Weight;
+
+/// FR-85: a measurement is (face, size, letter-spacing), never fewer.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TextStyle {
+    pub weight: Weight,
+    pub size: f64,
+    pub letter_spacing: f64,
+}
+
+const fn style(weight: Weight, size: f64, letter_spacing: f64) -> TextStyle {
+    TextStyle { weight, size, letter_spacing }
+}
+
+// --- Type scale ------------------------------------------------------------
+pub const TITLE: TextStyle = style(Weight::SemiBold, 17.0, 0.0);
+pub const SUBTITLE: TextStyle = style(Weight::Regular, 12.0, 0.0);
+/// 0.04em at 12px.
+pub const QUADRANT_LABEL: TextStyle = style(Weight::SemiBold, 12.0, 0.48);
+pub const RING_LABEL: TextStyle = style(Weight::Regular, 10.0, 0.0);
+pub const MARKER_NUMBER: TextStyle = style(Weight::SemiBold, 9.0, 0.0);
+/// FR-35 level one. 0.03em at 11px.
+pub const LEGEND_QUADRANT: TextStyle = style(Weight::SemiBold, 11.0, 0.33);
+/// FR-35 level two. 0.03em at 10px.
+pub const LEGEND_RING: TextStyle = style(Weight::SemiBold, 10.0, 0.3);
+/// FR-35 level three, and the size FR-69's breakpoint protects.
+pub const LEGEND_NAME: TextStyle = style(Weight::Regular, 12.5, 0.0);
+/// FR-74's trailing qualifier/status text.
+pub const LEGEND_META: TextStyle = style(Weight::Regular, 10.5, 0.0);
+pub const LEGEND_BADGE_NUMBER: TextStyle = style(Weight::SemiBold, 9.0, 0.0);
+pub const KEY_HEADING: TextStyle = style(Weight::SemiBold, 13.0, 0.0);
+pub const KEY_LABEL: TextStyle = style(Weight::Regular, 11.0, 0.0);
+/// Legend text line height.
+pub const LINE_HEIGHT: f64 = 15.0;
+
+// --- Legend (FR-35, FR-74, FR-79) -----------------------------------------------
+pub const INDENT_QUADRANT: f64 = 16.0;
+pub const INDENT_RING: f64 = 24.0;
+pub const INDENT_ITEM: f64 = 44.0;
+/// Between an item name and its trailing meta (FR-74).
+pub const META_GAP: f64 = 8.0;
+/// FR-79's fixed maximum for the legend block; its rendered width is the
+/// lesser of this and the longest measured line.
+pub const LEGEND_WIDTH_MAX: f64 = 440.0;
+
+// --- Markers (FR-20, FR-40) -----------------------------------------------------
+/// OQ-16's home: whether this is user units or output pixels is a change to
+/// this constant's meaning, not an excavation (architecture §8).
+pub const MARKER_RADIUS: f64 = 10.0;
+/// The legend badge — a list bullet, deliberately smaller than the marker.
+pub const BADGE_RADIUS: f64 = 7.0;
+/// FR-40's status ring sits this far outside the marker.
+pub const STATUS_RING_GAP: f64 = 4.0;
+pub const STATUS_RING_STROKE: f64 = 2.0;
+
+// --- Radar (FR-32, FR-33) -------------------------------------------------------
+/// Outer edge of the outermost band; bands divide it equally (FR-32).
+pub const BAND_OUTER_RADIUS: f64 = 260.0;
+pub const DIVIDER_RADIUS: f64 = 262.0;
+pub const QUADRANT_LABEL_RADIUS: f64 = 300.0;
+
+// --- Arrangements (FR-68–FR-71) -------------------------------------------------
+pub const MARGIN: f64 = 20.0;
+/// Between radar and legend, wide arrangement only.
+pub const COLUMN_GAP: f64 = 28.0;
+/// The narrow document is authored at this width and the radar scaled to fit
+/// inside it, so text keeps its natural size (FR-70, D-31).
+pub const NARROW_WIDTH: f64 = 420.0;
+/// The radar block's width at scale 1, quadrant labels included.
+pub const MIN_RADAR_WIDTH: f64 = 660.0;
+
+/// The smallest rendered size legend text may reach before the HTML switches
+/// to the narrow arrangement (FR-69, architecture §4).
+pub const MIN_LEGIBLE_PX: f64 = 10.0;
+
+/// FR-69's media-query breakpoint for a wide document `wide_width` units wide:
+/// the viewport width at which `LEGEND_NAME` renders at `MIN_LEGIBLE_PX`. Per
+/// document, not a constant — the wide width grows with the legend (§4).
+#[must_use]
+pub fn breakpoint_px(wide_width: f64) -> u32 {
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "a document width is positive and at most a few thousand units"
+    )]
+    let px = (wide_width * MIN_LEGIBLE_PX / LEGEND_NAME.size).round() as u32;
+    px
+}
+```
+
+- [ ] **Step 4: Run the tests**
+
+Run: `cargo test --lib style && cargo clippy --all-targets -- -D warnings`
+Expected: 5 passed, clippy clean.
+
+If `two_digit_numbers_fit_inside_the_marker` fails, the marker or number size is wrong for Inter. Report the measured width rather than changing either constant, because that's a design decision.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/style.rs src/lib.rs
+git commit -m "feat(style): the layout constants and FR-69's computed breakpoint"
+```
+
+---
+
+### Task 2: `Role`, `Neutral` and `Theme`
+
+**Files:**
+- Create: `src/palette.rs`
+- Modify: `src/lib.rs` (add `pub mod palette;`)
+- Modify: `src/cli.rs` (remove the `Theme` enum and add `pub use crate::palette::Theme;`)
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces, in `radargen::palette`:
+  - `#[derive(Debug, Clone, Copy, PartialEq, Eq)] pub enum Neutral { Surface1, Surface2, TextPrimary, TextMuted, StrokeRing, StrokeDivider, MarkerHollow, Focus }` in FR-82 order, with `pub const ALL: [Neutral; 8]`
+  - `#[derive(Debug, Clone, Copy, PartialEq, Eq)] pub enum Role { Neutral(Neutral), Series(usize) }`. `Series` holds the 0-based FR-10 quadrant index, unreduced.
+  - `Display` for both, giving the CSS custom-property name (`--surface-1`, `--series-3`). FR-86's "naming the missing role" uses it.
+  - `#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)] pub enum Theme { Light, Dark }`, moved from `cli.rs`
+
+  PR 13's `Paint::Role(Role)` carries this type.
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `src/palette.rs` with only the test module:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn roles_display_as_their_css_custom_property() {
+        let names: Vec<String> = Neutral::ALL.iter().map(ToString::to_string).collect();
+        assert_eq!(names, [
+            "--surface-1", "--surface-2", "--text-primary", "--text-muted",
+            "--stroke-ring", "--stroke-divider", "--marker-hollow", "--focus",
+        ]);
+        assert_eq!(Role::Neutral(Neutral::Focus).to_string(), "--focus");
+        assert_eq!(Role::Series(0).to_string(), "--series-1");
+        // Unreduced: the role names the quadrant's index, not a palette slot.
+        assert_eq!(Role::Series(8).to_string(), "--series-9");
+    }
+}
+```
+
+Add `pub mod palette;` to `src/lib.rs`.
+
+- [ ] **Step 2: Run them to see them fail**
+
+Run: `cargo test --lib palette`
+Expected: a compile error, `cannot find type Neutral`.
+
+- [ ] **Step 3: Implement**
+
+Put this above the test module:
+
+```rust
+//! Colour roles and palettes (architecture §5). No `Document` node carries a
+//! colour value: it names a `Role`, and the emitter binds it — `var()` for
+//! HTML, which carries both themes, and a literal for SVG and PNG, which are
+//! fixed snapshots and whose consumers do not resolve custom properties.
+
+use std::fmt;
+
+/// FR-82's eight neutral roles, in the PRD's order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Neutral {
+    Surface1,
+    Surface2,
+    TextPrimary,
+    TextMuted,
+    StrokeRing,
+    StrokeDivider,
+    /// FR-20's conditional fill. Not `Paint::None`: FR-66's key draws it on a
+    /// different background, where the two differ (architecture §5).
+    MarkerHollow,
+    Focus,
+}
+
+impl Neutral {
+    pub const ALL: [Self; 8] = [
+        Self::Surface1,
+        Self::Surface2,
+        Self::TextPrimary,
+        Self::TextMuted,
+        Self::StrokeRing,
+        Self::StrokeDivider,
+        Self::MarkerHollow,
+        Self::Focus,
+    ];
+}
+
+impl fmt::Display for Neutral {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Surface1 => "--surface-1",
+            Self::Surface2 => "--surface-2",
+            Self::TextPrimary => "--text-primary",
+            Self::TextMuted => "--text-muted",
+            Self::StrokeRing => "--stroke-ring",
+            Self::StrokeDivider => "--stroke-divider",
+            Self::MarkerHollow => "--marker-hollow",
+            Self::Focus => "--focus",
+        })
+    }
+}
+
+/// A colour a node asks for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    Neutral(Neutral),
+    /// The quadrant's 0-based index in FR-10's order — **not** reduced modulo
+    /// the palette's length. FR-87 makes that length a property of a file the
+    /// layout never reads; reducing here would make one radar two different
+    /// documents under two palettes (architecture §5).
+    Series(usize),
+}
+
+impl fmt::Display for Role {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Neutral(n) => n.fmt(f),
+            Self::Series(i) => write!(f, "--series-{}", i + 1),
+        }
+    }
+}
+
+/// FR-56. Picks the palette a static snapshot is bound to; HTML carries both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum Theme {
+    Light,
+    Dark,
+}
+```
+
+In `src/cli.rs`:
+- Delete the `Theme` enum and its doc comment.
+- Add `pub use crate::palette::Theme;` near the other `use` lines. Keep it `pub`, so `radargen::cli::Theme` still resolves for `tests/cli.rs`.
+- Remove `ValueEnum` from the `clap` import if nothing else in `cli.rs` uses it.
+
+- [ ] **Step 4: Run everything**
+
+Run: `cargo test && cargo clippy --all-targets -- -D warnings`
+Expected: all pass, including `tests/cli.rs`'s three `Theme` assertions. Clippy is clean.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/palette.rs src/lib.rs src/cli.rs
+git commit -m "feat(palette): Role and Theme — colour is named, not valued, until emission"
+```
+
+---
+
+### Task 3: Built-in palettes, binding and cycling
+
+**Files:**
+- Modify: `src/palette.rs` (append above the tests, and extend them)
+- Test: `tests/palette.rs` (the drift check against `palette.sample.css`)
+
+**Interfaces:**
+- Consumes: `Neutral`, `Role` and `Theme` (Task 2).
+- Produces: `#[derive(Debug, Clone, PartialEq, Eq)] pub struct Palette`, with private fields and these methods:
+  - `pub fn built_in(theme: Theme) -> Self`
+  - `pub fn value(&self, role: Role) -> &str`: the literal, for SVG and PNG
+  - `pub fn var(&self, role: Role) -> String`: `var(--…)`, for HTML
+  - `pub fn series_len(&self) -> usize`
+  - `pub fn declarations(&self) -> Vec<(String, &str)>`: every `(--name, value)` pair, neutrals first in FR-82 order, then the series in order. PR 14 writes these into its `<style>` blocks.
+
+  Both binders apply FR-67's `index % series_len()`. PR 18 adds a constructor from a parsed file. The series is guaranteed non-empty, because FR-87 requires `--series-1`.
+
+- [ ] **Step 1: Write the failing tests**
+
+Append inside `mod tests` in `src/palette.rs`:
+
+```rust
+    const SERIES: [&str; 8] = [
+        "#0072B2", "#C25400", "#00857A", "#787832", "#B5476B", "#2F9626", "#C431B8", "#9D5A43",
+    ];
+
+    #[test]
+    fn built_in_series_is_fr_81_in_order_for_both_themes() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let p = Palette::built_in(theme);
+            assert_eq!(p.series_len(), 8);
+            let got: Vec<&str> = (0..8).map(|i| p.value(Role::Series(i))).collect();
+            assert_eq!(got, SERIES, "{theme:?}");
+        }
+    }
+
+    #[test]
+    fn built_in_neutrals_are_fr_82() {
+        let light = Palette::built_in(Theme::Light);
+        let light: Vec<&str> = Neutral::ALL.iter().map(|n| light.value(Role::Neutral(*n))).collect();
+        assert_eq!(light, ["#FFFFFF", "#F4F5F7", "#16191F", "#585F6B", "#7E858F", "#848B96", "#FFFFFF", "#0B5FA5"]);
+        let dark = Palette::built_in(Theme::Dark);
+        let dark: Vec<&str> = Neutral::ALL.iter().map(|n| dark.value(Role::Neutral(*n))).collect();
+        assert_eq!(dark, ["#15181D", "#1E222A", "#E8EAEE", "#A6AEBB", "#6C7480", "#666E7A", "#15181D", "#7FB8E6"]);
+    }
+
+    /// FR-67: the ninth quadrant takes the first colour.
+    #[test]
+    fn series_cycles_from_the_start() {
+        let p = Palette::built_in(Theme::Light);
+        assert_eq!(p.value(Role::Series(8)), SERIES[0]);
+        assert_eq!(p.value(Role::Series(9)), SERIES[1]);
+        assert_eq!(p.value(Role::Series(17)), SERIES[1]);
+    }
+
+    /// HTML and the static formats must colour any quadrant identically.
+    #[test]
+    fn var_and_value_name_the_same_entry() {
+        let p = Palette::built_in(Theme::Light);
+        for i in 0..24 {
+            let var = p.var(Role::Series(i));
+            let slot: usize = var
+                .trim_start_matches("var(--series-")
+                .trim_end_matches(')')
+                .parse()
+                .expect("a series var");
+            assert_eq!(p.value(Role::Series(slot - 1)), p.value(Role::Series(i)), "index {i}");
+        }
+        assert_eq!(p.var(Role::Series(8)), "var(--series-1)");
+        assert_eq!(p.var(Role::Neutral(Neutral::Focus)), "var(--focus)");
+    }
+
+    #[test]
+    fn declarations_cover_every_role_once() {
+        let p = Palette::built_in(Theme::Dark);
+        let names: Vec<String> = p.declarations().into_iter().map(|(n, _)| n).collect();
+        assert_eq!(names.len(), 16);
+        assert_eq!(names[0], "--surface-1");
+        assert_eq!(names[8], "--series-1");
+        assert_eq!(names[15], "--series-8");
+    }
+```
+
+Create `tests/palette.rs`:
+
+```rust
+//! FR-81: `docs/product/palette.sample.css` ships as the `--palette` starting
+//! point, so an author copying it must get exactly what the tool draws.
+
+use radargen::palette::{Palette, Theme};
+
+/// `(name, value)` for every `--x: #hex;` line in the block opened by `opener`.
+fn block(css: &str, opener: &str) -> Vec<(String, String)> {
+    let start = css.find(opener).unwrap_or_else(|| panic!("no {opener} block"));
+    let body = &css[start..css[start..].find('}').map(|e| start + e).expect("block closes")];
+    body.lines()
+        .map(str::trim)
+        .filter(|l| l.starts_with("--"))
+        .map(|l| {
+            let (name, rest) = l.split_once(':').expect("name: value");
+            let value = rest.split(';').next().expect("value;").trim();
+            (name.trim().to_string(), value.to_string())
+        })
+        .collect()
+}
+
+fn sorted(mut v: Vec<(String, String)>) -> Vec<(String, String)> {
+    v.sort();
+    v
+}
+
+fn ours(theme: Theme) -> Vec<(String, String)> {
+    Palette::built_in(theme)
+        .declarations()
+        .into_iter()
+        .map(|(n, v)| (n, v.to_string()))
+        .collect()
+}
+
+#[test]
+fn built_ins_match_palette_sample_css() {
+    let css = include_str!("../docs/product/palette.sample.css");
+    let light = block(css, ":root {");
+    let dark_neutrals = block(css, ":root[data-theme=\"dark\"] {");
+    // The dark block overrides neutrals only; series come from :root (FR-81).
+    let mut dark: Vec<(String, String)> =
+        light.iter().filter(|(n, _)| n.starts_with("--series-")).cloned().collect();
+    dark.extend(dark_neutrals);
+
+    assert_eq!(sorted(ours(Theme::Light)), sorted(light));
+    assert_eq!(sorted(ours(Theme::Dark)), sorted(dark));
+}
+```
+
+- [ ] **Step 2: Run them to see them fail**
+
+Run: `cargo test --lib palette; cargo test --test palette`
+Expected: compile errors, `cannot find type Palette`.
+
+- [ ] **Step 3: Implement**
+
+Append above the test module in `src/palette.rs`:
+
+```rust
+/// FR-81: shared by both built-in themes; most-separable first, so every
+/// prefix is itself a good palette.
+const BUILT_IN_SERIES: [&str; 8] = [
+    "#0072B2", "#C25400", "#00857A", "#787832", "#B5476B", "#2F9626", "#C431B8", "#9D5A43",
+];
+/// FR-82, in `Neutral::ALL` order.
+const LIGHT: [&str; 8] = [
+    "#FFFFFF", "#F4F5F7", "#16191F", "#585F6B", "#7E858F", "#848B96", "#FFFFFF", "#0B5FA5",
+];
+const DARK: [&str; 8] = [
+    "#15181D", "#1E222A", "#E8EAEE", "#A6AEBB", "#6C7480", "#666E7A", "#15181D", "#7FB8E6",
+];
+
+/// One complete set of colours: eight neutrals and a non-empty series.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Palette {
+    neutrals: [String; 8],
+    /// Never empty — FR-87 requires `--series-1` — so the modulo below is safe.
+    series: Vec<String>,
+}
+
+impl Palette {
+    #[must_use]
+    pub fn built_in(theme: Theme) -> Self {
+        let neutrals = match theme {
+            Theme::Light => LIGHT,
+            Theme::Dark => DARK,
+        };
+        Self {
+            neutrals: neutrals.map(str::to_string),
+            series: BUILT_IN_SERIES.iter().map(|s| (*s).to_string()).collect(),
+        }
+    }
+
+    #[must_use]
+    pub fn series_len(&self) -> usize {
+        self.series.len()
+    }
+
+    /// FR-67's cycling, at bind time and nowhere else (architecture §5).
+    fn slot(&self, index: usize) -> usize {
+        index % self.series.len()
+    }
+
+    /// The literal value — SVG and PNG, whose consumers do not resolve
+    /// custom properties (`resvg` renders an unresolved `var()` black).
+    #[must_use]
+    pub fn value(&self, role: Role) -> &str {
+        match role {
+            Role::Neutral(n) => &self.neutrals[n as usize],
+            Role::Series(i) => &self.series[self.slot(i)],
+        }
+    }
+
+    /// A `var()` reference — HTML, which declares both themes and lets the
+    /// viewer choose (FR-56).
+    #[must_use]
+    pub fn var(&self, role: Role) -> String {
+        match role {
+            Role::Neutral(n) => format!("var({n})"),
+            Role::Series(i) => format!("var({})", Role::Series(self.slot(i))),
+        }
+    }
+
+    /// Every declaration this palette makes: neutrals in FR-82 order, then the
+    /// series in order.
+    #[must_use]
+    pub fn declarations(&self) -> Vec<(String, &str)> {
+        Neutral::ALL
+            .iter()
+            .map(|n| (n.to_string(), self.value(Role::Neutral(*n))))
+            .chain(self.series.iter().enumerate().map(|(i, v)| (Role::Series(i).to_string(), v.as_str())))
+            .collect()
+    }
+}
+```
+
+`n as usize` relies on `Neutral`'s declaration order matching `Neutral::ALL` and the `LIGHT`/`DARK` arrays. `built_in_neutrals_are_fr_82` is what pins that.
+
+- [ ] **Step 4: Run everything**
+
+Run: `cargo test && cargo clippy --all-targets -- -D warnings`
+Expected: all pass, clippy clean.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/palette.rs tests/palette.rs
+git commit -m "feat(palette): built-in palettes, FR-67 cycling at bind time, sample.css drift check"
+```
+
+---
+
+## Finishing the PR
+
+1. PR 01 must be merged first. Then run `crumbs start rg-bkm` and work on branch `feat/pr-04-style-palette`, created from `main`.
+2. After Task 3: push, then open the PR with `gh pr create` and **no reviewer flag**.
+3. Run the code-reviewer skill until clean, then do the Copilot loop until it reports "no new comments" on the head SHA. Then run simplify, then code-reviewer once more.
+4. Close `rg-bkm`, changing the status field only. **No version bump.**
+5. Move this file to `docs/plans/done/` in the same PR. Merge; there's no tag.
