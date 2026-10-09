@@ -1,7 +1,7 @@
 # radargen — Design
 
 **Status:** draft, for review
-**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.36
+**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.37
 **Date:** 2026-08-29
 
 > **What this document is for.** The PRD says *what* radargen does and carries
@@ -371,6 +371,13 @@ choices instead of vigilance:
 Byte-identity is asserted for HTML and SVG; PNG is compared by decoded pixels
 (NFR-4, D-40).
 
+**The output version is an emitter's line, not a `Document` node.** NFR-12
+puts `radargen X.Y` in the HTML `<head>` and before the SVG root (D-52). Both
+read one constant derived from `CARGO_PKG_VERSION_MAJOR` and `_MINOR` — never
+the full `CARGO_PKG_VERSION`, whose patch number would make every patch
+release rewrite every golden file, which is what SC-25 asserts does not
+happen.
+
 **Text output is LF on every platform, written as bytes.** NFR-17 requires it
 including on Windows, so nothing goes through a platform-newline API, and
 `tests/golden/` needs a `.gitattributes` marking it `-text` — otherwise a
@@ -439,8 +446,9 @@ because it is two questions.
 | Question | Home | Shape when closed |
 | --- | --- | --- |
 | **OQ-16** marker in output px | `style::MARKER_RADIUS` + `layout::geometry` | Marker radius is a *constant with one reader-set*, and already a parameter of layout rather than a literal. Either policy plugs in without restructuring — but note OQ-16 (c): FR-89's capacity threshold becomes width-dependent, so `geometry::capacity()` gains an argument |
-| **OQ-9** *(a)* what "case-insensitively" means | `lib::normalise` | The single folding site — FR-9, FR-16, FR-20, FR-26, FR-28 all compare through it. Simple lowercase today; full case folding is a one-line change *there* and nowhere else |
-| **OQ-9** *(b)* what "ordinally" means above the BMP | `order::compare_names` | UTF-8 byte order vs UTF-16 code-unit order invert for a supplementary-plane character. One function, its semantics documented at that site |
+| **OQ-9** *(a)* what "case-insensitively" means *(closed, D-53)* | `lib::normalise` | The single folding site — FR-9, FR-16, FR-20, FR-26, FR-28 all compare through it. Unicode's default lowercase mapping, `str::to_lowercase`, which is what it already does |
+| **OQ-9** *(b)* what "ordinally" means above the BMP *(closed, D-53)* | `order::compare_names` | Unicode code point, which is UTF-8 byte order and so plain `str::cmp`. Documented at that site, since it differs from the prototype's UTF-16 order |
+| **OQ-17** `--quadrants` *(deferred)* | `order.rs` | FR-10's quadrant order is computed in one place and handed to layout as a list, so an explicit order later replaces the computation rather than the consumers |
 | **OQ-6** `--palette` *(closed)* | `palette.rs` | Parsing and FR-86/FR-87 validation |
 | **OQ-3** `--strict` | — | Not code. §4 rules it out for this version |
 | **OQ-4** CSV backfill | — | Not code. Gates adoption, runs in parallel |
@@ -481,7 +489,7 @@ them, and neither is large.
 **§12's success criteria do not divide evenly across the slices, and v1.0's
 acceptance gate is the subset that does not need a static format.** SC-7 (parity
 between formats), SC-11 (the PNG standing alone) and SC-21 (`--palette`) are v1.1
-by definition; SC-8, SC-9, SC-10 and SC-15 are met for HTML in v1.0 and extended
+by definition; SC-8, SC-9, SC-10, SC-15 and SC-25 are met for HTML in v1.0 and extended
 to PNG and SVG in v1.1. Everything else is v1.0's, with SC-3 additionally waiting
 on OQ-4's backfill, which is not code. Worth stating because the two most
 quotable criteria — SC-7 and SC-11 — are both v1.1: a v1.0 shipping without them

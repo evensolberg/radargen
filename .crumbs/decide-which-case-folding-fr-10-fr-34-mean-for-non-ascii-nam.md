@@ -1,7 +1,7 @@
 ---
 id: rg-wld
 title: Pin down non-ASCII ordering before the Rust port (FR-10/FR-34)
-status: open
+status: closed
 type: task
 priority: 2
 tags:
@@ -61,3 +61,9 @@ shape too, so decide both together:
 
 `mockup.html`'s comparator comment now states the caveat rather than claiming
 the two are equivalent, which it did until this was caught.
+
+## Resolved in PRD v0.37 (D-53)
+
+Folding is Unicode's default lowercase mapping (`str::to_lowercase`); every
+string ordering is by Unicode code point (UTF-8 byte order, `str::cmp`).
+Stated once in FR-76. OQ-9 is closed.
