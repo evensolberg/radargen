@@ -9,7 +9,9 @@ tags:
 - spec
 - ordering
 created: 2026-08-26
-updated: 2026-08-26
+updated: 2026-10-08
+blocks:
+- rg-efx
 phase: ''
 ---
 
