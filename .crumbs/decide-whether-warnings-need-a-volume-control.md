@@ -1,7 +1,7 @@
 ---
 id: rg-m59
 title: Decide whether warnings need a volume control
-status: in-progress
+status: in_progress
 type: task
 priority: 3
 tags:
