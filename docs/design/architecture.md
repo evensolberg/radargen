@@ -16,6 +16,7 @@
 | Decision | Value | Source |
 | --- | --- | --- |
 | Edition | **2024**. No `rust-version` — the edition already floors the toolchain at 1.85, and the field is left off until a real MSRV rises above that floor | Review, 2026-08-29 |
+| Toolchain | Pinned in `rust-toolchain.toml` (1.99.0, with clippy and rustfmt), not floating stable. Pedantic lints are errors, so a new stable release could turn unrelated PRs red. Bump it on purpose and fix any new findings in the same PR. This sets the development toolchain, not an MSRV | Review, 2026-10-09 |
 | Flag short forms | Every flag gets one (OQ-2 closed) | Review, 2026-08-29 |
 | Error strategy | **One structured taxonomy**, `thiserror`; not `anyhow` | Review, 2026-08-29 |
 | Licence | GPL-3.0-or-later | NFR-18, D-45 |
