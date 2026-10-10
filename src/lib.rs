@@ -3,6 +3,7 @@
 //! See `docs/product/radargen-prd.md`. Requirement IDs in comments refer to it.
 
 pub mod cli;
+pub mod csv;
 pub mod diagnostics;
 pub mod escape;
 pub mod num;
