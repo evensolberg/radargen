@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "quality_score": 0.39404162436548196,
+  "iosp_score": 0.99,
+  "violations": 1,
+  "total": 197,
+  "complexity_warnings": 1,
+  "magic_number_warnings": 22,
+  "nesting_depth_warnings": 0,
+  "function_length_warnings": 3,
+  "unsafe_warnings": 0,
+  "error_handling_warnings": 2,
+  "duplicate_groups": 2,
+  "dead_code_warnings": 17,
+  "dead_type_warnings": 55,
+  "fragment_groups": 0,
+  "boilerplate_warnings": 7,
+  "srp_struct_warnings": 0,
+  "srp_module_warnings": 2,
+  "wildcard_import_warnings": 0,
+  "sdp_violations": 0,
+  "coupling_warnings": 0,
+  "coupling_cycles": 0,
+  "tq_no_assertion_warnings": 0,
+  "tq_no_sut_warnings": 5,
+  "tq_untested_warnings": 1,
+  "tq_uncovered_warnings": 0,
+  "tq_untested_logic_warnings": 0,
+  "structural_srp_warnings": 0,
+  "structural_coupling_warnings": 1,
+  "total_findings": 119,
+  "violation_details": [
+    {
+      "name": "main",
+      "file": "examples/report.rs",
+      "line": 5
+    }
+  ]
+}

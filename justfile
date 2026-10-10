@@ -138,6 +138,22 @@ publish:
     cargo bloat
     cargo pants
 
+# Local CI: the GitHub CI gates, then rustqual against its baseline.
+# rustqual fails only when the quality score drops below
+# rustqual-baseline.json, so existing findings do not block; run
+# `just quality-baseline` after a PR that raises the score, to lock it in.
+@ci:
+    cargo fmt --check
+    cargo clippy --locked --all-targets -- -D warnings
+    just lint
+    cargo test --locked
+    cargo deny check licenses
+    rustqual . --compare rustqual-baseline.json --fail-on-regression --no-fail
+
+# Records the current rustqual score as the baseline `just ci` compares to
+@quality-baseline:
+    -rustqual . --save-baseline rustqual-baseline.json > /dev/null
+
 # Checks for potential code improvements
 @lint:
     cargo lclippy -- -W clippy::pedantic -W clippy::nursery -W clippy::unwrap_used
@@ -247,6 +263,7 @@ publish:
     -cargo install git-cliff
     -cargo install cargo-nextest
     -cargo install cargo-pants
+    -cargo install --locked rustqual
     -brew install PurpleBooth/repo/git-mit
     -brew install graphviz
     -cp /Volumes/SSD/CloudStation/Source/_Templates/deny.toml {{invocation_directory()}}/deny.toml
