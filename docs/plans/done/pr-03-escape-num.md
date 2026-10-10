@@ -10,9 +10,9 @@ crumb_id: rg-vgm
 document_title: "PR 03 — `escape.rs` and `num.rs`: Implementation Plan"
 created_date: 2026-10-09
 synopsis: "escape.rs with one function per NFR-6 output context, and num::fmt_coord as NFR-17's single number formatter."
-status: draft
+status: complete
 type: Plan
-revision: "1.4"
+revision: "1.5"
 review_date: 2026-10-09
 reviewed_by:
   - rust-engineer
@@ -20,7 +20,7 @@ reviewed_by:
   - architect-reviewer
   - ui-designer
   - ux-researcher
-completed_date:
+completed_date: 2026-10-10
 comments:
 ---
 # PR 03 — `escape.rs` and `num.rs`: Implementation Plan
@@ -76,7 +76,7 @@ comments:
 - Consumes: nothing.
 - Produces: `radargen::num::fmt_coord(v: f64) -> String`. This is the only way a float reaches any output (§6). PR 13's serialiser and PR 14's HTML emitter call it.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 The tests are unit tests, beside the module (§10). Create `src/num.rs` containing only the test module for now:
 
@@ -168,12 +168,12 @@ mod tests {
 
 Add `pub mod num;` to `src/lib.rs`.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cargo test --lib num`
 Expected: a compile error, `unresolved import super::fmt_coord`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Put this above the test module in `src/num.rs`:
 
@@ -223,12 +223,12 @@ pub fn fmt_coord(v: f64) -> String {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cargo test --lib num && cargo clippy --all-targets -- -D warnings`
 Expected: 11 passed, clippy clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/num.rs src/lib.rs
@@ -253,7 +253,7 @@ git commit -m "feat(num): fmt_coord — NFR-17's only number formatter"
 
   PR 13's `Node` serialiser calls the first two, and PR 14's HTML chrome calls `html_attr`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `src/escape.rs` with this test module:
 
@@ -337,12 +337,12 @@ mod tests {
 
 Add `pub mod escape;` to `src/lib.rs`, and run `cargo add --dev roxmltree@0.20`. It's already in the tree through `usvg` and is MIT OR Apache-2.0; declare it rather than rely on it transitively.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cargo test --lib escape`
 Expected: a compile error, `cannot find function xml_text`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Put this above the test module:
 
@@ -415,12 +415,12 @@ pub fn html_attr(s: &str) -> String {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cargo test --lib escape && cargo clippy --all-targets -- -D warnings`
 Expected: 7 passed, clippy clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/escape.rs src/lib.rs Cargo.toml Cargo.lock
@@ -444,7 +444,7 @@ git commit -m "feat(escape): XML text, XML attribute and HTML attribute contexts
 
   PR 14 calls `json` for the data island. PR 18 calls `css_value` while parsing `--palette`, wrapping `CssValueError` in a `Fatal` variant.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append inside `mod tests`:
 
@@ -495,12 +495,12 @@ Append inside `mod tests`:
     }
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cargo add serde serde_json && cargo test --lib escape`
 Expected: a compile error, `cannot find function json`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append above the test module:
 
@@ -543,12 +543,12 @@ pub fn css_value(s: &str) -> Result<&str, CssValueError> {
 }
 ```
 
-- [ ] **Step 4: Run everything**
+- [x] **Step 4: Run everything**
 
 Run: `cargo test && cargo clippy --all-targets -- -D warnings`
 Expected: all pass, clippy clean.
 
-- [ ] **Step 5: Licence check and commit**
+- [x] **Step 5: Licence check and commit**
 
 `serde` and `serde_json` are MIT OR Apache-2.0, which is compatible with §1. Record that in the PR body.
 
@@ -576,3 +576,4 @@ git commit -m "feat(escape): JSON island and CSS value contexts (NFR-6 4–5)"
 | 1.2 | 2026-10-09 | U+FFFD replacement recast as a backstop behind PRD v0.38's FR-90; `xml_allowed` made public so PR 05 shares the set, and widened to DEL and C1 (crumb `rg-jyx`) |
 | 1.3 | 2026-10-09 | PR 6 review: `xml_allowed` renamed `displayable` and expressed with `char::is_control`; boundary-checked set; one `escape_into` loop for text and attributes; the cross-architecture noise test now uses 1e-13 |
 | 1.4 | 2026-10-09 | The pedantic and unsafe-code gate is now live in `Cargo.toml` (crumb `rg-q3w`) |
+| 1.5 | 2026-10-10 | Implemented as written, with no deviations. `serde_json` brings in `zmij` transitively; `cargo deny check licenses` passes |
