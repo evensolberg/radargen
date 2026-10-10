@@ -35,7 +35,7 @@ fn ours(theme: Theme) -> Vec<(String, String)> {
     Palette::built_in(theme)
         .declarations()
         .into_iter()
-        .map(|(n, v)| (n, v.to_string()))
+        .map(|(role, v)| (role.to_string(), v.to_string()))
         .collect()
 }
 

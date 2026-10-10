@@ -33,9 +33,11 @@ impl Neutral {
     ];
 }
 
-impl fmt::Display for Neutral {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
+impl Neutral {
+    /// The CSS custom-property name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
             Self::Surface1 => "--surface-1",
             Self::Surface2 => "--surface-2",
             Self::TextPrimary => "--text-primary",
@@ -44,7 +46,13 @@ impl fmt::Display for Neutral {
             Self::StrokeDivider => "--stroke-divider",
             Self::MarkerHollow => "--marker-hollow",
             Self::Focus => "--focus",
-        })
+        }
+    }
+}
+
+impl fmt::Display for Neutral {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -158,18 +166,22 @@ impl Palette {
         ink_for(self.value(Role::Series(index)))
     }
 
-    /// FR-67's cycling, at bind time and nowhere else (architecture §5).
-    fn slot(&self, index: usize) -> usize {
-        index % self.series.len()
+    /// FR-67's cycling, at bind time and nowhere else (architecture §5): a
+    /// series role reduced to the palette entry it names.
+    fn bind(&self, role: Role) -> Role {
+        match role {
+            Role::Series(i) => Role::Series(i % self.series.len()),
+            neutral @ Role::Neutral(_) => neutral,
+        }
     }
 
     /// The literal value — SVG and PNG, whose consumers do not resolve
     /// custom properties (`resvg` renders an unresolved `var()` black).
     #[must_use]
     pub fn value(&self, role: Role) -> &str {
-        match role {
+        match self.bind(role) {
             Role::Neutral(n) => &self.neutrals[n as usize],
-            Role::Series(i) => &self.series[self.slot(i)],
+            Role::Series(i) => &self.series[i],
         }
     }
 
@@ -177,25 +189,19 @@ impl Palette {
     /// viewer choose (FR-56).
     #[must_use]
     pub fn var(&self, role: Role) -> String {
-        match role {
-            Role::Neutral(n) => format!("var({n})"),
-            Role::Series(i) => format!("var({})", Role::Series(self.slot(i))),
-        }
+        format!("var({})", self.bind(role))
     }
 
-    /// Every declaration this palette makes: neutrals in FR-82 order, then the
-    /// series in order.
+    /// Every declaration this palette makes, as (role, value): neutrals in
+    /// FR-82 order, then the series in order. A role displays as its
+    /// custom-property name.
     #[must_use]
-    pub fn declarations(&self) -> Vec<(String, &str)> {
+    pub fn declarations(&self) -> Vec<(Role, &str)> {
         Neutral::ALL
-            .iter()
-            .map(|n| (n.to_string(), self.value(Role::Neutral(*n))))
-            .chain(
-                self.series
-                    .iter()
-                    .enumerate()
-                    .map(|(i, v)| (Role::Series(i).to_string(), v.as_str())),
-            )
+            .into_iter()
+            .map(Role::Neutral)
+            .chain((0..self.series.len()).map(Role::Series))
+            .map(|role| (role, self.value(role)))
             .collect()
     }
 }
@@ -335,7 +341,11 @@ mod tests {
     #[test]
     fn declarations_cover_every_role_once() {
         let p = Palette::built_in(Theme::Dark);
-        let names: Vec<String> = p.declarations().into_iter().map(|(n, _)| n).collect();
+        let names: Vec<String> = p
+            .declarations()
+            .into_iter()
+            .map(|(role, _)| role.to_string())
+            .collect();
         assert_eq!(names.len(), 16);
         assert_eq!(names[0], "--surface-1");
         assert_eq!(names[8], "--series-1");
