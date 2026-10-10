@@ -26,8 +26,13 @@ fn corpus() -> Vec<String> {
     let mut v: Vec<String> = vec![
         "Engineering Technology Radar".into(),
         "Edition 2026.2".into(),
-        "Platform".into(), "Practice".into(), "Tool".into(),
-        "Adopt".into(), "Trial".into(), "Assess".into(), "Hold".into(),
+        "Platform".into(),
+        "Practice".into(),
+        "Tool".into(),
+        "Adopt".into(),
+        "Trial".into(),
+        "Assess".into(),
+        "Hold".into(),
         "Solid — Default".into(),
         "Hollow — Conditional".into(),
         "Full ring — New".into(),
@@ -35,16 +40,40 @@ fn corpus() -> Vec<String> {
         "Half ring, outward — Moved Out".into(),
     ];
     for (i, name) in [
-        "Kubernetes", "Terraform", "Pulumi", "Ansible", "Prometheus",
-        "OpenTelemetry", "PostgreSQL", "Redis", "Kafka", "RabbitMQ",
-        "Trunk-Based Development", "Pair Programming", "Infrastructure as Code",
-        "Continuous Deployment", "Contract Testing", "Feature Toggles",
-        "Consumer-Driven Contracts", "Internationalisation", "Observability",
-        "Chaos Engineering", "Blue-Green Deployment", "Service Mesh",
-        "GraphQL Federation", "Event Sourcing", "Domain-Driven Design",
-        "Static Analysis", "Dependency Scanning", "Secrets Management",
-        "Progressive Delivery", "Platform Engineering",
-    ].iter().enumerate() {
+        "Kubernetes",
+        "Terraform",
+        "Pulumi",
+        "Ansible",
+        "Prometheus",
+        "OpenTelemetry",
+        "PostgreSQL",
+        "Redis",
+        "Kafka",
+        "RabbitMQ",
+        "Trunk-Based Development",
+        "Pair Programming",
+        "Infrastructure as Code",
+        "Continuous Deployment",
+        "Contract Testing",
+        "Feature Toggles",
+        "Consumer-Driven Contracts",
+        "Internationalisation",
+        "Observability",
+        "Chaos Engineering",
+        "Blue-Green Deployment",
+        "Service Mesh",
+        "GraphQL Federation",
+        "Event Sourcing",
+        "Domain-Driven Design",
+        "Static Analysis",
+        "Dependency Scanning",
+        "Secrets Management",
+        "Progressive Delivery",
+        "Platform Engineering",
+    ]
+    .iter()
+    .enumerate()
+    {
         v.push(format!("{}. {name}", i + 1));
     }
     v
@@ -60,11 +89,20 @@ fn fmt(v: f64) -> String {
 
 /// Emits SVG path commands, scaled from font units and flipped into SVG's
 /// y-down space.
-struct PathSink { d: String, scale: f64, dx: f64, dy: f64 }
+struct PathSink {
+    d: String,
+    scale: f64,
+    dx: f64,
+    dy: f64,
+}
 
 impl PathSink {
-    fn x(&self, v: f32) -> String { fmt(f64::from(v) * self.scale + self.dx) }
-    fn y(&self, v: f32) -> String { fmt(-f64::from(v) * self.scale + self.dy) }
+    fn x(&self, v: f32) -> String {
+        fmt(f64::from(v) * self.scale + self.dx)
+    }
+    fn y(&self, v: f32) -> String {
+        fmt(-f64::from(v) * self.scale + self.dy)
+    }
 }
 
 impl OutlineBuilder for PathSink {
@@ -75,19 +113,41 @@ impl OutlineBuilder for PathSink {
         write!(self.d, "L{} {}", self.x(x), self.y(y)).expect("String write");
     }
     fn quad_to(&mut self, x1: f32, y1: f32, x: f32, y: f32) {
-        write!(self.d, "Q{} {} {} {}", self.x(x1), self.y(y1), self.x(x), self.y(y))
-            .expect("String write");
+        write!(
+            self.d,
+            "Q{} {} {} {}",
+            self.x(x1),
+            self.y(y1),
+            self.x(x),
+            self.y(y)
+        )
+        .expect("String write");
     }
     fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
         write!(
-            self.d, "C{} {} {} {} {} {}",
-            self.x(x1), self.y(y1), self.x(x2), self.y(y2), self.x(x), self.y(y)
-        ).expect("String write");
+            self.d,
+            "C{} {} {} {} {} {}",
+            self.x(x1),
+            self.y(y1),
+            self.x(x2),
+            self.y(y2),
+            self.x(x),
+            self.y(y)
+        )
+        .expect("String write");
     }
-    fn close(&mut self) { self.d.push('Z'); }
+    fn close(&mut self) {
+        self.d.push('Z');
+    }
 }
 
-struct Built { text: String, outlined: String, deduped: String, glyphs: usize, distinct: usize }
+struct Built {
+    text: String,
+    outlined: String,
+    deduped: String,
+    glyphs: usize,
+    distinct: usize,
+}
 
 fn build() -> Built {
     let shaper = ShaperFace::from_slice(TTF, 0).expect("shaper face");
@@ -106,7 +166,8 @@ fn build() -> Built {
         write!(
             text,
             r#"<text x="20" y="{y}" font-family="{FAMILY}" font-size="{SIZE}">{s}</text>"#
-        ).expect("String write");
+        )
+        .expect("String write");
 
         let mut buf = UnicodeBuffer::new();
         buf.push_str(s);
@@ -120,11 +181,21 @@ fn build() -> Built {
             glyphs += 1;
             distinct.insert(gid);
 
-            let mut sink = PathSink { d: String::new(), scale, dx: gx, dy: gy };
+            let mut sink = PathSink {
+                d: String::new(),
+                scale,
+                dx: gx,
+                dy: gy,
+            };
             parse.outline_glyph(GlyphId(gid), &mut sink);
             run.push_str(&sink.d);
-            write!(placements, r##"<use href="#g{gid}" x="{}" y="{}"/>"##, fmt(gx), fmt(gy))
-                .expect("String write");
+            write!(
+                placements,
+                r##"<use href="#g{gid}" x="{}" y="{}"/>"##,
+                fmt(gx),
+                fmt(gy)
+            )
+            .expect("String write");
             pen += f64::from(pos.x_advance) * scale;
         }
         write!(outlined, r#"<path d="{run}"/>"#).expect("String write");
@@ -136,14 +207,21 @@ fn build() -> Built {
     // arrangements share one DOM.
     let mut defs = String::new();
     for gid in &distinct {
-        let mut sink = PathSink { d: String::new(), scale, dx: 0.0, dy: 0.0 };
+        let mut sink = PathSink {
+            d: String::new(),
+            scale,
+            dx: 0.0,
+            dy: 0.0,
+        };
         parse.outline_glyph(GlyphId(*gid), &mut sink);
         write!(defs, r#"<path id="g{gid}" d="{}"/>"#, sink.d).expect("String write");
     }
 
-    let wrap = |body: &str| format!(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">{body}</svg>"#
-    );
+    let wrap = |body: &str| {
+        format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">{body}</svg>"#
+        )
+    };
     Built {
         text: wrap(&text),
         outlined: wrap(&outlined),
@@ -169,8 +247,19 @@ fn render(svg: &str, w: u32, h: u32) -> tiny_skia::Pixmap {
 
 /// Differing subpixels, and the worst single-channel delta.
 fn compare(a: &tiny_skia::Pixmap, b: &tiny_skia::Pixmap) -> (usize, u8) {
-    let differing = a.data().iter().zip(b.data()).filter(|(x, y)| x != y).count();
-    let worst = a.data().iter().zip(b.data()).map(|(x, y)| x.abs_diff(*y)).max().unwrap_or(0);
+    let differing = a
+        .data()
+        .iter()
+        .zip(b.data())
+        .filter(|(x, y)| x != y)
+        .count();
+    let worst = a
+        .data()
+        .iter()
+        .zip(b.data())
+        .map(|(x, y)| x.abs_diff(*y))
+        .max()
+        .unwrap_or(0);
     (differing, worst)
 }
 
@@ -203,7 +292,10 @@ fn deduplicating_glyphs_preserves_the_rendering() {
     let (differing, worst) = compare(&render(&built.text, W, H), &render(&built.deduped, W, H));
     let total = subpixels();
     eprintln!("deduped vs <text>: {differing} of {total} subpixels differ, worst channel {worst}");
-    assert!(differing * 10_000 < total, "{differing} of {total} subpixels differ");
+    assert!(
+        differing * 10_000 < total,
+        "{differing} of {total} subpixels differ"
+    );
 }
 
 /// The size argument, which is *not* what decided it — see the spike. Recorded
@@ -215,14 +307,23 @@ fn deduplicated_outlines_undercut_an_embedded_font() {
     let embedded = built.text.len() + WOFF2.len().div_ceil(3) * 4;
     eprintln!(
         "{} strings, {} glyphs, {} distinct\n  <text>              {:>8}\n  outlined per glyph  {:>8}\n  outlined + <use>    {:>8}\n  embedded @font-face {:>8}",
-        corpus().len(), built.glyphs, built.distinct,
-        built.text.len(), built.outlined.len(), built.deduped.len(), embedded
+        corpus().len(),
+        built.glyphs,
+        built.distinct,
+        built.text.len(),
+        built.outlined.len(),
+        built.deduped.len(),
+        embedded
     );
     assert!(
         built.deduped.len() < embedded,
-        "deduped {} should undercut embedding {embedded}", built.deduped.len()
+        "deduped {} should undercut embedding {embedded}",
+        built.deduped.len()
     );
-    assert!(built.deduped.len() * 5 < built.outlined.len(), "dedup is the cheaper form by far");
+    assert!(
+        built.deduped.len() * 5 < built.outlined.len(),
+        "dedup is the cheaper form by far"
+    );
 }
 
 /// The finding that decided it: a renderer that is not a browser ignores an
@@ -245,7 +346,14 @@ fn resvg_ignores_an_embedded_font_face() {
     );
     // fontdb holds Libertinus under its own name only, so any ink here came
     // from the embedded face or from a fallback — either way, not from nothing.
-    let inked = render(&svg, 400, 60).pixels().iter().filter(|p| p.alpha() > 0).count();
+    let inked = render(&svg, 400, 60)
+        .pixels()
+        .iter()
+        .filter(|p| p.alpha() > 0)
+        .count();
     eprintln!("resvg with an embedded @font-face: {inked} inked pixels");
-    assert_eq!(inked, 0, "resvg appears to have grown @font-face support — revisit the spike");
+    assert_eq!(
+        inked, 0,
+        "resvg appears to have grown @font-face support — revisit the spike"
+    );
 }

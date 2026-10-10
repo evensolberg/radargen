@@ -1,7 +1,7 @@
 //! FR-79: greedy first-fit against a fixed maximum column width, with a
 //! mid-token break for a single token wider than the column.
 
-use radargen::text::{wrap, FontMetrics};
+use radargen::text::{FontMetrics, wrap};
 
 const FONT: &[u8] = include_bytes!("../assets/LibertinusSans-Regular.ttf");
 const SIZE: f64 = 12.5;
@@ -21,15 +21,25 @@ fn breaks_at_whitespace_when_the_line_would_overflow() {
     let m = metrics();
     let lines = wrap("Trunk Based Development", 80.0, &m, SIZE, 0.0);
     assert!(lines.len() > 1, "expected a wrap, got {lines:?}");
-    assert!(lines.iter().all(|l| !l.starts_with(' ') && !l.ends_with(' ')),
-            "lines carry stray spaces: {lines:?}");
+    assert!(
+        lines
+            .iter()
+            .all(|l| !l.starts_with(' ') && !l.ends_with(' ')),
+        "lines carry stray spaces: {lines:?}"
+    );
 }
 
 #[test]
 fn no_line_exceeds_the_column() {
     let m = metrics();
     let col = 90.0;
-    let lines = wrap("Continuous Integration and Continuous Delivery", col, &m, SIZE, 0.0);
+    let lines = wrap(
+        "Continuous Integration and Continuous Delivery",
+        col,
+        &m,
+        SIZE,
+        0.0,
+    );
     for l in &lines {
         assert!(m.measure(l, SIZE, 0.0) <= col, "line {l:?} exceeds {col}");
     }

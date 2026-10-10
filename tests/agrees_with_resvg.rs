@@ -10,8 +10,8 @@
 //! equals the raw `hmtx` advance exactly. So usvg lays the string out and we
 //! read the advance straight off it, with no sentinel and no bearing algebra.
 
-use std::sync::Arc;
 use radargen::text::FontMetrics;
+use std::sync::Arc;
 
 const FONT: &[u8] = include_bytes!("../assets/LibertinusSans-Regular.ttf");
 const SIZE: f64 = 12.5;
@@ -49,9 +49,16 @@ fn our_advance_matches_usvg_layout() {
     let m = FontMetrics::load(FONT).expect("font parses");
     let mut worst = 0.0_f64;
     for word in [
-        "Terraform", "Kubernetes", "Ansible", "Pulumi",
-        "Trunk-Based", "Development", "Infrastructure",
-        "Internationalisation", "WWWWWWWW", "illlliii",
+        "Terraform",
+        "Kubernetes",
+        "Ansible",
+        "Pulumi",
+        "Trunk-Based",
+        "Development",
+        "Infrastructure",
+        "Internationalisation",
+        "WWWWWWWW",
+        "illlliii",
     ] {
         let ours = m.measure(word, SIZE, 0.0);
         let theirs = usvg_advance(word, &opt);

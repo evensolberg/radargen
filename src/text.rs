@@ -18,8 +18,8 @@ impl<'a> FontMetrics<'a> {
         // than summing raw `hmtx` advances is what makes FR-79's wrap points
         // agree with the rasterised output by construction instead of by luck:
         // the naive sum ignores GPOS kerning, which the shaper applies (D-42).
-        let face = ShaperFace::from_slice(data, 0)
-            .ok_or(ttf_parser::FaceParsingError::MalformedFont)?;
+        let face =
+            ShaperFace::from_slice(data, 0).ok_or(ttf_parser::FaceParsingError::MalformedFont)?;
         Ok(Self { face })
     }
 
