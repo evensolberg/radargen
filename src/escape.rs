@@ -1,5 +1,7 @@
 //! NFR-6: every CSV-derived string is escaped for the context it lands in,
-//! and the contexts are five — one function each. A value crossing into a
+//! and the contexts are five — one function each.
+//!
+//! A value crossing into a
 //! second context is escaped for both, innermost first: an attribute holding
 //! JSON is `html_attr(&json(v)?)`.
 //!
@@ -7,12 +9,14 @@
 //! SVG node, and the `</script>` rule is an HTML fact (architecture §3).
 
 /// FR-90's set: every control character (`char::is_control`, so C0, DEL and
-/// C1) except tab, LF and CR, plus U+FFFE/U+FFFF. XML forbids C0 and the two
+/// C1) except tab, LF and CR, plus U+FFFE/U+FFFF.
+///
+/// XML forbids C0 and the two
 /// noncharacters; DEL and C1 are legal XML, but no font draws them. FR-90
 /// removes these on input and calls this to decide which; the escaping
 /// functions only replace them as a backstop, so that they stay total.
 #[must_use]
-pub fn displayable(c: char) -> bool {
+pub const fn displayable(c: char) -> bool {
     matches!(c, '\t' | '\n' | '\r') || !(c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}'))
 }
 
@@ -48,7 +52,9 @@ pub fn xml_text(s: &str) -> String {
 
 /// Context 2: an XML attribute value — context 1 plus both quotes, and the
 /// three whitespace characters attribute-value normalisation would otherwise
-/// turn into spaces. Returned **with** its surrounding `"`, so a caller cannot
+/// turn into spaces.
+///
+/// Returned **with** its surrounding `"`, so a caller cannot
 /// emit it unquoted.
 ///
 /// For plain values only: escaping does not make text safe in a URL, an `on*`
@@ -70,7 +76,9 @@ pub fn html_attr(s: &str) -> String {
     xml_attr(s)
 }
 
-/// Context 4: a JavaScript string or JSON island. JSON-encoded, then every
+/// Context 4: a JavaScript string or JSON island.
+///
+/// JSON-encoded, then every
 /// `<` becomes `\u003c` — `</script>` terminates the block regardless of
 /// entity escaping (NFR-6), and `<!--` alters script parsing — and U+2028 and
 /// U+2029 are escaped for older JavaScript parsers. `>` and `&` are escaped
@@ -115,16 +123,14 @@ pub struct CssValueError {
 ///
 /// [`CssValueError`] naming the first character outside the allow-list.
 pub fn css_value(s: &str) -> Result<&str, CssValueError> {
-    match s
-        .chars()
+    s.chars()
         .find(|c| !(*c == '#' || c.is_ascii_alphanumeric()))
-    {
-        Some(found) => Err(CssValueError {
-            value: s.to_string(),
-            found,
-        }),
-        None => Ok(s),
-    }
+        .map_or(Ok(s), |found| {
+            Err(CssValueError {
+                value: s.to_string(),
+                found,
+            })
+        })
 }
 
 #[cfg(test)]

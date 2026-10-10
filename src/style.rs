@@ -41,10 +41,11 @@ pub const RING_LABEL: TextStyle = style(Weight::Regular, 10.0, 0.0);
 pub const MARKER_NUMBER: TextStyle = style(Weight::SemiBold, 9.0, 0.0);
 /// The "Legend" heading, the same style as the key's. Ink: `TextPrimary`.
 pub const LEGEND_HEADING: TextStyle = KEY_HEADING;
-/// FR-35 level one. 0.03em at 12px. Ink: `TextPrimary`. Two units above
-/// `LEGEND_RING`, not one: with no uppercase, both headings `SemiBold`, and
-/// the two inks only 1.86:1 apart in the dark theme, one unit (0.8 px at
-/// the breakpoint) did not read as a separate level.
+/// FR-35 level one. 0.03em at 12px. Ink: `TextPrimary`.
+///
+/// Two units above `LEGEND_RING`, not one: with no uppercase, both headings
+/// `SemiBold`, and the two inks only 1.86:1 apart in the dark theme, one unit
+/// (0.8 px at the breakpoint) did not read as a separate level.
 pub const LEGEND_QUADRANT: TextStyle = style(Weight::SemiBold, 12.0, 0.36);
 /// FR-35 level two. 0.03em at 10px. Ink: `TextMuted`.
 pub const LEGEND_RING: TextStyle = style(Weight::SemiBold, 10.0, 0.3);
@@ -93,7 +94,9 @@ pub const SWATCH_RADIUS: f64 = 5.0;
 pub const STATUS_RING_GAP: f64 = 4.0;
 pub const STATUS_RING_STROKE: f64 = 2.0;
 /// The keyboard focus ring (`Focus`), from the marker's edge to the ring's
-/// centre line. Outside the status ring with a clear Surface1 gap between, so
+/// centre line.
+///
+/// Outside the status ring with a clear Surface1 gap between, so
 /// WCAG 1.4.11 measures it against the surface (6.0:1 and up) rather than a
 /// series fill, where the focus blue manages only 1.3–2.5:1. That holds while
 /// nothing is drawn under the ring: markers overlap (`MARKER_STROKE`), so the
@@ -109,7 +112,9 @@ pub const QUADRANT_LABEL_RADIUS: f64 = 300.0;
 /// Ring circles and quadrant dividers (`StrokeRing` / `StrokeDivider`).
 pub const GRID_STROKE: f64 = 1.0;
 /// Width of the Surface1 halo under ring labels, so the 12 o'clock divider
-/// (FR-31) doesn't strike through them. Emit it as its own stroke-only
+/// (FR-31) doesn't strike through them.
+///
+/// Emit it as its own stroke-only
 /// `<text>` painted before the label, not as `paint-order: stroke`: an SVG
 /// consumer that ignores `paint-order` would paint the halo over the glyphs
 /// and erase them.
@@ -122,14 +127,16 @@ pub const COLUMN_GAP: f64 = 28.0;
 /// The narrow document is authored at this width and the radar scaled to fit
 /// inside it, so text keeps its natural size (FR-70, D-31).
 pub const NARROW_WIDTH: f64 = 420.0;
-/// A floor on the radar block's width at scale 1, not its width. The block's
-/// size is measured (architecture §4): quadrant labels never wrap (FR-79), so
+/// A floor on the radar block's width at scale 1, not its width.
+///
+/// The block's size is measured (architecture §4): quadrant labels never wrap (FR-79), so
 /// a long one widens the block — `mockup.html` computes
 /// `max(MIN_RADAR_W, 2 × (QLABEL_R + widest label / 2 + 10))`.
 pub const MIN_RADAR_WIDTH: f64 = 660.0;
 
 /// The smallest rendered size legend item names (`LEGEND_NAME`) may reach
 /// before the HTML switches to the narrow arrangement (FR-69, architecture §4).
+///
 /// Smaller legend styles go proportionally lower; this is not a floor for them.
 pub const MIN_LEGIBLE_PX: f64 = 10.0;
 
@@ -137,8 +144,9 @@ pub const MIN_LEGIBLE_PX: f64 = 10.0;
 const MAX_WIDTH: f64 = 10_000.0;
 
 /// FR-69's media-query breakpoint for a wide document `wide_width` units wide:
-/// the viewport width at which `LEGEND_NAME` renders at `MIN_LEGIBLE_PX`. Per
-/// document, not a constant — the wide width grows with the legend (§4).
+/// the viewport width at which `LEGEND_NAME` renders at `MIN_LEGIBLE_PX`.
+///
+/// Per document, not a constant — the wide width grows with the legend (§4).
 ///
 /// # Panics
 ///

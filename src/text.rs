@@ -35,11 +35,12 @@ impl Weight {
     }
 }
 
-/// Both faces, parsed once at startup and passed down — every `Block::size`
-/// measures, and re-parsing per call would put a font parse in the inner loop
-/// of layout (architecture §3). The faces are the binary's own bytes, so no
-/// lifetime parameter: every `&Fonts` in a layout signature would carry one
-/// that could only ever be `'static`.
+/// Both faces, parsed once at startup and passed down.
+///
+/// Every `Block::size` measures, and re-parsing per call would put a font
+/// parse in the inner loop of layout (architecture §3). The faces are the
+/// binary's own bytes, so no lifetime parameter: every `&Fonts` in a layout
+/// signature would carry one that could only ever be `'static`.
 pub struct Fonts {
     regular: FontMetrics<'static>,
     semibold: FontMetrics<'static>,
@@ -61,7 +62,7 @@ impl Fonts {
 
     /// The metrics for one weight's face.
     #[must_use]
-    pub fn face(&self, w: Weight) -> &FontMetrics<'static> {
+    pub const fn face(&self, w: Weight) -> &FontMetrics<'static> {
         match w {
             Weight::Regular => &self.regular,
             Weight::SemiBold => &self.semibold,
@@ -107,7 +108,7 @@ impl<'a> FontMetrics<'a> {
         )]
         let gaps = shaped.len().saturating_sub(1) as f64;
         let upem = f64::from(self.face.units_per_em());
-        f64::from(units) * size_px / upem + gaps * letter_spacing_px
+        f64::from(units).mul_add(size_px / upem, gaps * letter_spacing_px)
     }
 }
 
@@ -143,6 +144,10 @@ pub fn wrap(
         // The word now starts a line of its own. If it still does not fit,
         // break it at the last character that does.
         let mut rest = word;
+        #[expect(
+            clippy::while_float,
+            reason = "the comparison is the point; each pass removes at least one character from `rest` or breaks, so it terminates"
+        )]
         while m.measure(rest, size_px, letter_spacing_px) > max_width {
             let mut cut = 0;
             let mut fitted = String::new();

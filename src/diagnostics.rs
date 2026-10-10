@@ -104,7 +104,7 @@ pub enum Warning {
 
 impl Warning {
     #[must_use]
-    pub fn position(&self) -> Position {
+    pub const fn position(&self) -> Position {
         match *self {
             Self::Render(_) => Position::Render,
             Self::Row { line, column, .. } => Position::Cell { line, column },
@@ -136,7 +136,7 @@ enum Class {
 }
 
 impl RowKind {
-    fn class(&self) -> Class {
+    const fn class(&self) -> Class {
         match self {
             Self::UndeclaredRing { .. } => Class::Ring,
             Self::UnrecognisedQualifier { .. } => Class::Qualifier,
@@ -283,7 +283,7 @@ impl Warnings {
     }
 
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
@@ -428,7 +428,9 @@ fn tallied(members: &[Member], key: fn(&str) -> String) -> String {
 }
 
 /// Everything the tool refuses to run on: non-zero exit, nothing written
-/// (NFR-8, NFR-9). One taxonomy for the whole tool (architecture §1); each
+/// (NFR-8, NFR-9).
+///
+/// One taxonomy for the whole tool (architecture §1); each
 /// later stage adds its variants beside the code that raises them. An I/O
 /// variant should carry the path it failed on and mark the error `#[source]`,
 /// not `#[from]`: a bare `From<io::Error>` would let `?` build a `Fatal` that

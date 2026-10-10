@@ -1,5 +1,6 @@
-//! Colour roles and palettes (architecture §5). No `Document` node carries a
-//! colour value: it names a `Role`, and the emitter binds it — `var()` for
+//! Colour roles and palettes (architecture §5).
+//!
+//! No `Document` node carries a colour value: it names a `Role`, and the emitter binds it — `var()` for
 //! HTML, which carries both themes, and a literal for SVG and PNG, which are
 //! fixed snapshots and whose consumers do not resolve custom properties.
 
@@ -111,7 +112,10 @@ fn luminance(hex: &str) -> f64 {
             ((c + 0.055) / 1.055).powf(2.4)
         }
     };
-    0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
+    0.2126f64.mul_add(
+        channel(1),
+        0.7152f64.mul_add(channel(3), 0.0722 * channel(5)),
+    )
 }
 
 /// Whichever ink contrasts more with `fill`; white on an exact tie (D-54). The rule
@@ -153,7 +157,7 @@ impl Palette {
     }
 
     #[must_use]
-    pub fn series_len(&self) -> usize {
+    pub const fn series_len(&self) -> usize {
         self.series.len()
     }
 
@@ -168,7 +172,7 @@ impl Palette {
 
     /// FR-67's cycling, at bind time and nowhere else (architecture §5): a
     /// series role reduced to the palette entry it names.
-    fn bind(&self, role: Role) -> Role {
+    const fn bind(&self, role: Role) -> Role {
         match role {
             Role::Series(i) => Role::Series(i % self.series.len()),
             neutral @ Role::Neutral(_) => neutral,
