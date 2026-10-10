@@ -149,7 +149,7 @@ impl RowKind {
     }
 
     /// The column this warning concerns, as NFR-10 names it.
-    fn column(&self) -> &str {
+    fn column_name(&self) -> &str {
         match self {
             Self::UndeclaredRing { .. } => "ring",
             Self::UnrecognisedQualifier { .. } => "qualifier",
@@ -333,7 +333,7 @@ impl Member<'_> {
         format!(
             "line {}, {}: {}",
             self.line,
-            self.kind.column(),
+            self.kind.column_name(),
             self.kind.message()
         )
     }

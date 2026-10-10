@@ -1,7 +1,7 @@
 ---
 id: rg-xr3
 title: 'PR 02: diagnostics.rs — Fatal/Warning taxonomy and NFR-20 grouping'
-status: in_progress
+status: closed
 type: task
 priority: 2
 tags:
