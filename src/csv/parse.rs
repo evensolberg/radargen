@@ -762,6 +762,9 @@ mod tests {
             ("\n\"name\"\t\"ring\"\n", 2, Separator::Tab),
             ("name\tring\n\"a\tb\"\tAdopt\n", 1, Separator::Tab),
             ("\"na\nme\";\"ring\"\nx\n", 1, Separator::Semicolon),
+            // Holding both, the cell names the one it holds first.
+            ("name\tring;x\n", 1, Separator::Tab),
+            ("name;ring\tx\n", 1, Separator::Semicolon),
         ] {
             assert_eq!(errors(text), [not_comma(line, separator)], "{text:?}");
         }

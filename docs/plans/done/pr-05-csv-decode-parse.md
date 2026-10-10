@@ -9,9 +9,9 @@ crumb_id: rg-aqb
 document_title: "PR 05 — `csv/decode` and `csv/parse`: Implementation Plan"
 created_date: 2026-10-10
 synopsis: "Bytes to text (BOM, UTF-8, FR-61's line-numbered error) and text to records (a hand-written RFC 4180 scanner with physical line numbers, header and field-count checks returned beside the table, and FR-90's removal of undisplayable characters)."
-status: draft
+status: complete
 type: Plan
-revision: "1.4"
+revision: "1.5"
 review_date: 2026-10-10
 reviewed_by:
   - architect-reviewer
@@ -19,7 +19,7 @@ reviewed_by:
   - qa-expert
   - ux-researcher
   - ui-designer
-completed_date:
+completed_date: 2026-10-10
 comments:
 ---
 # PR 05 — `csv/decode` and `csv/parse`: Implementation Plan
@@ -125,7 +125,7 @@ Malformed quoting, an empty file and a non-comma separator abort at once (tier o
 
   `main.rs` (PR 13) calls `read`; tests call `decode` directly.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `src/csv/mod.rs`:
 
@@ -253,12 +253,12 @@ fn csv_fatal_messages() {
 
 Add `pub mod csv;` to `src/lib.rs` after `pub mod cli;`.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cargo test --lib csv::decode`
 Expected: a compile error, `cannot find function decode`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to `Fatal` in `src/diagnostics.rs`, after `Rings`:
 
@@ -345,12 +345,12 @@ pub fn read(path: &Path) -> Result<String, Fatal> {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cargo fmt && cargo test --lib csv::decode && cargo test --test diagnostics && cargo clippy --all-targets -- -D warnings && just lint`
 Expected: 7 passed in `csv::decode`; `fatal_messages` and `csv_fatal_messages` pass; both lints clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/csv/mod.rs src/csv/decode.rs src/lib.rs src/diagnostics.rs tests/diagnostics.rs
@@ -375,7 +375,7 @@ Task 2 ends **without a commit**. `scan` is private and only its tests call it u
   - private `fn scan(text: &str) -> Result<Vec<Record>, Fatal>` (Task 3 builds on it)
 - And in `Fatal`: `UnterminatedQuote { line: usize, column: usize }`, `TextAfterQuote { line: usize, column: usize }`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add `pub mod parse;` to `src/csv/mod.rs`. Create `src/csv/parse.rs` with the test module only:
 
@@ -572,12 +572,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cargo test --lib csv::parse`
 Expected: a compile error, `cannot find function scan`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to `Fatal` in `src/diagnostics.rs`, after `NotUtf8`:
 
@@ -746,12 +746,12 @@ fn scan(text: &str) -> Result<Vec<Record>, Fatal> {
 
 An empty line needs no special case: it scans as one empty field, which `is_blank` skips, and `line_break` has already counted it.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cargo fmt && cargo test --lib csv::parse`
 Expected: 12 passed. Clippy is not run here: it fails on dead code until Task 3 (see the note at the top of this task).
 
-- [ ] **Step 5: No commit**
+- [x] **Step 5: No commit**
 
 Leave the work uncommitted; Task 3 Step 5 commits it.
 
@@ -775,7 +775,7 @@ Leave the work uncommitted; Task 3 Step 5 commits it.
 
   PR 06's `build_catalogue(table: &Table, w: &mut Warnings) -> Result<Catalogue, Vec<Fatal>>` consumes `Table`. It maps header names to columns under FR-76 (FR-5) and keeps `header`'s order for the table view (FR-78). Every `Record` has exactly `header.len()` fields. A row that failed FR-4 is absent from `records`, but its error is in parse's `Vec<Fatal>`. `main.rs` (PR 13) merges parse's and `build_catalogue`'s errors; their order is PR 13's to fix (NFR-11) before SC-10 pins it.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append inside `mod tests` (`use super::*` already brings in `Warnings` and `Warning` once Step 3's imports exist):
 
@@ -1160,12 +1160,12 @@ Append to the `cases` array in `tests/diagnostics.rs::csv_fatal_messages`:
         ),
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cargo test --lib csv::parse`
 Expected: a compile error, `cannot find function parse`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to `Fatal` in `src/diagnostics.rs`, after `TextAfterQuote`:
 
@@ -1401,12 +1401,12 @@ In `docs/design/architecture.md`:
 - **§3:** in the `src/csv/decode.rs` row, append "; `read` is the stage's one file read". In the `src/csv/parse.rs` row, change "String → records" to "String → `Table` (header and records)".
 - **§7:** change the first signature in the code block to `pub fn build_catalogue(table: &Table, w: &mut Warnings) -> Result<Catalogue, Vec<Fatal>>;`. After the paragraph on tier two, add: "`csv::parse` returns `Result<(Table, Vec<Fatal>), Fatal>`. Tier one is the `Err`. Its tier-two FR-4 errors travel beside the table rather than instead of it, so they join `build_catalogue`'s in the same run."
 
-- [ ] **Step 4: Run everything**
+- [x] **Step 4: Run everything**
 
 Run: `cargo fmt && cargo fmt --check && cargo test && cargo clippy --all-targets -- -D warnings && just lint`
 Expected: all pass, including `tests/csv.rs` and `csv_fatal_messages`; both lints clean (Task 2's dead-code warnings are gone).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Tasks 2 and 3 land together:
 
@@ -1436,3 +1436,4 @@ Follow the house workflow in `~/.claude/CLAUDE.md`. For this PR:
 | 1.2 | 2026-10-10 | PR #17 review: the PRD departures (blank records, quoting-error lines, the separator check) recorded as crumb `rg-lfd`, and the PR 06 handoff appended to `rg-rnc`. The error order across parse and `build_catalogue` is left to PR 13 (NFR-11). The architecture §2 edit is spelled out against the actual diagram, with `read`'s exception to stage purity. Review metadata filled in; minor wording fixes |
 | 1.3 | 2026-10-10 | Simplify pass: `End` has two variants, not three, since a line break and the end of input both just end the record. The `csv/mod.rs` doc comment gets a blank `//!` line, so nursery's `too_long_first_doc_paragraph` stays quiet. Also the round-two review nits: §2 alignment, the waist paragraph's `records` reference, and the NFR-15 citation. Final review applied the plan to `main`: 161 tests pass, and fmt, clippy and `just lint` are clean |
 | 1.4 | 2026-10-10 | PRD v0.41 (D-59): the Spec line and the PRD-wording note are updated. Line numbers count from the file's first line, FR-90's removal yields to the blank-record test, and the blank-record Decision says "a line of only spaces and tabs" |
+| 1.5 | 2026-10-10 | Implemented as PR #19, then reviewed: three code-review rounds, a Rust and a QA review (the local stand-in for Copilot), simplify and a final review, with rustqual's findings fixed along the way. Departures from the text above: (1) `parse` judges the header before scanning the rest, through a lazy, fused `Scanner` with a private `Malformed` error, because a quoted first cell in a `;` or tab export (`"Kafka; streams";Adopt`, `"name";"ring"`) otherwise surfaced as a quoting error; a column-1 text-after-quote error followed by `;` or a tab is the separator error, at the header's line. (2) No warning precedes a tier-one error: all rows are scanned before any warns. (3) `NotCommaSeparated` carries a `Separator` enum, and a cell holding both names the one it holds first. (4) `decode` and `NotUtf8` are crate-private (rustqual IET), so tests reach `decode` from inside the crate; `tests/csv.rs`'s agreement test became the exhaustive `decode_and_parse_agree_on_every_small_input` in `parse.rs`. (5) `csv_fatal_messages` is two tests, `csv_file_messages` and `csv_header_and_row_messages`. (6) `Scanner::field` splits into `quoted` and `unquoted`, and `parse` delegates to `header`, `check_separator` and `checked` (rustqual IOSP and complexity). 167 tests pass. Spec gaps found in review are crumbs: separator detection past a one-column header, UTF-16 without a BOM, invisible format characters in header names, and the field-count hint for trailing padding |
