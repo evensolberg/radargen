@@ -10,6 +10,10 @@
  * claim is scoped to the built-in themes and does not travel to colours the tool
  * did not choose. The values below are verified — every series entry clears 3:1
  * (WCAG 1.4.11) against both surfaces in both themes, and text clears 4.5:1.
+ *
+ * Every value must be a #RRGGBB hex colour (FR-86); anything else is an error.
+ * Numbers on solid markers and legend badges are not a role: the tool picks
+ * #FFFFFF or #16191F per series entry, whichever contrasts more (FR-82).
  */
 
 :root {
