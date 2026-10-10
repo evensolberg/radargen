@@ -1,34 +1,35 @@
 //! The diagnostic contract (architecture §10): exact messages, NFR-11 order,
 //! NFR-20 grouping. SC-10's golden tests later pin the same text end to end.
 
-use radargen::diagnostics::{DateColumn, Position, Warning, WarningKind};
+use radargen::diagnostics::{DateColumn, Fatal, Position, RenderKind, RowKind, Warning, Warnings};
+use radargen::rings::RingsError;
 
-fn at(line: usize, column: usize, kind: WarningKind) -> Warning {
-    Warning::cell(line, column, kind)
+fn at(line: usize, column: usize, kind: RowKind) -> Warning {
+    Warning::Row { line, column, kind }
 }
 
-fn render_level(kind: WarningKind) -> Warning {
-    Warning::render_level(kind)
+fn ring(line: usize, value: &str) -> Warning {
+    at(
+        line,
+        2,
+        RowKind::UndeclaredRing {
+            value: value.into(),
+        },
+    )
 }
 
 #[test]
 fn each_row_kind_has_its_per_row_message() {
     let cases = [
         (
-            at(
-                37,
-                2,
-                WarningKind::UndeclaredRing {
-                    value: "Adpot".into(),
-                },
-            ),
+            ring(37, "Adpot"),
             "line 37, ring: 'Adpot' is not declared by --rings; the row is in the table view, not on the radar",
         ),
         (
             at(
                 5,
                 4,
-                WarningKind::UnrecognisedQualifier {
+                RowKind::UnrecognisedQualifier {
                     value: "maybe".into(),
                 },
             ),
@@ -38,7 +39,7 @@ fn each_row_kind_has_its_per_row_message() {
             at(
                 6,
                 5,
-                WarningKind::UnrecognisedStatus {
+                RowKind::UnrecognisedStatus {
                     value: "Gone".into(),
                 },
             ),
@@ -48,7 +49,7 @@ fn each_row_kind_has_its_per_row_message() {
             at(
                 7,
                 6,
-                WarningKind::UnparsableDate {
+                RowKind::UnparsableDate {
                     column: DateColumn::LastAffirmed,
                     value: "June".into(),
                 },
@@ -59,7 +60,7 @@ fn each_row_kind_has_its_per_row_message() {
             at(
                 8,
                 7,
-                WarningKind::UnparsableDate {
+                RowKind::UnparsableDate {
                     column: DateColumn::ExitDate,
                     value: "soon".into(),
                 },
@@ -67,14 +68,14 @@ fn each_row_kind_has_its_per_row_message() {
             "line 8, exit_date: 'soon' is not a YYYY-MM-DD date; shown as written",
         ),
         (
-            at(9, 3, WarningKind::EmptyDescription),
+            at(9, 3, RowKind::EmptyDescription),
             "line 9, description: empty; the detail panel omits it",
         ),
         (
             at(
                 12,
                 0,
-                WarningKind::DuplicateName {
+                RowKind::DuplicateName {
                     value: "Terraform".into(),
                     first_line: 4,
                 },
@@ -85,7 +86,7 @@ fn each_row_kind_has_its_per_row_message() {
             at(
                 14,
                 3,
-                WarningKind::Undisplayable {
+                RowKind::Undisplayable {
                     column: "description".into(),
                     first: '\u{1}',
                     count: 1,
@@ -97,7 +98,7 @@ fn each_row_kind_has_its_per_row_message() {
             at(
                 15,
                 0,
-                WarningKind::Undisplayable {
+                RowKind::Undisplayable {
                     column: "name".into(),
                     first: '\u{1f}',
                     count: 3,
@@ -116,11 +117,11 @@ fn each_row_kind_has_its_per_row_message() {
 fn each_render_level_kind_has_its_message() {
     let cases = [
         (
-            render_level(WarningKind::QuadrantCount { count: 7 }),
+            Warning::Render(RenderKind::QuadrantCount { count: 7 }),
             "7 quadrants; the radar reads best with 3 to 6, so sectors narrow and labels may crowd",
         ),
         (
-            render_level(WarningKind::OverfullBand {
+            Warning::Render(RenderKind::OverfullBand {
                 quadrant: "Tools".into(),
                 ring: "Adopt".into(),
                 count: 14,
@@ -136,13 +137,7 @@ fn each_render_level_kind_has_its_message() {
 
 #[test]
 fn values_are_shown_trimmed() {
-    let w = at(
-        3,
-        2,
-        WarningKind::UndeclaredRing {
-            value: "  Adpot ".into(),
-        },
-    );
+    let w = ring(3, "  Adpot ");
     assert!(w.to_string().contains("ring: 'Adpot' is"), "{w}");
 }
 
@@ -150,13 +145,7 @@ fn values_are_shown_trimmed() {
 /// second diagnostic line.
 #[test]
 fn control_characters_in_values_are_shown_escaped() {
-    let w = at(
-        3,
-        2,
-        WarningKind::UndeclaredRing {
-            value: "In\nUse\u{1b}[31m".into(),
-        },
-    );
+    let w = ring(3, "In\nUse\u{1b}[31m");
     let s = w.to_string();
     assert!(!s.contains('\n') && !s.contains('\u{1b}'), "{s:?}");
     assert!(s.contains(r"In\nUse\u{1b}[31m"), "{s}");
@@ -171,7 +160,7 @@ fn control_characters_in_values_are_shown_escaped() {
         let shown = at(
             3,
             2,
-            WarningKind::UndeclaredRing {
+            RowKind::UndeclaredRing {
                 value: format!("a{c}b"),
             },
         )
@@ -183,20 +172,13 @@ fn control_characters_in_values_are_shown_escaped() {
         );
     }
     // Ordinary non-ASCII text is not escaped.
-    let plain = at(
-        3,
-        2,
-        WarningKind::UndeclaredRing {
-            value: "Dvořák — 日本".into(),
-        },
-    )
-    .to_string();
+    let plain = ring(3, "Dvořák — 日本").to_string();
     assert!(plain.contains("'Dvořák — 日本'"), "{plain}");
     // An extra column's header is CSV text too (FR-18).
     let header = at(
         3,
         9,
-        WarningKind::Undisplayable {
+        RowKind::Undisplayable {
             column: "notes\nline 1, name: forged".into(),
             first: '\u{1}',
             count: 1,
@@ -216,18 +198,6 @@ fn render_level_sorts_before_any_cell() {
     assert!(Position::Cell { line: 5, column: 9 } < Position::Cell { line: 6, column: 0 });
 }
 
-use radargen::diagnostics::Warnings;
-
-fn ring(line: usize, value: &str) -> Warning {
-    at(
-        line,
-        2,
-        WarningKind::UndeclaredRing {
-            value: value.into(),
-        },
-    )
-}
-
 /// SC-24, exactly.
 #[test]
 fn forty_rows_and_a_typo_make_one_ring_line_and_a_duplicate_keeps_its_own() {
@@ -238,7 +208,7 @@ fn forty_rows_and_a_typo_make_one_ring_line_and_a_duplicate_keeps_its_own() {
     w.push(at(
         50,
         0,
-        WarningKind::DuplicateName {
+        RowKind::DuplicateName {
             value: "Kafka".into(),
             first_line: 9,
         },
@@ -282,14 +252,14 @@ fn values_group_under_fr_76_normalisation() {
 fn render_level_warnings_come_first_and_never_group() {
     let mut w = Warnings::default();
     w.push(ring(2, "X"));
-    w.push(render_level(WarningKind::QuadrantCount { count: 9 }));
-    w.push(render_level(WarningKind::OverfullBand {
+    w.push(Warning::Render(RenderKind::QuadrantCount { count: 9 }));
+    w.push(Warning::Render(RenderKind::OverfullBand {
         quadrant: "A".into(),
         ring: "Adopt".into(),
         count: 12,
         fits: 10,
     }));
-    w.push(render_level(WarningKind::OverfullBand {
+    w.push(Warning::Render(RenderKind::OverfullBand {
         quadrant: "B".into(),
         ring: "Adopt".into(),
         count: 11,
@@ -313,14 +283,14 @@ fn classes_order_by_first_line_then_column() {
     w.push(at(
         5,
         5,
-        WarningKind::UnrecognisedStatus {
+        RowKind::UnrecognisedStatus {
             value: "Gone".into(),
         },
     ));
     w.push(at(
         5,
         4,
-        WarningKind::UnrecognisedQualifier {
+        RowKind::UnrecognisedQualifier {
             value: "maybe".into(),
         },
     ));
@@ -337,7 +307,7 @@ fn out_of_order_pushes_are_sorted_by_position() {
     w.push(at(
         3,
         0,
-        WarningKind::DuplicateName {
+        RowKind::DuplicateName {
             value: "Kafka".into(),
             first_line: 2,
         },
@@ -364,56 +334,50 @@ fn grouped_values_are_never_capped() {
 
 #[test]
 fn every_row_class_has_a_grouped_line() {
-    let two = |kind: WarningKind| {
+    let cases = [
+        (
+            RowKind::UnrecognisedQualifier {
+                value: "maybe".into(),
+            },
+            "warning: 2 rows have an unrecognised qualifier — maybe (2, first line 4); each is drawn solid",
+        ),
+        (
+            RowKind::UnrecognisedStatus {
+                value: "Gone".into(),
+            },
+            "warning: 2 rows have an unrecognised status — Gone (2, first line 4); each is drawn as No Change",
+        ),
+        (
+            RowKind::UnparsableDate {
+                column: DateColumn::ExitDate,
+                value: "soon".into(),
+            },
+            "warning: 2 rows have exit_date values that are not YYYY-MM-DD dates — soon (2, first line 4); each is shown as written",
+        ),
+        (
+            RowKind::EmptyDescription,
+            "warning: 2 rows have an empty description — lines 4, 6; each detail panel omits it",
+        ),
+        (
+            RowKind::DuplicateName {
+                value: "Kafka".into(),
+                first_line: 2,
+            },
+            "warning: 2 rows repeat an earlier name — Kafka (line 2; repeated on 2 rows, first line 4); every row is drawn",
+        ),
+    ];
+    for (kind, expected) in cases {
         let mut w = Warnings::default();
         w.push(at(4, 1, kind.clone()));
         w.push(at(6, 1, kind));
-        w.render()
-    };
-    assert_eq!(
-        two(WarningKind::UnrecognisedQualifier {
-            value: "maybe".into()
-        }),
-        vec![
-            "warning: 2 rows have an unrecognised qualifier — maybe (2, first line 4); each is drawn solid",
-        ]
-    );
-    assert_eq!(
-        two(WarningKind::UnrecognisedStatus {
-            value: "Gone".into()
-        }),
-        vec![
-            "warning: 2 rows have an unrecognised status — Gone (2, first line 4); each is drawn as No Change",
-        ]
-    );
-    assert_eq!(
-        two(WarningKind::UnparsableDate {
-            column: DateColumn::ExitDate,
-            value: "soon".into()
-        }),
-        vec![
-            "warning: 2 rows have exit_date values that are not YYYY-MM-DD dates — soon (2, first line 4); each is shown as written",
-        ]
-    );
-    assert_eq!(
-        two(WarningKind::EmptyDescription),
-        vec!["warning: 2 rows have an empty description — lines 4, 6; each detail panel omits it",]
-    );
-    assert_eq!(
-        two(WarningKind::DuplicateName {
-            value: "Kafka".into(),
-            first_line: 2
-        }),
-        vec![
-            "warning: 2 rows repeat an earlier name — Kafka (line 2; repeated on 2 rows, first line 4); every row is drawn",
-        ]
-    );
+        assert_eq!(w.render(), vec![expected]);
+    }
     // Each member names its own column.
     let mut mixed = Warnings::default();
     mixed.push(at(
         4,
         3,
-        WarningKind::Undisplayable {
+        RowKind::Undisplayable {
             column: "description".into(),
             first: '\u{1}',
             count: 1,
@@ -422,7 +386,7 @@ fn every_row_class_has_a_grouped_line() {
     mixed.push(at(
         6,
         0,
-        WarningKind::Undisplayable {
+        RowKind::Undisplayable {
             column: "name".into(),
             first: '\u{7f}',
             count: 2,
@@ -442,7 +406,7 @@ fn the_two_date_columns_are_separate_classes() {
     w.push(at(
         4,
         5,
-        WarningKind::UnparsableDate {
+        RowKind::UnparsableDate {
             column: DateColumn::LastAffirmed,
             value: "x".into(),
         },
@@ -450,7 +414,7 @@ fn the_two_date_columns_are_separate_classes() {
     w.push(at(
         4,
         6,
-        WarningKind::UnparsableDate {
+        RowKind::UnparsableDate {
             column: DateColumn::ExitDate,
             value: "y".into(),
         },
@@ -502,7 +466,7 @@ fn warnings_at_one_position_keep_push_order() {
         at(
             5,
             4,
-            WarningKind::UnrecognisedQualifier {
+            RowKind::UnrecognisedQualifier {
                 value: "maybe".into(),
             },
         )
@@ -511,7 +475,7 @@ fn warnings_at_one_position_keep_push_order() {
         at(
             5,
             4,
-            WarningKind::Undisplayable {
+            RowKind::Undisplayable {
                 column: "qualifier".into(),
                 first: '\u{1}',
                 count: 1,
@@ -542,7 +506,7 @@ fn a_grouped_line_is_placed_by_its_first_member() {
     w.push(at(
         10,
         4,
-        WarningKind::UnrecognisedQualifier {
+        RowKind::UnrecognisedQualifier {
             value: "maybe".into(),
         },
     ));
@@ -559,7 +523,7 @@ fn date_values_group_by_trimmed_text_not_case() {
         at(
             line,
             5,
-            WarningKind::UnparsableDate {
+            RowKind::UnparsableDate {
                 column: DateColumn::LastAffirmed,
                 value: value.into(),
             },
@@ -584,7 +548,7 @@ fn a_single_repeat_in_a_duplicate_group_names_its_line() {
     w.push(at(
         12,
         0,
-        WarningKind::DuplicateName {
+        RowKind::DuplicateName {
             value: "Kafka".into(),
             first_line: 2,
         },
@@ -592,7 +556,7 @@ fn a_single_repeat_in_a_duplicate_group_names_its_line() {
     w.push(at(
         14,
         0,
-        WarningKind::DuplicateName {
+        RowKind::DuplicateName {
             value: "Redis".into(),
             first_line: 3,
         },
@@ -605,21 +569,6 @@ fn a_single_repeat_in_a_duplicate_group_names_its_line() {
     );
 }
 
-/// The constructors keep the position fitting the kind, in release too: a
-/// row kind with no line would break NFR-10, and a grouped one would panic
-/// later in `render`, far from the bug.
-#[test]
-#[should_panic(expected = "is row-level")]
-fn a_row_kind_cannot_be_render_level() {
-    let _ = Warning::render_level(WarningKind::EmptyDescription);
-}
-
-#[test]
-#[should_panic(expected = "is render-level")]
-fn a_render_kind_cannot_sit_at_a_cell() {
-    let _ = Warning::cell(4, 0, WarningKind::QuadrantCount { count: 9 });
-}
-
 /// Stages assert on kinds and positions, not on rendered English.
 #[test]
 fn the_raw_warnings_are_readable() {
@@ -627,11 +576,14 @@ fn the_raw_warnings_are_readable() {
     w.push(ring(7, "X"));
     let only = &w.as_slice()[0];
     assert_eq!(only.position(), Position::Cell { line: 7, column: 2 });
-    assert!(matches!(only.kind(), WarningKind::UndeclaredRing { .. }));
+    assert!(matches!(
+        only,
+        Warning::Row {
+            kind: RowKind::UndeclaredRing { .. },
+            ..
+        }
+    ));
 }
-
-use radargen::diagnostics::Fatal;
-use radargen::rings::RingsError;
 
 #[test]
 fn fatal_messages() {

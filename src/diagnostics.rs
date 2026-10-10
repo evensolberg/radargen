@@ -6,7 +6,7 @@ use std::fmt;
 use crate::normalise;
 use crate::rings::RingsError;
 
-/// Where a warning points.
+/// Where a warning points: its sort key.
 ///
 /// `Render` concerns the render as a whole (FR-88, FR-89) and has no line.
 /// It is declared first so the derived order puts it before every row
@@ -49,10 +49,10 @@ impl fmt::Display for DateColumn {
     }
 }
 
-/// Every warning NFR-9 lists. Values are carried as the CSV had them; display
-/// trims them and escapes control characters.
+/// The warnings NFR-9 lists that concern one CSV cell. Values are carried as
+/// the CSV had them; display trims them and escapes control characters.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WarningKind {
+pub enum RowKind {
     /// FR-17.
     UndeclaredRing { value: String },
     /// FR-20 — non-blank only; a blank qualifier claims nothing (D-35).
@@ -72,9 +72,15 @@ pub enum WarningKind {
         first: char,
         count: usize,
     },
-    /// FR-88. Render-level.
+}
+
+/// The warnings that concern the render as a whole. They never group: FR-88
+/// fires once and FR-89 promises one warning per band.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RenderKind {
+    /// FR-88.
     QuadrantCount { count: usize },
-    /// FR-89. Render-level, one per overfull band.
+    /// FR-89, one per overfull band.
     OverfullBand {
         quadrant: String,
         ring: String,
@@ -83,67 +89,66 @@ pub enum WarningKind {
     },
 }
 
-/// A warning and where it points. The fields are private so the position
-/// always fits the kind: a row kind at `Render` would print no line (NFR-10),
-/// and a render-level kind at a cell would print an empty column name.
+/// One warning. Split by kind, so a row warning always has a line and a
+/// render-level one never claims one (NFR-10) — by type, not by a check.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Warning {
-    position: Position,
-    kind: WarningKind,
+pub enum Warning {
+    Render(RenderKind),
+    /// `line` and `column` as in [`Position::Cell`].
+    Row {
+        line: usize,
+        column: usize,
+        kind: RowKind,
+    },
 }
 
 impl Warning {
-    /// A row-level warning at a CSV cell. `column` is the header index.
-    ///
-    /// # Panics
-    ///
-    /// On a render-level kind: a caller bug, caught where it is made rather
-    /// than when `render` later meets a warning with no line.
-    #[must_use]
-    pub fn cell(line: usize, column: usize, kind: WarningKind) -> Self {
-        assert!(kind.class().is_some(), "{kind:?} is render-level");
-        Self {
-            position: Position::Cell { line, column },
-            kind,
-        }
-    }
-
-    /// A warning about the render as a whole (FR-88, FR-89).
-    ///
-    /// # Panics
-    ///
-    /// On a row-level kind, which needs a line (NFR-10).
-    #[must_use]
-    pub fn render_level(kind: WarningKind) -> Self {
-        assert!(kind.class().is_none(), "{kind:?} is row-level");
-        Self {
-            position: Position::Render,
-            kind,
-        }
-    }
-
     #[must_use]
     pub fn position(&self) -> Position {
-        self.position
-    }
-
-    #[must_use]
-    pub fn kind(&self) -> &WarningKind {
-        &self.kind
-    }
-
-    /// The CSV line of a row-level warning. The constructors guarantee every
-    /// classed warning has one, in release builds too.
-    fn line(&self) -> usize {
-        match self.position {
-            Position::Cell { line, .. } => line,
-            Position::Render => unreachable!("a row-level warning always has a cell"),
+        match *self {
+            Self::Render(_) => Position::Render,
+            Self::Row { line, column, .. } => Position::Cell { line, column },
         }
     }
 }
 
-impl WarningKind {
-    /// The column a row-level warning concerns, as NFR-10 names it.
+impl fmt::Display for Warning {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            Self::Render(kind) => kind.message(),
+            Self::Row { line, kind, .. } => Member { line: *line, kind }.per_row(),
+        };
+        f.write_str(&escape_controls(&text))
+    }
+}
+
+/// NFR-20's warning classes: one per row kind, except that the two date
+/// columns are separate classes, so each grouped line names its column.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Class {
+    Ring,
+    Qualifier,
+    Status,
+    Date(DateColumn),
+    Description,
+    DuplicateName,
+    Undisplayable,
+}
+
+impl RowKind {
+    fn class(&self) -> Class {
+        match self {
+            Self::UndeclaredRing { .. } => Class::Ring,
+            Self::UnrecognisedQualifier { .. } => Class::Qualifier,
+            Self::UnrecognisedStatus { .. } => Class::Status,
+            Self::UnparsableDate { column, .. } => Class::Date(*column),
+            Self::EmptyDescription => Class::Description,
+            Self::DuplicateName { .. } => Class::DuplicateName,
+            Self::Undisplayable { .. } => Class::Undisplayable,
+        }
+    }
+
+    /// The column this warning concerns, as NFR-10 names it.
     fn column(&self) -> &str {
         match self {
             Self::UndeclaredRing { .. } => "ring",
@@ -152,50 +157,60 @@ impl WarningKind {
             Self::UnparsableDate { column, .. } => column.as_str(),
             Self::EmptyDescription => "description",
             Self::DuplicateName { .. } => "name",
-            // A header name is CSV text (FR-18's extra columns); `Display`
-            // escapes it with the rest of the line.
+            // A header name is CSV text (FR-18's extra columns); it is escaped
+            // with the rest of the line.
             Self::Undisplayable { column, .. } => column,
-            Self::QuadrantCount { .. } | Self::OverfullBand { .. } => "",
+        }
+    }
+
+    /// The value NFR-20 enumerates; `None` for a class that lists positions.
+    fn value(&self) -> Option<&str> {
+        match self {
+            Self::UndeclaredRing { value }
+            | Self::UnrecognisedQualifier { value }
+            | Self::UnrecognisedStatus { value }
+            | Self::UnparsableDate { value, .. }
+            | Self::DuplicateName { value, .. } => Some(value),
+            Self::EmptyDescription | Self::Undisplayable { .. } => None,
         }
     }
 
     fn message(&self) -> String {
+        let v = self.value().map(str::trim).unwrap_or_default();
         match self {
-            Self::UndeclaredRing { value } => format!(
-                "'{}' is not declared by --rings; the row is in the table view, not on the radar",
-                value.trim()
+            Self::UndeclaredRing { .. } => format!(
+                "'{v}' is not declared by --rings; the row is in the table view, not on the radar"
             ),
-            Self::UnrecognisedQualifier { value } => {
-                format!(
-                    "unrecognised qualifier value '{}'; drawn solid",
-                    value.trim()
-                )
+            Self::UnrecognisedQualifier { .. } => {
+                format!("unrecognised qualifier value '{v}'; drawn solid")
             }
-            Self::UnrecognisedStatus { value } => format!(
-                "unrecognised status value '{}'; drawn as No Change",
-                value.trim()
-            ),
-            Self::UnparsableDate { value, .. } => format!(
-                "'{}' is not a YYYY-MM-DD date; shown as written",
-                value.trim()
-            ),
+            Self::UnrecognisedStatus { .. } => {
+                format!("unrecognised status value '{v}'; drawn as No Change")
+            }
+            Self::UnparsableDate { .. } => {
+                format!("'{v}' is not a YYYY-MM-DD date; shown as written")
+            }
             Self::EmptyDescription => "empty; the detail panel omits it".into(),
-            Self::DuplicateName { value, first_line } => format!(
-                "'{}' repeats line {first_line}; both are drawn",
-                value.trim()
-            ),
+            Self::DuplicateName { first_line, .. } => {
+                format!("'{v}' repeats line {first_line}; both are drawn")
+            }
             Self::Undisplayable {
                 first, count: 1, ..
-            } => {
-                format!(
-                    "removed U+{:04X}, which the output cannot display",
-                    u32::from(*first)
-                )
-            }
-            Self::Undisplayable { first, count, .. } => format!(
-                "removed {count} characters the output cannot display, the first U+{:04X}",
-                u32::from(*first)
+            } => format!(
+                "removed {}, which the output cannot display",
+                code_point(*first)
             ),
+            Self::Undisplayable { first, count, .. } => format!(
+                "removed {count} characters the output cannot display, the first {}",
+                code_point(*first)
+            ),
+        }
+    }
+}
+
+impl RenderKind {
+    fn message(&self) -> String {
+        match self {
             Self::QuadrantCount { count } => format!(
                 "{count} quadrants; the radar reads best with 3 to 6, so sectors narrow and labels may crowd"
             ),
@@ -213,20 +228,12 @@ impl WarningKind {
     }
 }
 
-impl fmt::Display for Warning {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let line = match self.position {
-            Position::Render => self.kind.message(),
-            Position::Cell { line, .. } => {
-                format!(
-                    "line {line}, {}: {}",
-                    self.kind.column(),
-                    self.kind.message()
-                )
-            }
-        };
-        f.write_str(&escape_controls(&line))
-    }
+fn code_point(c: char) -> String {
+    format!("U+{:04X}", u32::from(c))
+}
+
+fn comma_list(items: impl Iterator<Item = String>) -> String {
+    items.collect::<Vec<_>>().join(", ")
 }
 
 /// A CSV value can carry a newline inside quotes (NFR-10), and printed raw it
@@ -263,49 +270,6 @@ fn escape_controls(s: &str) -> String {
 #[derive(Debug, Default)]
 pub struct Warnings(Vec<Warning>);
 
-/// NFR-20's warning classes. Render-level warnings have none: FR-88 fires
-/// once and FR-89 promises one warning per band, so neither groups.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Class {
-    Ring,
-    Qualifier,
-    Status,
-    Date(DateColumn),
-    Description,
-    DuplicateName,
-    Undisplayable,
-}
-
-impl WarningKind {
-    fn class(&self) -> Option<Class> {
-        match self {
-            Self::UndeclaredRing { .. } => Some(Class::Ring),
-            Self::UnrecognisedQualifier { .. } => Some(Class::Qualifier),
-            Self::UnrecognisedStatus { .. } => Some(Class::Status),
-            Self::UnparsableDate { column, .. } => Some(Class::Date(*column)),
-            Self::EmptyDescription => Some(Class::Description),
-            Self::DuplicateName { .. } => Some(Class::DuplicateName),
-            Self::Undisplayable { .. } => Some(Class::Undisplayable),
-            Self::QuadrantCount { .. } | Self::OverfullBand { .. } => None,
-        }
-    }
-
-    /// The value NFR-20 enumerates; `None` for a class with no value.
-    fn value(&self) -> Option<&str> {
-        match self {
-            Self::UndeclaredRing { value }
-            | Self::UnrecognisedQualifier { value }
-            | Self::UnrecognisedStatus { value }
-            | Self::UnparsableDate { value, .. }
-            | Self::DuplicateName { value, .. } => Some(value),
-            Self::EmptyDescription
-            | Self::Undisplayable { .. }
-            | Self::QuadrantCount { .. }
-            | Self::OverfullBand { .. } => None,
-        }
-    }
-}
-
 impl Warnings {
     pub fn push(&mut self, w: Warning) {
         self.0.push(w);
@@ -328,150 +292,139 @@ impl Warnings {
     pub fn render(&self) -> Vec<String> {
         // Stable: equal positions keep push order.
         let mut sorted: Vec<&Warning> = self.0.iter().collect();
-        sorted.sort_by_key(|w| w.position);
+        sorted.sort_by_key(|w| w.position());
 
+        // Render-level warnings sort first and print as they are; row
+        // warnings collect into classes in the order each class first
+        // appears, which places every grouped line at its first member.
         let mut lines = Vec::new();
-        let mut printed: Vec<Class> = Vec::new();
-        for w in &sorted {
-            let Some(class) = w.kind.class() else {
-                lines.push(format!("warning: {w}"));
-                continue;
+        let mut classes: Vec<(Class, Vec<Member>)> = Vec::new();
+        for w in sorted {
+            match w {
+                Warning::Render(_) => lines.push(format!("warning: {w}")),
+                Warning::Row { line, kind, .. } => {
+                    let member = Member { line: *line, kind };
+                    match classes.iter_mut().find(|(c, _)| *c == kind.class()) {
+                        Some((_, members)) => members.push(member),
+                        None => classes.push((kind.class(), vec![member])),
+                    }
+                }
+            }
+        }
+        for (class, members) in &classes {
+            let text = match members.as_slice() {
+                [only] => only.per_row(),
+                _ => grouped(*class, members),
             };
-            if printed.contains(&class) {
-                continue;
-            }
-            printed.push(class);
-            let members: Vec<&Warning> = sorted
-                .iter()
-                .copied()
-                .filter(|m| m.kind.class() == Some(class))
-                .collect();
-            if members.len() == 1 {
-                lines.push(format!("warning: {w}"));
-            } else {
-                lines.push(format!(
-                    "warning: {}",
-                    escape_controls(&grouped(class, &members))
-                ));
-            }
+            lines.push(format!("warning: {}", escape_controls(&text)));
         }
         lines
     }
 }
 
-/// A distinct value within a class, in first-occurrence order.
-struct Tally {
-    key: String,
-    shown: String,
-    count: usize,
-    first_line: usize,
-    /// FR-28's earlier line, for a duplicate name; `None` for every other class.
-    original: Option<usize>,
+/// A row warning as grouping sees it.
+struct Member<'a> {
+    line: usize,
+    kind: &'a RowKind,
 }
 
-fn grouped(class: Class, members: &[&Warning]) -> String {
+impl Member<'_> {
+    fn per_row(&self) -> String {
+        format!(
+            "line {}, {}: {}",
+            self.line,
+            self.kind.column(),
+            self.kind.message()
+        )
+    }
+}
+
+fn grouped(class: Class, members: &[Member]) -> String {
     let n = members.len();
-    let list = match class {
+    match class {
+        Class::Ring => format!(
+            "{n} rows use a ring --rings does not declare — {}; all appear in the table view",
+            tallied(members, normalise)
+        ),
+        Class::Qualifier => format!(
+            "{n} rows have an unrecognised qualifier — {}; each is drawn solid",
+            tallied(members, normalise)
+        ),
+        Class::Status => format!(
+            "{n} rows have an unrecognised status — {}; each is drawn as No Change",
+            tallied(members, normalise)
+        ),
+        // FR-76 folds case only for the comparisons it lists; a date is
+        // parsed, so only trimmed, and two spellings are two values.
+        Class::Date(column) => format!(
+            "{n} rows have {column} values that are not YYYY-MM-DD dates — {}; each is shown as written",
+            tallied(members, |v| v.trim().to_string())
+        ),
+        Class::DuplicateName => format!(
+            "{n} rows repeat an earlier name — {}; every row is drawn",
+            tallied(members, normalise)
+        ),
         // No value to enumerate, so NFR-20 lists positions, uncapped.
-        Class::Description => {
-            let lines: Vec<String> = members.iter().map(|m| m.line().to_string()).collect();
-            format!("lines {}", lines.join(", "))
-        }
+        Class::Description => format!(
+            "{n} rows have an empty description — lines {}; each detail panel omits it",
+            comma_list(members.iter().map(|m| m.line.to_string()))
+        ),
         // Positions again, each with the code point: a removed character is
         // usually invisible in an editor, so it is what tells the author what
         // to look for.
-        Class::Undisplayable => members
-            .iter()
-            .map(|m| match m.kind {
-                WarningKind::Undisplayable {
-                    ref column,
+        Class::Undisplayable => format!(
+            "{n} fields had characters the output cannot display — {}; each was removed",
+            comma_list(members.iter().filter_map(|m| {
+                let RowKind::Undisplayable {
+                    column,
                     first,
                     count,
-                } => {
-                    let first = u32::from(first);
-                    match count {
-                        1 => format!("{column} on line {} (U+{first:04X})", m.line()),
-                        c => format!("{column} on line {} ({c}, first U+{first:04X})", m.line()),
-                    }
-                }
-                _ => unreachable!("an Undisplayable class holds only Undisplayable"),
-            })
-            .collect::<Vec<_>>()
-            .join(", "),
-        Class::Ring | Class::Qualifier | Class::Status | Class::Date(_) | Class::DuplicateName => {
-            tallied(class, members)
-        }
-    };
-    match class {
-        Class::Ring => format!(
-            "{n} rows use a ring --rings does not declare — {list}; all appear in the table view"
+                } = m.kind
+                else {
+                    return None;
+                };
+                Some(match count {
+                    1 => format!("{column} on line {} ({})", m.line, code_point(*first)),
+                    c => format!(
+                        "{column} on line {} ({c}, first {})",
+                        m.line,
+                        code_point(*first)
+                    ),
+                })
+            }))
         ),
-        Class::Qualifier => {
-            format!("{n} rows have an unrecognised qualifier — {list}; each is drawn solid")
-        }
-        Class::Status => {
-            format!("{n} rows have an unrecognised status — {list}; each is drawn as No Change")
-        }
-        Class::Date(column) => format!(
-            "{n} rows have {column} values that are not YYYY-MM-DD dates — {list}; each is shown as written"
-        ),
-        Class::Description => {
-            format!("{n} rows have an empty description — {list}; each detail panel omits it")
-        }
-        Class::DuplicateName => {
-            format!("{n} rows repeat an earlier name — {list}; every row is drawn")
-        }
-        Class::Undisplayable => {
-            format!(
-                "{n} fields had characters the output cannot display — {list}; each was removed"
-            )
-        }
     }
 }
 
-/// NFR-20's enumeration: each distinct value, in first-occurrence order, with
-/// its count and first line.
-fn tallied(class: Class, members: &[&Warning]) -> String {
-    let mut tallies: Vec<Tally> = Vec::new();
+/// NFR-20's enumeration: each distinct value under `key`, in first-occurrence
+/// order, shown as its first occurrence wrote it, with its count and first
+/// line.
+fn tallied(members: &[Member], key: fn(&str) -> String) -> String {
+    // (key, first occurrence, count)
+    let mut tallies: Vec<(String, &Member, usize)> = Vec::new();
     for m in members {
-        let value = m.kind.value().unwrap_or_default();
-        // FR-76 folds case only for the comparisons it lists; a date is
-        // parsed, so only trimmed, and two spellings are two values.
-        let key = match class {
-            Class::Date(_) => value.trim().to_string(),
-            _ => normalise(value),
-        };
-        if let Some(t) = tallies.iter_mut().find(|t| t.key == key) {
-            t.count += 1;
-        } else {
-            let original = match m.kind {
-                WarningKind::DuplicateName { first_line, .. } => Some(first_line),
-                _ => None,
-            };
-            tallies.push(Tally {
-                key,
-                shown: value.trim().to_string(),
-                count: 1,
-                first_line: m.line(),
-                original,
-            });
+        let k = key(m.kind.value().unwrap_or_default());
+        match tallies.iter_mut().find(|(t, _, _)| *t == k) {
+            Some((_, _, count)) => *count += 1,
+            None => tallies.push((k, m, 1)),
         }
     }
-    tallies
-        .iter()
-        .map(|t| match (t.original, t.count) {
+    comma_list(tallies.iter().map(|(_, first, count)| {
+        let shown = first.kind.value().unwrap_or_default().trim();
+        let line = first.line;
+        match (first.kind, count) {
             // A duplicate leads with the line it repeats, so "first" can only
             // mean the first repeat.
-            (Some(o), 1) => format!("{} (line {o}; repeated on line {})", t.shown, t.first_line),
-            (Some(o), c) => format!(
-                "{} (line {o}; repeated on {c} rows, first line {})",
-                t.shown, t.first_line
-            ),
-            (None, 1) => format!("{} (1, line {})", t.shown, t.first_line),
-            (None, c) => format!("{} ({c}, first line {})", t.shown, t.first_line),
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
+            (RowKind::DuplicateName { first_line, .. }, 1) => {
+                format!("{shown} (line {first_line}; repeated on line {line})")
+            }
+            (RowKind::DuplicateName { first_line, .. }, c) => {
+                format!("{shown} (line {first_line}; repeated on {c} rows, first line {line})")
+            }
+            (_, 1) => format!("{shown} (1, line {line})"),
+            (_, c) => format!("{shown} ({c}, first line {line})"),
+        }
+    }))
 }
 
 /// Everything the tool refuses to run on: non-zero exit, nothing written
