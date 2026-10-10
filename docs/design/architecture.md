@@ -603,8 +603,10 @@ Three consequences the design carries:
   day to a day of its own.
 - **Outlines are deduplicated through `<use>`.** One `<path>` per distinct glyph
   in `<defs>`, placed by `<use x= y=>`. A realistic edition is 749 glyph
-  instances over 56 distinct glyphs, so the per-instance form costs nearly nine
-  times as much — 646 kB against 74 kB. Ids are fine here: §5 bans them because
+  instances over 56 distinct glyphs, so the per-instance form costs nearly seven
+  times as much with Inter — 371 kB against 53 kB. (Against the Latin subset,
+  that deduplicated form is now a little *larger* than embedding the WOFF2,
+  45 kB; size never decided this — see the spike.) Ids are fine here: §5 bans them because
   the HTML holds two arrangements in one DOM, and this file holds one.
 - **Nothing about the HTML changes.** It keeps `<text>` and an inlined WOFF2 —
   browsers do honour `@font-face`, and FR-46's explicit `<tspan>`s mean the

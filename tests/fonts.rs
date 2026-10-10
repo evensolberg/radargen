@@ -31,7 +31,12 @@ fn css_weights_match_fr_85() {
 fn measuring_text_outside_the_subset_does_not_panic() {
     let f = Fonts::embedded().expect("faces");
     for w in [Weight::Regular, Weight::SemiBold] {
+        let latin = f.face(w).measure("Kubernetes ", 12.5, 0.0);
         let width = f.face(w).measure("Kubernetes 日本語 Ж", 12.5, 0.0);
-        assert!(width.is_finite() && width > 0.0, "{w:?}: {width}");
+        // Wider than its Latin prefix: the tofu glyphs keep `.notdef`'s advance.
+        assert!(
+            width.is_finite() && width > latin,
+            "{w:?}: {width} vs {latin}"
+        );
     }
 }

@@ -51,6 +51,20 @@ fn subset_is_latin_only() {
     }
 }
 
+/// PRD D-55 rejects U+FFFD as a replacement because Inter has no glyph for
+/// it. The subset range lists U+FFFD, so a future Inter that adds one would
+/// carry it through the script silently; this makes that a failing test.
+#[test]
+fn the_replacement_character_has_no_glyph() {
+    for (name, data) in [("Regular", REGULAR), ("SemiBold", SEMIBOLD)] {
+        let face = ttf_parser::Face::parse(data, 0).expect("face parses");
+        assert!(
+            face.glyph_index('\u{FFFD}').is_none(),
+            "{name}: U+FFFD now has a glyph; revisit PRD D-55"
+        );
+    }
+}
+
 /// A-4 accepts tofu for a character outside the subset, but `pyftsubset`
 /// empties `.notdef` unless told otherwise, and the character then renders as
 /// blank space: a non-Latin name would vanish rather than show as boxes.

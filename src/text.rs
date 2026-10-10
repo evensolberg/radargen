@@ -37,13 +37,15 @@ impl Weight {
 
 /// Both faces, parsed once at startup and passed down — every `Block::size`
 /// measures, and re-parsing per call would put a font parse in the inner loop
-/// of layout (architecture §3).
-pub struct Fonts<'a> {
-    regular: FontMetrics<'a>,
-    semibold: FontMetrics<'a>,
+/// of layout (architecture §3). The faces are the binary's own bytes, so no
+/// lifetime parameter: every `&Fonts` in a layout signature would carry one
+/// that could only ever be `'static`.
+pub struct Fonts {
+    regular: FontMetrics<'static>,
+    semibold: FontMetrics<'static>,
 }
 
-impl Fonts<'static> {
+impl Fonts {
     /// The faces compiled into the binary. A parse failure is NFR-15's
     /// "font load failure" and is fatal to the caller.
     ///
@@ -56,12 +58,10 @@ impl Fonts<'static> {
             semibold: FontMetrics::load(SEMIBOLD_TTF)?,
         })
     }
-}
 
-impl<'a> Fonts<'a> {
     /// The metrics for one weight's face.
     #[must_use]
-    pub fn face(&self, w: Weight) -> &FontMetrics<'a> {
+    pub fn face(&self, w: Weight) -> &FontMetrics<'static> {
         match w {
             Weight::Regular => &self.regular,
             Weight::SemiBold => &self.semibold,
