@@ -350,7 +350,8 @@ Put this above the test module:
 //! SVG node, and the `</script>` rule is an HTML fact (architecture §3).
 
 /// XML 1.0's `Char` production excludes most C0 controls and U+FFFE/U+FFFF,
-/// even as character references. FR-90 removes these at the CSV stage, with a
+/// even as character references; FR-90 adds DEL and C1, which XML allows but
+/// no font draws. FR-90 removes these at the CSV stage, with a
 /// warning, and calls this function to decide which ones; the escaping
 /// functions only replace them as a backstop, so that they stay total.
 #[must_use]
@@ -483,6 +484,8 @@ Append inside `mod tests`:
     #[test]
     fn css_values_pass_through_when_safe() {
         assert_eq!(css_value("#0072B2"), Ok("#0072B2"));
+        // Context 5 checks injection only. FR-86's `#RRGGBB` rule is PR 18's
+        // validation, so a well-formed but unsupported value passes here.
         assert_eq!(css_value("rgb(0 114 178)"), Ok("rgb(0 114 178)"));
     }
 

@@ -66,7 +66,7 @@ The PRD fixes two message texts: NFR-20's grouped ring line and FR-20's qualifie
 | date (FR-24/25) | `'X' is not a YYYY-MM-DD date; shown as written` | `N rows have last_affirmed values that are not YYYY-MM-DD dates — …; each is shown as written` |
 | description (FR-7) | `description is empty; the detail panel omits it` | `N rows have an empty description — lines L1, L2, …; the detail panel omits each` |
 | duplicate name (FR-28) | `name 'X' repeats line L; both are drawn` | `N rows repeat an earlier name — X (n, first line F; original line L), …; every row is drawn` |
-| XML character (FR-90) | `removed U+0001, which XML cannot carry`, or `removed 3 characters XML cannot carry, the first U+0001` | `N fields held characters XML cannot carry — line L1 C1, line L2 C2, …; each was removed` |
+| undisplayable character (FR-90) | `removed U+0001, which the output cannot display`, or `removed 3 characters the output cannot display, the first U+0001` | `N fields held characters the output cannot display — line L1 C1, line L2 C2, …; each was removed` |
 | FR-88 (no line) | `N quadrants; the radar reads best with three to six, so sectors narrow and labels may crowd` | never grouped |
 | FR-89 (no line) | `quadrant 'Q', ring 'R': N items; about F fit comfortably, so some markers overlap` | never grouped |
 
@@ -139,9 +139,9 @@ fn each_kind_has_its_per_row_message() {
         (at(12, 0, WarningKind::DuplicateName { value: "Terraform".into(), first_line: 4 }),
          "line 12, name: name 'Terraform' repeats line 4; both are drawn"),
         (at(14, 3, WarningKind::XmlForbidden { column: "description".into(), first: '\u{1}', count: 1 }),
-         "line 14, description: removed U+0001, which XML cannot carry"),
+         "line 14, description: removed U+0001, which the output cannot display"),
         (at(15, 0, WarningKind::XmlForbidden { column: "name".into(), first: '\u{1f}', count: 3 }),
-         "line 15, name: removed 3 characters XML cannot carry, the first U+001F"),
+         "line 15, name: removed 3 characters the output cannot display, the first U+001F"),
         (render_level(WarningKind::QuadrantCount { count: 7 }),
          "7 quadrants; the radar reads best with three to six, so sectors narrow and labels may crowd"),
         (render_level(WarningKind::OverfullBand { quadrant: "Tools".into(), ring: "Adopt".into(), count: 14, fits: 10 }),
@@ -300,10 +300,10 @@ impl WarningKind {
                 printable(value)
             ),
             Self::XmlForbidden { first, count: 1, .. } => {
-                format!("removed U+{:04X}, which XML cannot carry", u32::from(*first))
+                format!("removed U+{:04X}, which the output cannot display", u32::from(*first))
             }
             Self::XmlForbidden { first, count, .. } => format!(
-                "removed {count} characters XML cannot carry, the first U+{:04X}",
+                "removed {count} characters the output cannot display, the first U+{:04X}",
                 u32::from(*first)
             ),
             Self::QuadrantCount { count } => format!(
@@ -501,7 +501,7 @@ fn every_row_class_has_a_grouped_line() {
         "warning: 2 rows repeat an earlier name — Kafka (2, first line 4; original line 2); every row is drawn",
     ]);
     assert_eq!(two(WarningKind::XmlForbidden { column: "description".into(), first: '\u{1}', count: 1 }), vec![
-        "warning: 2 fields held characters XML cannot carry — line 4 description, line 6 description; each was removed",
+        "warning: 2 fields held characters the output cannot display — line 4 description, line 6 description; each was removed",
     ]);
 }
 
@@ -676,7 +676,7 @@ fn grouped(class: Class, members: &[&Warning]) -> String {
             .map(|m| format!("line {} {}", line_of(m), m.kind.column()))
             .collect();
         return format!(
-            "{n} fields held characters XML cannot carry — {}; each was removed",
+            "{n} fields held characters the output cannot display — {}; each was removed",
             fields.join(", ")
         );
     }
