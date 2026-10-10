@@ -9,9 +9,9 @@ crumb_id: rg-xr3
 document_title: "PR 02 — `diagnostics.rs`: Implementation Plan"
 created_date: 2026-10-09
 synopsis: "One diagnostic taxonomy: a Fatal error enum and Warnings printed in NFR-11's order with NFR-20's grouping."
-status: draft
+status: complete
 type: Plan
-revision: "1.4"
+revision: "1.7"
 review_date: 2026-10-09
 reviewed_by:
   - rust-engineer
@@ -19,7 +19,7 @@ reviewed_by:
   - architect-reviewer
   - ui-designer
   - ux-researcher
-completed_date:
+completed_date: 2026-10-10
 comments:
 ---
 # PR 02 — `diagnostics.rs`: Implementation Plan
@@ -105,7 +105,7 @@ Other choices:
 
   PR 06 pushes the row-level kinds, and PR 08/10 push `QuadrantCount` and `OverfullBand`. `column` is the header index of the column concerned, which PR 06 supplies.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `tests/diagnostics.rs`:
 
@@ -184,12 +184,12 @@ fn render_level_sorts_before_any_cell() {
 }
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cargo test --test diagnostics`
 Expected: a compile error, `unresolved import radargen::diagnostics`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `src/diagnostics.rs`:
 
@@ -353,12 +353,12 @@ fn escape_controls(s: &str) -> String {
 
 Add `pub mod diagnostics;` to `src/lib.rs`, before `pub mod rings;`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cargo test --test diagnostics && cargo clippy --all-targets -- -D warnings`
 Expected: 4 passed, clippy clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/diagnostics.rs src/lib.rs tests/diagnostics.rs docs/design/architecture.md
@@ -382,7 +382,7 @@ git commit -m "feat(diagnostics): Warning and Position, with per-row messages (N
 
   Stages that can warn take `&mut Warnings` (§7). `main.rs` (PR 13) prints `render()` to stderr.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/diagnostics.rs`:
 
@@ -553,12 +553,12 @@ fn grouped_values_order_by_first_line_not_push_order() {
 }
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cargo test --test diagnostics`
 Expected: a compile error, `unresolved import radargen::diagnostics::Warnings`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `src/diagnostics.rs`, and add `use crate::normalise;` at the top:
 
@@ -747,12 +747,12 @@ fn tallied(members: &[&Warning]) -> String {
 
 `Position::Render => 0` is the one place the types allow a case the logic excludes: a classed warning always has a cell.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cargo test --test diagnostics && cargo clippy --all-targets -- -D warnings`
 Expected: 16 passed, clippy clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/diagnostics.rs tests/diagnostics.rs
@@ -776,7 +776,7 @@ git commit -m "feat(diagnostics): Warnings — NFR-11 order and NFR-20 grouping"
 
   PR 05 adds decode, parse and quoting variants; PR 06 adds FR-5/FR-6; PR 13 adds the write failures. Each PR adds its own variants next to the code that raises them. Tier two returns `Vec<Fatal>` (§7), and so does a single flag with several violations (NFR-16 tier one, `rg-tiu`), so `main.rs` renders a slice, not one `Fatal`. `render` escapes the whole message, so no variant has to remember to: argv and CSV text alike can't forge a stderr line.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/diagnostics.rs`:
 
@@ -810,12 +810,12 @@ fn fatal_messages() {
 
 In `tests/cli.rs`, change line 5 to `use radargen::cli::{Cli, OutputFormat, Theme};`, add `use radargen::diagnostics::Fatal;`, and replace both `FatalError::` occurrences with `Fatal::`.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cargo test --test diagnostics --test cli`
 Expected: a compile error, `unresolved import radargen::diagnostics::Fatal`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `src/rings.rs`, change the derive and add the messages. FR-63 says "naming the offending entry":
 
@@ -874,12 +874,12 @@ In `src/cli.rs`:
 - Add `use crate::diagnostics::Fatal;`.
 - Change `format`'s signature to `pub fn format(&self) -> Result<OutputFormat, Fatal>`, and rename `FatalError::` to `Fatal::` in its body and in its `# Errors` doc links.
 
-- [ ] **Step 4: Run everything**
+- [x] **Step 4: Run everything**
 
 Run: `cargo test && cargo clippy --all-targets -- -D warnings`
 Expected: all pass, clippy clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/diagnostics.rs src/rings.rs src/cli.rs tests/diagnostics.rs tests/cli.rs
@@ -905,3 +905,6 @@ git commit -m "feat(diagnostics): Fatal — one error taxonomy; RingsError and -
 | 1.2 | 2026-10-09 | FR-90's warning class (`XmlForbidden`) added for PRD v0.38, resolving crumb `rg-jyx` |
 | 1.3 | 2026-10-09 | PR 6 review: `Fatal::render` escapes the whole message; `Warnings::as_slice`/`is_empty`; `XmlForbidden` renamed `Undisplayable`, its column escaped and worded 'the output cannot display'; stronger grouping tests; every stderr line escaped whole, and `grouped` is one exhaustive `match` |
 | 1.4 | 2026-10-09 | The pedantic and unsafe-code gate is now live in `Cargo.toml` (crumb `rg-q3w`); `format`'s `# Errors` doc links are renamed along with its body |
+| 1.5 | 2026-10-10 | Implemented. Deviations: rustfmt pushed `each_kind_has_its_per_row_message` past pedantic's 100-line limit, so it is split into `each_row_kind_has_its_per_row_message` and `each_render_level_kind_has_its_message` (17 tests after Task 2, not 16). Architecture §7's previous paragraph also said NFR-11's order came from insertion order; it now says a stable sort by position. Task 3's commit subject was shortened to fit 72 characters |
+| 1.6 | 2026-10-10 | PR 11 review. `Warning`'s fields are private behind `Warning::cell` and `Warning::render_level`, which keep the position fitting the kind, with `position()` and `kind()` for stage tests. The decisions table above is as planned; the shipped wording differs: per-row messages no longer repeat the column (`line 37, ring: 'Adpot' is not declared …`, `line 9, description: empty; …`, `line 12, name: 'Terraform' repeats line 4; …`); the qualifier message adds `; drawn solid`; FR-88 says `3 to 6`; the grouped duplicate entry leads with the original line (`Kafka (line 2; repeated on 2 rows, first line 4)`); the grouped FR-90 line names each field and code point (`description on line 4 (U+0001)`) and says `had`; the empty-description line ends `each detail panel omits it`; both `-o` errors name the path; `--rings` duplicates name their own entry (`entry 3 'adopt' repeats entry 1`). U+061C, U+2028 and U+2029 are escaped too. Date values group by trimmed text, not case, since FR-76 does not fold parsed values |
+| 1.7 | 2026-10-10 | Simplify pass. `WarningKind` splits into `RowKind` and `RenderKind`, and `Warning` becomes `enum Warning { Render(RenderKind), Row { line, column, kind: RowKind } }`, so a row warning always has a line by type; the constructors, their asserts, the `unreachable!` and the empty-column arm go. `Warning::position()` remains the sort key. `render` groups in one pass; `grouped` is one `match`; `tallied` takes the key function (`normalise`, or trim for dates) and keeps a reference to each value's first occurrence instead of copying its fields |

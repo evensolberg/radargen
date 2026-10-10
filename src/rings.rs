@@ -12,14 +12,23 @@ pub const DEFAULT_RINGS: [&str; 4] = ["Retire", "Adopt", "Trial", "Assess"];
 
 /// FR-63 violations. Each is a hard error naming the offending entry; neither
 /// can be resolved by guessing what the author meant.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum RingsError {
     /// An empty entry would draw a nameless band. `index` is 1-based.
+    #[error("entry {index} is empty")]
     EmptyEntry { index: usize },
     /// A duplicate would make FR-16's match ambiguous and FR-32's band order
     /// undefined. `entry` is the offending text as written, trimmed.
-    Duplicate { entry: String, first_index: usize },
+    /// `index` is the duplicate's own 1-based position, so a long list need
+    /// not be searched for it.
+    #[error("entry {index} '{entry}' repeats entry {first_index}")]
+    Duplicate {
+        index: usize,
+        entry: String,
+        first_index: usize,
+    },
     /// The list yielded no rings at all.
+    #[error("no rings declared")]
     Empty,
 }
 
@@ -54,6 +63,7 @@ pub fn parse_rings(declared: Option<&str>) -> Result<Vec<String>, RingsError> {
         let key = normalise(entry);
         if let Some(first) = seen.iter().position(|s| *s == key) {
             return Err(RingsError::Duplicate {
+                index: i + 1,
                 entry: entry.to_string(),
                 first_index: first + 1,
             });

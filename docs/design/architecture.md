@@ -439,11 +439,15 @@ each, ordered by first occurrence, with no cap — which means the grouping need
 the whole run before it can produce a line. Grouping eagerly would either lose the
 first-occurrence line numbers or require a map keyed by value, and §6 has already
 ruled out maps in output-affecting code. Pushing plainly and grouping once at the
-end keeps NFR-11's order a consequence of insertion order.
+end makes NFR-11's order a stable sort by position, so a stage that pushes a
+line-3 warning after a line-40 one cannot reorder the output.
 
 FR-88's quadrant-count warning carries no CSV line, and NFR-11 puts it **before**
 the line-ordered ones. That is a sort key, not a special case: a warning's
-position is `Option<line>`, and `None` sorts first.
+position is `Position::{Render, Cell { line, column }}`, `Render` is declared
+first so the derived order puts it first, and `column` (the header index) orders
+warnings within a line, which NFR-11 also asks for and `Option<line>` could not
+express.
 
 ## 8. Where each open question lives
 
