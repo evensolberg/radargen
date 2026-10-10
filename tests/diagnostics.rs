@@ -1,7 +1,9 @@
 //! The diagnostic contract (architecture §10): exact messages, NFR-11 order,
 //! NFR-20 grouping. SC-10's golden tests later pin the same text end to end.
 
-use radargen::diagnostics::{DateColumn, Fatal, Position, RenderKind, RowKind, Warning, Warnings};
+use radargen::diagnostics::{
+    DateColumn, Fatal, Position, RenderKind, RowKind, Separator, Warning, Warnings,
+};
 use radargen::rings::RingsError;
 
 fn at(line: usize, column: usize, kind: RowKind) -> Warning {
@@ -631,6 +633,91 @@ fn fatal_messages() {
                 first_index: 1,
             }),
             r"error: --rings: entry 2 'a\nerror: forged' repeats entry 1",
+        ),
+    ];
+    for (fatal, expected) in cases {
+        assert_eq!(fatal.render(), expected);
+    }
+}
+
+/// The CSV stage's file-level (tier-one) messages (plan RG-005), apart
+/// from `fatal_messages` so neither passes clippy's `too_many_lines`.
+#[test]
+fn csv_file_messages() {
+    let separated = |line, separator| Fatal::NotCommaSeparated { line, separator };
+    let cases = [
+        (
+            Fatal::Unreadable {
+                path: "in.csv".into(),
+                source: std::io::Error::new(std::io::ErrorKind::NotFound, "not found"),
+            },
+            "error: in.csv: cannot be read: not found",
+        ),
+        (
+            Fatal::NotUtf8 {
+                path: "in.csv".into(),
+                line: 2,
+            },
+            "error: in.csv, line 2: not UTF-8 text; re-save the file as UTF-8 (in Excel, Save As \"CSV UTF-8\")",
+        ),
+        (
+            Fatal::NoHeader,
+            "error: the CSV has no header row (it is empty or blank); the header must name at least name, quadrant, ring and description",
+        ),
+        (
+            separated(1, Separator::Semicolon),
+            "error: line 1: the header is one column holding semicolons; radargen reads comma-separated files only, so export the file with commas as the separator",
+        ),
+        (
+            separated(2, Separator::Tab),
+            "error: line 2: the header is one column holding tabs; radargen reads comma-separated files only, so export the file with commas as the separator",
+        ),
+        (
+            Fatal::UnterminatedQuote { line: 3, column: 2 },
+            "error: line 3, column 2: a quote opens this value and never closes; add the closing quote, and write any quote inside the value as \"\"",
+        ),
+        (
+            Fatal::TextAfterQuote { line: 2, column: 2 },
+            "error: line 2, column 2: text follows a closing quote; inside quotes, write a quote as \"\"",
+        ),
+    ];
+    for (fatal, expected) in cases {
+        assert_eq!(fatal.render(), expected);
+    }
+}
+
+/// The CSV stage's FR-4 messages (tier two).
+#[test]
+fn csv_header_and_row_messages() {
+    let repeats = |index, name: &str, first_name: &str| Fatal::DuplicateHeader {
+        line: 1,
+        index,
+        name: name.into(),
+        first_index: 1,
+        first_name: first_name.into(),
+    };
+    let count = |found| Fatal::FieldCount {
+        line: 4,
+        found,
+        expected: 2,
+    };
+    let cases = [
+        (
+            repeats(3, "Name", "name"),
+            "error: line 1: column 3 'Name' repeats column 1 'name'; header names match ignoring case and surrounding spaces, so rename or remove one",
+        ),
+        // A header is CSV text: a quoted newline in it must not forge a line.
+        (
+            repeats(2, "a\nerror: forged", "a"),
+            r"error: line 1: column 2 'a\nerror: forged' repeats column 1 'a'; header names match ignoring case and surrounding spaces, so rename or remove one",
+        ),
+        (
+            count(3),
+            "error: line 4: the row's field count is 3 but the header's is 2; a comma inside a value needs the value in double quotes",
+        ),
+        (
+            count(1),
+            "error: line 4: the row's field count is 1 but the header's is 2; a value is missing, or an unquoted line break split the row",
         ),
     ];
     for (fatal, expected) in cases {

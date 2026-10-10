@@ -427,6 +427,36 @@ fn tallied(members: &[Member], key: fn(&str) -> String) -> String {
     }))
 }
 
+/// FR-1: a separator radargen refuses, found where a comma belongs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Separator {
+    Semicolon,
+    Tab,
+}
+
+impl Separator {
+    /// The separator `c` is, if it is one the message can name.
+    #[must_use]
+    pub const fn of(c: char) -> Option<Self> {
+        match c {
+            ';' => Some(Self::Semicolon),
+            '\t' => Some(Self::Tab),
+            _ => None,
+        }
+    }
+}
+
+/// How the message names it.
+// qual:allow(dry, boilerplate) reason: "deriving Display needs a crate (strum, derive_more) for one two-variant enum"
+impl fmt::Display for Separator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Semicolon => "semicolons",
+            Self::Tab => "tabs",
+        })
+    }
+}
+
 /// Everything the tool refuses to run on: non-zero exit, nothing written
 /// (NFR-8, NFR-9).
 ///
@@ -452,6 +482,75 @@ pub enum Fatal {
     /// FR-63, NFR-16 tier one.
     #[error("--rings: {0}")]
     Rings(#[from] RingsError),
+    /// FR-61: the input does not exist, cannot be read, or is a directory.
+    #[error("{path}: cannot be read: {source}")]
+    Unreadable {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+    /// FR-61, D-27: say what to do — the likely cause is an Excel export in a
+    /// legacy code page, and "invalid utf-8" alone does not tell the author
+    /// that. `line` is the physical line holding the first bad byte.
+    #[error(
+        "{path}, line {line}: not UTF-8 text; re-save the file as UTF-8 (in Excel, Save As \"CSV UTF-8\")"
+    )]
+    NotUtf8 { path: String, line: usize },
+    /// NFR-15: an unterminated quote swallows the rest of the file into one
+    /// field, so nothing after it parses. `line` is where the quote opened,
+    /// which may be after the record's first line (plan RG-005, Decisions).
+    #[error(
+        "line {line}, column {column}: a quote opens this value and never closes; add the closing quote, and write any quote inside the value as \"\""
+    )]
+    UnterminatedQuote { line: usize, column: usize },
+    /// NFR-15: text after a closing quote. RFC 4180 doubles a quote inside a
+    /// quoted field; keeping or dropping the stray text would both guess.
+    /// `line` is the closing quote's.
+    #[error(
+        "line {line}, column {column}: text follows a closing quote; inside quotes, write a quote as \"\""
+    )]
+    TextAfterQuote { line: usize, column: usize },
+    /// FR-3: the file has no non-blank records, so no header names a column.
+    /// The required columns are FR-5's, named so the message is actionable.
+    #[error(
+        "the CSV has no header row (it is empty or blank); the header must name at least name, quadrant, ring and description"
+    )]
+    NoHeader,
+    /// FR-1: a one-column header holding `;` or a tab is a file with another
+    /// separator — Excel writes `;` where a comma is the decimal mark.
+    /// Without this, every row would mis-report its field count.
+    #[error(
+        "line {line}: the header is one column holding {separator}; radargen reads comma-separated files only, so export the file with commas as the separator"
+    )]
+    NotCommaSeparated { line: usize, separator: Separator },
+    /// FR-4: a header name repeated under FR-76's normalisation, so
+    /// `Name` and `name ` collide. Indices are 1-based; names are as
+    /// written, trimmed, so the author can find both cells.
+    #[error(
+        "line {line}: column {index} '{name}' repeats column {first_index} '{first_name}'; header names match ignoring case and surrounding spaces, so rename or remove one"
+    )]
+    DuplicateHeader {
+        line: usize,
+        index: usize,
+        name: String,
+        first_index: usize,
+        first_name: String,
+    },
+    /// FR-4: a record whose field count is not the header's, with the usual
+    /// cause for each direction (FR-61's precedent: say what to do).
+    #[error(
+        "line {line}: the row's field count is {found} but the header's is {expected}; {}",
+        if found > expected {
+            "a comma inside a value needs the value in double quotes"
+        } else {
+            "a value is missing, or an unquoted line break split the row"
+        }
+    )]
+    FieldCount {
+        line: usize,
+        found: usize,
+        expected: usize,
+    },
 }
 
 impl Fatal {
