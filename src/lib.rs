@@ -6,7 +6,9 @@ pub mod cli;
 pub mod diagnostics;
 pub mod escape;
 pub mod num;
+pub mod palette;
 pub mod rings;
+pub mod style;
 pub mod text;
 
 /// FR-76: **one normalisation rule**, applied to every value read from the CSV

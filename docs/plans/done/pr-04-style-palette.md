@@ -10,9 +10,9 @@ crumb_id: rg-bkm
 document_title: "PR 04 — `style.rs` and the built-in `palette.rs`: Implementation Plan"
 created_date: 2026-10-09
 synopsis: "style.rs as the home of every layout constant and the type scale, and palette.rs with the colour roles, both built-in palettes and FR-67's bind-time cycling."
-status: draft
+status: complete
 type: Plan
-revision: "1.4"
+revision: "1.7"
 review_date: 2026-10-09
 reviewed_by:
   - rust-engineer
@@ -20,7 +20,7 @@ reviewed_by:
   - architect-reviewer
   - ui-designer
   - ux-researcher
-completed_date:
+completed_date: 2026-10-10
 comments:
 ---
 # PR 04 — `style.rs` and the built-in `palette.rs`: Implementation Plan
@@ -59,6 +59,8 @@ comments:
 
 ## Decisions taken in this plan (flag on review)
 
+> **Superseded in part by revisions 1.6 and 1.7.** `LEGEND_QUADRANT` is 12px, the halo is a separate stroke-only `<text>` (not `paint-order`), `slot()` became `bind()`, and `declarations()` returns `(Role, &str)`. The bullets and task listings below are as planned; `src/style.rs` and `src/palette.rs` are authoritative.
+
 - **Values come from `mockup.html`** (lines 360–386 and its CSS), the prototype the PRD cites, with three changes:
   - Its `700` weights become `600` (FR-85).
   - The legend name is **Regular** 12.5px. The mockup's CSS uses normal weight while its measuring font string says 600. The CSS is what renders, so it wins.
@@ -74,7 +76,7 @@ comments:
 
   Legend-row hover fill is Surface1, because the legend sits on Surface2.
 - **Badge radius 8, not the mockup's 7.** Inter SemiBold 9px "44" measures ~12.0px. A hollow badge's clear interior is `2r − stroke`: 12px at r=7, which leaves no gap at all, and 14px at r=8.
-- **Ring labels get a halo.** FR-31 puts ring labels on the 12 o'clock divider, so the divider runs through every one of them. The mockup's ~1.3:1 gridline hid this; FR-82's divider is 3.4:1, and 1.9:1 against text-muted, so it reads as a strike-through. `LABEL_HALO` is the width of a Surface1 stroke painted under the text (`paint-order="stroke"`). PR 10 applies it, and its resvg oracle test should confirm resvg honours `paint-order`. If it doesn't, break the divider behind the label instead.
+- **Ring labels get a halo.** FR-31 puts ring labels on the 12 o'clock divider, so the divider runs through every one of them. The mockup's ~1.3:1 gridline hid this; FR-82's divider is 3.4:1, and 1.9:1 against text-muted, so it reads as a strike-through. `LABEL_HALO` is the width of a Surface1 stroke under the text, emitted as its own stroke-only `<text>` before the label (revision 1.6) — not `paint-order`, which a consumer that ignores it would paint over the glyphs.
 - **Marker-number ink is chosen per series entry** (PRD v0.38 FR-82, D-54): `Palette::number_ink` picks whichever of `#FFFFFF` and `#16191F` contrasts more. Only series-6 green takes the dark ink; the lowest ratio is teal's 4.53:1. It returns a literal, because series values don't change with theme; PR 13's `Paint` binds it so nodes still carry no hex. FR-86 makes every `--palette` value `#RRGGBB`, so PR 18 rejects anything else before it can reach `luminance`.
 - **No version bump.** Nothing renders yet.
 
@@ -96,7 +98,7 @@ comments:
 
   Layout blocks (PR 08–12) read these constants. PR 14 calls `breakpoint_px` for FR-69's media query.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `src/style.rs` with only the test module:
 
@@ -172,12 +174,12 @@ mod tests {
 
 Add `pub mod style;` to `src/lib.rs`.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cargo test --lib style`
 Expected: a compile error, `cannot find value INDENT_QUADRANT`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Put this above the test module:
 
@@ -315,14 +317,14 @@ pub fn breakpoint_px(wide_width: f64) -> u32 {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cargo test --lib style && cargo clippy --all-targets -- -D warnings`
 Expected: 5 passed, clippy clean.
 
 If `two_digit_numbers_fit_inside_the_marker` fails, the marker, badge or number size is wrong for Inter. Report the measured width rather than changing either constant, because that's a design decision.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/style.rs src/lib.rs
@@ -348,7 +350,7 @@ git commit -m "feat(style): the layout constants and FR-69's computed breakpoint
 
   PR 13's `Paint::Role(Role)` carries this type.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `src/palette.rs` with only the test module:
 
@@ -374,12 +376,12 @@ mod tests {
 
 Add `pub mod palette;` to `src/lib.rs`.
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cargo test --lib palette`
 Expected: a compile error, `cannot find type Neutral`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Put this above the test module:
 
@@ -467,12 +469,12 @@ In `src/cli.rs`:
 - Add `pub use crate::palette::Theme;` near the other `use` lines. Keep it `pub`, so `radargen::cli::Theme` still resolves for `tests/cli.rs`.
 - Remove `ValueEnum` from the `clap` import if nothing else in `cli.rs` uses it.
 
-- [ ] **Step 4: Run everything**
+- [x] **Step 4: Run everything**
 
 Run: `cargo test && cargo clippy --all-targets -- -D warnings`
 Expected: all pass, including `tests/cli.rs`'s three `Theme` assertions. Clippy is clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/palette.rs src/lib.rs src/cli.rs
@@ -499,7 +501,7 @@ git commit -m "feat(palette): Role and Theme — colour is named, not valued, un
 
   Both binders apply FR-67's `index % series_len()`. PR 18 adds a constructor from a parsed file. The series is guaranteed non-empty, because FR-87 requires `--series-1`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append inside `mod tests` in `src/palette.rs`:
 
@@ -644,12 +646,12 @@ fn built_ins_match_palette_sample_css() {
 }
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cargo test --lib palette; cargo test --test palette`
 Expected: compile errors, `cannot find type Palette`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append above the test module in `src/palette.rs`:
 
@@ -769,12 +771,12 @@ impl Palette {
 
 `n as usize` relies on `Neutral`'s declaration order matching `Neutral::ALL` and the `LIGHT`/`DARK` arrays. `built_in_neutrals_are_fr_82` is what pins that.
 
-- [ ] **Step 4: Run everything**
+- [x] **Step 4: Run everything**
 
 Run: `cargo test && cargo clippy --all-targets -- -D warnings`
 Expected: all pass, clippy clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/palette.rs tests/palette.rs
@@ -800,3 +802,6 @@ git commit -m "feat(palette): built-in palettes, FR-67 cycling at bind time, sam
 | 1.2 | 2026-10-09 | PRD v0.38 decisions: `LEGEND_WIDTH_MAX` derived as 380 (D-56, crumb `rg-3pp`), `Palette::number_ink` (D-54, crumb `rg-smm`), architecture §5's `Role` naming done (crumb `rg-03k`) |
 | 1.3 | 2026-10-09 | PR 6 review: `ink_for` split out with a test that it isn't a threshold rule; breakpoint tie and D-56 cases; marker fit measured over 10–99; badge and legend-heading styles alias the marker and key styles |
 | 1.4 | 2026-10-09 | The pedantic and unsafe-code gate is now live in `Cargo.toml` (crumb `rg-q3w`) |
+| 1.5 | 2026-10-10 | Implemented. `breakpoint_px`'s cast allowance is `#[expect]`, as PR 03's review asked of `fmt_coord`; Task 2's commit subject shortened to fit 72 characters. Otherwise as written |
+| 1.6 | 2026-10-10 | PR 13 review (code-reviewer, accessibility-tester). `LEGEND_QUADRANT` raised to 12px SemiBold (0.36 letter-spacing), the step the Decisions section left open: one unit plus colour did not separate the headings in the dark theme (1.86:1 between inks). New `FOCUS_RING_GAP` (8) and `FOCUS_RING_STROKE` (2) keep the focus ring off the series fills. `LABEL_HALO` is emitted as its own stroke-only `<text>`, not `paint-order`. `breakpoint_px` asserts a positive document width. Every contrast pairing passes AA in both themes. Small marker numbers in the narrow arrangement are deferred to the layout PRs by the maintainer's decision, with a crumb |
+| 1.7 | 2026-10-10 | Simplify pass: `Neutral::as_str` (as `DateColumn` does), one `bind` helper for FR-67's cycling shared by `value` and `var`, and `declarations` returns `(Role, &str)` rather than allocated names — PR 14 formats the role with `{}` |
