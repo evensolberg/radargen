@@ -30,16 +30,21 @@ fn a_single_ring_is_valid() {
 #[test]
 fn an_empty_entry_is_rejected_and_names_its_position() {
     // FR-63: an empty entry would draw a nameless band.
-    match parse_rings(Some("Adopt,,Trial")) {
-        Err(RingsError::EmptyEntry { index }) => assert_eq!(index, 2),
-        other => panic!("expected EmptyEntry, got {other:?}"),
-    }
+    assert_eq!(
+        parse_rings(Some("Adopt,,Trial")),
+        Err(vec![RingsError::EmptyEntry { index: 2 }])
+    );
 }
 
 #[test]
-fn an_all_empty_list_is_rejected() {
-    assert!(parse_rings(Some("")).is_err());
-    assert!(parse_rings(Some("   ")).is_err());
+fn an_all_empty_list_is_one_error_not_one_per_comma() {
+    for list in ["", "   ", ",", " , ,"] {
+        assert_eq!(
+            parse_rings(Some(list)),
+            Err(vec![RingsError::Empty]),
+            "{list:?}"
+        );
+    }
 }
 
 #[test]
@@ -49,11 +54,34 @@ fn a_duplicate_is_rejected_under_the_matching_rule() {
     // ambiguous and FR-32's band order undefined.
     assert_eq!(
         parse_rings(Some("Adopt,Trial,adopt ")),
-        Err(RingsError::Duplicate {
+        Err(vec![RingsError::Duplicate {
             index: 3,
             entry: "adopt".into(),
             first_index: 1,
-        })
+        }])
+    );
+}
+
+/// NFR-16 tier one: every violation within a flag is reported together, in
+/// entry order, so one run shows the author everything to fix.
+#[test]
+fn every_violation_is_reported_in_entry_order() {
+    assert_eq!(
+        parse_rings(Some("Adopt,,Trial,adopt, ,TRIAL")),
+        Err(vec![
+            RingsError::EmptyEntry { index: 2 },
+            RingsError::Duplicate {
+                index: 4,
+                entry: "adopt".into(),
+                first_index: 1,
+            },
+            RingsError::EmptyEntry { index: 5 },
+            RingsError::Duplicate {
+                index: 6,
+                entry: "TRIAL".into(),
+                first_index: 3,
+            },
+        ])
     );
 }
 
@@ -64,5 +92,43 @@ fn the_declared_casing_is_what_gets_displayed() {
     assert_eq!(
         parse_rings(Some("ADOPT,trial")).expect("valid"),
         vec!["ADOPT", "trial"]
+    );
+}
+
+/// A repeat of a repeat names where the ring was first declared, not the
+/// earlier repeat.
+#[test]
+fn every_repeat_names_the_first_declaration() {
+    assert_eq!(
+        parse_rings(Some("a,A,a")),
+        Err(vec![
+            RingsError::Duplicate {
+                index: 2,
+                entry: "A".into(),
+                first_index: 1,
+            },
+            RingsError::Duplicate {
+                index: 3,
+                entry: "a".into(),
+                first_index: 1,
+            },
+        ])
+    );
+}
+
+/// Entry numbers count every entry, empty ones included, so a duplicate
+/// names the entry the author typed, not a position among the valid rings.
+#[test]
+fn entry_numbers_count_empty_entries() {
+    assert_eq!(
+        parse_rings(Some(",a,A")),
+        Err(vec![
+            RingsError::EmptyEntry { index: 1 },
+            RingsError::Duplicate {
+                index: 3,
+                entry: "A".into(),
+                first_index: 2,
+            },
+        ])
     );
 }
