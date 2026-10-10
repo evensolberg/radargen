@@ -605,6 +605,21 @@ fn a_single_repeat_in_a_duplicate_group_names_its_line() {
     );
 }
 
+/// The constructors keep the position fitting the kind, in release too: a
+/// row kind with no line would break NFR-10, and a grouped one would panic
+/// later in `render`, far from the bug.
+#[test]
+#[should_panic(expected = "is row-level")]
+fn a_row_kind_cannot_be_render_level() {
+    let _ = Warning::render_level(WarningKind::EmptyDescription);
+}
+
+#[test]
+#[should_panic(expected = "is render-level")]
+fn a_render_kind_cannot_sit_at_a_cell() {
+    let _ = Warning::cell(4, 0, WarningKind::QuadrantCount { count: 9 });
+}
+
 /// Stages assert on kinds and positions, not on rendered English.
 #[test]
 fn the_raw_warnings_are_readable() {

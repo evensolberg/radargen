@@ -56,10 +56,17 @@ fn png_and_svg_say_not_in_this_version_rather_than_unrecognised() {
     // "Unrecognised extension" would send them hunting for a typo in a
     // correct path.
     for ext in ["png", "svg", "PNG"] {
-        let cli = parse(&["in.csv", "-o", &format!("e.{ext}")]).expect("parses");
+        let path = format!("e.{ext}");
+        let cli = parse(&["in.csv", "-o", &path]).expect("parses");
         match cli.format() {
-            Err(Fatal::FormatNotInThisVersion { arrives_in, .. }) => {
+            // NFR-10: an output-path error names the path.
+            Err(Fatal::FormatNotInThisVersion {
+                path: named,
+                arrives_in,
+                ..
+            }) => {
                 assert_eq!(arrives_in, "1.1");
+                assert_eq!(named, path);
             }
             other => panic!("{ext} gave {other:?}"),
         }
@@ -70,10 +77,10 @@ fn png_and_svg_say_not_in_this_version_rather_than_unrecognised() {
 fn an_unrecognised_or_absent_extension_is_a_different_error() {
     for path in ["e.jpg", "e", "e."] {
         let cli = parse(&["in.csv", "-o", path]).expect("parses");
-        assert!(
-            matches!(cli.format(), Err(Fatal::UnrecognisedExtension { .. })),
-            "{path} should be unrecognised, not deferred"
-        );
+        match cli.format() {
+            Err(Fatal::UnrecognisedExtension { path: named }) => assert_eq!(named, path),
+            other => panic!("{path} should be unrecognised, not deferred: {other:?}"),
+        }
     }
 }
 

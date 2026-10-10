@@ -94,9 +94,14 @@ pub struct Warning {
 
 impl Warning {
     /// A row-level warning at a CSV cell. `column` is the header index.
+    ///
+    /// # Panics
+    ///
+    /// On a render-level kind: a caller bug, caught where it is made rather
+    /// than when `render` later meets a warning with no line.
     #[must_use]
     pub fn cell(line: usize, column: usize, kind: WarningKind) -> Self {
-        debug_assert!(kind.class().is_some(), "{kind:?} is render-level");
+        assert!(kind.class().is_some(), "{kind:?} is render-level");
         Self {
             position: Position::Cell { line, column },
             kind,
@@ -104,9 +109,13 @@ impl Warning {
     }
 
     /// A warning about the render as a whole (FR-88, FR-89).
+    ///
+    /// # Panics
+    ///
+    /// On a row-level kind, which needs a line (NFR-10).
     #[must_use]
     pub fn render_level(kind: WarningKind) -> Self {
-        debug_assert!(kind.class().is_none(), "{kind:?} is row-level");
+        assert!(kind.class().is_none(), "{kind:?} is row-level");
         Self {
             position: Position::Render,
             kind,
@@ -124,7 +133,7 @@ impl Warning {
     }
 
     /// The CSV line of a row-level warning. The constructors guarantee every
-    /// classed warning has one; `Render` never reaches the callers.
+    /// classed warning has one, in release builds too.
     fn line(&self) -> usize {
         match self.position {
             Position::Cell { line, .. } => line,
