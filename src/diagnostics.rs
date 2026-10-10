@@ -452,6 +452,20 @@ pub enum Fatal {
     /// FR-63, NFR-16 tier one.
     #[error("--rings: {0}")]
     Rings(#[from] RingsError),
+    /// FR-61: the input does not exist, cannot be read, or is a directory.
+    #[error("{path}: cannot be read: {source}")]
+    Unreadable {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+    /// FR-61, D-27: say what to do — the likely cause is an Excel export in a
+    /// legacy code page, and "invalid utf-8" alone does not tell the author
+    /// that. `line` is the physical line holding the first bad byte.
+    #[error(
+        "{path}, line {line}: not UTF-8 text; re-save the file as UTF-8 (in Excel, Save As \"CSV UTF-8\")"
+    )]
+    NotUtf8 { path: String, line: usize },
 }
 
 impl Fatal {

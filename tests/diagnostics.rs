@@ -637,3 +637,28 @@ fn fatal_messages() {
         assert_eq!(fatal.render(), expected);
     }
 }
+
+/// The CSV stage's messages (plan RG-005), apart from `fatal_messages` so
+/// neither passes clippy's `too_many_lines`.
+#[test]
+fn csv_fatal_messages() {
+    let cases = [
+        (
+            Fatal::Unreadable {
+                path: "in.csv".into(),
+                source: std::io::Error::new(std::io::ErrorKind::NotFound, "not found"),
+            },
+            "error: in.csv: cannot be read: not found",
+        ),
+        (
+            Fatal::NotUtf8 {
+                path: "in.csv".into(),
+                line: 2,
+            },
+            "error: in.csv, line 2: not UTF-8 text; re-save the file as UTF-8 (in Excel, Save As \"CSV UTF-8\")",
+        ),
+    ];
+    for (fatal, expected) in cases {
+        assert_eq!(fatal.render(), expected);
+    }
+}
