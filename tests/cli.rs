@@ -58,7 +58,7 @@ fn png_and_svg_say_not_in_this_version_rather_than_unrecognised() {
         let cli = parse(&["in.csv", "-o", &format!("e.{ext}")]).expect("parses");
         match cli.format() {
             Err(FatalError::FormatNotInThisVersion { arrives_in, .. }) => {
-                assert_eq!(arrives_in, "1.1")
+                assert_eq!(arrives_in, "1.1");
             }
             other => panic!("{ext} gave {other:?}"),
         }

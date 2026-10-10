@@ -14,6 +14,7 @@ pub mod text;
 ///
 /// This never edits displayed text — callers compare on the result and render
 /// the original.
+#[must_use]
 pub fn normalise(value: &str) -> String {
     value.trim().to_lowercase()
 }

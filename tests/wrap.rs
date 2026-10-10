@@ -69,5 +69,5 @@ fn wrapping_is_deterministic() {
 
 #[test]
 fn empty_text_yields_no_lines() {
-    assert!(wrap("", 100.0, &metrics(), SIZE, 0.0).is_empty());
+    assert_eq!(wrap("", 100.0, &metrics(), SIZE, 0.0), Vec::<String>::new());
 }

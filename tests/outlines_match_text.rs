@@ -150,7 +150,7 @@ struct Built {
 }
 
 fn build() -> Built {
-    let shaper = ShaperFace::from_slice(TTF, 0).expect("shaper face");
+    let shaping_face = ShaperFace::from_slice(TTF, 0).expect("shaping_face face");
     let parse = ParseFace::parse(TTF, 0).expect("parse face");
     let upem = f64::from(parse.units_per_em());
     let scale = SIZE / upem;
@@ -171,7 +171,7 @@ fn build() -> Built {
 
         let mut buf = UnicodeBuffer::new();
         buf.push_str(s);
-        let shaped = rustybuzz::shape(&shaper, &[], buf);
+        let shaped = rustybuzz::shape(&shaping_face, &[], buf);
         let mut run = String::new();
         let mut pen = 20.0_f64;
         for (info, pos) in shaped.glyph_infos().iter().zip(shaped.glyph_positions()) {

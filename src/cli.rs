@@ -79,6 +79,12 @@ pub struct Cli {
 
 impl Cli {
     /// FR-52: format from the `-o` extension, matched case-insensitively.
+    ///
+    /// # Errors
+    ///
+    /// [`FatalError::FormatNotInThisVersion`] for `.png` and `.svg`, which
+    /// v1.1 adds; [`FatalError::UnrecognisedExtension`] for any other or
+    /// missing extension.
     pub fn format(&self) -> Result<OutputFormat, FatalError> {
         let ext = self
             .output

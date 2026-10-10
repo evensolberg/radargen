@@ -13,6 +13,12 @@ pub struct FontMetrics<'a> {
 }
 
 impl<'a> FontMetrics<'a> {
+    /// Parse a font face for shaping.
+    ///
+    /// # Errors
+    ///
+    /// [`ttf_parser::FaceParsingError::MalformedFont`] if `data` is not a
+    /// font `rustybuzz` can read.
     pub fn load(data: &'a [u8]) -> Result<Self, ttf_parser::FaceParsingError> {
         // rustybuzz is the shaper resvg itself uses. Measuring through it rather
         // than summing raw `hmtx` advances is what makes FR-79's wrap points
@@ -25,6 +31,7 @@ impl<'a> FontMetrics<'a> {
 
     /// Advance width of `text` in pixels at `size_px`, with `letter_spacing_px`
     /// applied between glyphs.
+    #[must_use]
     pub fn measure(&self, text: &str, size_px: f64, letter_spacing_px: f64) -> f64 {
         if text.is_empty() {
             return 0.0;
@@ -33,6 +40,10 @@ impl<'a> FontMetrics<'a> {
         buf.push_str(text);
         let shaped = rustybuzz::shape(&self.face, &[], buf);
         let units: i32 = shaped.glyph_positions().iter().map(|p| p.x_advance).sum();
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "a glyph count is nowhere near 2^52, so the cast is exact"
+        )]
         let gaps = shaped.len().saturating_sub(1) as f64;
         let upem = f64::from(self.face.units_per_em());
         f64::from(units) * size_px / upem + gaps * letter_spacing_px

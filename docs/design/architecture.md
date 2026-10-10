@@ -20,7 +20,7 @@
 | Error strategy | **One structured taxonomy**, `thiserror`; not `anyhow` | Review, 2026-08-29 |
 | Licence | GPL-3.0-or-later | NFR-18, D-45 |
 | Platforms | macOS, Windows, Linux — in that priority order | NFR-13 |
-| Lint gate | `#![forbid(unsafe_code)]` at the crate root; `clippy::pedantic` denied in CI. **No `#[allow]` without an inline reason** — a suppression is a decision and gets written down where it sits | House rules |
+| Lint gate | `unsafe_code` forbidden and `clippy::pedantic` denied, both in `Cargo.toml`'s `[lints]`, so the lib, binary, tests and examples share one gate and a plain `cargo clippy` enforces it locally as in CI. **No `#[allow]` without an inline reason** — a suppression is a decision and gets written down where it sits | House rules |
 | Dependency licences | Every crate in the tree is permissive (`MIT`, `Apache-2.0`, `BSD-*`, `Zlib`, `0BSD`, `Unlicense`, `Unicode-3.0`) — verified, and re-verified in CI by `cargo-deny` rather than by memory | NFR-18 |
 
 `anyhow` was weighed and declined. The conventional advice — anyhow for
