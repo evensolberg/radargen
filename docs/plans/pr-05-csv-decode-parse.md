@@ -38,7 +38,7 @@ Malformed quoting, an empty file and a non-comma separator abort at once (tier o
 
 **Tech Stack:** Rust 2024, standard library only. No new dependencies — see Decisions for why not the `csv` crate.
 
-**Spec:** `docs/product/radargen-prd.md` v0.40 — FR-1, FR-2, FR-3, FR-4, FR-5, FR-61, FR-76, FR-90, NFR-9, NFR-10, NFR-15, NFR-16, NFR-20, D-27, D-37, D-55, SC-10. Design: `docs/design/architecture.md` §3 (the `csv/decode.rs` and `csv/parse.rs` rows), §7 (diagnostics threading), §10 (`row-errors.csv`).
+**Spec:** `docs/product/radargen-prd.md` v0.41 — FR-1, FR-2, FR-3, FR-4, FR-5, FR-6, FR-61, FR-76, FR-90, NFR-9, NFR-10, NFR-15, NFR-16, NFR-20, D-27, D-37, D-55, D-59, SC-10. Design: `docs/design/architecture.md` §3 (the `csv/decode.rs` and `csv/parse.rs` rows), §7 (diagnostics threading), §10 (`row-errors.csv`).
 
 ## Global Constraints
 
@@ -102,7 +102,7 @@ Malformed quoting, an empty file and a non-comma separator abort at once (tier o
 | `DuplicateHeader` | `line {line}: column {index} '{name}' repeats column {first_index} '{first_name}'; header names match ignoring case and surrounding spaces, so rename or remove one` |
 | `FieldCount` | `line {line}: the row's field count is {found} but the header's is {expected}; ` then, when `found > expected`, `a comma inside a value needs the value in double quotes`, else `a value is missing, or an unquoted line break split the row` |
 
-- **PRD wording.** Three of these decisions depart from the PRD's literal text: skipping blank records (FR-3, FR-4, FR-6, FR-78), quoting errors naming the fault's line (NFR-10, NFR-15), and `NotCommaSeparated` as a tier-one error (NFR-9, NFR-16). Crumb `rg-lfd` writes them into the PRD. The handoff to PR 06 is appended to `rg-rnc`.
+- **PRD wording.** PRD v0.41 (D-59, crumb `rg-lfd`) writes three of these decisions into the requirements: skipping blank records and ignoring empty header cells (FR-3, FR-4, FR-6), refusing a non-comma separator (FR-1, NFR-9, NFR-16), and quoting errors naming the fault's line (NFR-10, NFR-15). The handoff to PR 06 is appended to `rg-rnc`.
 - **No version bump.** The binary still exits 1 without reading a file.
 
 ---
