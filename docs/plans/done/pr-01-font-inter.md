@@ -12,7 +12,7 @@ created_date: 2026-10-09
 synopsis: "Swap the stand-in Libertinus font for FR-85's Inter Regular and SemiBold, Latin-subset and vendored, with a weight parameter on text measurement."
 status: complete
 type: Plan
-revision: "1.4"
+revision: "1.5"
 review_date: 2026-10-09
 reviewed_by:
   - rust-engineer
@@ -649,3 +649,4 @@ Follow the house workflow in `~/.claude/CLAUDE.md`. For this PR:
 | 1.2 | 2026-10-09 | PR 6 review: the subset script notes that Inter has no U+FFFD glyph (D-55) |
 | 1.3 | 2026-10-09 | The pedantic and unsafe-code gate is now live in `Cargo.toml` (crumb `rg-q3w`) |
 | 1.4 | 2026-10-10 | Implemented. Deviations: the script adds `--notdef-outline`, since the subset otherwise rendered non-Latin text as blank space rather than tofu (found by `tofu_measures_the_same_as_resvg_lays_it_out`), and `tests/font_assets.rs` gains `notdef_keeps_its_outline` (7 tests, not 6). Pedantic clippy needed backticks around `SemiBold` in doc comments and a `fold` + `write!` in `sha256_hex`. fonttools 4.66.1. Inter's outlined form is ~7× its deduplicated form, not ~9× |
+| 1.5 | 2026-10-10 | PR 10 review: the subset adds Google Fonts' `latin-ext` range (PRD v0.40), since `latin` alone left Latin-script names such as Dvořák as tofu. WOFF2 sizes become 57,456 and 59,268 bytes. `Fonts` loses its lifetime parameter, `Weight` derives `Hash`, and `font_assets.rs` also pins U+FFFD's absence (D-55), Latin Extended coverage, Vietnamese's absence (A-4), and that `assets/` holds no unrecorded font |

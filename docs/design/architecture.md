@@ -1,7 +1,7 @@
 # radargen — Design
 
 **Status:** draft, for review
-**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.38
+**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.40
 **Date:** 2026-08-29
 
 > **What this document is for.** The PRD says *what* radargen does and carries
@@ -173,15 +173,16 @@ Six of these are corrections rather than additions, and each has a reason:
   text visibly off its column. Both files are subset from one source in one step
   and versioned together.
 
-**`assets/` holds Inter v4.1**, Regular and SemiBold, Latin-subset by
-`scripts/subset-inter.sh` and vendored (FR-85). Measured sizes — TTF:
-Regular 92,024 bytes, SemiBold 93,868 bytes; WOFF2: Regular 30,660 bytes,
-SemiBold 31,488 bytes. The WOFF2 pair is what NFR-5 inlines into every HTML
+**`assets/` holds Inter v4.1**, Regular and SemiBold, subset to Latin and
+Latin Extended by `scripts/subset-inter.sh` and vendored (FR-85). Measured
+sizes — TTF: Regular 165,328 bytes, SemiBold 168,856 bytes; WOFF2: Regular
+57,456 bytes, SemiBold 59,268 bytes. Latin-1 alone was half that, but left
+Czech, Polish, Hungarian, Baltic and Turkish names as tofu (PRD v0.40). The WOFF2 pair is what NFR-5 inlines into every HTML
 edition. The subset keeps `.notdef`'s outline, so a character outside it
 renders as the tofu box A-4 accepts rather than as blank space. R-7's licensing
 question was answered earlier — Inter declares no Reserved Font Name, so the
 subset keeps the name — and with the sizes measured, R-7 has nothing left
-open but the script-coverage limit A-4 accepts.
+open but the script-coverage limit A-4 states.
 
 ## 4. The `Block` abstraction
 
@@ -604,9 +605,8 @@ Three consequences the design carries:
 - **Outlines are deduplicated through `<use>`.** One `<path>` per distinct glyph
   in `<defs>`, placed by `<use x= y=>`. A realistic edition is 749 glyph
   instances over 56 distinct glyphs, so the per-instance form costs nearly seven
-  times as much with Inter — 371 kB against 53 kB. (Against the Latin subset,
-  that deduplicated form is now a little *larger* than embedding the WOFF2,
-  45 kB; size never decided this — see the spike.) Ids are fine here: §5 bans them because
+  times as much with Inter — 371 kB against 54 kB, which in turn undercuts
+  embedding the WOFF2 (80 kB). Ids are fine here: §5 bans them because
   the HTML holds two arrangements in one DOM, and this file holds one.
 - **Nothing about the HTML changes.** It keeps `<text>` and an inlined WOFF2 —
   browsers do honour `@font-face`, and FR-46's explicit `<tspan>`s mean the
