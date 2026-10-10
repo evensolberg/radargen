@@ -427,6 +427,36 @@ fn tallied(members: &[Member], key: fn(&str) -> String) -> String {
     }))
 }
 
+/// FR-1: a separator radargen refuses, found where a comma belongs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Separator {
+    Semicolon,
+    Tab,
+}
+
+impl Separator {
+    /// The separator `c` is, if it is one the message can name.
+    #[must_use]
+    pub const fn of(c: char) -> Option<Self> {
+        match c {
+            ';' => Some(Self::Semicolon),
+            '\t' => Some(Self::Tab),
+            _ => None,
+        }
+    }
+}
+
+/// How the message names it.
+// qual:allow(dry, boilerplate) reason: "deriving Display needs a crate (strum, derive_more) for one two-variant enum"
+impl fmt::Display for Separator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Semicolon => "semicolons",
+            Self::Tab => "tabs",
+        })
+    }
+}
+
 /// Everything the tool refuses to run on: non-zero exit, nothing written
 /// (NFR-8, NFR-9).
 ///
@@ -489,12 +519,10 @@ pub enum Fatal {
     /// FR-1: a one-column header holding `;` or a tab is a file with another
     /// separator — Excel writes `;` where a comma is the decimal mark.
     /// Without this, every row would mis-report its field count.
-    /// `separator` is the `;` or tab found.
     #[error(
-        "line {line}: the header is one column holding {}; radargen reads comma-separated files only, so export the file with commas as the separator",
-        if *separator == ';' { "semicolons" } else { "tabs" }
+        "line {line}: the header is one column holding {separator}; radargen reads comma-separated files only, so export the file with commas as the separator"
     )]
-    NotCommaSeparated { line: usize, separator: char },
+    NotCommaSeparated { line: usize, separator: Separator },
     /// FR-4: a header name repeated under FR-76's normalisation, so
     /// `Name` and `name ` collide. Indices are 1-based; names are as
     /// written, trimmed, so the author can find both cells.

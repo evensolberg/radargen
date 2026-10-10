@@ -1,7 +1,9 @@
 //! The diagnostic contract (architecture §10): exact messages, NFR-11 order,
 //! NFR-20 grouping. SC-10's golden tests later pin the same text end to end.
 
-use radargen::diagnostics::{DateColumn, Fatal, Position, RenderKind, RowKind, Warning, Warnings};
+use radargen::diagnostics::{
+    DateColumn, Fatal, Position, RenderKind, RowKind, Separator, Warning, Warnings,
+};
 use radargen::rings::RingsError;
 
 fn at(line: usize, column: usize, kind: RowKind) -> Warning {
@@ -663,11 +665,11 @@ fn csv_file_messages() {
             "error: the CSV has no header row (it is empty or blank); the header must name at least name, quadrant, ring and description",
         ),
         (
-            separated(1, ';'),
+            separated(1, Separator::Semicolon),
             "error: line 1: the header is one column holding semicolons; radargen reads comma-separated files only, so export the file with commas as the separator",
         ),
         (
-            separated(2, '\t'),
+            separated(2, Separator::Tab),
             "error: line 2: the header is one column holding tabs; radargen reads comma-separated files only, so export the file with commas as the separator",
         ),
         (

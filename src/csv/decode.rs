@@ -133,6 +133,24 @@ mod tests {
         assert!(matches!(err, Fatal::Unreadable { .. }), "{err:?}");
     }
 
+    /// FR-61: a file the user may not read. Unix only: Windows has no mode
+    /// bits to clear.
+    #[cfg(unix)]
+    #[test]
+    fn a_file_without_read_permission_is_unreadable() {
+        use std::os::unix::fs::PermissionsExt;
+        let path =
+            std::env::temp_dir().join(format!("radargen-no-read-{}.csv", std::process::id()));
+        std::fs::write(&path, "name\n").expect("write fixture");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).expect("chmod");
+        let result = read(&path);
+        std::fs::remove_file(&path).expect("remove fixture");
+        assert!(
+            matches!(result, Err(Fatal::Unreadable { .. })),
+            "{result:?}"
+        );
+    }
+
     #[test]
     fn a_non_utf8_file_says_how_to_fix_it() {
         let path = std::env::temp_dir().join(format!("radargen-cp1252-{}.csv", std::process::id()));

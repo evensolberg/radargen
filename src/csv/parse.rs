@@ -4,10 +4,10 @@
 //! lines wrongly and accepted an unterminated quote silently — NFR-10 and
 //! NFR-15 both turn on exactly those (plan RG-005, Decisions).
 
-use std::iter::Peekable;
+use std::iter::{FusedIterator, Peekable};
 use std::str::Chars;
 
-use crate::diagnostics::{Fatal, RowKind, Warning, Warnings};
+use crate::diagnostics::{Fatal, RowKind, Separator, Warning, Warnings};
 use crate::escape::displayable;
 use crate::normalise;
 
@@ -18,7 +18,8 @@ pub struct Record {
     /// line counting as 1 (NFR-10, D-37). A quoted newline makes this run ahead
     /// of the record's ordinal, which is the point: an editor can go to it.
     pub line: usize,
-    /// The fields as written: unquoted, unescaped, untrimmed.
+    /// The fields, unquoted, unescaped and untrimmed: as written when the
+    /// scanner yields them, and after FR-90's removal in a [`Table`].
     pub fields: Vec<String>,
 }
 
@@ -37,10 +38,10 @@ struct Scanner<'a> {
     /// The line the record being scanned began on, for an error that
     /// names the record rather than the fault.
     record_line: usize,
-    /// The character that followed a closing quote, when that was a
+    /// The separator that followed a closing quote, when that was a
     /// [`Fatal::TextAfterQuote`]: a `;` there in the header means another
     /// separator, not bad quoting.
-    after_quote: Option<char>,
+    after_quote: Option<Separator>,
 }
 
 impl<'a> Scanner<'a> {
@@ -119,7 +120,7 @@ impl<'a> Scanner<'a> {
         if let Some(end) = self.end() {
             return Ok((text, end));
         }
-        self.after_quote = self.chars.peek().copied();
+        self.after_quote = self.chars.peek().copied().and_then(Separator::of);
         Err(Fatal::TextAfterQuote {
             line: self.line,
             column,
@@ -165,7 +166,12 @@ impl Iterator for Scanner<'_> {
             loop {
                 let (field, end) = match self.field(fields.len() + 1) {
                     Ok(field) => field,
-                    Err(e) => return Some(Err(e)),
+                    Err(e) => {
+                        // Nothing after malformed quoting parses, so yield
+                        // nothing more: a record read past it is a guess.
+                        self.chars = "".chars().peekable();
+                        return Some(Err(e));
+                    }
                 };
                 fields.push(field);
                 if !matches!(end, End::Comma) {
@@ -180,6 +186,8 @@ impl Iterator for Scanner<'_> {
     }
 }
 
+impl FusedIterator for Scanner<'_> {}
+
 /// The parsed file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Table {
@@ -187,7 +195,8 @@ pub struct Table {
     pub header: Vec<String>,
     /// The header's physical line: 1, unless the file opens with blank lines.
     pub header_line: usize,
-    /// Every well-formed data record; each has exactly `header.len()` fields.
+    /// Every well-formed data record, after FR-90's removal; each has
+    /// exactly `header.len()` fields. Blank records are never rows (FR-3).
     pub records: Vec<Record>,
 }
 
@@ -230,12 +239,12 @@ pub fn parse(text: &str, w: &mut Warnings) -> Result<(Table, Vec<Fatal>), Fatal>
 /// separator's error instead, at the header's line.
 fn header(
     first: Option<Result<Record, Fatal>>,
-    after_quote: Option<char>,
+    after_quote: Option<Separator>,
     line: usize,
 ) -> Result<Record, Fatal> {
     match (first, after_quote) {
         (None, _) => Err(Fatal::NoHeader),
-        (Some(Err(Fatal::TextAfterQuote { column: 1, .. })), Some(separator @ (';' | '\t'))) => {
+        (Some(Err(Fatal::TextAfterQuote { column: 1, .. })), Some(separator)) => {
             Err(Fatal::NotCommaSeparated { line, separator })
         }
         (Some(head), _) => head,
@@ -270,9 +279,8 @@ fn check_separator(head: &Record) -> Result<(), Fatal> {
     let [only] = head.fields.as_slice() else {
         return Ok(());
     };
-    [';', '\t']
-        .into_iter()
-        .find(|&c| only.contains(c))
+    only.chars()
+        .find_map(Separator::of)
         .map_or(Ok(()), |separator| {
             Err(Fatal::NotCommaSeparated {
                 line: head.line,
@@ -281,21 +289,33 @@ fn check_separator(head: &Record) -> Result<(), Fatal> {
         })
 }
 
-/// FR-90: `record` with every undisplayable character removed, and for each
-/// field that lost any, its index, the first removed character and how many.
-fn cleaned(record: Record) -> (Record, Vec<(usize, char, usize)>) {
+/// What FR-90 removed from one field, for its warning.
+struct Removed {
+    /// The field's 0-based index.
+    column: usize,
+    first: char,
+    count: usize,
+}
+
+/// FR-90: `record` with every undisplayable character removed, and what
+/// was removed from each field that lost any.
+fn cleaned(record: Record) -> (Record, Vec<Removed>) {
     let mut removed = Vec::new();
     let fields = record
         .fields
         .into_iter()
         .enumerate()
-        .map(|(i, field)| {
-            let Some(first) = field.chars().find(|&c| !displayable(c)) else {
-                return field;
-            };
-            let count = field.chars().filter(|&c| !displayable(c)).count();
-            removed.push((i, first, count));
-            field.chars().filter(|&c| displayable(c)).collect()
+        .map(|(column, mut field)| {
+            if let Some(first) = field.chars().find(|&c| !displayable(c)) {
+                let count = field.chars().filter(|&c| !displayable(c)).count();
+                removed.push(Removed {
+                    column,
+                    first,
+                    count,
+                });
+                field.retain(displayable);
+            }
+            field
         })
         .collect();
     (
@@ -310,8 +330,13 @@ fn cleaned(record: Record) -> (Record, Vec<(usize, char, usize)>) {
 /// One FR-90 warning per field that lost characters. The column is named
 /// in canonical form, as every row warning names it (PR 02), or by
 /// position when the header has no name for it.
-fn warn(w: &mut Warnings, line: usize, removed: &[(usize, char, usize)], header: &[String]) {
-    for &(column, first, count) in removed {
+fn warn(w: &mut Warnings, line: usize, removed: &[Removed], header: &[String]) {
+    for &Removed {
+        column,
+        first,
+        count,
+    } in removed
+    {
         let name = header
             .get(column)
             .map(String::as_str)
@@ -779,6 +804,42 @@ mod tests {
             table("name,ring,,\nKafka,Adopt,,\n").header,
             ["name", "ring", "", ""]
         );
+        // Spaces name nothing either, under FR-76's trim.
+        assert_eq!(table("name,  ,  \nK,a,b\n").header, ["name", "  ", "  "]);
+        // Nor does a cell FR-90 empties; its warning names it by position.
+        let (_, errs, warnings) = parsed("\u{1},\u{1}\nx,y\n");
+        assert!(errs.is_empty(), "{errs:?}");
+        assert_eq!(
+            warnings,
+            [
+                "warning: 2 fields had characters the output cannot display — column 1 on line 1 (U+0001), column 2 on line 1 (U+0001); each was removed"
+            ]
+        );
+    }
+
+    /// Blank means spaces and tabs only (Decisions): a form feed or a
+    /// no-break space is content the author may not see, so it is a row.
+    #[test]
+    fn other_whitespace_is_not_blank() {
+        for text in ["a,b\n\u{c}\n", "a,b\n\u{a0}\n"] {
+            assert_eq!(
+                errors(text),
+                [format!(
+                    "error: line 2: the row's field count is 1 but the header's is 2{FEWER}"
+                )],
+                "{text:?}"
+            );
+        }
+    }
+
+    /// After a quoting error nothing parses, so the scanner yields nothing
+    /// more: a record read past the fault would be a guess.
+    #[test]
+    fn the_scanner_stops_at_a_quoting_error() {
+        let mut s = Scanner::new("a\n\"x\"y,q\nz\n");
+        assert!(matches!(s.next(), Some(Ok(_))));
+        assert!(matches!(s.next(), Some(Err(Fatal::TextAfterQuote { .. }))));
+        assert!(s.next().is_none());
     }
 
     /// FR-4, NFR-16 tier two: every bad row at once, in line order.
