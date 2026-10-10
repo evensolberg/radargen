@@ -1,5 +1,5 @@
-//! FR-85: the vendored faces are Inter Regular and `SemiBold`, Latin-subset,
-//! and each TTF/WOFF2 pair came out of one subsetting run.
+//! FR-85: the vendored faces are Inter Regular and `SemiBold`, subset to Latin
+//! and Latin Extended, and each TTF/WOFF2 pair came out of one subsetting run.
 
 const REGULAR: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
 const SEMIBOLD: &[u8] = include_bytes!("../assets/Inter-SemiBold.ttf");
@@ -35,9 +35,25 @@ fn subset_covers_printable_ascii_and_the_punctuation_we_emit() {
     }
 }
 
+/// FR-85: Latin Extended too. Latin-1 alone leaves Czech, Polish, Hungarian,
+/// Baltic and Turkish names drawing tofu in the PNG while the browser falls
+/// back to a system font, which breaks SC-7's parity.
+#[test]
+fn subset_covers_latin_extended() {
+    for (name, data) in [("Regular", REGULAR), ("SemiBold", SEMIBOLD)] {
+        let face = ttf_parser::Face::parse(data, 0).expect("face parses");
+        let missing: Vec<char> = "ŁłŐőŘřČčŠšŽžĆćŃńŚśŹźŻżĞğŞşİıĀāĒēĪīŪūĄąĘęŲųŮůẞ"
+            .chars()
+            .filter(|c| face.glyph_index(*c).is_none())
+            .collect();
+        assert!(missing.is_empty(), "{name} lacks {missing:?}");
+    }
+}
+
 #[test]
 fn subset_is_latin_only() {
-    // A full Inter carries Cyrillic and Greek; the subset must not (FR-85, R-7).
+    // A full Inter carries Cyrillic, Greek and Vietnamese; the subset must not
+    // (FR-85, R-7, A-4).
     for (name, data) in [("Regular", REGULAR), ("SemiBold", SEMIBOLD)] {
         let face = ttf_parser::Face::parse(data, 0).expect("face parses");
         assert!(
@@ -47,6 +63,11 @@ fn subset_is_latin_only() {
         assert!(
             face.glyph_index('λ').is_none(),
             "{name}: Greek survived the subset"
+        );
+        // PRD A-4 names Vietnamese's stacked diacritics as outside coverage.
+        assert!(
+            face.glyph_index('ạ').is_none(),
+            "{name}: Vietnamese survived the subset; revisit PRD A-4"
         );
     }
 }

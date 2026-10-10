@@ -31,7 +31,7 @@ extensions fails with a message saying so.
 
 ## Licence
 
-GPL-3.0-or-later. The bundled font (Inter, Latin subset) keeps its own OFL-1.1
+GPL-3.0-or-later. The bundled font (Inter, Latin and Latin Extended subset) keeps its own OFL-1.1
 terms; see [`assets/OFL.txt`](assets/OFL.txt).
 
 Running `radargen` places no obligation on you, and the radars it renders —

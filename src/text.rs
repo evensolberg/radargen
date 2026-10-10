@@ -11,9 +11,9 @@ use rustybuzz::{Face as ShaperFace, UnicodeBuffer};
 /// FR-85's family name, as `fontdb` registers both vendored faces.
 pub const FAMILY: &str = "Inter";
 
-/// Inter Regular, Latin subset (`scripts/subset-inter.sh`).
+/// Inter Regular, Latin and Latin Extended subset (`scripts/subset-inter.sh`).
 pub const REGULAR_TTF: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
-/// Inter `SemiBold`, Latin subset, from the same run as [`REGULAR_TTF`].
+/// Inter `SemiBold`, same subset, from the same run as [`REGULAR_TTF`].
 pub const SEMIBOLD_TTF: &[u8] = include_bytes!("../assets/Inter-SemiBold.ttf");
 
 /// FR-85 pins exactly two weights; FR-35 separates the legend's levels with
