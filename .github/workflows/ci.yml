@@ -10,7 +10,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel superseded PR runs only; every push to main keeps its own result.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -36,6 +37,16 @@ jobs:
       # Cargo.toml's [lints] denies clippy::pedantic and forbids unsafe_code,
       # so -D warnings is the whole gate (architecture §1).
       - run: cargo clippy --all-targets -- -D warnings
+
+  licenses:
+    # NFR-18: every dependency is permissive, checked against deny.toml
+    # rather than remembered (architecture §1).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check licenses
 
   test:
     # NFR-13's supported platforms, in its priority order.

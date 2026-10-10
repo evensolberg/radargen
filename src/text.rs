@@ -42,7 +42,7 @@ impl<'a> FontMetrics<'a> {
         let units: i32 = shaped.glyph_positions().iter().map(|p| p.x_advance).sum();
         #[allow(
             clippy::cast_precision_loss,
-            reason = "a glyph count is nowhere near 2^52, so the cast is exact"
+            reason = "f64 holds every integer up to 2^53 exactly, and a glyph count is far below that"
         )]
         let gaps = shaped.len().saturating_sub(1) as f64;
         let upem = f64::from(self.face.units_per_em());

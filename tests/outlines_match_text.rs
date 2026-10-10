@@ -150,7 +150,7 @@ struct Built {
 }
 
 fn build() -> Built {
-    let shaping_face = ShaperFace::from_slice(TTF, 0).expect("shaping_face face");
+    let shaping_face = ShaperFace::from_slice(TTF, 0).expect("shaping face");
     let parse = ParseFace::parse(TTF, 0).expect("parse face");
     let upem = f64::from(parse.units_per_em());
     let scale = SIZE / upem;
