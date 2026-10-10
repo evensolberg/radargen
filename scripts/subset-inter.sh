@@ -15,6 +15,9 @@ FONTTOOLS_VERSION="4.66.1"
 # there; PRD D-55 depends on that.
 UNICODES="U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD"
 
+# --notdef-outline: pyftsubset empties .notdef by default, and a character
+# outside the subset would then render as blank space rather than the tofu box
+# A-4 accepts, so a non-Latin name would vanish without a trace.
 subset() { # $1 = face, $2 = flavor ("" for TTF)
   local ext=ttf flavor=()
   if [[ -n "$2" ]]; then ext=$2; flavor=(--flavor="$2"); fi
@@ -24,6 +27,7 @@ subset() { # $1 = face, $2 = flavor ("" for TTF)
     --layout-features='*' \
     --name-IDs='*' \
     --no-hinting \
+    --notdef-outline \
     ${flavor[@]+"${flavor[@]}"} \
     --output-file="$OUT/Inter-$1.$ext"
 }

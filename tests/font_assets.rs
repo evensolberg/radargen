@@ -51,6 +51,20 @@ fn subset_is_latin_only() {
     }
 }
 
+/// A-4 accepts tofu for a character outside the subset, but `pyftsubset`
+/// empties `.notdef` unless told otherwise, and the character then renders as
+/// blank space: a non-Latin name would vanish rather than show as boxes.
+#[test]
+fn notdef_keeps_its_outline() {
+    for (name, data) in [("Regular", REGULAR), ("SemiBold", SEMIBOLD)] {
+        let face = ttf_parser::Face::parse(data, 0).expect("face parses");
+        assert!(
+            face.glyph_bounding_box(ttf_parser::GlyphId(0)).is_some(),
+            "{name}: .notdef has no outline"
+        );
+    }
+}
+
 /// Architecture §3: the two encodings must stay one face. The script records
 /// every output's digest in one run; a file edited or regenerated alone fails.
 #[test]
