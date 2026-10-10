@@ -75,6 +75,131 @@ pub enum Theme {
     Dark,
 }
 
+/// FR-81: shared by both built-in themes; most-separable first, so every
+/// prefix is itself a good palette.
+const BUILT_IN_SERIES: [&str; 8] = [
+    "#0072B2", "#C25400", "#00857A", "#787832", "#B5476B", "#2F9626", "#C431B8", "#9D5A43",
+];
+/// FR-82, in `Neutral::ALL` order.
+const LIGHT: [&str; 8] = [
+    "#FFFFFF", "#F4F5F7", "#16191F", "#585F6B", "#7E858F", "#848B96", "#FFFFFF", "#0B5FA5",
+];
+const DARK: [&str; 8] = [
+    "#15181D", "#1E222A", "#E8EAEE", "#A6AEBB", "#6C7480", "#666E7A", "#15181D", "#7FB8E6",
+];
+/// FR-82's two marker-number inks (D-54).
+const INK_LIGHT: &str = "#FFFFFF";
+const INK_DARK: &str = "#16191F";
+
+/// WCAG 2.x relative luminance of a `#RRGGBB` value.
+fn luminance(hex: &str) -> f64 {
+    let channel = |i: usize| {
+        let v = u8::from_str_radix(&hex[i..i + 2], 16)
+            .expect("palette values are #RRGGBB; PR 18 rejects anything else");
+        let c = f64::from(v) / 255.0;
+        if c <= 0.040_45 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
+}
+
+/// Whichever ink contrasts more with `fill`; white on an exact tie (D-54). The rule
+/// is "more contrast", not "white unless it fails 4.5:1", which differ on a
+/// mid grey where both inks fail.
+fn ink_for(fill: &str) -> &'static str {
+    if contrast(fill, INK_LIGHT) >= contrast(fill, INK_DARK) {
+        INK_LIGHT
+    } else {
+        INK_DARK
+    }
+}
+
+/// WCAG contrast ratio, from 1 to 21.
+fn contrast(a: &str, b: &str) -> f64 {
+    let (la, lb) = (luminance(a), luminance(b));
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+}
+
+/// One complete set of colours: eight neutrals and a non-empty series.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Palette {
+    neutrals: [String; 8],
+    /// Never empty — FR-87 requires `--series-1` — so the modulo below is safe.
+    series: Vec<String>,
+}
+
+impl Palette {
+    #[must_use]
+    pub fn built_in(theme: Theme) -> Self {
+        let neutrals = match theme {
+            Theme::Light => LIGHT,
+            Theme::Dark => DARK,
+        };
+        Self {
+            neutrals: neutrals.map(str::to_string),
+            series: BUILT_IN_SERIES.map(str::to_string).to_vec(),
+        }
+    }
+
+    #[must_use]
+    pub fn series_len(&self) -> usize {
+        self.series.len()
+    }
+
+    /// The ink for a number on solid series entry `index`: whichever of
+    /// white and near-black contrasts more with it (FR-82, D-54). No single
+    /// ink clears 4.5:1 on all of FR-81. A literal in every format, since
+    /// series values don't change with theme.
+    #[must_use]
+    pub fn number_ink(&self, index: usize) -> &'static str {
+        ink_for(self.value(Role::Series(index)))
+    }
+
+    /// FR-67's cycling, at bind time and nowhere else (architecture §5).
+    fn slot(&self, index: usize) -> usize {
+        index % self.series.len()
+    }
+
+    /// The literal value — SVG and PNG, whose consumers do not resolve
+    /// custom properties (`resvg` renders an unresolved `var()` black).
+    #[must_use]
+    pub fn value(&self, role: Role) -> &str {
+        match role {
+            Role::Neutral(n) => &self.neutrals[n as usize],
+            Role::Series(i) => &self.series[self.slot(i)],
+        }
+    }
+
+    /// A `var()` reference — HTML, which declares both themes and lets the
+    /// viewer choose (FR-56).
+    #[must_use]
+    pub fn var(&self, role: Role) -> String {
+        match role {
+            Role::Neutral(n) => format!("var({n})"),
+            Role::Series(i) => format!("var({})", Role::Series(self.slot(i))),
+        }
+    }
+
+    /// Every declaration this palette makes: neutrals in FR-82 order, then the
+    /// series in order.
+    #[must_use]
+    pub fn declarations(&self) -> Vec<(String, &str)> {
+        Neutral::ALL
+            .iter()
+            .map(|n| (n.to_string(), self.value(Role::Neutral(*n))))
+            .chain(
+                self.series
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| (Role::Series(i).to_string(), v.as_str())),
+            )
+            .collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,5 +224,121 @@ mod tests {
         assert_eq!(Role::Series(0).to_string(), "--series-1");
         // Unreduced: the role names the quadrant's index, not a palette slot.
         assert_eq!(Role::Series(8).to_string(), "--series-9");
+    }
+
+    const SERIES: [&str; 8] = [
+        "#0072B2", "#C25400", "#00857A", "#787832", "#B5476B", "#2F9626", "#C431B8", "#9D5A43",
+    ];
+
+    #[test]
+    fn built_in_series_is_fr_81_in_order_for_both_themes() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let p = Palette::built_in(theme);
+            assert_eq!(p.series_len(), 8);
+            let got: Vec<&str> = (0..8).map(|i| p.value(Role::Series(i))).collect();
+            assert_eq!(got, SERIES, "{theme:?}");
+        }
+    }
+
+    #[test]
+    fn built_in_neutrals_are_fr_82() {
+        let light = Palette::built_in(Theme::Light);
+        let light: Vec<&str> = Neutral::ALL
+            .iter()
+            .map(|n| light.value(Role::Neutral(*n)))
+            .collect();
+        assert_eq!(
+            light,
+            [
+                "#FFFFFF", "#F4F5F7", "#16191F", "#585F6B", "#7E858F", "#848B96", "#FFFFFF",
+                "#0B5FA5"
+            ]
+        );
+        let dark = Palette::built_in(Theme::Dark);
+        let dark: Vec<&str> = Neutral::ALL
+            .iter()
+            .map(|n| dark.value(Role::Neutral(*n)))
+            .collect();
+        assert_eq!(
+            dark,
+            [
+                "#15181D", "#1E222A", "#E8EAEE", "#A6AEBB", "#6C7480", "#666E7A", "#15181D",
+                "#7FB8E6"
+            ]
+        );
+    }
+
+    /// FR-67: the ninth quadrant takes the first colour.
+    #[test]
+    fn series_cycles_from_the_start() {
+        let p = Palette::built_in(Theme::Light);
+        assert_eq!(p.value(Role::Series(8)), SERIES[0]);
+        assert_eq!(p.value(Role::Series(9)), SERIES[1]);
+        assert_eq!(p.value(Role::Series(17)), SERIES[1]);
+    }
+
+    /// HTML and the static formats must colour any quadrant identically.
+    #[test]
+    fn var_and_value_name_the_same_entry() {
+        let p = Palette::built_in(Theme::Light);
+        for i in 0..24 {
+            let var = p.var(Role::Series(i));
+            let slot: usize = var
+                .trim_start_matches("var(--series-")
+                .trim_end_matches(')')
+                .parse()
+                .expect("a series var");
+            assert_eq!(
+                p.value(Role::Series(slot - 1)),
+                p.value(Role::Series(i)),
+                "index {i}"
+            );
+        }
+        assert_eq!(p.var(Role::Series(8)), "var(--series-1)");
+        assert_eq!(p.var(Role::Neutral(Neutral::Focus)), "var(--focus)");
+    }
+
+    /// FR-82, D-54: every built-in entry's number clears 4.5:1, and only
+    /// green needs the dark ink.
+    #[test]
+    fn number_ink_clears_4_5_on_every_built_in_entry() {
+        let p = Palette::built_in(Theme::Light);
+        let inks: Vec<&str> = (0..8).map(|i| p.number_ink(i)).collect();
+        assert_eq!(
+            inks,
+            [
+                "#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF", "#16191F", "#FFFFFF",
+                "#FFFFFF"
+            ]
+        );
+        for (i, ink) in inks.iter().enumerate() {
+            let ratio = contrast(SERIES[i], ink);
+            assert!(ratio >= 4.5, "series-{} {ratio:.2}", i + 1);
+        }
+        assert_eq!(p.number_ink(13), p.number_ink(5), "cycles with FR-67");
+    }
+
+    #[test]
+    fn contrast_matches_wcag_reference_values() {
+        assert!((contrast("#FFFFFF", "#000000") - 21.0).abs() < 1e-9);
+        assert!((contrast("#2F9626", "#FFFFFF") - 3.810).abs() < 0.001);
+    }
+
+    /// #7A7A7A: white gives ~4.29 and #16191F ~4.10, so both fail 4.5:1 and
+    /// white still wins. A "white unless it fails" rule would pick dark.
+    #[test]
+    fn ink_is_whichever_contrasts_more_not_a_threshold() {
+        assert_eq!(ink_for("#7A7A7A"), "#FFFFFF");
+        assert_eq!(ink_for("#2F9626"), "#16191F");
+    }
+
+    #[test]
+    fn declarations_cover_every_role_once() {
+        let p = Palette::built_in(Theme::Dark);
+        let names: Vec<String> = p.declarations().into_iter().map(|(n, _)| n).collect();
+        assert_eq!(names.len(), 16);
+        assert_eq!(names[0], "--surface-1");
+        assert_eq!(names[8], "--series-1");
+        assert_eq!(names[15], "--series-8");
     }
 }
