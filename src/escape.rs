@@ -65,6 +65,46 @@ pub fn html_attr(s: &str) -> String {
     xml_attr(s)
 }
 
+/// Context 4: a JavaScript string or JSON island. JSON-encoded, then every
+/// `<` becomes `\u003c` — `</script>` terminates the block regardless of
+/// entity escaping (NFR-6), and `<!--` alters script parsing — and U+2028 and
+/// U+2029 are escaped for older JavaScript parsers. The substitutions are safe
+/// on serializer output: none of the three can occur in JSON outside a string.
+///
+/// # Errors
+///
+/// When `value`'s `Serialize` implementation fails.
+pub fn json<T: serde::Serialize + ?Sized>(value: &T) -> Result<String, serde_json::Error> {
+    Ok(serde_json::to_string(value)?
+        .replace('<', "\\u003c")
+        .replace('\u{2028}', "\\u2028")
+        .replace('\u{2029}', "\\u2029"))
+}
+
+/// A `--palette` value that could break out of its declaration (NFR-6 (5)).
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[error("'{value}' contains '{found}', which cannot appear in a colour value")]
+pub struct CssValueError {
+    pub value: String,
+    pub found: char,
+}
+
+/// Context 5: a CSS custom-property value. Rejected rather than escaped — no
+/// safe escaping exists for arbitrary text in a CSS value position.
+///
+/// # Errors
+///
+/// [`CssValueError`] naming the first `;`, `}` or `<` in `s`.
+pub fn css_value(s: &str) -> Result<&str, CssValueError> {
+    match s.chars().find(|c| matches!(c, ';' | '}' | '<')) {
+        Some(found) => Err(CssValueError {
+            value: s.to_string(),
+            found,
+        }),
+        None => Ok(s),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -166,6 +206,65 @@ mod tests {
             let root = parsed.root_element();
             assert_eq!(root.attribute("aria-label"), Some(s), "attr {s:?}");
             assert_eq!(root.text(), Some(s), "text {s:?}");
+        }
+    }
+
+    #[test]
+    fn json_strings_are_quoted_and_escaped() {
+        assert_eq!(json("say \"hi\"\n").unwrap(), r#""say \"hi\"\n""#);
+    }
+
+    /// NFR-6 (4): `</script>` ends the block whatever the entity escaping, in
+    /// any case; `<!--` changes script parsing too. Escaping every `<` covers all.
+    #[test]
+    fn no_angle_bracket_survives_json_escaping() {
+        for s in ["</script>", "</SCRIPT>", "<!-- x", "a < b"] {
+            let out = json(s).unwrap();
+            assert!(!out.contains('<'), "{s:?} -> {out}");
+            assert_eq!(
+                serde_json::from_str::<String>(&out).unwrap(),
+                s,
+                "must round-trip"
+            );
+        }
+    }
+
+    #[test]
+    fn line_and_paragraph_separators_are_escaped() {
+        let out = json("x\u{2028}y\u{2029}z").unwrap();
+        assert_eq!(out, r#""x\u2028y\u2029z""#);
+        assert_eq!(
+            serde_json::from_str::<String>(&out).unwrap(),
+            "x\u{2028}y\u{2029}z"
+        );
+    }
+
+    #[test]
+    fn json_escapes_structures_too() {
+        let out = json(&["</script>", "ok"]).unwrap();
+        assert_eq!(out, r#"["\u003c/script>","ok"]"#);
+    }
+
+    #[test]
+    fn css_values_pass_through_when_safe() {
+        assert_eq!(css_value("#0072B2"), Ok("#0072B2"));
+        // Context 5 checks injection only. FR-86's `#RRGGBB` rule is PR 18's
+        // validation, so a well-formed but unsupported value passes here.
+        assert_eq!(css_value("rgb(0 114 178)"), Ok("rgb(0 114 178)"));
+    }
+
+    /// NFR-6 (5): no safe escaping exists for arbitrary text in a CSS value.
+    #[test]
+    fn css_values_with_a_breakout_character_are_rejected() {
+        for (s, found) in [("red; color: x", ';'), ("red}", '}'), ("red</style>", '<')] {
+            assert_eq!(
+                css_value(s),
+                Err(CssValueError {
+                    value: s.into(),
+                    found
+                }),
+                "{s}"
+            );
         }
     }
 }
