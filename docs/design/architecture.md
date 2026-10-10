@@ -130,13 +130,13 @@ declarations only and are not listed.
 | `src/svg/mod.rs` | `Node`, `Document` — the SVG tree and its serialiser | v1.0 |
 | `src/escape.rs` | NFR-6's five output contexts, one function each | v1.0 |
 | `src/num.rs` | `fmt_coord()` — NFR-17's rounding, used by every emitter | v1.0 |
-| `src/text.rs` | Shaped measurement and FR-79 wrapping, over **both** of FR-85's faces | *exists — from the spike* |
+| `src/text.rs` | Shaped measurement and FR-79 wrapping, over **both** of FR-85's faces | *exists* |
 | `src/emit/html/mod.rs` | Self-contained HTML: both arrangements, FR-69's computed media-query switch, FR-56's theme override, inline JS/CSS and font | v1.0 |
 | `src/emit/html/table.rs` | The table view (FR-41, FR-78) — every CSV row, every declared column | v1.0 |
 | `src/emit/write.rs` | NFR-14's atomic write: temp file in the same directory, flush, rename | v1.0 |
 | `src/emit/svg.rs` | The document with its text outlined and deduplicated through `<use>` (§11) | v1.1 |
 | `src/emit/png.rs` | `resvg` rasterisation | v1.1 |
-| `assets/` | The vendored font — TTF to measure and rasterise, WOFF2 to inline — and its OFL notice (FR-85, NFR-5), `include_bytes!` into the binary | *stand-in* |
+| `assets/` | The vendored font — TTF to measure and rasterise, WOFF2 to inline — and its OFL notice (FR-85, NFR-5), `include_bytes!` into the binary | *exists* |
 
 Six of these are corrections rather than additions, and each has a reason:
 
@@ -173,15 +173,15 @@ Six of these are corrections rather than additions, and each has a reason:
   text visibly off its column. Both files are subset from one source in one step
   and versioned together.
 
-**`assets/` currently holds Libertinus Sans**, the spike's stand-in. FR-85 pins
-**Inter**, two static instances, Latin-subset. Swapping it is a scheduled task,
-not a decision: the mechanism is font-independent (spike findings), only the
-numbers move. R-7's remaining question is **answered**: Inter's `LICENSE.txt`
-declares no Reserved Font Name — OFL 1.1 defines one as a name *"specified as
-such after the copyright statement(s)"* and Inter's copyright line specifies
-none — so a Latin subset may keep the name. Only the measured subset size is
-still open, and that is a number rather than a decision
-(`docs/spikes/svg-font.md`).
+**`assets/` holds Inter v4.1**, Regular and SemiBold, Latin-subset by
+`scripts/subset-inter.sh` and vendored (FR-85). Measured sizes — TTF:
+Regular 92,024 bytes, SemiBold 93,868 bytes; WOFF2: Regular 30,660 bytes,
+SemiBold 31,488 bytes. The WOFF2 pair is what NFR-5 inlines into every HTML
+edition. The subset keeps `.notdef`'s outline, so a character outside it
+renders as the tofu box A-4 accepts rather than as blank space. R-7's licensing
+question was answered earlier — Inter declares no Reserved Font Name, so the
+subset keeps the name — and with the sizes measured, R-7 has nothing left
+open but the script-coverage limit A-4 accepts.
 
 ## 4. The `Block` abstraction
 
@@ -627,6 +627,6 @@ that outlives the measurement behind it.
 | Golden files are brittle against innocent refactors | That is what they are *for* (NFR-4), and `UPDATE_GOLDEN=1` makes accepting a change deliberate |
 | The `Catalogue` side-channel could become a second data path that drifts from the graphic (**§2**) | It is read-only and additive — the HTML emitter reads prose and unplotted rows from it, never geometry or numbering. Anything the two could disagree about comes from `Document` |
 | Legend height sets the document height past ~25 items (**R-3**) | Accepted for this version, per the PRD. The `Block` shape is what makes the likely answer — a multi-column legend in the wide arrangement — a change inside `layout/legend.rs` and nowhere else |
-| The pinned font is still the spike's stand-in (**R-7**) | Swapped before step 4 of §9, for the reason given there. Measured subset size and any Reserved Font Name are confirmed at that point |
+| The pinned font (**R-7**) | Swapped to Inter before step 4 of §9 (PR 01). Subset sizes are in §3; no Reserved Font Name |
 | `emit/svg.rs` outlines its text, so it is a converter rather than a serialiser and costs more than §14.2 assumed (**§11**) | Accepted — the spike showed the alternative fails in two of the consumers tested, including our own `resvg`. Bounded to one file in v1.1; `Document` and the HTML output are untouched. Illustrator and Figma rest on secondary reports and are worth confirming first-hand while building v1.1, but no decision waits on that |
 | Both arrangements live in one DOM, so every interactive element exists twice and a breakpoint change can move the focused one out of the tree (**§5**) | No `id`s, identity as `data-item`, selection and focus-return keyed on the item rather than the element. The rule sits in `Document`'s shape, so the interactive layer cannot reintroduce it by forgetting |
