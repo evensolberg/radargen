@@ -11,7 +11,7 @@ created_date: 2026-10-10
 synopsis: "Bytes to text (BOM, UTF-8, FR-61's line-numbered error) and text to records (a hand-written RFC 4180 scanner with physical line numbers, header and field-count checks returned beside the table, and FR-90's removal of undisplayable characters)."
 status: draft
 type: Plan
-revision: "1.3"
+revision: "1.4"
 review_date: 2026-10-10
 reviewed_by:
   - architect-reviewer
@@ -38,13 +38,13 @@ Malformed quoting, an empty file and a non-comma separator abort at once (tier o
 
 **Tech Stack:** Rust 2024, standard library only. No new dependencies — see Decisions for why not the `csv` crate.
 
-**Spec:** `docs/product/radargen-prd.md` v0.40 — FR-1, FR-2, FR-3, FR-4, FR-5, FR-61, FR-76, FR-90, NFR-9, NFR-10, NFR-15, NFR-16, NFR-20, D-27, D-37, D-55, SC-10. Design: `docs/design/architecture.md` §3 (the `csv/decode.rs` and `csv/parse.rs` rows), §7 (diagnostics threading), §10 (`row-errors.csv`).
+**Spec:** `docs/product/radargen-prd.md` v0.41 — FR-1, FR-2, FR-3, FR-4, FR-5, FR-6, FR-61, FR-76, FR-90, NFR-9, NFR-10, NFR-15, NFR-16, NFR-20, D-27, D-37, D-55, D-59, SC-10. Design: `docs/design/architecture.md` §3 (the `csv/decode.rs` and `csv/parse.rs` rows), §7 (diagnostics threading), §10 (`row-errors.csv`).
 
 ## Global Constraints
 
-- **Physical line numbers** (NFR-10, D-37): every row diagnostic (FR-4, FR-90) names the 1-based physical line a record **begins** on, header counting as line 1. A quoted newline makes later records' lines run ahead of their ordinals, permanently. **The two quoting errors are the exception, by design:** they are file-level (tier one), and they name the line holding the fault — where the unclosed quote opened, or where text follows the closing quote. In a multi-line record that is later than the record's first line, and it is where Go To Line must land (Decisions).
+- **Physical line numbers** (NFR-10, D-37): every row diagnostic (FR-4, FR-90) names the 1-based physical line a record **begins** on, counting the file's first line as line 1. A quoted newline makes later records' lines run ahead of their ordinals, permanently. **The two quoting errors are the exception, by design:** they are file-level (tier one), and they name the line holding the fault — where the unclosed quote opened, or where text follows the closing quote. In a multi-line record that is later than the record's first line, and it is where Go To Line must land (Decisions).
 - **A line break is LF, CRLF or a lone CR**, counted once each, in both `decode` and `parse` — the way an editor's Go To Line counts.
-- **FR-90 removal comes first** (D-55): a field's undisplayable characters (`!escape::displayable`) are removed before any check reads it, with one `RowKind::Undisplayable` warning per affected field. Use `escape::displayable`; never restate the set.
+- **FR-90 removal comes first** (D-55): a field's undisplayable characters (`!escape::displayable`) are removed before any check reads it except the blank-record test, which reads the raw fields (FR-3, D-59; see Decisions), with one `RowKind::Undisplayable` warning per affected field. Use `escape::displayable`; never restate the set.
 - **NFR-16:** file-level errors (unreadable, not UTF-8, malformed quoting, no header, not comma-separated) return one `Fatal` and stop. Duplicate headers and field-count mismatches are **all** collected, in line order, and returned **beside** the table rather than instead of it, so PR 06's row errors join them in the same run.
 - **No trimming here.** Fields keep their whitespace; FR-76 trims at comparison time (PR 06), and displayed text is never edited beyond FR-15/FR-76. (Blank-record detection *reads* whitespace but changes nothing.)
 - **One taxonomy:** new errors are `diagnostics::Fatal` variants (architecture §1). An I/O variant carries the path and marks the error `#[source]`, not `#[from]` (the `Fatal` doc comment). Every new variant is added to the pinned message catalogue in `tests/diagnostics.rs` (`csv_fatal_messages`, beside `fatal_messages`).
@@ -78,7 +78,7 @@ Malformed quoting, an empty file and a non-comma separator abort at once (tier o
   - text after a quote that closes on line 4 reports line 4.
 
   These are tier-one file errors (NFR-16), not row diagnostics, and the record's first line would send the author to a line with nothing wrong on it. Both name their column too (NFR-10).
-- **A blank record is skipped, but its line is still counted.** A blank record is a line with no characters, a whitespace-only line, or a row of empty fields such as `,,,`. Excel writes the last for cleared rows inside its used range — at the end, between records, and above the header when the sheet starts lower down. Each looks blank to the author, and skipping it loses nothing.
+- **A blank record is skipped, but its line is still counted.** A blank record is a line with no characters, a line of only spaces and tabs, or a row of empty fields such as `,,,`. Excel writes the last for cleared rows inside its used range — at the end, between records, and above the header when the sheet starts lower down. Each looks blank to the author, and skipping it loses nothing.
   - "Blank" means every field is empty or only spaces and tabs. The test runs **before** FR-90's removal, so a cell holding only U+0001 is not blank here and still reaches FR-6 (SC-10).
   - The header is the first record that is not blank, so its line is its physical line: 1, unless the file opens with blank lines.
 - **An empty header cell is not a duplicate.** Excel pads every line, header included, to its used range, so a stray cell to the right of the data exports as `name,quadrant,ring,description,,`. Two empty cells colliding under FR-4 would report `column 6 '' repeats column 5` on a file that looks right, naming nothing the author can find. An empty cell names nothing, so FR-4 skips it. Its data cells keep the field count true and are named `column N` in any warning. Whether an empty-named column is acceptable is PR 06's call (FR-5, FR-78).
@@ -102,7 +102,7 @@ Malformed quoting, an empty file and a non-comma separator abort at once (tier o
 | `DuplicateHeader` | `line {line}: column {index} '{name}' repeats column {first_index} '{first_name}'; header names match ignoring case and surrounding spaces, so rename or remove one` |
 | `FieldCount` | `line {line}: the row's field count is {found} but the header's is {expected}; ` then, when `found > expected`, `a comma inside a value needs the value in double quotes`, else `a value is missing, or an unquoted line break split the row` |
 
-- **PRD wording.** Three of these decisions depart from the PRD's literal text: skipping blank records (FR-3, FR-4, FR-6, FR-78), quoting errors naming the fault's line (NFR-10, NFR-15), and `NotCommaSeparated` as a tier-one error (NFR-9, NFR-16). Crumb `rg-lfd` writes them into the PRD. The handoff to PR 06 is appended to `rg-rnc`.
+- **PRD wording.** PRD v0.41 (D-59, crumb `rg-lfd`) writes three of these decisions into the requirements: skipping blank records and ignoring empty header cells (FR-3, FR-4, FR-6), refusing a non-comma separator (FR-1, NFR-9, NFR-16), and quoting errors naming the fault's line (NFR-10, NFR-15). The handoff to PR 06 is appended to `rg-rnc`.
 - **No version bump.** The binary still exits 1 without reading a file.
 
 ---
@@ -1435,3 +1435,4 @@ Follow the house workflow in `~/.claude/CLAUDE.md`. For this PR:
 | 1.1 | 2026-10-10 | Reviewed by architect, Rust, QA, UX and UI agents. **`parse` returns FR-4 errors beside the table**, so PR 06's FR-5/FR-6 errors arrive in the same run (NFR-16, `row-errors.csv`). Excel quirks handled: blank and `,,,` rows skipped, empty header cells are not duplicates, a `;`- or tab-separated file is refused at its header. Quoting errors name the faulty line by design, and their column. Every new message says what to do, and says "column", not "field". FR-90 warnings name columns canonically (PR 02). Tasks 2 and 3 share one commit, so no commit fails clippy, and `cargo fmt` is in every run step. Added a `csv_fatal_messages` catalogue test (kept apart from `fatal_messages`, which would exceed pedantic's 100-line `too_many_lines`), `tests/csv.rs`, exhaustive scanner checks, and decode edge cases (UTF-16, truncated sequence, directory). Spaces around quotes are declined (RFC 4180). Error grouping is deferred to `rg-pcd`. Applied to `main` in a scratch worktree: 158 tests pass; `cargo fmt --check`, clippy and `just lint` are clean |
 | 1.2 | 2026-10-10 | PR #17 review: the PRD departures (blank records, quoting-error lines, the separator check) recorded as crumb `rg-lfd`, and the PR 06 handoff appended to `rg-rnc`. The error order across parse and `build_catalogue` is left to PR 13 (NFR-11). The architecture §2 edit is spelled out against the actual diagram, with `read`'s exception to stage purity. Review metadata filled in; minor wording fixes |
 | 1.3 | 2026-10-10 | Simplify pass: `End` has two variants, not three, since a line break and the end of input both just end the record. The `csv/mod.rs` doc comment gets a blank `//!` line, so nursery's `too_long_first_doc_paragraph` stays quiet. Also the round-two review nits: §2 alignment, the waist paragraph's `records` reference, and the NFR-15 citation. Final review applied the plan to `main`: 161 tests pass, and fmt, clippy and `just lint` are clean |
+| 1.4 | 2026-10-10 | PRD v0.41 (D-59): the Spec line and the PRD-wording note are updated. Line numbers count from the file's first line, FR-90's removal yields to the blank-record test, and the blank-record Decision says "a line of only spaces and tabs" |
