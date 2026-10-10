@@ -12,4 +12,5 @@ target/
 # Editor / IDE
 .idea/
 .vscode/
+.obsidian/
 *.swp
