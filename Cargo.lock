@@ -461,6 +461,7 @@ dependencies = [
  "clap",
  "fontdb",
  "resvg",
+ "roxmltree",
  "rustybuzz",
  "sha2",
  "thiserror",
