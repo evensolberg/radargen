@@ -77,7 +77,8 @@ Other choices:
 - **The value shown is the first occurrence's, trimmed.** Values group by `normalise()`.
 - **For duplicate names, the count is the number of repeat rows,** and "first line" is the first repeat. The per-row message names the original line, and so does each grouped value (`original line L`). Without it, the grouped line names only half of each pair.
 - **An empty description lists every line, uncapped.** It has no value to enumerate, so NFR-20's "the rare one is the typo" reasoning applies to the lines instead.
-- **FR-90's warning is one per field, not one per character,** carrying the count and the first code point. The code point is printed as `U+XXXX` because the character itself is unprintable by definition. `column` carries the header name because `Position::Cell` holds only its index; it's printed through `printable()`, since an extra column's header is CSV text. Its grouped line lists `line column` pairs, uncapped, like the empty-description line: the column varies between members, and NFR-10 requires each to be named.
+- **FR-90's warning is one per field, not one per character,** with the count and the first code point as `U+XXXX`. Its grouped line lists `line column` pairs, uncapped. `column` carries the header name because `Position::Cell` holds only the index.
+- **Every stderr line is escaped whole**, in `Warning`'s `Display`, in `render`'s grouped lines and in `Fatal::render`. Values are only trimmed where they're interpolated, so no new kind can forget to escape one.
 - **FR-89 quotes its names.** Quadrant names can contain `/` or `&`, so `Q / R` would be ambiguous.
 - **Bidi controls are escaped too** (U+200E/F, U+202A–E, U+2066–9). `is_control` misses them, and they can visually reorder a stderr line just as an escape sequence can recolour it.
 - **`cli::FatalError` becomes `diagnostics::Fatal`.** The `--rings` messages are `entry N is empty`, `'X' repeats entry N` and `no rings declared`. The `-o` message is `the output file name must end in .html`, which reads correctly for a wrong, missing or `.htm` extension (FR-52 covers the absent case too).
@@ -270,9 +271,9 @@ impl WarningKind {
             Self::UnparsableDate { column, .. } => column.to_string(),
             Self::EmptyDescription => "description".into(),
             Self::DuplicateName { .. } => "name".into(),
-            // A header name is CSV text (FR-18's extra columns), so it is
-            // escaped like any value (NFR-10).
-            Self::Undisplayable { column, .. } => printable(column),
+            // A header name is CSV text (FR-18's extra columns); `Display`
+            // escapes it with the rest of the line.
+            Self::Undisplayable { column, .. } => column.clone(),
             Self::QuadrantCount { .. } | Self::OverfullBand { .. } => String::new(),
         }
     }
@@ -281,23 +282,23 @@ impl WarningKind {
         match self {
             Self::UndeclaredRing { value } => format!(
                 "ring '{}' is not declared by --rings; the row is in the table view, not on the radar",
-                printable(value)
+                value.trim()
             ),
             Self::UnrecognisedQualifier { value } => {
-                format!("unrecognised qualifier value '{}'", printable(value))
+                format!("unrecognised qualifier value '{}'", value.trim())
             }
             Self::UnrecognisedStatus { value } => format!(
                 "unrecognised status value '{}'; drawn as No Change",
-                printable(value)
+                value.trim()
             ),
             Self::UnparsableDate { value, .. } => format!(
                 "'{}' is not a YYYY-MM-DD date; shown as written",
-                printable(value)
+                value.trim()
             ),
             Self::EmptyDescription => "description is empty; the detail panel omits it".into(),
             Self::DuplicateName { value, first_line } => format!(
                 "name '{}' repeats line {first_line}; both are drawn",
-                printable(value)
+                value.trim()
             ),
             Self::Undisplayable { first, count: 1, .. } => {
                 format!("removed U+{:04X}, which the output cannot display", u32::from(*first))
@@ -311,8 +312,8 @@ impl WarningKind {
             ),
             Self::OverfullBand { quadrant, ring, count, fits } => format!(
                 "quadrant '{}', ring '{}': {count} items; about {fits} fit comfortably, so some markers overlap",
-                printable(quadrant),
-                printable(ring)
+                quadrant.trim(),
+                ring.trim()
             ),
         }
     }
@@ -320,36 +321,32 @@ impl WarningKind {
 
 impl fmt::Display for Warning {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.position {
-            Position::Render => f.write_str(&self.kind.message()),
+        let line = match self.position {
+            Position::Render => self.kind.message(),
             Position::Cell { line, .. } => {
-                write!(f, "line {line}, {}: {}", self.kind.column(), self.kind.message())
+                format!("line {line}, {}: {}", self.kind.column(), self.kind.message())
             }
-        }
+        };
+        f.write_str(&escape_controls(&line))
     }
 }
 
 /// A CSV value can carry a newline inside quotes (NFR-10), and printed raw it
 /// would forge a second diagnostic line; an escape sequence could recolour the
-/// terminal, and a bidi override could reorder it. Those are shown escaped;
-/// everything else as written.
-fn printable(value: &str) -> String {
-    escape_controls(value.trim())
-}
-
-/// `printable` without the trim, for a whole message whose spacing is ours.
+/// terminal, and a bidi override could reorder it. Every stderr line passes
+/// through here whole, so no value can be forgotten; values are only trimmed.
 fn escape_controls(s: &str) -> String {
-    s.chars()
-        .map(|c| {
-            if c.is_control()
-                || matches!(c, '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
-            {
-                c.escape_default().to_string()
-            } else {
-                c.to_string()
-            }
-        })
-        .collect()
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if c.is_control()
+            || matches!(c, '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+        {
+            out.extend(c.escape_default());
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 ```
 
@@ -659,7 +656,7 @@ impl Warnings {
             if members.len() == 1 {
                 lines.push(format!("warning: {w}"));
             } else {
-                lines.push(format!("warning: {}", grouped(class, &members)));
+                lines.push(format!("warning: {}", escape_controls(&grouped(class, &members))));
             }
         }
         lines
@@ -685,23 +682,37 @@ fn line_of(w: &Warning) -> usize {
 
 fn grouped(class: Class, members: &[&Warning]) -> String {
     let n = members.len();
-    if class == Class::Description {
-        let lines: Vec<String> = members.iter().map(|m| line_of(m).to_string()).collect();
-        return format!(
-            "{n} rows have an empty description — lines {}; the detail panel omits each",
-            lines.join(", ")
-        );
-    }
-    if class == Class::Undisplayable {
-        let fields: Vec<String> = members
+    let list = match class {
+        // No value to enumerate, so NFR-20 lists positions, uncapped.
+        Class::Description => {
+            let lines: Vec<String> = members.iter().map(|m| line_of(m).to_string()).collect();
+            format!("lines {}", lines.join(", "))
+        }
+        Class::Undisplayable => members
             .iter()
             .map(|m| format!("line {} {}", line_of(m), m.kind.column()))
-            .collect();
-        return format!(
-            "{n} fields held characters the output cannot display — {}; each was removed",
-            fields.join(", ")
-        );
+            .collect::<Vec<_>>()
+            .join(", "),
+        _ => tallied(members),
+    };
+    match class {
+        Class::Ring => format!("{n} rows use a ring --rings does not declare — {list}; all appear in the table view"),
+        Class::Qualifier => format!("{n} rows have an unrecognised qualifier — {list}; each is drawn solid"),
+        Class::Status => format!("{n} rows have an unrecognised status — {list}; each is drawn as No Change"),
+        Class::Date(column) => format!(
+            "{n} rows have {column} values that are not YYYY-MM-DD dates — {list}; each is shown as written"
+        ),
+        Class::Description => format!("{n} rows have an empty description — {list}; the detail panel omits each"),
+        Class::DuplicateName => format!("{n} rows repeat an earlier name — {list}; every row is drawn"),
+        Class::Undisplayable => {
+            format!("{n} fields held characters the output cannot display — {list}; each was removed")
+        }
     }
+}
+
+/// NFR-20's enumeration: each distinct value, in first-occurrence order, with
+/// its count and first line.
+fn tallied(members: &[&Warning]) -> String {
     let mut tallies: Vec<Tally> = Vec::new();
     for m in members {
         let value = m.kind.value().unwrap_or_default();
@@ -713,10 +724,10 @@ fn grouped(class: Class, members: &[&Warning]) -> String {
                 WarningKind::DuplicateName { first_line, .. } => Some(first_line),
                 _ => None,
             };
-            tallies.push(Tally { key, shown: printable(value), count: 1, first_line: line_of(m), original });
+            tallies.push(Tally { key, shown: value.trim().to_string(), count: 1, first_line: line_of(m), original });
         }
     }
-    let values = tallies
+    tallies
         .iter()
         .map(|t| {
             let at = match t.count {
@@ -729,21 +740,11 @@ fn grouped(class: Class, members: &[&Warning]) -> String {
             }
         })
         .collect::<Vec<_>>()
-        .join(", ");
-    match class {
-        Class::Ring => format!("{n} rows use a ring --rings does not declare — {values}; all appear in the table view"),
-        Class::Qualifier => format!("{n} rows have an unrecognised qualifier — {values}; each is drawn solid"),
-        Class::Status => format!("{n} rows have an unrecognised status — {values}; each is drawn as No Change"),
-        Class::Date(column) => format!(
-            "{n} rows have {column} values that are not YYYY-MM-DD dates — {values}; each is shown as written"
-        ),
-        Class::DuplicateName => format!("{n} rows repeat an earlier name — {values}; every row is drawn"),
-        Class::Description | Class::Undisplayable => unreachable!("handled above"),
-    }
+        .join(", ")
 }
 ```
 
-`Position::Render => 0` and `unreachable!` are the two places where the types allow a case the logic excludes. If review prefers, `grouped` can take `&[(usize, &WarningKind)]`, with lines already extracted, which removes both. Pick whichever reads better. The tests don't change.
+`Position::Render => 0` is the one place the types allow a case the logic excludes: a classed warning always has a cell.
 
 - [ ] **Step 4: Run the tests**
 
@@ -901,4 +902,4 @@ git commit -m "feat(diagnostics): Fatal — one error taxonomy; RingsError and -
 | 1.0 | 2026-10-09 | Initial version |
 | 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
 | 1.2 | 2026-10-09 | FR-90's warning class (`Undisplayable`) added for PRD v0.38, resolving crumb `rg-jyx` |
-| 1.3 | 2026-10-09 | PR 6 review: `Fatal::render` escapes the whole message; `Warnings::as_slice`/`is_empty`; `XmlForbidden` renamed `Undisplayable`, its column escaped and worded 'the output cannot display'; stronger grouping tests |
+| 1.3 | 2026-10-09 | PR 6 review: `Fatal::render` escapes the whole message; `Warnings::as_slice`/`is_empty`; `XmlForbidden` renamed `Undisplayable`, its column escaped and worded 'the output cannot display'; stronger grouping tests; every stderr line escaped whole, and `grouped` is one exhaustive `match` |

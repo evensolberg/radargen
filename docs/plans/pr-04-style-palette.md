@@ -75,7 +75,7 @@ comments:
   Legend-row hover fill is Surface1, because the legend sits on Surface2.
 - **Badge radius 8, not the mockup's 7.** Inter SemiBold 9px "44" measures ~12.0px. A hollow badge's clear interior is `2r − stroke`: 12px at r=7, which leaves no gap at all, and 14px at r=8.
 - **Ring labels get a halo.** FR-31 puts ring labels on the 12 o'clock divider, so the divider runs through every one of them. The mockup's ~1.3:1 gridline hid this; FR-82's divider is 3.4:1, and 1.9:1 against text-muted, so it reads as a strike-through. `LABEL_HALO` is the width of a Surface1 stroke painted under the text (`paint-order="stroke"`). PR 10 applies it, and its resvg oracle test should confirm resvg honours `paint-order`. If it doesn't, break the divider behind the label instead.
-- **Marker-number ink is chosen per series entry** (PRD v0.38 FR-82, D-54). `Palette::number_ink(index)` returns whichever of `#FFFFFF` and `#16191F` contrasts more with that entry. For the built-in eight, that's white everywhere except series-6 green, which takes `#16191F` (4.62:1 against white's 3.81:1), and the lowest ratio is 4.53:1 (series-3 teal, on white). It's a literal in every format: series values don't change with theme, so HTML needs no `var()` for it. Contrast is computed from `#RRGGBB`, which PRD v0.38's FR-86 now requires of every `--palette` value, so PR 18 rejects anything else as a hard error naming the role. Hollow markers are unaffected: TextPrimary on MarkerHollow is 17.6:1 light and 14.8:1 dark.
+- **Marker-number ink is chosen per series entry** (PRD v0.38 FR-82, D-54): `Palette::number_ink` picks whichever of `#FFFFFF` and `#16191F` contrasts more. Only series-6 green takes the dark ink; the lowest ratio is teal's 4.53:1. It returns a literal, because series values don't change with theme; PR 13's `Paint` binds it so nodes still carry no hex. FR-86 makes every `--palette` value `#RRGGBB`, so PR 18 rejects anything else before it can reach `luminance`.
 - **No version bump.** Nothing renders yet.
 
 ---
@@ -130,20 +130,16 @@ mod tests {
     #[test]
     fn two_digit_numbers_fit_inside_the_marker() {
         let fonts = Fonts::embedded().expect("faces");
-        let m = fonts.face(MARKER_NUMBER.weight);
-        let two_digit: Vec<String> = (10..=99_u32).map(|n| n.to_string()).collect();
-        let widest = two_digit
-            .iter()
-            .map(|s| m.measure(s, MARKER_NUMBER.size, MARKER_NUMBER.letter_spacing))
-            .fold(0.0_f64, f64::max);
+        let widest = |t: TextStyle| {
+            (10..=99_u32)
+                .map(|n| fonts.face(t.weight).measure(&n.to_string(), t.size, t.letter_spacing))
+                .fold(0.0_f64, f64::max)
+        };
         // A hollow stroke is centred on r, so the clear interior is 2r − stroke.
         let clear = |r: f64, stroke: f64| 2.0 * r - stroke;
-        assert!(widest < clear(MARKER_RADIUS, MARKER_HOLLOW_STROKE), "{widest} does not fit the marker");
-        let b = fonts.face(LEGEND_BADGE_NUMBER.weight);
-        let badge = two_digit
-            .iter()
-            .map(|s| b.measure(s, LEGEND_BADGE_NUMBER.size, LEGEND_BADGE_NUMBER.letter_spacing))
-            .fold(0.0_f64, f64::max);
+        let marker = widest(MARKER_NUMBER);
+        assert!(marker < clear(MARKER_RADIUS, MARKER_HOLLOW_STROKE), "{marker} does not fit the marker");
+        let badge = widest(LEGEND_BADGE_NUMBER);
         assert!(badge < clear(BADGE_RADIUS, BADGE_HOLLOW_STROKE), "{badge} does not fit the badge");
     }
 
@@ -223,8 +219,8 @@ pub const RING_LABEL: TextStyle = style(Weight::Regular, 10.0, 0.0);
 /// Ink: `TextPrimary` on a hollow marker; on a solid one,
 /// `Palette::number_ink` for that entry (FR-82, D-54).
 pub const MARKER_NUMBER: TextStyle = style(Weight::SemiBold, 9.0, 0.0);
-/// The "Legend" heading, matching `KEY_HEADING`. Ink: `TextPrimary`.
-pub const LEGEND_HEADING: TextStyle = style(Weight::SemiBold, 13.0, 0.0);
+/// The "Legend" heading, the same style as the key's. Ink: `TextPrimary`.
+pub const LEGEND_HEADING: TextStyle = KEY_HEADING;
 /// FR-35 level one. 0.03em at 11px. Ink: `TextPrimary` — with no uppercase,
 /// colour is part of what separates it from `LEGEND_RING`.
 pub const LEGEND_QUADRANT: TextStyle = style(Weight::SemiBold, 11.0, 0.33);
@@ -234,8 +230,8 @@ pub const LEGEND_RING: TextStyle = style(Weight::SemiBold, 10.0, 0.3);
 pub const LEGEND_NAME: TextStyle = style(Weight::Regular, 12.5, 0.0);
 /// FR-74's trailing qualifier/status text. Ink: `TextMuted`.
 pub const LEGEND_META: TextStyle = style(Weight::Regular, 10.5, 0.0);
-/// Ink: as `MARKER_NUMBER`.
-pub const LEGEND_BADGE_NUMBER: TextStyle = style(Weight::SemiBold, 9.0, 0.0);
+/// The badge carries the marker's number, so it is the marker's style.
+pub const LEGEND_BADGE_NUMBER: TextStyle = MARKER_NUMBER;
 /// Ink: `TextPrimary`.
 pub const KEY_HEADING: TextStyle = style(Weight::SemiBold, 13.0, 0.0);
 /// Ink: `TextMuted`.
@@ -715,7 +711,7 @@ impl Palette {
         };
         Self {
             neutrals: neutrals.map(str::to_string),
-            series: BUILT_IN_SERIES.iter().map(|s| (*s).to_string()).collect(),
+            series: BUILT_IN_SERIES.map(str::to_string).to_vec(),
         }
     }
 
@@ -802,4 +798,4 @@ git commit -m "feat(palette): built-in palettes, FR-67 cycling at bind time, sam
 | 1.0 | 2026-10-09 | Initial version |
 | 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
 | 1.2 | 2026-10-09 | PRD v0.38 decisions: `LEGEND_WIDTH_MAX` derived as 380 (D-56, crumb `rg-3pp`), `Palette::number_ink` (D-54, crumb `rg-smm`), architecture §5's `Role` naming done (crumb `rg-03k`) |
-| 1.3 | 2026-10-09 | PR 6 review: `ink_for` split out with a test that it isn't a threshold rule; breakpoint tie and D-56 cases; marker fit measured over 10–99 |
+| 1.3 | 2026-10-09 | PR 6 review: `ink_for` split out with a test that it isn't a threshold rule; breakpoint tie and D-56 cases; marker fit measured over 10–99; badge and legend-heading styles alias the marker and key styles |

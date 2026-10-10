@@ -58,7 +58,7 @@ comments:
 
 - **`fmt_coord` trims trailing zeros**, so `260.000` becomes `260` and `1.500` becomes `1.5`. That's the format the SVG spike used (`tests/outlines_match_text.rs::fmt`), and NFR-17 doesn't forbid it.
 - **`fmt_coord` panics on NaN, on infinity, and on magnitudes of 10¹² or more.** None of these is an input error. Each can only come from a layout bug, and returning a `Result` would push an impossible-error branch into every emitter call. The panic message names the value.
-- **Disallowed XML characters are replaced with U+FFFD here, as a safety net only.** PRD v0.38's FR-90 removes them at the CSV stage (PR 05), with a warning naming line and column (D-55), so validated input never reaches this replacement. It stays because these functions are total over any `&str`: a string that didn't come through the CSV stage must still produce well-formed XML. The replacement is silent and Inter has no U+FFFD glyph (the PNG would draw a missing-glyph box). Both are acceptable only because FR-90 keeps CSV text from getting here. **The set is FR-90's set exactly**: C0 except tab, LF and CR, plus DEL and C1 (U+007F–U+009F), U+FFFE and U+FFFF. If the two drift apart, a character escapes the warning and gets replaced silently. PR 05 should call `escape::displayable`, made `pub`, rather than restating the set.
+- **U+FFFD replacement here is a backstop only.** PRD v0.38's FR-90 removes these characters on input, with a warning (D-55), and these functions stay total so that any string still produces well-formed XML. `displayable` is FR-90's set exactly and is `pub`, so PR 05 calls it rather than restating the set; if the two drifted, a character would skip the warning and be replaced silently.
 - **The attribute functions return the value already wrapped in `"`**, which makes NFR-6 (3)'s "never left unquoted" structural.
 - **`serde_json` for context 4.** It's library-first, and PR 14's data island needs `Serialize` anyway. The function adds only the `<`, U+2028 and U+2029 escapes.
 - **The CSS context rejects only the three characters NFR-6 names.** `/*` or `{` in a palette value can garble the file's own declarations, but can't inject markup. Say on review if those should be rejected too; it's a one-line change in the test and the function.
@@ -355,26 +355,19 @@ Put this above the test module:
 //! At the crate root rather than under `svg/`: contexts 4 and 5 never touch an
 //! SVG node, and the `</script>` rule is an HTML fact (architecture §3).
 
-/// XML 1.0's `Char` production excludes most C0 controls and U+FFFE/U+FFFF,
-/// even as character references; FR-90 adds DEL and C1, which XML allows but
-/// no font draws. FR-90 removes these at the CSV stage, with a
-/// warning, and calls this function to decide which ones; the escaping
+/// FR-90's set: every control character (`char::is_control`, so C0, DEL and
+/// C1) except tab, LF and CR, plus U+FFFE/U+FFFF. XML forbids C0 and the two
+/// noncharacters; DEL and C1 are legal XML, but no font draws them. FR-90
+/// removes these on input and calls this to decide which; the escaping
 /// functions only replace them as a backstop, so that they stay total.
 #[must_use]
 pub fn displayable(c: char) -> bool {
-    match c {
-        '\t' | '\n' | '\r' => true,
-        // C0 controls, then DEL and C1: legal XML, but no font draws them, so
-        // the PNG would show a missing-glyph box the browser doesn't (FR-90).
-        '\u{0}'..='\u{1f}' | '\u{7f}'..='\u{9f}' | '\u{fffe}' | '\u{ffff}' => false,
-        _ => true,
-    }
+    matches!(c, '\t' | '\n' | '\r') || !(c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}'))
 }
 
-/// Context 1: an SVG/XML text node — `&`, `<`, `>`, and CR as a reference.
-#[must_use]
-pub fn xml_text(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
+/// Contexts 1 and 2 share one loop; an attribute additionally escapes both
+/// quotes and the whitespace attribute-value normalisation would fold.
+fn escape_into(out: &mut String, s: &str, attr: bool) {
     for c in s.chars() {
         match c {
             '&' => out.push_str("&amp;"),
@@ -382,10 +375,21 @@ pub fn xml_text(s: &str) -> String {
             '>' => out.push_str("&gt;"),
             // NFR-17's output is LF-only, and a parser would fold a raw CR to LF.
             '\r' => out.push_str("&#13;"),
+            '"' if attr => out.push_str("&quot;"),
+            '\'' if attr => out.push_str("&apos;"),
+            '\t' if attr => out.push_str("&#9;"),
+            '\n' if attr => out.push_str("&#10;"),
             c if !displayable(c) => out.push('\u{fffd}'),
             c => out.push(c),
         }
     }
+}
+
+/// Context 1: an SVG/XML text node — `&`, `<`, `>`, and CR as a reference.
+#[must_use]
+pub fn xml_text(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    escape_into(&mut out, s, false);
     out
 }
 
@@ -397,20 +401,7 @@ pub fn xml_text(s: &str) -> String {
 pub fn xml_attr(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
-    for c in s.chars() {
-        match c {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            '\'' => out.push_str("&apos;"),
-            '\t' => out.push_str("&#9;"),
-            '\n' => out.push_str("&#10;"),
-            '\r' => out.push_str("&#13;"),
-            c if !displayable(c) => out.push('\u{fffd}'),
-            c => out.push(c),
-        }
-    }
+    escape_into(&mut out, s, true);
     out.push('"');
     out
 }
@@ -583,4 +574,4 @@ git commit -m "feat(escape): JSON island and CSS value contexts (NFR-6 4–5)"
 | 1.0 | 2026-10-09 | Initial version |
 | 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
 | 1.2 | 2026-10-09 | U+FFFD replacement recast as a backstop behind PRD v0.38's FR-90; `displayable` made public so PR 05 shares the set, and widened to DEL and C1 (crumb `rg-jyx`) |
-| 1.3 | 2026-10-09 | PR 6 review: `xml_allowed` renamed `displayable` and widened to DEL and C1; boundary-checked set; the cross-architecture noise test now uses 1e-13 |
+| 1.3 | 2026-10-09 | PR 6 review: `xml_allowed` renamed `displayable` and expressed with `char::is_control`; boundary-checked set; one `escape_into` loop for text and attributes; the cross-architecture noise test now uses 1e-13 |
