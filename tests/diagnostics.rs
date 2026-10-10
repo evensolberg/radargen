@@ -198,3 +198,281 @@ fn render_level_sorts_before_any_cell() {
     assert!(Position::Cell { line: 5, column: 3 } < Position::Cell { line: 5, column: 4 });
     assert!(Position::Cell { line: 5, column: 9 } < Position::Cell { line: 6, column: 0 });
 }
+
+use radargen::diagnostics::Warnings;
+
+fn ring(line: usize, value: &str) -> Warning {
+    at(
+        line,
+        2,
+        WarningKind::UndeclaredRing {
+            value: value.into(),
+        },
+    )
+}
+
+/// SC-24, exactly.
+#[test]
+fn forty_rows_and_a_typo_make_one_ring_line_and_a_duplicate_keeps_its_own() {
+    let mut w = Warnings::default();
+    for line in 4..=44 {
+        w.push(ring(line, if line == 37 { "Adpot" } else { "In Use" }));
+    }
+    w.push(at(
+        50,
+        0,
+        WarningKind::DuplicateName {
+            value: "Kafka".into(),
+            first_line: 9,
+        },
+    ));
+    assert_eq!(
+        w.render(),
+        vec![
+            "warning: 41 rows use a ring --rings does not declare — In Use (40, first line 4), Adpot (1, line 37); all appear in the table view",
+            "warning: line 50, name: name 'Kafka' repeats line 9; both are drawn",
+        ]
+    );
+}
+
+#[test]
+fn a_class_with_one_occurrence_prints_the_per_row_message() {
+    let mut w = Warnings::default();
+    w.push(ring(37, "Adpot"));
+    assert_eq!(
+        w.render(),
+        vec![
+            "warning: line 37, ring: ring 'Adpot' is not declared by --rings; the row is in the table view, not on the radar",
+        ]
+    );
+}
+
+#[test]
+fn values_group_under_fr_76_normalisation() {
+    let mut w = Warnings::default();
+    w.push(ring(4, "In Use"));
+    w.push(ring(5, " in use "));
+    w.push(ring(6, "IN USE"));
+    assert_eq!(
+        w.render(),
+        vec![
+            "warning: 3 rows use a ring --rings does not declare — In Use (3, first line 4); all appear in the table view",
+        ]
+    );
+}
+
+#[test]
+fn render_level_warnings_come_first_and_never_group() {
+    let mut w = Warnings::default();
+    w.push(ring(2, "X"));
+    w.push(render_level(WarningKind::QuadrantCount { count: 9 }));
+    w.push(render_level(WarningKind::OverfullBand {
+        quadrant: "A".into(),
+        ring: "Adopt".into(),
+        count: 12,
+        fits: 10,
+    }));
+    w.push(render_level(WarningKind::OverfullBand {
+        quadrant: "B".into(),
+        ring: "Adopt".into(),
+        count: 11,
+        fits: 10,
+    }));
+    assert_eq!(
+        w.render(),
+        vec![
+            "warning: 9 quadrants; the radar reads best with three to six, so sectors narrow and labels may crowd",
+            "warning: quadrant 'A', ring 'Adopt': 12 items; about 10 fit comfortably, so some markers overlap",
+            "warning: quadrant 'B', ring 'Adopt': 11 items; about 10 fit comfortably, so some markers overlap",
+            "warning: line 2, ring: ring 'X' is not declared by --rings; the row is in the table view, not on the radar",
+        ]
+    );
+}
+
+#[test]
+fn classes_order_by_first_line_then_column() {
+    let mut w = Warnings::default();
+    w.push(ring(9, "X"));
+    w.push(at(
+        5,
+        5,
+        WarningKind::UnrecognisedStatus {
+            value: "Gone".into(),
+        },
+    ));
+    w.push(at(
+        5,
+        4,
+        WarningKind::UnrecognisedQualifier {
+            value: "maybe".into(),
+        },
+    ));
+    let out = w.render();
+    assert!(out[0].contains("line 5, qualifier"), "{out:#?}");
+    assert!(out[1].contains("line 5, status"), "{out:#?}");
+    assert!(out[2].contains("line 9, ring"), "{out:#?}");
+}
+
+#[test]
+fn out_of_order_pushes_are_sorted_by_position() {
+    let mut w = Warnings::default();
+    w.push(ring(40, "X"));
+    w.push(at(
+        3,
+        0,
+        WarningKind::DuplicateName {
+            value: "Kafka".into(),
+            first_line: 2,
+        },
+    ));
+    let out = w.render();
+    assert!(out[0].contains("line 3, name"), "{out:#?}");
+}
+
+#[test]
+fn grouped_values_are_never_capped() {
+    let mut w = Warnings::default();
+    for i in 0..30 {
+        w.push(ring(i + 2, &format!("Ring{i:02}")));
+    }
+    let out = w.render();
+    assert_eq!(out.len(), 1);
+    for i in 0..30 {
+        assert!(
+            out[0].contains(&format!("Ring{i:02} (1, line {})", i + 2)),
+            "missing Ring{i:02}"
+        );
+    }
+}
+
+#[test]
+fn every_row_class_has_a_grouped_line() {
+    let two = |kind: WarningKind| {
+        let mut w = Warnings::default();
+        w.push(at(4, 1, kind.clone()));
+        w.push(at(6, 1, kind));
+        w.render()
+    };
+    assert_eq!(
+        two(WarningKind::UnrecognisedQualifier {
+            value: "maybe".into()
+        }),
+        vec![
+            "warning: 2 rows have an unrecognised qualifier — maybe (2, first line 4); each is drawn solid",
+        ]
+    );
+    assert_eq!(
+        two(WarningKind::UnrecognisedStatus {
+            value: "Gone".into()
+        }),
+        vec![
+            "warning: 2 rows have an unrecognised status — Gone (2, first line 4); each is drawn as No Change",
+        ]
+    );
+    assert_eq!(
+        two(WarningKind::UnparsableDate {
+            column: DateColumn::ExitDate,
+            value: "soon".into()
+        }),
+        vec![
+            "warning: 2 rows have exit_date values that are not YYYY-MM-DD dates — soon (2, first line 4); each is shown as written",
+        ]
+    );
+    assert_eq!(
+        two(WarningKind::EmptyDescription),
+        vec!["warning: 2 rows have an empty description — lines 4, 6; the detail panel omits each",]
+    );
+    assert_eq!(
+        two(WarningKind::DuplicateName {
+            value: "Kafka".into(),
+            first_line: 2
+        }),
+        vec![
+            "warning: 2 rows repeat an earlier name — Kafka (2, first line 4; original line 2); every row is drawn",
+        ]
+    );
+    // Each member names its own column.
+    let mut mixed = Warnings::default();
+    mixed.push(at(
+        4,
+        3,
+        WarningKind::Undisplayable {
+            column: "description".into(),
+            first: '\u{1}',
+            count: 1,
+        },
+    ));
+    mixed.push(at(
+        6,
+        0,
+        WarningKind::Undisplayable {
+            column: "name".into(),
+            first: '\u{7f}',
+            count: 2,
+        },
+    ));
+    assert_eq!(
+        mixed.render(),
+        vec![
+            "warning: 2 fields held characters the output cannot display — line 4 description, line 6 name; each was removed",
+        ]
+    );
+}
+
+#[test]
+fn the_two_date_columns_are_separate_classes() {
+    let mut w = Warnings::default();
+    w.push(at(
+        4,
+        5,
+        WarningKind::UnparsableDate {
+            column: DateColumn::LastAffirmed,
+            value: "x".into(),
+        },
+    ));
+    w.push(at(
+        4,
+        6,
+        WarningKind::UnparsableDate {
+            column: DateColumn::ExitDate,
+            value: "y".into(),
+        },
+    ));
+    assert_eq!(w.render().len(), 2);
+}
+
+#[test]
+fn no_warnings_render_nothing() {
+    assert!(Warnings::default().is_empty());
+    assert_eq!(Warnings::default().render(), Vec::<String>::new());
+}
+
+/// NFR-10 applies to the grouped line too: it prints values through its own
+/// path, and a forged line there is just as convincing.
+#[test]
+fn control_characters_are_escaped_in_grouped_lines_too() {
+    let mut w = Warnings::default();
+    w.push(ring(4, "In\nUse"));
+    w.push(ring(5, "In\nUse"));
+    let out = w.render();
+    assert_eq!(out.len(), 1, "{out:#?}");
+    assert!(!out[0].contains('\n'), "{:?}", out[0]);
+    assert!(out[0].contains(r"In\nUse (2, first line 4)"), "{}", out[0]);
+}
+
+/// NFR-11: values within a grouped line order by the line they first occur
+/// on, not by the order a stage happened to push them.
+#[test]
+fn grouped_values_order_by_first_line_not_push_order() {
+    let mut w = Warnings::default();
+    w.push(ring(37, "Adpot"));
+    w.push(ring(9, "in use"));
+    w.push(ring(4, "In Use"));
+    // The shown spelling is the first occurrence's (line 4), not the first pushed.
+    assert_eq!(
+        w.render(),
+        vec![
+            "warning: 3 rows use a ring --rings does not declare — In Use (2, first line 4), Adpot (1, line 37); all appear in the table view",
+        ]
+    );
+}
