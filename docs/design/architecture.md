@@ -481,10 +481,11 @@ interface that has not been agreed. Each step is testable when it lands.
 | 7 | `emit/{svg,png}.rs`, `--palette`, `--theme`/`--width` plumbing | 5, `text.rs` *(svg outlines re-shape)* | PNG + SVG export — **v1.1** |
 
 Steps 1–6 are v1.0; step 7 is v1.1. The font swap (Libertinus → Inter, FR-85)
-must land **before step 4**, not with packaging: every measured size in `Blocks`
-is face-specific, so changing the face after the golden files exist rewrites all
-of them and hides any real regression in the diff. It brings a second face with
-it (§3), so `text.rs` gains its weight parameter at the same moment.
+had to land **before step 4**, not with packaging, and did (PR 01): every
+measured size in `Blocks` is face-specific, so changing the face after the
+golden files exist rewrites all of them and hides any real regression in the
+diff. It brought a second face with it (§3), so `text.rs` gained its weight
+parameter at the same moment.
 
 **The critical path is 3 → 4 → 5 → 6**, and it carries §14.2's two most
 expensive lines. Steps 1 and 2 are independent of each other and can run in

@@ -94,6 +94,27 @@ fn assets_match_the_digests_the_subsetting_run_recorded() {
             "Inter-SemiBold.woff2"
         ]
     );
+    // A font in `assets/` the run did not record came from somewhere else.
+    let dir = format!("{}/assets", env!("CARGO_MANIFEST_DIR"));
+    let mut on_disk: Vec<String> = std::fs::read_dir(&dir)
+        .unwrap_or_else(|e| panic!("{dir}: {e}"))
+        .map(|e| {
+            e.expect("directory entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .filter(|f| {
+            std::path::Path::new(f)
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("ttf") || e.eq_ignore_ascii_case("woff2"))
+        })
+        .collect();
+    on_disk.sort_unstable();
+    assert_eq!(
+        on_disk, files,
+        "assets/ holds fonts the subsetting run did not record"
+    );
 }
 
 /// NFR-5 inlines both WOFF2 files, yet nothing else decodes either:

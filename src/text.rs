@@ -18,7 +18,7 @@ pub const SEMIBOLD_TTF: &[u8] = include_bytes!("../assets/Inter-SemiBold.ttf");
 
 /// FR-85 pins exactly two weights; FR-35 separates the legend's levels with
 /// them plus size, letter-spacing and indentation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Weight {
     Regular,
     SemiBold,
@@ -59,6 +59,7 @@ impl Fonts<'static> {
 }
 
 impl<'a> Fonts<'a> {
+    /// The metrics for one weight's face.
     #[must_use]
     pub fn face(&self, w: Weight) -> &FontMetrics<'a> {
         match w {
