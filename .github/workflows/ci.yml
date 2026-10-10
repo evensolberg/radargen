@@ -21,22 +21,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
+          persist-credentials: false
+      # Installs the toolchain rust-toolchain.toml pins, with its components.
+      - run: rustup toolchain install
       - run: cargo fmt --check
 
   clippy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          persist-credentials: false
+      # Installs the toolchain rust-toolchain.toml pins, with its components.
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       # Cargo.toml's [lints] denies clippy::pedantic and forbids unsafe_code,
       # so -D warnings is the whole gate (architecture §1).
-      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo clippy --locked --all-targets -- -D warnings
 
   licenses:
     # NFR-18: every dependency is permissive, checked against deny.toml
@@ -44,6 +46,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check licenses
@@ -57,7 +61,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+        with:
+          persist-credentials: false
+      # Installs the toolchain rust-toolchain.toml pins, with its components.
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       # Plain `cargo test` also builds the examples and runs doctests.
-      - run: cargo test
+      - run: cargo test --locked
