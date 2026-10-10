@@ -1,6 +1,6 @@
 //! `csv::decode` and `csv::parse` through the public API (FR-1, FR-2, NFR-10).
 
-use radargen::csv::decode::{decode, read};
+use radargen::csv::decode::read;
 use radargen::csv::parse::parse;
 use radargen::diagnostics::Warnings;
 
@@ -35,25 +35,14 @@ fn an_excel_export_reads_and_parses_with_editor_line_numbers() {
     assert!(w.is_empty());
 }
 
-/// `line_at`'s promise: decode and parse count LF, CRLF and lone CR alike,
-/// so a bad byte on a record's first line is reported at that record's line.
-#[test]
-fn decode_and_parse_agree_on_line_numbers() {
-    let mut bytes = b"h\r\n\r\n\"x\ry\nz\"\r\nq\r".to_vec();
-    let mut text = String::from_utf8(bytes.clone()).expect("ascii");
-    text.push('w');
-    let mut w = Warnings::default();
-    let (table, _) = parse(&text, &mut w).expect("parses");
-    let last = table.records.last().expect("a record").line;
-    bytes.push(0xE9);
-    assert_eq!(last, 7);
-    assert_eq!(decode(&bytes).map_err(|e| e.line), Err(last));
-}
-
 /// An empty sheet saved from Excel is a BOM and nothing else.
 #[test]
 fn a_bom_only_file_has_no_header() {
-    let text = decode(b"\xEF\xBB\xBF").expect("decodes");
+    let path = std::env::temp_dir().join(format!("radargen-bom-only-{}.csv", std::process::id()));
+    std::fs::write(&path, b"\xEF\xBB\xBF").expect("write fixture");
+    let text = read(&path);
+    std::fs::remove_file(&path).expect("remove fixture");
+    let text = text.expect("reads");
     let mut w = Warnings::default();
     let err = parse(&text, &mut w).expect_err("no header");
     assert_eq!(

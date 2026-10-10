@@ -11,8 +11,8 @@ const BOM: &[u8] = b"\xEF\xBB\xBF";
 /// The input is not UTF-8. `line` is the 1-based physical line holding the
 /// first byte that is not.
 #[derive(Debug, PartialEq, Eq)]
-pub struct NotUtf8 {
-    pub line: usize,
+pub(crate) struct NotUtf8 {
+    pub(crate) line: usize,
 }
 
 /// FR-2, then FR-1: strip one leading BOM, then require UTF-8.
@@ -20,7 +20,7 @@ pub struct NotUtf8 {
 /// # Errors
 ///
 /// [`NotUtf8`] naming the line of the first byte that is not UTF-8.
-pub fn decode(bytes: &[u8]) -> Result<String, NotUtf8> {
+pub(crate) fn decode(bytes: &[u8]) -> Result<String, NotUtf8> {
     let body = bytes.strip_prefix(BOM).unwrap_or(bytes);
     std::str::from_utf8(body)
         .map(str::to_string)
@@ -31,8 +31,8 @@ pub fn decode(bytes: &[u8]) -> Result<String, NotUtf8> {
 
 /// The 1-based physical line holding byte `offset`, counting LF, CRLF and a
 /// lone CR once each, as an editor does (NFR-10). `csv::parse` counts the
-/// same way, so the two stages never disagree about a line; `tests/csv.rs`
-/// checks that they agree.
+/// same way, so the two stages never disagree about a line; its test
+/// `decode_and_parse_agree_on_every_small_input` checks that they agree.
 fn line_at(bytes: &[u8], offset: usize) -> usize {
     let mut line = 1;
     let mut after_cr = false;

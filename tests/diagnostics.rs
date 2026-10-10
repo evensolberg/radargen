@@ -638,10 +638,11 @@ fn fatal_messages() {
     }
 }
 
-/// The CSV stage's messages (plan RG-005), apart from `fatal_messages` so
-/// neither passes clippy's `too_many_lines`.
+/// The CSV stage's file-level (tier-one) messages (plan RG-005), apart
+/// from `fatal_messages` so neither passes clippy's `too_many_lines`.
 #[test]
-fn csv_fatal_messages() {
+fn csv_file_messages() {
+    let separated = |line, separator| Fatal::NotCommaSeparated { line, separator };
     let cases = [
         (
             Fatal::Unreadable {
@@ -662,11 +663,12 @@ fn csv_fatal_messages() {
             "error: the CSV has no header row (it is empty or blank); the header must name at least name, quadrant, ring and description",
         ),
         (
-            Fatal::NotCommaSeparated {
-                line: 1,
-                separator: "semicolons",
-            },
+            separated(1, ';'),
             "error: line 1: the header is one column holding semicolons; radargen reads comma-separated files only, so export the file with commas as the separator",
+        ),
+        (
+            separated(2, '\t'),
+            "error: line 2: the header is one column holding tabs; radargen reads comma-separated files only, so export the file with commas as the separator",
         ),
         (
             Fatal::UnterminatedQuote { line: 3, column: 2 },
@@ -676,41 +678,43 @@ fn csv_fatal_messages() {
             Fatal::TextAfterQuote { line: 2, column: 2 },
             "error: line 2, column 2: text follows a closing quote; inside quotes, write a quote as \"\"",
         ),
+    ];
+    for (fatal, expected) in cases {
+        assert_eq!(fatal.render(), expected);
+    }
+}
+
+/// The CSV stage's FR-4 messages (tier two).
+#[test]
+fn csv_header_and_row_messages() {
+    let repeats = |index, name: &str, first_name: &str| Fatal::DuplicateHeader {
+        line: 1,
+        index,
+        name: name.into(),
+        first_index: 1,
+        first_name: first_name.into(),
+    };
+    let count = |found| Fatal::FieldCount {
+        line: 4,
+        found,
+        expected: 2,
+    };
+    let cases = [
         (
-            Fatal::DuplicateHeader {
-                line: 1,
-                index: 3,
-                name: "Name".into(),
-                first_index: 1,
-                first_name: "name".into(),
-            },
+            repeats(3, "Name", "name"),
             "error: line 1: column 3 'Name' repeats column 1 'name'; header names match ignoring case and surrounding spaces, so rename or remove one",
         ),
         // A header is CSV text: a quoted newline in it must not forge a line.
         (
-            Fatal::DuplicateHeader {
-                line: 1,
-                index: 2,
-                name: "a\nerror: forged".into(),
-                first_index: 1,
-                first_name: "a".into(),
-            },
+            repeats(2, "a\nerror: forged", "a"),
             r"error: line 1: column 2 'a\nerror: forged' repeats column 1 'a'; header names match ignoring case and surrounding spaces, so rename or remove one",
         ),
         (
-            Fatal::FieldCount {
-                line: 4,
-                found: 3,
-                expected: 2,
-            },
+            count(3),
             "error: line 4: the row's field count is 3 but the header's is 2; a comma inside a value needs the value in double quotes",
         ),
         (
-            Fatal::FieldCount {
-                line: 4,
-                found: 1,
-                expected: 2,
-            },
+            count(1),
             "error: line 4: the row's field count is 1 but the header's is 2; a value is missing, or an unquoted line break split the row",
         ),
     ];

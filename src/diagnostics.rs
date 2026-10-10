@@ -489,13 +489,12 @@ pub enum Fatal {
     /// FR-1: a one-column header holding `;` or a tab is a file with another
     /// separator — Excel writes `;` where a comma is the decimal mark.
     /// Without this, every row would mis-report its field count.
+    /// `separator` is the `;` or tab found.
     #[error(
-        "line {line}: the header is one column holding {separator}; radargen reads comma-separated files only, so export the file with commas as the separator"
+        "line {line}: the header is one column holding {}; radargen reads comma-separated files only, so export the file with commas as the separator",
+        if *separator == ';' { "semicolons" } else { "tabs" }
     )]
-    NotCommaSeparated {
-        line: usize,
-        separator: &'static str,
-    },
+    NotCommaSeparated { line: usize, separator: char },
     /// FR-4: a header name repeated under FR-76's normalisation, so
     /// `Name` and `name ` collide. Indices are 1-based; names are as
     /// written, trimmed, so the author can find both cells.

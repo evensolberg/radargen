@@ -34,6 +34,9 @@ enum End {
 struct Scanner<'a> {
     chars: Peekable<Chars<'a>>,
     line: usize,
+    /// The line the record being scanned began on, for an error that
+    /// names the record rather than the fault.
+    record_line: usize,
     /// The character that followed a closing quote, when that was a
     /// [`Fatal::TextAfterQuote`]: a `;` there in the header means another
     /// separator, not bad quoting.
@@ -45,6 +48,7 @@ impl<'a> Scanner<'a> {
         Self {
             chars: text.chars().peekable(),
             line: 1,
+            record_line: 1,
             after_quote: None,
         }
     }
@@ -80,44 +84,56 @@ impl<'a> Scanner<'a> {
     /// One field and what ended it. `column` is its 1-based position, for
     /// the error message.
     fn field(&mut self, column: usize) -> Result<(String, End), Fatal> {
-        let mut text = String::new();
         if self.chars.next_if_eq(&'"').is_some() {
-            let opened = self.line;
-            loop {
-                match self.chars.next() {
-                    None => {
-                        return Err(Fatal::UnterminatedQuote {
-                            line: opened,
-                            column,
-                        });
+            self.quoted(column)
+        } else {
+            Ok(self.unquoted())
+        }
+    }
+
+    /// The rest of a quoted field, its opening quote consumed: content up
+    /// to the closing quote, `""` read as one quote, then what ends it.
+    fn quoted(&mut self, column: usize) -> Result<(String, End), Fatal> {
+        let opened = self.line;
+        let mut text = String::new();
+        loop {
+            match self.chars.next() {
+                None => {
+                    return Err(Fatal::UnterminatedQuote {
+                        line: opened,
+                        column,
+                    });
+                }
+                Some('"') if self.chars.next_if_eq(&'"').is_some() => text.push('"'),
+                Some('"') => break,
+                Some(c) => {
+                    // A break inside quotes is content, and still a
+                    // physical line; CRLF is counted at its LF.
+                    if c == '\n' || (c == '\r' && self.chars.peek() != Some(&'\n')) {
+                        self.line += 1;
                     }
-                    Some('"') if self.chars.next_if_eq(&'"').is_some() => text.push('"'),
-                    Some('"') => break,
-                    Some(c) => {
-                        // A break inside quotes is content, and still a
-                        // physical line; CRLF is counted at its LF.
-                        if c == '\n' || (c == '\r' && self.chars.peek() != Some(&'\n')) {
-                            self.line += 1;
-                        }
-                        text.push(c);
-                    }
+                    text.push(c);
                 }
             }
-            if let Some(end) = self.end() {
-                return Ok((text, end));
-            }
-            self.after_quote = self.chars.peek().copied();
-            return Err(Fatal::TextAfterQuote {
-                line: self.line,
-                column,
-            });
         }
+        if let Some(end) = self.end() {
+            return Ok((text, end));
+        }
+        self.after_quote = self.chars.peek().copied();
+        Err(Fatal::TextAfterQuote {
+            line: self.line,
+            column,
+        })
+    }
+
+    /// An unquoted field. A quote inside one is kept literally (Decisions).
+    fn unquoted(&mut self) -> (String, End) {
+        let mut text = String::new();
         loop {
             if let Some(end) = self.end() {
-                return Ok((text, end));
+                return (text, end);
             }
-            // `end` returned `None`, so a character follows. A quote inside
-            // an unquoted field is kept literally (Decisions).
+            // `end` returned `None`, so a character follows.
             if let Some(c) = self.chars.next() {
                 text.push(c);
             }
@@ -144,6 +160,7 @@ impl Iterator for Scanner<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         while self.chars.peek().is_some() {
             let line = self.line;
+            self.record_line = line;
             let mut fields = Vec::new();
             loop {
                 let (field, end) = match self.field(fields.len() + 1) {
@@ -188,34 +205,51 @@ pub struct Table {
 /// empty file, or a header that shows another separator was used.
 pub fn parse(text: &str, w: &mut Warnings) -> Result<(Table, Vec<Fatal>), Fatal> {
     let mut scanner = Scanner::new(text);
-    let head = match scanner.next() {
-        None => return Err(Fatal::NoHeader),
-        // A quoted header cell followed by `;` or a tab: `"name";"ring"`.
-        Some(Err(Fatal::TextAfterQuote { line, .. }))
-            if let Some(separator) = scanner.after_quote.and_then(separator_name) =>
-        {
-            return Err(Fatal::NotCommaSeparated { line, separator });
-        }
-        Some(head) => head?,
-    };
-    let (head, removed) = cleaned(head);
-    let header = head.fields;
+    let first = scanner.next();
+    let (head, removed) = cleaned(header(first, scanner.after_quote, scanner.record_line)?);
     // Judged before the rest is scanned: a quoted first-column cell in a
     // `;` export would otherwise surface as a quoting error.
-    if let Some(separator) = other_separator(&header) {
-        return Err(Fatal::NotCommaSeparated {
-            line: head.line,
-            separator,
-        });
-    }
+    check_separator(&head)?;
+    // Every row is scanned before any warns, so a quoting error stands alone.
+    let rows = scanner.collect::<Result<Vec<_>, _>>()?;
+    let header = head.fields;
     warn(w, head.line, &removed, &header);
-
     let mut errors = duplicate_headers(&header, head.line);
+    let (records, row_errors) = checked(rows, &header, w);
+    errors.extend(row_errors);
+    let table = Table {
+        header,
+        header_line: head.line,
+        records,
+    };
+    Ok((table, errors))
+}
+
+/// The header record, from the scanner's first result. A quoting error in
+/// its first cell that a `;` or tab caused (`"name";"ring"`) is the
+/// separator's error instead, at the header's line.
+fn header(
+    first: Option<Result<Record, Fatal>>,
+    after_quote: Option<char>,
+    line: usize,
+) -> Result<Record, Fatal> {
+    match (first, after_quote) {
+        (None, _) => Err(Fatal::NoHeader),
+        (Some(Err(Fatal::TextAfterQuote { column: 1, .. })), Some(separator @ (';' | '\t'))) => {
+            Err(Fatal::NotCommaSeparated { line, separator })
+        }
+        (Some(head), _) => head,
+    }
+}
+
+/// FR-4's field counts and FR-90's removal for every data row: the
+/// well-formed rows, and an error for each of the rest.
+fn checked(rows: Vec<Record>, header: &[String], w: &mut Warnings) -> (Vec<Record>, Vec<Fatal>) {
     let mut records = Vec::new();
-    for row in scanner {
-        let row = row?;
+    let mut errors = Vec::new();
+    for row in rows {
         let (row, removed) = cleaned(row);
-        warn(w, row.line, &removed, &header);
+        warn(w, row.line, &removed, header);
         if row.fields.len() == header.len() {
             records.push(row);
         } else {
@@ -226,34 +260,25 @@ pub fn parse(text: &str, w: &mut Warnings) -> Result<(Table, Vec<Fatal>), Fatal>
             });
         }
     }
-    let table = Table {
-        header,
-        header_line: head.line,
-        records,
-    };
-    Ok((table, errors))
+    (records, errors)
 }
 
-/// FR-1: the separator a one-column header shows was used instead of a
-/// comma, if any. A one-column header can never satisfy FR-5, so naming
-/// the real cause loses nothing (Decisions).
-fn other_separator(header: &[String]) -> Option<&'static str> {
-    let [only] = header else {
-        return None;
+/// FR-1: a one-column header holding a `;` or tab shows that separator
+/// was used instead of a comma. A one-column header can never satisfy
+/// FR-5, so naming the real cause loses nothing (Decisions).
+fn check_separator(head: &Record) -> Result<(), Fatal> {
+    let [only] = head.fields.as_slice() else {
+        return Ok(());
     };
     [';', '\t']
         .into_iter()
         .find(|&c| only.contains(c))
-        .and_then(separator_name)
-}
-
-/// How a message names a separator other than a comma.
-const fn separator_name(c: char) -> Option<&'static str> {
-    match c {
-        ';' => Some("semicolons"),
-        '\t' => Some("tabs"),
-        _ => None,
-    }
+        .map_or(Ok(()), |separator| {
+            Err(Fatal::NotCommaSeparated {
+                line: head.line,
+                separator,
+            })
+        })
 }
 
 /// FR-90: `record` with every undisplayable character removed, and for each
@@ -706,6 +731,21 @@ mod tests {
                 "{text:?}"
             );
         }
+        // A quoted header cell holding a line break: the header's own line.
+        assert_eq!(
+            errors("\"na\nme\";\"ring\"\nx\n"),
+            [
+                "error: line 1: the header is one column holding semicolons; radargen reads comma-separated files only, so export the file with commas as the separator"
+            ]
+        );
+        // A header that already split on a comma is not one column, so a
+        // `;` after a later quoted cell is a quoting error.
+        assert_eq!(
+            errors("name,\"Notes\";x\nKafka,y\n"),
+            [
+                "error: line 1, column 2: text follows a closing quote; inside quotes, write a quote as \"\""
+            ]
+        );
         // A quoting error in a comma-separated header is still one.
         assert_eq!(
             errors("\"name\"x,ring\n"),
@@ -762,10 +802,24 @@ mod tests {
         assert!(warnings.is_empty(), "{warnings:?}");
     }
 
+    /// Malformed quoting in a later row: the rows before it warn about
+    /// nothing, since the run stops at the quoting error (NFR-16).
+    #[test]
+    fn a_quoting_error_leaves_no_warnings() {
+        for text in ["a,a\n\u{1}\n\"open\n", "a,b\n1,\u{1}\n\"x\"y,2\n"] {
+            let (table, errs, warnings) = parsed(text);
+            assert!(table.is_err() && errs.is_empty(), "{text:?}");
+            assert!(warnings.is_empty(), "{text:?}: {warnings:?}");
+        }
+    }
+
     /// `decode::line_at`'s promise, exhaustively: a bad byte where a record
     /// starts is reported on the line `parse` gives that record.
     #[test]
     fn decode_and_parse_agree_on_every_small_input() {
+        // Today's count; see the assertion at the end.
+        const COMPARED_FLOOR: usize = 4656;
+        let mut compared = 0;
         for body in all_texts(&['a', ',', '"', '\n', '\r'], 6) {
             if !body.ends_with(['\n', '\r']) {
                 continue;
@@ -784,7 +838,14 @@ mod tests {
                 Err(last),
                 "{text:?}"
             );
+            compared += 1;
         }
+        // Parse failures are skipped above; a regression that made more of
+        // them must not quietly shrink what this test checks.
+        assert!(
+            compared >= COMPARED_FLOOR,
+            "only {compared} inputs compared"
+        );
     }
 
     /// Review focus 7: a bad row is reported, and the good rows still reach
