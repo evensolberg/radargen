@@ -1,91 +1,103 @@
 <!doctype html>
+<!--
+  Reflects PRD v0.40 and the decisions implemented in PRs 01–04: FR-82 neutral
+  roles and FR-81's eight-colour series, Inter 400/600 (FR-85), no uppercase
+  transforms, the style.rs type scale and marker geometry, a 380 legend in both
+  arrangements (D-56) and FR-69's computed breakpoint. Where this file and the
+  code disagree, src/style.rs and src/palette.rs are authoritative.
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>radargen — Layout Mockup</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
+  /* FR-85: the two vendored Inter faces, and only those two weights. */
+  @font-face {
+    font-family: "Inter"; font-style: normal; font-weight: 400;
+    src: url("../../assets/Inter-Regular.woff2") format("woff2");
+  }
+  @font-face {
+    font-family: "Inter"; font-style: normal; font-weight: 600;
+    src: url("../../assets/Inter-SemiBold.woff2") format("woff2");
+  }
+
+  /* FR-81 series (shared by both themes — only the neutrals move) and FR-82's
+     eight neutral roles. Values from src/palette.rs / palette.sample.css. */
   :root {
     color-scheme: light;
-    --surface-1:      #fcfcfb;
-    --page:           #f9f9f7;
-    --text-primary:   #0b0b0b;
-    --text-secondary: #52514e;
-    --text-muted:     #898781;
-    --gridline:       #e1e0d9;
-    --baseline:       #c3c2b7;
-    --border:         rgba(11,11,11,0.10);
-    --focus-ring:      #2a78d6;
-    --series-1: #2a78d6; /* blue     — quadrant 1 */
-    --series-2: #eb6834; /* orange   — quadrant 2 */
-    --series-3: #1baf7a; /* aqua     — quadrant 3 */
-    --series-4: #eda100; /* yellow   — quadrant 4 (stress test only) */
-    --series-5: #e87ba4; /* magenta  — quadrant 5 (stress test only) */
+    --series-1: #0072B2;  /* blue       */
+    --series-2: #C25400;  /* vermillion */
+    --series-3: #00857A;  /* teal       */
+    --series-4: #787832;  /* olive      */
+    --series-5: #B5476B;  /* rose       */
+    --series-6: #2F9626;  /* green      */
+    --series-7: #C431B8;  /* magenta    */
+    --series-8: #9D5A43;  /* terracotta */
+
+    --surface-1: #FFFFFF;       /* radar ground                       */
+    --surface-2: #F4F5F7;       /* legend, detail panel, table, page  */
+    --text-primary: #16191F;
+    --text-muted: #585F6B;
+    --stroke-ring: #7E858F;     /* ring circles                       */
+    --stroke-divider: #848B96;  /* quadrant dividers                  */
+    --marker-hollow: #FFFFFF;   /* FR-20 conditional fill             */
+    --focus: #0B5FA5;           /* focus indicator (FR-48)            */
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) {
       color-scheme: dark;
-      --surface-1:      #1a1a19;
-      --page:           #0d0d0d;
-      --text-primary:   #ffffff;
-      --text-secondary: #c3c2b7;
-      --text-muted:     #898781;
-      --gridline:       #2c2c2a;
-      --baseline:       #383835;
-      --border:         rgba(255,255,255,0.10);
-      --focus-ring:      #3987e5;
-      --series-1: #3987e5;
-      --series-2: #d95926;
-      --series-3: #199e70;
-      --series-4: #c98500;
-      --series-5: #d55181;
+      --surface-1: #15181D;
+      --surface-2: #1E222A;
+      --text-primary: #E8EAEE;
+      --text-muted: #A6AEBB;
+      --stroke-ring: #6C7480;
+      --stroke-divider: #666E7A;
+      --marker-hollow: #15181D;
+      --focus: #7FB8E6;
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --surface-1:      #1a1a19;
-    --page:           #0d0d0d;
-    --text-primary:   #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted:     #898781;
-    --gridline:       #2c2c2a;
-    --baseline:       #383835;
-    --border:         rgba(255,255,255,0.10);
-    --focus-ring:      #3987e5;
-    --series-1: #3987e5;
-    --series-2: #d95926;
-    --series-3: #199e70;
-    --series-4: #c98500;
-    --series-5: #d55181;
+    --surface-1: #15181D;
+    --surface-2: #1E222A;
+    --text-primary: #E8EAEE;
+    --text-muted: #A6AEBB;
+    --stroke-ring: #6C7480;
+    --stroke-divider: #666E7A;
+    --marker-hollow: #15181D;
+    --focus: #7FB8E6;
   }
 
   * { box-sizing: border-box; }
   html, body {
     margin: 0; padding: 0;
-    background: var(--page);
+    background: var(--surface-2);
     color: var(--text-primary);
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   }
+  /* FR-85 ships 400 and 600 only; nothing on the page asks for 700. */
+  h1, strong, b, th, dt { font-weight: 600; }
   body { padding: 24px; }
   .wrap { max-width: 1240px; margin: 0 auto; }
 
   h1 { font-size: 1.25rem; margin: 0 0 4px; }
-  .subtitle { color: var(--text-secondary); font-size: 0.9rem; margin: 0 0 20px; max-width: 70ch; }
+  .subtitle { color: var(--text-muted); font-size: 0.9rem; margin: 0 0 20px; max-width: 70ch; }
 
   .toolbar {
     display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
     margin-bottom: 16px; padding: 12px 16px;
-    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface-1); border: 1px solid var(--stroke-divider); border-radius: 8px;
   }
-  .toolbar label { font-size: 0.85rem; color: var(--text-secondary); }
+  .toolbar label { font-size: 0.85rem; color: var(--text-muted); }
   .toolbar select, .toolbar button {
     font: inherit; font-size: 0.85rem;
-    background: var(--page); color: var(--text-primary);
-    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface-2); color: var(--text-primary);
+    border: 1px solid var(--stroke-divider); border-radius: 6px;
     padding: 6px 10px; cursor: pointer;
   }
   .toolbar select:focus-visible, .toolbar button:focus-visible {
-    outline: 2px solid var(--focus-ring); outline-offset: 2px;
+    outline: 2px solid var(--focus); outline-offset: 2px;
   }
   .toolbar .note { font-size: 0.8rem; color: var(--text-muted); margin-left: auto; }
 
@@ -95,104 +107,124 @@
      between two. `display:none` (not visibility/opacity) is what keeps the
      hidden copy out of both the tab order and the accessibility tree, so
      exactly one set of markers and legend rows is ever exposed.
-     Stacked is the default; wide takes over above the breakpoint. */
+     Stacked is the default; wide takes over above the breakpoint. The breakpoint
+     is not a constant (FR-69): it is the viewport width at which the wide
+     document's 12.5px legend names render at 10px, round(wide width × 10 / 12.5),
+     so the script writes the media query once it knows the wide width — see
+     setBreakpoint(). */
   .visual-panel {
-    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    background: var(--surface-1); border: 1px solid var(--stroke-divider); border-radius: 10px;
     padding: 16px;
   }
   #visual-wide, #visual-stacked { width: 100%; height: auto; }
   #visual-wide { display: none; }
   #visual-stacked { display: block; }
-  @media (min-width: 900px) {
-    #visual-wide { display: block; }
-    #visual-stacked { display: none; }
-  }
 
+  /* Type scale: src/style.rs, one rule per TextStyle. No text-transform anywhere
+     in the graphic — it is invisible to measurement and to resvg, and FR-76
+     forbids editing a label to fake it. */
   .quadrant-label {
-    fill: var(--text-secondary); font-size: 12px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.04em;
+    fill: var(--text-primary); font-size: 12px; font-weight: 600; letter-spacing: 0.48px;
   }
-  .ring-label { fill: var(--text-muted); font-size: 10px; }
+  .ring-label { fill: var(--text-muted); font-size: 10px; font-weight: 400; }
+  /* LABEL_HALO: a stroke-only copy painted before the label, so the 12 o'clock
+     divider (FR-31) does not strike through it. A separate element rather than
+     paint-order, which a consumer that ignores it would paint over the glyphs. */
+  .ring-label.halo {
+    fill: none; stroke: var(--surface-1); stroke-width: 3; stroke-linejoin: round;
+  }
   /* In the narrow arrangement the radar group is scaled down, which would drag its
      labels below legibility with it. Counter-scaling the type keeps ring and
      quadrant names readable at the size the radar actually renders on a phone.
-     Marker numbers stay small — see the caption; the legend is the phone interface. */
+     Marker numbers stay small — see the caption; the legend is the phone interface.
+     Mockup-only: src/style.rs has no narrow sizes yet, and the radar block's width
+     is measured at the wide 12px quadrant-label size in both arrangements. */
   .radar-narrow .ring-label { font-size: 16px; }
   .radar-narrow .quadrant-label { font-size: 15px; }
   .radar-narrow .item-number { font-size: 13px; }
-  .divider { stroke: var(--gridline); stroke-width: 1; }
-  .ring-circle { fill: none; stroke: var(--gridline); stroke-width: 1; }
+  .divider { stroke: var(--stroke-divider); stroke-width: 1; }
+  .ring-circle { fill: none; stroke: var(--stroke-ring); stroke-width: 1; }
   .item-number { font-size: 9px; font-weight: 600; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
   .marker { cursor: pointer; }
   .marker:hover, .marker.hovered { filter: brightness(1.15); }
-  .marker:focus-visible, .legend-row-g:focus-visible {
-    outline: 2px solid var(--focus-ring); outline-offset: 2px;
+  /* Keyboard focus on a marker is a ring FOCUS_RING_GAP (8) outside the marker's
+     edge, clear of the status ring, so it is judged against Surface1 and never
+     against a series fill, where the focus colour manages only 1.3–2.5:1. An
+     outline box would sit on whatever the marker overlaps. */
+  .marker:focus { outline: none; }
+  .focus-ring { fill: none; stroke: var(--focus); stroke-width: 2; visibility: hidden; pointer-events: none; }
+  .marker:focus-visible .focus-ring { visibility: visible; }
+  .legend-row-g:focus-visible {
+    outline: 2px solid var(--focus); outline-offset: 2px;
   }
   /* Selection shows on the marker AND the legend row, whichever was activated.
      Without this the class is applied to the marker and styled nowhere, so
      choosing a legend row left the radar with no indication of which dot the
      open panel referred to. A rectangular outline rather than a ring: rings
-     around markers already mean status (FR-40), and a second one would read
-     as one. */
-  .marker.active { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+     around markers already mean status (FR-40) and keyboard focus, and a third
+     would read as one of those. */
+  .marker.active { outline: 2px solid var(--focus); outline-offset: 2px; }
 
+  /* The legend sits on Surface2; the radar, title and key on Surface1. */
+  .legend-panel { fill: var(--surface-2); }
   .legend-heading { fill: var(--text-primary); font-size: 13px; font-weight: 600; }
-  .legend-group-title { fill: var(--text-secondary); font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; }
-  .legend-ring-title { fill: var(--text-muted); font-size: 10px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; }
+  .legend-group-title { fill: var(--text-primary); font-size: 12px; font-weight: 600; letter-spacing: 0.36px; }
+  .legend-ring-title { fill: var(--text-muted); font-size: 10px; font-weight: 600; letter-spacing: 0.3px; }
   .legend-row-g { cursor: pointer; }
   .legend-row-bg { fill: transparent; }
   /* Hover and selection had been styled identically, so a selected row was
      indistinguishable from one the pointer happened to be over. Selection keeps
      the fill and adds the same outline the marker gets. */
   .legend-row-g:hover .legend-row-bg,
-  .legend-row-g.hovered .legend-row-bg { fill: var(--page); }
+  .legend-row-g.hovered .legend-row-bg { fill: var(--surface-1); }
   .legend-row-g.active .legend-row-bg {
-    fill: var(--page); stroke: var(--focus-ring); stroke-width: 1.5;
+    fill: var(--surface-1); stroke: var(--focus); stroke-width: 1.5;
   }
-  /* Legend badges are smaller than radar markers (r=7 vs r=10): the badge is a
+  /* Legend badges are smaller than radar markers (r=8 vs r=10): the badge is a
      list bullet, not a second copy of the marker, and the saved height compounds
-     over a long legend. The hollow/solid encoding still has to survive the
+     over a long legend. 8 rather than 7 because a hollow r=7 badge cannot hold
+     Inter SemiBold 9px "44". The hollow/solid encoding still has to survive the
      reduction, so the hollow stroke thins to 2px to leave a visible fill gap. */
-  .legend-num-text { font-size: 9px; font-weight: 700; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
-  .legend-name { fill: var(--text-primary); font-size: 12.5px; }
-  .legend-meta { fill: var(--text-muted); font-size: 10.5px; }
+  .legend-num-text { font-size: 9px; font-weight: 600; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  .legend-name { fill: var(--text-primary); font-size: 12.5px; font-weight: 400; }
+  .legend-meta { fill: var(--text-muted); font-size: 10.5px; font-weight: 400; }
 
   /* Title block and key live inside the SVG (PRD FR-65, FR-66) so they survive
      PNG export. They were previously HTML siblings of the <svg>, which meant a
      rasterised radar carried neither. */
-  .title-main { fill: var(--text-primary); font-size: 17px; font-weight: 700; }
-  .title-sub { fill: var(--text-secondary); font-size: 12px; }
+  .title-main { fill: var(--text-primary); font-size: 17px; font-weight: 600; }
+  .title-sub { fill: var(--text-muted); font-size: 12px; font-weight: 400; }
   .key-heading { fill: var(--text-primary); font-size: 13px; font-weight: 600; }
-  .key-label { fill: var(--text-secondary); font-size: 11px; }
-  .key-rule { stroke: var(--gridline); stroke-width: 1; }
+  .key-label { fill: var(--text-muted); font-size: 11px; font-weight: 400; }
+  .key-rule { stroke: var(--stroke-divider); stroke-width: 1; }
   .caption { font-size: 0.78rem; color: var(--text-muted); margin-top: 14px; max-width: 80ch; }
   .warn-note {
-    font-size: 0.78rem; color: var(--text-secondary); margin: 12px 0 0;
-    padding: 8px 10px; border-left: 3px solid var(--series-2); background: var(--page);
+    font-size: 0.78rem; color: var(--text-primary); margin: 12px 0 0;
+    padding: 8px 10px; border-left: 3px solid var(--series-2); background: var(--surface-1);
   }
 
   .aux-panel {
-    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    background: var(--surface-1); border: 1px solid var(--stroke-divider); border-radius: 10px;
     padding: 16px; margin-top: 20px;
   }
 
   .detail-card {
     padding: 12px; border-radius: 8px;
-    background: var(--page); border: 1px solid var(--border);
-    font-size: 0.82rem; color: var(--text-secondary); display: none;
+    background: var(--surface-2); border: 1px solid var(--stroke-divider);
+    font-size: 0.82rem; color: var(--text-primary); display: none;
     position: relative;
   }
   .detail-card.visible { display: block; }
-  .detail-card dt { font-weight: 600; color: var(--text-primary); margin-top: 6px; }
+  .detail-card dt { color: var(--text-primary); margin-top: 6px; }
   .detail-card dt:first-child { margin-top: 0; }
   .detail-card dd { margin: 0 0 2px; }
   .detail-close {
     position: absolute; top: 8px; right: 8px;
-    background: transparent; border: 1px solid var(--border); border-radius: 6px;
+    background: transparent; border: 1px solid var(--stroke-divider); border-radius: 6px;
     width: 24px; height: 24px; font-size: 0.9rem; line-height: 1; cursor: pointer;
-    color: var(--text-secondary);
+    color: var(--text-muted);
   }
-  .detail-close:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .detail-close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .detail-placeholder { font-size: 0.82rem; color: var(--text-muted); }
 
   table.data-table {
@@ -200,16 +232,17 @@
   }
   table.data-table.visible { display: table; }
   table.data-table th, table.data-table td {
-    text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--gridline);
+    text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--stroke-divider);
   }
-  table.data-table th { color: var(--text-secondary); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+  table.data-table th { color: var(--text-muted); font-size: 0.75rem; }
   /* FR-18/FR-41: unplotted rows are visibly flagged, not silently interleaved. */
   table.data-table tr.unplotted td { color: var(--text-muted); }
   table.data-table tr.unplotted .flag {
-    color: var(--series-2); font-weight: 600; font-size: 0.72rem;
-    text-transform: uppercase; letter-spacing: 0.03em;
+    color: var(--series-2); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.03em;
   }
 </style>
+<!-- FR-69's media query, written by setBreakpoint() once the wide width is known. -->
+<style id="arrangement-mq"></style>
 </head>
 <body>
 <div class="wrap">
@@ -218,9 +251,11 @@
     Not the real tool — a static preview validating: an arbitrary (non-4) number of
     quadrants and an arbitrary ring count (PRD FR-8, FR-14); radar, legend, title block
     and key as one SVG document (§6.3); and the two arrangements that document is
-    emitted in — <strong>side-by-side above 900px, stacked below</strong> — which is
+    emitted in — <strong>side-by-side above a breakpoint, stacked below</strong> — which is
     what the HTML output ships both of and the PNG exports the wide one of (FR-51).
-    Resize the window past 900px to switch. Quadrants render in case-insensitive
+    The breakpoint is computed per document (FR-69): the viewport width at which the
+    wide document's 12.5px legend names would render at 10px, here
+    <strong id="breakpoint-px">—</strong>. Resize the window across it to switch. Quadrants render in case-insensitive
     alphabetical order (FR-10); rings come from the selector below, centre to edge,
     exactly as <code>--rings</code> declares them.
   </p>
@@ -251,7 +286,7 @@
       Beyond 3 quadrants, sector colour is a supporting cue, not the identity channel —
       angular position and the label at the sector's outer edge always disambiguate which
       quadrant an item belongs to, independent of whether every colour pair is distinguishable
-      on its own (FR-39). Past five quadrants the palette cycles (FR-67), which is only
+      on its own (FR-39). Past eight quadrants the palette cycles (FR-67), which is only
       tolerable because of that.
     </p>
   </div>
@@ -286,7 +321,28 @@ const RING_SETS = {
   two:          ["Retire", "Adopt"]
 };
 const R_MAX = 260; // outermost band edge; bands divide this equally (FR-32)
-const SERIES = ["var(--series-1)", "var(--series-2)", "var(--series-3)", "var(--series-4)", "var(--series-5)"];
+// FR-81: eight entries, assigned by sorted quadrant index and cycled with % 8 past
+// that (FR-67). Rendering uses the custom properties; the hex copies exist only to
+// pick each entry's number ink.
+const SERIES_HEX = ["#0072B2", "#C25400", "#00857A", "#787832", "#B5476B", "#2F9626", "#C431B8", "#9D5A43"];
+const SERIES = SERIES_HEX.map((_, i) => `var(--series-${i + 1})`);
+
+// FR-82 / D-54: the number on a solid marker or badge is #FFFFFF or #16191F,
+// whichever contrasts more with that series entry (white on a tie) — the same
+// WCAG 2.x formula as palette.rs. For the built-in series only green takes the
+// dark ink.
+function luminance(hex) {
+  const ch = (i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * ch(1) + 0.7152 * ch(3) + 0.0722 * ch(5);
+}
+function contrast(a, b) {
+  const [la, lb] = [luminance(a), luminance(b)];
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+const SERIES_INK = SERIES_HEX.map((h) => (contrast(h, "#FFFFFF") >= contrast(h, "#16191F") ? "#FFFFFF" : "#16191F"));
 
 // Every CSV-derived string passes through this before reaching markup (NFR-6). The
 // real tool escapes per output context; a prototype that concatenated raw values
@@ -364,7 +420,6 @@ const RADAR_BLOCK_H = 650;      // radar + quadrant labels bottom out around her
 const MIN_RADAR_W = 660;
 const MARGIN = 20;
 const COLUMN_GAP = 28;          // between radar column and legend column, wide only
-const LEGEND_W_WIDE = 440;
 // The narrow arrangement is not merely the wide one stacked. The radar needs ~700
 // user units to hold its labels; if the whole document is that wide, a phone scales
 // it to ~50% and 12.5px legend text lands at ~6px — unreadable, and exactly the
@@ -372,8 +427,13 @@ const LEGEND_W_WIDE = 440;
 // is scaled down inside it, leaving text at its natural size. Text legibility wins
 // over radar size, because a legend you cannot read makes the radar useless anyway.
 const NARROW_DOC_W = 420;
+// FR-79 / D-56: one legend wrap width for both arrangements, so the narrow
+// document always holds it (the wide legend was 440 before).
+const LEGEND_WIDTH_MAX = NARROW_DOC_W - 2 * MARGIN;   // 380
 const MARKER_R = 10;
-const BADGE_R = 7;              // legend badge, deliberately smaller than the marker
+const BADGE_R = 8;              // legend badge, deliberately smaller than the marker
+const STATUS_RING_GAP = 4;      // FR-40 ring, from the marker's edge to its centre line
+const FOCUS_RING_GAP = 8;       // keyboard focus ring, likewise
 const LINE_H = 15;              // legend text line height
 // Three levels — quadrant, ring, item — each indented under the one above, so the
 // grouping is legible as structure rather than only as typographic weight. The ring
@@ -383,8 +443,15 @@ const INDENT_QUADRANT = 16;
 const INDENT_RING = 24;
 const INDENT_ITEM = 44;
 const META_GAP = 8;             // space between an item name and its trailing meta
-const NAME_FONT = "600 12.5px system-ui, -apple-system, sans-serif";
-const META_FONT = "10.5px system-ui, -apple-system, sans-serif";
+// FR-85: a measurement is (face, size, letter-spacing). Each entry must match the
+// CSS rule that renders the text — family, weight, size and spacing alike.
+const FONT_STACK = '"Inter", system-ui, -apple-system, "Segoe UI", sans-serif';
+const QUADRANT_LABEL_STYLE = { font: `600 12px ${FONT_STACK}`, spacing: 0.48 };   // .quadrant-label
+const NAME_STYLE = { font: `400 12.5px ${FONT_STACK}`, spacing: 0 };              // .legend-name
+const META_STYLE = { font: `400 10.5px ${FONT_STACK}`, spacing: 0 };              // .legend-meta
+// FR-69: the rendered legend-name size below which the HTML switches to narrow.
+const MIN_LEGIBLE_PX = 10;
+const LEGEND_NAME_PX = 12.5;
 
 // --- geometry helpers -------------------------------------------------
 // cx is passed rather than read from a module-level binding: the radar block is
@@ -407,7 +474,7 @@ function halfRingPath(x, y, r, directionDeg) {
 // the centre or the edge respectively, so direction is derived from the marker's
 // own position rather than from a fixed angle.
 function statusRingMarkup(cx, x, y, markerR, status, color) {
-  const ringR = markerR + 4;
+  const ringR = markerR + STATUS_RING_GAP;
   if (status === "new") {
     return `<circle cx="${x}" cy="${y}" r="${ringR}" fill="none" stroke="${color}" stroke-width="2" />`;
   }
@@ -423,14 +490,19 @@ function statusRingMarkup(cx, x, y, markerR, status, color) {
 // metrics library for — here, a throwaway canvas 2D context stands in) --
 const measureCanvas = document.createElement("canvas");
 const measureCtx = measureCanvas.getContext("2d");
-function wrapText(text, maxWidth, font) {
-  measureCtx.font = font;
+// CSS letter-spacing adds its amount after every character, so it is added here
+// per character rather than left to canvas support for `letterSpacing`.
+function measure(text, style) {
+  measureCtx.font = style.font;
+  return measureCtx.measureText(text).width + style.spacing * [...text].length;
+}
+function wrapText(text, maxWidth, style) {
   const words = text.split(" ");
   const lines = [];
   let current = "";
   words.forEach((w) => {
     const test = current ? current + " " + w : w;
-    if (current && measureCtx.measureText(test).width > maxWidth) {
+    if (current && measure(test, style) > maxWidth) {
       lines.push(current);
       current = w;
     } else {
@@ -530,9 +602,13 @@ function buildRadar(radarW, quadrants, rings, items, prep) {
   });
 
   // FR-19: a declared ring with no matching rows still draws its band and label.
+  // Each label is two elements: the stroke-only halo first, then the fill-only
+  // label over it (LABEL_HALO). The halo is aria-hidden so the name is read once.
   rings.forEach((ring, i) => {
     const [inner, outer] = band(i);
-    parts.push(`<text class="ring-label" x="${cx}" y="${CY - (inner + outer) / 2}" text-anchor="middle">${esc(ring)}</text>`);
+    const at = `x="${cx}" y="${CY - (inner + outer) / 2}" text-anchor="middle"`;
+    parts.push(`<text class="ring-label halo" ${at} aria-hidden="true">${esc(ring)}</text>`);
+    parts.push(`<text class="ring-label" ${at}>${esc(ring)}</text>`);
   });
 
   const buckets = new Map();
@@ -546,7 +622,8 @@ function buildRadar(radarW, quadrants, rings, items, prep) {
     const [qi, ri] = key.split("|").map(Number);
     const quadStart = startOffset + qi * sectorAngle;
     const [inner, outer] = band(ri);
-    const color = SERIES[qi % SERIES.length];   // FR-67: cycles past the palette size
+    const color = SERIES[qi % SERIES.length];   // FR-67: cycles past 8
+    const ink = SERIES_INK[qi % SERIES.length];
 
     bucket.forEach((it, j) => {
       // FR-33: spread across the band's angular span, inset 8% from each divider,
@@ -556,14 +633,17 @@ function buildRadar(radarW, quadrants, rings, items, prep) {
       const r = inner + (outer - inner) * (j % 2 === 0 ? 0.38 : 0.68);
       const [x, y] = polar(cx, angle, r);
 
-      const hollow = it.qualifier === "conditional";   // FR-20
-      const fill = hollow ? "var(--surface-1)" : color;
+      // FR-20: solid = series fill with a Surface1 stroke that separates
+      // overlapping markers; hollow = series stroke around a MarkerHollow fill.
+      const hollow = it.qualifier === "conditional";
+      const fill = hollow ? "var(--marker-hollow)" : color;
       const stroke = hollow ? color : "var(--surface-1)";
-      const textColor = hollow ? "var(--text-primary)" : "#fff";
+      const textColor = hollow ? "var(--text-primary)" : ink;
 
       parts.push(
         `<g class="marker" data-number="${it.number}" tabindex="0" role="button" aria-label="${esc(it.number + ". " + it.name)}">
            <title>${esc(it.number + ". " + it.name)}</title>
+           <circle class="focus-ring" cx="${x}" cy="${y}" r="${MARKER_R + FOCUS_RING_GAP}" />
            ${statusRingMarkup(cx, x, y, MARKER_R, it.status, color)}
            <circle cx="${x}" cy="${y}" r="${MARKER_R}" fill="${fill}" stroke="${stroke}" stroke-width="${hollow ? 3 : 2}" />
            <text class="item-number" x="${x}" y="${y}" fill="${textColor}">${it.number}</text>
@@ -578,12 +658,12 @@ function buildRadar(radarW, quadrants, rings, items, prep) {
 // encoding, always rendered — an absent row would be indistinguishable from an
 // unexplained diagram (D-25).
 function buildKey(width) {
-  const sample = "var(--text-secondary)";
+  const sample = "var(--text-muted)";
   const rows = [
     { label: "Default, or no qualifier — solid marker",
       draw: (x, y) => `<circle cx="${x}" cy="${y}" r="7" fill="${sample}" />` },
     { label: "Conditional — hollow marker",
-      draw: (x, y) => `<circle cx="${x}" cy="${y}" r="7" fill="var(--surface-1)" stroke="${sample}" stroke-width="2.5" />` },
+      draw: (x, y) => `<circle cx="${x}" cy="${y}" r="7" fill="var(--marker-hollow)" stroke="${sample}" stroke-width="2.5" />` },
     { label: "New this edition — full ring",
       draw: (x, y) => `<circle cx="${x}" cy="${y}" r="5" fill="${sample}" /><circle cx="${x}" cy="${y}" r="9" fill="none" stroke="${sample}" stroke-width="2" />` },
     { label: "Moved in — half-ring facing the centre",
@@ -609,7 +689,8 @@ function buildLegend(items, quadrants, rings, legendW) {
   y += 22;
 
   quadrants.forEach((q, qi) => {
-    const color = SERIES[qi % SERIES.length];
+    const color = SERIES[qi % SERIES.length];   // FR-67: cycles past 8
+    const ink = SERIES_INK[qi % SERIES.length];
     parts.push(`<circle cx="5" cy="${y - 4}" r="5" fill="${color}" />`);
     parts.push(`<text class="legend-group-title" x="${INDENT_QUADRANT}" y="${y}">${esc(q)}</text>`);
     y += 18;
@@ -629,7 +710,7 @@ function buildLegend(items, quadrants, rings, legendW) {
         const badgeCx = INDENT_ITEM + BADGE_R;
         const nameX = INDENT_ITEM + BADGE_R * 2 + 8;
         const avail = legendW - nameX;
-        const nameLines = wrapText(it.name, avail, NAME_FONT);
+        const nameLines = wrapText(it.name, avail, NAME_STYLE);
         const statusLabel = { new: "New", moved_in: "Moved in", moved_out: "Moved out" }[it.status] || "";
 
         // The ring is dropped from the visible meta — the row already sits under
@@ -642,10 +723,8 @@ function buildLegend(items, quadrants, rings, legendW) {
 
         // Meta rides on the last line of the name when it fits, and takes its own
         // line when it doesn't — never truncated, never overflowing the row.
-        measureCtx.font = NAME_FONT;
-        const lastLineW = measureCtx.measureText(nameLines[nameLines.length - 1]).width;
-        measureCtx.font = META_FONT;
-        const metaW = meta ? measureCtx.measureText(meta).width : 0;
+        const lastLineW = measure(nameLines[nameLines.length - 1], NAME_STYLE);
+        const metaW = meta ? measure(meta, META_STYLE) : 0;
         const metaInline = Boolean(meta) && lastLineW + META_GAP + metaW <= avail;
         const lineCount = nameLines.length + (meta && !metaInline ? 1 : 0);
 
@@ -655,8 +734,8 @@ function buildLegend(items, quadrants, rings, legendW) {
 
         parts.push(`<g class="legend-row-g" data-number="${it.number}" tabindex="0" role="button" aria-label="${esc(it.number + ". " + it.name + ", " + ariaMeta)}">`);
         parts.push(`<rect class="legend-row-bg" x="${INDENT_ITEM - 6}" y="${y - blockH / 2 - 3}" width="${legendW - INDENT_ITEM + 10}" height="${rowH}" rx="6" />`);
-        parts.push(`<circle cx="${badgeCx}" cy="${y}" r="${BADGE_R}" fill="${hollow ? "var(--surface-1)" : color}" stroke="${color}" stroke-width="${hollow ? 2 : 1.5}" />`);
-        parts.push(`<text class="legend-num-text" x="${badgeCx}" y="${y}" fill="${hollow ? "var(--text-primary)" : "#fff"}">${it.number}</text>`);
+        parts.push(`<circle cx="${badgeCx}" cy="${y}" r="${BADGE_R}" fill="${hollow ? "var(--marker-hollow)" : color}" stroke="${color}" stroke-width="${hollow ? 2 : 1.5}" />`);
+        parts.push(`<text class="legend-num-text" x="${badgeCx}" y="${y}" fill="${hollow ? "var(--text-primary)" : ink}">${it.number}</text>`);
         parts.push(`<text class="legend-name">${nameLines.map((l, i) => `<tspan x="${nameX}" y="${top + i * LINE_H}">${esc(l)}</tspan>`).join("")}</text>`);
         if (meta) {
           const mx = metaInline ? nameX + lastLineW + META_GAP : nameX;
@@ -670,6 +749,10 @@ function buildLegend(items, quadrants, rings, legendW) {
     y += 8;
   });
 
+  // The legend's Surface2 ground, drawn first so everything else paints over it.
+  // It reaches 12 units either side of the wrap width, into the column gap and
+  // the right margin, so hovered rows (which overhang by 4) stay inside it.
+  parts.unshift(`<rect class="legend-panel" x="-12" y="-8" width="${legendW + 24}" height="${y + 4}" rx="8" />`);
   return { markup: parts.join("\n"), height: y };
 }
 
@@ -678,15 +761,17 @@ function buildLegend(items, quadrants, rings, legendW) {
 // differ; nothing about what is drawn changes between arrangements, which is
 // what keeps the wide document and the PNG honest against the stacked one.
 function buildDocument(prep, rings, title, subtitle, arrangement) {
-  measureCtx.font = "600 12px system-ui, -apple-system, sans-serif";
+  // Quadrant labels never wrap (FR-79), so the widest one sizes the radar block:
+  // max(MIN_RADAR_W, 2 × (QLABEL_R + widest / 2 + 10)), measured as rendered —
+  // mixed case, SemiBold, with its letter-spacing.
   const maxLabelHalf = prep.quadrants.reduce(
-    (m, q) => Math.max(m, (measureCtx.measureText(q.toUpperCase()).width * 1.2) / 2), 0);
+    (m, q) => Math.max(m, measure(q, QUADRANT_LABEL_STYLE) / 2), 0);
   const radarW = Math.max(MIN_RADAR_W, Math.round(2 * (QLABEL_R + maxLabelHalf + 10)));
 
   const wide = arrangement === "wide";
-  const totalW = wide ? radarW + COLUMN_GAP + LEGEND_W_WIDE + MARGIN : NARROW_DOC_W;
+  const legendW = LEGEND_WIDTH_MAX;   // same wrap width in both arrangements (D-56)
+  const totalW = wide ? radarW + COLUMN_GAP + legendW + MARGIN : NARROW_DOC_W;
   const radarScale = wide ? 1 : NARROW_DOC_W / radarW;
-  const legendW = wide ? LEGEND_W_WIDE : NARROW_DOC_W - 2 * MARGIN;
 
   const titleBlock = buildTitle(title, subtitle);
   const radar = buildRadar(radarW, prep.quadrants, rings, prep.items, prep);
@@ -714,6 +799,19 @@ function buildDocument(prep, rings, title, subtitle, arrangement) {
 // --- render -----------------------------------------------------------
 let showTitle = true;
 
+// FR-69 (style::breakpoint_px): the viewport width at which the wide document's
+// legend names render at MIN_LEGIBLE_PX. Per document, since the wide width
+// grows with the radar block; Math.round matches Rust's round for positives.
+function setBreakpoint(wideWidth) {
+  const px = Math.round((wideWidth * MIN_LEGIBLE_PX) / LEGEND_NAME_PX);
+  document.getElementById("arrangement-mq").textContent =
+    `@media (min-width: ${px}px) {
+       #visual-wide { display: block; }
+       #visual-stacked { display: none; }
+     }`;
+  document.getElementById("breakpoint-px").textContent = `${px}px`;
+}
+
 function render() {
   const data = DATASETS[document.getElementById("dataset").value];
   const rings = RING_SETS[document.getElementById("ringset").value];
@@ -726,6 +824,7 @@ function render() {
     const doc = buildDocument(prep, rings, title, subtitle, arrangement);
     el.setAttribute("viewBox", `0 0 ${doc.width} ${doc.height}`);
     el.innerHTML = doc.markup;
+    if (arrangement === "wide") setBreakpoint(doc.width);
   });
 
   // Table view (FR-41): the non-visual fallback, and the only place unplotted rows
@@ -847,7 +946,15 @@ document.getElementById("toggle-table").addEventListener("click", (e) => {
   e.target.textContent = table.classList.contains("visible") ? "Hide table" : "Show as table";
 });
 
+// Canvas measurement silently falls back to another face until Inter has loaded,
+// which would wrap the legend against the wrong metrics. Render now, then again
+// once both weights are in (or have failed to load, e.g. a browser that refuses
+// fonts over file://, in which case CSS and canvas fall back together).
 render();
+Promise.allSettled([
+  document.fonts.load(`400 12px ${FONT_STACK}`),
+  document.fonts.load(`600 12px ${FONT_STACK}`)
+]).then(render);
 
 const themeBtn = document.getElementById("toggle-theme");
 let currentTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
