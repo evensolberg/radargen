@@ -34,21 +34,24 @@ pub const TITLE: TextStyle = style(Weight::SemiBold, 17.0, 0.0);
 pub const SUBTITLE: TextStyle = style(Weight::Regular, 12.0, 0.0);
 /// 0.04em at 12px. Ink: `TextPrimary` — FR-39's identity channel.
 pub const QUADRANT_LABEL: TextStyle = style(Weight::SemiBold, 12.0, 0.48);
-/// Ink: `TextMuted`, over a `LABEL_HALO` (it sits on the 12 o'clock divider, FR-31).
+/// Ink: `TextMuted`, over a `LABEL_HALO` (it sits on the 12 o'clock divider,
+/// FR-31).
 pub const RING_LABEL: TextStyle = style(Weight::Regular, 10.0, 0.0);
-/// Ink: `TextPrimary` on a hollow marker; on a solid one,
-/// `Palette::number_ink` for that entry (FR-82, D-54).
+/// Ink: `TextPrimary` on a hollow marker; on a solid one, `Palette::number_ink`
+/// for that entry (FR-82, D-54).
 pub const MARKER_NUMBER: TextStyle = style(Weight::SemiBold, 9.0, 0.0);
 /// The "Legend" heading, the same style as the key's. Ink: `TextPrimary`.
 pub const LEGEND_HEADING: TextStyle = KEY_HEADING;
-/// FR-35 level one. 0.03em at 12px. Ink: `TextPrimary`. Two units above
-/// `LEGEND_RING`, not one: with no uppercase, both headings `SemiBold`, and
-/// the two inks only 1.86:1 apart in the dark theme, one unit (0.8 px at
-/// the breakpoint) did not read as a separate level.
+/// FR-35 level one. 0.03em at 12px. Ink: `TextPrimary`.
+///
+/// Two units above `LEGEND_RING`, not one: with no uppercase, both headings
+/// `SemiBold`, and the two inks only 1.86:1 apart in the dark theme, one unit
+/// (0.8 px at the breakpoint) did not read as a separate level.
 pub const LEGEND_QUADRANT: TextStyle = style(Weight::SemiBold, 12.0, 0.36);
 /// FR-35 level two. 0.03em at 10px. Ink: `TextMuted`.
 pub const LEGEND_RING: TextStyle = style(Weight::SemiBold, 10.0, 0.3);
-/// FR-35 level three, and the size FR-69's breakpoint protects. Ink: `TextPrimary`.
+/// FR-35 level three, and the size FR-69's breakpoint protects. Ink:
+/// `TextPrimary`.
 pub const LEGEND_NAME: TextStyle = style(Weight::Regular, 12.5, 0.0);
 /// FR-74's trailing qualifier/status text. Ink: `TextMuted`.
 pub const LEGEND_META: TextStyle = style(Weight::Regular, 10.5, 0.0);
@@ -67,9 +70,9 @@ pub const INDENT_RING: f64 = 24.0;
 pub const INDENT_ITEM: f64 = 44.0;
 /// Between an item name and its trailing meta (FR-74).
 pub const META_GAP: f64 = 8.0;
-/// FR-79's fixed maximum for the legend block; its rendered width is the
-/// lesser of this and the longest measured line. One value for both
-/// arrangements, so the narrow document always holds it (D-56).
+/// FR-79's fixed maximum for the legend block; its rendered width is the lesser
+/// of this and the longest measured line. One value for both arrangements, so
+/// the narrow document always holds it (D-56).
 pub const LEGEND_WIDTH_MAX: f64 = NARROW_WIDTH - 2.0 * MARGIN;
 
 // --- Markers (FR-20, FR-40) -----------------------------------------------------
@@ -80,9 +83,9 @@ pub const MARKER_RADIUS: f64 = 10.0;
 pub const MARKER_STROKE: f64 = 2.0;
 /// Hollow marker (FR-20): series-coloured stroke around a `MarkerHollow` fill.
 pub const MARKER_HOLLOW_STROKE: f64 = 3.0;
-/// The legend badge — a list bullet, deliberately smaller than the marker.
-/// 8, not the mockup's 7: Inter `SemiBold` 9px "44" is ~12px, which a hollow
-/// r=7 badge (12px clear interior) cannot hold.
+/// The legend badge — a list bullet, deliberately smaller than the marker. 8,
+/// not the mockup's 7: Inter `SemiBold` 9px "44" is ~12px, which a hollow r=7
+/// badge (12px clear interior) cannot hold.
 pub const BADGE_RADIUS: f64 = 8.0;
 pub const BADGE_STROKE: f64 = 1.5;
 /// Thinner than the marker's, so the hollow fill gap survives the smaller size.
@@ -93,11 +96,13 @@ pub const SWATCH_RADIUS: f64 = 5.0;
 pub const STATUS_RING_GAP: f64 = 4.0;
 pub const STATUS_RING_STROKE: f64 = 2.0;
 /// The keyboard focus ring (`Focus`), from the marker's edge to the ring's
-/// centre line. Outside the status ring with a clear Surface1 gap between, so
-/// WCAG 1.4.11 measures it against the surface (6.0:1 and up) rather than a
-/// series fill, where the focus blue manages only 1.3–2.5:1. That holds while
-/// nothing is drawn under the ring: markers overlap (`MARKER_STROKE`), so the
-/// layout must raise the focused marker over a Surface1 backing.
+/// centre line.
+///
+/// Outside the status ring with a clear Surface1 gap between, so WCAG 1.4.11
+/// measures it against the surface (6.0:1 and up) rather than a series fill,
+/// where the focus blue manages only 1.3–2.5:1. That holds while nothing is
+/// drawn under the ring: markers overlap (`MARKER_STROKE`), so the layout must
+/// raise the focused marker over a Surface1 backing.
 pub const FOCUS_RING_GAP: f64 = 8.0;
 pub const FOCUS_RING_STROKE: f64 = 2.0;
 
@@ -109,10 +114,11 @@ pub const QUADRANT_LABEL_RADIUS: f64 = 300.0;
 /// Ring circles and quadrant dividers (`StrokeRing` / `StrokeDivider`).
 pub const GRID_STROKE: f64 = 1.0;
 /// Width of the Surface1 halo under ring labels, so the 12 o'clock divider
-/// (FR-31) doesn't strike through them. Emit it as its own stroke-only
-/// `<text>` painted before the label, not as `paint-order: stroke`: an SVG
-/// consumer that ignores `paint-order` would paint the halo over the glyphs
-/// and erase them.
+/// (FR-31) doesn't strike through them.
+///
+/// Emit it as its own stroke-only `<text>` painted before the label, not as
+/// `paint-order: stroke`: an SVG consumer that ignores `paint-order` would
+/// paint the halo over the glyphs and erase them.
 pub const LABEL_HALO: f64 = 3.0;
 
 // --- Arrangements (FR-68–FR-71) -------------------------------------------------
@@ -122,14 +128,16 @@ pub const COLUMN_GAP: f64 = 28.0;
 /// The narrow document is authored at this width and the radar scaled to fit
 /// inside it, so text keeps its natural size (FR-70, D-31).
 pub const NARROW_WIDTH: f64 = 420.0;
-/// A floor on the radar block's width at scale 1, not its width. The block's
-/// size is measured (architecture §4): quadrant labels never wrap (FR-79), so
-/// a long one widens the block — `mockup.html` computes
+/// A floor on the radar block's width at scale 1, not its width.
+///
+/// The block's size is measured (architecture §4): quadrant labels never wrap
+/// (FR-79), so a long one widens the block — `mockup.html` computes
 /// `max(MIN_RADAR_W, 2 × (QLABEL_R + widest label / 2 + 10))`.
 pub const MIN_RADAR_WIDTH: f64 = 660.0;
 
 /// The smallest rendered size legend item names (`LEGEND_NAME`) may reach
 /// before the HTML switches to the narrow arrangement (FR-69, architecture §4).
+///
 /// Smaller legend styles go proportionally lower; this is not a floor for them.
 pub const MIN_LEGIBLE_PX: f64 = 10.0;
 
@@ -137,14 +145,15 @@ pub const MIN_LEGIBLE_PX: f64 = 10.0;
 const MAX_WIDTH: f64 = 10_000.0;
 
 /// FR-69's media-query breakpoint for a wide document `wide_width` units wide:
-/// the viewport width at which `LEGEND_NAME` renders at `MIN_LEGIBLE_PX`. Per
-/// document, not a constant — the wide width grows with the legend (§4).
+/// the viewport width at which `LEGEND_NAME` renders at `MIN_LEGIBLE_PX`.
+///
+/// Per document, not a constant — the wide width grows with the legend (§4).
 ///
 /// # Panics
 ///
-/// On a width that is not a finite number from 1 to `MAX_WIDTH` units: a
-/// layout bug, which would otherwise come out as a silent `max-width: 0px`
-/// media query.
+/// On a width that is not a finite number from 1 to `MAX_WIDTH` units: a layout
+/// bug, which would otherwise come out as a silent `max-width: 0px` media
+/// query.
 #[must_use]
 pub fn breakpoint_px(wide_width: f64) -> u32 {
     assert!(
@@ -221,7 +230,8 @@ mod tests {
     }
 
     /// Architecture §4: W × (floor / legend size), rounded. 1148 is the
-    /// mockup's wide width (660 + 28 + 440 + 20), whose fixed breakpoint was 900.
+    /// mockup's wide width (660 + 28 + 440 + 20), whose fixed breakpoint was
+    /// 900.
     #[test]
     fn breakpoint_is_computed_from_the_wide_width() {
         assert_eq!(breakpoint_px(1148.0), 918);
@@ -249,8 +259,8 @@ mod tests {
         assert_eq!(breakpoint_px(1.0), 1);
     }
 
-    /// The focus ring clears the status ring by at least 2 units of surface,
-    /// so it is judged against the surface, never a series fill (WCAG 1.4.11).
+    /// The focus ring clears the status ring by at least 2 units of surface, so
+    /// it is judged against the surface, never a series fill (WCAG 1.4.11).
     #[test]
     fn focus_ring_sits_clear_of_the_status_ring() {
         let status_outer = STATUS_RING_GAP + STATUS_RING_STROKE / 2.0;
