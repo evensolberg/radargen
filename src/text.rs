@@ -82,10 +82,12 @@ impl<'a> FontMetrics<'a> {
     /// [`ttf_parser::FaceParsingError::MalformedFont`] if `data` is not a
     /// font `rustybuzz` can read.
     pub fn load(data: &'a [u8]) -> Result<Self, ttf_parser::FaceParsingError> {
-        // rustybuzz is the shaper resvg itself uses. Measuring through it rather
-        // than summing raw `hmtx` advances is what makes FR-79's wrap points
-        // agree with the rasterised output by construction instead of by luck:
-        // the naive sum ignores GPOS kerning, which the shaper applies (D-42).
+        // Shape rather than sum raw `hmtx` advances: the naive sum ignores
+        // GPOS kerning, which the rasteriser's shaper applies, and FR-79's
+        // wrap points must agree with the rasterised output (D-42). Since
+        // resvg 0.48 that shaper is harfrust, not rustybuzz, so agreement now
+        // rests on `tests/agrees_with_resvg.rs` alone; do not loosen its
+        // tolerance. Crumb rg-mbv moves this measurement to harfrust.
         let face =
             ShaperFace::from_slice(data, 0).ok_or(ttf_parser::FaceParsingError::MalformedFont)?;
         Ok(Self { face })
