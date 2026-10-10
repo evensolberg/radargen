@@ -1,9 +1,8 @@
 //! FR-79: greedy first-fit against a fixed maximum column width, with a
 //! mid-token break for a single token wider than the column.
 
-use radargen::text::{FontMetrics, wrap};
+use radargen::text::{FontMetrics, REGULAR_TTF as FONT, wrap};
 
-use radargen::text::REGULAR_TTF as FONT;
 const SIZE: f64 = 12.5;
 
 fn metrics() -> FontMetrics<'static> {

@@ -58,6 +58,10 @@ fn our_advance_matches_usvg_layout_for_both_weights() {
             "Internationalisation",
             "WWWWWWWW",
             "illlliii",
+            // R-7 / SC-7: outside the subset these render as tofu in the PNG
+            // (A-4), but their wrap points still come from our measurement.
+            "日本語",
+            "Kubernetes Ж",
         ] {
             let ours = fonts.face(weight).measure(word, SIZE, 0.0);
             let theirs = usvg_advance(word, weight, &opt);
@@ -68,23 +72,4 @@ fn our_advance_matches_usvg_layout_for_both_weights() {
     }
     eprintln!("worst delta across corpus: {worst:.6} px at {SIZE}px");
     assert!(worst < 0.01, "worst delta {worst:.4} px");
-}
-
-/// R-7 / SC-7: a name outside the subset renders as tofu in the PNG (A-4),
-/// but its wrap points still come from our measurement, so our width for it
-/// must still be resvg's.
-#[test]
-fn tofu_measures_the_same_as_resvg_lays_it_out() {
-    let opt = options();
-    let fonts = Fonts::embedded().expect("faces");
-    for weight in [Weight::Regular, Weight::SemiBold] {
-        for word in ["日本語", "Kubernetes Ж"] {
-            let ours = fonts.face(weight).measure(word, SIZE, 0.0);
-            let theirs = usvg_advance(word, weight, &opt);
-            assert!(
-                (ours - theirs).abs() < 0.01,
-                "{weight:?} {word}: ours {ours} usvg {theirs}"
-            );
-        }
-    }
 }

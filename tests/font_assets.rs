@@ -1,8 +1,14 @@
 //! FR-85: the vendored faces are Inter Regular and `SemiBold`, subset to Latin
 //! and Latin Extended, and each TTF/WOFF2 pair came out of one subsetting run.
 
-const REGULAR: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
-const SEMIBOLD: &[u8] = include_bytes!("../assets/Inter-SemiBold.ttf");
+use radargen::text::{REGULAR_TTF as REGULAR, SEMIBOLD_TTF as SEMIBOLD};
+use ttf_parser::Face;
+
+/// Both shipped faces, parsed, with a name for assertion messages.
+fn faces() -> [(&'static str, Face<'static>); 2] {
+    [("Regular", REGULAR), ("SemiBold", SEMIBOLD)]
+        .map(|(name, data)| (name, Face::parse(data, 0).expect("face parses")))
+}
 
 /// `pyftsubset` drops name IDs 16/17 unless told otherwise, and `SemiBold` then
 /// registers as family `"Inter SemiBold"` — `font-weight="600"` on family
@@ -23,66 +29,37 @@ fn both_faces_register_as_family_inter_with_their_weights() {
     );
 }
 
+/// Printable ASCII, the punctuation the key and legend emit, and Latin
+/// Extended (FR-85): Latin-1 alone left Czech, Polish, Hungarian, Baltic and
+/// Turkish names drawing tofu in the PNG while the browser fell back to a
+/// system font, which breaks SC-7's parity.
 #[test]
-fn subset_covers_printable_ascii_and_the_punctuation_we_emit() {
-    for (name, data) in [("Regular", REGULAR), ("SemiBold", SEMIBOLD)] {
-        let face = ttf_parser::Face::parse(data, 0).expect("face parses");
+fn subset_covers_what_it_promises() {
+    for (name, face) in faces() {
         let missing: Vec<char> = (' '..='~')
-            .chain(['—', '–', '·', '‘', '’', '“', '”', '…', 'é', 'ø', 'ü'])
+            .chain("—–·‘’“”…éøü".chars())
+            .chain("ŁłŐőŘřČčŠšŽžĆćŃńŚśŹźŻżĞğŞşİıĀāĒēĪīŪūĄąĘęŲųŮůẞ".chars())
             .filter(|c| face.glyph_index(*c).is_none())
             .collect();
         assert!(missing.is_empty(), "{name} lacks {missing:?}");
     }
 }
 
-/// FR-85: Latin Extended too. Latin-1 alone leaves Czech, Polish, Hungarian,
-/// Baltic and Turkish names drawing tofu in the PNG while the browser falls
-/// back to a system font, which breaks SC-7's parity.
+/// What the subset must leave out, and the PRD statement each one pins.
+/// U+FFFD is in the subset range, so a future Inter that gained a glyph for it
+/// would carry it through the script silently.
 #[test]
-fn subset_covers_latin_extended() {
-    for (name, data) in [("Regular", REGULAR), ("SemiBold", SEMIBOLD)] {
-        let face = ttf_parser::Face::parse(data, 0).expect("face parses");
-        let missing: Vec<char> = "ŁłŐőŘřČčŠšŽžĆćŃńŚśŹźŻżĞğŞşİıĀāĒēĪīŪūĄąĘęŲųŮůẞ"
-            .chars()
-            .filter(|c| face.glyph_index(*c).is_none())
-            .collect();
-        assert!(missing.is_empty(), "{name} lacks {missing:?}");
-    }
-}
-
-#[test]
-fn subset_is_latin_only() {
-    // A full Inter carries Cyrillic, Greek and Vietnamese; the subset must not
-    // (FR-85, R-7, A-4).
-    for (name, data) in [("Regular", REGULAR), ("SemiBold", SEMIBOLD)] {
-        let face = ttf_parser::Face::parse(data, 0).expect("face parses");
-        assert!(
-            face.glyph_index('Ж').is_none(),
-            "{name}: Cyrillic survived the subset"
-        );
-        assert!(
-            face.glyph_index('λ').is_none(),
-            "{name}: Greek survived the subset"
-        );
-        // PRD A-4 names Vietnamese's stacked diacritics as outside coverage.
-        assert!(
-            face.glyph_index('ạ').is_none(),
-            "{name}: Vietnamese survived the subset; revisit PRD A-4"
-        );
-    }
-}
-
-/// PRD D-55 rejects U+FFFD as a replacement because Inter has no glyph for
-/// it. The subset range lists U+FFFD, so a future Inter that adds one would
-/// carry it through the script silently; this makes that a failing test.
-#[test]
-fn the_replacement_character_has_no_glyph() {
-    for (name, data) in [("Regular", REGULAR), ("SemiBold", SEMIBOLD)] {
-        let face = ttf_parser::Face::parse(data, 0).expect("face parses");
-        assert!(
-            face.glyph_index('\u{FFFD}').is_none(),
-            "{name}: U+FFFD now has a glyph; revisit PRD D-55"
-        );
+fn subset_leaves_out_what_the_prd_says_it_does() {
+    let absent = [
+        ('Ж', "Cyrillic (R-7)"),
+        ('λ', "Greek (R-7)"),
+        ('ạ', "Vietnamese's stacked diacritics (A-4)"),
+        ('\u{FFFD}', "U+FFFD, which D-55 relies on Inter lacking"),
+    ];
+    for (name, face) in faces() {
+        for (c, what) in absent {
+            assert!(face.glyph_index(c).is_none(), "{name}: has {what}");
+        }
     }
 }
 
@@ -91,8 +68,7 @@ fn the_replacement_character_has_no_glyph() {
 /// blank space: a non-Latin name would vanish rather than show as boxes.
 #[test]
 fn notdef_keeps_its_outline() {
-    for (name, data) in [("Regular", REGULAR), ("SemiBold", SEMIBOLD)] {
-        let face = ttf_parser::Face::parse(data, 0).expect("face parses");
+    for (name, face) in faces() {
         assert!(
             face.glyph_bounding_box(ttf_parser::GlyphId(0)).is_some(),
             "{name}: .notdef has no outline"
@@ -101,36 +77,29 @@ fn notdef_keeps_its_outline() {
 }
 
 /// Architecture §3: the two encodings must stay one face. The script records
-/// every output's digest in one run; a file edited or regenerated alone fails.
+/// every output's digest in one run; a file edited or regenerated alone fails,
+/// and so does any file in `assets/` the run did not record.
 #[test]
 fn assets_match_the_digests_the_subsetting_run_recorded() {
-    let manifest = include_str!("../assets/FONTS.sha256");
-    for line in manifest.lines().filter(|l| !l.trim().is_empty()) {
-        let (digest, file) = line.split_once("  ").expect("sha256sum format");
-        let path = format!("{}/assets/{file}", env!("CARGO_MANIFEST_DIR"));
+    let dir = format!("{}/assets", env!("CARGO_MANIFEST_DIR"));
+    let manifest: Vec<(&str, &str)> = include_str!("../assets/FONTS.sha256")
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| l.split_once("  ").expect("sha256sum format"))
+        .collect();
+    for (digest, file) in &manifest {
+        let path = format!("{dir}/{file}");
         let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
         assert_eq!(
             sha256_hex(&bytes),
-            digest,
+            *digest,
             "{file} changed outside the subsetting run"
         );
     }
-    let mut files: Vec<&str> = manifest
-        .lines()
-        .filter_map(|l| l.split_once("  ").map(|(_, f)| f))
-        .collect();
-    files.sort_unstable();
-    assert_eq!(
-        files,
-        [
-            "Inter-Regular.ttf",
-            "Inter-Regular.woff2",
-            "Inter-SemiBold.ttf",
-            "Inter-SemiBold.woff2"
-        ]
-    );
-    // A font in `assets/` the run did not record came from somewhere else.
-    let dir = format!("{}/assets", env!("CARGO_MANIFEST_DIR"));
+    let mut recorded: Vec<&str> = manifest.iter().map(|(_, f)| *f).collect();
+    recorded.sort_unstable();
+    // Everything else in `assets/` came from somewhere other than the run.
+    // Dotfiles are skipped: Finder writes `.DS_Store` on its own.
     let mut on_disk: Vec<String> = std::fs::read_dir(&dir)
         .unwrap_or_else(|e| panic!("{dir}: {e}"))
         .map(|e| {
@@ -139,16 +108,12 @@ fn assets_match_the_digests_the_subsetting_run_recorded() {
                 .to_string_lossy()
                 .into_owned()
         })
-        .filter(|f| {
-            std::path::Path::new(f)
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("ttf") || e.eq_ignore_ascii_case("woff2"))
-        })
+        .filter(|f| !f.starts_with('.') && f != "FONTS.sha256" && f != "OFL.txt")
         .collect();
     on_disk.sort_unstable();
     assert_eq!(
-        on_disk, files,
-        "assets/ holds fonts the subsetting run did not record"
+        on_disk, recorded,
+        "assets/ holds files the subsetting run did not record"
     );
 }
 

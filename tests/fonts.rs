@@ -4,11 +4,6 @@
 use radargen::text::{Fonts, Weight};
 
 #[test]
-fn both_embedded_faces_load() {
-    Fonts::embedded().expect("embedded faces parse");
-}
-
-#[test]
 fn semibold_is_wider_than_regular() {
     let f = Fonts::embedded().expect("faces");
     let regular = f.face(Weight::Regular).measure("Kubernetes", 12.5, 0.0);
@@ -19,6 +14,7 @@ fn semibold_is_wider_than_regular() {
     );
 }
 
+/// A deliberate spec pin: the emitters write these numbers verbatim.
 #[test]
 fn css_weights_match_fr_85() {
     assert_eq!(Weight::Regular.css(), 400);
