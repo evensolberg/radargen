@@ -108,7 +108,12 @@ impl<'a> FontMetrics<'a> {
         )]
         let gaps = shaped.len().saturating_sub(1) as f64;
         let upem = f64::from(self.face.units_per_em());
-        f64::from(units).mul_add(size_px / upem, gaps * letter_spacing_px)
+        #[expect(
+            clippy::suboptimal_flops,
+            reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+        )]
+        let width = f64::from(units) * size_px / upem + gaps * letter_spacing_px;
+        width
     }
 }
 

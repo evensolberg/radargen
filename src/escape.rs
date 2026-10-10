@@ -1,20 +1,19 @@
-//! NFR-6: every CSV-derived string is escaped for the context it lands in,
-//! and the contexts are five — one function each.
+//! NFR-6: every CSV-derived string is escaped for the context it lands in, and
+//! the contexts are five — one function each.
 //!
-//! A value crossing into a
-//! second context is escaped for both, innermost first: an attribute holding
-//! JSON is `html_attr(&json(v)?)`.
+//! A value crossing into a second context is escaped for both, innermost first:
+//! an attribute holding JSON is `html_attr(&json(v)?)`.
 //!
 //! At the crate root rather than under `svg/`: contexts 4 and 5 never touch an
 //! SVG node, and the `</script>` rule is an HTML fact (architecture §3).
 
-/// FR-90's set: every control character (`char::is_control`, so C0, DEL and
-/// C1) except tab, LF and CR, plus U+FFFE/U+FFFF.
+/// FR-90's set: every control character (`char::is_control`, so C0, DEL and C1)
+/// except tab, LF and CR, plus U+FFFE/U+FFFF.
 ///
-/// XML forbids C0 and the two
-/// noncharacters; DEL and C1 are legal XML, but no font draws them. FR-90
-/// removes these on input and calls this to decide which; the escaping
-/// functions only replace them as a backstop, so that they stay total.
+/// XML forbids C0 and the two noncharacters; DEL and C1 are legal XML, but no
+/// font draws them. FR-90 removes these on input and calls this to decide
+/// which; the escaping functions only replace them as a backstop, so that they
+/// stay total.
 #[must_use]
 pub const fn displayable(c: char) -> bool {
     matches!(c, '\t' | '\n' | '\r') || !(c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}'))
@@ -54,8 +53,7 @@ pub fn xml_text(s: &str) -> String {
 /// three whitespace characters attribute-value normalisation would otherwise
 /// turn into spaces.
 ///
-/// Returned **with** its surrounding `"`, so a caller cannot
-/// emit it unquoted.
+/// Returned **with** its surrounding `"`, so a caller cannot emit it unquoted.
 ///
 /// For plain values only: escaping does not make text safe in a URL, an `on*`
 /// handler or a `style` attribute, and nothing CSV-derived goes in one.
@@ -78,13 +76,12 @@ pub fn html_attr(s: &str) -> String {
 
 /// Context 4: a JavaScript string or JSON island.
 ///
-/// JSON-encoded, then every
-/// `<` becomes `\u003c` — `</script>` terminates the block regardless of
-/// entity escaping (NFR-6), and `<!--` alters script parsing — and U+2028 and
-/// U+2029 are escaped for older JavaScript parsers. `>` and `&` are escaped
-/// too, so the island would stay well-formed even inside an XML document.
-/// The substitutions are safe on serializer output: none of these characters
-/// can occur in JSON outside a string.
+/// JSON-encoded, then every `<` becomes `\u003c` — `</script>` terminates the
+/// block regardless of entity escaping (NFR-6), and `<!--` alters script
+/// parsing — and U+2028 and U+2029 are escaped for older JavaScript parsers.
+/// `>` and `&` are escaped too, so the island would stay well-formed even
+/// inside an XML document. The substitutions are safe on serializer output:
+/// none of these characters can occur in JSON outside a string.
 ///
 /// Floats must not reach this unformatted: `serde_json` would print them
 /// unrounded, with exponents, and NaN as `null`, bypassing NFR-17's
@@ -113,11 +110,11 @@ pub struct CssValueError {
 /// Context 5: a CSS custom-property value. Rejected rather than escaped — no
 /// safe escaping exists for arbitrary text in a CSS value position.
 ///
-/// An allow-list, not NFR-6's three characters alone: a comment, an
-/// unbalanced bracket or a trailing backslash would swallow the template's
-/// own `;` or `}`, and `url(` would fetch a remote resource from a file that
-/// must be self-contained. `#` and ASCII letters and digits cover every
-/// `#RRGGBB` FR-86 allows; checking that exact shape is `--palette`'s job.
+/// An allow-list, not NFR-6's three characters alone: a comment, an unbalanced
+/// bracket or a trailing backslash would swallow the template's own `;` or `}`,
+/// and `url(` would fetch a remote resource from a file that must be
+/// self-contained. `#` and ASCII letters and digits cover every `#RRGGBB` FR-86
+/// allows; checking that exact shape is `--palette`'s job.
 ///
 /// # Errors
 ///
@@ -219,9 +216,9 @@ mod tests {
     }
 
     /// NFR-6 / SC-9's real oracle is a parser: every hostile string, escaped
-    /// for a text node and an attribute, parses and reads back exactly. The
-    /// "no `<`" check above would pass if `&` or `"` were left unescaped, or
-    /// if output were double-escaped.
+    /// for a text node and an attribute, parses and reads back exactly. The "no
+    /// `<`" check above would pass if `&` or `"` were left unescaped, or if
+    /// output were double-escaped.
     #[test]
     fn hostile_strings_round_trip_through_an_xml_parser() {
         for s in HOSTILE
@@ -243,7 +240,8 @@ mod tests {
     }
 
     /// NFR-6 (4): `</script>` ends the block whatever the entity escaping, in
-    /// any case; `<!--` changes script parsing too. Escaping every `<` covers all.
+    /// any case; `<!--` changes script parsing too. Escaping every `<` covers
+    /// all.
     #[test]
     fn no_angle_bracket_survives_json_escaping() {
         for s in ["</script>", "</SCRIPT>", "<!-- x", "a < b"] {
@@ -312,7 +310,8 @@ mod tests {
         }
     }
 
-    /// XML-hostile JSON stays valid if the island ever lands in an XML document.
+    /// XML-hostile JSON stays valid if the island ever lands in an XML
+    /// document.
     #[test]
     fn json_escapes_gt_and_amp_too() {
         let out = json("a > b & c ]]>").unwrap();

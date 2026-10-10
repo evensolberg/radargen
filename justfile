@@ -81,10 +81,14 @@ publish:
     #!/usr/bin/env bash
     set -euo pipefail
     version="v$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
+    if [ -n "$(git tag --list "$version")" ]; then
+        echo "Tag $version already exists; bump the version first." >&2
+        exit 1
+    fi
     echo "Publishing $version"
     git tag "$version"
-    git push my_application main "$version"
-    gh release create "$version" --repo evensolberg/my_application --title "$version" --generate-notes
+    git push origin "$version"
+    gh release create "$version" --repo evensolberg/{{application}} --title "$version" --generate-notes
 
 # Build the documentation
 @doc:

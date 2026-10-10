@@ -1,8 +1,9 @@
 //! Colour roles and palettes (architecture §5).
 //!
-//! No `Document` node carries a colour value: it names a `Role`, and the emitter binds it — `var()` for
-//! HTML, which carries both themes, and a literal for SVG and PNG, which are
-//! fixed snapshots and whose consumers do not resolve custom properties.
+//! No `Document` node carries a colour value: it names a `Role`, and the
+//! emitter binds it — `var()` for HTML, which carries both themes, and a
+//! literal for SVG and PNG, which are fixed snapshots and whose consumers do
+//! not resolve custom properties.
 
 use std::fmt;
 
@@ -84,8 +85,8 @@ pub enum Theme {
     Dark,
 }
 
-/// FR-81: shared by both built-in themes; most-separable first, so every
-/// prefix is itself a good palette.
+/// FR-81: shared by both built-in themes; most-separable first, so every prefix
+/// is itself a good palette.
 const BUILT_IN_SERIES: [&str; 8] = [
     "#0072B2", "#C25400", "#00857A", "#787832", "#B5476B", "#2F9626", "#C431B8", "#9D5A43",
 ];
@@ -112,15 +113,17 @@ fn luminance(hex: &str) -> f64 {
             ((c + 0.055) / 1.055).powf(2.4)
         }
     };
-    0.2126f64.mul_add(
-        channel(1),
-        0.7152f64.mul_add(channel(3), 0.0722 * channel(5)),
-    )
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    let y = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+    y
 }
 
-/// Whichever ink contrasts more with `fill`; white on an exact tie (D-54). The rule
-/// is "more contrast", not "white unless it fails 4.5:1", which differ on a
-/// mid grey where both inks fail.
+/// Whichever ink contrasts more with `fill`; white on an exact tie (D-54). The
+/// rule is "more contrast", not "white unless it fails 4.5:1", which differ on
+/// a mid grey where both inks fail.
 fn ink_for(fill: &str) -> &'static str {
     if contrast(fill, INK_LIGHT) >= contrast(fill, INK_DARK) {
         INK_LIGHT
@@ -161,10 +164,10 @@ impl Palette {
         self.series.len()
     }
 
-    /// The ink for a number on solid series entry `index`: whichever of
-    /// white and near-black contrasts more with it (FR-82, D-54). No single
-    /// ink clears 4.5:1 on all of FR-81. A literal in every format, since
-    /// series values don't change with theme.
+    /// The ink for a number on solid series entry `index`: whichever of white
+    /// and near-black contrasts more with it (FR-82, D-54). No single ink
+    /// clears 4.5:1 on all of FR-81. A literal in every format, since series
+    /// values don't change with theme.
     #[must_use]
     pub fn number_ink(&self, index: usize) -> &'static str {
         ink_for(self.value(Role::Series(index)))
@@ -179,8 +182,8 @@ impl Palette {
         }
     }
 
-    /// The literal value — SVG and PNG, whose consumers do not resolve
-    /// custom properties (`resvg` renders an unresolved `var()` black).
+    /// The literal value — SVG and PNG, whose consumers do not resolve custom
+    /// properties (`resvg` renders an unresolved `var()` black).
     #[must_use]
     pub fn value(&self, role: Role) -> &str {
         match self.bind(role) {
@@ -308,8 +311,8 @@ mod tests {
         assert_eq!(p.var(Role::Neutral(Neutral::Focus)), "var(--focus)");
     }
 
-    /// FR-82, D-54: every built-in entry's number clears 4.5:1, and only
-    /// green needs the dark ink.
+    /// FR-82, D-54: every built-in entry's number clears 4.5:1, and only green
+    /// needs the dark ink.
     #[test]
     fn number_ink_clears_4_5_on_every_built_in_entry() {
         let p = Palette::built_in(Theme::Light);
