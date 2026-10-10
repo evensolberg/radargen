@@ -30,18 +30,22 @@ enum End {
     Record,
 }
 
+/// Malformed quoting, with what `parse` needs to tell it apart from a `;`
+/// export whose header's first cell is quoted (`"name";"ring"`).
+struct Malformed {
+    /// [`Fatal::UnterminatedQuote`] or [`Fatal::TextAfterQuote`].
+    fault: Fatal,
+    /// The line the record holding the fault began on.
+    record_line: usize,
+    /// The separator right after the fault, if one is there.
+    after: Option<Separator>,
+}
+
 /// RFC 4180 records, read lazily so `parse` can judge the header before
 /// it scans the rest, with a running physical line count.
 struct Scanner<'a> {
     chars: Peekable<Chars<'a>>,
     line: usize,
-    /// The line the record being scanned began on, for an error that
-    /// names the record rather than the fault.
-    record_line: usize,
-    /// The separator that followed a closing quote, when that was a
-    /// [`Fatal::TextAfterQuote`]: a `;` there in the header means another
-    /// separator, not bad quoting.
-    after_quote: Option<Separator>,
 }
 
 impl<'a> Scanner<'a> {
@@ -49,8 +53,6 @@ impl<'a> Scanner<'a> {
         Self {
             chars: text.chars().peekable(),
             line: 1,
-            record_line: 1,
-            after_quote: None,
         }
     }
 
@@ -120,7 +122,6 @@ impl<'a> Scanner<'a> {
         if let Some(end) = self.end() {
             return Ok((text, end));
         }
-        self.after_quote = self.chars.peek().copied().and_then(Separator::of);
         Err(Fatal::TextAfterQuote {
             line: self.line,
             column,
@@ -135,9 +136,7 @@ impl<'a> Scanner<'a> {
                 return (text, end);
             }
             // `end` returned `None`, so a character follows.
-            if let Some(c) = self.chars.next() {
-                text.push(c);
-            }
+            text.extend(self.chars.next());
         }
     }
 }
@@ -153,24 +152,28 @@ fn is_blank(fields: &[String]) -> bool {
 
 /// Each record with the physical line it begins on. A blank record is
 /// skipped, though its lines are still counted. An `Err` is malformed
-/// quoting — [`Fatal::UnterminatedQuote`] or [`Fatal::TextAfterQuote`] —
-/// after which nothing parses (NFR-15, NFR-16 tier one).
+/// quoting, after which nothing parses (NFR-15, NFR-16 tier one).
 impl Iterator for Scanner<'_> {
-    type Item = Result<Record, Fatal>;
+    type Item = Result<Record, Malformed>;
 
     fn next(&mut self) -> Option<Self::Item> {
         while self.chars.peek().is_some() {
             let line = self.line;
-            self.record_line = line;
             let mut fields = Vec::new();
             loop {
                 let (field, end) = match self.field(fields.len() + 1) {
                     Ok(field) => field,
-                    Err(e) => {
+                    Err(fault) => {
+                        // A text-after-quote fault leaves its text unread.
+                        let after = self.chars.peek().copied().and_then(Separator::of);
                         // Nothing after malformed quoting parses, so yield
                         // nothing more: a record read past it is a guess.
                         self.chars = "".chars().peekable();
-                        return Some(Err(e));
+                        return Some(Err(Malformed {
+                            fault,
+                            record_line: line,
+                            after,
+                        }));
                     }
                 };
                 fields.push(field);
@@ -214,13 +217,15 @@ pub struct Table {
 /// empty file, or a header that shows another separator was used.
 pub fn parse(text: &str, w: &mut Warnings) -> Result<(Table, Vec<Fatal>), Fatal> {
     let mut scanner = Scanner::new(text);
-    let first = scanner.next();
-    let (head, removed) = cleaned(header(first, scanner.after_quote, scanner.record_line)?);
+    let mut head = header(scanner.next())?;
+    let removed = cleaned(&mut head);
     // Judged before the rest is scanned: a quoted first-column cell in a
     // `;` export would otherwise surface as a quoting error.
     check_separator(&head)?;
     // Every row is scanned before any warns, so a quoting error stands alone.
-    let rows = scanner.collect::<Result<Vec<_>, _>>()?;
+    let rows = scanner
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|m| m.fault)?;
     let header = head.fields;
     warn(w, head.line, &removed, &header);
     let mut errors = duplicate_headers(&header, head.line);
@@ -237,17 +242,19 @@ pub fn parse(text: &str, w: &mut Warnings) -> Result<(Table, Vec<Fatal>), Fatal>
 /// The header record, from the scanner's first result. A quoting error in
 /// its first cell that a `;` or tab caused (`"name";"ring"`) is the
 /// separator's error instead, at the header's line.
-fn header(
-    first: Option<Result<Record, Fatal>>,
-    after_quote: Option<Separator>,
-    line: usize,
-) -> Result<Record, Fatal> {
-    match (first, after_quote) {
-        (None, _) => Err(Fatal::NoHeader),
-        (Some(Err(Fatal::TextAfterQuote { column: 1, .. })), Some(separator)) => {
-            Err(Fatal::NotCommaSeparated { line, separator })
-        }
-        (Some(head), _) => head,
+fn header(first: Option<Result<Record, Malformed>>) -> Result<Record, Fatal> {
+    match first {
+        None => Err(Fatal::NoHeader),
+        Some(Ok(head)) => Ok(head),
+        Some(Err(Malformed {
+            fault: Fatal::TextAfterQuote { column: 1, .. },
+            record_line,
+            after: Some(separator),
+        })) => Err(Fatal::NotCommaSeparated {
+            line: record_line,
+            separator,
+        }),
+        Some(Err(malformed)) => Err(malformed.fault),
     }
 }
 
@@ -256,8 +263,8 @@ fn header(
 fn checked(rows: Vec<Record>, header: &[String], w: &mut Warnings) -> (Vec<Record>, Vec<Fatal>) {
     let mut records = Vec::new();
     let mut errors = Vec::new();
-    for row in rows {
-        let (row, removed) = cleaned(row);
+    for mut row in rows {
+        let removed = cleaned(&mut row);
         warn(w, row.line, &removed, header);
         if row.fields.len() == header.len() {
             records.push(row);
@@ -297,34 +304,22 @@ struct Removed {
     count: usize,
 }
 
-/// FR-90: `record` with every undisplayable character removed, and what
-/// was removed from each field that lost any.
-fn cleaned(record: Record) -> (Record, Vec<Removed>) {
+/// FR-90: remove every undisplayable character from `record`, returning
+/// what was removed from each field that lost any.
+fn cleaned(record: &mut Record) -> Vec<Removed> {
     let mut removed = Vec::new();
-    let fields = record
-        .fields
-        .into_iter()
-        .enumerate()
-        .map(|(column, mut field)| {
-            if let Some(first) = field.chars().find(|&c| !displayable(c)) {
-                let count = field.chars().filter(|&c| !displayable(c)).count();
-                removed.push(Removed {
-                    column,
-                    first,
-                    count,
-                });
-                field.retain(displayable);
-            }
-            field
-        })
-        .collect();
-    (
-        Record {
-            line: record.line,
-            fields,
-        },
-        removed,
-    )
+    for (column, field) in record.fields.iter_mut().enumerate() {
+        if let Some(first) = field.chars().find(|&c| !displayable(c)) {
+            let count = field.chars().filter(|&c| !displayable(c)).count();
+            removed.push(Removed {
+                column,
+                first,
+                count,
+            });
+            field.retain(displayable);
+        }
+    }
+    removed
 }
 
 /// One FR-90 warning per field that lost characters. The column is named
@@ -359,23 +354,21 @@ fn warn(w: &mut Warnings, line: usize, removed: &[Removed], header: &[String]) {
 /// repeats. An empty cell names nothing, so it cannot repeat a name; Excel
 /// pads the header with these (Decisions).
 fn duplicate_headers(header: &[String], line: usize) -> Vec<Fatal> {
-    let mut seen: Vec<(String, usize, &str)> = Vec::new();
     let mut errors = Vec::new();
     for (i, name) in header.iter().enumerate() {
         let key = normalise(name);
         if key.is_empty() {
             continue;
         }
-        if let Some((_, first, first_name)) = seen.iter().find(|(k, ..)| *k == key) {
+        // The first earlier match is the name's first occurrence.
+        if let Some(first) = header[..i].iter().position(|n| normalise(n) == key) {
             errors.push(Fatal::DuplicateHeader {
                 line,
                 index: i + 1,
                 name: name.trim().to_string(),
-                first_index: *first,
-                first_name: (*first_name).to_string(),
+                first_index: first + 1,
+                first_name: header[first].trim().to_string(),
             });
-        } else {
-            seen.push((key, i + 1, name.trim()));
         }
     }
     errors
@@ -387,7 +380,9 @@ mod tests {
 
     /// Every record, or the first quoting error.
     fn scan(text: &str) -> Result<Vec<Record>, Fatal> {
-        Scanner::new(text).collect()
+        Scanner::new(text)
+            .collect::<Result<_, _>>()
+            .map_err(|m| m.fault)
     }
 
     /// `(line, fields)` for every record, so a test reads like the file.
@@ -547,10 +542,7 @@ mod tests {
             matches!(err, Fatal::UnterminatedQuote { line: 3, column: 1 }),
             "{err:?}"
         );
-        assert_eq!(
-            err.render(),
-            "error: line 3, column 1: a quote opens this value and never closes; add the closing quote, and write any quote inside the value as \"\""
-        );
+        assert_eq!(err.render(), unterminated(3, 1));
         // The opening quote's line, even when its record began earlier.
         let err = scan("a,b,c\n1,\"two\nlines\",\"open\n").expect_err("unterminated");
         assert!(
@@ -566,10 +558,7 @@ mod tests {
             matches!(err, Fatal::TextAfterQuote { line: 2, column: 2 }),
             "{err:?}"
         );
-        assert_eq!(
-            err.render(),
-            "error: line 2, column 2: text follows a closing quote; inside quotes, write a quote as \"\""
-        );
+        assert_eq!(err.render(), after_quote(2, 2));
         // The closing quote's line, not the record's (Global Constraints).
         let err = scan("a,b\n\"x\ny\"z,1\n").expect_err("text after quote");
         assert!(
@@ -674,10 +663,46 @@ mod tests {
         table.expect("parses")
     }
 
-    const MATCH: &str =
-        "; header names match ignoring case and surrounding spaces, so rename or remove one";
-    const FEWER: &str = "; a value is missing, or an unquoted line break split the row";
-    const MORE: &str = "; a comma inside a value needs the value in double quotes";
+    // Expected messages, built from their variants: the wording is pinned
+    // once, in `tests/diagnostics.rs`, and these tests pin the values.
+
+    fn count(line: usize, found: usize) -> String {
+        Fatal::FieldCount {
+            line,
+            found,
+            expected: 2,
+        }
+        .render()
+    }
+
+    fn repeats(
+        line: usize,
+        index: usize,
+        name: &str,
+        first_index: usize,
+        first_name: &str,
+    ) -> String {
+        Fatal::DuplicateHeader {
+            line,
+            index,
+            name: name.into(),
+            first_index,
+            first_name: first_name.into(),
+        }
+        .render()
+    }
+
+    fn not_comma(line: usize, separator: Separator) -> String {
+        Fatal::NotCommaSeparated { line, separator }.render()
+    }
+
+    fn after_quote(line: usize, column: usize) -> String {
+        Fatal::TextAfterQuote { line, column }.render()
+    }
+
+    fn unterminated(line: usize, column: usize) -> String {
+        Fatal::UnterminatedQuote { line, column }.render()
+    }
 
     #[test]
     fn a_table_keeps_the_header_and_every_record() {
@@ -703,12 +728,7 @@ mod tests {
     fn leading_blank_lines_move_the_header_line() {
         let t = table("\n,,\nname,ring\nKafka,Adopt\n");
         assert_eq!((t.header_line, t.records[0].line), (3, 4));
-        assert_eq!(
-            errors("\n\na,a\n"),
-            [format!(
-                "error: line 3: column 2 'a' repeats column 1 'a'{MATCH}"
-            )]
-        );
+        assert_eq!(errors("\n\na,a\n"), [repeats(3, 2, "a", 1, "a")]);
     }
 
     #[test]
@@ -727,57 +747,29 @@ mod tests {
     /// FR-1, Review focus 6: a decimal-comma locale's Excel writes `;`.
     #[test]
     fn a_semicolon_export_is_named_as_such() {
-        assert_eq!(
-            errors("name;ring\nKafka;Adopt, mostly\n"),
-            [
-                "error: line 1: the header is one column holding semicolons; radargen reads comma-separated files only, so export the file with commas as the separator"
-            ]
-        );
-        assert_eq!(
-            errors("name\tring\nKafka\tAdopt\n"),
-            [
-                "error: line 1: the header is one column holding tabs; radargen reads comma-separated files only, so export the file with commas as the separator"
-            ]
-        );
         // Excel quotes a first-column cell holding the separator, and some
-        // exports quote every cell; neither may turn this into a quoting error.
-        for (text, separator) in [
-            ("name;ring\n\"Kafka; streams\";Adopt\n", "semicolons"),
-            ("\"name\";\"ring\"\nKafka;Adopt\n", "semicolons"),
-            ("\n\"name\"\t\"ring\"\n", "tabs"),
-            ("name\tring\n\"a\tb\"\tAdopt\n", "tabs"),
+        // exports quote every cell; neither may turn this into a quoting
+        // error. The error names the header's line, wherever it starts.
+        for (text, line, separator) in [
+            ("name;ring\nKafka;Adopt, mostly\n", 1, Separator::Semicolon),
+            ("name\tring\nKafka\tAdopt\n", 1, Separator::Tab),
+            (
+                "name;ring\n\"Kafka; streams\";Adopt\n",
+                1,
+                Separator::Semicolon,
+            ),
+            ("\"name\";\"ring\"\nKafka;Adopt\n", 1, Separator::Semicolon),
+            ("\n\"name\"\t\"ring\"\n", 2, Separator::Tab),
+            ("name\tring\n\"a\tb\"\tAdopt\n", 1, Separator::Tab),
+            ("\"na\nme\";\"ring\"\nx\n", 1, Separator::Semicolon),
         ] {
-            let line = if text.starts_with('\n') { 2 } else { 1 };
-            assert_eq!(
-                errors(text),
-                [format!(
-                    "error: line {line}: the header is one column holding {separator}; radargen reads comma-separated files only, so export the file with commas as the separator"
-                )],
-                "{text:?}"
-            );
+            assert_eq!(errors(text), [not_comma(line, separator)], "{text:?}");
         }
-        // A quoted header cell holding a line break: the header's own line.
-        assert_eq!(
-            errors("\"na\nme\";\"ring\"\nx\n"),
-            [
-                "error: line 1: the header is one column holding semicolons; radargen reads comma-separated files only, so export the file with commas as the separator"
-            ]
-        );
         // A header that already split on a comma is not one column, so a
         // `;` after a later quoted cell is a quoting error.
-        assert_eq!(
-            errors("name,\"Notes\";x\nKafka,y\n"),
-            [
-                "error: line 1, column 2: text follows a closing quote; inside quotes, write a quote as \"\""
-            ]
-        );
+        assert_eq!(errors("name,\"Notes\";x\nKafka,y\n"), [after_quote(1, 2)]);
         // A quoting error in a comma-separated header is still one.
-        assert_eq!(
-            errors("\"name\"x,ring\n"),
-            [
-                "error: line 1, column 1: text follows a closing quote; inside quotes, write a quote as \"\""
-            ]
-        );
+        assert_eq!(errors("\"name\"x,ring\n"), [after_quote(1, 1)]);
         assert!(
             errors("name\nKafka\n").is_empty(),
             "one plain column is PR 06's FR-5 to judge"
@@ -790,8 +782,8 @@ mod tests {
         assert_eq!(
             errors("name,ring,Name ,RING,x\n"),
             [
-                format!("error: line 1: column 3 'Name' repeats column 1 'name'{MATCH}"),
-                format!("error: line 1: column 4 'RING' repeats column 2 'ring'{MATCH}"),
+                repeats(1, 3, "Name", 1, "name"),
+                repeats(1, 4, "RING", 2, "ring"),
             ]
         );
     }
@@ -822,13 +814,7 @@ mod tests {
     #[test]
     fn other_whitespace_is_not_blank() {
         for text in ["a,b\n\u{c}\n", "a,b\n\u{a0}\n"] {
-            assert_eq!(
-                errors(text),
-                [format!(
-                    "error: line 2: the row's field count is 1 but the header's is 2{FEWER}"
-                )],
-                "{text:?}"
-            );
+            assert_eq!(errors(text), [count(2, 1)], "{text:?}");
         }
     }
 
@@ -838,7 +824,13 @@ mod tests {
     fn the_scanner_stops_at_a_quoting_error() {
         let mut s = Scanner::new("a\n\"x\"y,q\nz\n");
         assert!(matches!(s.next(), Some(Ok(_))));
-        assert!(matches!(s.next(), Some(Err(Fatal::TextAfterQuote { .. }))));
+        assert!(matches!(
+            s.next(),
+            Some(Err(Malformed {
+                fault: Fatal::TextAfterQuote { .. },
+                ..
+            }))
+        ));
         assert!(s.next().is_none());
     }
 
@@ -847,11 +839,7 @@ mod tests {
     fn every_field_count_mismatch_is_reported() {
         assert_eq!(
             errors("a,b\n1,2\n1\n1,2,3\n\"multi\nline\",2,3\n"),
-            [
-                format!("error: line 3: the row's field count is 1 but the header's is 2{FEWER}"),
-                format!("error: line 4: the row's field count is 3 but the header's is 2{MORE}"),
-                format!("error: line 5: the row's field count is 3 but the header's is 2{MORE}"),
-            ]
+            [count(3, 1), count(4, 3), count(5, 3),]
         );
     }
 
@@ -885,14 +873,15 @@ mod tests {
             if !body.ends_with(['\n', '\r']) {
                 continue;
             }
-            let text = format!("h\n{body}w");
+            let head = format!("h\n{body}");
+            let text = format!("{head}w");
             let Ok((table, _)) = parse(&text, &mut Warnings::default()) else {
                 continue;
             };
             let Some(last) = table.records.last().map(|r| r.line) else {
                 continue;
             };
-            let mut bytes = format!("h\n{body}").into_bytes();
+            let mut bytes = head.into_bytes();
             bytes.push(0xE9);
             assert_eq!(
                 crate::csv::decode::decode(&bytes).map_err(|e| e.line),
@@ -914,12 +903,7 @@ mod tests {
     #[test]
     fn a_bad_row_does_not_hide_the_good_ones() {
         let (table, errs, _) = parsed("a,b\n1\n2,3\n");
-        assert_eq!(
-            errs,
-            [format!(
-                "error: line 2: the row's field count is 1 but the header's is 2{FEWER}"
-            )]
-        );
+        assert_eq!(errs, [count(2, 1)]);
         let table = table.expect("structural");
         assert_eq!(table.records.len(), 1);
         assert_eq!(table.records[0].line, 3);
@@ -929,10 +913,7 @@ mod tests {
     fn duplicate_headers_and_bad_rows_are_reported_together() {
         assert_eq!(
             errors("a,A\n1\n"),
-            [
-                format!("error: line 1: column 2 'A' repeats column 1 'a'{MATCH}"),
-                format!("error: line 2: the row's field count is 1 but the header's is 2{FEWER}"),
-            ],
+            [repeats(1, 2, "A", 1, "a"), count(2, 1),],
             "a duplicate header does not hide a bad row, and comes first"
         );
     }
@@ -940,12 +921,7 @@ mod tests {
     /// Malformed quoting stops the run: nothing after it can be trusted.
     #[test]
     fn malformed_quoting_is_the_only_error_reported() {
-        assert_eq!(
-            errors("a,a\n1\n\"open\n"),
-            [
-                "error: line 3, column 1: a quote opens this value and never closes; add the closing quote, and write any quote inside the value as \"\""
-            ]
-        );
+        assert_eq!(errors("a,a\n1\n\"open\n"), [unterminated(3, 1)]);
     }
 
     /// FR-90, D-55: removed, with one warning per field naming line and column.
@@ -1024,12 +1000,7 @@ mod tests {
     #[test]
     fn removal_runs_before_the_duplicate_header_check() {
         let (_, errs, warnings) = parsed("name,name\u{1}\nx,y\n");
-        assert_eq!(
-            errs,
-            [format!(
-                "error: line 1: column 2 'name' repeats column 1 'name'{MATCH}"
-            )]
-        );
+        assert_eq!(errs, [repeats(1, 2, "name", 1, "name")]);
         assert_eq!(
             warnings,
             ["warning: line 1, name: removed U+0001, which the output cannot display"]
@@ -1060,13 +1031,7 @@ mod tests {
     #[test]
     fn a_short_or_long_row_still_warns_about_removal() {
         let (_, errs, warnings) = parsed("a,b\n\u{1}\nx,\u{2},\u{3}\n");
-        assert_eq!(
-            errs,
-            [
-                format!("error: line 2: the row's field count is 1 but the header's is 2{FEWER}"),
-                format!("error: line 3: the row's field count is 3 but the header's is 2{MORE}"),
-            ]
-        );
+        assert_eq!(errs, [count(2, 1), count(3, 3),]);
         assert_eq!(
             warnings,
             [

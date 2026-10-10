@@ -151,12 +151,18 @@ mod tests {
         );
     }
 
+    /// `read` of a temporary file holding `bytes`, removed before returning.
+    fn read_fixture(name: &str, bytes: &[u8]) -> Result<String, Fatal> {
+        let path = std::env::temp_dir().join(format!("radargen-{name}-{}.csv", std::process::id()));
+        std::fs::write(&path, bytes).expect("write fixture");
+        let text = read(&path);
+        std::fs::remove_file(&path).expect("remove fixture");
+        text
+    }
+
     #[test]
     fn a_non_utf8_file_says_how_to_fix_it() {
-        let path = std::env::temp_dir().join(format!("radargen-cp1252-{}.csv", std::process::id()));
-        std::fs::write(&path, b"name\nCaf\xE9\n").expect("write fixture");
-        let err = read(&path).expect_err("not UTF-8");
-        std::fs::remove_file(&path).expect("remove fixture");
+        let err = read_fixture("cp1252", b"name\nCaf\xE9\n").expect_err("not UTF-8");
         let shown = err.render();
         assert!(
             shown.contains(", line 2: not UTF-8 text; re-save the file as UTF-8"),
@@ -166,10 +172,7 @@ mod tests {
 
     #[test]
     fn a_utf8_file_reads_back_without_its_bom() {
-        let path = std::env::temp_dir().join(format!("radargen-utf8-{}.csv", std::process::id()));
-        std::fs::write(&path, "\u{feff}name\nÆrø\n").expect("write fixture");
-        let text = read(&path);
-        std::fs::remove_file(&path).expect("remove fixture");
+        let text = read_fixture("utf8", "\u{feff}name\nÆrø\n".as_bytes());
         assert_eq!(text.expect("reads"), "name\nÆrø\n");
     }
 }
