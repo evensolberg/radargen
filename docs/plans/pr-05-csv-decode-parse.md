@@ -11,9 +11,14 @@ created_date: 2026-10-10
 synopsis: "Bytes to text (BOM, UTF-8, FR-61's line-numbered error) and text to records (a hand-written RFC 4180 scanner with physical line numbers, header and field-count checks returned beside the table, and FR-90's removal of undisplayable characters)."
 status: draft
 type: Plan
-revision: "1.1"
-review_date:
-reviewed_by: []
+revision: "1.2"
+review_date: 2026-10-10
+reviewed_by:
+  - architect-reviewer
+  - rust-engineer
+  - qa-expert
+  - ux-researcher
+  - ui-designer
 completed_date:
 comments:
 ---
@@ -43,7 +48,7 @@ Malformed quoting, an empty file and a non-comma separator abort at once (tier o
 - **NFR-16:** file-level errors (unreadable, not UTF-8, malformed quoting, no header, not comma-separated) return one `Fatal` and stop. Duplicate headers and field-count mismatches are **all** collected, in line order, and returned **beside** the table rather than instead of it, so PR 06's row errors join them in the same run.
 - **No trimming here.** Fields keep their whitespace; FR-76 trims at comparison time (PR 06), and displayed text is never edited beyond FR-15/FR-76. (Blank-record detection *reads* whitespace but changes nothing.)
 - **One taxonomy:** new errors are `diagnostics::Fatal` variants (architecture §1). An I/O variant carries the path and marks the error `#[source]`, not `#[from]` (the `Fatal` doc comment). Every new variant is added to the pinned message catalogue in `tests/diagnostics.rs` (`csv_fatal_messages`, beside `fatal_messages`).
-- **Messages say what to do** (FR-61's precedent, D-27): each new `Fatal` names the place and the likely fix, and uses "column", never "field", for a position — the word every other diagnostic uses.
+- **Messages say what to do** (FR-61's precedent, D-27): each new `Fatal` names the place and, where there is one, the likely fix, and uses "column", never "field", for a position — the word every other diagnostic uses.
 - `cargo fmt` before every commit; CI runs `cargo fmt --check` (`.github/workflows/ci.yml`). The snippets below are not all in rustfmt's layout — format them, do not hand-wrap.
 - `cargo clippy --all-targets -- -D warnings` and `just lint` (pedantic + nursery + `unwrap_used`) are both clean **at every commit**. No `#[allow]`/`#[expect]` without an inline reason.
 - Commits: `type(scope): description` (subject ≤ 72 characters, body lines ≤ 72), plus the session's `Co-Authored-By` trailer. Run `git-mit es` first.
@@ -65,8 +70,8 @@ Malformed quoting, an empty file and a non-comma separator abort at once (tier o
   - An unterminated quote produced **no error**: the rest of the file became one field — NFR-15 broken.
   - `"x"y` silently became `xy`.
 
-  Working around all three means tracking quotes and line breaks independently of the library, which is the scanner itself. RFC 4180 is small (quoted fields, doubled quotes, comma, line break); the scanner is about 60 lines, is tested directly, and is checked exhaustively over every input of up to six characters.
-- **`parse` returns `Result<(Table, Vec<Fatal>), Fatal>`.** `Err` is tier one: nothing parsed. `Ok` carries the table of well-formed records **and** every FR-4 error. A row that fails FR-4 is left out of `records`, which keeps the `header.len()` invariant, but its error travels beside the table. So a short row never hides another row's empty `name` (FR-6), and `main.rs` (PR 13) reports parse's errors and then `build_catalogue`'s, in a deterministic order (SC-10). Returning `Err(Vec<Fatal>)` instead would make `row-errors.csv` (architecture §10) unpassable.
+  Working around all three means tracking quotes and line breaks independently of the library, which is the scanner itself. RFC 4180 is small (quoted fields, doubled quotes, comma, line break); the scanner is about 80 lines of code, is tested directly, and is checked exhaustively over every input of up to six characters from the alphabet `a , " \n \r`.
+- **`parse` returns `Result<(Table, Vec<Fatal>), Fatal>`.** `Err` is tier one: nothing parsed. `Ok` carries the table of well-formed records **and** every FR-4 error. A row that fails FR-4 is left out of `records`, which keeps the `header.len()` invariant, but its error travels beside the table. So a short row never hides another row's empty `name` (FR-6), and `main.rs` (PR 13) merges parse's errors with `build_catalogue`'s. The merged order (ascending line, header-level first, is the NFR-11 reading) is PR 13's to fix before SC-10 pins it. Returning `Err(Vec<Fatal>)` instead would make `row-errors.csv` (architecture §10) unpassable.
 - **Lenient where Excel never writes, strict where data would be lost.** A `"` inside an *unquoted* field is kept literally (`5" screen` is plausibly what the author meant, and "content is not fatal"). Text *after* a closing quote (`"x"y`) is a hard error: the author's intent is ambiguous, and silently dropping or keeping the quote would both be guesses. **Spaces around quotes are not special-cased.** RFC 4180 counts them as part of the field: `x, "y"` is the unquoted ` "y"`, and `"x" ,y` is text after a quote. Both outcomes are pinned by a test. Dropping them would need a lookahead probe for a hand-typing convenience Excel never needs.
 - **Quoting errors name the faulty line, not the record's first line.** In a record spanning lines 2–4:
   - a quote opening on line 3 that never closes reports line 3;
@@ -97,6 +102,7 @@ Malformed quoting, an empty file and a non-comma separator abort at once (tier o
 | `DuplicateHeader` | `line {line}: column {index} '{name}' repeats column {first_index} '{first_name}'; header names match ignoring case and surrounding spaces, so rename or remove one` |
 | `FieldCount` | `line {line}: the row's field count is {found} but the header's is {expected}; ` then, when `found > expected`, `a comma inside a value needs the value in double quotes`, else `a value is missing, or an unquoted line break split the row` |
 
+- **PRD wording.** Three of these decisions depart from the PRD's literal text: skipping blank records (FR-3, FR-4, FR-6, FR-78), quoting errors naming the fault's line (NFR-10), and `NotCommaSeparated` as a tier-one error (NFR-9, NFR-16). Crumb `rg-lfd` writes them into the PRD. The handoff to PR 06 is appended to `rg-rnc`.
 - **No version bump.** The binary still exits 1 without reading a file.
 
 ---
@@ -125,7 +131,8 @@ Malformed quoting, an empty file and a non-comma separator abort at once (tier o
 
 ```rust
 //! The CSV stage (architecture §3): bytes to text, then text to records.
-//! Nothing here knows what a column means; that is `model.rs` (PR 06).
+//! Nothing here interprets a column, except that `NoHeader` names FR-5's
+//! required ones so its message is actionable; meaning is `model.rs` (PR 06).
 
 pub mod decode;
 ```
@@ -758,7 +765,7 @@ Leave the work uncommitted; Task 3 Step 5 commits it.
 - Modify: `src/diagnostics.rs` (add `NoHeader`, `NotCommaSeparated`, `DuplicateHeader` and `FieldCount` to `Fatal`)
 - Modify: `tests/diagnostics.rs` (add Tasks 2–3's six variants to `csv_fatal_messages`)
 - Create: `tests/csv.rs`
-- Modify: `docs/design/architecture.md` (§2, §3, §7: `Table` and `parse`'s signature)
+- Modify: `docs/design/architecture.md` (§2 diagram and purity note, §3 rows, §7 signatures)
 
 **Interfaces:**
 - Consumes: `scan` and `Record` (Task 2); `escape::displayable` (exists); `normalise` (exists); `diagnostics::{Warning, RowKind, Warnings}` (exist).
@@ -767,7 +774,7 @@ Leave the work uncommitted; Task 3 Step 5 commits it.
   - `pub fn parse(text: &str, w: &mut Warnings) -> Result<(Table, Vec<Fatal>), Fatal>` — `Err` is tier one (malformed quoting, no header, not comma-separated). `Ok` carries the table of well-formed records **and** every FR-4 error (tier two).
 - And in `Fatal`: `NoHeader`, `NotCommaSeparated { line: usize, separator: &'static str }`, `DuplicateHeader { line: usize, index: usize, name: String, first_index: usize, first_name: String }`, `FieldCount { line: usize, found: usize, expected: usize }`.
 
-  PR 06's `build_catalogue(table: &Table, w: &mut Warnings) -> Result<Catalogue, Vec<Fatal>>` consumes `Table`. It maps header names to columns under FR-76 (FR-5) and keeps `header`'s order for the table view (FR-78). Every `Record` has exactly `header.len()` fields. A row that failed FR-4 is absent from `records`, but its error is in parse's `Vec<Fatal>`. `main.rs` (PR 13) reports parse's errors and then `build_catalogue`'s.
+  PR 06's `build_catalogue(table: &Table, w: &mut Warnings) -> Result<Catalogue, Vec<Fatal>>` consumes `Table`. It maps header names to columns under FR-76 (FR-5) and keeps `header`'s order for the table view (FR-78). Every `Record` has exactly `header.len()` fields. A row that failed FR-4 is absent from `records`, but its error is in parse's `Vec<Fatal>`. `main.rs` (PR 13) merges parse's and `build_catalogue`'s errors; their order is PR 13's to fix (NFR-11) before SC-10 pins it.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1377,8 +1384,23 @@ fn duplicate_headers(header: &[String], line: usize) -> Vec<Fatal> {
 ```
 
 In `docs/design/architecture.md`:
+- **§2:** replace the diagram's first two stages (from `bytes` down to, not including, the `Catalogue` line) with:
+
+  ```text
+    bytes                                                       §6.1
+      │  decode       strip BOM, require UTF-8                  FR-1, FR-2, FR-61
+      ▼
+    String
+      │  parse        FR-90 removal, header, field counts       FR-3, FR-4, FR-90
+      ▼
+    Table             header and records; FR-4 errors beside it
+      │  model        map columns, check required values        FR-5, FR-6
+      ▼
+  ```
+
+  After "Each stage is a pure function of its input plus the diagnostics it may add." add: "The one exception is `csv::decode::read`, which reads the input file so its errors can name the path (NFR-10); `decode` itself is pure."
+- **§3:** in the `src/csv/decode.rs` row, append "; `read` is the stage's one file read". In the `src/csv/parse.rs` row, change "String → records" to "String → `Table` (header and records)".
 - **§7:** change the first signature in the code block to `pub fn build_catalogue(table: &Table, w: &mut Warnings) -> Result<Catalogue, Vec<Fatal>>;`. After the paragraph on tier two, add: "`csv::parse` returns `Result<(Table, Vec<Fatal>), Fatal>`. Tier one is the `Err`. Its tier-two FR-4 errors travel beside the table rather than instead of it, so they join `build_catalogue`'s in the same run."
-- **§2's pipeline and §3's `csv/parse.rs` row:** where they say parse produces "records", say `Table` (header and records).
 
 - [ ] **Step 4: Run everything**
 
@@ -1403,7 +1425,7 @@ Follow the house workflow in `~/.claude/CLAUDE.md`. For this PR:
 1. Run `crumbs start rg-aqb` before Task 1. Work on branch `feat/pr-05-csv`, created from `main`.
 2. After Task 3: push, then open the PR with `gh pr create` and **no reviewer flag**.
 3. Run the code-reviewer skill until clean, then the Copilot step (this repo has no `copilot_code_review` ruleset, so a local multi-agent review substitutes, and the PR body says so). Then run simplify, then code-reviewer once more.
-4. Close `rg-aqb` with `crumbs close rg-aqb` — never by editing its status field, which leaves the timer `crumbs start` began running. **No version bump:** nothing a user runs changes.
+4. Close `rg-aqb` with `crumbs close rg-aqb`, which also stops the timer `crumbs start` began; do not hand-edit the file. **No version bump:** nothing a user runs changes.
 5. Move this file to `docs/plans/done/` in the same PR. Merge; there's no tag.
 
 ## Revisions
@@ -1412,3 +1434,4 @@ Follow the house workflow in `~/.claude/CLAUDE.md`. For this PR:
 | --- | --- | --- |
 | 1.0 | 2026-10-10 | Initial version. The `csv` crate was measured and rejected (CRLF line numbers, silent unterminated quote). All three tasks were applied to `main` in a scratch worktree before review: 142 tests pass, and `cargo clippy --all-targets -- -D warnings` and `just lint` are clean |
 | 1.1 | 2026-10-10 | Reviewed by architect, Rust, QA, UX and UI agents. **`parse` returns FR-4 errors beside the table**, so PR 06's FR-5/FR-6 errors arrive in the same run (NFR-16, `row-errors.csv`). Excel quirks handled: blank and `,,,` rows skipped, empty header cells are not duplicates, a `;`- or tab-separated file is refused at its header. Quoting errors name the faulty line by design, and their column. Every new message says what to do, and says "column", not "field". FR-90 warnings name columns canonically (PR 02). Tasks 2 and 3 share one commit, so no commit fails clippy, and `cargo fmt` is in every run step. Added a `csv_fatal_messages` catalogue test (kept apart from `fatal_messages`, which would exceed pedantic's 100-line `too_many_lines`), `tests/csv.rs`, exhaustive scanner checks, and decode edge cases (UTF-16, truncated sequence, directory). Spaces around quotes are declined (RFC 4180). Error grouping is deferred to `rg-pcd`. Applied to `main` in a scratch worktree: 158 tests pass; `cargo fmt --check`, clippy and `just lint` are clean |
+| 1.2 | 2026-10-10 | PR #17 review: the PRD departures (blank records, quoting-error lines, the separator check) recorded as crumb `rg-lfd`, and the PR 06 handoff appended to `rg-rnc`. The error order across parse and `build_catalogue` is left to PR 13 (NFR-11). The architecture §2 edit is spelled out against the actual diagram, with `read`'s exception to stage purity. Review metadata filled in; minor wording fixes |
