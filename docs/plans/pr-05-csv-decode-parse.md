@@ -71,7 +71,7 @@ Malformed quoting, an empty file and a non-comma separator abort at once (tier o
   - `"x"y` silently became `xy`.
 
   Working around all three means tracking quotes and line breaks independently of the library, which is the scanner itself. RFC 4180 is small (quoted fields, doubled quotes, comma, line break); the scanner is about 80 lines of code, is tested directly, and is checked exhaustively over every input of up to six characters from the alphabet `a , " \n \r`.
-- **`parse` returns `Result<(Table, Vec<Fatal>), Fatal>`.** `Err` is tier one: nothing parsed. `Ok` carries the table of well-formed records **and** every FR-4 error. A row that fails FR-4 is left out of `records`, which keeps the `header.len()` invariant, but its error travels beside the table. So a short row never hides another row's empty `name` (FR-6), and `main.rs` (PR 13) merges parse's errors with `build_catalogue`'s. The merged order (ascending line, header-level first, is the NFR-11 reading) is PR 13's to fix before SC-10 pins it. Returning `Err(Vec<Fatal>)` instead would make `row-errors.csv` (architecture §10) unpassable.
+- **`parse` returns `Result<(Table, Vec<Fatal>), Fatal>`.** `Err` is tier one: nothing parsed. `Ok` carries the table of well-formed records **and** every FR-4 error. A row that fails FR-4 is left out of `records`, which keeps the `header.len()` invariant, but its error travels beside the table. So a short row never hides another row's empty `name` (FR-6), and `main.rs` (PR 13) merges parse's errors with `build_catalogue`'s. The merged order is PR 13's to fix before SC-10 pins it; NFR-11 reads as ascending line, header-level errors first. Returning `Err(Vec<Fatal>)` instead would make `row-errors.csv` (architecture §10) unpassable.
 - **Lenient where Excel never writes, strict where data would be lost.** A `"` inside an *unquoted* field is kept literally (`5" screen` is plausibly what the author meant, and "content is not fatal"). Text *after* a closing quote (`"x"y`) is a hard error: the author's intent is ambiguous, and silently dropping or keeping the quote would both be guesses. **Spaces around quotes are not special-cased.** RFC 4180 counts them as part of the field: `x, "y"` is the unquoted ` "y"`, and `"x" ,y` is text after a quote. Both outcomes are pinned by a test. Dropping them would need a lookahead probe for a hand-typing convenience Excel never needs.
 - **Quoting errors name the faulty line, not the record's first line.** In a record spanning lines 2–4:
   - a quote opening on line 3 that never closes reports line 3;
@@ -102,7 +102,7 @@ Malformed quoting, an empty file and a non-comma separator abort at once (tier o
 | `DuplicateHeader` | `line {line}: column {index} '{name}' repeats column {first_index} '{first_name}'; header names match ignoring case and surrounding spaces, so rename or remove one` |
 | `FieldCount` | `line {line}: the row's field count is {found} but the header's is {expected}; ` then, when `found > expected`, `a comma inside a value needs the value in double quotes`, else `a value is missing, or an unquoted line break split the row` |
 
-- **PRD wording.** Three of these decisions depart from the PRD's literal text: skipping blank records (FR-3, FR-4, FR-6, FR-78), quoting errors naming the fault's line (NFR-10), and `NotCommaSeparated` as a tier-one error (NFR-9, NFR-16). Crumb `rg-lfd` writes them into the PRD. The handoff to PR 06 is appended to `rg-rnc`.
+- **PRD wording.** Three of these decisions depart from the PRD's literal text: skipping blank records (FR-3, FR-4, FR-6, FR-78), quoting errors naming the fault's line (NFR-10, NFR-15), and `NotCommaSeparated` as a tier-one error (NFR-9, NFR-16). Crumb `rg-lfd` writes them into the PRD. The handoff to PR 06 is appended to `rg-rnc`.
 - **No version bump.** The binary still exits 1 without reading a file.
 
 ---
@@ -1393,12 +1393,12 @@ In `docs/design/architecture.md`:
     String
       │  parse        FR-90 removal, header, field counts       FR-3, FR-4, FR-90
       ▼
-    Table             header and records; FR-4 errors beside it
+    Table            header and records; FR-4 errors beside it
       │  model        map columns, check required values        FR-5, FR-6
       ▼
   ```
 
-  After "Each stage is a pure function of its input plus the diagnostics it may add." add: "The one exception is `csv::decode::read`, which reads the input file so its errors can name the path (NFR-10); `decode` itself is pure."
+  After "Each stage is a pure function of its input plus the diagnostics it may add." add: "The one exception is `csv::decode::read`, which reads the input file so its errors can name the path (NFR-10); `decode` itself is pure." In the paragraph beginning "**`Catalogue` therefore keeps the CSV's shape**", change "reaching back past the waist to `records`" to "reaching back past the waist to the `Table`".
 - **§3:** in the `src/csv/decode.rs` row, append "; `read` is the stage's one file read". In the `src/csv/parse.rs` row, change "String → records" to "String → `Table` (header and records)".
 - **§7:** change the first signature in the code block to `pub fn build_catalogue(table: &Table, w: &mut Warnings) -> Result<Catalogue, Vec<Fatal>>;`. After the paragraph on tier two, add: "`csv::parse` returns `Result<(Table, Vec<Fatal>), Fatal>`. Tier one is the `Err`. Its tier-two FR-4 errors travel beside the table rather than instead of it, so they join `build_catalogue`'s in the same run."
 
