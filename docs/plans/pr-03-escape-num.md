@@ -33,7 +33,11 @@
 
 - **`fmt_coord` trims trailing zeros**, so `260.000` becomes `260` and `1.500` becomes `1.5`. That's the format the SVG spike used (`tests/outlines_match_text.rs::fmt`), and NFR-17 doesn't forbid it.
 - **`fmt_coord` panics on NaN, on infinity, and on magnitudes of 10¹² or more.** None of these is an input error. Each can only come from a layout bug, and returning a `Result` would push an impossible-error branch into every emitter call. The panic message names the value.
-- **Disallowed XML characters are replaced with U+FFFD, not rejected.** NFR-9 says content is never fatal ("structure is fatal, content is not"). The PRD doesn't specify this case.
+- **Disallowed XML characters are replaced with U+FFFD, not rejected.** NFR-9 says content is never fatal ("structure is fatal, content is not"). The PRD doesn't specify this case. Two consequences to flag:
+  - **The replacement is silent.** An author finds a replacement mark in a published edition with nothing on stderr to explain it. These functions have no `Warnings`, so a warning would have to come from the CSV stage (PR 05/06), for example `line N, column: control character U+XXXX replaced`.
+  - **Inter has no U+FFFD glyph.** It's inside the subset range, but checked during plan review, neither vendored face maps it, so the PNG shows tofu rather than the replacement mark. The browser falls back to a system font for it.
+
+  Both are tracked in a crumb; neither changes this PR.
 - **The attribute functions return the value already wrapped in `"`**, which makes NFR-6 (3)'s "never left unquoted" structural.
 - **`serde_json` for context 4.** It's library-first, and PR 14's data island needs `Serialize` anyway. The function adds only the `<`, U+2028 and U+2029 escapes.
 - **The CSS context rejects only the three characters NFR-6 names.** `/*` or `{` in a palette value can garble the file's own declarations, but can't inject markup. Say on review if those should be rejected too; it's a one-line change in the test and the function.
@@ -72,7 +76,8 @@ mod tests {
         assert_eq!(fmt_coord(1.5), "1.5");
         assert_eq!(fmt_coord(0.1 + 0.2), "0.3");
         assert_eq!(fmt_coord(12_345.678_9), "12345.679");
-        assert_eq!(fmt_coord(-3.141_59), "-3.142");
+        // Not -3.14159: clippy's deny-by-default `approx_constant` reads it as π.
+        assert_eq!(fmt_coord(-7.654_32), "-7.654");
     }
 
     /// NFR-17: half away from zero. `{:.3}` would give 0.062 here — these
@@ -122,6 +127,18 @@ mod tests {
     #[should_panic(expected = "not a drawable coordinate")]
     fn absurd_magnitudes_are_a_bug_not_an_output() {
         let _ = fmt_coord(1e12);
+    }
+
+    #[test]
+    #[should_panic(expected = "not a drawable coordinate")]
+    fn negative_absurd_magnitudes_are_a_bug_too() {
+        let _ = fmt_coord(-1e12);
+    }
+
+    #[test]
+    fn the_largest_drawable_magnitude_prints_in_full() {
+        assert_eq!(fmt_coord(999_999_999_999.0), "999999999999");
+        assert_eq!(fmt_coord(-999_999_999_999.5), "-999999999999.5");
     }
 }
 ```
@@ -186,7 +203,7 @@ pub fn fmt_coord(v: f64) -> String {
 - [ ] **Step 4: Run the tests**
 
 Run: `cargo test --lib num && cargo clippy --all-targets -- -D warnings`
-Expected: 9 passed, clippy clean.
+Expected: 11 passed, clippy clean.
 
 - [ ] **Step 5: Commit**
 
@@ -260,16 +277,34 @@ mod tests {
         assert_eq!(xml_text("a\u{1}b\u{1f}c\u{fffe}d"), "a\u{fffd}b\u{fffd}c\u{fffd}d");
         assert_eq!(xml_attr("a\u{0}b"), "\"a\u{fffd}b\"");
         assert_eq!(xml_text("tab\tand\nnewline"), "tab\tand\nnewline");
+        // NFR-17: LF-only output; and XML end-of-line handling would turn a raw
+        // CR into LF anyway, so a CRLF inside a quoted CSV field must be a reference.
+        assert_eq!(xml_text("crlf\r\nline"), "crlf&#13;\nline");
     }
 
     #[test]
     fn non_ascii_passes_through() {
         assert_eq!(xml_text("Ærø — naïve 日本"), "Ærø — naïve 日本");
     }
+
+    /// NFR-6 / SC-9's real oracle is a parser: every hostile string, escaped
+    /// for a text node and an attribute, parses and reads back exactly. The
+    /// "no `<`" check above would pass if `&` or `"` were left unescaped, or
+    /// if output were double-escaped.
+    #[test]
+    fn hostile_strings_round_trip_through_an_xml_parser() {
+        for s in HOSTILE.iter().copied().chain(["a\tb\nc\rd", "it's \"both\""]) {
+            let doc = format!("<svg aria-label={}>{}</svg>", xml_attr(s), xml_text(s));
+            let parsed = roxmltree::Document::parse(&doc).unwrap_or_else(|e| panic!("{s:?}: {e}"));
+            let root = parsed.root_element();
+            assert_eq!(root.attribute("aria-label"), Some(s), "attr {s:?}");
+            assert_eq!(root.text(), Some(s), "text {s:?}");
+        }
+    }
 }
 ```
 
-Add `pub mod escape;` to `src/lib.rs`.
+Add `pub mod escape;` to `src/lib.rs`, and run `cargo add --dev roxmltree@0.20`. It's already in the tree through `usvg` and is MIT OR Apache-2.0; declare it rather than rely on it transitively.
 
 - [ ] **Step 2: Run them to see them fail**
 
@@ -302,7 +337,7 @@ fn xml_allowed(c: char) -> bool {
     }
 }
 
-/// Context 1: an SVG/XML text node — `&`, `<`, `>`.
+/// Context 1: an SVG/XML text node — `&`, `<`, `>`, and CR as a reference.
 #[must_use]
 pub fn xml_text(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -311,6 +346,8 @@ pub fn xml_text(s: &str) -> String {
             '&' => out.push_str("&amp;"),
             '<' => out.push_str("&lt;"),
             '>' => out.push_str("&gt;"),
+            // NFR-17's output is LF-only, and a parser would fold a raw CR to LF.
+            '\r' => out.push_str("&#13;"),
             c if !xml_allowed(c) => out.push('\u{fffd}'),
             c => out.push(c),
         }
@@ -356,12 +393,12 @@ pub fn html_attr(s: &str) -> String {
 - [ ] **Step 4: Run the tests**
 
 Run: `cargo test --lib escape && cargo clippy --all-targets -- -D warnings`
-Expected: 6 passed, clippy clean.
+Expected: 7 passed, clippy clean.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/escape.rs src/lib.rs
+git add src/escape.rs src/lib.rs Cargo.toml Cargo.lock
 git commit -m "feat(escape): XML text, XML attribute and HTML attribute contexts (NFR-6 1–3)"
 ```
 
@@ -406,13 +443,14 @@ Append inside `mod tests`:
     #[test]
     fn line_and_paragraph_separators_are_escaped() {
         let out = json("x\u{2028}y\u{2029}z").unwrap();
-        assert_eq!(out, r#""x y z""#);
+        assert_eq!(out, r#""x\u2028y\u2029z""#);
+        assert_eq!(serde_json::from_str::<String>(&out).unwrap(), "x\u{2028}y\u{2029}z");
     }
 
     #[test]
     fn json_escapes_structures_too() {
         let out = json(&["</script>", "ok"]).unwrap();
-        assert_eq!(out, r#"["</script>","ok"]"#);
+        assert_eq!(out, r#"["\u003c/script>","ok"]"#);
     }
 
     #[test]
@@ -441,10 +479,14 @@ Append above the test module:
 
 ```rust
 /// Context 4: a JavaScript string or JSON island. JSON-encoded, then every
-/// `<` becomes `<` — `</script>` terminates the block regardless of
+/// `<` becomes `\u003c` — `</script>` terminates the block regardless of
 /// entity escaping (NFR-6), and `<!--` alters script parsing — and U+2028 and
 /// U+2029 are escaped for older JavaScript parsers. The substitutions are safe
 /// on serializer output: none of the three can occur in JSON outside a string.
+///
+/// # Errors
+///
+/// When `value`'s `Serialize` implementation fails.
 pub fn json<T: serde::Serialize + ?Sized>(value: &T) -> Result<String, serde_json::Error> {
     Ok(serde_json::to_string(value)?
         .replace('<', "\\u003c")
@@ -462,6 +504,10 @@ pub struct CssValueError {
 
 /// Context 5: a CSS custom-property value. Rejected rather than escaped — no
 /// safe escaping exists for arbitrary text in a CSS value position.
+///
+/// # Errors
+///
+/// [`CssValueError`] naming the first `;`, `}` or `<` in `s`.
 pub fn css_value(s: &str) -> Result<&str, CssValueError> {
     match s.chars().find(|c| matches!(c, ';' | '}' | '<')) {
         Some(found) => Err(CssValueError { value: s.to_string(), found }),

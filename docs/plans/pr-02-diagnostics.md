@@ -40,18 +40,22 @@ The PRD fixes two message texts: NFR-20's grouped ring line and FR-20's qualifie
 | qualifier (FR-20) | `unrecognised qualifier value 'X'` *(PRD)* | `N rows have an unrecognised qualifier — …; each is drawn solid` |
 | status (FR-26) | `unrecognised status value 'X'; drawn as No Change` | `N rows have an unrecognised status — …; each is drawn as No Change` |
 | date (FR-24/25) | `'X' is not a YYYY-MM-DD date; shown as written` | `N rows have last_affirmed values that are not YYYY-MM-DD dates — …; each is shown as written` |
-| description (FR-7) | `description is empty` | `N rows have an empty description, first line L` |
-| duplicate name (FR-28) | `name 'X' repeats line L; both are drawn` | `N rows repeat an earlier name — …; every row is drawn` |
+| description (FR-7) | `description is empty; the detail panel omits it` | `N rows have an empty description — lines L1, L2, …; the detail panel omits each` |
+| duplicate name (FR-28) | `name 'X' repeats line L; both are drawn` | `N rows repeat an earlier name — X (n, first line F; original line L), …; every row is drawn` |
 | FR-88 (no line) | `N quadrants; the radar reads best with three to six, so sectors narrow and labels may crowd` | never grouped |
-| FR-89 (no line) | `Q / R holds N items; about F fit without overlapping` | never grouped |
+| FR-89 (no line) | `quadrant 'Q', ring 'R': N items; about F fit comfortably, so some markers overlap` | never grouped |
 
 Other choices:
 - **Each line starts with `warning: ` or `error: `.**
 - **The per-row prefix is `line N, column: `**, using the canonical lower-case column name.
 - **The two date columns are separate classes.** Each grouped line then names its column, as NFR-10 requires.
 - **The value shown is the first occurrence's, trimmed.** Values group by `normalise()`.
-- **For duplicate names, the count is the number of repeat rows,** and "first line" is the first repeat. The per-row message names the original line.
-- **`cli::FatalError` becomes `diagnostics::Fatal`.** The `--rings` messages are `entry N is empty`, `'X' repeats entry N` and `no rings declared`.
+- **For duplicate names, the count is the number of repeat rows,** and "first line" is the first repeat. The per-row message names the original line, and so does each grouped value (`original line L`). Without it, the grouped line names only half of each pair.
+- **An empty description lists every line, uncapped.** It has no value to enumerate, so NFR-20's "the rare one is the typo" reasoning applies to the lines instead.
+- **FR-89 quotes its names.** Quadrant names can contain `/` or `&`, so `Q / R` would be ambiguous.
+- **Bidi controls are escaped too** (U+200E/F, U+202A–E, U+2066–9). `is_control` misses them, and they can visually reorder a stderr line just as an escape sequence can recolour it.
+- **`cli::FatalError` becomes `diagnostics::Fatal`.** The `--rings` messages are `entry N is empty`, `'X' repeats entry N` and `no rings declared`. The `-o` message is `the output file name must end in .html`, which reads correctly for a wrong, missing or `.htm` extension (FR-52 covers the absent case too).
+- **`Fatal` derives no `PartialEq`.** PR 13's write failures (NFR-15) carry `std::io::Error`, which isn't comparable, so the derive would break there. Tests compare `render()` output or use `matches!`.
 
 ---
 
@@ -60,6 +64,7 @@ Other choices:
 **Files:**
 - Create: `src/diagnostics.rs`
 - Modify: `src/lib.rs` (add `pub mod diagnostics;`, keeping alphabetical order with the other `pub mod` lines)
+- Modify: `docs/design/architecture.md` (§7's last paragraph: a warning's position is `Option<line>` with `None` first becomes `Position::{Render, Cell { line, column }}`, `Render` first — NFR-11 also orders by column within a line, which `Option<line>` cannot express)
 - Test: `tests/diagnostics.rs`
 
 **Interfaces:**
@@ -104,13 +109,13 @@ fn each_kind_has_its_per_row_message() {
         (at(8, 7, WarningKind::UnparsableDate { column: DateColumn::ExitDate, value: "soon".into() }),
          "line 8, exit_date: 'soon' is not a YYYY-MM-DD date; shown as written"),
         (at(9, 3, WarningKind::EmptyDescription),
-         "line 9, description: description is empty"),
+         "line 9, description: description is empty; the detail panel omits it"),
         (at(12, 0, WarningKind::DuplicateName { value: "Terraform".into(), first_line: 4 }),
          "line 12, name: name 'Terraform' repeats line 4; both are drawn"),
         (render_level(WarningKind::QuadrantCount { count: 7 }),
          "7 quadrants; the radar reads best with three to six, so sectors narrow and labels may crowd"),
         (render_level(WarningKind::OverfullBand { quadrant: "Tools".into(), ring: "Adopt".into(), count: 14, fits: 10 }),
-         "Tools / Adopt holds 14 items; about 10 fit without overlapping"),
+         "quadrant 'Tools', ring 'Adopt': 14 items; about 10 fit comfortably, so some markers overlap"),
     ];
     for (warning, expected) in cases {
         assert_eq!(warning.to_string(), expected);
@@ -131,6 +136,8 @@ fn control_characters_in_values_are_shown_escaped() {
     let s = w.to_string();
     assert!(!s.contains('\n') && !s.contains('\u{1b}'), "{s:?}");
     assert!(s.contains(r"In\nUse\u{1b}[31m"), "{s}");
+    let bidi = at(3, 2, WarningKind::UndeclaredRing { value: "a\u{202e}b".into() }).to_string();
+    assert!(bidi.contains(r"a\u{202e}b"), "{bidi}");
 }
 
 #[test]
@@ -247,7 +254,7 @@ impl WarningKind {
                 "'{}' is not a YYYY-MM-DD date; shown as written",
                 printable(value)
             ),
-            Self::EmptyDescription => "description is empty".into(),
+            Self::EmptyDescription => "description is empty; the detail panel omits it".into(),
             Self::DuplicateName { value, first_line } => format!(
                 "name '{}' repeats line {first_line}; both are drawn",
                 printable(value)
@@ -256,7 +263,7 @@ impl WarningKind {
                 "{count} quadrants; the radar reads best with three to six, so sectors narrow and labels may crowd"
             ),
             Self::OverfullBand { quadrant, ring, count, fits } => format!(
-                "{} / {} holds {count} items; about {fits} fit without overlapping",
+                "quadrant '{}', ring '{}': {count} items; about {fits} fit comfortably, so some markers overlap",
                 printable(quadrant),
                 printable(ring)
             ),
@@ -277,13 +284,16 @@ impl fmt::Display for Warning {
 
 /// A CSV value can carry a newline inside quotes (NFR-10), and printed raw it
 /// would forge a second diagnostic line; an escape sequence could recolour the
-/// terminal. Control characters are shown escaped; everything else as written.
+/// terminal, and a bidi override could reorder it. Those are shown escaped;
+/// everything else as written.
 fn printable(value: &str) -> String {
     value
         .trim()
         .chars()
         .map(|c| {
-            if c.is_control() {
+            if c.is_control()
+                || matches!(c, '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+            {
                 c.escape_default().to_string()
             } else {
                 c.to_string()
@@ -303,7 +313,7 @@ Expected: 4 passed, clippy clean.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/diagnostics.rs src/lib.rs tests/diagnostics.rs
+git add src/diagnostics.rs src/lib.rs tests/diagnostics.rs docs/design/architecture.md
 git commit -m "feat(diagnostics): Warning and Position, with per-row messages (NFR-10)"
 ```
 
@@ -380,8 +390,8 @@ fn render_level_warnings_come_first_and_never_group() {
     w.push(render_level(WarningKind::OverfullBand { quadrant: "B".into(), ring: "Adopt".into(), count: 11, fits: 10 }));
     assert_eq!(w.render(), vec![
         "warning: 9 quadrants; the radar reads best with three to six, so sectors narrow and labels may crowd",
-        "warning: A / Adopt holds 12 items; about 10 fit without overlapping",
-        "warning: B / Adopt holds 11 items; about 10 fit without overlapping",
+        "warning: quadrant 'A', ring 'Adopt': 12 items; about 10 fit comfortably, so some markers overlap",
+        "warning: quadrant 'B', ring 'Adopt': 11 items; about 10 fit comfortably, so some markers overlap",
         "warning: line 2, ring: ring 'X' is not declared by --rings; the row is in the table view, not on the radar",
     ]);
 }
@@ -438,10 +448,10 @@ fn every_row_class_has_a_grouped_line() {
         "warning: 2 rows have exit_date values that are not YYYY-MM-DD dates — soon (2, first line 4); each is shown as written",
     ]);
     assert_eq!(two(WarningKind::EmptyDescription), vec![
-        "warning: 2 rows have an empty description, first line 4",
+        "warning: 2 rows have an empty description — lines 4, 6; the detail panel omits each",
     ]);
     assert_eq!(two(WarningKind::DuplicateName { value: "Kafka".into(), first_line: 2 }), vec![
-        "warning: 2 rows repeat an earlier name — Kafka (2, first line 4); every row is drawn",
+        "warning: 2 rows repeat an earlier name — Kafka (2, first line 4; original line 2); every row is drawn",
     ]);
 }
 
@@ -455,7 +465,33 @@ fn the_two_date_columns_are_separate_classes() {
 
 #[test]
 fn no_warnings_render_nothing() {
-    assert!(Warnings::default().render().is_empty());
+    assert_eq!(Warnings::default().render(), Vec::<String>::new());
+}
+
+/// NFR-10 applies to the grouped line too: it prints values through its own
+/// path, and a forged line there is just as convincing.
+#[test]
+fn control_characters_are_escaped_in_grouped_lines_too() {
+    let mut w = Warnings::default();
+    w.push(ring(4, "In\nUse"));
+    w.push(ring(5, "In\nUse"));
+    let out = w.render();
+    assert_eq!(out.len(), 1, "{out:#?}");
+    assert!(!out[0].contains('\n'), "{:?}", out[0]);
+    assert!(out[0].contains(r"In\nUse (2, first line 4)"), "{}", out[0]);
+}
+
+/// NFR-11: values within a grouped line order by the line they first occur
+/// on, not by the order a stage happened to push them.
+#[test]
+fn grouped_values_order_by_first_line_not_push_order() {
+    let mut w = Warnings::default();
+    w.push(ring(37, "Adpot"));
+    w.push(ring(9, "In Use"));
+    w.push(ring(4, "In Use"));
+    assert_eq!(w.render(), vec![
+        "warning: 3 rows use a ring --rings does not declare — In Use (2, first line 4), Adpot (1, line 37); all appear in the table view",
+    ]);
 }
 ```
 
@@ -559,6 +595,8 @@ struct Tally {
     shown: String,
     count: usize,
     first_line: usize,
+    /// FR-28's earlier line, for a duplicate name; `None` for every other class.
+    original: Option<usize>,
 }
 
 fn line_of(w: &Warning) -> usize {
@@ -571,7 +609,11 @@ fn line_of(w: &Warning) -> usize {
 fn grouped(class: Class, members: &[&Warning]) -> String {
     let n = members.len();
     if class == Class::Description {
-        return format!("{n} rows have an empty description, first line {}", line_of(members[0]));
+        let lines: Vec<String> = members.iter().map(|m| line_of(m).to_string()).collect();
+        return format!(
+            "{n} rows have an empty description — lines {}; the detail panel omits each",
+            lines.join(", ")
+        );
     }
     let mut tallies: Vec<Tally> = Vec::new();
     for m in members {
@@ -580,14 +622,24 @@ fn grouped(class: Class, members: &[&Warning]) -> String {
         if let Some(t) = tallies.iter_mut().find(|t| t.key == key) {
             t.count += 1;
         } else {
-            tallies.push(Tally { key, shown: printable(value), count: 1, first_line: line_of(m) });
+            let original = match m.kind {
+                WarningKind::DuplicateName { first_line, .. } => Some(first_line),
+                _ => None,
+            };
+            tallies.push(Tally { key, shown: printable(value), count: 1, first_line: line_of(m), original });
         }
     }
     let values = tallies
         .iter()
-        .map(|t| match t.count {
-            1 => format!("{} (1, line {})", t.shown, t.first_line),
-            c => format!("{} ({c}, first line {})", t.shown, t.first_line),
+        .map(|t| {
+            let at = match t.count {
+                1 => format!("1, line {}", t.first_line),
+                c => format!("{c}, first line {}", t.first_line),
+            };
+            match t.original {
+                Some(o) => format!("{} ({at}; original line {o})", t.shown),
+                None => format!("{} ({at})", t.shown),
+            }
         })
         .collect::<Vec<_>>()
         .join(", ");
@@ -609,7 +661,7 @@ fn grouped(class: Class, members: &[&Warning]) -> String {
 - [ ] **Step 4: Run the tests**
 
 Run: `cargo test --test diagnostics && cargo clippy --all-targets -- -D warnings`
-Expected: 13 passed, clippy clean.
+Expected: 16 passed, clippy clean.
 
 - [ ] **Step 5: Commit**
 
@@ -631,9 +683,9 @@ git commit -m "feat(diagnostics): Warnings — NFR-11 order and NFR-20 grouping"
 
 **Interfaces:**
 - Consumes: `rings::RingsError` (exists).
-- Produces: `#[derive(Debug, PartialEq, Eq, thiserror::Error)] pub enum Fatal`, with the variants `UnrecognisedExtension { path: String }`, `FormatNotInThisVersion { ext: String, arrives_in: &'static str }` and `Rings(#[from] RingsError)`, plus `impl Fatal { pub fn render(&self) -> String }`, which gives `error: …`.
+- Produces: `#[derive(Debug, thiserror::Error)] pub enum Fatal` (no `PartialEq`: PR 13's write failures carry `std::io::Error`), with the variants `UnrecognisedExtension { path: String }`, `FormatNotInThisVersion { ext: String, arrives_in: &'static str }` and `Rings(#[from] RingsError)`, plus `impl Fatal { pub fn render(&self) -> String }`, which gives `error: …`.
 
-  PR 05 adds decode, parse and quoting variants; PR 06 adds FR-5/FR-6; PR 13 adds the write failures. Each PR adds its own variants next to the code that raises them. Tier two returns `Vec<Fatal>` (§7).
+  PR 05 adds decode, parse and quoting variants; PR 06 adds FR-5/FR-6; PR 13 adds the write failures. Each PR adds its own variants next to the code that raises them. Tier two returns `Vec<Fatal>` (§7), and so does a single flag with several violations (NFR-16 tier one, `rg-tiu`), so `main.rs` renders a slice, not one `Fatal`. Variants built from CSV data (PR 05 onward) must pass values through `printable()`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -647,7 +699,9 @@ use radargen::rings::RingsError;
 fn fatal_messages() {
     let cases = [
         (Fatal::UnrecognisedExtension { path: "radar.pdf".into() },
-         "error: -o radar.pdf: no output format matches this extension; use .html"),
+         "error: -o radar.pdf: the output file name must end in .html"),
+        (Fatal::UnrecognisedExtension { path: "radar".into() },
+         "error: -o radar: the output file name must end in .html"),
         (Fatal::FormatNotInThisVersion { ext: "png".into(), arrives_in: "1.1" },
          "error: -o: .png output arrives in radargen 1.1; this version writes .html"),
         (Fatal::from(RingsError::EmptyEntry { index: 2 }),
@@ -698,10 +752,10 @@ use crate::rings::RingsError;
 /// Everything the tool refuses to run on: non-zero exit, nothing written
 /// (NFR-8, NFR-9). One taxonomy for the whole tool (architecture §1); each
 /// later stage adds its variants beside the code that raises them.
-#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum Fatal {
     /// FR-52: the `-o` extension is absent or names a format we do not write.
-    #[error("-o {path}: no output format matches this extension; use .html")]
+    #[error("-o {path}: the output file name must end in .html")]
     UnrecognisedExtension { path: String },
     /// §14.1: the extension is one v1.1 adds, so say that rather than
     /// "unrecognised", which sends the caller hunting for a typo in a path

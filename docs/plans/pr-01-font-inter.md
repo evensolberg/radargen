@@ -28,7 +28,7 @@
 
 1. **A non-Latin character in a name** (R-7, A-4). The subset has no glyph for it, so it renders as tofu. Measuring it must still return a finite, positive width and must not panic. *Test: Task 2, `measuring_text_outside_the_subset_does_not_panic`.*
 2. **The SemiBold face resolving to the wrong family in `fontdb`.** `pyftsubset` drops name IDs 16/17 by default. SemiBold would then register as family "Inter SemiBold", and `font-family="Inter" font-weight="600"` would silently fall back to Regular in `resvg`. *Test: Task 1, `both_faces_register_as_family_inter_with_their_weights`.*
-3. **WOFF2 and TTF drifting apart.** If someone re-subsets one encoding but not the other, the HTML paints with a face the layout didn't measure. *Guard: Task 1's script writes all four files in one run. Task 1's test checks every TTF/WOFF2 pair has the same SHA-256 recorded in `assets/FONTS.sha256`, so a hand-edited asset fails.*
+3. **WOFF2 and TTF drifting apart.** If someone re-subsets one encoding but not the other, the HTML paints with a face the layout didn't measure. *Guard: Task 1's script writes all four files in one run. Task 1's test checks each of the four files still matches the SHA-256 that run recorded in `assets/FONTS.sha256`, so a hand-edited or separately regenerated asset fails.*
 4. **Kerning silently lost by the subsetter.** If the `kern` feature or GPOS were dropped, measurement would still agree with `resvg` (both would lack it), but the face would differ from upstream Inter. *Test: Task 3 keeps the "kerned pairs are not the raw advance sum" regression guard, now against Inter.*
 5. **Typographic punctuation the key and legend use.** The em dash `—`, `·` and curly quotes must be in the subset. *Test: Task 1, `subset_covers_printable_ascii_and_the_punctuation_we_emit`.*
 
@@ -61,7 +61,7 @@ mkdir -p /tmp/inter && cd /tmp/inter
 curl -fsSLO https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip
 unzip -o -q Inter-4.1.zip
 ls extras/ttf/Inter-Regular.ttf extras/ttf/Inter-SemiBold.ttf LICENSE.txt
-uvx --from 'fonttools[woff]' fonttools --version
+uvx --from 'fonttools[woff]' python -c 'import fontTools, brotli; print(fontTools.version)'
 ```
 
 Expected: all three paths list, and a fonttools version prints. Write that version into `FONTTOOLS_VERSION` in Step 3. If the zip's layout differs, stop and report rather than guessing at another file.
@@ -108,9 +108,11 @@ fn subset_covers_printable_ascii_and_the_punctuation_we_emit() {
 #[test]
 fn subset_is_latin_only() {
     // A full Inter carries Cyrillic and Greek; the subset must not (FR-85, R-7).
-    let face = ttf_parser::Face::parse(REGULAR, 0).expect("face parses");
-    assert!(face.glyph_index('Ж').is_none(), "Cyrillic survived the subset");
-    assert!(face.glyph_index('λ').is_none(), "Greek survived the subset");
+    for (name, data) in [("Regular", REGULAR), ("SemiBold", SEMIBOLD)] {
+        let face = ttf_parser::Face::parse(data, 0).expect("face parses");
+        assert!(face.glyph_index('Ж').is_none(), "{name}: Cyrillic survived the subset");
+        assert!(face.glyph_index('λ').is_none(), "{name}: Greek survived the subset");
+    }
 }
 
 /// Architecture §3: the two encodings must stay one face. The script records
@@ -124,7 +126,35 @@ fn assets_match_the_digests_the_subsetting_run_recorded() {
         let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
         assert_eq!(sha256_hex(&bytes), digest, "{file} changed outside the subsetting run");
     }
-    assert_eq!(manifest.lines().filter(|l| !l.trim().is_empty()).count(), 4);
+    let mut files: Vec<&str> = manifest
+        .lines()
+        .filter_map(|l| l.split_once("  ").map(|(_, f)| f))
+        .collect();
+    files.sort_unstable();
+    assert_eq!(
+        files,
+        ["Inter-Regular.ttf", "Inter-Regular.woff2", "Inter-SemiBold.ttf", "Inter-SemiBold.woff2"]
+    );
+}
+
+/// NFR-5 inlines both WOFF2 files, yet nothing else decodes either:
+/// `resvg_ignores_an_embedded_font_face` passes on garbage bytes too.
+#[test]
+fn woff2_files_are_woff2() {
+    for face in ["Regular", "SemiBold"] {
+        let path = format!("{}/assets/Inter-{face}.woff2", env!("CARGO_MANIFEST_DIR"));
+        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
+        assert_eq!(bytes.get(..4), Some(&b"wOF2"[..]), "{path}");
+    }
+}
+
+/// FR-85 / NFR-18: the licence beside the fonts is Inter's, not the stand-in's.
+#[test]
+fn the_shipped_licence_is_inters() {
+    let ofl = include_str!("../assets/OFL.txt");
+    assert!(ofl.contains("SIL OPEN FONT LICENSE Version 1.1"), "not OFL-1.1");
+    assert!(ofl.contains("Inter Project Authors"), "OFL.txt is not Inter's licence");
+    assert!(!ofl.contains("Libertinus"), "the stand-in's licence is still in place");
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -169,7 +199,7 @@ subset() { # $1 = face, $2 = flavor ("" for TTF)
     --layout-features='*' \
     --name-IDs='*' \
     --no-hinting \
-    "${flavor[@]}" \
+    ${flavor[@]+"${flavor[@]}"} \
     --output-file="$OUT/Inter-$1.$ext"
 }
 
@@ -198,7 +228,7 @@ Expected: four `Inter-*` files listed. Note the four sizes; Task 4 records them 
 - [ ] **Step 6: Run the asset test**
 
 Run: `cargo test --test font_assets`
-Expected: 4 passed. If `both_faces_register_as_family_inter_with_their_weights` fails with `"Inter SemiBold"`, the `--name-IDs='*'` flag didn't take. Fix the script; don't loosen the test.
+Expected: 6 passed. If `both_faces_register_as_family_inter_with_their_weights` fails with `"Inter SemiBold"`, the `--name-IDs='*'` flag didn't take. Fix the script; don't loosen the test.
 
 - [ ] **Step 7: Commit**
 
@@ -283,7 +313,7 @@ pub const FAMILY: &str = "Inter";
 
 /// Inter Regular, Latin subset (`scripts/subset-inter.sh`).
 pub const REGULAR_TTF: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
-/// Inter SemiBold, Latin subset, from the same run as [`REGULAR_TTF`].
+/// Inter `SemiBold`, Latin subset, from the same run as [`REGULAR_TTF`].
 pub const SEMIBOLD_TTF: &[u8] = include_bytes!("../assets/Inter-SemiBold.ttf");
 
 /// FR-85 pins exactly two weights; FR-35 separates the legend's levels with
@@ -316,6 +346,10 @@ pub struct Fonts<'a> {
 impl Fonts<'static> {
     /// The faces compiled into the binary. A parse failure is NFR-15's
     /// "font load failure" and is fatal to the caller.
+    ///
+    /// # Errors
+    ///
+    /// A vendored face that `ttf-parser` cannot parse.
     pub fn embedded() -> Result<Self, ttf_parser::FaceParsingError> {
         Ok(Self {
             regular: FontMetrics::load(REGULAR_TTF)?,
@@ -352,7 +386,7 @@ git commit -m "feat(text): Weight and Fonts — measure over both FR-85 faces"
 ### Task 3: Point the oracle tests at Inter, both weights; delete Libertinus
 
 **Files:**
-- Modify: `tests/measure.rs`, `tests/wrap.rs`, `tests/agrees_with_resvg.rs`, `tests/rasterises_within_measurement.rs`, `tests/outlines_match_text.rs`
+- Modify: `tests/measure.rs`, `tests/wrap.rs`, `tests/agrees_with_resvg.rs`, `tests/rasterises_within_measurement.rs`, `tests/outlines_match_text.rs`, `examples/report.rs`
 - Delete: `assets/LibertinusSans-Regular.ttf`, `assets/LibertinusSans-Regular.woff2`
 
 **Interfaces:**
@@ -370,7 +404,7 @@ Expected: a non-zero count of `couldn't read ... LibertinusSans` errors. These a
 
 - [ ] **Step 2: Re-point `measure.rs` and `wrap.rs`**
 
-In both files, replace the `const FONT ... include_bytes!` line with:
+In both files, and in `examples/report.rs` (which `cargo test` and `clippy --all-targets` also build), replace the `const FONT ... include_bytes!` line with:
 
 ```rust
 use radargen::text::REGULAR_TTF as FONT;
@@ -465,6 +499,28 @@ fn our_advance_matches_usvg_layout_for_both_weights() {
 
 This test also checks that `fontdb` resolves weight 600 to the SemiBold face. If it fell back to Regular, the SemiBold row would disagree by more than 0.01.
 
+Then append:
+
+```rust
+/// R-7 / SC-7: a name outside the subset renders as tofu in the PNG (A-4),
+/// but its wrap points still come from our measurement, so our width for it
+/// must still be resvg's.
+#[test]
+fn tofu_measures_the_same_as_resvg_lays_it_out() {
+    let opt = options();
+    let fonts = Fonts::embedded().expect("faces");
+    for weight in [Weight::Regular, Weight::SemiBold] {
+        for word in ["日本語", "Kubernetes Ж"] {
+            let ours = fonts.face(weight).measure(word, SIZE, 0.0);
+            let theirs = usvg_advance(word, weight, &opt);
+            assert!((ours - theirs).abs() < 0.01, "{weight:?} {word}: ours {ours} usvg {theirs}");
+        }
+    }
+}
+```
+
+If it fails, report both widths rather than dropping the case: it means PNG wrap points for a non-Latin name disagree with what resvg draws.
+
 - [ ] **Step 4: Re-point `rasterises_within_measurement.rs`**
 
 Replace the `use radargen::text::FontMetrics;`, `const FONT` and `const FAMILY` lines with:
@@ -488,17 +544,17 @@ In `resvg_ignores_an_embedded_font_face`, change the comment "fontdb holds Liber
 
 - [ ] **Step 6: Run the whole suite**
 
-Run: `cargo test`
+Run: `cargo test`, then `diff <(cargo run -q --example report) <(cargo run -q --example report)`. The diff should print nothing: the example is the existing cross-process determinism check (NFR-4, NFR-17).
 
-Expected: everything passes, with one possible exception. `deduplicated_outlines_undercut_an_embedded_font` asserts `deduped < embedded`, and that measured an **unsubset** Libertinus WOFF2 (159 kB). A Latin-subset Inter WOFF2 is far smaller, so the comparison may flip. The spike already says "size is not what decided it… roughly a wash" (`docs/spikes/svg-font.md`).
+Expected: everything passes except one test, which fails. `deduplicated_outlines_undercut_an_embedded_font` asserts `deduped < embedded`, and that measured an **unsubset** Libertinus WOFF2 (159 kB). A Latin-subset Inter WOFF2 is ~30.5 kB, so the comparison flips (measured during plan review: deduped 53,420 vs embedded 44,430 bytes). The spike already says "size is not what decided it… roughly a wash" (`docs/spikes/svg-font.md`).
 
-If it fails: keep the `deduped * 5 < outlined` assertion, delete the `deduped < embedded` assertion, and keep the `eprintln!` that prints both sizes. Then rename the test `deduplicated_outlines_are_the_cheap_outlined_form` and change its doc comment's first sentence to "The size argument, which did not decide it — see the spike." Don't touch the spike document; it records what was measured then.
+Fix it: keep the `deduped * 5 < outlined` assertion, delete the `deduped < embedded` assertion, and keep the `eprintln!` that prints both sizes. Then rename the test `deduplicated_outlines_are_the_cheap_outlined_form` and change its doc comment's first sentence to "The size argument, which did not decide it — see the spike." Don't touch the spike document; it records what was measured then.
 
 - [ ] **Step 7: Lint and commit**
 
 ```bash
 cargo clippy --all-targets -- -D warnings
-git add -A tests assets
+git add -A tests assets examples
 git commit -m "test(text): run the oracle tests against Inter, both weights; drop Libertinus"
 ```
 

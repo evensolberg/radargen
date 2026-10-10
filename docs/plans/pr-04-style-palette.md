@@ -29,7 +29,7 @@
 1. **The ninth quadrant.** FR-67 says it repeats the first colour. An off-by-one in the modulo would give the ninth quadrant the second colour, or panic. *Test: Task 3, `series_cycles_from_the_start`, which includes index 8 and index 17.*
 2. **HTML and static output binding the same role differently.** `var()` and the literal value must name the same entry for any index, or the HTML and PNG would colour a quadrant differently. *Test: Task 3, `var_and_value_name_the_same_entry`.*
 3. **`palette.sample.css` drifting from the built-ins.** It ships as the `--palette` starting point (FR-81), so an author copying it must get exactly what the tool draws. *Test: Task 3, `built_ins_match_palette_sample_css`.*
-4. **A marker number that doesn't fit its marker.** Two-digit numbers are the common case at realistic item counts. *Test: Task 1, `two_digit_numbers_fit_inside_the_marker`.*
+4. **A number that doesn't fit its marker or legend badge.** Two-digit numbers are the common case at realistic item counts. The badge is the tight case, and the check runs against the clear interior inside a hollow stroke. *Test: Task 1, `two_digit_numbers_fit_inside_the_marker`.*
 5. **Legend levels that read as one level.** FR-35 requires the three levels to differ in indentation *and* type style. *Test: Task 1, `legend_levels_differ_in_indent_and_style`.*
 
 ## Decisions taken in this plan (flag on review)
@@ -37,11 +37,20 @@
 - **Values come from `mockup.html`** (lines 360–386 and its CSS), the prototype the PRD cites, with three changes:
   - Its `700` weights become `600` (FR-85).
   - The legend name is **Regular** 12.5px. The mockup's CSS uses normal weight while its measuring font string says 600. The CSS is what renders, so it wins.
-  - **There's no uppercase transform** on legend headings. The mockup uppercases with CSS `text-transform`, which `resvg` would not apply and our measurement would not see. Doing it honestly means changing the displayed string, which FR-76 says we don't do to labels. Headings differ by weight, size, letter-spacing and indent instead.
-- **`MIN_LEGIBLE_PX = 10.0`.** The PRD calls the value an implementation detail. With the mockup's wide width of 1148, it gives a 918 px breakpoint against the mockup's 900. This is the number most worth a second look.
+  - **There's no uppercase transform** on legend headings. The mockup uppercases with CSS `text-transform`, which `resvg` would not apply and our measurement would not see. Doing it honestly means changing the displayed string, which FR-76 says we don't do to labels. Headings differ by weight, size, letter-spacing and indent instead — and by colour: `LEGEND_QUADRANT` is painted `TextPrimary` and `LEGEND_RING` `TextMuted`, since without the uppercase cue the two SemiBold headings sit only one unit apart. (Plan review also proposed raising `LEGEND_QUADRANT` to the mockup's 13px `.legend-heading` size; flag it if colour plus one unit doesn't read as two levels.)
+- **`MIN_LEGIBLE_PX = 10.0`.** The PRD calls the value an implementation detail. With the mockup's wide width of 1148, it gives a 918 px breakpoint against the mockup's 900. This is the number most worth a second look. **It protects only `LEGEND_NAME`:** the wide document scales as a whole, so at the breakpoint (scale 0.8) ring headings render at 8px, legend meta at 8.4px, and marker and badge numbers at 7.2px. A floor of 12 keeps numbers at ~8.6px and meta at ~10px, and moves the 1148-wide breakpoint to 1102; dividing by the smallest legend size instead moves it to 1148 (ring heading) or 1276 (badge). The cost of either is only that more viewports get the narrow arrangement, which FR-70 keeps legible.
 - **Radar and arrangement metrics live here too** (`BAND_OUTER_RADIUS`, `DIVIDER_RADIUS`, `QUADRANT_LABEL_RADIUS`, the margins, `NARROW_WIDTH`), because architecture §3 says every layout constant does. The narrow counter-scaled label sizes (FR-70) aren't here: PR 10 computes them from these sizes and the scale.
-- **`Role` is `Neutral(Neutral) | Series(usize)`.** Indexing the neutrals is then an enum cast, with no panic path.
+- **`NARROW_WIDTH` (420) can't hold a `LEGEND_WIDTH_MAX` (440) legend plus margins, and architecture §4 has one `Blocks` serving both arrangements.** `mockup.html` resolves it by wrapping the legend at 380 (`NARROW_DOC_W − 2 × MARGIN`) in the narrow arrangement — a second legend layout with different wrap points, not one block placed twice. §4 says instead that the narrow document is "the width the text wants". This PR doesn't pick: either the legend is wrapped per arrangement (and §4's "one `Blocks`, two placements" is amended), or the narrow width derives from the legend (`NARROW_WIDTH` becomes a floor, or goes). Decide before PRs 08–12 build on either.
+- **`Role` is `Neutral(Neutral) | Series(usize)`.** Indexing the neutrals is then an enum cast, with no panic path. Architecture §5 writes `Role::MarkerHollow`; update it to `Role::Neutral(Neutral::MarkerHollow)` when PR 13 lands `Paint`.
 - **`Theme` moves to `palette.rs`**, and `cli.rs` re-exports it, so `radargen::cli::Theme` and `tests/cli.rs` keep working.
+- **Text colour per style.** FR-82 has no `--text-secondary`, which the mockup uses for four styles, and no `--page`, which it uses for legend-row hover. Each `TextStyle`'s doc comment names its ink so layout PRs don't guess:
+  - **TextPrimary:** TITLE, QUADRANT_LABEL, LEGEND_HEADING, LEGEND_QUADRANT, LEGEND_NAME, KEY_HEADING.
+  - **TextMuted:** SUBTITLE, RING_LABEL, LEGEND_RING, LEGEND_META, KEY_LABEL.
+
+  Legend-row hover fill is Surface1, because the legend sits on Surface2.
+- **Badge radius 8, not the mockup's 7.** Inter SemiBold 9px "44" measures ~12.0px. A hollow badge's clear interior is `2r − stroke`: 12px at r=7, which leaves no gap at all, and 14px at r=8.
+- **Ring labels get a halo.** FR-31 puts ring labels on the 12 o'clock divider, so the divider runs through every one of them. The mockup's ~1.3:1 gridline hid this; FR-82's divider is 3.4:1, and 1.9:1 against text-muted, so it reads as a strike-through. `LABEL_HALO` is the width of a Surface1 stroke painted under the text (`paint-order="stroke"`). PR 10 applies it, and its resvg oracle test should confirm resvg honours `paint-order`. If it doesn't, break the divider behind the label instead.
+- **Marker-number ink is open (flagged, not decided here).** The mockup draws numbers on solid markers and badges in literal `#fff`. That clears 4.5:1 on seven FR-81 entries, but series-6 `#2F9626` is **3.81:1**, below WCAG 1.4.3 for 9px text. FR-82's "verified" claim covers series against surfaces only. No single ink passes all eight: light `--text-primary` passes green at 4.62 but fails blue at 3.39. The fix needs a PRD decision — a ninth role, a per-entry ink, or a darker green — and is tracked in a crumb. This PR leaves the ink out of `Palette`. Hollow markers are fine: TextPrimary on MarkerHollow is 17.6:1 light and 14.8:1 dark.
 - **No version bump.** Nothing renders yet.
 
 ---
@@ -56,8 +65,8 @@
 - Consumes: `radargen::text::{Weight, Fonts}` (PR 01).
 - Produces, in `radargen::style`:
   - `#[derive(Debug, Clone, Copy, PartialEq)] pub struct TextStyle { pub weight: Weight, pub size: f64, pub letter_spacing: f64 }`
-  - These `TextStyle` constants: `TITLE`, `SUBTITLE`, `QUADRANT_LABEL`, `RING_LABEL`, `MARKER_NUMBER`, `LEGEND_QUADRANT`, `LEGEND_RING`, `LEGEND_NAME`, `LEGEND_META`, `LEGEND_BADGE_NUMBER`, `KEY_HEADING`, `KEY_LABEL`
-  - These `f64` constants: `LINE_HEIGHT`, `INDENT_QUADRANT`, `INDENT_RING`, `INDENT_ITEM`, `META_GAP`, `LEGEND_WIDTH_MAX`, `MARKER_RADIUS`, `BADGE_RADIUS`, `STATUS_RING_GAP`, `STATUS_RING_STROKE`, `BAND_OUTER_RADIUS`, `DIVIDER_RADIUS`, `QUADRANT_LABEL_RADIUS`, `MARGIN`, `COLUMN_GAP`, `NARROW_WIDTH`, `MIN_RADAR_WIDTH`, `MIN_LEGIBLE_PX`
+  - These `TextStyle` constants: `TITLE`, `SUBTITLE`, `QUADRANT_LABEL`, `RING_LABEL`, `MARKER_NUMBER`, `LEGEND_HEADING`, `LEGEND_QUADRANT`, `LEGEND_RING`, `LEGEND_NAME`, `LEGEND_META`, `LEGEND_BADGE_NUMBER`, `KEY_HEADING`, `KEY_LABEL`
+  - These `f64` constants: `LINE_HEIGHT`, `INDENT_QUADRANT`, `INDENT_RING`, `INDENT_ITEM`, `META_GAP`, `LEGEND_WIDTH_MAX`, `MARKER_RADIUS`, `MARKER_STROKE`, `MARKER_HOLLOW_STROKE`, `BADGE_RADIUS`, `BADGE_STROKE`, `BADGE_HOLLOW_STROKE`, `SWATCH_RADIUS`, `STATUS_RING_GAP`, `STATUS_RING_STROKE`, `GRID_STROKE`, `LABEL_HALO`, `BAND_OUTER_RADIUS`, `DIVIDER_RADIUS`, `QUADRANT_LABEL_RADIUS`, `MARGIN`, `COLUMN_GAP`, `NARROW_WIDTH`, `MIN_RADAR_WIDTH`, `MIN_LEGIBLE_PX`
   - `pub fn breakpoint_px(wide_width: f64) -> u32`
 
   Layout blocks (PR 08–12) read these constants. PR 14 calls `breakpoint_px` for FR-69's media query.
@@ -76,11 +85,17 @@ mod tests {
     /// distinguished by type style as well.
     #[test]
     fn legend_levels_differ_in_indent_and_style() {
-        assert!(INDENT_QUADRANT < INDENT_RING && INDENT_RING < INDENT_ITEM);
+        // `const`: an assert over constants alone trips clippy's `assertions_on_constants`.
+        const { assert!(INDENT_QUADRANT < INDENT_RING && INDENT_RING < INDENT_ITEM) };
         let levels = [LEGEND_QUADRANT, LEGEND_RING, LEGEND_NAME];
         for (i, a) in levels.iter().enumerate() {
             for b in &levels[i + 1..] {
-                assert!(a != b, "two legend levels share a style: {a:?}");
+                // FR-35: letter-spacing alone reads as a flat list, so a level
+                // must differ in weight or by a visible size step.
+                assert!(
+                    a.weight != b.weight || (a.size - b.size).abs() >= 1.0,
+                    "two legend levels read as one: {a:?} vs {b:?}"
+                );
             }
         }
     }
@@ -95,13 +110,21 @@ mod tests {
             .iter()
             .map(|s| m.measure(s, MARKER_NUMBER.size, MARKER_NUMBER.letter_spacing))
             .fold(0.0_f64, f64::max);
-        assert!(widest < 2.0 * MARKER_RADIUS, "{widest} does not fit a {MARKER_RADIUS} radius");
+        // A hollow stroke is centred on r, so the clear interior is 2r − stroke.
+        let clear = |r: f64, stroke: f64| 2.0 * r - stroke;
+        assert!(widest < clear(MARKER_RADIUS, MARKER_HOLLOW_STROKE), "{widest} does not fit the marker");
+        let b = fonts.face(LEGEND_BADGE_NUMBER.weight);
+        let badge = ["88", "99", "00", "44"]
+            .iter()
+            .map(|s| b.measure(s, LEGEND_BADGE_NUMBER.size, LEGEND_BADGE_NUMBER.letter_spacing))
+            .fold(0.0_f64, f64::max);
+        assert!(badge < clear(BADGE_RADIUS, BADGE_HOLLOW_STROKE), "{badge} does not fit the badge");
     }
 
     #[test]
     fn badge_is_smaller_than_the_marker() {
         // mockup.html: the badge is a list bullet, not a second copy of the marker.
-        assert!(BADGE_RADIUS < MARKER_RADIUS);
+        const { assert!(BADGE_RADIUS < MARKER_RADIUS) };
     }
 
     /// Architecture §4: W × (floor / legend size), rounded. 1148 is the
@@ -137,7 +160,7 @@ Put this above the test module:
 //! of `layout/*` each; scattered, they drift apart under maintenance.
 //!
 //! Values are user units at scale 1 (px when rendered 1:1), taken from
-//! `docs/product/mockup.html` with its 700 weights mapped to SemiBold 600 —
+//! `docs/product/mockup.html` with its 700 weights mapped to `SemiBold` 600 —
 //! FR-85 ships two weights. No uppercase transform: CSS `text-transform` is
 //! invisible to our measurement and to `resvg`, and doing it for real would
 //! edit a label, which FR-76 rules out.
@@ -157,22 +180,35 @@ const fn style(weight: Weight, size: f64, letter_spacing: f64) -> TextStyle {
 }
 
 // --- Type scale ------------------------------------------------------------
+// Each doc comment names the FR-82 role the text is painted with. The mockup's
+// --text-secondary is not an FR-82 role; its uses map to primary or muted.
+/// Ink: TextPrimary.
 pub const TITLE: TextStyle = style(Weight::SemiBold, 17.0, 0.0);
+/// Ink: TextMuted.
 pub const SUBTITLE: TextStyle = style(Weight::Regular, 12.0, 0.0);
-/// 0.04em at 12px.
+/// 0.04em at 12px. Ink: TextPrimary — FR-39's identity channel.
 pub const QUADRANT_LABEL: TextStyle = style(Weight::SemiBold, 12.0, 0.48);
+/// Ink: TextMuted, over a `LABEL_HALO` (it sits on the 12 o'clock divider, FR-31).
 pub const RING_LABEL: TextStyle = style(Weight::Regular, 10.0, 0.0);
+/// Ink: TextPrimary on a hollow marker; on a solid one, open (see the plan's
+/// Decisions — white fails 4.5:1 on series-6).
 pub const MARKER_NUMBER: TextStyle = style(Weight::SemiBold, 9.0, 0.0);
-/// FR-35 level one. 0.03em at 11px.
+/// The "Legend" heading, matching `KEY_HEADING`. Ink: TextPrimary.
+pub const LEGEND_HEADING: TextStyle = style(Weight::SemiBold, 13.0, 0.0);
+/// FR-35 level one. 0.03em at 11px. Ink: TextPrimary — with no uppercase,
+/// colour is part of what separates it from `LEGEND_RING`.
 pub const LEGEND_QUADRANT: TextStyle = style(Weight::SemiBold, 11.0, 0.33);
-/// FR-35 level two. 0.03em at 10px.
+/// FR-35 level two. 0.03em at 10px. Ink: TextMuted.
 pub const LEGEND_RING: TextStyle = style(Weight::SemiBold, 10.0, 0.3);
-/// FR-35 level three, and the size FR-69's breakpoint protects.
+/// FR-35 level three, and the size FR-69's breakpoint protects. Ink: TextPrimary.
 pub const LEGEND_NAME: TextStyle = style(Weight::Regular, 12.5, 0.0);
-/// FR-74's trailing qualifier/status text.
+/// FR-74's trailing qualifier/status text. Ink: TextMuted.
 pub const LEGEND_META: TextStyle = style(Weight::Regular, 10.5, 0.0);
+/// Ink: as `MARKER_NUMBER`.
 pub const LEGEND_BADGE_NUMBER: TextStyle = style(Weight::SemiBold, 9.0, 0.0);
+/// Ink: TextPrimary.
 pub const KEY_HEADING: TextStyle = style(Weight::SemiBold, 13.0, 0.0);
+/// Ink: TextMuted.
 pub const KEY_LABEL: TextStyle = style(Weight::Regular, 11.0, 0.0);
 /// Legend text line height.
 pub const LINE_HEIGHT: f64 = 15.0;
@@ -191,8 +227,19 @@ pub const LEGEND_WIDTH_MAX: f64 = 440.0;
 /// OQ-16's home: whether this is user units or output pixels is a change to
 /// this constant's meaning, not an excavation (architecture §8).
 pub const MARKER_RADIUS: f64 = 10.0;
+/// Solid marker: a Surface1 stroke that separates overlapping markers.
+pub const MARKER_STROKE: f64 = 2.0;
+/// Hollow marker (FR-20): series-coloured stroke around a MarkerHollow fill.
+pub const MARKER_HOLLOW_STROKE: f64 = 3.0;
 /// The legend badge — a list bullet, deliberately smaller than the marker.
-pub const BADGE_RADIUS: f64 = 7.0;
+/// 8, not the mockup's 7: Inter `SemiBold` 9px "44" is ~12px, which a hollow
+/// r=7 badge (12px clear interior) cannot hold.
+pub const BADGE_RADIUS: f64 = 8.0;
+pub const BADGE_STROKE: f64 = 1.5;
+/// Thinner than the marker's, so the hollow fill gap survives the smaller size.
+pub const BADGE_HOLLOW_STROKE: f64 = 2.0;
+/// FR-35's quadrant-colour swatch beside each legend group heading.
+pub const SWATCH_RADIUS: f64 = 5.0;
 /// FR-40's status ring sits this far outside the marker.
 pub const STATUS_RING_GAP: f64 = 4.0;
 pub const STATUS_RING_STROKE: f64 = 2.0;
@@ -202,6 +249,11 @@ pub const STATUS_RING_STROKE: f64 = 2.0;
 pub const BAND_OUTER_RADIUS: f64 = 260.0;
 pub const DIVIDER_RADIUS: f64 = 262.0;
 pub const QUADRANT_LABEL_RADIUS: f64 = 300.0;
+/// Ring circles and quadrant dividers (StrokeRing / StrokeDivider).
+pub const GRID_STROKE: f64 = 1.0;
+/// Width of the Surface1 stroke painted under ring labels (`paint-order:
+/// stroke`), so the 12 o'clock divider (FR-31) doesn't strike through them.
+pub const LABEL_HALO: f64 = 3.0;
 
 // --- Arrangements (FR-68–FR-71) -------------------------------------------------
 pub const MARGIN: f64 = 20.0;
@@ -210,11 +262,15 @@ pub const COLUMN_GAP: f64 = 28.0;
 /// The narrow document is authored at this width and the radar scaled to fit
 /// inside it, so text keeps its natural size (FR-70, D-31).
 pub const NARROW_WIDTH: f64 = 420.0;
-/// The radar block's width at scale 1, quadrant labels included.
+/// A floor on the radar block's width at scale 1, not its width. The block's
+/// size is measured (architecture §4): quadrant labels never wrap (FR-79), so
+/// a long one widens the block — `mockup.html` computes
+/// `max(MIN_RADAR_W, 2 × (QLABEL_R + widest label / 2 + 10))`.
 pub const MIN_RADAR_WIDTH: f64 = 660.0;
 
-/// The smallest rendered size legend text may reach before the HTML switches
-/// to the narrow arrangement (FR-69, architecture §4).
+/// The smallest rendered size legend item names (`LEGEND_NAME`) may reach
+/// before the HTML switches to the narrow arrangement (FR-69, architecture §4).
+/// Smaller legend styles go proportionally lower; this is not a floor for them.
 pub const MIN_LEGIBLE_PX: f64 = 10.0;
 
 /// FR-69's media-query breakpoint for a wide document `wide_width` units wide:
@@ -237,7 +293,7 @@ pub fn breakpoint_px(wide_width: f64) -> u32 {
 Run: `cargo test --lib style && cargo clippy --all-targets -- -D warnings`
 Expected: 5 passed, clippy clean.
 
-If `two_digit_numbers_fit_inside_the_marker` fails, the marker or number size is wrong for Inter. Report the measured width rather than changing either constant, because that's a design decision.
+If `two_digit_numbers_fit_inside_the_marker` fails, the marker, badge or number size is wrong for Inter. Report the measured width rather than changing either constant, because that's a design decision.
 
 - [ ] **Step 5: Commit**
 
