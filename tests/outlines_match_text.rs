@@ -13,6 +13,7 @@ use std::sync::Arc;
 use rustybuzz::{Face as ShaperFace, UnicodeBuffer};
 use ttf_parser::{Face as ParseFace, GlyphId, OutlineBuilder};
 
+use radargen::num::fmt_coord;
 use radargen::text::{FAMILY, REGULAR_TTF as TTF};
 
 const WOFF2: &[u8] = include_bytes!("../assets/Inter-Regular.woff2");
@@ -79,14 +80,6 @@ fn corpus() -> Vec<String> {
     v
 }
 
-/// NFR-17: 3 decimal places, `.` separator, no exponent — and no trailing
-/// zeros, which are bytes carrying nothing.
-fn fmt(v: f64) -> String {
-    let s = format!("{v:.3}");
-    let s = s.trim_end_matches('0').trim_end_matches('.');
-    if s == "-0" { "0".into() } else { s.into() }
-}
-
 /// Emits SVG path commands, scaled from font units and flipped into SVG's
 /// y-down space.
 struct PathSink {
@@ -98,10 +91,10 @@ struct PathSink {
 
 impl PathSink {
     fn x(&self, v: f32) -> String {
-        fmt(f64::from(v) * self.scale + self.dx)
+        fmt_coord(f64::from(v) * self.scale + self.dx)
     }
     fn y(&self, v: f32) -> String {
-        fmt(-f64::from(v) * self.scale + self.dy)
+        fmt_coord(-f64::from(v) * self.scale + self.dy)
     }
 }
 
@@ -192,8 +185,8 @@ fn build() -> Built {
             write!(
                 placements,
                 r##"<use href="#g{gid}" x="{}" y="{}"/>"##,
-                fmt(gx),
-                fmt(gy)
+                fmt_coord(gx),
+                fmt_coord(gy)
             )
             .expect("String write");
             pen += f64::from(pos.x_advance) * scale;
