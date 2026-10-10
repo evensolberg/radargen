@@ -1,7 +1,7 @@
 ---
 id: rg-aqb
 title: 'PR 05: csv/decode and csv/parse'
-status: blocked
+status: open
 type: task
 priority: 2
 tags:

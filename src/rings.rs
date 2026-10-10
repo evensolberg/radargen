@@ -10,7 +10,7 @@ use crate::normalise;
 /// outside-in as Assess -> Trial -> Adopt -> Retire.
 pub const DEFAULT_RINGS: [&str; 4] = ["Retire", "Adopt", "Trial", "Assess"];
 
-/// FR-63 violations. Each is a hard error naming the offending entry; neither
+/// FR-63 violations. Each is a hard error naming the offending entry; none
 /// can be resolved by guessing what the author meant.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum RingsError {
@@ -41,38 +41,45 @@ pub enum RingsError {
 ///
 /// # Errors
 ///
-/// A [`RingsError`] for the first FR-63 violation: an empty entry, a
-/// duplicate after normalisation, or a list with no rings at all.
-pub fn parse_rings(declared: Option<&str>) -> Result<Vec<String>, RingsError> {
+/// Every FR-63 violation, in entry order (NFR-16 tier one: one run shows the
+/// author everything to fix): each empty entry and each duplicate after
+/// normalisation, the latter naming where the ring was first declared. A
+/// list with no rings at all is the single [`RingsError::Empty`] rather
+/// than one empty entry per comma.
+pub fn parse_rings(declared: Option<&str>) -> Result<Vec<String>, Vec<RingsError>> {
     let Some(list) = declared else {
         return Ok(DEFAULT_RINGS.iter().map(|r| (*r).to_string()).collect());
     };
 
     let mut rings: Vec<String> = Vec::new();
-    let mut seen: Vec<String> = Vec::new();
+    // Each ring first declared, normalised, with its 1-based entry, so a
+    // duplicate names where the ring was first declared.
+    let mut seen: Vec<(String, usize)> = Vec::new();
+    let mut errors: Vec<RingsError> = Vec::new();
     for (i, raw) in list.split(',').enumerate() {
         let entry = raw.trim();
         if entry.is_empty() {
-            // A lone empty string is "no rings at all" rather than a stray
-            // comma, and the message should say so.
-            if list.split(',').count() == 1 {
-                return Err(RingsError::Empty);
-            }
-            return Err(RingsError::EmptyEntry { index: i + 1 });
+            errors.push(RingsError::EmptyEntry { index: i + 1 });
+            continue;
         }
         let key = normalise(entry);
-        if let Some(first) = seen.iter().position(|s| *s == key) {
-            return Err(RingsError::Duplicate {
+        if let Some((_, first)) = seen.iter().find(|(k, _)| *k == key) {
+            errors.push(RingsError::Duplicate {
                 index: i + 1,
                 entry: entry.to_string(),
-                first_index: first + 1,
+                first_index: *first,
             });
+            continue;
         }
-        seen.push(key);
+        seen.push((key, i + 1));
         rings.push(entry.to_string());
     }
     if rings.is_empty() {
-        return Err(RingsError::Empty);
+        return Err(vec![RingsError::Empty]);
     }
-    Ok(rings)
+    if errors.is_empty() {
+        Ok(rings)
+    } else {
+        Err(errors)
+    }
 }
