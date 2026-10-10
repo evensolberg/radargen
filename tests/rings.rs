@@ -85,21 +85,6 @@ fn every_violation_is_reported_in_entry_order() {
     );
 }
 
-/// A repeat of a repeat names where the ring was first declared, not the
-/// earlier repeat.
-#[test]
-fn every_repeat_names_the_first_declaration() {
-    let errors = parse_rings(Some("a,A,a")).expect_err("duplicates");
-    let firsts: Vec<usize> = errors
-        .iter()
-        .map(|e| match e {
-            RingsError::Duplicate { first_index, .. } => *first_index,
-            other => panic!("{other:?}"),
-        })
-        .collect();
-    assert_eq!(firsts, [1, 1]);
-}
-
 #[test]
 fn the_declared_casing_is_what_gets_displayed() {
     // FR-76: normalisation never edits displayed text beyond FR-15's trim —
@@ -107,5 +92,43 @@ fn the_declared_casing_is_what_gets_displayed() {
     assert_eq!(
         parse_rings(Some("ADOPT,trial")).expect("valid"),
         vec!["ADOPT", "trial"]
+    );
+}
+
+/// A repeat of a repeat names where the ring was first declared, not the
+/// earlier repeat.
+#[test]
+fn every_repeat_names_the_first_declaration() {
+    assert_eq!(
+        parse_rings(Some("a,A,a")),
+        Err(vec![
+            RingsError::Duplicate {
+                index: 2,
+                entry: "A".into(),
+                first_index: 1,
+            },
+            RingsError::Duplicate {
+                index: 3,
+                entry: "a".into(),
+                first_index: 1,
+            },
+        ])
+    );
+}
+
+/// Entry numbers count every entry, empty ones included, so a duplicate
+/// names the entry the author typed, not a position among the valid rings.
+#[test]
+fn entry_numbers_count_empty_entries() {
+    assert_eq!(
+        parse_rings(Some(",a,A")),
+        Err(vec![
+            RingsError::EmptyEntry { index: 1 },
+            RingsError::Duplicate {
+                index: 3,
+                entry: "A".into(),
+                first_index: 2,
+            },
+        ])
     );
 }
