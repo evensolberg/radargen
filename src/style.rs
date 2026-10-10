@@ -41,9 +41,11 @@ pub const RING_LABEL: TextStyle = style(Weight::Regular, 10.0, 0.0);
 pub const MARKER_NUMBER: TextStyle = style(Weight::SemiBold, 9.0, 0.0);
 /// The "Legend" heading, the same style as the key's. Ink: `TextPrimary`.
 pub const LEGEND_HEADING: TextStyle = KEY_HEADING;
-/// FR-35 level one. 0.03em at 11px. Ink: `TextPrimary` — with no uppercase,
-/// colour is part of what separates it from `LEGEND_RING`.
-pub const LEGEND_QUADRANT: TextStyle = style(Weight::SemiBold, 11.0, 0.33);
+/// FR-35 level one. 0.03em at 12px. Ink: `TextPrimary`. Two units above
+/// `LEGEND_RING`, not one: with no uppercase, both headings `SemiBold`, and
+/// the two inks only 1.86:1 apart in the dark theme, one unit (0.8 px at
+/// the breakpoint) did not read as a separate level.
+pub const LEGEND_QUADRANT: TextStyle = style(Weight::SemiBold, 12.0, 0.36);
 /// FR-35 level two. 0.03em at 10px. Ink: `TextMuted`.
 pub const LEGEND_RING: TextStyle = style(Weight::SemiBold, 10.0, 0.3);
 /// FR-35 level three, and the size FR-69's breakpoint protects. Ink: `TextPrimary`.
@@ -167,6 +169,8 @@ mod tests {
     fn legend_levels_differ_in_indent_and_style() {
         // `const`: an assert over constants alone trips clippy's `assertions_on_constants`.
         const { assert!(INDENT_QUADRANT < INDENT_RING && INDENT_RING < INDENT_ITEM) };
+        // The two headings share a weight, so size carries the step.
+        const { assert!(LEGEND_QUADRANT.size - LEGEND_RING.size >= 2.0) };
         let levels = [LEGEND_QUADRANT, LEGEND_RING, LEGEND_NAME];
         for (i, a) in levels.iter().enumerate() {
             for b in &levels[i + 1..] {

@@ -12,7 +12,7 @@ created_date: 2026-10-09
 synopsis: "style.rs as the home of every layout constant and the type scale, and palette.rs with the colour roles, both built-in palettes and FR-67's bind-time cycling."
 status: complete
 type: Plan
-revision: "1.5"
+revision: "1.6"
 review_date: 2026-10-09
 reviewed_by:
   - rust-engineer
@@ -801,3 +801,4 @@ git commit -m "feat(palette): built-in palettes, FR-67 cycling at bind time, sam
 | 1.3 | 2026-10-09 | PR 6 review: `ink_for` split out with a test that it isn't a threshold rule; breakpoint tie and D-56 cases; marker fit measured over 10–99; badge and legend-heading styles alias the marker and key styles |
 | 1.4 | 2026-10-09 | The pedantic and unsafe-code gate is now live in `Cargo.toml` (crumb `rg-q3w`) |
 | 1.5 | 2026-10-10 | Implemented. `breakpoint_px`'s cast allowance is `#[expect]`, as PR 03's review asked of `fmt_coord`; Task 2's commit subject shortened to fit 72 characters. Otherwise as written |
+| 1.6 | 2026-10-10 | PR 13 review (code-reviewer, accessibility-tester). `LEGEND_QUADRANT` raised to 12px SemiBold (0.36 letter-spacing), the step the Decisions section left open: one unit plus colour did not separate the headings in the dark theme (1.86:1 between inks). New `FOCUS_RING_GAP` (8) and `FOCUS_RING_STROKE` (2) keep the focus ring off the series fills. `LABEL_HALO` is emitted as its own stroke-only `<text>`, not `paint-order`. `breakpoint_px` asserts a positive document width. Every contrast pairing passes AA in both themes. Small marker numbers in the narrow arrangement are deferred to the layout PRs by the maintainer's decision, with a crumb |
