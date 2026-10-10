@@ -6,8 +6,8 @@
 //! It must fall inside the width we computed — and, as a discrimination check,
 //! must fall outside a box deliberately shrunk below it.
 
-use std::sync::Arc;
 use radargen::text::FontMetrics;
+use std::sync::Arc;
 
 const FONT: &[u8] = include_bytes!("../assets/LibertinusSans-Regular.ttf");
 const FAMILY: &str = "Libertinus Sans";
@@ -28,7 +28,11 @@ fn rightmost_inked_column(text: &str) -> u32 {
     );
     let tree = usvg::Tree::from_str(&svg, &opt).expect("usvg parses");
     let mut pixmap = tiny_skia::Pixmap::new(900, 80).expect("pixmap");
-    resvg::render(&tree, tiny_skia::Transform::identity(), &mut pixmap.as_mut());
+    resvg::render(
+        &tree,
+        tiny_skia::Transform::identity(),
+        &mut pixmap.as_mut(),
+    );
 
     let mut rightmost = 0;
     for y in 0..pixmap.height() {
@@ -44,7 +48,12 @@ fn rightmost_inked_column(text: &str) -> u32 {
 #[test]
 fn rendered_ink_fits_inside_the_measured_advance() {
     let m = FontMetrics::load(FONT).expect("font parses");
-    for text in ["Terraform", "Trunk-Based Development", "WWWWWWWW", "Kubernetes"] {
+    for text in [
+        "Terraform",
+        "Trunk-Based Development",
+        "WWWWWWWW",
+        "Kubernetes",
+    ] {
         let measured = m.measure(text, SIZE, 0.0);
         let inked = f64::from(rightmost_inked_column(text));
         assert!(

@@ -12,7 +12,7 @@ created_date: 2026-10-09
 synopsis: "escape.rs with one function per NFR-6 output context, and num::fmt_coord as NFR-17's single number formatter."
 status: draft
 type: Plan
-revision: "1.3"
+revision: "1.4"
 review_date: 2026-10-09
 reviewed_by:
   - rust-engineer
@@ -43,7 +43,7 @@ comments:
 - **`</script>` must be impossible** in the JS/JSON context. Entity escaping is the wrong escaping there (NFR-6 (4)).
 - **CSS values are rejected, not escaped**, if they contain `;`, `}` or `<` (NFR-6 (5)).
 - **Numbers:** 3 decimal places, rounded **half away from zero**, `.` as the decimal separator, no exponent, no thousands separator, no locale (NFR-17).
-- `cargo clippy --all-targets -- -D warnings` is clean. Keep new code clean under `-D clippy::pedantic` too (gate pending, `rg-q3w`).
+- `cargo clippy --all-targets -- -D warnings` is clean. `Cargo.toml`'s `[lints]` denies `clippy::pedantic` and forbids `unsafe_code`, so that one command enforces both.
 - Commits: `type(scope): description`, plus the session's `Co-Authored-By` trailer. Run `git-mit es` first if present.
 
 ## Review Focus
@@ -575,3 +575,4 @@ git commit -m "feat(escape): JSON island and CSS value contexts (NFR-6 4–5)"
 | 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
 | 1.2 | 2026-10-09 | U+FFFD replacement recast as a backstop behind PRD v0.38's FR-90; `xml_allowed` made public so PR 05 shares the set, and widened to DEL and C1 (crumb `rg-jyx`) |
 | 1.3 | 2026-10-09 | PR 6 review: `xml_allowed` renamed `displayable` and expressed with `char::is_control`; boundary-checked set; one `escape_into` loop for text and attributes; the cross-architecture noise test now uses 1e-13 |
+| 1.4 | 2026-10-09 | The pedantic and unsafe-code gate is now live in `Cargo.toml` (crumb `rg-q3w`) |

@@ -21,3 +21,13 @@ usvg = "0.45"
 tiny-skia = "0.11"
 fontdb = "0.23"
 base64 = "0.22"
+
+# Architecture §1: no unsafe anywhere, and clippy's pedantic group is an
+# error rather than advice. Declared here, not as crate attributes, so the
+# lib, the binary, tests and examples share one gate, and a plain
+# `cargo clippy` enforces it locally as well as in CI.
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+pedantic = { level = "deny", priority = -1 }

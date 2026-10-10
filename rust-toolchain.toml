@@ -1,0 +1,6 @@
+# Pinned, not floating stable: Cargo.toml denies clippy::pedantic, and a new
+# stable release can add lints that turn CI red on unrelated PRs. Bump this
+# on purpose, fixing any new findings in the same PR.
+[toolchain]
+channel = "1.99.0"
+components = ["clippy", "rustfmt"]

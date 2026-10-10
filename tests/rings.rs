@@ -1,6 +1,6 @@
 //! `--rings` parsing and validation (FR-12–FR-15, FR-63).
 
-use radargen::rings::{parse_rings, RingsError};
+use radargen::rings::{RingsError, parse_rings};
 
 #[test]
 fn omitting_the_flag_yields_the_in_house_default() {
@@ -57,5 +57,8 @@ fn a_duplicate_is_rejected_under_the_matching_rule() {
 fn the_declared_casing_is_what_gets_displayed() {
     // FR-76: normalisation never edits displayed text beyond FR-15's trim —
     // the declared name is what appears as a band label and legend subheading.
-    assert_eq!(parse_rings(Some("ADOPT,trial")).expect("valid"), vec!["ADOPT", "trial"]);
+    assert_eq!(
+        parse_rings(Some("ADOPT,trial")).expect("valid"),
+        vec!["ADOPT", "trial"]
+    );
 }

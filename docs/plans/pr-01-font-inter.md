@@ -12,7 +12,7 @@ created_date: 2026-10-09
 synopsis: "Swap the stand-in Libertinus font for FR-85's Inter Regular and SemiBold, Latin-subset and vendored, with a weight parameter on text measurement."
 status: draft
 type: Plan
-revision: "1.2"
+revision: "1.3"
 review_date: 2026-10-09
 reviewed_by:
   - rust-engineer
@@ -45,7 +45,7 @@ comments:
 - OFL-1.1 licence text ships beside the font files (FR-85, NFR-18).
 - Measurement goes through `rustybuzz`. Never sum `hmtx` advances (FR-84).
 - Letter-spacing is added by us, as `n-1` gaps (FR-84).
-- `cargo clippy --all-targets -- -D warnings` is clean. New code should also be clean under `-D clippy::pedantic`, but that gate isn't on yet: the existing code has 6 findings, tracked in `rg-q3w`.
+- `cargo clippy --all-targets -- -D warnings` is clean. `Cargo.toml`'s `[lints]` denies `clippy::pedantic` and forbids `unsafe_code`, so that one command enforces both.
 - No `#[allow]` without an inline reason.
 - Commits: `type(scope): description`, ending with the `Co-Authored-By` trailer from the session. Run `git-mit es` first if `/opt/homebrew/bin/git-mit` exists.
 
@@ -647,3 +647,4 @@ Follow the house workflow in `~/.claude/CLAUDE.md`. For this PR:
 | 1.0 | 2026-10-09 | Initial version |
 | 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
 | 1.2 | 2026-10-09 | PR 6 review: the subset script notes that Inter has no U+FFFD glyph (D-55) |
+| 1.3 | 2026-10-09 | The pedantic and unsafe-code gate is now live in `Cargo.toml` (crumb `rg-q3w`) |

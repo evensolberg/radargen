@@ -29,6 +29,11 @@ pub enum RingsError {
 /// multi-word ring name keeps its internal spaces. The declared casing is
 /// preserved: it is what appears as a band label and legend subheading, and
 /// FR-76 only ever trims a label, never re-cases one.
+///
+/// # Errors
+///
+/// A [`RingsError`] for the first FR-63 violation: an empty entry, a
+/// duplicate after normalisation, or a list with no rings at all.
 pub fn parse_rings(declared: Option<&str>) -> Result<Vec<String>, RingsError> {
     let Some(list) = declared else {
         return Ok(DEFAULT_RINGS.iter().map(|r| (*r).to_string()).collect());

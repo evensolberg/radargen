@@ -15,7 +15,10 @@ pub enum FatalError {
     /// §14.1: the extension is one v1.1 adds, so say that rather than
     /// "unrecognised", which sends the caller hunting for a typo in a
     /// path that is correct.
-    FormatNotInThisVersion { ext: String, arrives_in: &'static str },
+    FormatNotInThisVersion {
+        ext: String,
+        arrives_in: &'static str,
+    },
 }
 
 /// The output format, inferred from the `-o` extension (FR-52).
@@ -76,6 +79,12 @@ pub struct Cli {
 
 impl Cli {
     /// FR-52: format from the `-o` extension, matched case-insensitively.
+    ///
+    /// # Errors
+    ///
+    /// [`FatalError::FormatNotInThisVersion`] for `.png` and `.svg`, which
+    /// v1.1 adds; [`FatalError::UnrecognisedExtension`] for any other or
+    /// missing extension.
     pub fn format(&self) -> Result<OutputFormat, FatalError> {
         let ext = self
             .output

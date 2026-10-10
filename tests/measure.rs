@@ -38,7 +38,10 @@ fn letter_spacing_applies_between_glyphs_not_after() {
     let plain = m.measure("Kubernetes", 12.5, 0.0);
     let spaced = m.measure("Kubernetes", 12.5, 0.75);
     // 10 glyphs -> 9 gaps
-    assert!((spaced - (plain + 9.0 * 0.75)).abs() < 1e-9, "{spaced} vs {plain}");
+    assert!(
+        (spaced - (plain + 9.0 * 0.75)).abs() < 1e-9,
+        "{spaced} vs {plain}"
+    );
 }
 
 /// Regression guard for the spike's central finding: measurement must go

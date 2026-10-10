@@ -1,0 +1,20 @@
+# NFR-18, architecture §1: every crate in the tree is permissive. This file is
+# the allow-list that claim is checked against, in CI and locally with
+# `cargo deny check licenses`.
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Zlib",
+    "0BSD",
+    "Unlicense",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.9
+# The list mirrors architecture §1, including entries no current dependency
+# uses, so a new dependency under one of them doesn't need a config change.
+unused-allowed-license = "allow"
+# radargen itself is copyleft by choice; the rule is about what it depends on.
+exceptions = [{ crate = "radargen", allow = ["GPL-3.0-or-later"] }]

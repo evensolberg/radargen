@@ -1,0 +1,7 @@
+# NFR-17: output and fixtures are LF-only. Without this, a Windows checkout
+# (GitHub's runners set core.autocrlf=true) turns text fixtures into CRLF and
+# byte-comparing tests fail for a reason that has nothing to do with the code.
+* text=auto eol=lf
+*.ttf binary
+*.woff2 binary
+*.png binary

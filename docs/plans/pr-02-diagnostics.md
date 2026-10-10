@@ -11,7 +11,7 @@ created_date: 2026-10-09
 synopsis: "One diagnostic taxonomy: a Fatal error enum and Warnings printed in NFR-11's order with NFR-20's grouping."
 status: draft
 type: Plan
-revision: "1.3"
+revision: "1.4"
 review_date: 2026-10-09
 reviewed_by:
   - rust-engineer
@@ -43,7 +43,7 @@ comments:
 - **Ordering:** render-level warnings first. Then ascending CSV line, and within a line, header column order (NFR-11, FR-88).
 - **Grouping:** one line per class, listing the distinct values in first-occurrence order with no cap. A class with exactly one occurrence prints the ordinary per-row message (NFR-20).
 - **No flag** changes any of this (D-51).
-- `cargo clippy --all-targets -- -D warnings` is clean. Keep new code clean under `-D clippy::pedantic` too (gate pending, `rg-q3w`).
+- `cargo clippy --all-targets -- -D warnings` is clean. `Cargo.toml`'s `[lints]` denies `clippy::pedantic` and forbids `unsafe_code`, so that one command enforces both.
 - Commits: `type(scope): description`, plus the session's `Co-Authored-By` trailer. Run `git-mit es` first if present.
 
 ## Review Focus
@@ -872,7 +872,7 @@ impl Fatal {
 In `src/cli.rs`:
 - Delete the `FatalError` enum and its doc comment.
 - Add `use crate::diagnostics::Fatal;`.
-- Change `format`'s signature to `pub fn format(&self) -> Result<OutputFormat, Fatal>`, and rename `FatalError::` to `Fatal::` in its body.
+- Change `format`'s signature to `pub fn format(&self) -> Result<OutputFormat, Fatal>`, and rename `FatalError::` to `Fatal::` in its body and in its `# Errors` doc links.
 
 - [ ] **Step 4: Run everything**
 
@@ -904,3 +904,4 @@ git commit -m "feat(diagnostics): Fatal — one error taxonomy; RingsError and -
 | 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
 | 1.2 | 2026-10-09 | FR-90's warning class (`XmlForbidden`) added for PRD v0.38, resolving crumb `rg-jyx` |
 | 1.3 | 2026-10-09 | PR 6 review: `Fatal::render` escapes the whole message; `Warnings::as_slice`/`is_empty`; `XmlForbidden` renamed `Undisplayable`, its column escaped and worded 'the output cannot display'; stronger grouping tests; every stderr line escaped whole, and `grouped` is one exhaustive `match` |
+| 1.4 | 2026-10-09 | The pedantic and unsafe-code gate is now live in `Cargo.toml` (crumb `rg-q3w`); `format`'s `# Errors` doc links are renamed along with its body |

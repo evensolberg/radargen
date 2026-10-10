@@ -16,11 +16,12 @@
 | Decision | Value | Source |
 | --- | --- | --- |
 | Edition | **2024**. No `rust-version` — the edition already floors the toolchain at 1.85, and the field is left off until a real MSRV rises above that floor | Review, 2026-08-29 |
+| Toolchain | Pinned in `rust-toolchain.toml` (1.99.0, with clippy and rustfmt), not floating stable. Pedantic lints are errors, so a new stable release could turn unrelated PRs red. Bump it on purpose and fix any new findings in the same PR. This sets the development toolchain, not an MSRV | Review, 2026-10-09 |
 | Flag short forms | Every flag gets one (OQ-2 closed) | Review, 2026-08-29 |
 | Error strategy | **One structured taxonomy**, `thiserror`; not `anyhow` | Review, 2026-08-29 |
 | Licence | GPL-3.0-or-later | NFR-18, D-45 |
 | Platforms | macOS, Windows, Linux — in that priority order | NFR-13 |
-| Lint gate | `#![forbid(unsafe_code)]` at the crate root; `clippy::pedantic` denied in CI. **No `#[allow]` without an inline reason** — a suppression is a decision and gets written down where it sits | House rules |
+| Lint gate | `unsafe_code` forbidden and `clippy::pedantic` denied, both in `Cargo.toml`'s `[lints]`, so the lib, binary, tests and examples share one gate and a plain `cargo clippy` enforces it locally as in CI. **No `#[allow]` without an inline reason** — a suppression is a decision and gets written down where it sits | House rules |
 | Dependency licences | Every crate in the tree is permissive (`MIT`, `Apache-2.0`, `BSD-*`, `Zlib`, `0BSD`, `Unlicense`, `Unicode-3.0`) — verified, and re-verified in CI by `cargo-deny` rather than by memory | NFR-18 |
 
 `anyhow` was weighed and declined. The conventional advice — anyhow for

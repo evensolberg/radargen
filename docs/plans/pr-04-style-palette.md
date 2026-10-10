@@ -12,7 +12,7 @@ created_date: 2026-10-09
 synopsis: "style.rs as the home of every layout constant and the type scale, and palette.rs with the colour roles, both built-in palettes and FR-67's bind-time cycling."
 status: draft
 type: Plan
-revision: "1.3"
+revision: "1.4"
 review_date: 2026-10-09
 reviewed_by:
   - rust-engineer
@@ -46,7 +46,7 @@ comments:
 - **FR-67:** colour is the series entry at the quadrant's index in FR-10's order, **cycling**. The modulo happens at bind time, never in layout (§5).
 - **FR-85:** two weights only. The mockup's `700` becomes SemiBold `600`.
 - **FR-69 breakpoint:** `W × (MIN_LEGIBLE_PX / LEGEND_NAME.size)`, rounded to an integer (§4).
-- `cargo clippy --all-targets -- -D warnings` is clean. Keep new code clean under `-D clippy::pedantic` too (gate pending, `rg-q3w`).
+- `cargo clippy --all-targets -- -D warnings` is clean. `Cargo.toml`'s `[lints]` denies `clippy::pedantic` and forbids `unsafe_code`, so that one command enforces both.
 - Commits: `type(scope): description`, plus the session's `Co-Authored-By` trailer. Run `git-mit es` first if present.
 
 ## Review Focus
@@ -799,3 +799,4 @@ git commit -m "feat(palette): built-in palettes, FR-67 cycling at bind time, sam
 | 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
 | 1.2 | 2026-10-09 | PRD v0.38 decisions: `LEGEND_WIDTH_MAX` derived as 380 (D-56, crumb `rg-3pp`), `Palette::number_ink` (D-54, crumb `rg-smm`), architecture §5's `Role` naming done (crumb `rg-03k`) |
 | 1.3 | 2026-10-09 | PR 6 review: `ink_for` split out with a test that it isn't a threshold rule; breakpoint tie and D-56 cases; marker fit measured over 10–99; badge and legend-heading styles alias the marker and key styles |
+| 1.4 | 2026-10-09 | The pedantic and unsafe-code gate is now live in `Cargo.toml` (crumb `rg-q3w`) |
