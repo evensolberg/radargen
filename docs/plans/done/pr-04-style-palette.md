@@ -59,6 +59,8 @@ comments:
 
 ## Decisions taken in this plan (flag on review)
 
+> **Superseded in part by revisions 1.6 and 1.7.** `LEGEND_QUADRANT` is 12px, the halo is a separate stroke-only `<text>` (not `paint-order`), `slot()` became `bind()`, and `declarations()` returns `(Role, &str)`. The bullets and task listings below are as planned; `src/style.rs` and `src/palette.rs` are authoritative.
+
 - **Values come from `mockup.html`** (lines 360–386 and its CSS), the prototype the PRD cites, with three changes:
   - Its `700` weights become `600` (FR-85).
   - The legend name is **Regular** 12.5px. The mockup's CSS uses normal weight while its measuring font string says 600. The CSS is what renders, so it wins.
@@ -74,7 +76,7 @@ comments:
 
   Legend-row hover fill is Surface1, because the legend sits on Surface2.
 - **Badge radius 8, not the mockup's 7.** Inter SemiBold 9px "44" measures ~12.0px. A hollow badge's clear interior is `2r − stroke`: 12px at r=7, which leaves no gap at all, and 14px at r=8.
-- **Ring labels get a halo.** FR-31 puts ring labels on the 12 o'clock divider, so the divider runs through every one of them. The mockup's ~1.3:1 gridline hid this; FR-82's divider is 3.4:1, and 1.9:1 against text-muted, so it reads as a strike-through. `LABEL_HALO` is the width of a Surface1 stroke painted under the text (`paint-order="stroke"`). PR 10 applies it, and its resvg oracle test should confirm resvg honours `paint-order`. If it doesn't, break the divider behind the label instead.
+- **Ring labels get a halo.** FR-31 puts ring labels on the 12 o'clock divider, so the divider runs through every one of them. The mockup's ~1.3:1 gridline hid this; FR-82's divider is 3.4:1, and 1.9:1 against text-muted, so it reads as a strike-through. `LABEL_HALO` is the width of a Surface1 stroke under the text, emitted as its own stroke-only `<text>` before the label (revision 1.6) — not `paint-order`, which a consumer that ignores it would paint over the glyphs.
 - **Marker-number ink is chosen per series entry** (PRD v0.38 FR-82, D-54): `Palette::number_ink` picks whichever of `#FFFFFF` and `#16191F` contrasts more. Only series-6 green takes the dark ink; the lowest ratio is teal's 4.53:1. It returns a literal, because series values don't change with theme; PR 13's `Paint` binds it so nodes still carry no hex. FR-86 makes every `--palette` value `#RRGGBB`, so PR 18 rejects anything else before it can reach `luminance`.
 - **No version bump.** Nothing renders yet.
 

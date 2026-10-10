@@ -1,7 +1,7 @@
 ---
 id: rg-bkm
 title: 'PR 04: style.rs and built-in palette.rs'
-status: in_progress
+status: closed
 type: task
 priority: 2
 tags:

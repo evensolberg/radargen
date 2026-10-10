@@ -94,8 +94,10 @@ pub const STATUS_RING_GAP: f64 = 4.0;
 pub const STATUS_RING_STROKE: f64 = 2.0;
 /// The keyboard focus ring (`Focus`), from the marker's edge to the ring's
 /// centre line. Outside the status ring with a clear Surface1 gap between, so
-/// WCAG 1.4.11 measures it against the surface (6.0:1 and up) and never
-/// against a series fill, where the focus blue manages only 1.3–2.5:1.
+/// WCAG 1.4.11 measures it against the surface (6.0:1 and up) rather than a
+/// series fill, where the focus blue manages only 1.3–2.5:1. That holds while
+/// nothing is drawn under the ring: markers overlap (`MARKER_STROKE`), so the
+/// layout must raise the focused marker over a Surface1 backing.
 pub const FOCUS_RING_GAP: f64 = 8.0;
 pub const FOCUS_RING_STROKE: f64 = 2.0;
 
@@ -140,13 +142,13 @@ const MAX_WIDTH: f64 = 10_000.0;
 ///
 /// # Panics
 ///
-/// On a width that is not a positive, finite number of at most `MAX_WIDTH`
-/// units: a layout bug, which would otherwise come out as a silent
-/// `max-width: 0px` media query.
+/// On a width that is not a finite number from 1 to `MAX_WIDTH` units: a
+/// layout bug, which would otherwise come out as a silent `max-width: 0px`
+/// media query.
 #[must_use]
 pub fn breakpoint_px(wide_width: f64) -> u32 {
     assert!(
-        wide_width.is_finite() && wide_width > 0.0 && wide_width <= MAX_WIDTH,
+        (1.0..=MAX_WIDTH).contains(&wide_width),
         "breakpoint_px: {wide_width} is not a document width"
     );
     #[expect(
@@ -237,9 +239,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "is not a document width")]
-    fn a_nan_width_is_a_bug_not_a_breakpoint() {
-        let _ = breakpoint_px(f64::NAN);
+    fn widths_outside_one_to_the_maximum_are_bugs() {
+        for w in [f64::NAN, f64::INFINITY, -100.0, 0.5, MAX_WIDTH + 1.0] {
+            assert!(
+                std::panic::catch_unwind(|| breakpoint_px(w)).is_err(),
+                "{w}"
+            );
+        }
+        assert_eq!(breakpoint_px(1.0), 1);
     }
 
     /// The focus ring clears the status ring by at least 2 units of surface,

@@ -346,9 +346,11 @@ mod tests {
             .into_iter()
             .map(|(role, _)| role.to_string())
             .collect();
-        assert_eq!(names.len(), 16);
-        assert_eq!(names[0], "--surface-1");
-        assert_eq!(names[8], "--series-1");
-        assert_eq!(names[15], "--series-8");
+        let expected: Vec<String> = Neutral::ALL
+            .iter()
+            .map(ToString::to_string)
+            .chain((1..=8).map(|i| format!("--series-{i}")))
+            .collect();
+        assert_eq!(names, expected);
     }
 }
