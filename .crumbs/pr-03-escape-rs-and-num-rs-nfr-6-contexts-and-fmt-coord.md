@@ -22,3 +22,5 @@ NFR-6: five output contexts, one function each. NFR-17: fmt_coord is the only pa
 [2026-10-09] Plan: docs/plans/pr-03-escape-num.md
 
 [start] 2026-10-10 10:26:53
+
+[stop]  2026-10-10 10:36:26  9m 33s

@@ -23,3 +23,5 @@ Architecture §3, §7. thiserror taxonomy; Warnings is a Vec grouped at print ti
 [2026-10-09] Plan: docs/plans/pr-02-diagnostics.md
 
 [start] 2026-10-10 10:08:37
+
+[stop]  2026-10-10 10:26:34  17m 57s

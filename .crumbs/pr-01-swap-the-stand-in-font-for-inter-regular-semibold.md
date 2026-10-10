@@ -25,3 +25,5 @@ FR-85. Replace Libertinus with Inter, Latin subset, TTF + WOFF2 subset from one 
 [2026-10-09] Plan: docs/plans/pr-01-font-inter.md
 
 [start] 2026-10-10 09:46:03
+
+[stop]  2026-10-10 10:08:24  22m 21s
