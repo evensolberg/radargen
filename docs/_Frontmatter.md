@@ -12,5 +12,5 @@ what is specific to this repository.
 ## Specific to this repository
 
 - **doc_id prefix:** `RG`, so IDs are `RG-NNN` (three digits, zero-padded).
-- **Folders:** implementation plans live in `docs/plans/`, named `pr-NN-short-title.md`. Shipped plans move to `docs/plans/completed/`.
+- **Folders:** implementation plans live in `docs/plans/`, named `pr-NN-short-title.md`. Shipped plans move to `docs/plans/done/`, not the standard's `completed/`.
 - **Older documents:** the PRD (`docs/product/radargen-prd.md`) and the architecture (`docs/design/architecture.md`) predate the standard. The PRD keeps its own frontmatter and version table. Convert them only when there's a reason to.

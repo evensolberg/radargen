@@ -35,7 +35,7 @@ comments:
 
 **Tech Stack:** Rust 2024; `rustybuzz` 0.20, `ttf-parser` 0.25; dev: `resvg`/`usvg` 0.45, `fontdb` 0.23, `tiny-skia`; subsetting with `fonttools` `pyftsubset` run via `uvx`.
 
-**Spec:** `docs/product/radargen-prd.md` v0.37 — FR-84, FR-85, NFR-5, NFR-7, R-7, D-43. Design: `docs/design/architecture.md` §3 (the `text.rs` and `assets/` rows plus the paragraphs below them) and §9 (the font swap lands before step 4).
+**Spec:** `docs/product/radargen-prd.md` v0.38 — FR-84, FR-85, NFR-5, NFR-7, R-7, D-43. Design: `docs/design/architecture.md` §3 (the `text.rs` and `assets/` rows plus the paragraphs below them) and §9 (the font swap lands before step 4).
 
 ## Global Constraints
 

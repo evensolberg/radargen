@@ -77,7 +77,7 @@ Other choices:
 - **The value shown is the first occurrence's, trimmed.** Values group by `normalise()`.
 - **For duplicate names, the count is the number of repeat rows,** and "first line" is the first repeat. The per-row message names the original line, and so does each grouped value (`original line L`). Without it, the grouped line names only half of each pair.
 - **An empty description lists every line, uncapped.** It has no value to enumerate, so NFR-20's "the rare one is the typo" reasoning applies to the lines instead.
-- **FR-90's warning is one per field, not one per character,** carrying the count and the first code point. The code point is printed as `U+XXXX` because the character itself is unprintable by definition. Its grouped line lists `line column` pairs, uncapped, like the empty-description line: the column varies between members, and NFR-10 requires each to be named.
+- **FR-90's warning is one per field, not one per character,** carrying the count and the first code point. The code point is printed as `U+XXXX` because the character itself is unprintable by definition. `column` carries the header name because `Position::Cell` holds only its index; it's printed through `printable()`, since an extra column's header is CSV text. Its grouped line lists `line column` pairs, uncapped, like the empty-description line: the column varies between members, and NFR-10 requires each to be named.
 - **FR-89 quotes its names.** Quadrant names can contain `/` or `&`, so `Q / R` would be ambiguous.
 - **Bidi controls are escaped too** (U+200E/F, U+202A–E, U+2066–9). `is_control` misses them, and they can visually reorder a stderr line just as an escape sequence can recolour it.
 - **`cli::FatalError` becomes `diagnostics::Fatal`.** The `--rings` messages are `entry N is empty`, `'X' repeats entry N` and `no rings declared`. The `-o` message is `the output file name must end in .html`, which reads correctly for a wrong, missing or `.htm` extension (FR-52 covers the absent case too).
@@ -168,6 +168,10 @@ fn control_characters_in_values_are_shown_escaped() {
     assert!(s.contains(r"In\nUse\u{1b}[31m"), "{s}");
     let bidi = at(3, 2, WarningKind::UndeclaredRing { value: "a\u{202e}b".into() }).to_string();
     assert!(bidi.contains(r"a\u{202e}b"), "{bidi}");
+    // An extra column's header is CSV text too (FR-18).
+    let header = at(3, 9, WarningKind::XmlForbidden { column: "notes\nline 1, name: forged".into(), first: '\u{1}', count: 1 });
+    let header = header.to_string();
+    assert!(!header.contains('\n') && header.contains(r"notes\nline 1"), "{header}");
 }
 
 #[test]
@@ -266,7 +270,9 @@ impl WarningKind {
             Self::UnparsableDate { column, .. } => column.to_string(),
             Self::EmptyDescription => "description".into(),
             Self::DuplicateName { .. } => "name".into(),
-            Self::XmlForbidden { column, .. } => column.clone(),
+            // A header name is CSV text (FR-18's extra columns), so it is
+            // escaped like any value (NFR-10).
+            Self::XmlForbidden { column, .. } => printable(column),
             Self::QuadrantCount { .. } | Self::OverfullBand { .. } => String::new(),
         }
     }

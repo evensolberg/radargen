@@ -58,7 +58,7 @@ comments:
 
 - **`fmt_coord` trims trailing zeros**, so `260.000` becomes `260` and `1.500` becomes `1.5`. That's the format the SVG spike used (`tests/outlines_match_text.rs::fmt`), and NFR-17 doesn't forbid it.
 - **`fmt_coord` panics on NaN, on infinity, and on magnitudes of 10¹² or more.** None of these is an input error. Each can only come from a layout bug, and returning a `Result` would push an impossible-error branch into every emitter call. The panic message names the value.
-- **Disallowed XML characters are replaced with U+FFFD here, as a safety net only.** PRD v0.38's FR-90 removes them at the CSV stage (PR 05), with a warning naming line and column (D-55), so validated input never reaches this replacement. It stays because these functions are total over any `&str`: a string that didn't come through the CSV stage must still produce well-formed XML. The replacement is silent and Inter has no U+FFFD glyph (the PNG would draw a missing-glyph box). Both are acceptable only because FR-90 keeps CSV text from getting here. **The set is FR-90's set exactly**: C0 except tab, LF and CR, plus DEL, U+FFFE and U+FFFF. If the two drift apart, a character escapes the warning and gets replaced silently. PR 05 should call `escape::xml_allowed`, made `pub`, rather than restating the set.
+- **Disallowed XML characters are replaced with U+FFFD here, as a safety net only.** PRD v0.38's FR-90 removes them at the CSV stage (PR 05), with a warning naming line and column (D-55), so validated input never reaches this replacement. It stays because these functions are total over any `&str`: a string that didn't come through the CSV stage must still produce well-formed XML. The replacement is silent and Inter has no U+FFFD glyph (the PNG would draw a missing-glyph box). Both are acceptable only because FR-90 keeps CSV text from getting here. **The set is FR-90's set exactly**: C0 except tab, LF and CR, plus DEL and C1 (U+007F–U+009F), U+FFFE and U+FFFF. If the two drift apart, a character escapes the warning and gets replaced silently. PR 05 should call `escape::xml_allowed`, made `pub`, rather than restating the set.
 - **The attribute functions return the value already wrapped in `"`**, which makes NFR-6 (3)'s "never left unquoted" structural.
 - **`serde_json` for context 4.** It's library-first, and PR 14's data island needs `Serialize` anyway. The function adds only the `<`, U+2028 and U+2029 escapes.
 - **The CSS context rejects only the three characters NFR-6 names.** `/*` or `{` in a palette value can garble the file's own declarations, but can't inject markup. Say on review if those should be rejected too; it's a one-line change in the test and the function.
@@ -298,9 +298,9 @@ mod tests {
     fn xml_forbidden_controls_become_replacement_characters() {
         assert_eq!(xml_text("a\u{1}b\u{1f}c\u{fffe}d"), "a\u{fffd}b\u{fffd}c\u{fffd}d");
         assert_eq!(xml_attr("a\u{0}b"), "\"a\u{fffd}b\"");
-        // FR-90's set: DEL is legal XML but in the set; C1 and tab are not.
-        assert!(!xml_allowed('\u{7f}') && !xml_allowed('\u{ffff}'));
-        assert!(xml_allowed('\t') && xml_allowed('\u{85}'));
+        // FR-90's set: DEL and C1 are legal XML but undrawable, so in it; tab is not.
+        assert!(!xml_allowed('\u{7f}') && !xml_allowed('\u{85}') && !xml_allowed('\u{ffff}'));
+        assert!(xml_allowed('\t') && xml_allowed('\u{a0}'));
         assert_eq!(xml_text("tab\tand\nnewline"), "tab\tand\nnewline");
         // NFR-17: LF-only output; and XML end-of-line handling would turn a raw
         // CR into LF anyway, so a CRLF inside a quoted CSV field must be a reference.
@@ -357,9 +357,9 @@ Put this above the test module:
 pub fn xml_allowed(c: char) -> bool {
     match c {
         '\t' | '\n' | '\r' => true,
-        // C0 controls and DEL. DEL is legal XML but never wanted in a label;
-        // C1 (U+0080–U+009F) is legal and left alone.
-        '\u{0}'..='\u{1f}' | '\u{7f}' | '\u{fffe}' | '\u{ffff}' => false,
+        // C0 controls, then DEL and C1: legal XML, but no font draws them, so
+        // the PNG would show a missing-glyph box the browser doesn't (FR-90).
+        '\u{0}'..='\u{1f}' | '\u{7f}'..='\u{9f}' | '\u{fffe}' | '\u{ffff}' => false,
         _ => true,
     }
 }
@@ -573,4 +573,4 @@ git commit -m "feat(escape): JSON island and CSS value contexts (NFR-6 4–5)"
 | --- | --- | --- |
 | 1.0 | 2026-10-09 | Initial version |
 | 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
-| 1.2 | 2026-10-09 | U+FFFD replacement recast as a backstop behind PRD v0.38's FR-90; `xml_allowed` made public so PR 05 shares the set (crumb `rg-jyx`) |
+| 1.2 | 2026-10-09 | U+FFFD replacement recast as a backstop behind PRD v0.38's FR-90; `xml_allowed` made public so PR 05 shares the set, and widened to DEL and C1 (crumb `rg-jyx`) |
