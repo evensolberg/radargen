@@ -4,6 +4,7 @@
 
 pub mod cli;
 pub mod diagnostics;
+pub mod num;
 pub mod rings;
 pub mod text;
 
