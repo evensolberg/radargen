@@ -56,6 +56,8 @@ comments:
 
 ## Decisions taken in this plan (flag on review)
 
+> **Superseded in part by revision 1.6.** `css_value` became an allow-list and `json` also escapes `>` and `&`; attributes write `&#39;`. The task listings below are as planned, not as shipped — `src/escape.rs` is authoritative.
+
 - **`fmt_coord` trims trailing zeros**, so `260.000` becomes `260` and `1.500` becomes `1.5`. That's the format the SVG spike used (`tests/outlines_match_text.rs::fmt`), and NFR-17 doesn't forbid it.
 - **`fmt_coord` panics on NaN, on infinity, and on magnitudes of 10¹² or more.** None of these is an input error. Each can only come from a layout bug, and returning a `Result` would push an impossible-error branch into every emitter call. The panic message names the value.
 - **U+FFFD replacement here is a backstop only.** PRD v0.38's FR-90 removes these characters on input, with a warning (D-55), and these functions stay total so that any string still produces well-formed XML. `displayable` is FR-90's set exactly and is `pub`, so PR 05 calls it rather than restating the set; if the two drifted, a character would skip the warning and be replaced silently.

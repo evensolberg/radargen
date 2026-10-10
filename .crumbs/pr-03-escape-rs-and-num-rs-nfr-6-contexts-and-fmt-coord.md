@@ -1,7 +1,7 @@
 ---
 id: rg-vgm
 title: 'PR 03: escape.rs and num.rs — NFR-6 contexts and fmt_coord'
-status: in_progress
+status: closed
 type: task
 priority: 2
 tags:
