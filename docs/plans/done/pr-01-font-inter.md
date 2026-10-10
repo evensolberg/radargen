@@ -10,9 +10,9 @@ crumb_id: rg-osr
 document_title: "PR 01 — Swap the stand-in font for Inter: Implementation Plan"
 created_date: 2026-10-09
 synopsis: "Swap the stand-in Libertinus font for FR-85's Inter Regular and SemiBold, Latin-subset and vendored, with a weight parameter on text measurement."
-status: draft
+status: complete
 type: Plan
-revision: "1.3"
+revision: "1.6"
 review_date: 2026-10-09
 reviewed_by:
   - rust-engineer
@@ -20,7 +20,7 @@ reviewed_by:
   - architect-reviewer
   - ui-designer
   - ux-researcher
-completed_date:
+completed_date: 2026-10-10
 comments:
 ---
 # PR 01 — Swap the stand-in font for Inter: Implementation Plan
@@ -79,7 +79,7 @@ comments:
 - Consumes: nothing.
 - Produces: the four asset files at the paths above. Task 2 `include_bytes!`s the two TTFs, and Task 3 reads one WOFF2.
 
-- [ ] **Step 1: Fetch the source and confirm its layout**
+- [x] **Step 1: Fetch the source and confirm its layout**
 
 ```bash
 mkdir -p /tmp/inter && cd /tmp/inter
@@ -91,7 +91,7 @@ uvx --from 'fonttools[woff]' python -c 'import fontTools, brotli; print(fontTool
 
 Expected: all three paths list, and a fonttools version prints. Write that version into `FONTTOOLS_VERSION` in Step 3. If the zip's layout differs, stop and report rather than guessing at another file.
 
-- [ ] **Step 2: Write the failing asset test**
+- [x] **Step 2: Write the failing asset test**
 
 `tests/font_assets.rs`:
 
@@ -190,12 +190,12 @@ fn sha256_hex(bytes: &[u8]) -> String {
 
 Add the dev-dependency: `cargo add --dev sha2`. It's MIT OR Apache-2.0, so §1's permissive-tree rule holds.
 
-- [ ] **Step 3: Run it to see it fail**
+- [x] **Step 3: Run it to see it fail**
 
 Run: `cargo test --test font_assets`
 Expected: a compile error, `couldn't read .../assets/Inter-Regular.ttf`.
 
-- [ ] **Step 4: Write the subsetting script**
+- [x] **Step 4: Write the subsetting script**
 
 `scripts/subset-inter.sh`:
 
@@ -243,7 +243,7 @@ ls -l "$OUT"/Inter-*
 
 Before running it, replace the `FONTTOOLS_VERSION` value with the exact version Step 1 printed. The line must not be committed with the angle-bracket text.
 
-- [ ] **Step 5: Run the script**
+- [x] **Step 5: Run the script**
 
 ```bash
 chmod +x scripts/subset-inter.sh
@@ -252,12 +252,12 @@ scripts/subset-inter.sh /tmp/inter
 
 Expected: four `Inter-*` files listed. Note the four sizes; Task 4 records them (R-7).
 
-- [ ] **Step 6: Run the asset test**
+- [x] **Step 6: Run the asset test**
 
 Run: `cargo test --test font_assets`
 Expected: 6 passed. If `both_faces_register_as_family_inter_with_their_weights` fails with `"Inter SemiBold"`, the `--name-IDs='*'` flag didn't take. Fix the script; don't loosen the test.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add scripts/subset-inter.sh assets/Inter-* assets/FONTS.sha256 assets/OFL.txt tests/font_assets.rs Cargo.toml Cargo.lock
@@ -284,7 +284,7 @@ Libertinus stays in place for now, because Task 3 still reads it. That keeps the
 
   PR 04's `style::TextStyle` holds a `Weight`. Layout blocks receive `&Fonts` and call `fonts.face(style.weight).measure(..)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `tests/fonts.rs`:
 
@@ -325,12 +325,12 @@ fn measuring_text_outside_the_subset_does_not_panic() {
 }
 ```
 
-- [ ] **Step 2: Run them to see them fail**
+- [x] **Step 2: Run them to see them fail**
 
 Run: `cargo test --test fonts`
 Expected: a compile error, `unresolved imports radargen::text::Fonts, radargen::text::Weight`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to `src/text.rs`, after the `use` line. Replace the module doc's first line with `//! Text measurement and FR-79 wrapping, over FR-85's two faces.` and keep the rest of the doc comment:
 
@@ -396,12 +396,12 @@ impl<'a> Fonts<'a> {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cargo test --test fonts && cargo clippy --all-targets -- -D warnings`
 Expected: 4 passed, clippy clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/text.rs tests/fonts.rs
@@ -420,7 +420,7 @@ git commit -m "feat(text): Weight and Fonts — measure over both FR-85 faces"
 - Consumes: `radargen::text::{FAMILY, REGULAR_TTF, SEMIBOLD_TTF, Fonts, Weight}` (Task 2).
 - Produces: nothing new. The tests are the deliverable.
 
-- [ ] **Step 1: Delete the stand-in so every stale reference fails**
+- [x] **Step 1: Delete the stand-in so every stale reference fails**
 
 ```bash
 git rm assets/LibertinusSans-Regular.ttf assets/LibertinusSans-Regular.woff2
@@ -429,7 +429,7 @@ cargo test --no-run 2>&1 | grep -c Libertinus
 
 Expected: a non-zero count of `couldn't read ... LibertinusSans` errors. These are the failing tests this task fixes.
 
-- [ ] **Step 2: Re-point `measure.rs` and `wrap.rs`**
+- [x] **Step 2: Re-point `measure.rs` and `wrap.rs`**
 
 In both files, and in `examples/report.rs` (which `cargo test` and `clippy --all-targets` also build), replace the `const FONT ... include_bytes!` line with:
 
@@ -466,7 +466,7 @@ fn kerned_pairs_are_not_the_raw_advance_sum() {
 }
 ```
 
-- [ ] **Step 3: Extend `agrees_with_resvg.rs` to both weights**
+- [x] **Step 3: Extend `agrees_with_resvg.rs` to both weights**
 
 Replace everything from the `use radargen::text::FontMetrics;` line through the end of `fn usvg_advance` with:
 
@@ -548,7 +548,7 @@ fn tofu_measures_the_same_as_resvg_lays_it_out() {
 
 If it fails, report both widths rather than dropping the case: it means PNG wrap points for a non-Latin name disagree with what resvg draws.
 
-- [ ] **Step 4: Re-point `rasterises_within_measurement.rs`**
+- [x] **Step 4: Re-point `rasterises_within_measurement.rs`**
 
 Replace the `use radargen::text::FontMetrics;`, `const FONT` and `const FAMILY` lines with:
 
@@ -558,7 +558,7 @@ use radargen::text::{FontMetrics, FAMILY, REGULAR_TTF as FONT};
 
 Remove the now-duplicate `const FAMILY`. The body is unchanged.
 
-- [ ] **Step 5: Re-point `outlines_match_text.rs`**
+- [x] **Step 5: Re-point `outlines_match_text.rs`**
 
 Replace its `TTF`, `WOFF2` and `FAMILY` constants with:
 
@@ -569,7 +569,7 @@ const WOFF2: &[u8] = include_bytes!("../assets/Inter-Regular.woff2");
 
 In `resvg_ignores_an_embedded_font_face`, change the comment "fontdb holds Libertinus under its own name only" to "fontdb holds Inter under its own name only".
 
-- [ ] **Step 6: Run the whole suite**
+- [x] **Step 6: Run the whole suite**
 
 Run: `cargo test`, then `diff <(cargo run -q --example report) <(cargo run -q --example report)`. The diff should print nothing: the example is the existing cross-process determinism check (NFR-4, NFR-17).
 
@@ -577,7 +577,7 @@ Expected: everything passes except one test, which fails. `deduplicated_outlines
 
 Fix it: keep the `deduped * 5 < outlined` assertion, delete the `deduped < embedded` assertion, and keep the `eprintln!` that prints both sizes. Then rename the test `deduplicated_outlines_are_the_cheap_outlined_form` and change its doc comment's first sentence to "The size argument, which did not decide it — see the spike." Don't touch the spike document; it records what was measured then.
 
-- [ ] **Step 7: Lint and commit**
+- [x] **Step 7: Lint and commit**
 
 ```bash
 cargo clippy --all-targets -- -D warnings
@@ -595,11 +595,11 @@ git commit -m "test(text): run the oracle tests against Inter, both weights; dro
 
 **Interfaces:** none.
 
-- [ ] **Step 1: README**
+- [x] **Step 1: README**
 
 Replace "The bundled font (Libertinus Sans) keeps its own OFL-1.1" with "The bundled font (Inter, Latin subset) keeps its own OFL-1.1". Keep the rest of the sentence.
 
-- [ ] **Step 2: Architecture §3**
+- [x] **Step 2: Architecture §3**
 
 In the `assets/` table row, change the slice cell from `*stand-in*` to `*exists*`.
 
@@ -615,11 +615,11 @@ subset keeps the name — and with the sizes measured, R-7 has nothing left
 open but the script-coverage limit A-4 accepts.
 ```
 
-- [ ] **Step 3: Architecture §12**
+- [x] **Step 3: Architecture §12**
 
 In the R-7 row, replace the response cell with: "Swapped to Inter before step 4 of §9 (PR 01). Subset sizes are in §3; no Reserved Font Name."
 
-- [ ] **Step 4: Check the links and commit**
+- [x] **Step 4: Check the links and commit**
 
 ```bash
 /opt/homebrew/bin/lychee --offline README.md docs/design/architecture.md
@@ -648,3 +648,6 @@ Follow the house workflow in `~/.claude/CLAUDE.md`. For this PR:
 | 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
 | 1.2 | 2026-10-09 | PR 6 review: the subset script notes that Inter has no U+FFFD glyph (D-55) |
 | 1.3 | 2026-10-09 | The pedantic and unsafe-code gate is now live in `Cargo.toml` (crumb `rg-q3w`) |
+| 1.4 | 2026-10-10 | Implemented. Deviations: the script adds `--notdef-outline`, since the subset otherwise rendered non-Latin text as blank space rather than tofu (found by `tofu_measures_the_same_as_resvg_lays_it_out`), and `tests/font_assets.rs` gains `notdef_keeps_its_outline` (7 tests, not 6). Pedantic clippy needed backticks around `SemiBold` in doc comments and a `fold` + `write!` in `sha256_hex`. fonttools 4.66.1. Inter's outlined form is ~7× its deduplicated form, not ~9× |
+| 1.5 | 2026-10-10 | PR 10 review: the subset adds Google Fonts' `latin-ext` range (PRD v0.40), since `latin` alone left Latin-script names such as Dvořák as tofu. WOFF2 sizes become 57,456 and 59,268 bytes. `Fonts` loses its lifetime parameter, `Weight` derives `Hash`, and `font_assets.rs` also pins U+FFFD's absence (D-55), Latin Extended coverage, Vietnamese's absence (A-4), and that `assets/` holds no unrecorded font |
+| 1.6 | 2026-10-10 | Simplify pass renamed and merged tests, so names above are as planned, not as shipped. `subset_covers_printable_ascii_and_the_punctuation_we_emit` and `subset_covers_latin_extended` are now `subset_covers_what_it_promises`; `subset_is_latin_only` and `the_replacement_character_has_no_glyph` are now `subset_leaves_out_what_the_prd_says_it_does`; `tofu_measures_the_same_as_resvg_lays_it_out` joined the corpus of `our_advance_matches_usvg_layout_for_both_weights`; `both_embedded_faces_load` was dropped as covered by every other test in `fonts.rs` |

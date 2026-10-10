@@ -1,4 +1,4 @@
-//! Text-metrics spike (PRD R-1, §14.2).
+//! Text measurement and FR-79 wrapping, over FR-85's two faces.
 //!
 //! Retires the risk that the generator cannot measure rendered text without a
 //! browser. `mockup.html` sizes its canvas with `measureCtx.measureText(...)`,
@@ -7,6 +7,67 @@
 //! HTML to match the ones resvg rasterises.
 
 use rustybuzz::{Face as ShaperFace, UnicodeBuffer};
+
+/// FR-85's family name, as `fontdb` registers both vendored faces.
+pub const FAMILY: &str = "Inter";
+
+/// Inter Regular, Latin and Latin Extended subset (`scripts/subset-inter.sh`).
+pub const REGULAR_TTF: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
+/// Inter `SemiBold`, same subset, from the same run as [`REGULAR_TTF`].
+pub const SEMIBOLD_TTF: &[u8] = include_bytes!("../assets/Inter-SemiBold.ttf");
+
+/// FR-85 pins exactly two weights; FR-35 separates the legend's levels with
+/// them plus size, letter-spacing and indentation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Weight {
+    Regular,
+    SemiBold,
+}
+
+impl Weight {
+    /// The CSS `font-weight` the emitters write for this face.
+    #[must_use]
+    pub const fn css(self) -> u16 {
+        match self {
+            Self::Regular => 400,
+            Self::SemiBold => 600,
+        }
+    }
+}
+
+/// Both faces, parsed once at startup and passed down — every `Block::size`
+/// measures, and re-parsing per call would put a font parse in the inner loop
+/// of layout (architecture §3). The faces are the binary's own bytes, so no
+/// lifetime parameter: every `&Fonts` in a layout signature would carry one
+/// that could only ever be `'static`.
+pub struct Fonts {
+    regular: FontMetrics<'static>,
+    semibold: FontMetrics<'static>,
+}
+
+impl Fonts {
+    /// The faces compiled into the binary. A parse failure is NFR-15's
+    /// "font load failure" and is fatal to the caller.
+    ///
+    /// # Errors
+    ///
+    /// A vendored face that `ttf-parser` cannot parse.
+    pub fn embedded() -> Result<Self, ttf_parser::FaceParsingError> {
+        Ok(Self {
+            regular: FontMetrics::load(REGULAR_TTF)?,
+            semibold: FontMetrics::load(SEMIBOLD_TTF)?,
+        })
+    }
+
+    /// The metrics for one weight's face.
+    #[must_use]
+    pub fn face(&self, w: Weight) -> &FontMetrics<'static> {
+        match w {
+            Weight::Regular => &self.regular,
+            Weight::SemiBold => &self.semibold,
+        }
+    }
+}
 
 pub struct FontMetrics<'a> {
     face: ShaperFace<'a>,

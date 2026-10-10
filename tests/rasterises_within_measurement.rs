@@ -6,11 +6,9 @@
 //! It must fall inside the width we computed — and, as a discrimination check,
 //! must fall outside a box deliberately shrunk below it.
 
-use radargen::text::FontMetrics;
+use radargen::text::{FAMILY, FontMetrics, REGULAR_TTF as FONT};
 use std::sync::Arc;
 
-const FONT: &[u8] = include_bytes!("../assets/LibertinusSans-Regular.ttf");
-const FAMILY: &str = "Libertinus Sans";
 const SIZE: f64 = 20.0;
 
 fn rightmost_inked_column(text: &str) -> u32 {
