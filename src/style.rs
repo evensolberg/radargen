@@ -90,6 +90,12 @@ pub const SWATCH_RADIUS: f64 = 5.0;
 /// FR-40's status ring sits this far outside the marker.
 pub const STATUS_RING_GAP: f64 = 4.0;
 pub const STATUS_RING_STROKE: f64 = 2.0;
+/// The keyboard focus ring (`Focus`), from the marker's edge to the ring's
+/// centre line. Outside the status ring with a clear Surface1 gap between, so
+/// WCAG 1.4.11 measures it against the surface (6.0:1 and up) and never
+/// against a series fill, where the focus blue manages only 1.3–2.5:1.
+pub const FOCUS_RING_GAP: f64 = 8.0;
+pub const FOCUS_RING_STROKE: f64 = 2.0;
 
 // --- Radar (FR-32, FR-33) -------------------------------------------------------
 /// Outer edge of the outermost band; bands divide it equally (FR-32).
@@ -98,8 +104,11 @@ pub const DIVIDER_RADIUS: f64 = 262.0;
 pub const QUADRANT_LABEL_RADIUS: f64 = 300.0;
 /// Ring circles and quadrant dividers (`StrokeRing` / `StrokeDivider`).
 pub const GRID_STROKE: f64 = 1.0;
-/// Width of the Surface1 stroke painted under ring labels (`paint-order:
-/// stroke`), so the 12 o'clock divider (FR-31) doesn't strike through them.
+/// Width of the Surface1 halo under ring labels, so the 12 o'clock divider
+/// (FR-31) doesn't strike through them. Emit it as its own stroke-only
+/// `<text>` painted before the label, not as `paint-order: stroke`: an SVG
+/// consumer that ignores `paint-order` would paint the halo over the glyphs
+/// and erase them.
 pub const LABEL_HALO: f64 = 3.0;
 
 // --- Arrangements (FR-68–FR-71) -------------------------------------------------
@@ -120,15 +129,28 @@ pub const MIN_RADAR_WIDTH: f64 = 660.0;
 /// Smaller legend styles go proportionally lower; this is not a floor for them.
 pub const MIN_LEGIBLE_PX: f64 = 10.0;
 
+/// FR-64's widest output, as a bound on any document width layout produces.
+const MAX_WIDTH: f64 = 10_000.0;
+
 /// FR-69's media-query breakpoint for a wide document `wide_width` units wide:
 /// the viewport width at which `LEGEND_NAME` renders at `MIN_LEGIBLE_PX`. Per
 /// document, not a constant — the wide width grows with the legend (§4).
+///
+/// # Panics
+///
+/// On a width that is not a positive, finite number of at most `MAX_WIDTH`
+/// units: a layout bug, which would otherwise come out as a silent
+/// `max-width: 0px` media query.
 #[must_use]
 pub fn breakpoint_px(wide_width: f64) -> u32 {
+    assert!(
+        wide_width.is_finite() && wide_width > 0.0 && wide_width <= MAX_WIDTH,
+        "breakpoint_px: {wide_width} is not a document width"
+    );
     #[expect(
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
-        reason = "a document width is positive and at most a few thousand units"
+        reason = "bounded by the assert above, so the result is positive and fits u32"
     )]
     let px = (wide_width * MIN_LEGIBLE_PX / LEGEND_NAME.size).round() as u32;
     px
@@ -202,6 +224,30 @@ mod tests {
         assert_eq!(breakpoint_px(1088.0), 870);
         // 1150.625 × 10 / 12.5 is exactly 920.5, which rounds away from zero.
         assert_eq!(breakpoint_px(1150.625), 921);
+    }
+
+    #[test]
+    #[should_panic(expected = "is not a document width")]
+    fn a_zero_width_is_a_bug_not_a_breakpoint() {
+        let _ = breakpoint_px(0.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "is not a document width")]
+    fn a_nan_width_is_a_bug_not_a_breakpoint() {
+        let _ = breakpoint_px(f64::NAN);
+    }
+
+    /// The focus ring clears the status ring by at least 2 units of surface,
+    /// so it is judged against the surface, never a series fill (WCAG 1.4.11).
+    #[test]
+    fn focus_ring_sits_clear_of_the_status_ring() {
+        let status_outer = STATUS_RING_GAP + STATUS_RING_STROKE / 2.0;
+        let focus_inner = FOCUS_RING_GAP - FOCUS_RING_STROKE / 2.0;
+        assert!(
+            focus_inner - status_outer >= 2.0,
+            "{status_outer} vs {focus_inner}"
+        );
     }
 
     #[test]

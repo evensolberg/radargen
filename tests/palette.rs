@@ -17,6 +17,8 @@ fn block(css: &str, opener: &str) -> Vec<(String, String)> {
         .map(str::trim)
         .filter(|l| l.starts_with("--"))
         .map(|l| {
+            // One declaration per line, or a second one would hide from the check.
+            assert_eq!(l.matches(';').count(), 1, "one declaration per line: {l}");
             let (name, rest) = l.split_once(':').expect("name: value");
             let value = rest.split(';').next().expect("value;").trim();
             (name.trim().to_string(), value.to_string())
