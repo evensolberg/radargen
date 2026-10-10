@@ -13,7 +13,9 @@ const MAX_MAGNITUDE: f64 = 1e12;
 /// Not `format!("{v:.3}")`: that rounds an exact binary tie (0.0625) half to
 /// even, and NFR-17 says half away from zero. `f64::round` is half away from
 /// zero, so the value is rounded as an integer count of thousandths and the
-/// decimal point is placed by hand.
+/// decimal point is placed by hand. It is the product `v * 1000` that is
+/// rounded, so `1.0005` (in binary just below a tie) gives `1.001`, as written:
+/// deterministic, since IEEE multiplication is correctly rounded everywhere.
 ///
 /// # Panics
 ///
@@ -26,7 +28,7 @@ pub fn fmt_coord(v: f64) -> String {
         v.is_finite() && v.abs() < MAX_MAGNITUDE,
         "fmt_coord: {v} is not a drawable coordinate"
     );
-    #[allow(
+    #[expect(
         clippy::cast_possible_truncation,
         reason = "bounded by the assert above, so the product is an exact integer well inside i64"
     )]
@@ -60,6 +62,8 @@ mod tests {
         assert_eq!(fmt_coord(12_345.678_9), "12345.679");
         // Not -3.14159: clippy's deny-by-default `approx_constant` reads it as π.
         assert_eq!(fmt_coord(-7.654_32), "-7.654");
+        // The product is rounded, not the binary value just below the tie.
+        assert_eq!(fmt_coord(1.0005), "1.001");
     }
 
     /// NFR-17: half away from zero. `{:.3}` would give 0.062 here — these

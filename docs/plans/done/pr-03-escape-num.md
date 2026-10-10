@@ -12,7 +12,7 @@ created_date: 2026-10-09
 synopsis: "escape.rs with one function per NFR-6 output context, and num::fmt_coord as NFR-17's single number formatter."
 status: complete
 type: Plan
-revision: "1.5"
+revision: "1.6"
 review_date: 2026-10-09
 reviewed_by:
   - rust-engineer
@@ -577,3 +577,4 @@ git commit -m "feat(escape): JSON island and CSS value contexts (NFR-6 4–5)"
 | 1.3 | 2026-10-09 | PR 6 review: `xml_allowed` renamed `displayable` and expressed with `char::is_control`; boundary-checked set; one `escape_into` loop for text and attributes; the cross-architecture noise test now uses 1e-13 |
 | 1.4 | 2026-10-09 | The pedantic and unsafe-code gate is now live in `Cargo.toml` (crumb `rg-q3w`) |
 | 1.5 | 2026-10-10 | Implemented as written, with no deviations. `serde_json` brings in `zmij` transitively; `cargo deny check licenses` passes |
+| 1.6 | 2026-10-10 | PR 12 review (code-reviewer, security-auditor). `css_value` is an allow-list (`#` and ASCII letters and digits), not the three-character deny-list: a comment, an unbalanced bracket or a trailing backslash swallowed the template's `;` or `}`, and `url(` could fetch a remote resource. NFR-6 (5)'s three characters are a subset of what it rejects. `json` also escapes `>` and `&`; attributes write `&#39;`, not `&apos;`. Crumb for raw floats reaching `json` |

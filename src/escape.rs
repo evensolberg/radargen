@@ -27,7 +27,9 @@ fn escape_into(out: &mut String, s: &str, attr: bool) {
             // NFR-17's output is LF-only, and a parser would fold a raw CR to LF.
             '\r' => out.push_str("&#13;"),
             '"' if attr => out.push_str("&quot;"),
-            '\'' if attr => out.push_str("&apos;"),
+            // Not `&apos;`: HTML4-era consumers, some email previews among
+            // them, show it literally.
+            '\'' if attr => out.push_str("&#39;"),
             '\t' if attr => out.push_str("&#9;"),
             '\n' if attr => out.push_str("&#10;"),
             c if !displayable(c) => out.push('\u{fffd}'),
@@ -48,6 +50,9 @@ pub fn xml_text(s: &str) -> String {
 /// three whitespace characters attribute-value normalisation would otherwise
 /// turn into spaces. Returned **with** its surrounding `"`, so a caller cannot
 /// emit it unquoted.
+///
+/// For plain values only: escaping does not make text safe in a URL, an `on*`
+/// handler or a `style` attribute, and nothing CSV-derived goes in one.
 #[must_use]
 pub fn xml_attr(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
@@ -68,8 +73,14 @@ pub fn html_attr(s: &str) -> String {
 /// Context 4: a JavaScript string or JSON island. JSON-encoded, then every
 /// `<` becomes `\u003c` — `</script>` terminates the block regardless of
 /// entity escaping (NFR-6), and `<!--` alters script parsing — and U+2028 and
-/// U+2029 are escaped for older JavaScript parsers. The substitutions are safe
-/// on serializer output: none of the three can occur in JSON outside a string.
+/// U+2029 are escaped for older JavaScript parsers. `>` and `&` are escaped
+/// too, so the island would stay well-formed even inside an XML document.
+/// The substitutions are safe on serializer output: none of these characters
+/// can occur in JSON outside a string.
+///
+/// Floats must not reach this unformatted: `serde_json` would print them
+/// unrounded, with exponents, and NaN as `null`, bypassing NFR-17's
+/// [`crate::num::fmt_coord`]. Pass coordinates as its strings.
 ///
 /// # Errors
 ///
@@ -77,6 +88,8 @@ pub fn html_attr(s: &str) -> String {
 pub fn json<T: serde::Serialize + ?Sized>(value: &T) -> Result<String, serde_json::Error> {
     Ok(serde_json::to_string(value)?
         .replace('<', "\\u003c")
+        .replace('>', "\\u003e")
+        .replace('&', "\\u0026")
         .replace('\u{2028}', "\\u2028")
         .replace('\u{2029}', "\\u2029"))
 }
@@ -92,11 +105,20 @@ pub struct CssValueError {
 /// Context 5: a CSS custom-property value. Rejected rather than escaped — no
 /// safe escaping exists for arbitrary text in a CSS value position.
 ///
+/// An allow-list, not NFR-6's three characters alone: a comment, an
+/// unbalanced bracket or a trailing backslash would swallow the template's
+/// own `;` or `}`, and `url(` would fetch a remote resource from a file that
+/// must be self-contained. `#` and ASCII letters and digits cover every
+/// `#RRGGBB` FR-86 allows; checking that exact shape is `--palette`'s job.
+///
 /// # Errors
 ///
-/// [`CssValueError`] naming the first `;`, `}` or `<` in `s`.
+/// [`CssValueError`] naming the first character outside the allow-list.
 pub fn css_value(s: &str) -> Result<&str, CssValueError> {
-    match s.chars().find(|c| matches!(c, ';' | '}' | '<')) {
+    match s
+        .chars()
+        .find(|c| !(*c == '#' || c.is_ascii_alphanumeric()))
+    {
         Some(found) => Err(CssValueError {
             value: s.to_string(),
             found,
@@ -140,7 +162,7 @@ mod tests {
     fn attributes_are_quoted_and_escape_both_quotes() {
         assert_eq!(
             xml_attr(r#"say "hi" & 'bye'"#),
-            r#""say &quot;hi&quot; &amp; &apos;bye&apos;""#
+            r#""say &quot;hi&quot; &amp; &#39;bye&#39;""#
         );
         assert_eq!(html_attr("<b>"), r#""&lt;b&gt;""#);
         assert_eq!(xml_attr(""), r#""""#);
@@ -242,7 +264,7 @@ mod tests {
     #[test]
     fn json_escapes_structures_too() {
         let out = json(&["</script>", "ok"]).unwrap();
-        assert_eq!(out, r#"["\u003c/script>","ok"]"#);
+        assert_eq!(out, r#"["\u003c/script\u003e","ok"]"#);
     }
 
     #[test]
@@ -250,21 +272,48 @@ mod tests {
         assert_eq!(css_value("#0072B2"), Ok("#0072B2"));
         // Context 5 checks injection only. FR-86's `#RRGGBB` rule is PR 18's
         // validation, so a well-formed but unsupported value passes here.
-        assert_eq!(css_value("rgb(0 114 178)"), Ok("rgb(0 114 178)"));
+        assert_eq!(css_value("red"), Ok("red"));
     }
 
-    /// NFR-6 (5): no safe escaping exists for arbitrary text in a CSS value.
+    /// NFR-6 (5): no safe escaping exists for arbitrary text in a CSS value,
+    /// and `;`, `}` and `<` are only the obvious breakouts. A comment, an
+    /// unbalanced bracket or a trailing backslash swallows the template's own
+    /// `;` or `}`; `url(` fetches a remote resource from a file that must be
+    /// self-contained. So anything but `#` and ASCII letters and digits is out.
     #[test]
-    fn css_values_with_a_breakout_character_are_rejected() {
-        for (s, found) in [("red; color: x", ';'), ("red}", '}'), ("red</style>", '<')] {
+    fn css_values_outside_the_allow_list_are_rejected() {
+        for (s, found) in [
+            ("red; color: x", ';'),
+            ("red}", '}'),
+            ("red</style>", '<'),
+            ("red/*", '/'),
+            ("red\\", '\\'),
+            ("rgb(0 114 178)", '('),
+            ("url(https://x)", '('),
+            ("x{", '{'),
+            ("a&b", '&'),
+            ("\"red", '"'),
+            ("red\n", '\n'),
+        ] {
             assert_eq!(
                 css_value(s),
                 Err(CssValueError {
                     value: s.into(),
                     found
                 }),
-                "{s}"
+                "{s:?}"
             );
         }
+    }
+
+    /// XML-hostile JSON stays valid if the island ever lands in an XML document.
+    #[test]
+    fn json_escapes_gt_and_amp_too() {
+        let out = json("a > b & c ]]>").unwrap();
+        assert!(!out.contains('>') && !out.contains('&'), "{out}");
+        assert_eq!(
+            serde_json::from_str::<String>(&out).unwrap(),
+            "a > b & c ]]>"
+        );
     }
 }
