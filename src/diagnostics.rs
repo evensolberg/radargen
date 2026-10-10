@@ -430,11 +430,11 @@ fn tallied(members: &[Member], key: fn(&str) -> String) -> String {
 /// Everything the tool refuses to run on: non-zero exit, nothing written
 /// (NFR-8, NFR-9).
 ///
-/// One taxonomy for the whole tool (architecture §1); each
-/// later stage adds its variants beside the code that raises them. An I/O
-/// variant should carry the path it failed on and mark the error `#[source]`,
-/// not `#[from]`: a bare `From<io::Error>` would let `?` build a `Fatal` that
-/// cannot name its path (NFR-10).
+/// One taxonomy for the whole tool (architecture §1); each later stage adds its
+/// variants beside the code that raises them. An I/O variant should carry the
+/// path it failed on and mark the error `#[source]`, not `#[from]`: a bare
+/// `From<io::Error>` would let `?` build a `Fatal` that cannot name its path
+/// (NFR-10).
 #[derive(Debug, thiserror::Error)]
 pub enum Fatal {
     /// FR-52: the `-o` extension is absent or names a format we do not write.

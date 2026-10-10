@@ -80,6 +80,10 @@ alias tp := testp
 publish:
     #!/usr/bin/env bash
     set -euo pipefail
+    if [ "$(git rev-parse --abbrev-ref HEAD)" != main ] || [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+        echo "Publish from an up-to-date main (git switch main && git pull)." >&2
+        exit 1
+    fi
     version="v$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
     if [ -n "$(git tag --list "$version")" ]; then
         echo "Tag $version already exists; bump the version first." >&2
