@@ -3,10 +3,11 @@
 //! Argument *behaviour* is fixed by the PRD; exact spelling is OQ-2. There is
 //! no subcommand (D-28): one CSV in, one file out.
 
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use std::path::PathBuf;
 
 use crate::diagnostics::Fatal;
+pub use crate::palette::Theme;
 
 /// The output format, inferred from the `-o` extension (FR-52).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -14,13 +15,6 @@ pub enum OutputFormat {
     Html,
     Png,
     Svg,
-}
-
-/// FR-56. Applies to PNG and SVG only; ignored, not an error, on HTML.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-pub enum Theme {
-    Light,
-    Dark,
 }
 
 #[derive(Debug, Parser)]
