@@ -1,7 +1,7 @@
 ---
 id: rg-jtg
 title: PRD NFR-20 example row count is 42, should be 41
-status: open
+status: closed
 type: bug
 priority: 2
 tags:

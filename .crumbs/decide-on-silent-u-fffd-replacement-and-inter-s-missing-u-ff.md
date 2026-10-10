@@ -1,7 +1,7 @@
 ---
 id: rg-jyx
 title: Decide on silent U+FFFD replacement and Inter's missing U+FFFD glyph
-status: open
+status: closed
 type: idea
 priority: 2
 tags:

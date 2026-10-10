@@ -1,3 +1,28 @@
+---
+tags:
+  - plan
+  - escaping
+  - determinism
+aliases: []
+doc_id: RG-003
+doc_name: pr-03-escape-num
+crumb_id: rg-vgm
+document_title: "PR 03 — `escape.rs` and `num.rs`: Implementation Plan"
+created_date: 2026-10-09
+synopsis: "escape.rs with one function per NFR-6 output context, and num::fmt_coord as NFR-17's single number formatter."
+status: draft
+type: Plan
+revision: "1.2"
+review_date: 2026-10-09
+reviewed_by:
+  - rust-engineer
+  - qa-expert
+  - architect-reviewer
+  - ui-designer
+  - ux-researcher
+completed_date:
+comments:
+---
 # PR 03 — `escape.rs` and `num.rs`: Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -10,7 +35,7 @@
 
 **Tech Stack:** Rust 2024; `serde` and `serde_json` (new, MIT/Apache-2.0) for the JSON context; `thiserror` for the CSS rejection.
 
-**Spec:** `docs/product/radargen-prd.md` v0.37: NFR-6, NFR-17, SC-9, NFR-4. Design: `docs/design/architecture.md` §3 (why these live at the crate root) and §6 (one number formatter).
+**Spec:** `docs/product/radargen-prd.md` v0.38: NFR-6, NFR-17, SC-9, NFR-4, FR-90. Design: `docs/design/architecture.md` §3 (why these live at the crate root) and §6 (one number formatter).
 
 ## Global Constraints
 
@@ -33,11 +58,7 @@
 
 - **`fmt_coord` trims trailing zeros**, so `260.000` becomes `260` and `1.500` becomes `1.5`. That's the format the SVG spike used (`tests/outlines_match_text.rs::fmt`), and NFR-17 doesn't forbid it.
 - **`fmt_coord` panics on NaN, on infinity, and on magnitudes of 10¹² or more.** None of these is an input error. Each can only come from a layout bug, and returning a `Result` would push an impossible-error branch into every emitter call. The panic message names the value.
-- **Disallowed XML characters are replaced with U+FFFD, not rejected.** NFR-9 says content is never fatal ("structure is fatal, content is not"). The PRD doesn't specify this case. Two consequences to flag:
-  - **The replacement is silent.** An author finds a replacement mark in a published edition with nothing on stderr to explain it. These functions have no `Warnings`, so a warning would have to come from the CSV stage (PR 05/06), for example `line N, column: control character U+XXXX replaced`.
-  - **Inter has no U+FFFD glyph.** It's inside the subset range, but checked during plan review, neither vendored face maps it, so the PNG shows tofu rather than the replacement mark. The browser falls back to a system font for it.
-
-  Both are tracked in a crumb; neither changes this PR.
+- **Disallowed XML characters are replaced with U+FFFD here, as a safety net only.** PRD v0.38's FR-90 removes them at the CSV stage (PR 05), with a warning naming line and column (D-55), so validated input never reaches this replacement. It stays because these functions are total over any `&str`: a string that didn't come through the CSV stage must still produce well-formed XML. The replacement is silent and Inter has no U+FFFD glyph (the PNG would draw a missing-glyph box). Both are acceptable only because FR-90 keeps CSV text from getting here. **The set is FR-90's set exactly**: C0 except tab, LF and CR, plus DEL, U+FFFE and U+FFFF. If the two drift apart, a character escapes the warning and gets replaced silently. PR 05 should call `escape::xml_allowed`, made `pub`, rather than restating the set.
 - **The attribute functions return the value already wrapped in `"`**, which makes NFR-6 (3)'s "never left unquoted" structural.
 - **`serde_json` for context 4.** It's library-first, and PR 14's data island needs `Serialize` anyway. The function adds only the `<`, U+2028 and U+2029 escapes.
 - **The CSS context rejects only the three characters NFR-6 names.** `/*` or `{` in a palette value can garble the file's own declarations, but can't inject markup. Say on review if those should be rejected too; it's a one-line change in the test and the function.
@@ -226,6 +247,7 @@ git commit -m "feat(num): fmt_coord — NFR-17's only number formatter"
   - `pub fn xml_text(s: &str) -> String`, for context 1: an SVG/XML text node
   - `pub fn xml_attr(s: &str) -> String`, for context 2. It returns the value **with its surrounding `"`**.
   - `pub fn html_attr(s: &str) -> String`, for context 3: the same rules, also quoted
+  - `pub fn xml_allowed(c: char) -> bool`: FR-90's set, which PR 05 uses to decide what to remove and warn about
 
   PR 13's `Node` serialiser calls the first two, and PR 14's HTML chrome calls `html_attr`.
 
@@ -276,6 +298,9 @@ mod tests {
     fn xml_forbidden_controls_become_replacement_characters() {
         assert_eq!(xml_text("a\u{1}b\u{1f}c\u{fffe}d"), "a\u{fffd}b\u{fffd}c\u{fffd}d");
         assert_eq!(xml_attr("a\u{0}b"), "\"a\u{fffd}b\"");
+        // FR-90's set: DEL is legal XML but in the set; C1 and tab are not.
+        assert!(!xml_allowed('\u{7f}') && !xml_allowed('\u{ffff}'));
+        assert!(xml_allowed('\t') && xml_allowed('\u{85}'));
         assert_eq!(xml_text("tab\tand\nnewline"), "tab\tand\nnewline");
         // NFR-17: LF-only output; and XML end-of-line handling would turn a raw
         // CR into LF anyway, so a CRLF inside a quoted CSV field must be a reference.
@@ -325,9 +350,11 @@ Put this above the test module:
 //! SVG node, and the `</script>` rule is an HTML fact (architecture §3).
 
 /// XML 1.0's `Char` production excludes most C0 controls and U+FFFE/U+FFFF,
-/// even as character references. NFR-9 makes content non-fatal, so they are
-/// replaced rather than rejected.
-fn xml_allowed(c: char) -> bool {
+/// even as character references. FR-90 removes these at the CSV stage, with a
+/// warning, and calls this function to decide which ones; the escaping
+/// functions only replace them as a backstop, so that they stay total.
+#[must_use]
+pub fn xml_allowed(c: char) -> bool {
     match c {
         '\t' | '\n' | '\r' => true,
         // C0 controls and DEL. DEL is legal XML but never wanted in a label;
@@ -539,3 +566,11 @@ git commit -m "feat(escape): JSON island and CSS value contexts (NFR-6 4–5)"
 3. Run the code-reviewer skill until clean, then do the Copilot loop until it reports "no new comments" on the head SHA. Then run simplify, then code-reviewer once more.
 4. Close `rg-vgm`, changing the status field only. **No version bump.**
 5. Move this file to `docs/plans/done/` in the same PR. Merge; there's no tag.
+
+## Revisions
+
+| Revision | Date | Notes |
+| --- | --- | --- |
+| 1.0 | 2026-10-09 | Initial version |
+| 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
+| 1.2 | 2026-10-09 | U+FFFD replacement recast as a backstop behind PRD v0.38's FR-90; `xml_allowed` made public so PR 05 shares the set (crumb `rg-jyx`) |

@@ -1,7 +1,7 @@
 ---
 id: rg-03k
 title: Update architecture §5 for Role::Neutral(Neutral::MarkerHollow)
-status: open
+status: closed
 type: task
 priority: 2
 tags:

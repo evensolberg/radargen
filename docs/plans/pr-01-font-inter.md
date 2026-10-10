@@ -1,3 +1,28 @@
+---
+tags:
+  - plan
+  - font
+  - text
+aliases: []
+doc_id: RG-001
+doc_name: pr-01-font-inter
+crumb_id: rg-osr
+document_title: "PR 01 — Swap the stand-in font for Inter: Implementation Plan"
+created_date: 2026-10-09
+synopsis: "Swap the stand-in Libertinus font for FR-85's Inter Regular and SemiBold, Latin-subset and vendored, with a weight parameter on text measurement."
+status: draft
+type: Plan
+revision: "1.1"
+review_date: 2026-10-09
+reviewed_by:
+  - rust-engineer
+  - qa-expert
+  - architect-reviewer
+  - ui-designer
+  - ux-researcher
+completed_date:
+comments:
+---
 # PR 01 — Swap the stand-in font for Inter: Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -612,3 +637,10 @@ Follow the house workflow in `~/.claude/CLAUDE.md`. For this PR:
 4. Close `rg-osr`, changing the status field only. **No version bump:** nothing a user can run changes.
 5. Move this file to `docs/plans/done/` in the same PR.
 6. Merge. There's no tag, since there's no bump.
+
+## Revisions
+
+| Revision | Date | Notes |
+| --- | --- | --- |
+| 1.0 | 2026-10-09 | Initial version |
+| 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |

@@ -1,3 +1,27 @@
+---
+tags:
+  - plan
+  - diagnostics
+aliases: []
+doc_id: RG-002
+doc_name: pr-02-diagnostics
+crumb_id: rg-xr3
+document_title: "PR 02 — `diagnostics.rs`: Implementation Plan"
+created_date: 2026-10-09
+synopsis: "One diagnostic taxonomy: a Fatal error enum and Warnings printed in NFR-11's order with NFR-20's grouping."
+status: draft
+type: Plan
+revision: "1.2"
+review_date: 2026-10-09
+reviewed_by:
+  - rust-engineer
+  - qa-expert
+  - architect-reviewer
+  - ui-designer
+  - ux-researcher
+completed_date:
+comments:
+---
 # PR 02 — `diagnostics.rs`: Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -10,7 +34,7 @@
 
 **Tech Stack:** Rust 2024, `thiserror` 2 (already a dependency).
 
-**Spec:** `docs/product/radargen-prd.md` v0.37: NFR-9, NFR-10, NFR-11, NFR-16, NFR-20, FR-7, FR-17, FR-20, FR-24–FR-26, FR-28, FR-52, FR-63, FR-88, FR-89, SC-10, SC-24, D-37, D-51. Design: `docs/design/architecture.md` §1 (error strategy), §6 (no `HashMap`), §7 (threading).
+**Spec:** `docs/product/radargen-prd.md` v0.38: NFR-9, NFR-10, NFR-11, NFR-16, NFR-20, FR-7, FR-17, FR-20, FR-24–FR-26, FR-28, FR-52, FR-63, FR-88, FR-89, FR-90, SC-10, SC-24, D-37, D-51, D-55. Design: `docs/design/architecture.md` §1 (error strategy), §6 (no `HashMap`), §7 (threading).
 
 ## Global Constraints
 
@@ -42,6 +66,7 @@ The PRD fixes two message texts: NFR-20's grouped ring line and FR-20's qualifie
 | date (FR-24/25) | `'X' is not a YYYY-MM-DD date; shown as written` | `N rows have last_affirmed values that are not YYYY-MM-DD dates — …; each is shown as written` |
 | description (FR-7) | `description is empty; the detail panel omits it` | `N rows have an empty description — lines L1, L2, …; the detail panel omits each` |
 | duplicate name (FR-28) | `name 'X' repeats line L; both are drawn` | `N rows repeat an earlier name — X (n, first line F; original line L), …; every row is drawn` |
+| XML character (FR-90) | `removed U+0001, which XML cannot carry`, or `removed 3 characters XML cannot carry, the first U+0001` | `N fields held characters XML cannot carry — line L1 C1, line L2 C2, …; each was removed` |
 | FR-88 (no line) | `N quadrants; the radar reads best with three to six, so sectors narrow and labels may crowd` | never grouped |
 | FR-89 (no line) | `quadrant 'Q', ring 'R': N items; about F fit comfortably, so some markers overlap` | never grouped |
 
@@ -52,6 +77,7 @@ Other choices:
 - **The value shown is the first occurrence's, trimmed.** Values group by `normalise()`.
 - **For duplicate names, the count is the number of repeat rows,** and "first line" is the first repeat. The per-row message names the original line, and so does each grouped value (`original line L`). Without it, the grouped line names only half of each pair.
 - **An empty description lists every line, uncapped.** It has no value to enumerate, so NFR-20's "the rare one is the typo" reasoning applies to the lines instead.
+- **FR-90's warning is one per field, not one per character,** carrying the count and the first code point. The code point is printed as `U+XXXX` because the character itself is unprintable by definition. Its grouped line lists `line column` pairs, uncapped, like the empty-description line: the column varies between members, and NFR-10 requires each to be named.
 - **FR-89 quotes its names.** Quadrant names can contain `/` or `&`, so `Q / R` would be ambiguous.
 - **Bidi controls are escaped too** (U+200E/F, U+202A–E, U+2066–9). `is_control` misses them, and they can visually reorder a stderr line just as an escape sequence can recolour it.
 - **`cli::FatalError` becomes `diagnostics::Fatal`.** The `--rings` messages are `entry N is empty`, `'X' repeats entry N` and `no rings declared`. The `-o` message is `the output file name must end in .html`, which reads correctly for a wrong, missing or `.htm` extension (FR-52 covers the absent case too).
@@ -112,6 +138,10 @@ fn each_kind_has_its_per_row_message() {
          "line 9, description: description is empty; the detail panel omits it"),
         (at(12, 0, WarningKind::DuplicateName { value: "Terraform".into(), first_line: 4 }),
          "line 12, name: name 'Terraform' repeats line 4; both are drawn"),
+        (at(14, 3, WarningKind::XmlForbidden { column: "description".into(), first: '\u{1}', count: 1 }),
+         "line 14, description: removed U+0001, which XML cannot carry"),
+        (at(15, 0, WarningKind::XmlForbidden { column: "name".into(), first: '\u{1f}', count: 3 }),
+         "line 15, name: removed 3 characters XML cannot carry, the first U+001F"),
         (render_level(WarningKind::QuadrantCount { count: 7 }),
          "7 quadrants; the radar reads best with three to six, so sectors narrow and labels may crowd"),
         (render_level(WarningKind::OverfullBand { quadrant: "Tools".into(), ring: "Adopt".into(), count: 14, fits: 10 }),
@@ -211,6 +241,9 @@ pub enum WarningKind {
     EmptyDescription,
     /// FR-28, reported at the later line naming the earlier (NFR-10).
     DuplicateName { value: String, first_line: usize },
+    /// FR-90: one per field, however many characters it lost. `column` is the
+    /// canonical header name, since any column can carry one.
+    XmlForbidden { column: String, first: char, count: usize },
     /// FR-88. Render-level.
     QuadrantCount { count: usize },
     /// FR-89. Render-level, one per overfull band.
@@ -233,6 +266,7 @@ impl WarningKind {
             Self::UnparsableDate { column, .. } => column.to_string(),
             Self::EmptyDescription => "description".into(),
             Self::DuplicateName { .. } => "name".into(),
+            Self::XmlForbidden { column, .. } => column.clone(),
             Self::QuadrantCount { .. } | Self::OverfullBand { .. } => String::new(),
         }
     }
@@ -258,6 +292,13 @@ impl WarningKind {
             Self::DuplicateName { value, first_line } => format!(
                 "name '{}' repeats line {first_line}; both are drawn",
                 printable(value)
+            ),
+            Self::XmlForbidden { first, count: 1, .. } => {
+                format!("removed U+{:04X}, which XML cannot carry", u32::from(*first))
+            }
+            Self::XmlForbidden { first, count, .. } => format!(
+                "removed {count} characters XML cannot carry, the first U+{:04X}",
+                u32::from(*first)
             ),
             Self::QuadrantCount { count } => format!(
                 "{count} quadrants; the radar reads best with three to six, so sectors narrow and labels may crowd"
@@ -453,6 +494,9 @@ fn every_row_class_has_a_grouped_line() {
     assert_eq!(two(WarningKind::DuplicateName { value: "Kafka".into(), first_line: 2 }), vec![
         "warning: 2 rows repeat an earlier name — Kafka (2, first line 4; original line 2); every row is drawn",
     ]);
+    assert_eq!(two(WarningKind::XmlForbidden { column: "description".into(), first: '\u{1}', count: 1 }), vec![
+        "warning: 2 fields held characters XML cannot carry — line 4 description, line 6 description; each was removed",
+    ]);
 }
 
 #[test]
@@ -523,6 +567,7 @@ enum Class {
     Date(DateColumn),
     Description,
     DuplicateName,
+    XmlForbidden,
 }
 
 impl WarningKind {
@@ -534,6 +579,7 @@ impl WarningKind {
             Self::UnparsableDate { column, .. } => Some(Class::Date(*column)),
             Self::EmptyDescription => Some(Class::Description),
             Self::DuplicateName { .. } => Some(Class::DuplicateName),
+            Self::XmlForbidden { .. } => Some(Class::XmlForbidden),
             Self::QuadrantCount { .. } | Self::OverfullBand { .. } => None,
         }
     }
@@ -546,7 +592,10 @@ impl WarningKind {
             | Self::UnrecognisedStatus { value }
             | Self::UnparsableDate { value, .. }
             | Self::DuplicateName { value, .. } => Some(value),
-            Self::EmptyDescription | Self::QuadrantCount { .. } | Self::OverfullBand { .. } => None,
+            Self::EmptyDescription
+            | Self::XmlForbidden { .. }
+            | Self::QuadrantCount { .. }
+            | Self::OverfullBand { .. } => None,
         }
     }
 }
@@ -615,6 +664,16 @@ fn grouped(class: Class, members: &[&Warning]) -> String {
             lines.join(", ")
         );
     }
+    if class == Class::XmlForbidden {
+        let fields: Vec<String> = members
+            .iter()
+            .map(|m| format!("line {} {}", line_of(m), m.kind.column()))
+            .collect();
+        return format!(
+            "{n} fields held characters XML cannot carry — {}; each was removed",
+            fields.join(", ")
+        );
+    }
     let mut tallies: Vec<Tally> = Vec::new();
     for m in members {
         let value = m.kind.value().unwrap_or_default();
@@ -651,7 +710,7 @@ fn grouped(class: Class, members: &[&Warning]) -> String {
             "{n} rows have {column} values that are not YYYY-MM-DD dates — {values}; each is shown as written"
         ),
         Class::DuplicateName => format!("{n} rows repeat an earlier name — {values}; every row is drawn"),
-        Class::Description => unreachable!("handled above"),
+        Class::Description | Class::XmlForbidden => unreachable!("handled above"),
     }
 }
 ```
@@ -802,3 +861,11 @@ git commit -m "feat(diagnostics): Fatal — one error taxonomy; RingsError and -
 3. Run the code-reviewer skill until clean, then do the Copilot loop until it reports "no new comments" on the head SHA. Then run simplify, then code-reviewer once more.
 4. Close `rg-xr3`, changing the status field only. **No version bump:** the binary still exits 1 without printing anything. Once this is merged, `rg-tiu` (FR-63 collect-all) is unblocked.
 5. Move this file to `docs/plans/done/` in the same PR. Merge; there's no tag.
+
+## Revisions
+
+| Revision | Date | Notes |
+| --- | --- | --- |
+| 1.0 | 2026-10-09 | Initial version |
+| 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
+| 1.2 | 2026-10-09 | FR-90's warning class (`XmlForbidden`) added for PRD v0.38, resolving crumb `rg-jyx` |

@@ -228,7 +228,9 @@ pub fn arrange(a: Arrangement, blocks: &Blocks) -> Document;
 below and scales the radar to fit the width the text wants (FR-70, D-31). Both
 come from the same `Blocks`, which is what makes FR-68's "same items, same
 numbering, same marker treatments" true by construction rather than by
-discipline.
+discipline. That holds only because the legend wraps the same way in both: its
+maximum width is `NARROW_WIDTH − 2 × MARGIN` in either arrangement (FR-79,
+D-56), so the narrow document always has room for it.
 
 **FR-69's breakpoint is computed from the wide document, not picked.** The PRD
 calls the value an implementation detail and records that `mockup.html` uses
@@ -261,7 +263,7 @@ pub enum Paint { Role(palette::Role), None }
 
 `Paint::None` is the SVG `none` — the stroked-but-unfilled shapes: ring circles,
 quadrant dividers, FR-40's status rings and half-rings. It is **not** FR-20's
-hollow marker, which takes `Role::MarkerHollow`. FR-82 equals that role to the
+hollow marker, which takes `Role::Neutral(Neutral::MarkerHollow)`. FR-82 equals that role to the
 radar ground in both built-in themes, so on the radar the two are
 indistinguishable and the mistake is invisible — but FR-66 draws the key's sample
 markers *"the same way the radar draws it"* against a different background, where
@@ -271,7 +273,10 @@ apart.
 
 **No node carries a hex value.** Fills, strokes and text colours name a
 `palette::Role` — FR-82's eight neutrals and FR-81's indexed series entries — and
-the *emitter* binds it:
+the *emitter* binds it. A number on a solid marker names the series entry it sits
+on, and binding picks whichever of `#FFFFFF` and `#16191F` contrasts more with
+that entry's value (FR-82, D-54). That is a function of the value, not a ninth
+role:
 
 | Emitter | Binding | Why |
 | --- | --- | --- |

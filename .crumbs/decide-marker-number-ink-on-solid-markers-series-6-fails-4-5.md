@@ -1,7 +1,7 @@
 ---
 id: rg-smm
 title: Decide marker-number ink on solid markers (series-6 fails 4.5:1)
-status: open
+status: closed
 type: idea
 priority: 2
 tags:

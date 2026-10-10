@@ -1,3 +1,28 @@
+---
+tags:
+  - plan
+  - layout
+  - palette
+aliases: []
+doc_id: RG-004
+doc_name: pr-04-style-palette
+crumb_id: rg-bkm
+document_title: "PR 04 — `style.rs` and the built-in `palette.rs`: Implementation Plan"
+created_date: 2026-10-09
+synopsis: "style.rs as the home of every layout constant and the type scale, and palette.rs with the colour roles, both built-in palettes and FR-67's bind-time cycling."
+status: draft
+type: Plan
+revision: "1.2"
+review_date: 2026-10-09
+reviewed_by:
+  - rust-engineer
+  - qa-expert
+  - architect-reviewer
+  - ui-designer
+  - ux-researcher
+completed_date:
+comments:
+---
 # PR 04 — `style.rs` and the built-in `palette.rs`: Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -10,7 +35,7 @@
 
 **Tech Stack:** Rust 2024; `clap` (`ValueEnum` on `Theme`, as today).
 
-**Spec:** `docs/product/radargen-prd.md` v0.37: FR-35, FR-56, FR-67, FR-69, FR-70, FR-79, FR-81, FR-82, FR-85, FR-87, OQ-16. Design: `docs/design/architecture.md` §3 (the `style.rs` and `palette.rs` rows and the paragraph on `style.rs`), §4 (the breakpoint formula) and §5 (late binding, the `Paint`/`Role` split, and why the modulo sits in `palette.rs`). Normative data: `docs/product/palette.sample.css`.
+**Spec:** `docs/product/radargen-prd.md` v0.38: FR-35, FR-56, FR-67, FR-69, FR-70, FR-79, FR-81, FR-82, FR-85, FR-87, OQ-16, D-54, D-56. Design: `docs/design/architecture.md` §3 (the `style.rs` and `palette.rs` rows and the paragraph on `style.rs`), §4 (the breakpoint formula) and §5 (late binding, the `Paint`/`Role` split, and why the modulo sits in `palette.rs`). Normative data: `docs/product/palette.sample.css`.
 
 ## Global Constraints
 
@@ -38,10 +63,10 @@
   - Its `700` weights become `600` (FR-85).
   - The legend name is **Regular** 12.5px. The mockup's CSS uses normal weight while its measuring font string says 600. The CSS is what renders, so it wins.
   - **There's no uppercase transform** on legend headings. The mockup uppercases with CSS `text-transform`, which `resvg` would not apply and our measurement would not see. Doing it honestly means changing the displayed string, which FR-76 says we don't do to labels. Headings differ by weight, size, letter-spacing and indent instead — and by colour: `LEGEND_QUADRANT` is painted `TextPrimary` and `LEGEND_RING` `TextMuted`, since without the uppercase cue the two SemiBold headings sit only one unit apart. (Plan review also proposed raising `LEGEND_QUADRANT` to the mockup's 13px `.legend-heading` size; flag it if colour plus one unit doesn't read as two levels.)
-- **`MIN_LEGIBLE_PX = 10.0`.** The PRD calls the value an implementation detail. With the mockup's wide width of 1148, it gives a 918 px breakpoint against the mockup's 900. This is the number most worth a second look. **It protects only `LEGEND_NAME`:** the wide document scales as a whole, so at the breakpoint (scale 0.8) ring headings render at 8px, legend meta at 8.4px, and marker and badge numbers at 7.2px. A floor of 12 keeps numbers at ~8.6px and meta at ~10px, and moves the 1148-wide breakpoint to 1102; dividing by the smallest legend size instead moves it to 1148 (ring heading) or 1276 (badge). The cost of either is only that more viewports get the narrow arrangement, which FR-70 keeps legible.
+- **`MIN_LEGIBLE_PX = 10.0`.** The PRD calls the value an implementation detail. With the mockup's wide width of 1148, it gives a 918 px breakpoint against the mockup's 900; with this PR's 380 legend cap, a full-width legend gives 1088 and 870. This is the number most worth a second look. **It protects only `LEGEND_NAME`:** the wide document scales as a whole, so at the breakpoint (scale 0.8) ring headings render at 8px, legend meta at 8.4px, and marker and badge numbers at 7.2px. A floor of 12 keeps numbers at ~8.6px and meta at ~10px, and moves the 1148-wide breakpoint to 1102; dividing by the smallest legend size instead moves it to 1148 (ring heading) or 1276 (badge). The cost of either is only that more viewports get the narrow arrangement, which FR-70 keeps legible.
 - **Radar and arrangement metrics live here too** (`BAND_OUTER_RADIUS`, `DIVIDER_RADIUS`, `QUADRANT_LABEL_RADIUS`, the margins, `NARROW_WIDTH`), because architecture §3 says every layout constant does. The narrow counter-scaled label sizes (FR-70) aren't here: PR 10 computes them from these sizes and the scale.
-- **`NARROW_WIDTH` (420) can't hold a `LEGEND_WIDTH_MAX` (440) legend plus margins, and architecture §4 has one `Blocks` serving both arrangements.** `mockup.html` resolves it by wrapping the legend at 380 (`NARROW_DOC_W − 2 × MARGIN`) in the narrow arrangement — a second legend layout with different wrap points, not one block placed twice. §4 says instead that the narrow document is "the width the text wants". This PR doesn't pick: either the legend is wrapped per arrangement (and §4's "one `Blocks`, two placements" is amended), or the narrow width derives from the legend (`NARROW_WIDTH` becomes a floor, or goes). Decide before PRs 08–12 build on either.
-- **`Role` is `Neutral(Neutral) | Series(usize)`.** Indexing the neutrals is then an enum cast, with no panic path. Architecture §5 writes `Role::MarkerHollow`; update it to `Role::Neutral(Neutral::MarkerHollow)` when PR 13 lands `Paint`.
+- **`LEGEND_WIDTH_MAX` is `NARROW_WIDTH − 2 × MARGIN` (380), not the mockup's 440** (PRD v0.38 FR-79, D-56). One wrap width serves both arrangements, so architecture §4's one `Blocks`, placed two ways, holds by construction and the narrow document always fits the legend. The mockup wrapped at 440 wide and 380 narrow, which would have meant two legend layouts. A full-width legend now makes the wide document 1088 rather than 1148.
+- **`Role` is `Neutral(Neutral) | Series(usize)`.** Indexing the neutrals is then an enum cast, with no panic path. Architecture §5 now uses this naming.
 - **`Theme` moves to `palette.rs`**, and `cli.rs` re-exports it, so `radargen::cli::Theme` and `tests/cli.rs` keep working.
 - **Text colour per style.** FR-82 has no `--text-secondary`, which the mockup uses for four styles, and no `--page`, which it uses for legend-row hover. Each `TextStyle`'s doc comment names its ink so layout PRs don't guess:
   - **TextPrimary:** TITLE, QUADRANT_LABEL, LEGEND_HEADING, LEGEND_QUADRANT, LEGEND_NAME, KEY_HEADING.
@@ -50,7 +75,7 @@
   Legend-row hover fill is Surface1, because the legend sits on Surface2.
 - **Badge radius 8, not the mockup's 7.** Inter SemiBold 9px "44" measures ~12.0px. A hollow badge's clear interior is `2r − stroke`: 12px at r=7, which leaves no gap at all, and 14px at r=8.
 - **Ring labels get a halo.** FR-31 puts ring labels on the 12 o'clock divider, so the divider runs through every one of them. The mockup's ~1.3:1 gridline hid this; FR-82's divider is 3.4:1, and 1.9:1 against text-muted, so it reads as a strike-through. `LABEL_HALO` is the width of a Surface1 stroke painted under the text (`paint-order="stroke"`). PR 10 applies it, and its resvg oracle test should confirm resvg honours `paint-order`. If it doesn't, break the divider behind the label instead.
-- **Marker-number ink is open (flagged, not decided here).** The mockup draws numbers on solid markers and badges in literal `#fff`. That clears 4.5:1 on seven FR-81 entries, but series-6 `#2F9626` is **3.81:1**, below WCAG 1.4.3 for 9px text. FR-82's "verified" claim covers series against surfaces only. No single ink passes all eight: light `--text-primary` passes green at 4.62 but fails blue at 3.39. The fix needs a PRD decision — a ninth role, a per-entry ink, or a darker green — and is tracked in a crumb. This PR leaves the ink out of `Palette`. Hollow markers are fine: TextPrimary on MarkerHollow is 17.6:1 light and 14.8:1 dark.
+- **Marker-number ink is chosen per series entry** (PRD v0.38 FR-82, D-54). `Palette::number_ink(index)` returns whichever of `#FFFFFF` and `#16191F` contrasts more with that entry. For the built-in eight, that's white everywhere except series-6 green, which takes `#16191F` (4.62:1 against white's 3.81:1), and the lowest ratio is 4.53:1 (series-3 teal, on white). It's a literal in every format: series values don't change with theme, so HTML needs no `var()` for it. Contrast is computed from `#RRGGBB`, so **PR 18 must reject or normalise any other colour syntax in a `--palette` file**. Hollow markers are unaffected: TextPrimary on MarkerHollow is 17.6:1 light and 14.8:1 dark.
 - **No version bump.** Nothing renders yet.
 
 ---
@@ -182,33 +207,33 @@ const fn style(weight: Weight, size: f64, letter_spacing: f64) -> TextStyle {
 // --- Type scale ------------------------------------------------------------
 // Each doc comment names the FR-82 role the text is painted with. The mockup's
 // --text-secondary is not an FR-82 role; its uses map to primary or muted.
-/// Ink: TextPrimary.
+/// Ink: `TextPrimary`.
 pub const TITLE: TextStyle = style(Weight::SemiBold, 17.0, 0.0);
-/// Ink: TextMuted.
+/// Ink: `TextMuted`.
 pub const SUBTITLE: TextStyle = style(Weight::Regular, 12.0, 0.0);
-/// 0.04em at 12px. Ink: TextPrimary — FR-39's identity channel.
+/// 0.04em at 12px. Ink: `TextPrimary` — FR-39's identity channel.
 pub const QUADRANT_LABEL: TextStyle = style(Weight::SemiBold, 12.0, 0.48);
-/// Ink: TextMuted, over a `LABEL_HALO` (it sits on the 12 o'clock divider, FR-31).
+/// Ink: `TextMuted`, over a `LABEL_HALO` (it sits on the 12 o'clock divider, FR-31).
 pub const RING_LABEL: TextStyle = style(Weight::Regular, 10.0, 0.0);
-/// Ink: TextPrimary on a hollow marker; on a solid one, open (see the plan's
-/// Decisions — white fails 4.5:1 on series-6).
+/// Ink: `TextPrimary` on a hollow marker; on a solid one,
+/// `Palette::number_ink` for that entry (FR-82, D-54).
 pub const MARKER_NUMBER: TextStyle = style(Weight::SemiBold, 9.0, 0.0);
-/// The "Legend" heading, matching `KEY_HEADING`. Ink: TextPrimary.
+/// The "Legend" heading, matching `KEY_HEADING`. Ink: `TextPrimary`.
 pub const LEGEND_HEADING: TextStyle = style(Weight::SemiBold, 13.0, 0.0);
-/// FR-35 level one. 0.03em at 11px. Ink: TextPrimary — with no uppercase,
+/// FR-35 level one. 0.03em at 11px. Ink: `TextPrimary` — with no uppercase,
 /// colour is part of what separates it from `LEGEND_RING`.
 pub const LEGEND_QUADRANT: TextStyle = style(Weight::SemiBold, 11.0, 0.33);
-/// FR-35 level two. 0.03em at 10px. Ink: TextMuted.
+/// FR-35 level two. 0.03em at 10px. Ink: `TextMuted`.
 pub const LEGEND_RING: TextStyle = style(Weight::SemiBold, 10.0, 0.3);
-/// FR-35 level three, and the size FR-69's breakpoint protects. Ink: TextPrimary.
+/// FR-35 level three, and the size FR-69's breakpoint protects. Ink: `TextPrimary`.
 pub const LEGEND_NAME: TextStyle = style(Weight::Regular, 12.5, 0.0);
-/// FR-74's trailing qualifier/status text. Ink: TextMuted.
+/// FR-74's trailing qualifier/status text. Ink: `TextMuted`.
 pub const LEGEND_META: TextStyle = style(Weight::Regular, 10.5, 0.0);
 /// Ink: as `MARKER_NUMBER`.
 pub const LEGEND_BADGE_NUMBER: TextStyle = style(Weight::SemiBold, 9.0, 0.0);
-/// Ink: TextPrimary.
+/// Ink: `TextPrimary`.
 pub const KEY_HEADING: TextStyle = style(Weight::SemiBold, 13.0, 0.0);
-/// Ink: TextMuted.
+/// Ink: `TextMuted`.
 pub const KEY_LABEL: TextStyle = style(Weight::Regular, 11.0, 0.0);
 /// Legend text line height.
 pub const LINE_HEIGHT: f64 = 15.0;
@@ -220,8 +245,9 @@ pub const INDENT_ITEM: f64 = 44.0;
 /// Between an item name and its trailing meta (FR-74).
 pub const META_GAP: f64 = 8.0;
 /// FR-79's fixed maximum for the legend block; its rendered width is the
-/// lesser of this and the longest measured line.
-pub const LEGEND_WIDTH_MAX: f64 = 440.0;
+/// lesser of this and the longest measured line. One value for both
+/// arrangements, so the narrow document always holds it (D-56).
+pub const LEGEND_WIDTH_MAX: f64 = NARROW_WIDTH - 2.0 * MARGIN;
 
 // --- Markers (FR-20, FR-40) -----------------------------------------------------
 /// OQ-16's home: whether this is user units or output pixels is a change to
@@ -229,7 +255,7 @@ pub const LEGEND_WIDTH_MAX: f64 = 440.0;
 pub const MARKER_RADIUS: f64 = 10.0;
 /// Solid marker: a Surface1 stroke that separates overlapping markers.
 pub const MARKER_STROKE: f64 = 2.0;
-/// Hollow marker (FR-20): series-coloured stroke around a MarkerHollow fill.
+/// Hollow marker (FR-20): series-coloured stroke around a `MarkerHollow` fill.
 pub const MARKER_HOLLOW_STROKE: f64 = 3.0;
 /// The legend badge — a list bullet, deliberately smaller than the marker.
 /// 8, not the mockup's 7: Inter `SemiBold` 9px "44" is ~12px, which a hollow
@@ -249,7 +275,7 @@ pub const STATUS_RING_STROKE: f64 = 2.0;
 pub const BAND_OUTER_RADIUS: f64 = 260.0;
 pub const DIVIDER_RADIUS: f64 = 262.0;
 pub const QUADRANT_LABEL_RADIUS: f64 = 300.0;
-/// Ring circles and quadrant dividers (StrokeRing / StrokeDivider).
+/// Ring circles and quadrant dividers (`StrokeRing` / `StrokeDivider`).
 pub const GRID_STROKE: f64 = 1.0;
 /// Width of the Surface1 stroke painted under ring labels (`paint-order:
 /// stroke`), so the 12 o'clock divider (FR-31) doesn't strike through them.
@@ -467,6 +493,7 @@ git commit -m "feat(palette): Role and Theme — colour is named, not valued, un
   - `pub fn value(&self, role: Role) -> &str`: the literal, for SVG and PNG
   - `pub fn var(&self, role: Role) -> String`: `var(--…)`, for HTML
   - `pub fn series_len(&self) -> usize`
+  - `pub fn number_ink(&self, index: usize) -> &'static str`: the ink for a number on solid series entry `index` (FR-82, D-54), cycling as `value` does
   - `pub fn declarations(&self) -> Vec<(String, &str)>`: every `(--name, value)` pair, neutrals first in FR-82 order, then the series in order. PR 14 writes these into its `<style>` blocks.
 
   Both binders apply FR-67's `index % series_len()`. PR 18 adds a constructor from a parsed file. The series is guaranteed non-empty, because FR-87 requires `--series-1`.
@@ -524,6 +551,26 @@ Append inside `mod tests` in `src/palette.rs`:
         }
         assert_eq!(p.var(Role::Series(8)), "var(--series-1)");
         assert_eq!(p.var(Role::Neutral(Neutral::Focus)), "var(--focus)");
+    }
+
+    /// FR-82, D-54: every built-in entry's number clears 4.5:1, and only
+    /// green needs the dark ink.
+    #[test]
+    fn number_ink_clears_4_5_on_every_built_in_entry() {
+        let p = Palette::built_in(Theme::Light);
+        let inks: Vec<&str> = (0..8).map(|i| p.number_ink(i)).collect();
+        assert_eq!(inks, ["#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF", "#16191F", "#FFFFFF", "#FFFFFF"]);
+        for (i, ink) in inks.iter().enumerate() {
+            let ratio = contrast(SERIES[i], ink);
+            assert!(ratio >= 4.5, "series-{} {ratio:.2}", i + 1);
+        }
+        assert_eq!(p.number_ink(13), p.number_ink(5), "cycles with FR-67");
+    }
+
+    #[test]
+    fn contrast_matches_wcag_reference_values() {
+        assert!((contrast("#FFFFFF", "#000000") - 21.0).abs() < 1e-9);
+        assert!((contrast("#2F9626", "#FFFFFF") - 3.810).abs() < 0.001);
     }
 
     #[test]
@@ -610,6 +657,26 @@ const LIGHT: [&str; 8] = [
 const DARK: [&str; 8] = [
     "#15181D", "#1E222A", "#E8EAEE", "#A6AEBB", "#6C7480", "#666E7A", "#15181D", "#7FB8E6",
 ];
+/// FR-82's two marker-number inks (D-54).
+const INK_LIGHT: &str = "#FFFFFF";
+const INK_DARK: &str = "#16191F";
+
+/// WCAG 2.x relative luminance of a `#RRGGBB` value.
+fn luminance(hex: &str) -> f64 {
+    let channel = |i: usize| {
+        let v = u8::from_str_radix(&hex[i..i + 2], 16)
+            .expect("palette values are #RRGGBB; PR 18 rejects anything else");
+        let c = f64::from(v) / 255.0;
+        if c <= 0.040_45 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+    };
+    0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
+}
+
+/// WCAG contrast ratio, from 1 to 21.
+fn contrast(a: &str, b: &str) -> f64 {
+    let (la, lb) = (luminance(a), luminance(b));
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+}
 
 /// One complete set of colours: eight neutrals and a non-empty series.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -635,6 +702,16 @@ impl Palette {
     #[must_use]
     pub fn series_len(&self) -> usize {
         self.series.len()
+    }
+
+    /// The ink for a number on solid series entry `index`: whichever of
+    /// white and near-black contrasts more with it (FR-82, D-54). No single
+    /// ink clears 4.5:1 on all of FR-81. A literal in every format, since
+    /// series values don't change with theme.
+    #[must_use]
+    pub fn number_ink(&self, index: usize) -> &'static str {
+        let fill = self.value(Role::Series(index));
+        if contrast(fill, INK_LIGHT) >= contrast(fill, INK_DARK) { INK_LIGHT } else { INK_DARK }
     }
 
     /// FR-67's cycling, at bind time and nowhere else (architecture §5).
@@ -698,3 +775,11 @@ git commit -m "feat(palette): built-in palettes, FR-67 cycling at bind time, sam
 3. Run the code-reviewer skill until clean, then do the Copilot loop until it reports "no new comments" on the head SHA. Then run simplify, then code-reviewer once more.
 4. Close `rg-bkm`, changing the status field only. **No version bump.**
 5. Move this file to `docs/plans/done/` in the same PR. Merge; there's no tag.
+
+## Revisions
+
+| Revision | Date | Notes |
+| --- | --- | --- |
+| 1.0 | 2026-10-09 | Initial version |
+| 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
+| 1.2 | 2026-10-09 | PRD v0.38 decisions: `LEGEND_WIDTH_MAX` derived as 380 (D-56, crumb `rg-3pp`), `Palette::number_ink` (D-54, crumb `rg-smm`), architecture §5's `Role` naming done (crumb `rg-03k`) |

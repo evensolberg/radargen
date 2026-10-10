@@ -1,7 +1,7 @@
 ---
 id: rg-3pp
 title: Reconcile NARROW_WIDTH with the legend's width (architecture §4)
-status: open
+status: closed
 type: idea
 priority: 2
 tags:
