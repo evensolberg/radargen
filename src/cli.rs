@@ -6,20 +6,7 @@
 use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
 
-/// Everything the tool refuses to run on: a non-zero exit with nothing written
-/// (NFR-8, NFR-9). Runtime failures (NFR-15) join this list as they arrive.
-#[derive(Debug, PartialEq, Eq)]
-pub enum FatalError {
-    /// FR-52: the `-o` extension is absent or names a format we do not write.
-    UnrecognisedExtension { path: String },
-    /// §14.1: the extension is one v1.1 adds, so say that rather than
-    /// "unrecognised", which sends the caller hunting for a typo in a
-    /// path that is correct.
-    FormatNotInThisVersion {
-        ext: String,
-        arrives_in: &'static str,
-    },
-}
+use crate::diagnostics::Fatal;
 
 /// The output format, inferred from the `-o` extension (FR-52).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,10 +69,10 @@ impl Cli {
     ///
     /// # Errors
     ///
-    /// [`FatalError::FormatNotInThisVersion`] for `.png` and `.svg`, which
-    /// v1.1 adds; [`FatalError::UnrecognisedExtension`] for any other or
+    /// [`Fatal::FormatNotInThisVersion`] for `.png` and `.svg`, which
+    /// v1.1 adds; [`Fatal::UnrecognisedExtension`] for any other or
     /// missing extension.
-    pub fn format(&self) -> Result<OutputFormat, FatalError> {
+    pub fn format(&self) -> Result<OutputFormat, Fatal> {
         let ext = self
             .output
             .extension()
@@ -95,11 +82,11 @@ impl Cli {
         match ext.as_str() {
             "html" => Ok(OutputFormat::Html),
             // §14.1: v1.0 ships HTML only, and these must not read as typos.
-            "png" | "svg" => Err(FatalError::FormatNotInThisVersion {
+            "png" | "svg" => Err(Fatal::FormatNotInThisVersion {
                 ext,
                 arrives_in: "1.1",
             }),
-            _ => Err(FatalError::UnrecognisedExtension {
+            _ => Err(Fatal::UnrecognisedExtension {
                 path: self.output.display().to_string(),
             }),
         }

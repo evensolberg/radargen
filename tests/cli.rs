@@ -2,7 +2,8 @@
 //! the contract rather than spawning a process.
 
 use clap::Parser;
-use radargen::cli::{Cli, FatalError, OutputFormat, Theme};
+use radargen::cli::{Cli, OutputFormat, Theme};
+use radargen::diagnostics::Fatal;
 
 fn parse(args: &[&str]) -> Result<Cli, clap::Error> {
     Cli::try_parse_from(std::iter::once("radargen").chain(args.iter().copied()))
@@ -57,7 +58,7 @@ fn png_and_svg_say_not_in_this_version_rather_than_unrecognised() {
     for ext in ["png", "svg", "PNG"] {
         let cli = parse(&["in.csv", "-o", &format!("e.{ext}")]).expect("parses");
         match cli.format() {
-            Err(FatalError::FormatNotInThisVersion { arrives_in, .. }) => {
+            Err(Fatal::FormatNotInThisVersion { arrives_in, .. }) => {
                 assert_eq!(arrives_in, "1.1");
             }
             other => panic!("{ext} gave {other:?}"),
@@ -70,7 +71,7 @@ fn an_unrecognised_or_absent_extension_is_a_different_error() {
     for path in ["e.jpg", "e", "e."] {
         let cli = parse(&["in.csv", "-o", path]).expect("parses");
         assert!(
-            matches!(cli.format(), Err(FatalError::UnrecognisedExtension { .. })),
+            matches!(cli.format(), Err(Fatal::UnrecognisedExtension { .. })),
             "{path} should be unrecognised, not deferred"
         );
     }

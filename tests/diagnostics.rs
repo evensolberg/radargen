@@ -476,3 +476,56 @@ fn grouped_values_order_by_first_line_not_push_order() {
         ]
     );
 }
+
+use radargen::diagnostics::Fatal;
+use radargen::rings::RingsError;
+
+#[test]
+fn fatal_messages() {
+    let cases = [
+        (
+            Fatal::UnrecognisedExtension {
+                path: "radar.pdf".into(),
+            },
+            "error: -o radar.pdf: the output file name must end in .html",
+        ),
+        (
+            Fatal::UnrecognisedExtension {
+                path: "radar".into(),
+            },
+            "error: -o radar: the output file name must end in .html",
+        ),
+        (
+            Fatal::FormatNotInThisVersion {
+                ext: "png".into(),
+                arrives_in: "1.1",
+            },
+            "error: -o: .png output arrives in radargen 1.1; this version writes .html",
+        ),
+        (
+            Fatal::from(RingsError::EmptyEntry { index: 2 }),
+            "error: --rings: entry 2 is empty",
+        ),
+        (
+            Fatal::from(RingsError::Duplicate {
+                entry: "adopt".into(),
+                first_index: 1,
+            }),
+            "error: --rings: 'adopt' repeats entry 1",
+        ),
+        (
+            Fatal::from(RingsError::Empty),
+            "error: --rings: no rings declared",
+        ),
+        (
+            Fatal::from(RingsError::Duplicate {
+                entry: "a\nerror: forged".into(),
+                first_index: 1,
+            }),
+            r"error: --rings: 'a\nerror: forged' repeats entry 1",
+        ),
+    ];
+    for (fatal, expected) in cases {
+        assert_eq!(fatal.render(), expected);
+    }
+}

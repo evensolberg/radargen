@@ -4,6 +4,7 @@
 use std::fmt;
 
 use crate::normalise;
+use crate::rings::RingsError;
 
 /// Where a warning points.
 ///
@@ -382,4 +383,35 @@ fn tallied(members: &[&Warning]) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// Everything the tool refuses to run on: non-zero exit, nothing written
+/// (NFR-8, NFR-9). One taxonomy for the whole tool (architecture §1); each
+/// later stage adds its variants beside the code that raises them.
+#[derive(Debug, thiserror::Error)]
+pub enum Fatal {
+    /// FR-52: the `-o` extension is absent or names a format we do not write.
+    #[error("-o {path}: the output file name must end in .html")]
+    UnrecognisedExtension { path: String },
+    /// §14.1: the extension is one v1.1 adds, so say that rather than
+    /// "unrecognised", which sends the caller hunting for a typo in a path
+    /// that is correct.
+    #[error("-o: .{ext} output arrives in radargen {arrives_in}; this version writes .html")]
+    FormatNotInThisVersion {
+        ext: String,
+        arrives_in: &'static str,
+    },
+    /// FR-63, NFR-16 tier one.
+    #[error("--rings: {0}")]
+    Rings(#[from] RingsError),
+}
+
+impl Fatal {
+    /// The stderr line.
+    #[must_use]
+    pub fn render(&self) -> String {
+        // Escaped as a whole, so no variant can forget to: `-o` and `--rings`
+        // values come from argv, and later variants carry CSV text (NFR-10).
+        format!("error: {}", escape_controls(&self.to_string()))
+    }
 }

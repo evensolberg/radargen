@@ -12,14 +12,17 @@ pub const DEFAULT_RINGS: [&str; 4] = ["Retire", "Adopt", "Trial", "Assess"];
 
 /// FR-63 violations. Each is a hard error naming the offending entry; neither
 /// can be resolved by guessing what the author meant.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum RingsError {
     /// An empty entry would draw a nameless band. `index` is 1-based.
+    #[error("entry {index} is empty")]
     EmptyEntry { index: usize },
     /// A duplicate would make FR-16's match ambiguous and FR-32's band order
     /// undefined. `entry` is the offending text as written, trimmed.
+    #[error("'{entry}' repeats entry {first_index}")]
     Duplicate { entry: String, first_index: usize },
     /// The list yielded no rings at all.
+    #[error("no rings declared")]
     Empty,
 }
 
