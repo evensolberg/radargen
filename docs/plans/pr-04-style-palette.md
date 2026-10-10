@@ -12,7 +12,7 @@ created_date: 2026-10-09
 synopsis: "style.rs as the home of every layout constant and the type scale, and palette.rs with the colour roles, both built-in palettes and FR-67's bind-time cycling."
 status: draft
 type: Plan
-revision: "1.2"
+revision: "1.3"
 review_date: 2026-10-09
 reviewed_by:
   - rust-engineer
@@ -131,7 +131,8 @@ mod tests {
     fn two_digit_numbers_fit_inside_the_marker() {
         let fonts = Fonts::embedded().expect("faces");
         let m = fonts.face(MARKER_NUMBER.weight);
-        let widest = ["88", "99", "00", "44"]
+        let two_digit: Vec<String> = (10..=99_u32).map(|n| n.to_string()).collect();
+        let widest = two_digit
             .iter()
             .map(|s| m.measure(s, MARKER_NUMBER.size, MARKER_NUMBER.letter_spacing))
             .fold(0.0_f64, f64::max);
@@ -139,7 +140,7 @@ mod tests {
         let clear = |r: f64, stroke: f64| 2.0 * r - stroke;
         assert!(widest < clear(MARKER_RADIUS, MARKER_HOLLOW_STROKE), "{widest} does not fit the marker");
         let b = fonts.face(LEGEND_BADGE_NUMBER.weight);
-        let badge = ["88", "99", "00", "44"]
+        let badge = two_digit
             .iter()
             .map(|s| b.measure(s, LEGEND_BADGE_NUMBER.size, LEGEND_BADGE_NUMBER.letter_spacing))
             .fold(0.0_f64, f64::max);
@@ -158,6 +159,10 @@ mod tests {
     fn breakpoint_is_computed_from_the_wide_width() {
         assert_eq!(breakpoint_px(1148.0), 918);
         assert_eq!(breakpoint_px(1250.0), 1000);
+        // D-56: a full-width 380 legend gives 660 + 28 + 380 + 20.
+        assert_eq!(breakpoint_px(1088.0), 870);
+        // 1150.625 × 10 / 12.5 is exactly 920.5, which rounds away from zero.
+        assert_eq!(breakpoint_px(1150.625), 921);
     }
 
     #[test]
@@ -573,6 +578,14 @@ Append inside `mod tests` in `src/palette.rs`:
         assert!((contrast("#2F9626", "#FFFFFF") - 3.810).abs() < 0.001);
     }
 
+    /// #7A7A7A: white gives ~4.29 and #16191F ~4.10, so both fail 4.5:1 and
+    /// white still wins. A "white unless it fails" rule would pick dark.
+    #[test]
+    fn ink_is_whichever_contrasts_more_not_a_threshold() {
+        assert_eq!(ink_for("#7A7A7A"), "#FFFFFF");
+        assert_eq!(ink_for("#2F9626"), "#16191F");
+    }
+
     #[test]
     fn declarations_cover_every_role_once() {
         let p = Palette::built_in(Theme::Dark);
@@ -672,6 +685,13 @@ fn luminance(hex: &str) -> f64 {
     0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
 }
 
+/// Whichever ink contrasts more with `fill`; white on a tie (D-54). The rule
+/// is "more contrast", not "white unless it fails 4.5:1", which differ on a
+/// mid grey where both inks fail.
+fn ink_for(fill: &str) -> &'static str {
+    if contrast(fill, INK_LIGHT) >= contrast(fill, INK_DARK) { INK_LIGHT } else { INK_DARK }
+}
+
 /// WCAG contrast ratio, from 1 to 21.
 fn contrast(a: &str, b: &str) -> f64 {
     let (la, lb) = (luminance(a), luminance(b));
@@ -710,8 +730,7 @@ impl Palette {
     /// series values don't change with theme.
     #[must_use]
     pub fn number_ink(&self, index: usize) -> &'static str {
-        let fill = self.value(Role::Series(index));
-        if contrast(fill, INK_LIGHT) >= contrast(fill, INK_DARK) { INK_LIGHT } else { INK_DARK }
+        ink_for(self.value(Role::Series(index)))
     }
 
     /// FR-67's cycling, at bind time and nowhere else (architecture §5).
@@ -783,3 +802,4 @@ git commit -m "feat(palette): built-in palettes, FR-67 cycling at bind time, sam
 | 1.0 | 2026-10-09 | Initial version |
 | 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
 | 1.2 | 2026-10-09 | PRD v0.38 decisions: `LEGEND_WIDTH_MAX` derived as 380 (D-56, crumb `rg-3pp`), `Palette::number_ink` (D-54, crumb `rg-smm`), architecture §5's `Role` naming done (crumb `rg-03k`) |
+| 1.3 | 2026-10-09 | PR 6 review: `ink_for` split out with a test that it isn't a threshold rule; breakpoint tie and D-56 cases; marker fit measured over 10–99 |

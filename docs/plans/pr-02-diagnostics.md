@@ -11,7 +11,7 @@ created_date: 2026-10-09
 synopsis: "One diagnostic taxonomy: a Fatal error enum and Warnings printed in NFR-11's order with NFR-20's grouping."
 status: draft
 type: Plan
-revision: "1.2"
+revision: "1.3"
 review_date: 2026-10-09
 reviewed_by:
   - rust-engineer
@@ -138,9 +138,9 @@ fn each_kind_has_its_per_row_message() {
          "line 9, description: description is empty; the detail panel omits it"),
         (at(12, 0, WarningKind::DuplicateName { value: "Terraform".into(), first_line: 4 }),
          "line 12, name: name 'Terraform' repeats line 4; both are drawn"),
-        (at(14, 3, WarningKind::XmlForbidden { column: "description".into(), first: '\u{1}', count: 1 }),
+        (at(14, 3, WarningKind::Undisplayable { column: "description".into(), first: '\u{1}', count: 1 }),
          "line 14, description: removed U+0001, which the output cannot display"),
-        (at(15, 0, WarningKind::XmlForbidden { column: "name".into(), first: '\u{1f}', count: 3 }),
+        (at(15, 0, WarningKind::Undisplayable { column: "name".into(), first: '\u{1f}', count: 3 }),
          "line 15, name: removed 3 characters the output cannot display, the first U+001F"),
         (render_level(WarningKind::QuadrantCount { count: 7 }),
          "7 quadrants; the radar reads best with three to six, so sectors narrow and labels may crowd"),
@@ -169,7 +169,7 @@ fn control_characters_in_values_are_shown_escaped() {
     let bidi = at(3, 2, WarningKind::UndeclaredRing { value: "a\u{202e}b".into() }).to_string();
     assert!(bidi.contains(r"a\u{202e}b"), "{bidi}");
     // An extra column's header is CSV text too (FR-18).
-    let header = at(3, 9, WarningKind::XmlForbidden { column: "notes\nline 1, name: forged".into(), first: '\u{1}', count: 1 });
+    let header = at(3, 9, WarningKind::Undisplayable { column: "notes\nline 1, name: forged".into(), first: '\u{1}', count: 1 });
     let header = header.to_string();
     assert!(!header.contains('\n') && header.contains(r"notes\nline 1"), "{header}");
 }
@@ -247,7 +247,7 @@ pub enum WarningKind {
     DuplicateName { value: String, first_line: usize },
     /// FR-90: one per field, however many characters it lost. `column` is the
     /// canonical header name, since any column can carry one.
-    XmlForbidden { column: String, first: char, count: usize },
+    Undisplayable { column: String, first: char, count: usize },
     /// FR-88. Render-level.
     QuadrantCount { count: usize },
     /// FR-89. Render-level, one per overfull band.
@@ -272,7 +272,7 @@ impl WarningKind {
             Self::DuplicateName { .. } => "name".into(),
             // A header name is CSV text (FR-18's extra columns), so it is
             // escaped like any value (NFR-10).
-            Self::XmlForbidden { column, .. } => printable(column),
+            Self::Undisplayable { column, .. } => printable(column),
             Self::QuadrantCount { .. } | Self::OverfullBand { .. } => String::new(),
         }
     }
@@ -299,10 +299,10 @@ impl WarningKind {
                 "name '{}' repeats line {first_line}; both are drawn",
                 printable(value)
             ),
-            Self::XmlForbidden { first, count: 1, .. } => {
+            Self::Undisplayable { first, count: 1, .. } => {
                 format!("removed U+{:04X}, which the output cannot display", u32::from(*first))
             }
-            Self::XmlForbidden { first, count, .. } => format!(
+            Self::Undisplayable { first, count, .. } => format!(
                 "removed {count} characters the output cannot display, the first U+{:04X}",
                 u32::from(*first)
             ),
@@ -334,9 +334,12 @@ impl fmt::Display for Warning {
 /// terminal, and a bidi override could reorder it. Those are shown escaped;
 /// everything else as written.
 fn printable(value: &str) -> String {
-    value
-        .trim()
-        .chars()
+    escape_controls(value.trim())
+}
+
+/// `printable` without the trim, for a whole message whose spacing is ours.
+fn escape_controls(s: &str) -> String {
+    s.chars()
         .map(|c| {
             if c.is_control()
                 || matches!(c, '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
@@ -376,6 +379,7 @@ git commit -m "feat(diagnostics): Warning and Position, with per-row messages (N
 - Consumes: `Warning`, `WarningKind`, `Position` (Task 1), and `radargen::normalise`.
 - Produces: `#[derive(Debug, Default)] pub struct Warnings`, with:
   - `pub fn push(&mut self, w: Warning)`
+  - `pub fn as_slice(&self) -> &[Warning]` and `pub fn is_empty(&self) -> bool`, so PR 05 and PR 06's stage tests assert on kinds and positions, not wording
   - `pub fn render(&self) -> Vec<String>`, one string per stderr line, each prefixed `warning: `
 
   Stages that can warn take `&mut Warnings` (§7). `main.rs` (PR 13) prints `render()` to stderr.
@@ -500,8 +504,12 @@ fn every_row_class_has_a_grouped_line() {
     assert_eq!(two(WarningKind::DuplicateName { value: "Kafka".into(), first_line: 2 }), vec![
         "warning: 2 rows repeat an earlier name — Kafka (2, first line 4; original line 2); every row is drawn",
     ]);
-    assert_eq!(two(WarningKind::XmlForbidden { column: "description".into(), first: '\u{1}', count: 1 }), vec![
-        "warning: 2 fields held characters the output cannot display — line 4 description, line 6 description; each was removed",
+    // Each member names its own column.
+    let mut mixed = Warnings::default();
+    mixed.push(at(4, 3, WarningKind::Undisplayable { column: "description".into(), first: '\u{1}', count: 1 }));
+    mixed.push(at(6, 0, WarningKind::Undisplayable { column: "name".into(), first: '\u{7f}', count: 2 }));
+    assert_eq!(mixed.render(), vec![
+        "warning: 2 fields held characters the output cannot display — line 4 description, line 6 name; each was removed",
     ]);
 }
 
@@ -515,6 +523,7 @@ fn the_two_date_columns_are_separate_classes() {
 
 #[test]
 fn no_warnings_render_nothing() {
+    assert!(Warnings::default().is_empty());
     assert_eq!(Warnings::default().render(), Vec::<String>::new());
 }
 
@@ -537,8 +546,9 @@ fn control_characters_are_escaped_in_grouped_lines_too() {
 fn grouped_values_order_by_first_line_not_push_order() {
     let mut w = Warnings::default();
     w.push(ring(37, "Adpot"));
-    w.push(ring(9, "In Use"));
+    w.push(ring(9, "in use"));
     w.push(ring(4, "In Use"));
+    // The shown spelling is the first occurrence's (line 4), not the first pushed.
     assert_eq!(w.render(), vec![
         "warning: 3 rows use a ring --rings does not declare — In Use (2, first line 4), Adpot (1, line 37); all appear in the table view",
     ]);
@@ -573,7 +583,7 @@ enum Class {
     Date(DateColumn),
     Description,
     DuplicateName,
-    XmlForbidden,
+    Undisplayable,
 }
 
 impl WarningKind {
@@ -585,7 +595,7 @@ impl WarningKind {
             Self::UnparsableDate { column, .. } => Some(Class::Date(*column)),
             Self::EmptyDescription => Some(Class::Description),
             Self::DuplicateName { .. } => Some(Class::DuplicateName),
-            Self::XmlForbidden { .. } => Some(Class::XmlForbidden),
+            Self::Undisplayable { .. } => Some(Class::Undisplayable),
             Self::QuadrantCount { .. } | Self::OverfullBand { .. } => None,
         }
     }
@@ -599,7 +609,7 @@ impl WarningKind {
             | Self::UnparsableDate { value, .. }
             | Self::DuplicateName { value, .. } => Some(value),
             Self::EmptyDescription
-            | Self::XmlForbidden { .. }
+            | Self::Undisplayable { .. }
             | Self::QuadrantCount { .. }
             | Self::OverfullBand { .. } => None,
         }
@@ -609,6 +619,18 @@ impl WarningKind {
 impl Warnings {
     pub fn push(&mut self, w: Warning) {
         self.0.push(w);
+    }
+
+    /// The raw warnings in push order, so a stage's tests can assert on
+    /// kinds and positions rather than on rendered English.
+    #[must_use]
+    pub fn as_slice(&self) -> &[Warning] {
+        &self.0
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     /// One string per stderr line, in NFR-11's order, grouped per NFR-20.
@@ -670,7 +692,7 @@ fn grouped(class: Class, members: &[&Warning]) -> String {
             lines.join(", ")
         );
     }
-    if class == Class::XmlForbidden {
+    if class == Class::Undisplayable {
         let fields: Vec<String> = members
             .iter()
             .map(|m| format!("line {} {}", line_of(m), m.kind.column()))
@@ -716,7 +738,7 @@ fn grouped(class: Class, members: &[&Warning]) -> String {
             "{n} rows have {column} values that are not YYYY-MM-DD dates — {values}; each is shown as written"
         ),
         Class::DuplicateName => format!("{n} rows repeat an earlier name — {values}; every row is drawn"),
-        Class::Description | Class::XmlForbidden => unreachable!("handled above"),
+        Class::Description | Class::Undisplayable => unreachable!("handled above"),
     }
 }
 ```
@@ -750,7 +772,7 @@ git commit -m "feat(diagnostics): Warnings — NFR-11 order and NFR-20 grouping"
 - Consumes: `rings::RingsError` (exists).
 - Produces: `#[derive(Debug, thiserror::Error)] pub enum Fatal` (no `PartialEq`: PR 13's write failures carry `std::io::Error`), with the variants `UnrecognisedExtension { path: String }`, `FormatNotInThisVersion { ext: String, arrives_in: &'static str }` and `Rings(#[from] RingsError)`, plus `impl Fatal { pub fn render(&self) -> String }`, which gives `error: …`.
 
-  PR 05 adds decode, parse and quoting variants; PR 06 adds FR-5/FR-6; PR 13 adds the write failures. Each PR adds its own variants next to the code that raises them. Tier two returns `Vec<Fatal>` (§7), and so does a single flag with several violations (NFR-16 tier one, `rg-tiu`), so `main.rs` renders a slice, not one `Fatal`. Variants built from CSV data (PR 05 onward) must pass values through `printable()`.
+  PR 05 adds decode, parse and quoting variants; PR 06 adds FR-5/FR-6; PR 13 adds the write failures. Each PR adds its own variants next to the code that raises them. Tier two returns `Vec<Fatal>` (§7), and so does a single flag with several violations (NFR-16 tier one, `rg-tiu`), so `main.rs` renders a slice, not one `Fatal`. `render` escapes the whole message, so no variant has to remember to: argv and CSV text alike can't forge a stderr line.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -775,6 +797,8 @@ fn fatal_messages() {
          "error: --rings: 'adopt' repeats entry 1"),
         (Fatal::from(RingsError::Empty),
          "error: --rings: no rings declared"),
+        (Fatal::from(RingsError::Duplicate { entry: "a\nerror: forged".into(), first_index: 1 }),
+         r"error: --rings: 'a\nerror: forged' repeats entry 1"),
     ];
     for (fatal, expected) in cases {
         assert_eq!(fatal.render(), expected);
@@ -836,7 +860,9 @@ impl Fatal {
     /// The stderr line.
     #[must_use]
     pub fn render(&self) -> String {
-        format!("error: {self}")
+        // Escaped as a whole, so no variant can forget to: `-o` and `--rings`
+        // values come from argv, and later variants carry CSV text (NFR-10).
+        format!("error: {}", escape_controls(&self.to_string()))
     }
 }
 ```
@@ -874,4 +900,5 @@ git commit -m "feat(diagnostics): Fatal — one error taxonomy; RingsError and -
 | --- | --- | --- |
 | 1.0 | 2026-10-09 | Initial version |
 | 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
-| 1.2 | 2026-10-09 | FR-90's warning class (`XmlForbidden`) added for PRD v0.38, resolving crumb `rg-jyx` |
+| 1.2 | 2026-10-09 | FR-90's warning class (`Undisplayable`) added for PRD v0.38, resolving crumb `rg-jyx` |
+| 1.3 | 2026-10-09 | PR 6 review: `Fatal::render` escapes the whole message; `Warnings::as_slice`/`is_empty`; `XmlForbidden` renamed `Undisplayable`, its column escaped and worded 'the output cannot display'; stronger grouping tests |

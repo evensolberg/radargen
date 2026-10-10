@@ -21,3 +21,5 @@ phase: v1.0
 FR-1–FR-4, FR-61: BOM, UTF-8, physical line numbering (NFR-10, D-37), header, field counts.
 
 [2026-10-09] FR-90 (PRD v0.38, D-55): remove characters XML cannot carry (escape::xml_allowed from PR 03) and push one WarningKind::XmlForbidden per affected field (PR 02).
+
+[2026-10-09] Renamed in PR 6: escape::xml_allowed is now escape::displayable, and WarningKind::XmlForbidden is now WarningKind::Undisplayable.

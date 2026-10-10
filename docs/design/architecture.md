@@ -114,7 +114,7 @@ declarations only and are not listed.
 | `src/diagnostics.rs` | `Fatal`, `Warning`, `Warnings` — the taxonomy and NFR-20 grouping | v1.0 |
 | `src/rings.rs` | `--rings` parsing and FR-63 validation | *exists* |
 | `src/csv/decode.rs` | Bytes → `String`: BOM, UTF-8, line numbering (FR-1, FR-2, FR-61) | v1.0 |
-| `src/csv/parse.rs` | String → records; header, field counts (FR-3, FR-4) | v1.0 |
+| `src/csv/parse.rs` | String → records; header, field counts (FR-3, FR-4); removal of undisplayable characters, with a warning, before any other check (FR-90), using `escape::displayable` so both modules share one set | v1.0 |
 | `src/model.rs` | `Item`, `Catalogue`; column validation (FR-5–FR-29); the declared header order and each row's unrecognised cells (FR-27, FR-78); `accessible_name()` (FR-50, FR-75) | v1.0 |
 | `src/order.rs` | Every comparator: quadrants (FR-10), items (FR-34), `compare_names` | v1.0 |
 | `src/style.rs` | Every layout constant: type scale, the legend's three indents (FR-35), marker radius, band label offsets, legend column maximum (FR-79), and the legibility floor FR-69's breakpoint is computed from (§4) | v1.0 |
