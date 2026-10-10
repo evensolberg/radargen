@@ -78,6 +78,7 @@ Other choices:
 - **For duplicate names, the count is the number of repeat rows,** and "first line" is the first repeat. The per-row message names the original line, and so does each grouped value (`original line L`). Without it, the grouped line names only half of each pair.
 - **An empty description lists every line, uncapped.** It has no value to enumerate, so NFR-20's "the rare one is the typo" reasoning applies to the lines instead.
 - **FR-90's warning is one per field, not one per character,** with the count and the first code point as `U+XXXX`. Its grouped line lists `line column` pairs, uncapped. `column` carries the header name because `Position::Cell` holds only the index.
+- **This PR covers FR-90 for CSV cells only.** `Undisplayable` names a column; the flag-value half (`--title`, `--subtitle`, `--rings`) needs a position that names a flag, and is crumb `rg-akv`.
 - **Every stderr line is escaped whole**, in `Warning`'s `Display`, in `render`'s grouped lines and in `Fatal::render`. Values are only trimmed where they're interpolated, so no new kind can forget to escape one.
 - **FR-89 quotes its names.** Quadrant names can contain `/` or `&`, so `Q / R` would be ambiguous.
 - **Bidi controls are escaped too** (U+200E/F, U+202A–E, U+2066–9). `is_control` misses them, and they can visually reorder a stderr line just as an escape sequence can recolour it.
@@ -901,5 +902,5 @@ git commit -m "feat(diagnostics): Fatal — one error taxonomy; RingsError and -
 | --- | --- | --- |
 | 1.0 | 2026-10-09 | Initial version |
 | 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
-| 1.2 | 2026-10-09 | FR-90's warning class (`Undisplayable`) added for PRD v0.38, resolving crumb `rg-jyx` |
+| 1.2 | 2026-10-09 | FR-90's warning class (`XmlForbidden`) added for PRD v0.38, resolving crumb `rg-jyx` |
 | 1.3 | 2026-10-09 | PR 6 review: `Fatal::render` escapes the whole message; `Warnings::as_slice`/`is_empty`; `XmlForbidden` renamed `Undisplayable`, its column escaped and worded 'the output cannot display'; stronger grouping tests; every stderr line escaped whole, and `grouped` is one exhaustive `match` |

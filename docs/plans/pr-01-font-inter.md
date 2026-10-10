@@ -212,9 +212,9 @@ SRC="${1:?path to the unzipped Inter-4.1 release}"
 OUT="$(cd "$(dirname "$0")/.." && pwd)/assets"
 FONTTOOLS_VERSION="<version printed in Step 1>"   # replace before committing
 
-# Google Fonts' "latin" range — the conventional meaning of a Latin subset.
-# Google Fonts' Latin range. It lists U+FFFD, but Inter has no glyph for it, so
-# pyftsubset keeps nothing there; PRD D-55 depends on that.
+# Google Fonts' "latin" range — the conventional meaning of a Latin subset. It
+# lists U+FFFD, but Inter has no glyph for it, so pyftsubset keeps nothing
+# there; PRD D-55 depends on that.
 UNICODES="U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD"
 
 subset() { # $1 = face, $2 = flavor ("" for TTF)
@@ -646,4 +646,4 @@ Follow the house workflow in `~/.claude/CLAUDE.md`. For this PR:
 | --- | --- | --- |
 | 1.0 | 2026-10-09 | Initial version |
 | 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
-| 1.2 | 2026-10-09 | PR 6 review: cites PRD v0.38; the subset script notes that Inter has no U+FFFD glyph (D-55) |
+| 1.2 | 2026-10-09 | PR 6 review: the subset script notes that Inter has no U+FFFD glyph (D-55) |

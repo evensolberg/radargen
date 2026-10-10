@@ -573,5 +573,5 @@ git commit -m "feat(escape): JSON island and CSS value contexts (NFR-6 4–5)"
 | --- | --- | --- |
 | 1.0 | 2026-10-09 | Initial version |
 | 1.1 | 2026-10-09 | Five-agent review (rust-engineer, qa-expert, architect-reviewer, ui-designer, ux-researcher) folded in |
-| 1.2 | 2026-10-09 | U+FFFD replacement recast as a backstop behind PRD v0.38's FR-90; `displayable` made public so PR 05 shares the set, and widened to DEL and C1 (crumb `rg-jyx`) |
+| 1.2 | 2026-10-09 | U+FFFD replacement recast as a backstop behind PRD v0.38's FR-90; `xml_allowed` made public so PR 05 shares the set, and widened to DEL and C1 (crumb `rg-jyx`) |
 | 1.3 | 2026-10-09 | PR 6 review: `xml_allowed` renamed `displayable` and expressed with `char::is_control`; boundary-checked set; one `escape_into` loop for text and attributes; the cross-architecture noise test now uses 1e-13 |

@@ -681,7 +681,7 @@ fn luminance(hex: &str) -> f64 {
     0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
 }
 
-/// Whichever ink contrasts more with `fill`; white on a tie (D-54). The rule
+/// Whichever ink contrasts more with `fill`; white on an exact tie (D-54). The rule
 /// is "more contrast", not "white unless it fails 4.5:1", which differ on a
 /// mid grey where both inks fail.
 fn ink_for(fill: &str) -> &'static str {
