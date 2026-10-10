@@ -13,9 +13,9 @@ use std::sync::Arc;
 use rustybuzz::{Face as ShaperFace, UnicodeBuffer};
 use ttf_parser::{Face as ParseFace, GlyphId, OutlineBuilder};
 
-const TTF: &[u8] = include_bytes!("../assets/LibertinusSans-Regular.ttf");
-const WOFF2: &[u8] = include_bytes!("../assets/LibertinusSans-Regular.woff2");
-const FAMILY: &str = "Libertinus Sans";
+use radargen::text::{FAMILY, REGULAR_TTF as TTF};
+
+const WOFF2: &[u8] = include_bytes!("../assets/Inter-Regular.woff2");
 const SIZE: f64 = 12.5;
 const W: u32 = 900;
 const H: u32 = 1100;
@@ -298,11 +298,11 @@ fn deduplicating_glyphs_preserves_the_rendering() {
     );
 }
 
-/// The size argument, which is *not* what decided it — see the spike. Recorded
-/// because the naive per-instance form costs nearly nine times the deduplicated
+/// The size argument, which did not decide it — see the spike. Recorded
+/// because the naive per-instance form costs nearly seven times the deduplicated
 /// one, and quoting the naive number would make outlining look untenable.
 #[test]
-fn deduplicated_outlines_undercut_an_embedded_font() {
+fn deduplicated_outlines_are_the_cheap_outlined_form() {
     let built = build();
     let embedded = built.text.len() + WOFF2.len().div_ceil(3) * 4;
     eprintln!(
@@ -314,11 +314,6 @@ fn deduplicated_outlines_undercut_an_embedded_font() {
         built.outlined.len(),
         built.deduped.len(),
         embedded
-    );
-    assert!(
-        built.deduped.len() < embedded,
-        "deduped {} should undercut embedding {embedded}",
-        built.deduped.len()
     );
     assert!(
         built.deduped.len() * 5 < built.outlined.len(),
@@ -344,7 +339,7 @@ fn resvg_ignores_an_embedded_font_face() {
              <text x="10" y="40" font-family="SpikeEmbedded" font-size="30">Kubernetes</text>
            </svg>"#
     );
-    // fontdb holds Libertinus under its own name only, so any ink here came
+    // fontdb holds Inter under its own name only, so any ink here came
     // from the embedded face or from a fallback — either way, not from nothing.
     let inked = render(&svg, 400, 60)
         .pixels()

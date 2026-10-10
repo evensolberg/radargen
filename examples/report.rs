@@ -1,7 +1,7 @@
 //! Prints a deterministic measurement + wrap report. Run twice and diff to
 //! check NFR-4/NFR-17 determinism across processes.
+use radargen::text::REGULAR_TTF as FONT;
 use radargen::text::{FontMetrics, wrap};
-const FONT: &[u8] = include_bytes!("../assets/LibertinusSans-Regular.ttf");
 
 fn main() {
     let m = FontMetrics::load(FONT).expect("font parses");

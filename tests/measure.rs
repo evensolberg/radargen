@@ -1,6 +1,4 @@
-use radargen::text::FontMetrics;
-
-const FONT: &[u8] = include_bytes!("../assets/LibertinusSans-Regular.ttf");
+use radargen::text::{FontMetrics, REGULAR_TTF as FONT};
 
 fn metrics() -> FontMetrics<'static> {
     FontMetrics::load(FONT).expect("font parses")
@@ -46,7 +44,8 @@ fn letter_spacing_applies_between_glyphs_not_after() {
 
 /// Regression guard for the spike's central finding: measurement must go
 /// through the shaper, because summing raw `hmtx` advances silently drops GPOS
-/// kerning and diverges from what resvg rasterises (D-42).
+/// kerning and diverges from what resvg rasterises (FR-84, D-42). Also guards
+/// the subsetter: if GPOS kerning were dropped, this would stop diverging.
 #[test]
 fn kerned_pairs_are_not_the_raw_advance_sum() {
     let face = ttf_parser::Face::parse(FONT, 0).expect("face parses");
@@ -61,11 +60,12 @@ fn kerned_pairs_are_not_the_raw_advance_sum() {
             / upem
     };
     let m = metrics();
-    // "Terraform" carries kerning in this face; measured at 0.7875px at 12.5px.
-    let shaped = m.measure("Terraform", 12.5, 0.0);
-    let naive = raw_sum("Terraform");
+    let worst = ["Terraform", "AVATAR", "Today", "WAVE", "Tycho", "Yoga"]
+        .iter()
+        .map(|t| (m.measure(t, 12.5, 0.0) - raw_sum(t)).abs())
+        .fold(0.0_f64, f64::max);
     assert!(
-        (shaped - naive).abs() > 0.5,
-        "shaping applied no kerning: shaped {shaped} vs naive {naive}"
+        worst > 0.5,
+        "shaping applied no kerning anywhere in the corpus: worst {worst}"
     );
 }

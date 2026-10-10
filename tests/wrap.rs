@@ -3,7 +3,7 @@
 
 use radargen::text::{FontMetrics, wrap};
 
-const FONT: &[u8] = include_bytes!("../assets/LibertinusSans-Regular.ttf");
+use radargen::text::REGULAR_TTF as FONT;
 const SIZE: f64 = 12.5;
 
 fn metrics() -> FontMetrics<'static> {

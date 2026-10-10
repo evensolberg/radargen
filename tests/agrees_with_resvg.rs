@@ -10,16 +10,15 @@
 //! equals the raw `hmtx` advance exactly. So usvg lays the string out and we
 //! read the advance straight off it, with no sentinel and no bearing algebra.
 
-use radargen::text::FontMetrics;
+use radargen::text::{FAMILY, Fonts, REGULAR_TTF, SEMIBOLD_TTF, Weight};
 use std::sync::Arc;
 
-const FONT: &[u8] = include_bytes!("../assets/LibertinusSans-Regular.ttf");
 const SIZE: f64 = 12.5;
-const FAMILY: &str = "Libertinus Sans";
 
 fn options() -> usvg::Options<'static> {
     let mut db = fontdb::Database::new();
-    db.load_font_data(FONT.to_vec());
+    db.load_font_data(REGULAR_TTF.to_vec());
+    db.load_font_data(SEMIBOLD_TTF.to_vec());
     usvg::Options {
         fontdb: Arc::new(db),
         font_family: FAMILY.to_string(),
@@ -27,45 +26,65 @@ fn options() -> usvg::Options<'static> {
     }
 }
 
-/// Right edge of the rendered ink for `text`, laid out by usvg at x=0.
-fn right_edge(text: &str, opt: &usvg::Options) -> f64 {
+/// Right edge of the laid-out advance for `text`, laid out by usvg at x=0.
+fn usvg_advance(text: &str, weight: Weight, opt: &usvg::Options) -> f64 {
     let svg = format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="200">
-             <text x="0" y="100" font-family="{FAMILY}" font-size="{SIZE}">{text}</text>
-           </svg>"#
+             <text x="0" y="100" font-family="{FAMILY}" font-weight="{}" font-size="{SIZE}">{text}</text>
+           </svg>"#,
+        weight.css()
     );
     let tree = usvg::Tree::from_str(&svg, opt).expect("usvg parses");
-    let bb = tree.root().abs_bounding_box();
-    f64::from(bb.right())
+    f64::from(tree.root().abs_bounding_box().right())
 }
 
-fn usvg_advance(word: &str, opt: &usvg::Options) -> f64 {
-    right_edge(word, opt)
-}
-
+/// Also checks that `fontdb` resolves weight 600 to the `SemiBold` face: had
+/// it fallen back to Regular, the `SemiBold` rows would disagree by far more
+/// than the tolerance.
 #[test]
-fn our_advance_matches_usvg_layout() {
+fn our_advance_matches_usvg_layout_for_both_weights() {
     let opt = options();
-    let m = FontMetrics::load(FONT).expect("font parses");
+    let fonts = Fonts::embedded().expect("faces");
     let mut worst = 0.0_f64;
-    for word in [
-        "Terraform",
-        "Kubernetes",
-        "Ansible",
-        "Pulumi",
-        "Trunk-Based",
-        "Development",
-        "Infrastructure",
-        "Internationalisation",
-        "WWWWWWWW",
-        "illlliii",
-    ] {
-        let ours = m.measure(word, SIZE, 0.0);
-        let theirs = usvg_advance(word, &opt);
-        let delta = (ours - theirs).abs();
-        worst = worst.max(delta);
-        eprintln!("{word:22} ours {ours:8.4}  usvg {theirs:8.4}  delta {delta:+.4}");
+    for weight in [Weight::Regular, Weight::SemiBold] {
+        for word in [
+            "Terraform",
+            "Kubernetes",
+            "Ansible",
+            "Pulumi",
+            "Trunk-Based",
+            "Development",
+            "Infrastructure",
+            "Internationalisation",
+            "WWWWWWWW",
+            "illlliii",
+        ] {
+            let ours = fonts.face(weight).measure(word, SIZE, 0.0);
+            let theirs = usvg_advance(word, weight, &opt);
+            let delta = (ours - theirs).abs();
+            worst = worst.max(delta);
+            eprintln!("{weight:?} {word:22} ours {ours:8.4}  usvg {theirs:8.4}  delta {delta:+.4}");
+        }
     }
     eprintln!("worst delta across corpus: {worst:.6} px at {SIZE}px");
     assert!(worst < 0.01, "worst delta {worst:.4} px");
+}
+
+/// R-7 / SC-7: a name outside the subset renders as tofu in the PNG (A-4),
+/// but its wrap points still come from our measurement, so our width for it
+/// must still be resvg's.
+#[test]
+fn tofu_measures_the_same_as_resvg_lays_it_out() {
+    let opt = options();
+    let fonts = Fonts::embedded().expect("faces");
+    for weight in [Weight::Regular, Weight::SemiBold] {
+        for word in ["日本語", "Kubernetes Ж"] {
+            let ours = fonts.face(weight).measure(word, SIZE, 0.0);
+            let theirs = usvg_advance(word, weight, &opt);
+            assert!(
+                (ours - theirs).abs() < 0.01,
+                "{weight:?} {word}: ours {ours} usvg {theirs}"
+            );
+        }
+    }
 }
