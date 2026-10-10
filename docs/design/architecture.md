@@ -173,16 +173,17 @@ Six of these are corrections rather than additions, and each has a reason:
   text visibly off its column. Both files are subset from one source in one step
   and versioned together.
 
-**`assets/` holds Inter v4.1**, Regular and SemiBold, subset to Latin and
-Latin Extended by `scripts/subset-inter.sh` and vendored (FR-85). Measured
-sizes — TTF: Regular 165,328 bytes, SemiBold 168,856 bytes; WOFF2: Regular
-57,456 bytes, SemiBold 59,268 bytes. Latin-1 alone was half that, but left
-Czech, Polish, Hungarian, Baltic and Turkish names as tofu (PRD v0.40). The WOFF2 pair is what NFR-5 inlines into every HTML
-edition. The subset keeps `.notdef`'s outline, so a character outside it
-renders as the tofu box A-4 accepts rather than as blank space. R-7's licensing
-question was answered earlier — Inter declares no Reserved Font Name, so the
-subset keeps the name — and with the sizes measured, R-7 has nothing left
-open but the script-coverage limit A-4 states.
+**`assets/` holds Inter v4.1**, Regular and SemiBold, subset to Latin and Latin
+Extended by `scripts/subset-inter.sh` and vendored (FR-85). Measured sizes —
+TTF: Regular 165,328 bytes, SemiBold 168,856 bytes; WOFF2: Regular 57,456
+bytes, SemiBold 59,268 bytes. Latin-1 alone was half that, but left Czech,
+Polish, Hungarian, Baltic and Turkish names as tofu (PRD v0.40). The WOFF2 pair
+is what NFR-5 inlines into every HTML edition. The subset keeps `.notdef`'s
+outline, so a character outside it renders as the tofu box A-4 accepts rather
+than as blank space. R-7's licensing question was answered earlier — Inter
+declares no Reserved Font Name, so the subset keeps the name — and with the
+sizes measured, R-7 has nothing left open but the script-coverage limit A-4
+states.
 
 ## 4. The `Block` abstraction
 

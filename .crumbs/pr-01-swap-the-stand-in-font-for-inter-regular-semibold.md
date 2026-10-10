@@ -1,7 +1,7 @@
 ---
 id: rg-osr
 title: 'PR 01: Swap the stand-in font for Inter (Regular + SemiBold)'
-status: in_progress
+status: closed
 type: task
 priority: 1
 tags:

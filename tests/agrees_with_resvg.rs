@@ -66,10 +66,11 @@ fn our_advance_matches_usvg_layout_for_both_weights() {
             let ours = fonts.face(weight).measure(word, SIZE, 0.0);
             let theirs = usvg_advance(word, weight, &opt);
             let delta = (ours - theirs).abs();
+            // Per word, not via `worst`: `f64::max` would swallow a NaN.
+            assert!(delta < 0.01, "{weight:?} {word}: ours {ours} usvg {theirs}");
             worst = worst.max(delta);
             eprintln!("{weight:?} {word:22} ours {ours:8.4}  usvg {theirs:8.4}  delta {delta:+.4}");
         }
     }
     eprintln!("worst delta across corpus: {worst:.6} px at {SIZE}px");
-    assert!(worst < 0.01, "worst delta {worst:.4} px");
 }
