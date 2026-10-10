@@ -657,6 +657,62 @@ fn csv_fatal_messages() {
             },
             "error: in.csv, line 2: not UTF-8 text; re-save the file as UTF-8 (in Excel, Save As \"CSV UTF-8\")",
         ),
+        (
+            Fatal::NoHeader,
+            "error: the CSV has no header row (it is empty or blank); the header must name at least name, quadrant, ring and description",
+        ),
+        (
+            Fatal::NotCommaSeparated {
+                line: 1,
+                separator: "semicolons",
+            },
+            "error: line 1: the header is one column holding semicolons; radargen reads comma-separated files only, so export the file with commas as the separator",
+        ),
+        (
+            Fatal::UnterminatedQuote { line: 3, column: 2 },
+            "error: line 3, column 2: a quote opens this value and never closes; add the closing quote, and write any quote inside the value as \"\"",
+        ),
+        (
+            Fatal::TextAfterQuote { line: 2, column: 2 },
+            "error: line 2, column 2: text follows a closing quote; inside quotes, write a quote as \"\"",
+        ),
+        (
+            Fatal::DuplicateHeader {
+                line: 1,
+                index: 3,
+                name: "Name".into(),
+                first_index: 1,
+                first_name: "name".into(),
+            },
+            "error: line 1: column 3 'Name' repeats column 1 'name'; header names match ignoring case and surrounding spaces, so rename or remove one",
+        ),
+        // A header is CSV text: a quoted newline in it must not forge a line.
+        (
+            Fatal::DuplicateHeader {
+                line: 1,
+                index: 2,
+                name: "a\nerror: forged".into(),
+                first_index: 1,
+                first_name: "a".into(),
+            },
+            r"error: line 1: column 2 'a\nerror: forged' repeats column 1 'a'; header names match ignoring case and surrounding spaces, so rename or remove one",
+        ),
+        (
+            Fatal::FieldCount {
+                line: 4,
+                found: 3,
+                expected: 2,
+            },
+            "error: line 4: the row's field count is 3 but the header's is 2; a comma inside a value needs the value in double quotes",
+        ),
+        (
+            Fatal::FieldCount {
+                line: 4,
+                found: 1,
+                expected: 2,
+            },
+            "error: line 4: the row's field count is 1 but the header's is 2; a value is missing, or an unquoted line break split the row",
+        ),
     ];
     for (fatal, expected) in cases {
         assert_eq!(fatal.render(), expected);

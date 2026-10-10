@@ -4,3 +4,4 @@
 //! required ones so its message is actionable; meaning is `model.rs` (PR 06).
 
 pub mod decode;
+pub mod parse;
