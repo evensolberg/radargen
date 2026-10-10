@@ -111,7 +111,7 @@ declarations only and are not listed.
 | --- | --- | --- |
 | `src/lib.rs` | Crate root, lint gate. `normalise()` — FR-76's single rule, stated once | *exists* |
 | `src/main.rs` | Parse args, run the pipeline, map outcome to exit code and stderr (NFR-16 tier one) | *stub* |
-| `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52) | *exists* |
+| `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52). In v1.1, also the `--config` merge under the command-line flags and `{edition}` expansion, both before any other validation (FR-91, FR-92) | *exists* |
 | `src/diagnostics.rs` | `Fatal`, `Warning`, `Warnings` — the taxonomy and NFR-20 grouping | v1.0 |
 | `src/rings.rs` | `--rings` parsing and FR-63 validation | *exists* |
 | `src/csv/decode.rs` | Bytes → `String`: BOM, UTF-8, line numbering (FR-1, FR-2, FR-61) | v1.0 |

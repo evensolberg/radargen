@@ -8,7 +8,7 @@ tags:
 - prd
 - spec
 created: 2026-08-27
-updated: 2026-08-27
+updated: 2026-10-09
 phase: ''
 ---
 
@@ -21,3 +21,5 @@ Small gaps found by the v0.13 audits, none worth an open question on its own.
 - FR-56/FR-57 are described as accepted-and-ignored on HTML in v1.0, but §14.1's v1.0 Contains cell names --theme's HTML behaviour and not --width's.
 - Repo size: UC-1 commits every edition, NFR-5 inlines the font into each HTML file, and FR-69 embeds both arrangements. Each dated edition therefore carries a fresh font blob plus roughly double the graphic markup. Not a blocker; nobody has said it out loud.
 - The decision log's '*Added on this review*' markers now span seven reviews and no longer identify which one.
+
+[2026-10-09] PRD v0.39 FR-65 settles the first point: an empty or whitespace-only --title/--subtitle counts as omitted (and on the command line suppresses a --config value).
