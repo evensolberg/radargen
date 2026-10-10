@@ -83,6 +83,7 @@ impl Cli {
             "html" => Ok(OutputFormat::Html),
             // §14.1: v1.0 ships HTML only, and these must not read as typos.
             "png" | "svg" => Err(Fatal::FormatNotInThisVersion {
+                path: self.output.display().to_string(),
                 ext,
                 arrives_in: "1.1",
             }),

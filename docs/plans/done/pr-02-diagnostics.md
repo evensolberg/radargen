@@ -11,7 +11,7 @@ created_date: 2026-10-09
 synopsis: "One diagnostic taxonomy: a Fatal error enum and Warnings printed in NFR-11's order with NFR-20's grouping."
 status: complete
 type: Plan
-revision: "1.5"
+revision: "1.6"
 review_date: 2026-10-09
 reviewed_by:
   - rust-engineer
@@ -906,3 +906,4 @@ git commit -m "feat(diagnostics): Fatal — one error taxonomy; RingsError and -
 | 1.3 | 2026-10-09 | PR 6 review: `Fatal::render` escapes the whole message; `Warnings::as_slice`/`is_empty`; `XmlForbidden` renamed `Undisplayable`, its column escaped and worded 'the output cannot display'; stronger grouping tests; every stderr line escaped whole, and `grouped` is one exhaustive `match` |
 | 1.4 | 2026-10-09 | The pedantic and unsafe-code gate is now live in `Cargo.toml` (crumb `rg-q3w`); `format`'s `# Errors` doc links are renamed along with its body |
 | 1.5 | 2026-10-10 | Implemented. Deviations: rustfmt pushed `each_kind_has_its_per_row_message` past pedantic's 100-line limit, so it is split into `each_row_kind_has_its_per_row_message` and `each_render_level_kind_has_its_message` (17 tests after Task 2, not 16). Architecture §7's previous paragraph also said NFR-11's order came from insertion order; it now says a stable sort by position. Task 3's commit subject was shortened to fit 72 characters |
+| 1.6 | 2026-10-10 | PR 11 review. `Warning`'s fields are private behind `Warning::cell` and `Warning::render_level`, which keep the position fitting the kind, with `position()` and `kind()` for stage tests. The decisions table above is as planned; the shipped wording differs: per-row messages no longer repeat the column (`line 37, ring: 'Adpot' is not declared …`, `line 9, description: empty; …`, `line 12, name: 'Terraform' repeats line 4; …`); the qualifier message adds `; drawn solid`; FR-88 says `3 to 6`; the grouped duplicate entry leads with the original line (`Kafka (line 2; repeated on 2 rows, first line 4)`); the grouped FR-90 line names each field and code point (`description on line 4 (U+0001)`) and says `had`; the empty-description line ends `each detail panel omits it`; both `-o` errors name the path; `--rings` duplicates name their own entry (`entry 3 'adopt' repeats entry 1`). U+061C, U+2028 and U+2029 are escaped too. Date values group by trimmed text, not case, since FR-76 does not fold parsed values |

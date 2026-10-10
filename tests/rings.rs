@@ -47,10 +47,14 @@ fn a_duplicate_is_rejected_under_the_matching_rule() {
     // FR-63 + FR-76: duplicate after the same trim-and-fold used for matching,
     // so `Adopt` and `adopt ` collide. A duplicate would make FR-16's match
     // ambiguous and FR-32's band order undefined.
-    match parse_rings(Some("Adopt,Trial,adopt ")) {
-        Err(RingsError::Duplicate { entry, .. }) => assert_eq!(entry, "adopt"),
-        other => panic!("expected Duplicate, got {other:?}"),
-    }
+    assert_eq!(
+        parse_rings(Some("Adopt,Trial,adopt ")),
+        Err(RingsError::Duplicate {
+            index: 3,
+            entry: "adopt".into(),
+            first_index: 1,
+        })
+    );
 }
 
 #[test]

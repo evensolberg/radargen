@@ -32,12 +32,20 @@ pub enum DateColumn {
     ExitDate,
 }
 
-impl fmt::Display for DateColumn {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
+impl DateColumn {
+    /// The canonical header name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
             Self::LastAffirmed => "last_affirmed",
             Self::ExitDate => "exit_date",
-        })
+        }
+    }
+}
+
+impl fmt::Display for DateColumn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -75,37 +83,84 @@ pub enum WarningKind {
     },
 }
 
+/// A warning and where it points. The fields are private so the position
+/// always fits the kind: a row kind at `Render` would print no line (NFR-10),
+/// and a render-level kind at a cell would print an empty column name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Warning {
-    pub position: Position,
-    pub kind: WarningKind,
+    position: Position,
+    kind: WarningKind,
+}
+
+impl Warning {
+    /// A row-level warning at a CSV cell. `column` is the header index.
+    #[must_use]
+    pub fn cell(line: usize, column: usize, kind: WarningKind) -> Self {
+        debug_assert!(kind.class().is_some(), "{kind:?} is render-level");
+        Self {
+            position: Position::Cell { line, column },
+            kind,
+        }
+    }
+
+    /// A warning about the render as a whole (FR-88, FR-89).
+    #[must_use]
+    pub fn render_level(kind: WarningKind) -> Self {
+        debug_assert!(kind.class().is_none(), "{kind:?} is row-level");
+        Self {
+            position: Position::Render,
+            kind,
+        }
+    }
+
+    #[must_use]
+    pub fn position(&self) -> Position {
+        self.position
+    }
+
+    #[must_use]
+    pub fn kind(&self) -> &WarningKind {
+        &self.kind
+    }
+
+    /// The CSV line of a row-level warning. The constructors guarantee every
+    /// classed warning has one; `Render` never reaches the callers.
+    fn line(&self) -> usize {
+        match self.position {
+            Position::Cell { line, .. } => line,
+            Position::Render => unreachable!("a row-level warning always has a cell"),
+        }
+    }
 }
 
 impl WarningKind {
     /// The column a row-level warning concerns, as NFR-10 names it.
-    fn column(&self) -> String {
+    fn column(&self) -> &str {
         match self {
-            Self::UndeclaredRing { .. } => "ring".into(),
-            Self::UnrecognisedQualifier { .. } => "qualifier".into(),
-            Self::UnrecognisedStatus { .. } => "status".into(),
-            Self::UnparsableDate { column, .. } => column.to_string(),
-            Self::EmptyDescription => "description".into(),
-            Self::DuplicateName { .. } => "name".into(),
+            Self::UndeclaredRing { .. } => "ring",
+            Self::UnrecognisedQualifier { .. } => "qualifier",
+            Self::UnrecognisedStatus { .. } => "status",
+            Self::UnparsableDate { column, .. } => column.as_str(),
+            Self::EmptyDescription => "description",
+            Self::DuplicateName { .. } => "name",
             // A header name is CSV text (FR-18's extra columns); `Display`
             // escapes it with the rest of the line.
-            Self::Undisplayable { column, .. } => column.clone(),
-            Self::QuadrantCount { .. } | Self::OverfullBand { .. } => String::new(),
+            Self::Undisplayable { column, .. } => column,
+            Self::QuadrantCount { .. } | Self::OverfullBand { .. } => "",
         }
     }
 
     fn message(&self) -> String {
         match self {
             Self::UndeclaredRing { value } => format!(
-                "ring '{}' is not declared by --rings; the row is in the table view, not on the radar",
+                "'{}' is not declared by --rings; the row is in the table view, not on the radar",
                 value.trim()
             ),
             Self::UnrecognisedQualifier { value } => {
-                format!("unrecognised qualifier value '{}'", value.trim())
+                format!(
+                    "unrecognised qualifier value '{}'; drawn solid",
+                    value.trim()
+                )
             }
             Self::UnrecognisedStatus { value } => format!(
                 "unrecognised status value '{}'; drawn as No Change",
@@ -115,9 +170,9 @@ impl WarningKind {
                 "'{}' is not a YYYY-MM-DD date; shown as written",
                 value.trim()
             ),
-            Self::EmptyDescription => "description is empty; the detail panel omits it".into(),
+            Self::EmptyDescription => "empty; the detail panel omits it".into(),
             Self::DuplicateName { value, first_line } => format!(
-                "name '{}' repeats line {first_line}; both are drawn",
+                "'{}' repeats line {first_line}; both are drawn",
                 value.trim()
             ),
             Self::Undisplayable {
@@ -133,7 +188,7 @@ impl WarningKind {
                 u32::from(*first)
             ),
             Self::QuadrantCount { count } => format!(
-                "{count} quadrants; the radar reads best with three to six, so sectors narrow and labels may crowd"
+                "{count} quadrants; the radar reads best with 3 to 6, so sectors narrow and labels may crowd"
             ),
             Self::OverfullBand {
                 quadrant,
@@ -167,13 +222,21 @@ impl fmt::Display for Warning {
 
 /// A CSV value can carry a newline inside quotes (NFR-10), and printed raw it
 /// would forge a second diagnostic line; an escape sequence could recolour the
-/// terminal, and a bidi override could reorder it. Every stderr line passes
-/// through here whole, so no value can be forgotten; values are only trimmed.
+/// terminal, a bidi control could reorder it, and U+2028/U+2029 break a line
+/// in some terminals and log viewers. Every stderr line passes through here
+/// whole, so no value can be forgotten; values are only trimmed.
 fn escape_controls(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
         if c.is_control()
-            || matches!(c, '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+            || matches!(
+                c,
+                '\u{061c}'
+                    | '\u{200e}'
+                    | '\u{200f}'
+                    | '\u{2028}'..='\u{202e}'
+                    | '\u{2066}'..='\u{2069}'
+            )
         {
             out.extend(c.escape_default());
         } else {
@@ -297,27 +360,38 @@ struct Tally {
     original: Option<usize>,
 }
 
-fn line_of(w: &Warning) -> usize {
-    match w.position {
-        Position::Cell { line, .. } => line,
-        Position::Render => 0, // unreachable for a classed warning; 0 is never a CSV line
-    }
-}
-
 fn grouped(class: Class, members: &[&Warning]) -> String {
     let n = members.len();
     let list = match class {
         // No value to enumerate, so NFR-20 lists positions, uncapped.
         Class::Description => {
-            let lines: Vec<String> = members.iter().map(|m| line_of(m).to_string()).collect();
+            let lines: Vec<String> = members.iter().map(|m| m.line().to_string()).collect();
             format!("lines {}", lines.join(", "))
         }
+        // Positions again, each with the code point: a removed character is
+        // usually invisible in an editor, so it is what tells the author what
+        // to look for.
         Class::Undisplayable => members
             .iter()
-            .map(|m| format!("line {} {}", line_of(m), m.kind.column()))
+            .map(|m| match m.kind {
+                WarningKind::Undisplayable {
+                    ref column,
+                    first,
+                    count,
+                } => {
+                    let first = u32::from(first);
+                    match count {
+                        1 => format!("{column} on line {} (U+{first:04X})", m.line()),
+                        c => format!("{column} on line {} ({c}, first U+{first:04X})", m.line()),
+                    }
+                }
+                _ => unreachable!("an Undisplayable class holds only Undisplayable"),
+            })
             .collect::<Vec<_>>()
             .join(", "),
-        _ => tallied(members),
+        Class::Ring | Class::Qualifier | Class::Status | Class::Date(_) | Class::DuplicateName => {
+            tallied(class, members)
+        }
     };
     match class {
         Class::Ring => format!(
@@ -333,14 +407,14 @@ fn grouped(class: Class, members: &[&Warning]) -> String {
             "{n} rows have {column} values that are not YYYY-MM-DD dates — {list}; each is shown as written"
         ),
         Class::Description => {
-            format!("{n} rows have an empty description — {list}; the detail panel omits each")
+            format!("{n} rows have an empty description — {list}; each detail panel omits it")
         }
         Class::DuplicateName => {
             format!("{n} rows repeat an earlier name — {list}; every row is drawn")
         }
         Class::Undisplayable => {
             format!(
-                "{n} fields held characters the output cannot display — {list}; each was removed"
+                "{n} fields had characters the output cannot display — {list}; each was removed"
             )
         }
     }
@@ -348,11 +422,16 @@ fn grouped(class: Class, members: &[&Warning]) -> String {
 
 /// NFR-20's enumeration: each distinct value, in first-occurrence order, with
 /// its count and first line.
-fn tallied(members: &[&Warning]) -> String {
+fn tallied(class: Class, members: &[&Warning]) -> String {
     let mut tallies: Vec<Tally> = Vec::new();
     for m in members {
         let value = m.kind.value().unwrap_or_default();
-        let key = normalise(value);
+        // FR-76 folds case only for the comparisons it lists; a date is
+        // parsed, so only trimmed, and two spellings are two values.
+        let key = match class {
+            Class::Date(_) => value.trim().to_string(),
+            _ => normalise(value),
+        };
         if let Some(t) = tallies.iter_mut().find(|t| t.key == key) {
             t.count += 1;
         } else {
@@ -364,22 +443,23 @@ fn tallied(members: &[&Warning]) -> String {
                 key,
                 shown: value.trim().to_string(),
                 count: 1,
-                first_line: line_of(m),
+                first_line: m.line(),
                 original,
             });
         }
     }
     tallies
         .iter()
-        .map(|t| {
-            let at = match t.count {
-                1 => format!("1, line {}", t.first_line),
-                c => format!("{c}, first line {}", t.first_line),
-            };
-            match t.original {
-                Some(o) => format!("{} ({at}; original line {o})", t.shown),
-                None => format!("{} ({at})", t.shown),
-            }
+        .map(|t| match (t.original, t.count) {
+            // A duplicate leads with the line it repeats, so "first" can only
+            // mean the first repeat.
+            (Some(o), 1) => format!("{} (line {o}; repeated on line {})", t.shown, t.first_line),
+            (Some(o), c) => format!(
+                "{} (line {o}; repeated on {c} rows, first line {})",
+                t.shown, t.first_line
+            ),
+            (None, 1) => format!("{} (1, line {})", t.shown, t.first_line),
+            (None, c) => format!("{} ({c}, first line {})", t.shown, t.first_line),
         })
         .collect::<Vec<_>>()
         .join(", ")
@@ -387,7 +467,10 @@ fn tallied(members: &[&Warning]) -> String {
 
 /// Everything the tool refuses to run on: non-zero exit, nothing written
 /// (NFR-8, NFR-9). One taxonomy for the whole tool (architecture §1); each
-/// later stage adds its variants beside the code that raises them.
+/// later stage adds its variants beside the code that raises them. An I/O
+/// variant should carry the path it failed on and mark the error `#[source]`,
+/// not `#[from]`: a bare `From<io::Error>` would let `?` build a `Fatal` that
+/// cannot name its path (NFR-10).
 #[derive(Debug, thiserror::Error)]
 pub enum Fatal {
     /// FR-52: the `-o` extension is absent or names a format we do not write.
@@ -396,8 +479,9 @@ pub enum Fatal {
     /// §14.1: the extension is one v1.1 adds, so say that rather than
     /// "unrecognised", which sends the caller hunting for a typo in a path
     /// that is correct.
-    #[error("-o: .{ext} output arrives in radargen {arrives_in}; this version writes .html")]
+    #[error("-o {path}: .{ext} output arrives in radargen {arrives_in}; this version writes .html")]
     FormatNotInThisVersion {
+        path: String,
         ext: String,
         arrives_in: &'static str,
     },

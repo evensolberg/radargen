@@ -4,17 +4,11 @@
 use radargen::diagnostics::{DateColumn, Position, Warning, WarningKind};
 
 fn at(line: usize, column: usize, kind: WarningKind) -> Warning {
-    Warning {
-        position: Position::Cell { line, column },
-        kind,
-    }
+    Warning::cell(line, column, kind)
 }
 
 fn render_level(kind: WarningKind) -> Warning {
-    Warning {
-        position: Position::Render,
-        kind,
-    }
+    Warning::render_level(kind)
 }
 
 #[test]
@@ -28,7 +22,7 @@ fn each_row_kind_has_its_per_row_message() {
                     value: "Adpot".into(),
                 },
             ),
-            "line 37, ring: ring 'Adpot' is not declared by --rings; the row is in the table view, not on the radar",
+            "line 37, ring: 'Adpot' is not declared by --rings; the row is in the table view, not on the radar",
         ),
         (
             at(
@@ -38,7 +32,7 @@ fn each_row_kind_has_its_per_row_message() {
                     value: "maybe".into(),
                 },
             ),
-            "line 5, qualifier: unrecognised qualifier value 'maybe'",
+            "line 5, qualifier: unrecognised qualifier value 'maybe'; drawn solid",
         ),
         (
             at(
@@ -74,7 +68,7 @@ fn each_row_kind_has_its_per_row_message() {
         ),
         (
             at(9, 3, WarningKind::EmptyDescription),
-            "line 9, description: description is empty; the detail panel omits it",
+            "line 9, description: empty; the detail panel omits it",
         ),
         (
             at(
@@ -85,7 +79,7 @@ fn each_row_kind_has_its_per_row_message() {
                     first_line: 4,
                 },
             ),
-            "line 12, name: name 'Terraform' repeats line 4; both are drawn",
+            "line 12, name: 'Terraform' repeats line 4; both are drawn",
         ),
         (
             at(
@@ -123,7 +117,7 @@ fn each_render_level_kind_has_its_message() {
     let cases = [
         (
             render_level(WarningKind::QuadrantCount { count: 7 }),
-            "7 quadrants; the radar reads best with three to six, so sectors narrow and labels may crowd",
+            "7 quadrants; the radar reads best with 3 to 6, so sectors narrow and labels may crowd",
         ),
         (
             render_level(WarningKind::OverfullBand {
@@ -149,7 +143,7 @@ fn values_are_shown_trimmed() {
             value: "  Adpot ".into(),
         },
     );
-    assert!(w.to_string().contains("ring 'Adpot' is"), "{w}");
+    assert!(w.to_string().contains("ring: 'Adpot' is"), "{w}");
 }
 
 /// NFR-10: a quoted field can hold a newline. Printed raw it would forge a
@@ -166,15 +160,38 @@ fn control_characters_in_values_are_shown_escaped() {
     let s = w.to_string();
     assert!(!s.contains('\n') && !s.contains('\u{1b}'), "{s:?}");
     assert!(s.contains(r"In\nUse\u{1b}[31m"), "{s}");
-    let bidi = at(
+    // C0, DEL and C1 controls; bidi marks, embeddings, overrides and isolates,
+    // which reorder a line visually; and the Unicode line and paragraph
+    // separators, which some terminals and log viewers break a line at.
+    for c in [
+        '\u{0}', '\u{7f}', '\u{85}', '\u{9b}', '\u{61c}', '\u{200e}', '\u{200f}', '\u{2028}',
+        '\u{2029}', '\u{202a}', '\u{202b}', '\u{202c}', '\u{202d}', '\u{202e}', '\u{2066}',
+        '\u{2067}', '\u{2068}', '\u{2069}',
+    ] {
+        let shown = at(
+            3,
+            2,
+            WarningKind::UndeclaredRing {
+                value: format!("a{c}b"),
+            },
+        )
+        .to_string();
+        assert!(
+            !shown.contains(c),
+            "U+{:04X} passed through raw: {shown:?}",
+            u32::from(c)
+        );
+    }
+    // Ordinary non-ASCII text is not escaped.
+    let plain = at(
         3,
         2,
         WarningKind::UndeclaredRing {
-            value: "a\u{202e}b".into(),
+            value: "Dvořák — 日本".into(),
         },
     )
     .to_string();
-    assert!(bidi.contains(r"a\u{202e}b"), "{bidi}");
+    assert!(plain.contains("'Dvořák — 日本'"), "{plain}");
     // An extra column's header is CSV text too (FR-18).
     let header = at(
         3,
@@ -230,7 +247,7 @@ fn forty_rows_and_a_typo_make_one_ring_line_and_a_duplicate_keeps_its_own() {
         w.render(),
         vec![
             "warning: 41 rows use a ring --rings does not declare — In Use (40, first line 4), Adpot (1, line 37); all appear in the table view",
-            "warning: line 50, name: name 'Kafka' repeats line 9; both are drawn",
+            "warning: line 50, name: 'Kafka' repeats line 9; both are drawn",
         ]
     );
 }
@@ -242,7 +259,7 @@ fn a_class_with_one_occurrence_prints_the_per_row_message() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: line 37, ring: ring 'Adpot' is not declared by --rings; the row is in the table view, not on the radar",
+            "warning: line 37, ring: 'Adpot' is not declared by --rings; the row is in the table view, not on the radar",
         ]
     );
 }
@@ -281,10 +298,10 @@ fn render_level_warnings_come_first_and_never_group() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 9 quadrants; the radar reads best with three to six, so sectors narrow and labels may crowd",
+            "warning: 9 quadrants; the radar reads best with 3 to 6, so sectors narrow and labels may crowd",
             "warning: quadrant 'A', ring 'Adopt': 12 items; about 10 fit comfortably, so some markers overlap",
             "warning: quadrant 'B', ring 'Adopt': 11 items; about 10 fit comfortably, so some markers overlap",
-            "warning: line 2, ring: ring 'X' is not declared by --rings; the row is in the table view, not on the radar",
+            "warning: line 2, ring: 'X' is not declared by --rings; the row is in the table view, not on the radar",
         ]
     );
 }
@@ -380,7 +397,7 @@ fn every_row_class_has_a_grouped_line() {
     );
     assert_eq!(
         two(WarningKind::EmptyDescription),
-        vec!["warning: 2 rows have an empty description — lines 4, 6; the detail panel omits each",]
+        vec!["warning: 2 rows have an empty description — lines 4, 6; each detail panel omits it",]
     );
     assert_eq!(
         two(WarningKind::DuplicateName {
@@ -388,7 +405,7 @@ fn every_row_class_has_a_grouped_line() {
             first_line: 2
         }),
         vec![
-            "warning: 2 rows repeat an earlier name — Kafka (2, first line 4; original line 2); every row is drawn",
+            "warning: 2 rows repeat an earlier name — Kafka (line 2; repeated on 2 rows, first line 4); every row is drawn",
         ]
     );
     // Each member names its own column.
@@ -414,7 +431,7 @@ fn every_row_class_has_a_grouped_line() {
     assert_eq!(
         mixed.render(),
         vec![
-            "warning: 2 fields held characters the output cannot display — line 4 description, line 6 name; each was removed",
+            "warning: 2 fields had characters the output cannot display — description on line 4 (U+0001), name on line 6 (2, first U+007F); each was removed",
         ]
     );
 }
@@ -477,6 +494,127 @@ fn grouped_values_order_by_first_line_not_push_order() {
     );
 }
 
+/// NFR-11: two warnings at one position keep push order, so the output is
+/// deterministic. An unstable sort would pass every other test.
+#[test]
+fn warnings_at_one_position_keep_push_order() {
+    let qualifier = || {
+        at(
+            5,
+            4,
+            WarningKind::UnrecognisedQualifier {
+                value: "maybe".into(),
+            },
+        )
+    };
+    let removed = || {
+        at(
+            5,
+            4,
+            WarningKind::Undisplayable {
+                column: "qualifier".into(),
+                first: '\u{1}',
+                count: 1,
+            },
+        )
+    };
+    for (first, second, lead) in [
+        (qualifier(), removed(), "unrecognised"),
+        (removed(), qualifier(), "removed"),
+    ] {
+        let mut w = Warnings::default();
+        w.push(first);
+        w.push(second);
+        let out = w.render();
+        assert!(
+            out[0].starts_with(&format!("warning: line 5, qualifier: {lead}")),
+            "{out:#?}"
+        );
+    }
+}
+
+/// A grouped line sits where its first member does, not its last.
+#[test]
+fn a_grouped_line_is_placed_by_its_first_member() {
+    let mut w = Warnings::default();
+    w.push(ring(4, "X"));
+    w.push(ring(40, "X"));
+    w.push(at(
+        10,
+        4,
+        WarningKind::UnrecognisedQualifier {
+            value: "maybe".into(),
+        },
+    ));
+    let out = w.render();
+    assert!(out[0].contains("rows use a ring"), "{out:#?}");
+    assert!(out[1].contains("line 10, qualifier"), "{out:#?}");
+}
+
+/// FR-76 folds case only for the comparisons it lists, and dates are not one:
+/// a parsed value is only trimmed. Two spellings are two distinct values.
+#[test]
+fn date_values_group_by_trimmed_text_not_case() {
+    let date = |line, value: &str| {
+        at(
+            line,
+            5,
+            WarningKind::UnparsableDate {
+                column: DateColumn::LastAffirmed,
+                value: value.into(),
+            },
+        )
+    };
+    let mut w = Warnings::default();
+    w.push(date(4, "Jan-1"));
+    w.push(date(5, " Jan-1 "));
+    w.push(date(6, "JAN-1"));
+    assert_eq!(
+        w.render(),
+        vec![
+            "warning: 3 rows have last_affirmed values that are not YYYY-MM-DD dates — Jan-1 (2, first line 4), JAN-1 (1, line 6); each is shown as written",
+        ]
+    );
+}
+
+/// A repeated name within a multi-name group names its one repeat line.
+#[test]
+fn a_single_repeat_in_a_duplicate_group_names_its_line() {
+    let mut w = Warnings::default();
+    w.push(at(
+        12,
+        0,
+        WarningKind::DuplicateName {
+            value: "Kafka".into(),
+            first_line: 2,
+        },
+    ));
+    w.push(at(
+        14,
+        0,
+        WarningKind::DuplicateName {
+            value: "Redis".into(),
+            first_line: 3,
+        },
+    ));
+    assert_eq!(
+        w.render(),
+        vec![
+            "warning: 2 rows repeat an earlier name — Kafka (line 2; repeated on line 12), Redis (line 3; repeated on line 14); every row is drawn",
+        ]
+    );
+}
+
+/// Stages assert on kinds and positions, not on rendered English.
+#[test]
+fn the_raw_warnings_are_readable() {
+    let mut w = Warnings::default();
+    w.push(ring(7, "X"));
+    let only = &w.as_slice()[0];
+    assert_eq!(only.position(), Position::Cell { line: 7, column: 2 });
+    assert!(matches!(only.kind(), WarningKind::UndeclaredRing { .. }));
+}
+
 use radargen::diagnostics::Fatal;
 use radargen::rings::RingsError;
 
@@ -497,10 +635,11 @@ fn fatal_messages() {
         ),
         (
             Fatal::FormatNotInThisVersion {
+                path: "radar.png".into(),
                 ext: "png".into(),
                 arrives_in: "1.1",
             },
-            "error: -o: .png output arrives in radargen 1.1; this version writes .html",
+            "error: -o radar.png: .png output arrives in radargen 1.1; this version writes .html",
         ),
         (
             Fatal::from(RingsError::EmptyEntry { index: 2 }),
@@ -508,10 +647,11 @@ fn fatal_messages() {
         ),
         (
             Fatal::from(RingsError::Duplicate {
+                index: 3,
                 entry: "adopt".into(),
                 first_index: 1,
             }),
-            "error: --rings: 'adopt' repeats entry 1",
+            "error: --rings: entry 3 'adopt' repeats entry 1",
         ),
         (
             Fatal::from(RingsError::Empty),
@@ -519,10 +659,11 @@ fn fatal_messages() {
         ),
         (
             Fatal::from(RingsError::Duplicate {
+                index: 2,
                 entry: "a\nerror: forged".into(),
                 first_index: 1,
             }),
-            r"error: --rings: 'a\nerror: forged' repeats entry 1",
+            r"error: --rings: entry 2 'a\nerror: forged' repeats entry 1",
         ),
     ];
     for (fatal, expected) in cases {
