@@ -11,7 +11,7 @@ created_date: 2026-10-10
 synopsis: "Bytes to text (BOM, UTF-8, FR-61's line-numbered error) and text to records (a hand-written RFC 4180 scanner with physical line numbers, header and field-count checks returned beside the table, and FR-90's removal of undisplayable characters)."
 status: draft
 type: Plan
-revision: "1.2"
+revision: "1.3"
 review_date: 2026-10-10
 reviewed_by:
   - architect-reviewer
@@ -622,11 +622,11 @@ pub struct Record {
     pub fields: Vec<String>,
 }
 
-/// What ended a field.
+/// What ended a field: a comma, or the end of its record (a line break or
+/// the end of the input; `scan` needs no difference between the two).
 enum End {
     Comma,
-    Line,
-    Eof,
+    Record,
 }
 
 /// Characters with a running physical line count.
@@ -657,10 +657,8 @@ impl Scanner<'_> {
     fn end(&mut self) -> Option<End> {
         if self.chars.next_if_eq(&',').is_some() {
             Some(End::Comma)
-        } else if self.line_break() {
-            Some(End::Line)
-        } else if self.chars.peek().is_none() {
-            Some(End::Eof)
+        } else if self.line_break() || self.chars.peek().is_none() {
+            Some(End::Record)
         } else {
             None
         }
@@ -1435,3 +1433,4 @@ Follow the house workflow in `~/.claude/CLAUDE.md`. For this PR:
 | 1.0 | 2026-10-10 | Initial version. The `csv` crate was measured and rejected (CRLF line numbers, silent unterminated quote). All three tasks were applied to `main` in a scratch worktree before review: 142 tests pass, and `cargo clippy --all-targets -- -D warnings` and `just lint` are clean |
 | 1.1 | 2026-10-10 | Reviewed by architect, Rust, QA, UX and UI agents. **`parse` returns FR-4 errors beside the table**, so PR 06's FR-5/FR-6 errors arrive in the same run (NFR-16, `row-errors.csv`). Excel quirks handled: blank and `,,,` rows skipped, empty header cells are not duplicates, a `;`- or tab-separated file is refused at its header. Quoting errors name the faulty line by design, and their column. Every new message says what to do, and says "column", not "field". FR-90 warnings name columns canonically (PR 02). Tasks 2 and 3 share one commit, so no commit fails clippy, and `cargo fmt` is in every run step. Added a `csv_fatal_messages` catalogue test (kept apart from `fatal_messages`, which would exceed pedantic's 100-line `too_many_lines`), `tests/csv.rs`, exhaustive scanner checks, and decode edge cases (UTF-16, truncated sequence, directory). Spaces around quotes are declined (RFC 4180). Error grouping is deferred to `rg-pcd`. Applied to `main` in a scratch worktree: 158 tests pass; `cargo fmt --check`, clippy and `just lint` are clean |
 | 1.2 | 2026-10-10 | PR #17 review: the PRD departures (blank records, quoting-error lines, the separator check) recorded as crumb `rg-lfd`, and the PR 06 handoff appended to `rg-rnc`. The error order across parse and `build_catalogue` is left to PR 13 (NFR-11). The architecture §2 edit is spelled out against the actual diagram, with `read`'s exception to stage purity. Review metadata filled in; minor wording fixes |
+| 1.3 | 2026-10-10 | Simplify pass: `End` has two variants, not three, since a line break and the end of input both just end the record |
