@@ -91,7 +91,7 @@ publish:
     fi
     echo "Publishing $version"
     git tag "$version"
-    git push origin "$version"
+    git push origin main "$version"
     gh release create "$version" --repo evensolberg/{{application}} --title "$version" --generate-notes
 
 # Build the documentation
