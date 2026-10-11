@@ -121,17 +121,16 @@ impl<'a> FontMetrics<'a> {
         // FR-84: one gap between clusters, none after the last, as resvg
         // applies letter-spacing. A combining mark that stays a separate glyph
         // shares its base's cluster and earns no gap of its own.
-        let clusters = output
+        let boundaries = output
             .glyph_infos()
             .windows(2)
             .filter(|pair| pair[0].cluster != pair[1].cluster)
-            .count()
-            + 1;
+            .count();
         #[expect(
             clippy::cast_precision_loss,
             reason = "f64 holds every integer up to 2^53 exactly, and a cluster count is far below that"
         )]
-        let gaps = clusters.saturating_sub(1) as f64;
+        let gaps = boundaries as f64;
         let upem = f64::from(shaper.units_per_em());
         #[expect(
             clippy::suboptimal_flops,

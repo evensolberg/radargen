@@ -60,16 +60,18 @@ CYRILLIC_EXT="U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F
 COMBINING="U+0300-036F"
 UNICODES="$LATIN,$LATIN_EXT,$VIETNAMESE,$GREEK,$GREEK_EXT,$CYRILLIC,$CYRILLIC_EXT,$COMBINING"
 
+# The pinned toolchain, written once for the subset and the version print.
+TOOLS=(uvx --python "$PYTHON_VERSION"
+  --from "fonttools==${FONTTOOLS_VERSION}"
+  --with "brotli==${BROTLI_VERSION}")
+
 # --notdef-outline: pyftsubset empties .notdef by default, and a character
 # outside the subset would then render as blank space rather than the tofu box
 # A-4 accepts, so an uncovered name would vanish without a trace.
 subset() { # $1 = face, $2 = flavor ("" for TTF)
   local ext=ttf flavor=()
   if [[ -n "$2" ]]; then ext=$2; flavor=(--flavor="$2"); fi
-  uvx --python "$PYTHON_VERSION" \
-    --from "fonttools==${FONTTOOLS_VERSION}" \
-    --with "brotli==${BROTLI_VERSION}" \
-    pyftsubset \
+  "${TOOLS[@]}" pyftsubset \
     "$SRC/extras/ttf/Inter-$1.ttf" \
     --unicodes="$UNICODES" \
     --layout-features='*' \
@@ -82,8 +84,7 @@ subset() { # $1 = face, $2 = flavor ("" for TTF)
 
 # What actually ran, for the commit or PR that records the result.
 uv --version
-uvx --python "$PYTHON_VERSION" --from "fonttools==${FONTTOOLS_VERSION}" \
-  --with "brotli==${BROTLI_VERSION}" python -c \
+"${TOOLS[@]}" python -c \
   'import sys, fontTools, brotli; print("python", sys.version.split()[0], "fonttools", fontTools.version, "brotli", brotli.version)'
 
 for face in Regular SemiBold; do
