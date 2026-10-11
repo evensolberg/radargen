@@ -248,17 +248,22 @@ pub enum Node {
 
 impl Node {
     /// Whether the node exists only for pointer and keyboard users: a hit
-    /// area, an indicator group, or a non-empty group of nothing else. A
-    /// static format (SVG, PNG) omits such nodes whole.
+    /// area, an indicator group, or a non-empty plain (`Semantics::None`)
+    /// group of nothing else. A group with any other semantics (a control, a
+    /// heading) is never dropped whole. A static format (SVG, PNG) omits
+    /// such nodes whole.
     #[must_use]
     pub fn is_interactive_only(&self) -> bool {
         match self {
             Self::HitArea { .. } => true,
-            Self::Group(group) => {
-                matches!(group.semantics, Semantics::Indicator(_))
-                    || (!group.children.is_empty()
-                        && group.children.iter().all(Self::is_interactive_only))
-            }
+            Self::Group(group) => match group.semantics {
+                Semantics::Indicator(_) => true,
+                Semantics::None => {
+                    !group.children.is_empty()
+                        && group.children.iter().all(Self::is_interactive_only)
+                }
+                Semantics::Decorative | Semantics::Heading(_) | Semantics::Control(_) => false,
+            },
             _ => false,
         }
     }
@@ -489,6 +494,19 @@ mod tests {
         };
         let control = group(vec![disc()]).with(Semantics::Control(control));
         assert!(!Node::Group(control).is_interactive_only());
+        let control = |children| {
+            let control = Control {
+                key: ItemKey(1),
+                label: "1".to_owned(),
+                tooltip: None,
+            };
+            Node::Group(group(children).with(Semantics::Control(control)))
+        };
+        assert!(!control(vec![hit(1)]).is_interactive_only());
+        let indicator = Node::Group(group(vec![disc()]).with(Semantics::Indicator(ItemKey(1))));
+        assert!(!control(vec![indicator]).is_interactive_only());
+        let heading = group(vec![hit(1)]).with(Semantics::Heading(LEVEL_1));
+        assert!(!Node::Group(heading).is_interactive_only());
         assert!(!disc().is_interactive_only());
         let text = Node::Text {
             origin: Point::ORIGIN,

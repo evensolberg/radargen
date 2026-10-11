@@ -322,8 +322,8 @@ pub enum Node {
 }
 
 impl Node {
-    /// True for a `HitArea`, an `Indicator` group, and a non-empty group of only
-    /// those: nodes that mean nothing without a pointer or focus.
+    /// True for a `HitArea`, an `Indicator` group, and a non-empty plain
+    /// (`Semantics::None`) group of only those: nodes that mean nothing without a pointer or focus.
     pub fn is_interactive_only(&self) -> bool;
 }
 
