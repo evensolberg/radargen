@@ -179,6 +179,7 @@ mod tests {
     use super::*;
     use crate::layout::block::{at, close, fonts};
     use crate::layout::geometry::polar;
+    use crate::layout::test_support::assert_inside;
     use crate::layout::title::TitleBlock;
     use crate::style::{STATUS_RING_GAP, STATUS_RING_STROKE};
     use crate::svg::Paint;
@@ -458,142 +459,14 @@ mod tests {
         assert!(close(half.height, one.height / 2.0));
     }
 
-    /// The block's size and where the node being checked sits within it.
-    #[derive(Clone, Copy)]
-    struct Frame {
-        offset: Point,
-        size: Size,
-    }
-
-    impl Frame {
-        fn contains(self, x: f64, y: f64, what: &str) {
-            let (x, y) = (x + self.offset.x, y + self.offset.y);
-            let Size { width, height } = self.size;
-            assert!(
-                x >= -1e-9 && y >= -1e-9 && x <= width + 1e-9 && y <= height + 1e-9,
-                "{what} at ({x}, {y}) lies outside {:?}",
-                self.size
-            );
-        }
-
-        /// The four extremes of a disc of `reach` about `centre`.
-        fn contains_disc(self, centre: Point, reach: f64, what: &str) {
-            for (dx, dy) in [(-reach, 0.0), (reach, 0.0), (0.0, -reach), (0.0, reach)] {
-                self.contains(centre.x + dx, centre.y + dy, what);
-            }
-        }
-
-        fn within(self, group: &Group) -> Self {
-            Self {
-                offset: Point {
-                    x: self.offset.x + group.offset.x,
-                    y: self.offset.y + group.offset.y,
-                },
-                ..self
-            }
-        }
-    }
-
-    /// Every arc here is a half-circle, so its chord is a diameter, its
-    /// midpoint is the circle's centre and the circle bounds the arc.
-    fn assert_arcs_inside(commands: &[PathCommand], stroke_width: f64, frame: Frame) {
-        let mut from = None;
-        for command in commands {
-            match command {
-                PathCommand::MoveTo(p) => from = Some(*p),
-                PathCommand::Arc { radius, end, .. } => {
-                    let start = from.expect("an arc follows a move");
-                    let chord = (end.x - start.x).hypot(end.y - start.y);
-                    assert!(
-                        close(chord, 2.0 * radius),
-                        "an arc of radius {radius} spans {chord}, so it is not a half-circle"
-                    );
-                    let centre = Point {
-                        x: f64::midpoint(start.x, end.x),
-                        y: f64::midpoint(start.y, end.y),
-                    };
-                    frame.contains_disc(centre, radius + stroke_width / 2.0, "arc");
-                    from = Some(*end);
-                }
-            }
-        }
-    }
-
-    /// Text is bounded by a 0.8 em ascent above the top of the block, a 0.3 em
-    /// descent below each baseline and its measured width.
-    fn assert_text_inside(node: &Node, frame: Frame, fonts: &Fonts) {
-        let Node::Text {
-            origin,
-            style,
-            lines,
-            leading,
-            ..
-        } = node
-        else {
-            panic!("expected text, got {node:?}");
-        };
-        for (i, line) in lines.iter().enumerate() {
-            #[expect(
-                clippy::cast_precision_loss,
-                clippy::as_conversions,
-                reason = "a line index is tiny, so the conversion is exact"
-            )]
-            let baseline = (i as f64).mul_add(*leading, origin.y);
-            frame.contains(origin.x, 0.8f64.mul_add(-style.size, baseline), "text top");
-            frame.contains(
-                origin.x,
-                0.3f64.mul_add(style.size, baseline),
-                "text bottom",
-            );
-            let face = fonts.face(style.weight);
-            let width = face.measure(line, style.size, style.letter_spacing);
-            frame.contains(origin.x + width, baseline, "text end");
-        }
-    }
-
-    /// Everything drawn under `node`, translated through groups, lies within
-    /// the frame's size.
-    fn assert_inside(node: &Node, frame: Frame, fonts: &Fonts) {
-        match node {
-            Node::Group(g) => {
-                for c in &g.children {
-                    assert_inside(c, frame.within(g), fonts);
-                }
-            }
-            Node::Circle {
-                centre,
-                radius,
-                stroke_width,
-                ..
-            } => frame.contains_disc(*centre, radius + stroke_width / 2.0, "circle"),
-            Node::Path {
-                commands,
-                stroke_width,
-                ..
-            } => assert_arcs_inside(commands, *stroke_width, frame),
-            Node::Line { from, to, .. } => {
-                frame.contains(from.x, from.y, "line start");
-                frame.contains(to.x, to.y, "line end");
-            }
-            Node::Text { .. } => assert_text_inside(node, frame, fonts),
-        }
-    }
-
     #[test]
     fn everything_drawn_lies_inside_the_size() {
         let fonts = fonts();
-        let origin = Point::ORIGIN;
         let key = KeyBlock::new(&fonts);
         let title = TitleBlock::new(Some("A title"), Some("A subtitle"), &fonts);
         for scale in [1.0, 0.5] {
-            let frame = |size| Frame {
-                offset: origin,
-                size,
-            };
-            let rendered = key.render(at(scale));
-            assert_inside(&rendered, frame(key.size(scale)), &fonts);
-            let rendered = title.render(at(scale));
-            assert_inside(&rendered, frame(title.size(scale)), &fonts);
+            assert_inside(&key.render(at(scale)), key.size(scale), &fonts);
+            assert_inside(&title.render(at(scale)), title.size(scale), &fonts);
         }
     }
 

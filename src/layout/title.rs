@@ -166,6 +166,7 @@ impl Block for TitleBlock {
 mod tests {
     use super::*;
     use crate::layout::block::{at, close, fonts};
+    use crate::layout::test_support::assert_inside;
 
     fn block(title: Option<&str>, subtitle: Option<&str>) -> TitleBlock {
         TitleBlock::new(title, subtitle, &fonts())
@@ -412,5 +413,14 @@ mod tests {
         };
         assert!(close(style.size, TITLE.size / 2.0));
         assert!(close(b.size(0.5).height, 26.5));
+    }
+
+    #[test]
+    fn the_title_paints_inside_its_size() {
+        let fonts = fonts();
+        let b = block(Some(wide_title()), Some("A subtitle"));
+        for scale in [1.0, 0.5] {
+            assert_inside(&b.render(at(scale)), b.size(scale), &fonts);
+        }
     }
 }

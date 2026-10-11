@@ -5,3 +5,6 @@ pub mod geometry;
 pub mod key;
 pub mod marker;
 pub mod title;
+
+#[cfg(test)]
+pub mod test_support;
