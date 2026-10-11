@@ -495,7 +495,7 @@ fn tallied(members: &[Member], key: fn(&str) -> String) -> String {
 pub enum Separator {
     /// `;`, which Excel writes where a comma is the decimal mark.
     Semicolon,
-    /// A tab character.
+    /// `\t`, which spreadsheets export as tab-separated values.
     Tab,
 }
 

@@ -53,17 +53,18 @@ fn the_prd_example_numbers_in_legend_order() {
     );
 
     // FR-50's names read FR-34's numbers; the unplotted row has none.
-    let kubernetes = &cat.items.get(4).expect("items[4] exists");
+    let [_, _, _, _, kubernetes, _, legacy] = cat.items.as_slice() else {
+        panic!("expected seven items: {:#?}", cat.items)
+    };
+    let [_, _, _, _, kubernetes_number, _, legacy_number] = plotted.numbers.as_slice() else {
+        panic!("expected seven numbers: {:?}", plotted.numbers)
+    };
     assert_eq!(
-        cat.accessible_name(
-            kubernetes,
-            *plotted.numbers.get(4).expect("numbers[4] exists")
-        ),
+        cat.accessible_name(kubernetes, *kubernetes_number),
         "1. Kubernetes, Default; Platform quadrant, Adopt ring"
     );
-    let legacy = &cat.items.get(6).expect("items[6] exists");
     assert_eq!(
-        cat.accessible_name(legacy, *plotted.numbers.get(6).expect("numbers[6] exists")),
+        cat.accessible_name(legacy, *legacy_number),
         "Legacy Ticketing-Driven Change; Practice quadrant, Rejected ring; not on the radar"
     );
 }

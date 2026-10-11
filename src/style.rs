@@ -16,7 +16,8 @@ pub struct TextStyle {
     pub weight: Weight,
     /// The font size in user units.
     pub size: f64,
-    /// Extra advance after each glyph, in user units; zero for none.
+    /// Extra advance between clusters, none after the last (FR-84), in user
+    /// units; zero for none.
     pub letter_spacing: f64,
 }
 
@@ -68,11 +69,12 @@ pub const KEY_LABEL: TextStyle = style(Weight::Regular, 11.0, 0.0);
 pub const LINE_HEIGHT: f64 = 15.0;
 
 // --- Legend (FR-35, FR-74, FR-79) -----------------------------------------------
-/// Indent of a quadrant heading in the legend.
+/// Left indent, in user units, of a quadrant heading: the legend's top level.
 pub const INDENT_QUADRANT: f64 = 16.0;
-/// Indent of a ring subheading in the legend.
+/// Left indent, in user units, of a ring subheading: the legend's middle
+/// level, inside its quadrant.
 pub const INDENT_RING: f64 = 24.0;
-/// Indent of an item row in the legend.
+/// Left indent, in user units, of an item row: the legend's deepest level.
 pub const INDENT_ITEM: f64 = 44.0;
 /// Between an item name and its trailing meta (FR-74).
 pub const META_GAP: f64 = 8.0;
@@ -118,7 +120,7 @@ pub const FOCUS_RING_STROKE: f64 = 2.0;
 // --- Radar (FR-32, FR-33) -------------------------------------------------------
 /// Outer edge of the outermost band; bands divide it equally (FR-32).
 pub const BAND_OUTER_RADIUS: f64 = 260.0;
-/// Reach of the quadrant dividers, just past the outermost band (FR-31).
+/// Reach of the quadrant dividers, just past the outermost band (FR-30).
 pub const DIVIDER_RADIUS: f64 = 262.0;
 /// Distance from the centre at which quadrant labels are anchored.
 pub const QUADRANT_LABEL_RADIUS: f64 = 300.0;

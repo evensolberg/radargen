@@ -14,9 +14,9 @@ pub enum Neutral {
     Surface1,
     /// The legend, detail panel and table background (FR-82).
     Surface2,
-    /// Primary text (FR-82).
+    /// Body text: names, headings, legend rows (FR-82).
     TextPrimary,
-    /// Secondary text (FR-82).
+    /// De-emphasised text: meta, labels, the key (FR-82).
     TextMuted,
     /// Ring circles (FR-82).
     StrokeRing,
@@ -90,9 +90,9 @@ impl fmt::Display for Role {
 /// FR-56. Picks the palette a static snapshot is bound to; HTML carries both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum Theme {
-    /// The light palette.
+    /// The light palette: dark ink on pale grounds.
     Light,
-    /// The dark palette.
+    /// The dark palette: pale ink on near-black grounds.
     Dark,
 }
 
@@ -113,6 +113,7 @@ const INK_LIGHT: &str = "#FFFFFF";
 const INK_DARK: &str = "#16191F";
 
 /// WCAG 2.x relative luminance of a `#RRGGBB` value.
+// qual:allow(complexity, error_handling) reason: "palette values are #RRGGBB; PR 18 rejects anything else"
 fn luminance(hex: &str) -> f64 {
     let channel = |i: usize| {
         let v = hex
@@ -203,19 +204,23 @@ impl Palette {
     /// # Panics
     ///
     /// If the palette has no series entries, which FR-87 rules out and no
-    /// constructor produces.
+    /// constructor produces: `bind` then panics on `% 0`, before the lookup.
     #[must_use]
+    // qual:allow(complexity, error_handling) reason: "`series` is never empty (FR-87) and `bind` reduces modulo its length"
     pub fn value(&self, role: Role) -> &str {
         match self.bind(role) {
             Role::Neutral(n) => {
-                #[expect(
-                    clippy::as_conversions,
-                    reason = "a fieldless enum has no From or TryFrom to usize; its discriminant is its position in `neutrals`"
-                )]
-                let index = n as usize;
-                self.neutrals
-                    .get(index)
-                    .expect("`neutrals` holds one value per `Neutral`")
+                let [s1, s2, tp, tm, sr, sd, mh, focus] = &self.neutrals;
+                match n {
+                    Neutral::Surface1 => s1,
+                    Neutral::Surface2 => s2,
+                    Neutral::TextPrimary => tp,
+                    Neutral::TextMuted => tm,
+                    Neutral::StrokeRing => sr,
+                    Neutral::StrokeDivider => sd,
+                    Neutral::MarkerHollow => mh,
+                    Neutral::Focus => focus,
+                }
             }
             Role::Series(i) => self
                 .series

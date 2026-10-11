@@ -388,22 +388,12 @@ fn classes_order_by_first_line_then_column() {
         },
     ));
     let out = w.render();
-    assert!(
-        out.first()
-            .expect("out[0] exists")
-            .contains("line 5, qualifier"),
-        "{out:#?}"
-    );
-    assert!(
-        out.get(1)
-            .expect("out[1] exists")
-            .contains("line 5, status"),
-        "{out:#?}"
-    );
-    assert!(
-        out.get(2).expect("out[2] exists").contains("line 9, ring"),
-        "{out:#?}"
-    );
+    let [qualifier, status, ring] = out.as_slice() else {
+        panic!("expected 3 lines: {out:#?}")
+    };
+    assert!(qualifier.contains("line 5, qualifier"), "{out:#?}");
+    assert!(status.contains("line 5, status"), "{out:#?}");
+    assert!(ring.contains("line 9, ring"), "{out:#?}");
 }
 
 #[test]
@@ -419,10 +409,10 @@ fn out_of_order_pushes_are_sorted_by_position() {
         },
     ));
     let out = w.render();
-    assert!(
-        out.first().expect("out[0] exists").contains("line 3, name"),
-        "{out:#?}"
-    );
+    let [name, ..] = out.as_slice() else {
+        panic!("expected at least 1 line: {out:#?}")
+    };
+    assert!(name.contains("line 3, name"), "{out:#?}");
 }
 
 #[test]
@@ -432,12 +422,12 @@ fn grouped_values_are_never_capped() {
         w.push(ring(i + 2, &format!("Ring{i:02}")));
     }
     let out = w.render();
-    assert_eq!(out.len(), 1);
+    let [grouped] = out.as_slice() else {
+        panic!("expected one grouped line: {out:#?}")
+    };
     for i in 0..30 {
         assert!(
-            out.first()
-                .expect("out[0] exists")
-                .contains(&format!("Ring{i:02} (1, line {})", i + 2)),
+            grouped.contains(&format!("Ring{i:02} (1, line {})", i + 2)),
             "missing Ring{i:02}"
         );
     }
@@ -547,8 +537,9 @@ fn control_characters_are_escaped_in_grouped_lines_too() {
     w.push(ring(4, "In\nUse"));
     w.push(ring(5, "In\nUse"));
     let out = w.render();
-    assert_eq!(out.len(), 1, "{out:#?}");
-    let line = out.first().expect("out[0] exists");
+    let [line] = out.as_slice() else {
+        panic!("expected one grouped line: {out:#?}")
+    };
     assert!(!line.contains('\n'), "{line:?}");
     assert!(line.contains(r"In\nUse (2, first line 4)"), "{line}");
 }
@@ -602,10 +593,11 @@ fn warnings_at_one_position_keep_push_order() {
         w.push(first);
         w.push(second);
         let out = w.render();
+        let [first, ..] = out.as_slice() else {
+            panic!("expected at least 1 line: {out:#?}")
+        };
         assert!(
-            out.first()
-                .expect("out[0] exists")
-                .starts_with(&format!("warning: line 5, qualifier: {lead}")),
+            first.starts_with(&format!("warning: line 5, qualifier: {lead}")),
             "{out:#?}"
         );
     }
@@ -625,18 +617,11 @@ fn a_grouped_line_is_placed_by_its_first_member() {
         },
     ));
     let out = w.render();
-    assert!(
-        out.first()
-            .expect("out[0] exists")
-            .contains("rows use a ring"),
-        "{out:#?}"
-    );
-    assert!(
-        out.get(1)
-            .expect("out[1] exists")
-            .contains("line 10, qualifier"),
-        "{out:#?}"
-    );
+    let [grouped, qualifier] = out.as_slice() else {
+        panic!("expected 2 lines: {out:#?}")
+    };
+    assert!(grouped.contains("rows use a ring"), "{out:#?}");
+    assert!(qualifier.contains("line 10, qualifier"), "{out:#?}");
 }
 
 /// FR-76 folds case only for the comparisons it lists, and dates are not one:
@@ -698,7 +683,9 @@ fn a_single_repeat_in_a_duplicate_group_names_its_line() {
 fn the_raw_warnings_are_readable() {
     let mut w = Warnings::default();
     w.push(ring(7, "X"));
-    let only = w.as_slice().first().expect("one warning");
+    let [only] = w.as_slice() else {
+        panic!("expected one warning: {:#?}", w.as_slice())
+    };
     assert_eq!(only.position(), Position::Cell { line: 7, column: 2 });
     assert!(matches!(
         only,

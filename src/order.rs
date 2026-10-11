@@ -169,6 +169,7 @@ pub fn compare_names(a: &Item, b: &Item) -> Ordering {
 /// If either item's `quadrant` is out of range for `rank`, as for an
 /// item from another catalogue.
 #[must_use]
+// qual:allow(complexity, error_handling) reason: "the documented # Panics: an item from another catalogue is a caller bug"
 pub fn compare_items(rank: &[usize], a: &Item, b: &Item) -> Ordering {
     let rank_of = |item: &Item| {
         *rank
@@ -185,11 +186,9 @@ pub fn compare_items(rank: &[usize], a: &Item, b: &Item) -> Ordering {
 /// The inverse of `order`: `rank[q]` is quadrant `q`'s position in it,
 /// which is FR-67's palette index (architecture §5).
 fn ranks(order: &[usize]) -> Vec<usize> {
-    let mut rank = vec![0; order.len()];
-    for (position, &q) in order.iter().enumerate() {
-        *rank.get_mut(q).expect("order is a permutation of 0..len") = position;
-    }
-    rank
+    let mut pairs: Vec<(usize, usize)> = order.iter().copied().zip(0..).collect();
+    pairs.sort_unstable();
+    pairs.into_iter().map(|(_, position)| position).collect()
 }
 
 /// The plotted items in FR-34's order, as indices into
@@ -211,6 +210,7 @@ fn item_order(catalogue: &Catalogue, rank: &[usize]) -> Vec<usize> {
 
 /// FR-18: number `order`'s items from 1, in a list of `len` aligned with
 /// `Catalogue::items`; every other item is `None`.
+// qual:allow(complexity, error_handling) reason: "`order` comes from `item_order`, so every index is below `len`"
 fn numbers(order: &[usize], len: usize) -> Vec<Option<usize>> {
     let mut numbers = vec![None; len];
     for (position, &i) in order.iter().enumerate() {

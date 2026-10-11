@@ -134,9 +134,9 @@ impl Qualifier {
 pub enum Status {
     /// New this edition (FR-26).
     New,
-    /// Moved in since the last edition (FR-26).
+    /// Moved toward the centre since the last edition (FR-26, FR-40).
     MovedIn,
-    /// Moved out since the last edition (FR-26).
+    /// Moved toward the edge since the last edition (FR-26, FR-40).
     MovedOut,
     /// Unchanged; also the fallback for an unrecognised value (FR-26).
     NoChange,
@@ -227,7 +227,7 @@ pub struct Catalogue {
     /// The declared rings, edge-to-centre (FR-12). [`Item::ring`] indexes
     /// this copy; nothing below the model reads the `RingSet`.
     pub rings: Vec<String>,
-    /// Every row as an item, in CSV order (FR-8).
+    /// Every row as an item, in CSV order.
     pub items: Vec<Item>,
 }
 
@@ -261,6 +261,7 @@ impl Catalogue {
     /// `number` is `Some` for an unplotted item or `None` for a plotted
     /// one (FR-18).
     #[must_use]
+    // qual:allow(complexity, error_handling) reason: "the documented # Panics: an item from another catalogue is a caller bug"
     pub fn accessible_name(&self, item: &Item, number: Option<usize>) -> String {
         debug_assert_eq!(number.is_some(), item.ring.is_some(), "FR-18");
         let ring = item.ring.map_or_else(
@@ -809,13 +810,16 @@ mod tests {
             ["name", "quadrant", "ring", "description", " Notes "]
         );
         assert_eq!(
-            cat.columns.get(4).expect("columns[4] exists").kind,
+            cat.columns
+                .get(4)
+                .expect("the header names five columns")
+                .kind,
             ColumnKind::Other
         );
-        assert_eq!(
-            cat.items.first().expect("items[0] exists").cells,
-            ["K", "T", "Adopt", "d", "n"]
-        );
+        let [item] = cat.items.as_slice() else {
+            panic!("expected one item: {:#?}", cat.items)
+        };
+        assert_eq!(item.cells, ["K", "T", "Adopt", "d", "n"]);
     }
 
     /// FR-76 (D-61): case, spaces and invisible format characters do not
@@ -869,16 +873,11 @@ mod tests {
         let csv = "name,quadrant,ring,description,ticket\nK,T,Adopt,d,OPS-1\n";
         let quiet = warnings(csv);
         assert!(quiet.is_empty(), "{quiet:?}");
-        assert_eq!(
-            catalogue(csv)
-                .items
-                .first()
-                .expect("items[0] exists")
-                .cells
-                .get(4)
-                .expect("cells[4] exists"),
-            "OPS-1"
-        );
+        let cat = catalogue(csv);
+        let [item] = cat.items.as_slice() else {
+            panic!("expected one item: {:#?}", cat.items)
+        };
+        assert_eq!(item.cell(4), Some("OPS-1"));
     }
 
     // --- FR-6 ---
@@ -1019,7 +1018,10 @@ mod tests {
             "{HEAD}a, tool,Adopt,d\nb,Tool,Adopt,d\nc,\u{200b}Tool,Adopt,d\n"
         ));
         assert_eq!(
-            cat.quadrants.first().expect("quadrants[0] exists").label,
+            cat.quadrants
+                .first()
+                .expect("the catalogue has a quadrant")
+                .label,
             "Tool"
         );
     }
@@ -1128,7 +1130,9 @@ mod tests {
     #[test]
     fn names_keep_their_text_and_carry_a_key() {
         let cat = catalogue(&format!("{HEAD} Kafka ,T,Adopt,d\n"));
-        let item = cat.items.first().expect("items[0] exists");
+        let [item] = cat.items.as_slice() else {
+            panic!("expected one item: {:#?}", cat.items)
+        };
         assert_eq!(
             (item.name.as_str(), item.name_key.as_str()),
             (" Kafka ", "kafka")
@@ -1225,14 +1229,11 @@ mod tests {
         );
         let (result, warnings) = build(&csv);
         let items = result.expect("builds").items;
-        assert_eq!(
-            items.first().expect("items[0] exists").cell(5),
-            Some(" 2026-06-01 ")
-        );
-        assert_eq!(
-            items.get(1).expect("items[1] exists").cell(5),
-            Some("\u{200b}2026-06-01\u{feff}")
-        );
+        let [first, second, ..] = items.as_slice() else {
+            panic!("expected at least 2 items: {items:#?}")
+        };
+        assert_eq!(first.cell(5), Some(" 2026-06-01 "));
+        assert_eq!(second.cell(5), Some("\u{200b}2026-06-01\u{feff}"));
         assert_eq!(
             warnings,
             [
@@ -1281,7 +1282,9 @@ mod tests {
         let csv = format!("{HEAD}K,T,Adopt,d\n");
         let (result, warnings) = build(&csv);
         let cat = result.expect("builds");
-        let item = cat.items.first().expect("items[0] exists");
+        let [item] = cat.items.as_slice() else {
+            panic!("expected one item: {:#?}", cat.items)
+        };
         assert_eq!((item.qualifier, item.status), (None, None));
         assert!(warnings.is_empty(), "{warnings:?}");
     }
@@ -1290,7 +1293,9 @@ mod tests {
     #[test]
     fn an_empty_cell_is_omitted() {
         let cat = catalogue(&format!("{FULL}K,T,Adopt,d,,  ,,\n"));
-        let item = cat.items.first().expect("items[0] exists");
+        let [item] = cat.items.as_slice() else {
+            panic!("expected one item: {:#?}", cat.items)
+        };
         assert_eq!(
             (item.cell(4), item.cell(5), item.cell(99)),
             (None, None, None)
@@ -1305,10 +1310,10 @@ mod tests {
         let cat = catalogue(
             "name,,quadrant,ring,description,exit_date\nOld,,Tool,Rejected,d,2027-01-01\n",
         );
-        assert_eq!(
-            cat.items.first().expect("items[0] exists").cell(4),
-            Some("2027-01-01")
-        );
+        let [item] = cat.items.as_slice() else {
+            panic!("expected one item: {:#?}", cat.items)
+        };
+        assert_eq!(item.cell(4), Some("2027-01-01"));
     }
 
     /// FR-93: Excel's trailing padding passes silently, and so does a cell
@@ -1388,12 +1393,15 @@ mod tests {
         let cat = catalogue(&format!(
             "{FULL} Kafka ,tool,adopt,d,conditional,,,moved in\nOld,Tool,Rejected,d,,,,\n"
         ));
+        let [kafka, old] = cat.items.as_slice() else {
+            panic!("expected two items: {:#?}", cat.items)
+        };
         assert_eq!(
-            cat.accessible_name(cat.items.first().expect("items[0] exists"), Some(3)),
+            cat.accessible_name(kafka, Some(3)),
             "3. Kafka, Conditional, Moved In; Tool quadrant, Adopt ring"
         );
         assert_eq!(
-            cat.accessible_name(cat.items.get(1).expect("items[1] exists"), None),
+            cat.accessible_name(old, None),
             "Old; Tool quadrant, Rejected ring; not on the radar"
         );
     }
@@ -1403,8 +1411,11 @@ mod tests {
     #[test]
     fn an_unplotted_ring_is_found_past_an_unnamed_column() {
         let cat = catalogue("name,,quadrant,ring,description\nOld,,Tool,Rejected,d\n");
+        let [item] = cat.items.as_slice() else {
+            panic!("expected one item: {:#?}", cat.items)
+        };
         assert_eq!(
-            cat.accessible_name(cat.items.first().expect("items[0] exists"), None),
+            cat.accessible_name(item, None),
             "Old; Tool quadrant, Rejected ring; not on the radar"
         );
         assert_eq!(cat.column(ColumnKind::Ring), Some(2));
@@ -1435,8 +1446,11 @@ mod tests {
                 cells: vec!["Old".into()],
             }],
         };
+        let [item] = cat.items.as_slice() else {
+            panic!("expected one item: {:#?}", cat.items)
+        };
         assert_eq!(
-            cat.accessible_name(cat.items.first().expect("items[0] exists"), None),
+            cat.accessible_name(item, None),
             "Old; Tool quadrant; not on the radar"
         );
     }
@@ -1448,6 +1462,9 @@ mod tests {
     #[should_panic(expected = "FR-18")]
     fn a_number_for_an_unplotted_item_is_a_bug() {
         let cat = catalogue(&format!("{HEAD}Old,Tool,Rejected,d\n"));
-        let _ = cat.accessible_name(cat.items.first().expect("items[0] exists"), Some(1));
+        let [item] = cat.items.as_slice() else {
+            panic!("expected one item: {:#?}", cat.items)
+        };
+        let _ = cat.accessible_name(item, Some(1));
     }
 }

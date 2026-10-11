@@ -27,7 +27,11 @@ fn both_faces_register_as_family_inter_with_their_weights() {
         .faces()
         .map(|f| {
             (
-                f.families.first().expect("families[0] exists").0.clone(),
+                f.families
+                    .first()
+                    .expect("a loaded face names a family")
+                    .0
+                    .clone(),
                 f.weight.0,
             )
         })

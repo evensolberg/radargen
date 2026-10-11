@@ -195,6 +195,7 @@ pub fn polar(angle: f64, radius: f64) -> Point {
 /// If `plotted` was not built from `catalogue`, so a run's quadrant is
 /// missing from `plotted.rank`.
 #[must_use]
+// qual:allow(complexity, error_handling) reason: "the documented # Panics: a Plotted from another catalogue is a caller bug"
 pub fn place(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Point> {
     let geometry = Geometry::of(catalogue);
     let points: Vec<Point> = plotted
@@ -229,6 +230,7 @@ pub fn place(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Point> {
 ///
 /// If `plotted` was not built from `catalogue`, so a run names a quadrant
 /// or ring the catalogue lacks.
+// qual:allow(complexity, error_handling) reason: "the documented # Panics: a Plotted from another catalogue is a caller bug"
 pub fn warn_crowding(catalogue: &Catalogue, plotted: &Plotted, warnings: &mut Warnings) {
     let geometry = Geometry::of(catalogue);
     if geometry.quadrants > COMFORTABLE_QUADRANTS {

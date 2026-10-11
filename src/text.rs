@@ -220,6 +220,7 @@ impl Column<'_, '_> {
 
     /// FR-46: push the column-wide pieces of a token wider than the column,
     /// in order, and return the tail that fits. Nothing is dropped.
+    // qual:allow(complexity, error_handling) reason: "fitting_prefix returns a char boundary, so split_at_checked cannot fail"
     fn break_token<'w>(&self, token: &'w str, lines: &mut Vec<String>) -> &'w str {
         let mut rest = token;
         while self.overflows(rest) {
