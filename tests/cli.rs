@@ -2,8 +2,10 @@
 //! the contract rather than spawning a process.
 
 use clap::Parser;
+use radargen::cli::clean_flag;
 use radargen::cli::{Cli, OutputFormat, Theme};
-use radargen::diagnostics::Fatal;
+use radargen::diagnostics::{Fatal, Flag, RowKind, Warning, Warnings};
+use radargen::rings::{RingsError, parse_rings};
 
 fn parse(args: &[&str]) -> Result<Cli, clap::Error> {
     Cli::try_parse_from(std::iter::once("radargen").chain(args.iter().copied()))
@@ -155,4 +157,84 @@ fn theme_takes_capital_t_and_title_takes_lowercase() {
     assert_eq!(cli.title.as_deref(), Some("Radar"));
     assert_eq!(cli.theme, Theme::Dark);
     assert_eq!(cli.width, Some(1920));
+}
+
+#[test]
+fn each_flag_names_itself_in_the_one_character_warning() {
+    for (flag, name) in [
+        (Flag::Title, "--title"),
+        (Flag::Subtitle, "--subtitle"),
+        (Flag::Rings, "--rings"),
+    ] {
+        let mut warnings = Warnings::default();
+        assert_eq!(clean_flag(flag, "a\u{1}b", &mut warnings), "ab");
+        assert_eq!(
+            warnings.render(),
+            [format!(
+                "warning: {name}: removed U+0001, which the output cannot display"
+            )]
+        );
+    }
+}
+
+#[test]
+fn each_flag_names_itself_in_the_several_characters_warning() {
+    for (flag, name) in [
+        (Flag::Title, "--title"),
+        (Flag::Subtitle, "--subtitle"),
+        (Flag::Rings, "--rings"),
+    ] {
+        let mut warnings = Warnings::default();
+        assert_eq!(clean_flag(flag, "\u{1}a\u{7f}b\u{85}", &mut warnings), "ab");
+        assert_eq!(
+            warnings.render(),
+            [format!(
+                "warning: {name}: removed 3 characters the output cannot display, the first U+0001"
+            )]
+        );
+    }
+}
+
+#[test]
+fn a_clean_value_is_unchanged_and_silent() {
+    let mut warnings = Warnings::default();
+    let value = "Tab\there, Ærø 日本\nline";
+    assert_eq!(clean_flag(Flag::Title, value, &mut warnings), value);
+    assert!(warnings.is_empty());
+}
+
+#[test]
+fn a_title_of_only_undisplayable_characters_cleans_to_empty() {
+    let mut warnings = Warnings::default();
+    assert_eq!(clean_flag(Flag::Title, "\u{1}", &mut warnings), "");
+    assert_eq!(warnings.as_slice().len(), 1);
+}
+
+#[test]
+fn rings_are_cleaned_before_fr_63_checks_them() {
+    let mut warnings = Warnings::default();
+    let cleaned = clean_flag(Flag::Rings, "Adopt,\u{1},Hold", &mut warnings);
+    assert_eq!(
+        parse_rings(Some(&cleaned)),
+        Err(vec![RingsError::EmptyEntry { index: 2 }])
+    );
+}
+
+#[test]
+fn a_flag_warning_renders_before_row_warnings() {
+    let mut warnings = Warnings::default();
+    warnings.push(Warning::Row {
+        line: 2,
+        column: 0,
+        kind: RowKind::EmptyDescription,
+    });
+    clean_flag(Flag::Subtitle, "x\u{1}", &mut warnings);
+    let lines = warnings.render();
+    assert_eq!(lines.len(), 2, "{lines:?}");
+    assert!(
+        lines
+            .first()
+            .is_some_and(|l| l.starts_with("warning: --subtitle: removed")),
+        "{lines:?}"
+    );
 }

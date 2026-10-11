@@ -8,7 +8,7 @@ use std::iter::{FusedIterator, Peekable};
 use std::str::Chars;
 
 use crate::diagnostics::{Fatal, RowKind, Separator, Warning, Warnings, column_label};
-use crate::escape::displayable;
+use crate::escape::{displayable, remove_undisplayable};
 use crate::{normalise, trim};
 
 /// One record and where it begins.
@@ -321,14 +321,12 @@ struct Removed {
 fn cleaned(record: &mut Record) -> Vec<Removed> {
     let mut removed = Vec::new();
     for (column, field) in record.fields.iter_mut().enumerate() {
-        if let Some(first) = field.chars().find(|&c| !displayable(c)) {
-            let count = field.chars().filter(|&c| !displayable(c)).count();
+        if let Some((first, count)) = remove_undisplayable(field) {
             removed.push(Removed {
                 column,
                 first,
                 count,
             });
-            field.retain(displayable);
         }
     }
     removed
