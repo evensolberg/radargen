@@ -60,7 +60,6 @@ pub trait Block {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::svg::Point;
 
     #[test]
     fn scaled_multiplies_both_sides() {

@@ -4,6 +4,8 @@
 //! role to a value late, so one tree serves every format and theme. Variants
 //! and [`Semantics`] values are added by the PR that first needs them.
 
+use std::num::NonZeroU8;
+
 use crate::palette::Role;
 use crate::style::TextStyle;
 
@@ -16,6 +18,17 @@ pub struct Point {
     pub x: f64,
     /// Distance below the frame's origin (SVG's y-axis); negative is above.
     pub y: f64,
+}
+
+impl Point {
+    /// Both coordinates multiplied by `k`.
+    #[must_use]
+    pub fn scaled(self, k: f64) -> Self {
+        Self {
+            x: self.x * k,
+            y: self.y * k,
+        }
+    }
 }
 
 /// A fill or stroke: a palette role, or nothing (architecture §5).
@@ -39,7 +52,7 @@ pub enum Anchor {
     Middle,
 }
 
-/// What a group means to assistive technology (NFR accessibility).
+/// What a group means to assistive technology (NFR-1, FR-50).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Semantics {
     /// Nothing to announce.
@@ -47,8 +60,8 @@ pub enum Semantics {
     None,
     /// Ornament, hidden from assistive technology.
     Decorative,
-    /// A heading of this level.
-    Heading(u8),
+    /// A heading of this level; level zero does not exist.
+    Heading(NonZeroU8),
 }
 
 /// One step of a path outline.
@@ -150,6 +163,8 @@ mod tests {
     use super::*;
     use crate::palette::Neutral;
 
+    const LEVEL_1: NonZeroU8 = NonZeroU8::MIN;
+
     #[test]
     fn none_is_not_the_hollow_marker_role() {
         assert_ne!(
@@ -163,9 +178,15 @@ mod tests {
         let group = Group::new(Point { x: 1.0, y: 2.0 }, Vec::new());
         assert_eq!(group.semantics, Semantics::None);
         assert_eq!(
-            group.with(Semantics::Heading(1)).semantics,
-            Semantics::Heading(1)
+            group.with(Semantics::Heading(LEVEL_1)).semantics,
+            Semantics::Heading(LEVEL_1)
         );
+    }
+
+    #[test]
+    fn scaled_multiplies_both_coordinates() {
+        let p = Point { x: 3.0, y: -4.0 }.scaled(0.5);
+        assert_eq!(p, Point { x: 1.5, y: -2.0 });
     }
 
     #[test]

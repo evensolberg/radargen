@@ -1,6 +1,8 @@
 //! The title block (FR-65): an optional title and subtitle, wrapped at the
 //! legend column.
 
+use std::num::NonZeroU8;
+
 use crate::layout::block::{Block, Placement, Size};
 use crate::palette::{Neutral, Role};
 use crate::style::{
@@ -9,6 +11,9 @@ use crate::style::{
 };
 use crate::svg::{Anchor, Group, Node, Paint, Point, Semantics};
 use crate::text::{Fonts, wrap};
+
+/// The title's heading level: the document's top.
+const TITLE_LEVEL: NonZeroU8 = NonZeroU8::MIN;
 
 /// What distinguishes the title from the subtitle.
 #[derive(Clone, Copy)]
@@ -73,11 +78,7 @@ impl Run {
                 x: 0.0,
                 y: self.first_baseline * scale,
             },
-            style: TextStyle {
-                size: self.style.size * scale,
-                letter_spacing: self.style.letter_spacing * scale,
-                ..self.style
-            },
+            style: self.style.scaled(scale),
             ink: Paint::Role(Role::Neutral(self.ink)),
             anchor: Anchor::Start,
             lines: self.lines.clone(),
@@ -91,9 +92,9 @@ fn widest(widths: impl Iterator<Item = f64>) -> f64 {
     widths.fold(0.0, f64::max)
 }
 
-/// The value to show: `None` when absent or empty after FR-76's trim.
+/// The value to show, trimmed (FR-76): `None` when absent or empty after.
 fn shown(value: Option<&str>) -> Option<&str> {
-    value.filter(|v| !crate::trim(v).is_empty())
+    value.map(crate::trim).filter(|v| !v.is_empty())
 }
 
 /// The subtitle's first baseline: after the title's last line, or alone.
@@ -150,7 +151,9 @@ impl Block for TitleBlock {
     fn render(&self, at: Placement) -> Node {
         let origin = Point { x: 0.0, y: 0.0 };
         let heading = self.title.iter().map(|run| {
-            Node::Group(Group::new(origin, vec![run.node(at.scale)]).with(Semantics::Heading(1)))
+            Node::Group(
+                Group::new(origin, vec![run.node(at.scale)]).with(Semantics::Heading(TITLE_LEVEL)),
+            )
         });
         let subtitle = self.subtitle.iter().map(|run| run.node(at.scale));
         Node::Group(Group::new(at.origin, heading.chain(subtitle).collect()))
@@ -191,7 +194,7 @@ mod tests {
             .iter()
             .map(|child| match child {
                 Node::Group(inner) => {
-                    assert_eq!(inner.semantics, Semantics::Heading(1));
+                    assert_eq!(inner.semantics, Semantics::Heading(TITLE_LEVEL));
                     let [text] = inner.children.as_slice() else {
                         panic!("a heading holds one text");
                     };
@@ -261,6 +264,7 @@ mod tests {
     #[test]
     fn empty_string_equals_none() {
         assert_eq!(block(Some(""), Some("")), block(None, None));
+        assert!(block(Some(""), Some("")).size(1.0).is_empty());
     }
 
     #[test]
@@ -268,6 +272,28 @@ mod tests {
         for blank in ["  ", "\u{200B}", "\u{FEFF}\u{200B}"] {
             assert_eq!(block(Some(blank), Some(blank)), block(None, None));
         }
+    }
+
+    #[test]
+    fn format_characters_and_spaces_around_a_title_do_not_push_it_right() {
+        let padded = block(Some("\u{200B} Radar \u{FEFF}"), None);
+        let plain = block(Some("Radar"), None);
+        assert_eq!(lines(pick(&texts(&padded.render(at(1.0))), 0)), ["Radar"]);
+        assert!(close(padded.size(1.0).width, plain.size(1.0).width));
+    }
+
+    #[test]
+    fn a_placed_title_is_the_origin_title_translated() {
+        let b = block(Some("Title"), Some("Sub"));
+        let placed = Placement {
+            origin: Point { x: 5.0, y: 7.0 },
+            scale: 1.0,
+        };
+        let (Node::Group(placed), Node::Group(home)) = (b.render(placed), b.render(at(1.0))) else {
+            panic!("the title renders a group");
+        };
+        assert_eq!(placed.offset, Point { x: 5.0, y: 7.0 });
+        assert_eq!(placed.children, home.children);
     }
 
     #[test]

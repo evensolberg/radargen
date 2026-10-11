@@ -38,7 +38,14 @@ impl StatusMark {
     }
 }
 
-/// The nodes for one marker at `centre`, status ring first, in paint order.
+/// Half a turn, in degrees: the opposite direction.
+const HALF_TURN: f64 = 180.0;
+
+/// The nodes for one marker, status ring first, in paint order.
+///
+/// `centre` and `radius` are in scale-1 units; the whole glyph (centre,
+/// radii, ring gap and stroke widths) is multiplied by `scale`, so it stays
+/// inside a block drawn at that scale (FR-70).
 #[must_use]
 pub fn draw(
     centre: Point,
@@ -46,8 +53,12 @@ pub fn draw(
     qualifier: Option<Qualifier>,
     mark: Option<StatusMark>,
     ink: Role,
+    scale: f64,
 ) -> Vec<Node> {
-    let ring_radius = radius + STATUS_RING_GAP;
+    let centre = centre.scaled(scale);
+    let radius = radius * scale;
+    let ring_radius = STATUS_RING_GAP.mul_add(scale, radius);
+    let ring_stroke = STATUS_RING_STROKE * scale;
     let ring = match mark {
         None => None,
         Some(StatusMark::New) => Some(Node::Circle {
@@ -55,14 +66,18 @@ pub fn draw(
             radius: ring_radius,
             fill: Paint::None,
             stroke: Paint::Role(ink),
-            stroke_width: STATUS_RING_STROKE,
+            stroke_width: ring_stroke,
         }),
         Some(StatusMark::MovedIn { centreward }) => {
-            Some(half_ring(centre, ring_radius, centreward, ink))
+            Some(half_ring(centre, ring_radius, centreward, ink, ring_stroke))
         }
-        Some(StatusMark::MovedOut { centreward }) => {
-            Some(half_ring(centre, ring_radius, centreward + 180.0, ink))
-        }
+        Some(StatusMark::MovedOut { centreward }) => Some(half_ring(
+            centre,
+            ring_radius,
+            centreward + HALF_TURN,
+            ink,
+            ring_stroke,
+        )),
     };
     let marker = match qualifier {
         Some(Qualifier::Conditional) => Node::Circle {
@@ -70,21 +85,21 @@ pub fn draw(
             radius,
             fill: Paint::Role(Role::Neutral(Neutral::MarkerHollow)),
             stroke: Paint::Role(ink),
-            stroke_width: MARKER_HOLLOW_STROKE,
+            stroke_width: MARKER_HOLLOW_STROKE * scale,
         },
         Some(Qualifier::Default) | None => Node::Circle {
             centre,
             radius,
             fill: Paint::Role(ink),
             stroke: Paint::Role(Role::Neutral(Neutral::Surface1)),
-            stroke_width: MARKER_STROKE,
+            stroke_width: MARKER_STROKE * scale,
         },
     };
     ring.into_iter().chain(Some(marker)).collect()
 }
 
 /// The half-circle of `radius` bulging toward `direction` degrees.
-fn half_ring(centre: Point, radius: f64, direction: f64, ink: Role) -> Node {
+fn half_ring(centre: Point, radius: f64, direction: f64, ink: Role, stroke_width: f64) -> Node {
     let at = |angle: f64| {
         let offset = polar(angle, radius);
         Point {
@@ -104,7 +119,7 @@ fn half_ring(centre: Point, radius: f64, direction: f64, ink: Role) -> Node {
         ],
         fill: Paint::None,
         stroke: Paint::Role(ink),
-        stroke_width: STATUS_RING_STROKE,
+        stroke_width,
     }
 }
 
@@ -119,6 +134,22 @@ mod tests {
         match node {
             Node::Circle { fill, .. } => *fill,
             other => panic!("expected a circle, got {other:?}"),
+        }
+    }
+
+    fn stroke_of(node: &Node) -> (Paint, f64) {
+        match node {
+            Node::Circle {
+                stroke,
+                stroke_width,
+                ..
+            }
+            | Node::Path {
+                stroke,
+                stroke_width,
+                ..
+            } => (*stroke, *stroke_width),
+            other => panic!("expected a shape, got {other:?}"),
         }
     }
 
@@ -153,7 +184,7 @@ mod tests {
 
     #[test]
     fn the_hollow_marker_fills_with_marker_hollow() {
-        let nodes = draw(CENTRE, 7.0, Some(Qualifier::Conditional), None, INK);
+        let nodes = draw(CENTRE, 7.0, Some(Qualifier::Conditional), None, INK, 1.0);
         assert_eq!(nodes.len(), 1);
         assert_eq!(
             circle_fill(first(&nodes)),
@@ -162,16 +193,66 @@ mod tests {
     }
 
     #[test]
+    fn a_marker_strokes_as_its_kind_does() {
+        let hollow = draw(CENTRE, 7.0, Some(Qualifier::Conditional), None, INK, 1.0);
+        assert_eq!(
+            stroke_of(first(&hollow)),
+            (Paint::Role(INK), MARKER_HOLLOW_STROKE)
+        );
+        let solid = draw(CENTRE, 7.0, None, None, INK, 1.0);
+        assert_eq!(
+            stroke_of(first(&solid)),
+            (Paint::Role(Role::Neutral(Neutral::Surface1)), MARKER_STROKE)
+        );
+    }
+
+    #[test]
+    fn the_rings_stroke_in_the_ink() {
+        for mark in [
+            StatusMark::New,
+            StatusMark::MovedIn { centreward: 10.0 },
+            StatusMark::MovedOut { centreward: 10.0 },
+        ] {
+            let nodes = draw(CENTRE, 7.0, None, Some(mark), INK, 1.0);
+            assert_eq!(
+                stroke_of(first(&nodes)),
+                (Paint::Role(INK), STATUS_RING_STROKE)
+            );
+        }
+    }
+
+    #[test]
+    fn scale_multiplies_the_whole_glyph() {
+        let nodes = draw(CENTRE, 7.0, None, Some(StatusMark::New), INK, 0.5);
+        let [ring, marker] = nodes.as_slice() else {
+            panic!("a ring and a marker");
+        };
+        let Node::Circle {
+            centre,
+            radius,
+            stroke_width,
+            ..
+        } = ring
+        else {
+            panic!("expected a ring");
+        };
+        assert_eq!(*centre, Point { x: 50.0, y: 25.0 });
+        assert!((radius - f64::midpoint(7.0, STATUS_RING_GAP)).abs() < 1e-9);
+        assert!((stroke_width - STATUS_RING_STROKE / 2.0).abs() < 1e-9);
+        assert!((stroke_of(marker).1 - MARKER_STROKE / 2.0).abs() < 1e-9);
+    }
+
+    #[test]
     fn a_solid_marker_fills_with_its_ink() {
         for q in [Some(Qualifier::Default), None] {
-            let nodes = draw(CENTRE, 7.0, q, None, INK);
+            let nodes = draw(CENTRE, 7.0, q, None, INK, 1.0);
             assert_eq!(circle_fill(first(&nodes)), Paint::Role(INK));
         }
     }
 
     #[test]
     fn new_draws_a_full_ring_under_the_marker() {
-        let nodes = draw(CENTRE, 7.0, None, Some(StatusMark::New), INK);
+        let nodes = draw(CENTRE, 7.0, None, Some(StatusMark::New), INK, 1.0);
         assert_eq!(nodes.len(), 2);
         match first(&nodes) {
             Node::Circle { radius, fill, .. } => {
@@ -192,6 +273,7 @@ mod tests {
                 None,
                 Some(StatusMark::MovedIn { centreward: c }),
                 INK,
+                1.0,
             );
             let (s, e) = ends(first(&moved_in));
             assert!(near(s, from_centre(c - 90.0)) && near(e, from_centre(c + 90.0)));
@@ -201,6 +283,7 @@ mod tests {
                 None,
                 Some(StatusMark::MovedOut { centreward: c }),
                 INK,
+                1.0,
             );
             let (s, e) = ends(first(&moved_out));
             assert!(near(s, from_centre(c + 90.0)) && near(e, from_centre(c + 270.0)));
@@ -216,6 +299,7 @@ mod tests {
             None,
             Some(StatusMark::MovedIn { centreward: c }),
             INK,
+            1.0,
         );
         let moved_out = draw(
             CENTRE,
@@ -223,6 +307,7 @@ mod tests {
             None,
             Some(StatusMark::MovedOut { centreward: c }),
             INK,
+            1.0,
         );
         let (in_s, in_e) = ends(first(&moved_in));
         let (out_s, out_e) = ends(first(&moved_out));
@@ -237,6 +322,7 @@ mod tests {
             None,
             Some(StatusMark::MovedIn { centreward: 30.0 }),
             INK,
+            1.0,
         );
         let Node::Path { commands, .. } = first(&nodes) else {
             panic!("expected a path");
@@ -267,6 +353,6 @@ mod tests {
 
     #[test]
     fn no_mark_draws_the_marker_alone() {
-        assert_eq!(draw(CENTRE, 7.0, None, None, INK).len(), 1);
+        assert_eq!(draw(CENTRE, 7.0, None, None, INK, 1.0).len(), 1);
     }
 }

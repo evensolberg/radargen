@@ -21,6 +21,18 @@ pub struct TextStyle {
     pub letter_spacing: f64,
 }
 
+impl TextStyle {
+    /// Size and letter-spacing multiplied by `k`; the face is unchanged.
+    #[must_use]
+    pub fn scaled(self, k: f64) -> Self {
+        Self {
+            size: self.size * k,
+            letter_spacing: self.letter_spacing * k,
+            ..self
+        }
+    }
+}
+
 const fn style(weight: Weight, size: f64, letter_spacing: f64) -> TextStyle {
     TextStyle {
         weight,

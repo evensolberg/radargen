@@ -39,7 +39,7 @@ comments:
 
 **Tech Stack:** Rust 2024, `std` only. No new dependency.
 
-**Spec:** `docs/product/radargen-prd.md` v0.48 — FR-20, FR-39, FR-40, FR-44, FR-45, FR-47, FR-50, FR-65, FR-66, FR-70, FR-79, FR-82, NFR-1, NFR-4, NFR-6, NFR-17, D-24, D-25, D-56. Design: `docs/design/architecture.md` §3 (`layout/`, `svg/`), §4 (`Block`, `Size`, `Point`, `Placement`), §5 (`Node`, `Paint`, late colour binding). Reference: `docs/product/mockup.html` `buildTitle`, `buildKey`, `halfRingPath`, `statusRingMarkup`.
+**Spec:** `docs/product/radargen-prd.md` v0.49 — FR-20, FR-39, FR-40, FR-44, FR-45, FR-47, FR-50, FR-65, FR-66, FR-70, FR-79, FR-82, NFR-1, NFR-4, NFR-6, NFR-17, D-24, D-25, D-56. Design: `docs/design/architecture.md` §3 (`layout/`, `svg/`), §4 (`Block`, `Size`, `Point`, `Placement`), §5 (`Node`, `Paint`, late colour binding). Reference: `docs/product/mockup.html` `buildTitle`, `buildKey`, `halfRingPath`, `statusRingMarkup`.
 
 ## Global Constraints
 
@@ -84,7 +84,7 @@ comments:
 - **Key samples are inked `TextMuted`.** FR-39 keeps colour off the correctness path and FR-66 excludes quadrant colour; `TextMuted` clears 3:1 non-text and 4.5:1 text contrast on both surfaces in both themes (accessibility review measured it).
 - **Status direction in the key is fixed** (left toward the centre, right toward the edge), and the labels say so in words a key row can carry: "half-ring on the side toward the radar's centre" / "…toward the radar's outer edge".
 - **The key has no full-width rule**; separators, margins and whether the key scales in narrow (it should not; D-56) are the arrangement's (PR 12).
-- **The title wraps at `LEGEND_WIDTH_MAX`** (FR-79's greedy wrap via `text::wrap`), the legend's column in both arrangements (D-56). FR-65 says nothing about long titles — a spec gap to record (Finishing).
+- **The title wraps at `LEGEND_WIDTH_MAX`** (FR-79's greedy wrap via `text::wrap`), the legend's column in both arrangements (D-56). FR-65 says nothing about long titles; the maintainer decided no PRD change (Finishing).
 - **`PathCommand::Arc` carries `large_arc` and `sweep`** rather than fixing them in a comment: the half-ring uses small arc, sweep 1; PR 10's ring bands need the other sweep.
 - **No version bump.** Nothing calls the blocks until PR 12 and PR 14.
 
@@ -257,6 +257,6 @@ Content, fixed whatever the dataset uses (D-25), from the mockup's `buildKey` wi
    - `rg-ozb` (PR 12): the key has no rule of its own; separators and margins are the arrangement's; the key and title stay at scale 1 in narrow (D-56), and the key's legibility at 320 px is checked against SC-17; keep document order title, radar, key, legend (screen readers read in DOM order).
    - `rg-6ku` (PR 13): serialise `Semantics` (`Heading(n)` → `role="heading" aria-level`, `Decorative` → `aria-hidden="true"`), `Text` lines as `<tspan>`s, `PathCommand::Arc`'s flags, every coordinate through `fmt_coord`, text through `escape::xml_text`; decide whether an empty `Group` is emitted; the exported standalone SVG gets a root `<title>` and `<desc>`.
    - `rg-f27` (PR 14): the pipeline is `Fonts::embedded`'s first caller — consider naming the face in `FontError` (PR 08a review).
-3. **Raise with the maintainer** (do not decide here): FR-65 says nothing about long titles (this PR wraps at the legend column); and FR-50's marker accessible name carries number, name and position but not qualifier or status, so a screen-reader user exploring the radar never hears what the key explains (accessibility review) — a PRD question for PR 10/15.
+3. **Settled with the maintainer.** FR-65 says nothing about long titles; the maintainer decided no PRD change (this PR wraps at the legend column). FR-50's marker accessible name omitting qualifier and status is resolved by PRD v0.49 (bb360b2).
 4. `crumbs close rg-y1t`; move this plan to `docs/plans/done/`; tick the steps.
 5. **No version bump.** Commit, push, PR, CI; merge when clean (the maintainer authorised merging this PR when ready).

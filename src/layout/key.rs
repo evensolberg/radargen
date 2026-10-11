@@ -1,6 +1,8 @@
 //! The encoding key (FR-66): what the marker shapes and status rings mean.
 //! Its content is fixed whatever the dataset uses (D-25).
 
+use std::num::NonZeroU8;
+
 use crate::layout::block::{Block, Placement, Size};
 use crate::layout::marker::{StatusMark, draw};
 use crate::model::Qualifier;
@@ -9,7 +11,7 @@ use crate::style::{
     KEY_BOTTOM, KEY_FIRST_ROW, KEY_HEADING, KEY_HEADING_BASELINE, KEY_LABEL, KEY_LABEL_DROP,
     KEY_LABEL_X, KEY_MARKER_RADIUS, KEY_ROW, KEY_SAMPLE_X, KEY_STATUS_MARKER_RADIUS, TextStyle,
 };
-use crate::svg::{Anchor, Group, Node, Paint, PathCommand, Point, Semantics};
+use crate::svg::{Anchor, Group, Node, Paint, Point, Semantics};
 use crate::text::Fonts;
 
 /// The heading's text.
@@ -59,6 +61,12 @@ const ROWS: [Row; 5] = [
     },
 ];
 
+/// The heading's level: below the document title's level one.
+const HEADING_LEVEL: NonZeroU8 = match NonZeroU8::new(2) {
+    Some(level) => level,
+    None => panic!("2 is not zero"),
+};
+
 const SAMPLE_INK: Role = Role::Neutral(Neutral::TextMuted);
 
 /// The centre of row `index`'s sample, at scale 1.
@@ -72,23 +80,11 @@ const fn sample_centre(index: usize) -> Point {
     Point { x: KEY_SAMPLE_X, y }
 }
 
-/// `style` with its sizes multiplied by `scale`.
-fn scaled_style(style: TextStyle, scale: f64) -> TextStyle {
-    TextStyle {
-        size: style.size * scale,
-        letter_spacing: style.letter_spacing * scale,
-        ..style
-    }
-}
-
 /// A text node of one line, muted or primary.
 fn text(label: &str, origin: Point, style: TextStyle, ink: Neutral, scale: f64) -> Node {
     Node::Text {
-        origin: Point {
-            x: origin.x * scale,
-            y: origin.y * scale,
-        },
-        style: scaled_style(style, scale),
+        origin: origin.scaled(scale),
+        style: style.scaled(scale),
         ink: Paint::Role(Role::Neutral(ink)),
         anchor: Anchor::Start,
         lines: vec![label.to_owned()],
@@ -96,68 +92,17 @@ fn text(label: &str, origin: Point, style: TextStyle, ink: Neutral, scale: f64) 
     }
 }
 
-fn scale_point(p: Point, scale: f64) -> Point {
-    Point {
-        x: p.x * scale,
-        y: p.y * scale,
-    }
-}
-
-/// A marker glyph's geometry multiplied by `scale`, strokes and ring gap
-/// included, so it stays inside the scaled block.
-fn scale_glyph(node: Node, scale: f64) -> Node {
-    match node {
-        Node::Circle {
-            centre,
-            radius,
-            fill,
-            stroke,
-            stroke_width,
-        } => Node::Circle {
-            centre: scale_point(centre, scale),
-            radius: radius * scale,
-            fill,
-            stroke,
-            stroke_width: stroke_width * scale,
-        },
-        Node::Path {
-            commands,
-            fill,
-            stroke,
-            stroke_width,
-        } => Node::Path {
-            commands: commands
-                .into_iter()
-                .map(|command| match command {
-                    PathCommand::MoveTo(p) => PathCommand::MoveTo(scale_point(p, scale)),
-                    PathCommand::Arc {
-                        radius,
-                        large_arc,
-                        sweep,
-                        end,
-                    } => PathCommand::Arc {
-                        radius: radius * scale,
-                        large_arc,
-                        sweep,
-                        end: scale_point(end, scale),
-                    },
-                })
-                .collect(),
-            fill,
-            stroke,
-            stroke_width: stroke_width * scale,
-        },
-        other => other,
-    }
-}
-
 /// One row: its decorative sample, then its label.
 fn row_nodes(index: usize, row: Row, scale: f64) -> [Node; 2] {
     let centre = sample_centre(index);
-    let glyph = draw(centre, row.radius, row.qualifier, row.mark, SAMPLE_INK)
-        .into_iter()
-        .map(|node| scale_glyph(node, scale))
-        .collect();
+    let glyph = draw(
+        centre,
+        row.radius,
+        row.qualifier,
+        row.mark,
+        SAMPLE_INK,
+        scale,
+    );
     let origin = Point {
         x: KEY_LABEL_X,
         y: centre.y + KEY_LABEL_DROP,
@@ -175,7 +120,9 @@ fn heading_node(scale: f64) -> Node {
         y: KEY_HEADING_BASELINE,
     };
     let node = text(HEADING, origin, KEY_HEADING, Neutral::TextPrimary, scale);
-    Node::Group(Group::new(Point { x: 0.0, y: 0.0 }, vec![node]).with(Semantics::Heading(2)))
+    Node::Group(
+        Group::new(Point { x: 0.0, y: 0.0 }, vec![node]).with(Semantics::Heading(HEADING_LEVEL)),
+    )
 }
 
 /// The scale-1 size: the widest label (after its indent) or the heading.
@@ -231,8 +178,10 @@ impl Block for KeyBlock {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::layout::geometry::polar;
     use crate::layout::title::TitleBlock;
     use crate::style::{STATUS_RING_GAP, STATUS_RING_STROKE};
+    use crate::svg::PathCommand;
 
     fn fonts() -> Fonts {
         Fonts::embedded().expect("the vendored fonts parse")
@@ -347,15 +296,16 @@ mod tests {
         let c = |y| Point { x: 10.0, y };
         let ink = Role::Neutral(Neutral::TextMuted);
         let expected = [
-            draw(c(40.0), 7.0, Some(Qualifier::Default), None, ink),
-            draw(c(64.0), 7.0, Some(Qualifier::Conditional), None, ink),
-            draw(c(88.0), 5.0, None, Some(StatusMark::New), ink),
+            draw(c(40.0), 7.0, Some(Qualifier::Default), None, ink, 1.0),
+            draw(c(64.0), 7.0, Some(Qualifier::Conditional), None, ink, 1.0),
+            draw(c(88.0), 5.0, None, Some(StatusMark::New), ink, 1.0),
             draw(
                 c(112.0),
                 5.0,
                 None,
                 Some(StatusMark::MovedIn { centreward: 180.0 }),
                 ink,
+                1.0,
             ),
             draw(
                 c(136.0),
@@ -363,6 +313,7 @@ mod tests {
                 None,
                 Some(StatusMark::MovedOut { centreward: 180.0 }),
                 ink,
+                1.0,
             ),
         ];
         for (i, want) in expected.iter().enumerate() {
@@ -381,24 +332,30 @@ mod tests {
         assert!(near(centre, 10.0, 88.0) && close(radius, 9.0));
     }
 
+    /// The far point of a clockwise (`sweep`) half-circle: the chord's
+    /// midpoint pushed a radius to the left of travel on screen.
+    fn apex(start: Point, end: Point, radius: f64) -> Point {
+        let (dx, dy) = (end.x - start.x, end.y - start.y);
+        let chord = dx.hypot(dy);
+        Point {
+            x: f64::midpoint(start.x, end.x) + radius * dy / chord,
+            y: f64::midpoint(start.y, end.y) - radius * dx / chord,
+        }
+    }
+
     #[test]
     fn the_half_rings_bulge_the_right_way() {
         let nodes = rendered(1.0);
-        for (row, sweep) in [(3, true), (4, true)] {
-            let Node::Path { commands, .. } = node_at(sample(&nodes, row), 0) else {
-                panic!("expected a path");
-            };
-            assert!(matches!(
-                commands.get(1),
-                Some(PathCommand::Arc { sweep: s, large_arc: false, .. }) if *s == sweep
-            ));
+        let reach = KEY_STATUS_MARKER_RADIUS + STATUS_RING_GAP;
+        // Moved in bulges left, toward the radar's centre (180 degrees);
+        // moved out bulges right.
+        for (row, y, direction, x) in [(3, 112.0, 180.0, 1.0), (4, 136.0, 0.0, 19.0)] {
+            let (start, end) = arc_ends(node_at(sample(&nodes, row), 0));
+            let got = apex(start, end, reach);
+            let want = polar(direction, reach);
+            assert!(near(got, 10.0 + want.x, y + want.y), "row {row}: {got:?}");
+            assert!(near(got, x, y), "row {row}: {got:?}");
         }
-        // Moved in runs down the left side (x < 10 at the midpoint) and moved
-        // out runs down the right: clockwise from the top bulges right, so
-        // the in-ring starts below the out-ring's end.
-        let (in_start, in_end) = arc_ends(node_at(sample(&nodes, 3), 0));
-        let (out_start, out_end) = arc_ends(node_at(sample(&nodes, 4), 0));
-        assert!(in_start.y > in_end.y && out_start.y < out_end.y);
     }
 
     #[test]
@@ -415,7 +372,10 @@ mod tests {
     #[test]
     fn the_samples_are_decorative_and_the_heading_is_a_heading() {
         let nodes = rendered(1.0);
-        assert_eq!(group(child(&nodes, 0)).semantics, Semantics::Heading(2));
+        assert_eq!(
+            group(child(&nodes, 0)).semantics,
+            Semantics::Heading(HEADING_LEVEL)
+        );
         for i in 0..5 {
             assert_eq!(
                 group(child(&nodes, 1 + 2 * i)).semantics,
@@ -446,6 +406,48 @@ mod tests {
             .map(|row| face.face(KEY_LABEL.weight).measure(row.label, 11.0, 0.0))
             .fold(0.0, f64::max);
         assert!(close(size.width, 28.0 + widest));
+    }
+
+    #[test]
+    fn the_samples_scale_with_the_key() {
+        let nodes = rendered(0.5);
+        let ink = Role::Neutral(Neutral::TextMuted);
+        for (i, row) in ROWS.iter().enumerate() {
+            let want = draw(
+                sample_centre(i),
+                row.radius,
+                row.qualifier,
+                row.mark,
+                ink,
+                0.5,
+            );
+            assert_eq!(sample(&nodes, i), want.as_slice());
+        }
+        let Node::Circle {
+            radius,
+            stroke_width,
+            ..
+        } = node_at(sample(&nodes, 2), 0)
+        else {
+            panic!("row 3 starts with its ring");
+        };
+        assert!(close(*radius, 4.5));
+        assert!(close(*stroke_width, STATUS_RING_STROKE / 2.0));
+    }
+
+    #[test]
+    fn a_placed_key_is_the_origin_key_translated() {
+        let key = KeyBlock::new(&fonts());
+        let placed = Placement {
+            origin: Point { x: 5.0, y: 7.0 },
+            scale: 1.0,
+        };
+        let (Node::Group(placed), Node::Group(home)) = (key.render(placed), key.render(at(1.0)))
+        else {
+            panic!("the key renders a group");
+        };
+        assert_eq!(placed.offset, Point { x: 5.0, y: 7.0 });
+        assert_eq!(placed.children, home.children);
     }
 
     #[test]
@@ -492,8 +494,8 @@ mod tests {
         }
     }
 
-    /// Every arc here is a half-circle, so its chord's midpoint is the
-    /// circle's centre and the circle bounds the arc.
+    /// Every arc here is a half-circle, so its chord is a diameter, its
+    /// midpoint is the circle's centre and the circle bounds the arc.
     fn assert_arcs_inside(commands: &[PathCommand], stroke_width: f64, frame: Frame) {
         let mut from = None;
         for command in commands {
@@ -501,6 +503,11 @@ mod tests {
                 PathCommand::MoveTo(p) => from = Some(*p),
                 PathCommand::Arc { radius, end, .. } => {
                     let start = from.expect("an arc follows a move");
+                    let chord = (end.x - start.x).hypot(end.y - start.y);
+                    assert!(
+                        close(chord, 2.0 * radius),
+                        "an arc of radius {radius} spans {chord}, so it is not a half-circle"
+                    );
                     let centre = Point {
                         x: f64::midpoint(start.x, end.x),
                         y: f64::midpoint(start.y, end.y),
@@ -512,8 +519,8 @@ mod tests {
         }
     }
 
-    /// Text is bounded by its last baseline plus a 0.3 em descent and by its
-    /// measured width.
+    /// Text is bounded by a 0.8 em ascent above the top of the block, a 0.3 em
+    /// descent below each baseline and its measured width.
     fn assert_text_inside(node: &Node, frame: Frame, fonts: &Fonts) {
         let Node::Text {
             origin,
@@ -532,6 +539,7 @@ mod tests {
                 reason = "a line index is tiny, so the conversion is exact"
             )]
             let baseline = (i as f64).mul_add(*leading, origin.y);
+            frame.contains(origin.x, 0.8f64.mul_add(-style.size, baseline), "text top");
             frame.contains(
                 origin.x,
                 0.3f64.mul_add(style.size, baseline),
