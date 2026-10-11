@@ -103,7 +103,7 @@ fn row_nodes(index: usize, row: Row, scale: f64) -> [Node; 2] {
         mark: row.mark,
         ink: SAMPLE_INK,
     }
-    .draw(scale);
+    .draw(Scale::uniform(scale));
     let origin = Point {
         x: KEY_LABEL_X,
         y: centre.y + KEY_LABEL_DROP,
@@ -185,8 +185,10 @@ mod tests {
     use crate::svg::PathCommand;
     use crate::svg::TextPaint;
 
+    const UNIT: Scale = Scale::uniform(1.0);
+
     fn rendered(scale: f64) -> Vec<Node> {
-        let Node::Group(group) = KeyBlock::new(&fonts()).render(at(scale)) else {
+        let Node::Group(group) = KeyBlock::new(fonts()).render(at(scale)) else {
             panic!("the key renders a group");
         };
         group.children
@@ -286,7 +288,7 @@ mod tests {
                 mark: None,
                 ink,
             }
-            .draw(1.0),
+            .draw(UNIT),
             Glyph {
                 centre: c(64.0),
                 radius: 7.0,
@@ -294,7 +296,7 @@ mod tests {
                 mark: None,
                 ink,
             }
-            .draw(1.0),
+            .draw(UNIT),
             Glyph {
                 centre: c(88.0),
                 radius: 5.0,
@@ -302,7 +304,7 @@ mod tests {
                 mark: Some(StatusMark::New),
                 ink,
             }
-            .draw(1.0),
+            .draw(UNIT),
             Glyph {
                 centre: c(112.0),
                 radius: 5.0,
@@ -310,7 +312,7 @@ mod tests {
                 mark: Some(StatusMark::MovedIn { centreward: 180.0 }),
                 ink,
             }
-            .draw(1.0),
+            .draw(UNIT),
             Glyph {
                 centre: c(136.0),
                 radius: 5.0,
@@ -318,7 +320,7 @@ mod tests {
                 mark: Some(StatusMark::MovedOut { centreward: 180.0 }),
                 ink,
             }
-            .draw(1.0),
+            .draw(UNIT),
         ];
         for (i, want) in expected.iter().enumerate() {
             assert_eq!(sample(&nodes, i), want.as_slice());
@@ -402,7 +404,7 @@ mod tests {
             assert_eq!(*style, KEY_LABEL);
             assert_eq!(ink, fill(Neutral::TextMuted));
         }
-        let size = KeyBlock::new(&fonts()).size(1.0);
+        let size = KeyBlock::new(fonts()).size(1.0);
         assert!(close(size.height, 146.0));
         let face = fonts();
         let widest = ROWS
@@ -424,7 +426,7 @@ mod tests {
                 mark: row.mark,
                 ink,
             }
-            .draw(0.5);
+            .draw(Scale::uniform(0.5));
             assert_eq!(sample(&nodes, i), want.as_slice());
         }
         let Node::Circle {
@@ -441,12 +443,12 @@ mod tests {
 
     #[test]
     fn a_placed_key_is_the_origin_key_translated() {
-        crate::layout::block::assert_translates(&KeyBlock::new(&fonts()), 1.0);
+        crate::layout::block::assert_translates(&KeyBlock::new(fonts()), 1.0);
     }
 
     #[test]
     fn size_scales_linearly() {
-        let b = KeyBlock::new(&fonts());
+        let b = KeyBlock::new(fonts());
         let (one, half) = (b.size(1.0), b.size(0.5));
         assert!(close(half.width, one.width / 2.0));
         assert!(close(half.height, one.height / 2.0));
@@ -455,9 +457,9 @@ mod tests {
     #[test]
     fn everything_drawn_lies_inside_the_size() {
         let fonts = fonts();
-        let key = KeyBlock::new(&fonts);
+        let key = KeyBlock::new(fonts);
         for scale in [1.0, 0.5] {
-            assert_inside(&key.render(at(scale)), key.size(scale), &fonts);
+            assert_inside(&key.render(at(scale)), key.size(scale), fonts);
         }
     }
 

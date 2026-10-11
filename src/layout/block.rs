@@ -57,10 +57,13 @@ pub trait Block {
     fn render(&self, at: Placement) -> Node;
 }
 
-/// Test helper: the vendored fonts.
+/// Test helper: the vendored fonts, parsed once for every test.
 #[cfg(test)]
-pub(crate) fn fonts() -> crate::text::Fonts {
-    crate::text::Fonts::embedded().expect("the vendored fonts parse")
+pub(crate) fn fonts() -> &'static crate::text::Fonts {
+    static FONTS: std::sync::LazyLock<crate::text::Fonts> = std::sync::LazyLock::new(|| {
+        crate::text::Fonts::embedded().expect("the vendored fonts parse")
+    });
+    &FONTS
 }
 
 /// How close two computed lengths must be to count as equal in tests.

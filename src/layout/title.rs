@@ -169,7 +169,7 @@ mod tests {
     use crate::layout::test_support::assert_inside;
 
     fn block(title: Option<&str>, subtitle: Option<&str>) -> TitleBlock {
-        TitleBlock::new(title, subtitle, &fonts())
+        TitleBlock::new(title, subtitle, fonts())
     }
 
     /// The text nodes of a rendered block, flattened in paint order, with
@@ -420,7 +420,7 @@ mod tests {
         let fonts = fonts();
         let b = block(Some(wide_title()), Some("A subtitle"));
         for scale in [1.0, 0.5] {
-            assert_inside(&b.render(at(scale)), b.size(scale), &fonts);
+            assert_inside(&b.render(at(scale)), b.size(scale), fonts);
         }
     }
 }

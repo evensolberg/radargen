@@ -352,20 +352,55 @@ mod tests {
     /// needs the dark ink.
     #[test]
     fn number_ink_clears_4_5_on_every_built_in_entry() {
-        let p = Palette::built_in(Theme::Light);
-        let inks: Vec<&str> = (0..8).map(|i| p.number_ink(i)).collect();
-        assert_eq!(
-            inks,
-            [
-                "#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF", "#16191F", "#FFFFFF",
-                "#FFFFFF"
-            ]
-        );
-        for (i, (ink, series)) in inks.iter().zip(SERIES).enumerate() {
-            let ratio = contrast(series, ink);
-            assert!(ratio >= 4.5, "series-{} {ratio:.2}", i + 1);
+        for theme in [Theme::Light, Theme::Dark] {
+            let p = Palette::built_in(theme);
+            let inks: Vec<&str> = (0..8).map(|i| p.number_ink(i)).collect();
+            assert_eq!(
+                inks,
+                [
+                    "#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF", "#16191F", "#FFFFFF",
+                    "#FFFFFF"
+                ],
+                "{theme:?}"
+            );
+            for (i, (ink, series)) in inks.iter().zip(SERIES).enumerate() {
+                let ratio = contrast(series, ink);
+                assert!(ratio >= 4.5, "{theme:?} series-{} {ratio:.2}", i + 1);
+            }
+            assert_eq!(
+                p.number_ink(13),
+                p.number_ink(5),
+                "{theme:?} cycles with FR-67"
+            );
         }
-        assert_eq!(p.number_ink(13), p.number_ink(5), "cycles with FR-67");
+    }
+
+    /// A hollow marker's number is `TextPrimary` on its `MarkerHollow` fill
+    /// (WCAG 1.4.3), in both themes.
+    #[test]
+    fn primary_text_clears_4_5_on_marker_hollow() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let p = Palette::built_in(theme);
+            let ratio = contrast(
+                p.value(Role::Neutral(Neutral::TextPrimary)),
+                p.value(Role::Neutral(Neutral::MarkerHollow)),
+            );
+            assert!(ratio >= 4.5, "{theme:?}: {ratio:.2}");
+        }
+    }
+
+    /// SC-20: the focus indicator's ring is `Focus` on its `Surface1` backing,
+    /// at least 3:1 (WCAG 1.4.11), in both themes.
+    #[test]
+    fn focus_clears_3_to_1_on_surface1() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let p = Palette::built_in(theme);
+            let ratio = contrast(
+                p.value(Role::Neutral(Neutral::Focus)),
+                p.value(Role::Neutral(Neutral::Surface1)),
+            );
+            assert!(ratio >= 3.0, "{theme:?}: {ratio:.2}");
+        }
     }
 
     /// The radar's ring names are `TextMuted` over a `Surface1` halo, so

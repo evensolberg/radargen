@@ -43,3 +43,5 @@ Wire the pipeline end to end in main.rs. FR-69 media-query switch, FR-56 dual pa
 [2026-10-11] [2026-10-11] From PR C: main.rs prints tier-two row errors through errors::render_errors(&[parse errors, then build_catalogue errors], table.records.len()), never Fatal::render on that path — render_errors groups them (D-62), orders them (NFR-11) and adds FR-4's header-first cause. Print the block after the warnings.
 
 [2026-10-11] [2026-10-11] From PR 09: the pipeline is Fonts::embedded's first caller — consider naming the face in FontError (PR 08a review). {edition} expansion in --title/--subtitle (FR-92) happens before TitleBlock::new, which receives final text.
+
+[2026-10-11] From PR 10b: keep the narrow SVG edge to edge at 320 px (style::NARROW_HORIZONTAL_INSET_PX = 0); if the page adds horizontal chrome, change that constant (HIT_RADIUS's const assert re-checks FR-94) and subtract the same inset in breakpoint_px. Generate one :has() rule per marker key: svg:has([data-marker="L"]:focus-visible) [data-indicator="L"] { visibility: visible }.
