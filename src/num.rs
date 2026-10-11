@@ -30,7 +30,8 @@ pub fn fmt_coord(v: f64) -> String {
     );
     #[expect(
         clippy::cast_possible_truncation,
-        reason = "bounded by the assert above, so the product is an exact integer well inside i64"
+        clippy::as_conversions,
+        reason = "f64 has no TryFrom to an integer; bounded by the assert above, so the product is an exact integer well inside i64"
     )]
     let thousandths = (v * 1000.0).round() as i64;
     let sign = if thousandths < 0 { "-" } else { "" };

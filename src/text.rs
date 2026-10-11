@@ -130,7 +130,8 @@ impl<'a> FontMetrics<'a> {
             .count();
         #[expect(
             clippy::cast_precision_loss,
-            reason = "f64 holds every integer up to 2^53 exactly, and a cluster count is far below that"
+            clippy::as_conversions,
+            reason = "usize has no lossless conversion to f64, and f64 holds every integer up to 2^53 exactly; a cluster count is far below that"
         )]
         let gaps = boundaries as f64;
         let upem = f64::from(shaper.units_per_em());

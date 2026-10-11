@@ -175,7 +175,8 @@ pub fn breakpoint_px(wide_width: f64) -> u32 {
     #[expect(
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
-        reason = "bounded by the assert above, so the result is positive and fits u32"
+        clippy::as_conversions,
+        reason = "f64 has no TryFrom to an integer; bounded by the assert above, so the result is positive and fits u32"
     )]
     let px = (wide_width * MIN_LEGIBLE_PX / LEGEND_NAME.size).round() as u32;
     px

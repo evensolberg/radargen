@@ -207,10 +207,16 @@ impl Palette {
     #[must_use]
     pub fn value(&self, role: Role) -> &str {
         match self.bind(role) {
-            Role::Neutral(n) => self
-                .neutrals
-                .get(n as usize)
-                .expect("`neutrals` holds one value per `Neutral`"),
+            Role::Neutral(n) => {
+                #[expect(
+                    clippy::as_conversions,
+                    reason = "a fieldless enum has no From or TryFrom to usize; its discriminant is its position in `neutrals`"
+                )]
+                let index = n as usize;
+                self.neutrals
+                    .get(index)
+                    .expect("`neutrals` holds one value per `Neutral`")
+            }
             Role::Series(i) => self
                 .series
                 .get(i)
