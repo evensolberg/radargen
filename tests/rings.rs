@@ -4,10 +4,10 @@ use radargen::rings::{RingsError, parse_rings};
 
 #[test]
 fn omitting_the_flag_yields_the_in_house_default() {
-    // FR-13, centre-to-edge (FR-12).
+    // FR-13, edge-to-centre (FR-12, D-60): the lifecycle as it is read.
     assert_eq!(
         parse_rings(None).expect("default is valid"),
-        vec!["Retire", "Adopt", "Trial", "Assess"]
+        vec!["Assess", "Trial", "Adopt", "Retire"]
     );
 }
 
@@ -16,8 +16,8 @@ fn entries_are_trimmed_but_keep_internal_spaces() {
     // FR-15: `"Adopt, Trial"` and `"Adopt,Trial"` parse identically, while a
     // multi-word ring name survives intact.
     assert_eq!(
-        parse_rings(Some("Retire, In Use , Adopt")).expect("valid"),
-        vec!["Retire", "In Use", "Adopt"]
+        parse_rings(Some("Adopt, In Use , Retire")).expect("valid"),
+        vec!["Adopt", "In Use", "Retire"]
     );
 }
 

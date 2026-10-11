@@ -256,8 +256,8 @@
     The breakpoint is computed per document (FR-69): the viewport width at which the
     wide document's 12.5px legend names would render at 10px, here
     <strong id="breakpoint-px">—</strong>. Resize the window across it to switch. Quadrants render in case-insensitive
-    alphabetical order (FR-10); rings come from the selector below, centre to edge,
-    exactly as <code>--rings</code> declares them.
+    alphabetical order (FR-10); rings come from the selector below, edge to centre,
+    exactly as <code>--rings</code> declares them (D-60).
   </p>
 
   <div class="toolbar">
@@ -266,12 +266,12 @@
       <option value="three">3 — Tool / Platform / Practice (current design)</option>
       <option value="five">5 — stress test (+ Language/Framework, + Data)</option>
     </select>
-    <label for="ringset">Rings (centre → edge)</label>
+    <label for="ringset">Rings (edge → centre)</label>
     <select id="ringset">
-      <option value="default">Retire, Adopt, Trial, Assess — in-house default</option>
-      <option value="thoughtworks">Adopt, Trial, Assess, Hold — ThoughtWorks</option>
-      <option value="five">Retire, Adopt, Trial, Assess, Watch — 5 bands</option>
-      <option value="two">Retire, Adopt — 2 bands</option>
+      <option value="default">Assess, Trial, Adopt, Retire — in-house default</option>
+      <option value="thoughtworks">Hold, Assess, Trial, Adopt — ThoughtWorks</option>
+      <option value="five">Watch, Assess, Trial, Adopt, Retire — 5 bands</option>
+      <option value="two">Adopt, Retire — 2 bands</option>
     </select>
     <button id="toggle-title">Hide title block</button>
     <button id="toggle-table">Show as table</button>
@@ -310,15 +310,16 @@
 </div>
 
 <script>
-// Ring sets stand in for --rings: an ordered list, centre → edge (FR-12). Bands are
+// Ring sets stand in for --rings: an ordered list, edge → centre (FR-12, D-60).
+// render() reverses each once, so the code below indexes bands centre-out. Bands are
 // derived from the list length rather than hardcoded, so N is a parameter of the
 // geometry and not a constant (FR-14, FR-32). Rings a dataset never uses still draw
 // their band (FR-19); dataset rings absent from the list go unplotted (FR-17).
 const RING_SETS = {
-  default:      ["Retire", "Adopt", "Trial", "Assess"],
-  thoughtworks: ["Adopt", "Trial", "Assess", "Hold"],
-  five:         ["Retire", "Adopt", "Trial", "Assess", "Watch"],
-  two:          ["Retire", "Adopt"]
+  default:      ["Assess", "Trial", "Adopt", "Retire"],
+  thoughtworks: ["Hold", "Assess", "Trial", "Adopt"],
+  five:         ["Watch", "Assess", "Trial", "Adopt", "Retire"],
+  two:          ["Adopt", "Retire"]
 };
 const R_MAX = 260; // outermost band edge; bands divide this equally (FR-32)
 // FR-81: eight entries, assigned by sorted quadrant index and cycled with % 8 past
@@ -550,8 +551,8 @@ function prepare(data, rings) {
   const plotted = data.items.filter((it) => ringIndex(it.ring) !== -1);
   const unplotted = data.items.filter((it) => ringIndex(it.ring) === -1);
 
-  // FR-34: quadrant, then ring in the order the legend presents it — the reverse of
-  // the declared centre-to-edge list (FR-35) — then name, then CSV order as the final
+  // FR-34: quadrant, then ring in the declared edge-to-centre order, which the legend
+  // presents (FR-35) — the reverse of `rings` here — then name, then CSV order as the final
   // tiebreak. Numbering follows presentation order so a quadrant's numbers ascend as
   // the reader scans down its legend group, rather than descending (D-33). A total
   // order, which is what makes numbering reproducible.
@@ -695,8 +696,8 @@ function buildLegend(items, quadrants, rings, legendW) {
     parts.push(`<text class="legend-group-title" x="${INDENT_QUADRANT}" y="${y}">${esc(q)}</text>`);
     y += 18;
 
-    // FR-35: rings run in the reverse of the declared centre-to-edge order, so the
-    // legend reads earliest lifecycle stage first.
+    // FR-35: rings run in the declared edge-to-centre order (`rings` reversed back),
+    // so the legend reads earliest lifecycle stage first.
     rings.slice().reverse().forEach((ring) => {
       const ringItems = items.filter((it) =>
         it.quadrant.trim().toLowerCase() === q.toLowerCase() &&
@@ -814,7 +815,8 @@ function setBreakpoint(wideWidth) {
 
 function render() {
   const data = DATASETS[document.getElementById("dataset").value];
-  const rings = RING_SETS[document.getElementById("ringset").value];
+  // Centre-out from here on: the geometry indexes bands from the centre.
+  const rings = RING_SETS[document.getElementById("ringset").value].slice().reverse();
   const prep = prepare(data, rings);
 
   const title = showTitle ? "Technology Radar" : null;

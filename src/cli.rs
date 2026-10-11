@@ -28,7 +28,7 @@ pub struct Cli {
     #[arg(short, long)]
     pub output: PathBuf,
 
-    /// Centre-to-edge ordered ring list (FR-12–FR-15). Absent yields the
+    /// Edge-to-centre ordered ring list (FR-12–FR-15). Absent yields the
     /// FR-13 default.
     #[arg(short, long)]
     pub rings: Option<String>,
