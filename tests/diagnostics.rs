@@ -780,8 +780,10 @@ fn fatal_messages() {
                 line: 4,
                 found: 2,
                 expected: 1,
+                unnamed: 0,
+                padded: false,
             },
-            "error: line 4: the row has 2 values but the header has 1 column; a comma inside a value needs the value in double quotes",
+            "error: line 4: the row has 2 values but the header has 1 column; a row with more values usually has a comma that needs the value in double quotes",
         ),
     ];
     for (fatal, expected) in cases {
@@ -849,6 +851,22 @@ fn csv_header_and_row_messages() {
         line: 4,
         found,
         expected: 2,
+        unnamed: 0,
+        padded: false,
+    };
+    let padded = Fatal::FieldCount {
+        line: 4,
+        found: 3,
+        expected: 2,
+        unnamed: 0,
+        padded: true,
+    };
+    let unnamed = Fatal::FieldCount {
+        line: 4,
+        found: 1,
+        expected: 2,
+        unnamed: 1,
+        padded: false,
     };
     let cases = [
         (
@@ -862,11 +880,19 @@ fn csv_header_and_row_messages() {
         ),
         (
             count(3),
-            "error: line 4: the row has 3 values but the header has 2 columns; a comma inside a value needs the value in double quotes",
+            "error: line 4: the row has 3 values but the header has 2 columns; a row with more values usually has a comma that needs the value in double quotes",
         ),
         (
             count(1),
-            "error: line 4: the row has 1 value but the header has 2 columns; a value is missing, or an unquoted line break split the row",
+            "error: line 4: the row has 1 value but the header has 2 columns; a row with fewer values is usually missing one, or an unquoted line break split it",
+        ),
+        (
+            padded,
+            "error: line 4: the row has 3 values but the header has 2 columns; rows with more values end in empty cells: delete them, or give the header matching empty columns",
+        ),
+        (
+            unnamed,
+            "error: line 4: the row has 1 value but the header has 2 columns, 1 of them unnamed; a row with fewer values is usually missing one, or an unquoted line break split it",
         ),
     ];
     for (fatal, expected) in cases {

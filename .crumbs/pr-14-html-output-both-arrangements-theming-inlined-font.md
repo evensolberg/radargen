@@ -39,3 +39,5 @@ Wire the pipeline end to end in main.rs. FR-69 media-query switch, FR-56 dual pa
 [2026-10-11] From PR 07 (order.rs): the HTML emitter reads Plotted::numbers[i] (aligned with Catalogue::items; None when unplotted) for FR-78's number column and Catalogue::accessible_name, and Plotted::table_rows() for FR-78's row order (plotted in FR-34 order, then unplotted in CSV order).
 
 [2026-10-11] [2026-10-11] From PR 08: the pipeline calls layout::geometry::warn_crowding(&catalogue, &plotted, &mut warnings) after resolve, before printing (FR-88, FR-89; render warnings sort first by NFR-11).
+
+[2026-10-11] [2026-10-11] From PR C: main.rs prints tier-two row errors through errors::render_errors(&[parse errors, then build_catalogue errors], table.records.len()), never Fatal::render on that path — render_errors groups them (D-62), orders them (NFR-11) and adds FR-4's header-first cause. Print the block after the warnings.

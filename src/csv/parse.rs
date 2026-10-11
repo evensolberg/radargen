@@ -263,6 +263,7 @@ fn header(first: Option<Result<Record, Malformed>>) -> Result<Record, Fatal> {
 fn checked(rows: Vec<Record>, header: &[String], w: &mut Warnings) -> (Vec<Record>, Vec<Fatal>) {
     let mut records = Vec::new();
     let mut errors = Vec::new();
+    let unnamed = header.iter().filter(|name| trim(name).is_empty()).count();
     for mut row in rows {
         let removed = cleaned(&mut row);
         warn(w, row.line, &removed, header);
@@ -273,6 +274,13 @@ fn checked(rows: Vec<Record>, header: &[String], w: &mut Warnings) -> (Vec<Recor
                 line: row.line,
                 found: row.fields.len(),
                 expected: header.len(),
+                unnamed,
+                padded: row.fields.len() > header.len()
+                    && row
+                        .fields
+                        .iter()
+                        .skip(header.len())
+                        .all(|f| trim(f).is_empty()),
             });
         }
     }
@@ -682,6 +690,8 @@ mod tests {
             line,
             found,
             expected: 2,
+            unnamed: 0,
+            padded: false,
         }
         .render()
     }
@@ -875,6 +885,45 @@ mod tests {
             }))
         ));
         assert!(s.next().is_none());
+    }
+
+    /// `(line, found, unnamed, padded)` of every field-count error.
+    fn count_facts(text: &str) -> Vec<(usize, usize, usize, bool)> {
+        let mut w = Warnings::default();
+        let (_, errs) = parse(text, &mut w).expect("parses");
+        errs.iter()
+            .filter_map(|e| match e {
+                Fatal::FieldCount {
+                    line,
+                    found,
+                    unnamed,
+                    padded,
+                    ..
+                } => Some((*line, *found, *unnamed, *padded)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// rg-w18: trailing empty cells are padding; a value past the header is not.
+    #[test]
+    fn a_row_padded_with_empty_cells_is_marked_padded() {
+        assert_eq!(
+            count_facts("a,b\n1,2,,\n1,2, \u{200b},\n1,2,x\n1\n"),
+            [
+                (2, 4, 0, true),
+                (3, 4, 0, true),
+                (4, 3, 0, false),
+                (5, 1, 0, false),
+            ]
+        );
+    }
+
+    /// FR-93: a header's empty cells are counted, whitespace and format
+    /// characters included.
+    #[test]
+    fn the_unnamed_header_columns_are_counted() {
+        assert_eq!(count_facts("a,,b, ,\u{feff}\n1\n"), [(2, 1, 3, false)]);
     }
 
     /// FR-4, NFR-16 tier two: every bad row at once, in line order.
@@ -1121,7 +1170,15 @@ mod tests {
     #[test]
     fn a_short_or_long_row_still_warns_about_removal() {
         let (_, errs, warnings) = parsed("a,b\n\u{1}\nx,\u{2},\u{3}\n");
-        assert_eq!(errs, [count(2, 1), count(3, 3),]);
+        // FR-90's removal comes first, so the third value is empty: padding.
+        let padded = Fatal::FieldCount {
+            line: 3,
+            found: 3,
+            expected: 2,
+            unnamed: 0,
+            padded: true,
+        };
+        assert_eq!(errs, [count(2, 1), padded.render()]);
         assert_eq!(
             warnings,
             [
