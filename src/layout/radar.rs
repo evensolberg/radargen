@@ -656,6 +656,9 @@ mod tests {
             assert!(near(halo.origin, name.origin));
             assert_eq!(halo.anchor, name.anchor);
             assert_eq!(halo.lines, name.lines);
+            assert_eq!(halo.style.weight, name.style.weight);
+            assert!(close(halo.style.size, name.style.size));
+            assert!(close(halo.style.letter_spacing, name.style.letter_spacing));
             let TextPaint::Halo { stroke, width } = halo.ink else {
                 panic!("expected a halo, got {:?}", halo.ink);
             };
