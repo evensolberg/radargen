@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-use crate::rings::RingsError;
+use crate::rings::{RingSource, RingsError};
 use crate::{normalise, trim};
 
 /// Where a warning points: its sort key.
@@ -53,8 +53,8 @@ impl fmt::Display for DateColumn {
 /// the CSV had them; display trims them (FR-76) and escapes control characters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RowKind {
-    /// FR-17.
-    UndeclaredRing { value: String },
+    /// FR-17. `source` is what the message says to edit (D-61).
+    UndeclaredRing { value: String, source: RingSource },
     /// FR-20 — non-blank only; a blank qualifier claims nothing (D-35).
     UnrecognisedQualifier { value: String },
     /// FR-26 — non-blank only, as FR-20.
@@ -126,7 +126,9 @@ impl fmt::Display for Warning {
 /// columns are separate classes, so each grouped line names its column.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Class {
-    Ring,
+    /// One run declares one ring set, so the source never splits a class;
+    /// it rides here so the grouped line can name it.
+    Ring(RingSource),
     Qualifier,
     Status,
     Date(DateColumn),
@@ -138,7 +140,7 @@ enum Class {
 impl RowKind {
     const fn class(&self) -> Class {
         match self {
-            Self::UndeclaredRing { .. } => Class::Ring,
+            Self::UndeclaredRing { source, .. } => Class::Ring(*source),
             Self::UnrecognisedQualifier { .. } => Class::Qualifier,
             Self::UnrecognisedStatus { .. } => Class::Status,
             Self::UnparsableDate { column, .. } => Class::Date(*column),
@@ -166,7 +168,7 @@ impl RowKind {
     /// The value NFR-20 enumerates; `None` for a class that lists positions.
     fn value(&self) -> Option<&str> {
         match self {
-            Self::UndeclaredRing { value }
+            Self::UndeclaredRing { value, .. }
             | Self::UnrecognisedQualifier { value }
             | Self::UnrecognisedStatus { value }
             | Self::UnparsableDate { value, .. }
@@ -178,8 +180,8 @@ impl RowKind {
     fn message(&self) -> String {
         let v = self.value().map(trim).unwrap_or_default();
         match self {
-            Self::UndeclaredRing { .. } => format!(
-                "'{v}' is not declared by --rings; the row is in the table view, not on the radar"
+            Self::UndeclaredRing { source, .. } => format!(
+                "'{v}' is not declared by {source}; the row is in the table view, not on the radar"
             ),
             Self::UnrecognisedQualifier { .. } => {
                 format!("unrecognised qualifier value '{v}'; drawn solid")
@@ -342,8 +344,8 @@ impl Member<'_> {
 fn grouped(class: Class, members: &[Member]) -> String {
     let n = members.len();
     match class {
-        Class::Ring => format!(
-            "{n} rows use a ring --rings does not declare — {}; all appear in the table view",
+        Class::Ring(source) => format!(
+            "{n} rows use a ring not declared by {source} — {}; all appear in the table view",
             tallied(members, normalise)
         ),
         Class::Qualifier => format!(

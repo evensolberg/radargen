@@ -4,7 +4,7 @@
 use radargen::diagnostics::{
     DateColumn, Fatal, Position, RenderKind, RowKind, Separator, Warning, Warnings,
 };
-use radargen::rings::RingsError;
+use radargen::rings::{RingSource, RingsError};
 
 fn at(line: usize, column: usize, kind: RowKind) -> Warning {
     Warning::Row { line, column, kind }
@@ -16,6 +16,7 @@ fn ring(line: usize, value: &str) -> Warning {
         2,
         RowKind::UndeclaredRing {
             value: value.into(),
+            source: RingSource::Flag,
         },
     )
 }
@@ -210,6 +211,7 @@ fn control_characters_in_values_are_shown_escaped() {
             2,
             RowKind::UndeclaredRing {
                 value: format!("a{c}b"),
+                source: RingSource::Flag,
             },
         )
         .to_string();
@@ -264,8 +266,37 @@ fn forty_rows_and_a_typo_make_one_ring_line_and_a_duplicate_keeps_its_own() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 41 rows use a ring --rings does not declare — In Use (40, first line 4), Adpot (1, line 37); all appear in the table view",
+            "warning: 41 rows use a ring not declared by --rings — In Use (40, first line 4), Adpot (1, line 37); all appear in the table view",
             "warning: line 50, name: 'Kafka' repeats line 9; both are drawn",
+        ]
+    );
+}
+
+/// FR-17 (D-61): the message names where the ring set came from, so an
+/// author who never passed `--rings` is not told to edit it.
+#[test]
+fn the_ring_warning_names_the_default_ring_set_when_no_flag_declared_one() {
+    let default = |line| {
+        at(
+            line,
+            2,
+            RowKind::UndeclaredRing {
+                value: "Adpot".into(),
+                source: RingSource::Default,
+            },
+        )
+    };
+    assert_eq!(
+        default(37).to_string(),
+        "line 37, ring: 'Adpot' is not declared by the default ring set; the row is in the table view, not on the radar"
+    );
+    let mut w = Warnings::default();
+    w.push(default(4));
+    w.push(default(9));
+    assert_eq!(
+        w.render(),
+        vec![
+            "warning: 2 rows use a ring not declared by the default ring set — Adpot (2, first line 4); all appear in the table view"
         ]
     );
 }
@@ -291,7 +322,7 @@ fn values_group_under_fr_76_normalisation() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 3 rows use a ring --rings does not declare — In Use (3, first line 4); all appear in the table view",
+            "warning: 3 rows use a ring not declared by --rings — In Use (3, first line 4); all appear in the table view",
         ]
     );
 }
@@ -501,7 +532,7 @@ fn grouped_values_order_by_first_line_not_push_order() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 3 rows use a ring --rings does not declare — In Use (2, first line 4), Adpot (1, line 37); all appear in the table view",
+            "warning: 3 rows use a ring not declared by --rings — In Use (2, first line 4), Adpot (1, line 37); all appear in the table view",
         ]
     );
 }

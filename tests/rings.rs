@@ -1,12 +1,12 @@
 //! `--rings` parsing and validation (FR-12–FR-15, FR-63).
 
-use radargen::rings::{RingsError, parse_rings};
+use radargen::rings::{RingSource, RingsError, parse_rings};
 
 #[test]
 fn omitting_the_flag_yields_the_in_house_default() {
     // FR-13, edge-to-centre (FR-12, D-60): the lifecycle as it is read.
     assert_eq!(
-        parse_rings(None).expect("default is valid"),
+        parse_rings(None).expect("default is valid").rings,
         vec!["Assess", "Trial", "Adopt", "Retire"]
     );
 }
@@ -14,10 +14,25 @@ fn omitting_the_flag_yields_the_in_house_default() {
 /// FR-15 uses FR-76's trim, so a zero-width space pasted in with a ring
 /// name neither shows in its band label nor stops it matching, nor hides
 /// a duplicate (D-61).
+/// FR-17 (D-61): the warning names where the rings came from.
+#[test]
+fn the_set_records_its_source() {
+    assert_eq!(
+        parse_rings(None).expect("default is valid").source,
+        RingSource::Default
+    );
+    assert_eq!(
+        parse_rings(Some("Adopt")).expect("valid").source,
+        RingSource::Flag
+    );
+}
+
 #[test]
 fn entries_lose_invisible_format_characters_at_their_ends() {
     assert_eq!(
-        parse_rings(Some("\u{feff}Adopt\u{200b}, Trial")).expect("valid"),
+        parse_rings(Some("\u{feff}Adopt\u{200b}, Trial"))
+            .expect("valid")
+            .rings,
         vec!["Adopt", "Trial"]
     );
     assert!(matches!(
@@ -39,7 +54,9 @@ fn entries_are_trimmed_but_keep_internal_spaces() {
     // FR-15: `"Adopt, Trial"` and `"Adopt,Trial"` parse identically, while a
     // multi-word ring name survives intact.
     assert_eq!(
-        parse_rings(Some("Adopt, In Use , Retire")).expect("valid"),
+        parse_rings(Some("Adopt, In Use , Retire"))
+            .expect("valid")
+            .rings,
         vec!["Adopt", "In Use", "Retire"]
     );
 }
@@ -47,7 +64,10 @@ fn entries_are_trimmed_but_keep_internal_spaces() {
 #[test]
 fn a_single_ring_is_valid() {
     // FR-63: the list must yield at least one.
-    assert_eq!(parse_rings(Some("Adopt")).expect("valid"), vec!["Adopt"]);
+    assert_eq!(
+        parse_rings(Some("Adopt")).expect("valid").rings,
+        vec!["Adopt"]
+    );
 }
 
 #[test]
@@ -113,7 +133,7 @@ fn the_declared_casing_is_what_gets_displayed() {
     // FR-76: normalisation never edits displayed text beyond FR-15's trim —
     // the declared name is what appears as a band label and legend subheading.
     assert_eq!(
-        parse_rings(Some("ADOPT,trial")).expect("valid"),
+        parse_rings(Some("ADOPT,trial")).expect("valid").rings,
         vec!["ADOPT", "trial"]
     );
 }
