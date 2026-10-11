@@ -1,7 +1,7 @@
 # radargen — Design
 
 **Status:** draft, for review
-**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.42
+**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.44
 **Date:** 2026-08-29
 
 > **What this document is for.** The PRD says *what* radargen does and carries
@@ -54,13 +54,13 @@ pure.
     │  parse        FR-90 removal, header, field counts       FR-3, FR-4, FR-90
     ▼
   Table            header and records; FR-4 errors beside it
-    │  model        map columns, check required values        FR-5, FR-6
+    │  model        map columns, check values, match rings    FR-5–FR-29, FR-93
     ▼
   Catalogue ───────────────────────────────────────┐          FR-5–FR-29
-    │  resolve      match rings, order, number     │          FR-9–FR-19, FR-34
+    │  resolve      order, number                  │          FR-10, FR-18, FR-34
     ▼                                              │
   Plotted          what is drawn, in drawing order │
-    │  layout       geometry → sized Blocks        │          FR-30–FR-43, FR-77
+    │  layout       geometry → sized Blocks        │          FR-19, FR-30–FR-43, FR-77
     ▼                                              │
   Blocks           title, radar, legend, key       │
     │  arrange      wide │ narrow                  │          FR-68–FR-71
@@ -86,16 +86,21 @@ unplotted included, carrying every optional column the header declared, and
 **FR-38's detail panel is built from exactly the prose the graphic omits**. Both
 are HTML chrome around the graphic, not part of it. So the HTML emitter takes
 `(&Document wide, &Document narrow, &Catalogue)` and the static emitters take
-`(&Document wide)` alone.
+`(&Document wide)` alone. The HTML emitter also reads FR-18's numbers from
+`resolve`'s output, keyed by `Item::line`, for FR-78's number column and FR-50's
+accessible names.
 
 **`Catalogue` therefore keeps the CSV's shape, not only its meaning.** FR-27
 ignores unrecognised columns and FR-78 puts every one of them in the table, in
 header order — so an `Item` of named, typed fields cannot serve the table on its
 own, and reaching back past the waist to the `Table` would give the HTML
-emitter a second input to keep in step. `Catalogue` carries the declared header as an
-ordered list and each row's unrecognised cells beside its typed ones, which
-makes FR-78's "every optional column the header declared" a lookup rather than a
-re-parse. An unnamed column is not in that list; FR-93 drops it.
+emitter a second input to keep in step. `Catalogue` carries the named columns in header order and, per row, every named
+cell as written (`Item::cells`, read through `Item::cell`, which applies FR-29).
+Typed fields exist only where behaviour depends on them: quadrant, ring,
+qualifier, status and `name_key`. That makes FR-78's "every optional column the
+header declared" a lookup rather than a re-parse. The quadrant and a plotted
+ring are displayed through their labels (FR-9, FR-15), not their cells, so the
+table and detail panel match the radar and legend. An unnamed column is not in that list; FR-93 drops it.
 
 That asymmetry is not a leak in the waist — it is D-26 expressed as a type
 signature. A static image has nothing to put the prose in, and it is structurally
@@ -115,14 +120,14 @@ declarations only and are not listed.
 
 | File | Responsibility | Slice |
 | --- | --- | --- |
-| `src/lib.rs` | Crate root, lint gate. `normalise()` — FR-76's single rule, stated once | *exists* |
+| `src/lib.rs` | Crate root, lint gate. `normalise()` — FR-76's single rule, stated once; `trim()` — FR-76's trim, also the display trim (D-61) | *exists* |
 | `src/main.rs` | Parse args, run the pipeline, map outcome to exit code and stderr (NFR-16 tier one) | *stub* |
 | `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52). In v1.1, also the `--config` merge under the command-line flags and `{edition}` expansion, both before any other validation (FR-91, FR-92) | *exists* |
 | `src/diagnostics.rs` | `Fatal`, `Warning`, `Warnings` — the taxonomy and NFR-20 grouping | v1.0 |
 | `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17) | *exists* |
 | `src/csv/decode.rs` | Bytes → `String`: BOM, UTF-8, line numbering (FR-1, FR-2, FR-61); `read` is the stage's one file read | v1.0 |
 | `src/csv/parse.rs` | String → `Table` (header and records); header, field counts (FR-3, FR-4); removal of undisplayable characters, with a warning, before any other check except the blank-record test (FR-90, FR-3), using `escape::displayable` so both modules share one set | v1.0 |
-| `src/model.rs` | `Item`, `Catalogue`; column validation (FR-5–FR-29); the declared header order and each row's unrecognised cells (FR-27, FR-78); `accessible_name()` (FR-50, FR-75) | v1.0 |
+| `src/model.rs` | `Item`, `Catalogue`; column validation, quadrant grouping and ring matching (FR-5–FR-29); the named columns in header order and every row's cells (FR-27, FR-78); unnamed columns dropped, with a warning when they hold a value (FR-93); `accessible_name()` (FR-50, FR-75) | v1.0 |
 | `src/order.rs` | Every comparator: quadrants (FR-10), items (FR-34), `compare_names` | v1.0 |
 | `src/style.rs` | Every layout constant: type scale, the legend's three indents (FR-35), marker radius, band label offsets, legend column maximum (FR-79), and the legibility floor FR-69's breakpoint is computed from (§4) | v1.0 |
 | `src/palette.rs` | `Role`; FR-81/FR-82 built-in values; FR-67's quadrant index → series entry, including its cycling; `--palette` parsing and FR-86/FR-87 validation | v1.0 / v1.1 |
@@ -282,7 +287,7 @@ apart.
 
 **No node carries a hex value.** Fills, strokes and text colours name a
 `palette::Role` — FR-82's eight neutrals and FR-81's indexed series entries — and
-the *emitter* binds it. A number on a solid marker names the series entry it sits
+the *emitter* binds it. A quadrant's series entry is indexed by its FR-10 rank from `order.rs` (FR-67), never by `Item::quadrant`, which is first-appearance order. A number on a solid marker names the series entry it sits
 on, and binding picks whichever of `#FFFFFF` and `#16191F` contrasts more with
 that entry's value (FR-82, D-54). That is a function of the value, not a ninth
 role:
@@ -406,7 +411,7 @@ signature says whether a stage is capable of warning, which is worth more than
 uniformity.
 
 ```rust
-pub fn build_catalogue(table: &Table, w: &mut Warnings) -> Result<Catalogue, Vec<Fatal>>;
+pub fn build_catalogue(table: &Table, rings: &RingSet, w: &mut Warnings) -> Result<Catalogue, Vec<Fatal>>;
 pub fn layout(cat: &Catalogue, cfg: &Config, w: &mut Warnings) -> Blocks;
 ```
 
@@ -423,8 +428,14 @@ then sorted (NFR-11) and grouped (NFR-20, D-62) once, at print time, as
 line-without-column position — FR-4's mismatched row, FR-5 on the header's
 line — ordered before the same line's column positions.
 
-`Config` is the resolved run: the ring list and its source (FR-17), the
-palette, the theme, the width, the title strings. It is built once in
+`build_catalogue` takes the ring set because matching a row's ring is part of
+what the row means (FR-16), and FR-17's warning names the set's source. It
+checks every row before building any, so its `Err` comes with no warning of its
+own; warnings other stages already pushed still print, before the errors
+(NFR-11).
+
+`Config` is the resolved run: the `RingSet` (the ring list and its source, FR-17), the
+palette, the theme, the width, the title strings. Only `build_catalogue` reads the `RingSet`; stages below read `Catalogue::rings`. It is built once in
 `main.rs` from `Cli` plus `rings.rs` plus `palette.rs` and is read-only
 thereafter, so no stage below can reinterpret a flag differently from another.
 
@@ -473,7 +484,7 @@ because it is two questions.
 | --- | --- | --- |
 | **OQ-16** marker in output px | `style::MARKER_RADIUS` + `layout::geometry` | Marker radius is a *constant with one reader-set*, and already a parameter of layout rather than a literal. Either policy plugs in without restructuring — but note OQ-16 (c): FR-89's capacity threshold becomes width-dependent, so `geometry::capacity()` gains an argument |
 | **OQ-9** *(a)* what "case-insensitively" means *(closed, D-53)* | `lib::normalise` | The single folding site — FR-9, FR-16, FR-20, FR-26, FR-28 all compare through it. Unicode's default lowercase mapping, `str::to_lowercase`, which is what it already does |
-| **OQ-9** *(b)* what "ordinally" means above the BMP *(closed, D-53)* | `order::compare_names` | Unicode code point, which is UTF-8 byte order and so plain `str::cmp`. Documented at that site, since it differs from the prototype's UTF-16 order |
+| **OQ-9** *(b)* what "ordinally" means above the BMP *(closed, D-53)* | `order::compare_names` | Unicode code point, which is UTF-8 byte order and so plain `str::cmp`. Documented at that site, since it differs from the prototype's UTF-16 order. FR-9's label choice in `model.rs` applies the same rule — a plain `<` on `&str` — without being a second home: it cannot call `order.rs` (a cycle) and cites D-53 |
 | **OQ-17** `--quadrants` *(deferred)* | `order.rs` | FR-10's quadrant order is computed in one place and handed to layout as a list, so an explicit order later replaces the computation rather than the consumers |
 | **OQ-6** `--palette` *(closed)* | `palette.rs` | Parsing and FR-86/FR-87 validation |
 | **OQ-3** `--strict` | — | Not code. §4 rules it out for this version |
@@ -527,7 +538,7 @@ is on plan, not short.
 | Level | What | Where |
 | --- | --- | --- |
 | Unit | Pure functions: `normalise`, comparators, geometry, `fmt_coord`, escaping, capacity | Beside the module, `#[cfg(test)]` |
-| Contract | The CLI surface, the diagnostic taxonomy, `--rings` validation | `tests/cli.rs`, `tests/diagnostics.rs`, `tests/rings.rs` |
+| Contract | The CLI surface, the diagnostic taxonomy, `--rings` validation | `tests/cli.rs`, `tests/diagnostics.rs`, `tests/model.rs`, `tests/rings.rs` |
 | Oracle | Our measurement against the thing that rasterises it; and §11's outlining against the `<text>` it replaces | `tests/agrees_with_resvg.rs`, `tests/rasterises_within_measurement.rs`, `tests/outlines_match_text.rs` |
 | Golden | CSV in → exact bytes out, per format and per ring set | `tests/golden/` |
 | Determinism | Two **separate process invocations**, byte-compared | `tests/determinism.rs` |
@@ -651,4 +662,4 @@ that outlives the measurement behind it.
 | Legend height sets the document height past ~25 items (**R-3**) | Accepted for this version, per the PRD. The `Block` shape is what makes the likely answer — a multi-column legend in the wide arrangement — a change inside `layout/legend.rs` and nowhere else |
 | The pinned font (**R-7**) | Swapped to Inter before step 4 of §9 (PR 01). Subset sizes are in §3; no Reserved Font Name |
 | `emit/svg.rs` outlines its text, so it is a converter rather than a serialiser and costs more than §14.2 assumed (**§11**) | Accepted — the spike showed the alternative fails in two of the consumers tested, including our own `resvg`. Bounded to one file in v1.1; `Document` and the HTML output are untouched. Illustrator and Figma rest on secondary reports and are worth confirming first-hand while building v1.1, but no decision waits on that |
-| Both arrangements live in one DOM, so every interactive element exists twice and a breakpoint change can move the focused one out of the tree (**§5**) | No `id`s, identity as `data-item`, selection and focus-return keyed on the item rather than the element. The rule sits in `Document`'s shape, so the interactive layer cannot reintroduce it by forgetting |
+| Both arrangements live in one DOM, so every interactive element exists twice and a breakpoint change can move the focused one out of the tree (**§5**) | No `id`s, identity as `data-row`, selection and focus-return keyed on the item rather than the element. The rule sits in `Document`'s shape, so the interactive layer cannot reintroduce it by forgetting |

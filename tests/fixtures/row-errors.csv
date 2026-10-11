@@ -1,0 +1,8 @@
+name,quadrant,ring,domain
+Kafka,Tool,Adopt,Streaming
+,Tool,Adopt,Streaming
+Flink,Tool,Trial
+Spark,Tool, ,Batch
+,,,
+Beam,,Assess,Batch,extra
+Storm,,Retire,Streaming

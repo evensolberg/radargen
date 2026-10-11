@@ -1,0 +1,8 @@
+name,quadrant,ring,description,qualifier,domain,rationale,last_affirmed,exit_date,status
+Terraform,Tool,Adopt,"Declarative infrastructure-as-code tool for provisioning cloud and on-prem resources.",default,Infrastructure as Code,"Default IaC tool across all managed environments.",2026-06-01,,No Change
+Pulumi,Tool,Adopt,"Infrastructure-as-code authored in a general-purpose language instead of a domain-specific syntax.",conditional,Infrastructure as Code,"Acceptable where a client mandates a general-purpose language over HCL.",2026-06-01,,New
+Ansible,Tool,Trial,"Agentless configuration management and orchestration over SSH.",,Configuration Management,"Bounded trial on one managed estate; was Assess last edition.",2026-05-12,,Moved In
+Chef,Tool,Retire,"Agent-based configuration management using a Ruby DSL.",,Configuration Management,"Superseded by the Ansible trial outcome; migration owned and scheduled.",2026-03-15,2027-01-31,
+Kubernetes,Platform,Adopt,"Container orchestration platform for deploying, scaling, and managing containerised workloads.",default,Container Orchestration,"Default for all new containerised workloads.",2026-06-01,,
+Trunk-Based Development,Practice,Adopt,"Developers integrate small, frequent changes into a shared trunk.",default,Delivery Practice,"Default branching model for managed delivery teams.",2026-06-01,,
+Legacy Ticketing-Driven Change,Practice,Rejected,"Manual, ticket-driven change approval replacing automated policy gates.",,Operations Practice,"Declined during the 2026 review — see the domain ADR.",2026-01-10,,

@@ -202,6 +202,68 @@ pub struct Catalogue {
     pub items: Vec<Item>,
 }
 
+impl Catalogue {
+    /// The index in [`Catalogue::columns`] of the first column of `kind`.
+    #[must_use]
+    pub fn column(&self, kind: ColumnKind) -> Option<usize> {
+        self.columns.iter().position(|c| c.kind == kind)
+    }
+
+    /// FR-50, FR-75: an accessible name for a marker, a legend row and —
+    /// until `rg-6ny` settles how table rows are exposed — a table row.
+    /// Only a table row can be unplotted (FR-18).
+    ///
+    /// It starts with what the legend row shows — number, name, qualifier,
+    /// status (FR-74) — so the visible text is in the name (WCAG 2.5.3).
+    /// The quadrant and ring follow even where the legend's grouping shows
+    /// them, since a screen reader reaching one row by Tab sees no grouping,
+    /// and are named as such, since their names are the author's own and a
+    /// name may hold a comma.
+    /// An unplotted row has no number (FR-18) and says it is not on the
+    /// radar. The result is plain text; the emitter escapes it (NFR-6).
+    ///
+    /// `number` is FR-34's, for a plotted item, and `None` for an unplotted
+    /// one.
+    ///
+    /// # Panics
+    ///
+    /// If `item.quadrant` or `item.ring` is out of range for this
+    /// catalogue, as for an item from another one. In debug builds, also if
+    /// `number` is `Some` for an unplotted item or `None` for a plotted
+    /// one (FR-18).
+    #[must_use]
+    pub fn accessible_name(&self, item: &Item, number: Option<usize>) -> String {
+        debug_assert_eq!(number.is_some(), item.ring.is_some(), "FR-18");
+        let ring = item.ring.map_or_else(
+            || {
+                self.column(ColumnKind::Ring)
+                    .and_then(|c| item.cell(c))
+                    .map_or("", trim)
+            },
+            |r| self.rings[r].as_str(),
+        );
+        let row = [
+            Some(trim(&item.name)),
+            item.qualifier.map(Qualifier::label),
+            item.status.map(Status::label),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(", ");
+        let quadrant = &self.quadrants[item.quadrant].label;
+        let position = if ring.is_empty() {
+            format!("{quadrant} quadrant")
+        } else {
+            format!("{quadrant} quadrant, {ring} ring")
+        };
+        number.map_or_else(
+            || format!("{row}; {position}; not on the radar"),
+            |n| format!("{n}. {row}; {position}"),
+        )
+    }
+}
+
 /// FR-5–FR-29 and FR-93: the catalogue, or every row-level error.
 ///
 /// NFR-16 tier two: every missing required column (FR-5) and every empty
@@ -1220,5 +1282,78 @@ mod tests {
                 "warning: line 2, ring: 'Adpot' is not declared by the default ring set; the row is in the table view, not on the radar",
             ]
         );
+    }
+
+    // --- FR-50, FR-75 ---
+
+    /// The legend row's text first — number, name, qualifier, status —
+    /// then the quadrant and ring, named as such; an unplotted row says so
+    /// instead of a number (FR-18).
+    #[test]
+    fn accessible_names_carry_the_row_text_and_its_position() {
+        let cat = catalogue(&format!(
+            "{FULL} Kafka ,tool,adopt,d,conditional,,,moved in\nOld,Tool,Rejected,d,,,,\n"
+        ));
+        assert_eq!(
+            cat.accessible_name(&cat.items[0], Some(3)),
+            "3. Kafka, Conditional, Moved In; Tool quadrant, Adopt ring"
+        );
+        assert_eq!(
+            cat.accessible_name(&cat.items[1], None),
+            "Old; Tool quadrant, Rejected ring; not on the radar"
+        );
+    }
+
+    /// The unplotted ring is read from the named columns, so an unnamed
+    /// column before it does not shift it onto another cell.
+    #[test]
+    fn an_unplotted_ring_is_found_past_an_unnamed_column() {
+        let cat = catalogue("name,,quadrant,ring,description\nOld,,Tool,Rejected,d\n");
+        assert_eq!(
+            cat.accessible_name(&cat.items[0], None),
+            "Old; Tool quadrant, Rejected ring; not on the radar"
+        );
+        assert_eq!(cat.column(ColumnKind::Ring), Some(2));
+    }
+
+    /// A catalogue built by hand without a `ring` column names no ring,
+    /// rather than panicking or leaving an empty one in the name.
+    #[test]
+    fn an_accessible_name_without_a_ring_column_omits_the_ring() {
+        let cat = Catalogue {
+            columns: vec![Column {
+                heading: "name".into(),
+                kind: ColumnKind::Name,
+            }],
+            quadrants: vec![Quadrant {
+                key: "tool".into(),
+                label: "Tool".into(),
+            }],
+            rings: Vec::new(),
+            items: vec![Item {
+                line: 2,
+                name: "Old".into(),
+                name_key: "old".into(),
+                quadrant: 0,
+                ring: None,
+                qualifier: None,
+                status: None,
+                cells: vec!["Old".into()],
+            }],
+        };
+        assert_eq!(
+            cat.accessible_name(&cat.items[0], None),
+            "Old; Tool quadrant; not on the radar"
+        );
+    }
+
+    /// FR-18: only a plotted item has a number, and a caller passing one
+    /// for an unplotted item is a bug caught in debug builds.
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "FR-18")]
+    fn a_number_for_an_unplotted_item_is_a_bug() {
+        let cat = catalogue(&format!("{HEAD}Old,Tool,Rejected,d\n"));
+        let _ = cat.accessible_name(&cat.items[0], Some(1));
     }
 }
