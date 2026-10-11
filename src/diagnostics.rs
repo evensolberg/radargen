@@ -651,16 +651,18 @@ pub enum Fatal {
         #[source]
         source: std::io::Error,
     },
-    /// FR-61, D-27: say what to do — the likely cause is an Excel export in a
-    /// legacy code page, and "invalid utf-8" alone does not tell the author
-    /// that. `line` is the physical line holding the first bad byte.
+    /// FR-61, D-27: the input is not UTF-8, or holds a NUL byte (FR-61, D-65).
+    /// Say what to do — the likely cause is an Excel export in a legacy code
+    /// page, and "invalid utf-8" alone does not tell the author that. `line`
+    /// is the physical line holding the first bad byte.
     #[error(
         "{path}, line {line}: not UTF-8 text; re-save the file as UTF-8 (in Excel, Save As \"CSV UTF-8\")"
     )]
     NotUtf8 {
         /// The input path as given.
         path: String,
-        /// The physical line holding the first bad byte.
+        /// The physical line holding the first bad byte, or the first NUL
+        /// (FR-61, D-65).
         line: usize,
     },
     /// NFR-15: an unterminated quote swallows the rest of the file into one
@@ -696,8 +698,9 @@ pub enum Fatal {
     )]
     NoHeader,
     /// FR-1: a header with `;` or a tab between its names, or after a closing
-    /// quote, is a file with another separator — Excel writes `;` where a comma is the decimal mark.
-    /// Without this, every row would mis-report its field count.
+    /// quote, is a file with another separator — Excel writes `;` where a
+    /// comma is the decimal mark. Without this, every row would mis-report
+    /// its field count.
     #[error(
         "line {line}: the header has {separator} between its names, not commas; radargen reads comma-separated files only, so export the file with commas as the separator"
     )]

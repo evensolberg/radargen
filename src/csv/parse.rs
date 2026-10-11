@@ -823,6 +823,10 @@ mod tests {
         assert_eq!(errors("name,ring\nx,\"y\";z\n"), [after_quote(2, 1)]);
         // A quoting error in a comma-separated header is still one.
         assert_eq!(errors("\"name\"x,ring\n"), [after_quote(1, 0)]);
+        // Only U+0020 is skipped before the separator: a no-break space, or
+        // spaces and then text, stay quoting errors.
+        assert_eq!(errors("\"name\"\u{a0};ring\n"), [after_quote(1, 0)]);
+        assert_eq!(errors("\"name\"  x;ring\n"), [after_quote(1, 0)]);
         assert!(
             errors("name\nKafka\n").is_empty(),
             "one plain column is PR 06's FR-5 to judge"
@@ -900,7 +904,18 @@ mod tests {
             [rec(2, &["a", "b"]), rec(4, &["1", "2"])]
         );
         assert_eq!(errors("\u{feff}\na,b\n1,2\n"), Vec::<String>::new());
-        assert_eq!(errors("a,b\n\u{b}\n"), [count(2, 1)]);
+        // FR-90's warning still names U+000B on that row.
+        let (_, _, warnings) = parsed("a,b\n\u{b}\n");
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(
+            warnings.iter().all(|w| w.contains("removed U+000B")),
+            "{warnings:?}"
+        );
+        // FR-3: a record whose only content is a quoted line break is blank.
+        assert_eq!(
+            lines("a,b\n\"\n\",\"\"\n1,2\n"),
+            [rec(1, &["a", "b"]), rec(4, &["1", "2"])]
+        );
         assert_eq!(lines(",,,\n  \na\n"), [rec(3, &["a"])]);
         // A no-break space is whitespace FR-76 trims and FR-90 keeps: blank.
         assert_eq!(lines("\u{a0}\na\n"), [rec(2, &["a"])]);

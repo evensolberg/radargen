@@ -8,8 +8,8 @@ use crate::diagnostics::Fatal;
 /// FR-2: the UTF-8 byte-order mark.
 const BOM: &[u8] = b"\xEF\xBB\xBF";
 
-/// The input is not UTF-8. `line` is the 1-based physical line holding the
-/// first byte that is not.
+/// The input is not UTF-8, or holds a NUL byte (FR-61, D-65). `line` is the
+/// 1-based physical line holding the first offending byte.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct NotUtf8 {
     pub(crate) line: usize,
@@ -59,7 +59,7 @@ fn line_at(bytes: &[u8], offset: usize) -> usize {
 /// # Errors
 ///
 /// [`Fatal::Unreadable`] when the file cannot be read; [`Fatal::NotUtf8`]
-/// when it is not UTF-8.
+/// when it is not UTF-8, or holds a NUL byte (FR-61, D-65).
 pub fn read(path: &Path) -> Result<String, Fatal> {
     let shown = path.display().to_string();
     let bytes = std::fs::read(path).map_err(|source| Fatal::Unreadable {
@@ -118,6 +118,10 @@ mod tests {
         assert_eq!(decode(b"n\0a\0m\0e\0\n\0"), Err(NotUtf8 { line: 1 }));
         assert_eq!(decode(b"name\nKa\0fka\n"), Err(NotUtf8 { line: 2 }));
         assert_eq!(decode(b"name\nKafka\n").as_deref(), Ok("name\nKafka\n"));
+        // The NUL's own line, not the next one: the offset is not shifted.
+        assert_eq!(decode(b"a\0\nb\n"), Err(NotUtf8 { line: 1 }));
+        // Inside a quoted multi-line value the physical line still counts.
+        assert_eq!(decode(b"a\n\"x\r\ny\0\"\n"), Err(NotUtf8 { line: 3 }));
     }
 
     /// NFR-10: CRLF is one break, and a lone CR is one too, as editors count.
