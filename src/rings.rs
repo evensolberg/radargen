@@ -2,13 +2,13 @@
 //!
 //! Unlike `quadrant`, `ring` carries a lifecycle order that cannot be inferred
 //! from the names, so it is declared rather than derived (D-4). The list is
-//! **centre-to-edge** (FR-12).
+//! **edge-to-centre** (FR-12, D-60): the first entry is the outermost band.
 
 use crate::normalise;
 
-/// FR-13: the in-house lifecycle, centre-to-edge — so the radar reads
-/// outside-in as Assess -> Trial -> Adopt -> Retire.
-pub const DEFAULT_RINGS: [&str; 4] = ["Retire", "Adopt", "Trial", "Assess"];
+/// FR-13: the in-house lifecycle, edge-to-centre, so it reads as written:
+/// Assess -> Trial -> Adopt -> Retire.
+pub const DEFAULT_RINGS: [&str; 4] = ["Assess", "Trial", "Adopt", "Retire"];
 
 /// FR-63 violations. Each is a hard error naming the offending entry; none
 /// can be resolved by guessing what the author meant.

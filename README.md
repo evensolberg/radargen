@@ -5,11 +5,12 @@ v1.1, to PNG and SVG. One binary, no runtime, no network.
 
 Two things distinguish it from the industry-standard renderer: an **arbitrary
 number of quadrants** rather than a hardcoded four, and a **configurable ring
-set** whose default is the in-house lifecycle `Retire,Adopt,Trial,Assess`.
+set** whose default is the in-house lifecycle `Assess,Trial,Adopt,Retire`,
+declared from the outer edge in.
 
 ```sh
 radargen entries.csv -o 2026-09-01.html
-radargen entries.csv -o edition.html --rings "Adopt, Trial, Assess, Hold"
+radargen entries.csv -o edition.html --rings "Hold, Assess, Trial, Adopt"
 ```
 
 ## Status
