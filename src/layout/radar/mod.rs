@@ -105,12 +105,53 @@ impl Label {
     }
 }
 
+/// A quadrant's name and how far FR-79 pushes it outward (D-70).
+#[derive(Debug, Clone, PartialEq)]
+struct QuadrantLabel {
+    /// Anchored at the label point, on the sector's middle angle.
+    label: Label,
+    /// Along the middle angle, at natural size: half the name's width times
+    /// `|cos|` of the angle, which puts a middle-anchored name's inner end on
+    /// the label circle's tangent at the label point: on the circle at 3 and
+    /// 9 o'clock, beyond it elsewhere, at `√(R² + h² sin² θ)` for a drawn
+    /// half-width `h`. Nothing at 12 and 6 o'clock, half the width at 3 and 9.
+    ///
+    /// So the name's box, which reaches its ascent (11.625) above the
+    /// baseline, comes no closer to the centre than `300 s − 11.625` for
+    /// `s <= 1`, which clears the outer ring (`260 s` plus half a stroke)
+    /// from `s` of about 0.3 up. Below that a 6 o'clock name touches the
+    /// ring's stroke whatever its length, unpushed.
+    push: Point,
+}
+
+impl QuadrantLabel {
+    fn new(label: Label, middle: f64) -> Self {
+        let push = polar(
+            middle,
+            f64::midpoint(0.0, label.width) * middle.to_radians().cos().abs(),
+        );
+        Self { label, push }
+    }
+
+    /// Where the name's middle sits at `r`. The label point moves with the
+    /// geometry and the push with the text, so the inner end stays on the
+    /// label circle's tangent at the label point at any scale.
+    fn centre(&self, r: RadarScale) -> Point {
+        let at = self.label.at.scaled(r.geometry);
+        let push = self.push.scaled(r.labels);
+        Point {
+            x: at.x + push.x,
+            y: at.y + push.y,
+        }
+    }
+}
+
 /// The radar (FR-30–FR-36): its rings, dividers, labels and markers.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RadarBlock {
     geometry: Geometry,
     /// In FR-10 order: label `p` belongs to the sector at position `p`.
-    quadrants: Vec<Label>,
+    quadrants: Vec<QuadrantLabel>,
     /// In declared order, outermost first (D-60).
     rings: Vec<Label>,
     /// In FR-34's order.
@@ -139,8 +180,10 @@ impl RadarBlock {
                     .quadrants
                     .get(q)
                     .expect("FR-10's order indexes the catalogue's quadrants");
-                let at = polar(geometry.middle(p), QUADRANT_LABEL_RADIUS);
-                Label::measured(&quadrant.label, QUADRANT_LABEL, at, fonts)
+                let middle = geometry.middle(p);
+                let at = polar(middle, QUADRANT_LABEL_RADIUS);
+                let label = Label::measured(&quadrant.label, QUADRANT_LABEL, at, fonts);
+                QuadrantLabel::new(label, middle)
             })
             .collect();
         // A ring's name sits at 12 o'clock, in the middle of its band.
@@ -170,7 +213,7 @@ impl RadarBlock {
         let quadrants = self
             .quadrants
             .iter()
-            .map(|label| quadrant_reach_x(label.at, label.width, r));
+            .map(|label| quadrant_reach_x(label, r));
         let rings = self.rings.iter().map(|label| ring_reach_x(label.width, r));
         quadrants.chain(rings).fold(0.0, f64::max)
     }
@@ -180,7 +223,7 @@ impl RadarBlock {
         let quadrants = self
             .quadrants
             .iter()
-            .map(|label| quadrant_reach_y(label.at, r));
+            .map(|label| quadrant_reach_y(label, r));
         let rings = self.rings.iter().map(|label| ring_reach_y(-label.at.y, r));
         quadrants.chain(rings).fold(0.0, f64::max)
     }
@@ -232,35 +275,49 @@ impl RadarBlock {
         })
     }
 
-    /// Each quadrant's name, mid-sector beyond the rim.
+    /// Each quadrant's name, mid-sector beyond the rim, pushed out by its
+    /// own half-width (D-70). The centre is already at `r`, so only the size
+    /// scales.
     fn quadrant_labels(&self, r: RadarScale) -> impl Iterator<Item = Node> + '_ {
-        self.quadrants.iter().map(move |label| {
+        let scale = Scale {
+            position: 1.0,
+            size: r.labels,
+        };
+        self.quadrants.iter().map(move |quadrant| {
             TextRun {
-                origin: label.at,
+                origin: quadrant.centre(r),
                 style: QUADRANT_LABEL,
                 ink: Neutral::TextPrimary,
                 anchor: Anchor::Middle,
-                lines: vec![label.text.clone()],
+                lines: vec![quadrant.label.text.clone()],
                 leading: 0.0,
             }
-            .node(r.text())
+            .node(scale)
         })
     }
 
-    /// Each ring's name at 12 o'clock, over a halo so the divider there
-    /// (FR-31) stops short of it.
-    fn ring_labels(&self, r: RadarScale) -> impl Iterator<Item = Node> + '_ {
-        self.rings.iter().flat_map(move |label| {
-            let run = TextRun {
-                origin: label.at,
-                style: RING_LABEL,
-                ink: Neutral::TextMuted,
-                anchor: Anchor::Middle,
-                lines: vec![label.text.clone()],
-                leading: 0.0,
-            };
-            [run.halo(LABEL_HALO, r.text()), run.node(r.text())]
+    /// Each ring's name at 12 o'clock, outermost first.
+    fn ring_runs(&self) -> impl Iterator<Item = TextRun> + '_ {
+        self.rings.iter().map(|label| TextRun {
+            origin: label.at,
+            style: RING_LABEL,
+            ink: Neutral::TextMuted,
+            anchor: Anchor::Middle,
+            lines: vec![label.text.clone()],
+            leading: 0.0,
         })
+    }
+
+    /// Every ring's name over a halo, so the divider there (FR-31) stops
+    /// short of it. Every halo is drawn before any name: at many thin bands
+    /// a halo drawn after the previous name would erase its descenders
+    /// (D-70).
+    fn ring_labels(&self, r: RadarScale) -> impl Iterator<Item = Node> + '_ {
+        let halos = self
+            .ring_runs()
+            .map(move |run| run.halo(LABEL_HALO, r.text()));
+        let names = self.ring_runs().map(move |run| run.node(r.text()));
+        halos.chain(names)
     }
 }
 
@@ -305,24 +362,24 @@ impl Block for RadarBlock {
     }
 }
 
-/// How far a quadrant label anchored at `at` reaches left or right of the
-/// centre: its anchor's distance, then half its middle-anchored width.
+/// How far a quadrant label reaches left or right of the centre: its pushed
+/// centre's distance, then half its middle-anchored width.
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
 )]
-fn quadrant_reach_x(at: Point, width: f64, r: RadarScale) -> f64 {
-    at.x.abs() * r.geometry + f64::midpoint(0.0, width) * r.labels
+fn quadrant_reach_x(quadrant: &QuadrantLabel, r: RadarScale) -> f64 {
+    quadrant.centre(r).x.abs() + f64::midpoint(0.0, quadrant.label.width) * r.labels
 }
 
-/// How far a quadrant label anchored at `at` reaches above or below the
-/// centre: the descent below its baseline, or the ascent above it.
+/// How far a quadrant label reaches above or below the centre: the descent
+/// below its pushed baseline, or the ascent above it.
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
 )]
-fn quadrant_reach_y(at: Point, r: RadarScale) -> f64 {
-    let baseline = at.y * r.geometry;
+fn quadrant_reach_y(quadrant: &QuadrantLabel, r: RadarScale) -> f64 {
+    let baseline = quadrant.centre(r).y;
     let size = QUADRANT_LABEL.size * r.labels;
     (baseline + TEXT_DESCENT * size).max(TEXT_ASCENT * size - baseline)
 }
@@ -366,9 +423,12 @@ fn ring_reach_y(mid: f64, r: RadarScale) -> f64 {
 /// asserted at compile time, below `half_extent`. The hit term itself binds only
 /// for `s < 16 / (330 - |p|)`, about 0.23 at most.
 ///
-/// The block's size is non-decreasing in `s` from 0.0034 up. The only
-/// decreasing term is a below-centre quadrant label's ascent, at most
-/// 11.625; the outermost ring name's reach, at least `130 * s + 11.19`,
+/// The block's size is non-decreasing in `s` from 0.0034 up. A quadrant
+/// label's pushed centre is `300 s` plus a push at `max(s, 1)` along the
+/// same direction, so its distance from the centre on each axis never
+/// falls. The only decreasing term is a below-centre quadrant label's
+/// ascent, at most 11.625, since its push only lowers the baseline; the
+/// outermost ring name's reach, at least `130 * s + 11.19`,
 /// outgrows it from there. That relies on at least one ring, which
 /// `rings.rs` guarantees by rejecting an empty list. The hit term, `|p| s +
 /// 16 · max(s, 1)`, is increasing.
@@ -397,7 +457,7 @@ mod tests {
     use super::*;
     use crate::layout::block::{assert_translates, at, close, fonts};
     use crate::layout::geometry::place;
-    use crate::layout::test_support::{assert_finite, bounds, fill, near, plotted};
+    use crate::layout::test_support::{Rect, assert_finite, bounds, fill, near, plotted, plus};
     use crate::svg::TextPaint;
     use crate::text::Weight;
 
@@ -607,6 +667,28 @@ mod tests {
         }
     }
 
+    /// A quadrant name's width at natural size.
+    fn quadrant_width(fonts: &Fonts, name: &str) -> f64 {
+        fonts.face(QUADRANT_LABEL.weight).measure(
+            name,
+            QUADRANT_LABEL.size,
+            QUADRANT_LABEL.letter_spacing,
+        )
+    }
+
+    /// FR-79's centre for a name of `width` on `middle` at scale `s`, from
+    /// its parts: the label point at `s`, plus the push of half the width
+    /// times `|cos|` along the same angle at `max(s, 1)` (D-70).
+    fn pushed(middle: f64, width: f64, s: f64) -> Point {
+        plus(
+            polar(middle, 300.0 * s),
+            polar(
+                middle,
+                width / 2.0 * middle.to_radians().cos().abs() * s.max(1.0),
+            ),
+        )
+    }
+
     fn label_texts(nodes: &[Node]) -> Vec<String> {
         quadrant_labels(nodes)
             .iter()
@@ -700,7 +782,8 @@ mod tests {
                 rings: 4,
             };
             for (i, label) in quadrant_labels(&nodes).iter().enumerate() {
-                assert!(near(label.origin, polar(g.middle(i), 300.0)), "{i}");
+                let width = quadrant_width(fonts, &label.lines.concat());
+                assert!(near(label.origin, pushed(g.middle(i), width, 1.0)), "{i}");
             }
             assert_eq!(lines(&nodes).len(), 3);
         };
@@ -763,17 +846,11 @@ mod tests {
         let rendered = b.render(at(1.0));
         assert!(!decorative(&rendered), "no decorative group in the radar");
         let nodes = frame(&rendered);
-        let mut names = 0;
-        for (i, node) in nodes.iter().enumerate() {
-            let Some(name) = text(node).filter(|t| t.ink == fill(Neutral::TextMuted)) else {
-                continue;
-            };
-            names += 1;
-            let halo = i
-                .checked_sub(1)
-                .and_then(|j| nodes.get(j))
-                .and_then(text)
-                .expect("a text precedes every ring name");
+        let texts = ring_texts(&nodes);
+        let (halos, names) = texts.split_at(texts.len() / 2);
+        assert_eq!(names.len(), 4);
+        for (halo, name) in halos.iter().zip(names) {
+            assert_eq!(name.ink, fill(Neutral::TextMuted));
             assert!(near(halo.origin, name.origin));
             assert_eq!(halo.anchor, name.anchor);
             assert_eq!(halo.lines, name.lines);
@@ -786,7 +863,6 @@ mod tests {
             assert_eq!(stroke, Paint::Role(Role::Neutral(Neutral::Surface1)));
             assert!(close(width, LABEL_HALO), "{width}");
         }
-        assert_eq!(names, 4);
         let last_line = nodes
             .iter()
             .rposition(|n| matches!(n, Node::Line { .. }))
@@ -820,7 +896,8 @@ mod tests {
 
     #[test]
     fn three_scales() {
-        let b = quadrants(fonts(), 4);
+        let fonts = fonts();
+        let b = quadrants(fonts, 4);
         let g = Geometry {
             quadrants: 4,
             rings: 4,
@@ -843,8 +920,9 @@ mod tests {
             let labels = quadrant_labels(&nodes);
             assert_eq!(labels.len(), 4);
             for (p, label) in labels.iter().enumerate() {
+                let width = quadrant_width(fonts, &label.lines.concat());
                 assert!(
-                    near(label.origin, polar(g.middle(p), 300.0 * s)),
+                    near(label.origin, pushed(g.middle(p), width, s)),
                     "{s} label {p}"
                 );
                 assert!(close(label.style.size, QUADRANT_LABEL.size));
@@ -856,8 +934,9 @@ mod tests {
             let texts = ring_texts(&nodes);
             assert_eq!(texts.len(), 8);
             assert_eq!(halos(&texts), 4, "{s}: one halo per ring name");
+            // Four halos, then four names, each outermost first.
             for (i, t) in texts.iter().enumerate() {
-                let band = g.band(i / 2);
+                let band = g.band(i % 4);
                 let y = -f64::midpoint(band.inner, band.outer) * s;
                 assert!(near(t.origin, Point { x: 0.0, y }), "{s} ring text {i}");
                 assert!(close(t.style.size, RING_LABEL.size), "{s} ring text {i}");
@@ -886,14 +965,17 @@ mod tests {
             "{zero:?}"
         );
 
-        // N = 8: middle −67.5° puts a label above the centre, so its ascent
-        // sets the height once the floor (198 at 0.3) is passed.
+        // N = 8: middles −67.5° (Q0) and 247.5° (Q7) put labels above the
+        // centre, so the higher one's ascent sets the height once the floor
+        // (198 at 0.3) is passed. The push raises it by the wider name's
+        // half-width × cos 67.5° × sin 67.5°, at natural size.
         let s = 0.3;
-        let above = 300.0 * s * 67.5_f64.to_radians().sin();
+        let width = quadrant_width(fonts, "Q0").max(quadrant_width(fonts, "Q7"));
+        let above = -pushed(-67.5, width, s).y;
         let want = 2.0 * (TEXT_ASCENT * 12.0 + above + 10.0);
         let got = quadrants(fonts, 8).size(s).height;
         assert!(close(got, want), "{got} vs {want}");
-        assert!(want > 660.0 * s && (want - 209.55).abs() < 0.01, "{want}");
+        assert!(want > 660.0 * s && (want - 215.80).abs() < 0.01, "{want}");
 
         // N = 1: the label hangs below 6 o'clock, so its descent counts.
         let s = 0.4_f64;
@@ -909,14 +991,12 @@ mod tests {
     )]
     fn a_long_quadrant_label_widens_the_block() {
         let fonts = fonts();
-        let w = fonts.face(QUADRANT_LABEL.weight).measure(
-            &long(40),
-            QUADRANT_LABEL.size,
-            QUADRANT_LABEL.letter_spacing,
-        );
+        let w = quadrant_width(fonts, &long(40));
         let b = block(fonts, &csv_of(&["B", "C", "D", &long(40)], "Adopt"), None);
+        // The long name is last, on 225°: its push reaches w/2 · cos² 45°,
+        // a quarter of its width, further out horizontally.
         for s in [1.0, 0.576] {
-            let want = 2.0 * (polar(45.0, 300.0).x.abs() * s + w / 2.0 + 10.0);
+            let want = 2.0 * (polar(45.0, 300.0).x.abs() * s + w / 4.0 + w / 2.0 + 10.0);
             let got = b.size(s).width;
             assert!(close(got, want) && got > 660.0, "{s}: {got} vs {want}");
         }
@@ -1066,6 +1146,152 @@ mod tests {
         let size = none.size(s);
         let width = 2.0 * (MIN_RADAR_HALF * s).max(none.label_half_width(r) + RADAR_LABEL_PAD);
         assert!(close(size.width, width), "{} vs {width}", size.width);
+    }
+
+    #[test]
+    fn ring_halos_paint_before_every_name() {
+        let fonts = fonts();
+        let twenty: Vec<String> = (0..20).map(|i| format!("Ring {i} gjpqy")).collect();
+        let csv = csv_of(&["Tool"], "Ring 0 gjpqy");
+        for b in [
+            block(fonts, PRD_EXAMPLE, None),
+            block(fonts, &csv, Some(&twenty.join(","))),
+        ] {
+            for s in [1.0, 0.576] {
+                let nodes = frame_at(&b, s);
+                let texts = ring_texts(&nodes);
+                let first_name = texts
+                    .iter()
+                    .position(|t| t.ink == fill(Neutral::TextMuted))
+                    .expect("ring names are drawn");
+                let (halos, names) = texts.split_at(first_name);
+                assert!(
+                    halos
+                        .iter()
+                        .all(|t| matches!(t.ink, TextPaint::Halo { .. })),
+                    "{s}: only halos before the first name"
+                );
+                assert!(
+                    names.iter().all(|t| t.ink == fill(Neutral::TextMuted)),
+                    "{s}: no halo after the first name"
+                );
+                assert_eq!(halos.len(), names.len(), "{s}");
+                for (halo, name) in halos.iter().zip(names) {
+                    assert!(near(halo.origin, name.origin), "{s}");
+                    assert_eq!(halo.lines, name.lines, "{s}");
+                }
+            }
+        }
+    }
+
+    /// The nearest point of `rect` to the radar's centre, as a distance.
+    fn nearest(rect: Rect) -> f64 {
+        let x = 0.0_f64.clamp(rect.left, rect.right);
+        let y = 0.0_f64.clamp(rect.top, rect.bottom);
+        x.hypot(y)
+    }
+
+    #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    fn long_names_clear_the_outer_ring() {
+        let fonts = fonts();
+        // Short widths too: the push shrinks with the name, so a short
+        // name's box is the one nearest the ring.
+        let stems = ["i".to_owned(), "WW".to_owned(), "WWWW".to_owned(), long(30)];
+        for (n, stem) in [2, 3, 4, 8]
+            .into_iter()
+            .flat_map(|n| stems.iter().map(move |stem| (n, stem)))
+        {
+            let names: Vec<String> = (0..n).map(|i| format!("{stem}{i}")).collect();
+            let names: Vec<&str> = names.iter().map(String::as_str).collect();
+            let b = block(fonts, &csv_of(&names, "Adopt"), None);
+            for s in [1.0, 0.576, 0.4, 0.31] {
+                let ring = BAND_OUTER_RADIUS * s
+                    + f64::midpoint(0.0, GRID_STROKE * RadarScale::of(s).marks);
+                let nodes = frame_at(&b, s);
+                let labels: Vec<&Node> = nodes
+                    .iter()
+                    .filter(|node| text(node).is_some_and(|t| t.style.weight == Weight::SemiBold))
+                    .collect();
+                assert_eq!(labels.len(), n, "N = {n}");
+                for label in labels {
+                    let rect = bounds(label, fonts).expect("a label paints");
+                    let gap = nearest(rect);
+                    assert!(
+                        gap > ring,
+                        "N = {n}, {stem} at {s}: {rect:?} reaches {gap} ≤ {ring}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    fn the_inner_end_sits_on_the_tangent() {
+        let fonts = fonts();
+        for (n, stem) in [2, 3, 4, 8]
+            .into_iter()
+            .flat_map(|n| ["i", "Tool", "WWWWWWWWWWWW"].map(|stem| (n, stem)))
+        {
+            let names: Vec<String> = (0..n).map(|i| format!("{stem}{i}")).collect();
+            let names: Vec<&str> = names.iter().map(String::as_str).collect();
+            let b = block(fonts, &csv_of(&names, "Adopt"), None);
+            let g = Geometry {
+                quadrants: n,
+                rings: 4,
+            };
+            for s in [1.5, 1.0, 0.576, 0.4] {
+                let nodes = frame_at(&b, s);
+                for (p, label) in quadrant_labels(&nodes).iter().enumerate() {
+                    // The drawn node's own origin and measured width.
+                    let half = fonts.face(label.style.weight).measure(
+                        &label.lines.concat(),
+                        label.style.size,
+                        label.style.letter_spacing,
+                    ) / 2.0;
+                    let unit = polar(g.middle(p), 1.0);
+                    let inner = label.origin.x - unit.x.signum() * half;
+                    let point = polar(g.middle(p), 300.0 * s);
+                    let along = (inner - point.x) * unit.x + (label.origin.y - point.y) * unit.y;
+                    assert!(
+                        along.abs() < 1e-9,
+                        "N = {n}, {stem}{p} at {s}: {along} off the tangent"
+                    );
+                    if close(unit.y, 0.0) {
+                        assert!(
+                            close(inner, 300.0 * s * unit.x),
+                            "N = {n}, {stem}{p} at {s}: {inner}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn short_names_barely_move() {
+        let fonts = fonts();
+        // At 3/9 o'clock a one-character name moves its full half-width,
+        // under 6 units.
+        let one = block(fonts, &csv_of(&["A", "B"], "Adopt"), None);
+        let nodes = frame_at(&one, 1.0);
+        for (label, middle) in quadrant_labels(&nodes).iter().zip([0.0, 180.0]) {
+            let half = quadrant_width(fonts, &label.lines.concat()) / 2.0;
+            let old = polar(middle, 300.0);
+            let moved = (label.origin.x - old.x).hypot(label.origin.y - old.y);
+            assert!(
+                close(moved, half),
+                "{moved} vs {half}: 3/9 o'clock moves the full half"
+            );
+            assert!(half < 6.0, "{half}");
+        }
     }
 
     #[test]
