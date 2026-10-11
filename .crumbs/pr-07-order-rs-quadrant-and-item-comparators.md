@@ -1,7 +1,7 @@
 ---
 id: rg-efx
 title: 'PR 07: order.rs — quadrant and item comparators'
-status: in_progress
+status: closed
 type: task
 priority: 2
 tags:
@@ -29,3 +29,5 @@ FR-10, FR-34, compare_names. Every comparator total; asserted in tests. Waits on
 [2026-10-11] rg-40l settled by PRD v0.45 (D-63): FR-34's ordinal name tiebreak compares lib::trim(name), not folded and not raw; names equal after the trim fall through to Item::line.
 
 [start] 2026-10-11 09:26:55
+
+[stop]  2026-10-11 09:42:03  15m 8s

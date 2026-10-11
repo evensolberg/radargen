@@ -10,14 +10,14 @@ crumb_id: rg-efx
 document_title: "PR 07 — `order.rs`: quadrant and item comparators: Implementation Plan"
 created_date: 2026-10-11
 synopsis: "The resolve stage: FR-10's quadrant order and its rank, FR-34's item order through total comparators, and FR-18's numbers, returned as a Plotted that layout and the HTML emitter read without reordering the Catalogue."
-status: draft
+status: done
 type: Plan
 revision: "1.1"
 review_date: 2026-10-11
 reviewed_by:
   - rust-engineer
   - qa-expert
-completed_date:
+completed_date: 2026-10-11
 comments:
 ---
 # PR 07 — `order.rs`: quadrant and item comparators: Implementation Plan
