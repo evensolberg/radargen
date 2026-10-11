@@ -4,11 +4,46 @@
 //! from the names, so it is declared rather than derived (D-4). The list is
 //! **edge-to-centre** (FR-12, D-60): the first entry is the outermost band.
 
-use crate::normalise;
+use std::fmt;
+
+use crate::{normalise, trim};
 
 /// FR-13: the in-house lifecycle, edge-to-centre, so it reads as written:
 /// Assess -> Trial -> Adopt -> Retire.
 pub const DEFAULT_RINGS: [&str; 4] = ["Assess", "Trial", "Adopt", "Retire"];
+
+/// Where the ring set came from. FR-17's warning names it, so an author
+/// told a ring is undeclared knows what to edit (D-61).
+///
+/// `--config`'s `rings` key (FR-91) adds a variant when PR 19 adds the
+/// file; that variant names the file as given on the command line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RingSource {
+    /// `--rings` on the command line.
+    Flag,
+    /// FR-13's default, when nothing declared a ring set.
+    Default,
+}
+
+/// How FR-17's warning names it: `not declared by {source}`.
+// qual:allow(dry, boilerplate) reason: "deriving Display needs a crate (strum, derive_more) for one two-variant enum"
+impl fmt::Display for RingSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Flag => "--rings",
+            Self::Default => "the default ring set",
+        })
+    }
+}
+
+/// The declared rings, edge-to-centre (FR-12), and where they came from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RingSet {
+    /// As declared, after FR-15's trim: the band labels and legend
+    /// subheadings.
+    pub rings: Vec<String>,
+    pub source: RingSource,
+}
 
 /// FR-63 violations. Each is a hard error naming the offending entry; none
 /// can be resolved by guessing what the author meant.
@@ -34,7 +69,7 @@ pub enum RingsError {
 
 /// Parse `--rings`, or the FR-13 default when the flag is absent.
 ///
-/// Entries are trimmed of leading/trailing whitespace only (FR-15), so a
+/// Entries get FR-76's trim at their ends only (FR-15), so a
 /// multi-word ring name keeps its internal spaces. The declared casing is
 /// preserved: it is what appears as a band label and legend subheading, and
 /// FR-76 only ever trims a label, never re-cases one.
@@ -46,9 +81,12 @@ pub enum RingsError {
 /// normalisation, the latter naming where the ring was first declared. A
 /// list with no rings at all is the single [`RingsError::Empty`] rather
 /// than one empty entry per comma.
-pub fn parse_rings(declared: Option<&str>) -> Result<Vec<String>, Vec<RingsError>> {
+pub fn parse_rings(declared: Option<&str>) -> Result<RingSet, Vec<RingsError>> {
     let Some(list) = declared else {
-        return Ok(DEFAULT_RINGS.iter().map(|r| (*r).to_string()).collect());
+        return Ok(RingSet {
+            rings: DEFAULT_RINGS.iter().map(|r| (*r).to_string()).collect(),
+            source: RingSource::Default,
+        });
     };
 
     let mut rings: Vec<String> = Vec::new();
@@ -57,7 +95,7 @@ pub fn parse_rings(declared: Option<&str>) -> Result<Vec<String>, Vec<RingsError
     let mut seen: Vec<(String, usize)> = Vec::new();
     let mut errors: Vec<RingsError> = Vec::new();
     for (i, raw) in list.split(',').enumerate() {
-        let entry = raw.trim();
+        let entry = trim(raw);
         if entry.is_empty() {
             errors.push(RingsError::EmptyEntry { index: i + 1 });
             continue;
@@ -78,7 +116,10 @@ pub fn parse_rings(declared: Option<&str>) -> Result<Vec<String>, Vec<RingsError
         return Err(vec![RingsError::Empty]);
     }
     if errors.is_empty() {
-        Ok(rings)
+        Ok(RingSet {
+            rings,
+            source: RingSource::Flag,
+        })
     } else {
         Err(errors)
     }

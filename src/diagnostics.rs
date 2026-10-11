@@ -3,8 +3,8 @@
 
 use std::fmt;
 
-use crate::normalise;
-use crate::rings::RingsError;
+use crate::rings::{RingSource, RingsError};
+use crate::{normalise, trim};
 
 /// Where a warning points: its sort key.
 ///
@@ -50,11 +50,11 @@ impl fmt::Display for DateColumn {
 }
 
 /// The warnings NFR-9 lists that concern one CSV cell. Values are carried as
-/// the CSV had them; display trims them and escapes control characters.
+/// the CSV had them; display trims them (FR-76) and escapes control characters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RowKind {
-    /// FR-17.
-    UndeclaredRing { value: String },
+    /// FR-17. `source` is what the message says to edit (D-61).
+    UndeclaredRing { value: String, source: RingSource },
     /// FR-20 — non-blank only; a blank qualifier claims nothing (D-35).
     UnrecognisedQualifier { value: String },
     /// FR-26 — non-blank only, as FR-20.
@@ -72,6 +72,9 @@ pub enum RowKind {
         first: char,
         count: usize,
     },
+    /// FR-93: a value under a column whose header cell is empty. `column`
+    /// is `column N`, the 1-based position, since there is no name.
+    UnnamedValue { column: String },
 }
 
 /// The warnings that concern the render as a whole. They never group: FR-88
@@ -126,25 +129,29 @@ impl fmt::Display for Warning {
 /// columns are separate classes, so each grouped line names its column.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Class {
-    Ring,
+    /// One run declares one ring set, so the source never splits a class;
+    /// it rides here so the grouped line can name it.
+    Ring(RingSource),
     Qualifier,
     Status,
     Date(DateColumn),
     Description,
     DuplicateName,
     Undisplayable,
+    Unnamed,
 }
 
 impl RowKind {
     const fn class(&self) -> Class {
         match self {
-            Self::UndeclaredRing { .. } => Class::Ring,
+            Self::UndeclaredRing { source, .. } => Class::Ring(*source),
             Self::UnrecognisedQualifier { .. } => Class::Qualifier,
             Self::UnrecognisedStatus { .. } => Class::Status,
             Self::UnparsableDate { column, .. } => Class::Date(*column),
             Self::EmptyDescription => Class::Description,
             Self::DuplicateName { .. } => Class::DuplicateName,
             Self::Undisplayable { .. } => Class::Undisplayable,
+            Self::UnnamedValue { .. } => Class::Unnamed,
         }
     }
 
@@ -159,27 +166,29 @@ impl RowKind {
             Self::DuplicateName { .. } => "name",
             // A header name is CSV text (FR-18's extra columns); it is escaped
             // with the rest of the line.
-            Self::Undisplayable { column, .. } => column,
+            Self::Undisplayable { column, .. } | Self::UnnamedValue { column } => column,
         }
     }
 
     /// The value NFR-20 enumerates; `None` for a class that lists positions.
+    /// FR-93's class enumerates its columns, so its value is the column.
     fn value(&self) -> Option<&str> {
         match self {
-            Self::UndeclaredRing { value }
+            Self::UndeclaredRing { value, .. }
             | Self::UnrecognisedQualifier { value }
             | Self::UnrecognisedStatus { value }
             | Self::UnparsableDate { value, .. }
-            | Self::DuplicateName { value, .. } => Some(value),
+            | Self::DuplicateName { value, .. }
+            | Self::UnnamedValue { column: value } => Some(value),
             Self::EmptyDescription | Self::Undisplayable { .. } => None,
         }
     }
 
     fn message(&self) -> String {
-        let v = self.value().map(str::trim).unwrap_or_default();
+        let v = self.value().map(trim).unwrap_or_default();
         match self {
-            Self::UndeclaredRing { .. } => format!(
-                "'{v}' is not declared by --rings; the row is in the table view, not on the radar"
+            Self::UndeclaredRing { source, .. } => format!(
+                "'{v}' is not declared by {source}; the row is in the table view, not on the radar"
             ),
             Self::UnrecognisedQualifier { .. } => {
                 format!("unrecognised qualifier value '{v}'; drawn solid")
@@ -204,6 +213,9 @@ impl RowKind {
                 "removed {count} characters the output cannot display, the first {}",
                 code_point(*first)
             ),
+            Self::UnnamedValue { .. } => {
+                "this column has no name in the header row, so its value is not shown; add a header name, or delete the value".into()
+            }
         }
     }
 }
@@ -221,8 +233,8 @@ impl RenderKind {
                 fits,
             } => format!(
                 "quadrant '{}', ring '{}': {count} items; about {fits} fit comfortably, so some markers overlap",
-                quadrant.trim(),
-                ring.trim()
+                trim(quadrant),
+                trim(ring)
             ),
         }
     }
@@ -342,8 +354,8 @@ impl Member<'_> {
 fn grouped(class: Class, members: &[Member]) -> String {
     let n = members.len();
     match class {
-        Class::Ring => format!(
-            "{n} rows use a ring --rings does not declare — {}; all appear in the table view",
+        Class::Ring(source) => format!(
+            "{n} rows use a ring not declared by {source} — {}; all appear in the table view",
             tallied(members, normalise)
         ),
         Class::Qualifier => format!(
@@ -358,7 +370,7 @@ fn grouped(class: Class, members: &[Member]) -> String {
         // parsed, so only trimmed, and two spellings are two values.
         Class::Date(column) => format!(
             "{n} rows have {column} values that are not YYYY-MM-DD dates — {}; each is shown as written",
-            tallied(members, |v| v.trim().to_string())
+            tallied(members, |v| trim(v).to_string())
         ),
         Class::DuplicateName => format!(
             "{n} rows repeat an earlier name — {}; every row is drawn",
@@ -393,6 +405,11 @@ fn grouped(class: Class, members: &[Member]) -> String {
                 })
             }))
         ),
+        // FR-93 counts values, each column with its count and first line.
+        Class::Unnamed => format!(
+            "{n} values are under columns with no name in the header row — {}; none is shown, so add a header name, or delete the values",
+            tallied(members, str::to_string)
+        ),
     }
 }
 
@@ -410,7 +427,7 @@ fn tallied(members: &[Member], key: fn(&str) -> String) -> String {
         }
     }
     comma_list(tallies.iter().map(|(_, first, count)| {
-        let shown = first.kind.value().unwrap_or_default().trim();
+        let shown = trim(first.kind.value().unwrap_or_default());
         let line = first.line;
         match (first.kind, count) {
             // A duplicate leads with the line it repeats, so "first" can only
@@ -551,6 +568,18 @@ pub enum Fatal {
         found: usize,
         expected: usize,
     },
+    /// FR-5: the header lacks a required column. Every missing one is
+    /// reported (NFR-16 tier two). `line` is the header's.
+    #[error(
+        "line {line}: the header has no '{column}' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description"
+    )]
+    MissingColumn { line: usize, column: &'static str },
+    /// FR-6: an empty `name`, `quadrant` or `ring`, empty under FR-76's
+    /// trim, so a cell of spaces or a lone zero-width space counts.
+    #[error(
+        "line {line}, {column}: empty; every row needs a {column}, so fill it in or delete the row"
+    )]
+    EmptyRequired { line: usize, column: &'static str },
 }
 
 impl Fatal {

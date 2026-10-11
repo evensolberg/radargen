@@ -1,7 +1,7 @@
 ---
 id: rg-rnc
 title: 'PR 06: model.rs — Item, Catalogue, column validation'
-status: open
+status: closed
 type: task
 priority: 2
 tags:
@@ -35,3 +35,7 @@ FR-5–FR-29, FR-27/FR-78 (declared header order, unrecognised cells kept), acce
 [2026-10-10] Ownership open for the plan: FR-93 unnamed-column drop and warning could live in csv::parse (owns the header, has line/position) rather than model.rs; decide in the PR 06 plan.
 
 [2026-10-10] Correction to the v0.43 review note above: FR-93 counts values, not rows. The grouped form is "N values sit under a column with no heading — column 6 (2, first line 4), column 7 (1, line 9)".
+
+[start] 2026-10-10 22:24:25
+
+[stop]  2026-10-10 22:46:03  21m 38s

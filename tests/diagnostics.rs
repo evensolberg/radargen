@@ -4,7 +4,7 @@
 use radargen::diagnostics::{
     DateColumn, Fatal, Position, RenderKind, RowKind, Separator, Warning, Warnings,
 };
-use radargen::rings::RingsError;
+use radargen::rings::{RingSource, RingsError};
 
 fn at(line: usize, column: usize, kind: RowKind) -> Warning {
     Warning::Row { line, column, kind }
@@ -16,6 +16,7 @@ fn ring(line: usize, value: &str) -> Warning {
         2,
         RowKind::UndeclaredRing {
             value: value.into(),
+            source: RingSource::Flag,
         },
     )
 }
@@ -108,6 +109,16 @@ fn each_row_kind_has_its_per_row_message() {
             ),
             "line 15, name: removed 3 characters the output cannot display, the first U+001F",
         ),
+        (
+            at(
+                16,
+                5,
+                RowKind::UnnamedValue {
+                    column: "column 6".into(),
+                },
+            ),
+            "line 16, column 6: this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
+        ),
     ];
     for (warning, expected) in cases {
         assert_eq!(warning.to_string(), expected);
@@ -141,6 +152,52 @@ fn each_render_level_kind_has_its_message() {
 fn values_are_shown_trimmed() {
     let w = ring(3, "  Adpot ");
     assert!(w.to_string().contains("ring: 'Adpot' is"), "{w}");
+    // FR-76's trim, so an invisible format character is not quoted either.
+    let w = ring(3, "\u{200b}Adpot\u{feff}");
+    assert!(w.to_string().contains("ring: 'Adpot' is"), "{w}");
+}
+
+/// FR-76's trim in NFR-20's grouped lines and FR-89's labels too: the value
+/// is shown without its boundary format characters.
+#[test]
+fn grouped_values_are_shown_with_fr76s_trim() {
+    let mut w = Warnings::default();
+    w.push(ring(4, "\u{200b}Adpot"));
+    w.push(ring(9, "Adpot\u{feff}"));
+    assert!(
+        w.render()[0].contains("— Adpot (2, first line 4);"),
+        "{:?}",
+        w.render()
+    );
+    let date = |line, value: &str| {
+        at(
+            line,
+            6,
+            RowKind::UnparsableDate {
+                column: DateColumn::ExitDate,
+                value: value.into(),
+            },
+        )
+    };
+    let mut w = Warnings::default();
+    w.push(date(4, "\u{200b}June"));
+    w.push(date(9, "June"));
+    assert!(
+        w.render()[0].contains("— June (2, first line 4);"),
+        "{:?}",
+        w.render()
+    );
+    let band = Warning::Render(RenderKind::OverfullBand {
+        quadrant: "\u{200b}Tool".into(),
+        ring: "Adopt\u{feff}".into(),
+        count: 14,
+        fits: 10,
+    });
+    assert!(
+        band.to_string()
+            .starts_with("quadrant 'Tool', ring 'Adopt':"),
+        "{band}"
+    );
 }
 
 /// NFR-10: a quoted field can hold a newline. Printed raw it would forge a
@@ -164,6 +221,7 @@ fn control_characters_in_values_are_shown_escaped() {
             2,
             RowKind::UndeclaredRing {
                 value: format!("a{c}b"),
+                source: RingSource::Flag,
             },
         )
         .to_string();
@@ -218,8 +276,37 @@ fn forty_rows_and_a_typo_make_one_ring_line_and_a_duplicate_keeps_its_own() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 41 rows use a ring --rings does not declare — In Use (40, first line 4), Adpot (1, line 37); all appear in the table view",
+            "warning: 41 rows use a ring not declared by --rings — In Use (40, first line 4), Adpot (1, line 37); all appear in the table view",
             "warning: line 50, name: 'Kafka' repeats line 9; both are drawn",
+        ]
+    );
+}
+
+/// FR-17 (D-61): the message names where the ring set came from, so an
+/// author who never passed `--rings` is not told to edit it.
+#[test]
+fn the_ring_warning_names_the_default_ring_set_when_no_flag_declared_one() {
+    let default = |line| {
+        at(
+            line,
+            2,
+            RowKind::UndeclaredRing {
+                value: "Adpot".into(),
+                source: RingSource::Default,
+            },
+        )
+    };
+    assert_eq!(
+        default(37).to_string(),
+        "line 37, ring: 'Adpot' is not declared by the default ring set; the row is in the table view, not on the radar"
+    );
+    let mut w = Warnings::default();
+    w.push(default(4));
+    w.push(default(9));
+    assert_eq!(
+        w.render(),
+        vec![
+            "warning: 2 rows use a ring not declared by the default ring set — Adpot (2, first line 4); all appear in the table view"
         ]
     );
 }
@@ -245,7 +332,7 @@ fn values_group_under_fr_76_normalisation() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 3 rows use a ring --rings does not declare — In Use (3, first line 4); all appear in the table view",
+            "warning: 3 rows use a ring not declared by --rings — In Use (3, first line 4); all appear in the table view",
         ]
     );
 }
@@ -455,7 +542,7 @@ fn grouped_values_order_by_first_line_not_push_order() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 3 rows use a ring --rings does not declare — In Use (2, first line 4), Adpot (1, line 37); all appear in the table view",
+            "warning: 3 rows use a ring not declared by --rings — In Use (2, first line 4), Adpot (1, line 37); all appear in the table view",
         ]
     );
 }
@@ -723,4 +810,53 @@ fn csv_header_and_row_messages() {
     for (fatal, expected) in cases {
         assert_eq!(fatal.render(), expected);
     }
+}
+
+/// FR-5 and FR-6, which `model::build_catalogue` raises (PR 06).
+#[test]
+fn model_messages() {
+    let cases = [
+        (
+            Fatal::MissingColumn {
+                line: 1,
+                column: "ring",
+            },
+            "error: line 1: the header has no 'ring' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description",
+        ),
+        (
+            Fatal::EmptyRequired {
+                line: 7,
+                column: "quadrant",
+            },
+            "error: line 7, quadrant: empty; every row needs a quadrant, so fill it in or delete the row",
+        ),
+    ];
+    for (fatal, expected) in cases {
+        assert_eq!(fatal.render(), expected);
+    }
+}
+
+/// FR-93 through NFR-20: values are counted, each column enumerated with
+/// its count and first line, in first-occurrence order (NFR-11).
+#[test]
+fn unnamed_column_values_group_by_column() {
+    let unnamed = |line, column: usize| {
+        at(
+            line,
+            column,
+            RowKind::UnnamedValue {
+                column: format!("column {}", column + 1),
+            },
+        )
+    };
+    let mut w = Warnings::default();
+    w.push(unnamed(9, 6));
+    w.push(unnamed(4, 5));
+    w.push(unnamed(5, 5));
+    assert_eq!(
+        w.render(),
+        vec![
+            "warning: 3 values are under columns with no name in the header row — column 6 (2, first line 4), column 7 (1, line 9); none is shown, so add a header name, or delete the values"
+        ]
+    );
 }

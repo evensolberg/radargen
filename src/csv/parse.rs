@@ -9,7 +9,7 @@ use std::str::Chars;
 
 use crate::diagnostics::{Fatal, RowKind, Separator, Warning, Warnings};
 use crate::escape::displayable;
-use crate::normalise;
+use crate::{normalise, trim};
 
 /// One record and where it begins.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -354,20 +354,21 @@ fn warn(w: &mut Warnings, line: usize, removed: &[Removed], header: &[String]) {
 /// repeats. An empty cell names nothing, so it cannot repeat a name; Excel
 /// pads the header with these (Decisions).
 fn duplicate_headers(header: &[String], line: usize) -> Vec<Fatal> {
+    // Normalised once, not once per pair.
+    let keys: Vec<String> = header.iter().map(|n| normalise(n)).collect();
     let mut errors = Vec::new();
-    for (i, name) in header.iter().enumerate() {
-        let key = normalise(name);
+    for (i, key) in keys.iter().enumerate() {
         if key.is_empty() {
             continue;
         }
         // The first earlier match is the name's first occurrence.
-        if let Some(first) = header[..i].iter().position(|n| normalise(n) == key) {
+        if let Some(first) = keys[..i].iter().position(|k| k == key) {
             errors.push(Fatal::DuplicateHeader {
                 line,
                 index: i + 1,
-                name: name.trim().to_string(),
+                name: trim(&header[i]).to_string(),
                 first_index: first + 1,
-                first_name: header[first].trim().to_string(),
+                first_name: trim(&header[first]).to_string(),
             });
         }
     }
@@ -789,6 +790,25 @@ mod tests {
                 repeats(1, 4, "RING", 2, "ring"),
             ]
         );
+    }
+
+    /// FR-76 (D-61): a zero-width space or second byte-order mark pasted
+    /// in with a name does not hide the name, so it collides, and the
+    /// error shows the name without it.
+    #[test]
+    fn invisible_format_characters_do_not_hide_a_duplicate_header() {
+        assert_eq!(
+            errors("name,\u{200b}Name\u{feff},ring\n"),
+            [repeats(1, 2, "Name", 1, "name")]
+        );
+    }
+
+    /// A header cell of only format characters names nothing either, so
+    /// two of them do not collide (before FR-76's trim they would).
+    #[test]
+    fn a_header_cell_of_only_format_characters_is_not_a_duplicate() {
+        let errs = errors("name,\u{200b},\u{200b}\nK,a,b\n");
+        assert!(errs.is_empty(), "{errs:?}");
     }
 
     /// Decisions, Review focus 6: Excel pads the header to its used range;
