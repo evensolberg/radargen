@@ -332,3 +332,33 @@ fn a_whole_file_with_errors_from_both_stages() {
         ]
     );
 }
+
+#[test]
+fn a_group_lists_its_rows_in_line_order_whatever_the_input_order() {
+    let errors = [row(9, 1), row(3, 1), padded(4, 3)];
+    assert_eq!(
+        render_errors(&errors, 2),
+        [format!(
+            "error: 3 rows have a different number of values from the header's 2 columns — 1 value (2 rows: lines 3, 9), 3 values (1 row: line 4); {FEWER}; {PADDED}"
+        )]
+    );
+}
+
+#[test]
+fn a_repeated_line_is_listed_once() {
+    let errors = [
+        empty(5, ColumnKind::Name),
+        empty(5, ColumnKind::Name),
+        empty(7, ColumnKind::Name),
+    ];
+    assert_eq!(
+        render_errors(&errors, 3),
+        [
+            "error: 3 rows have no value in the name column — lines 5, 7; every row needs a name, so fill them in or delete the rows"
+        ]
+    );
+    assert_eq!(
+        sole(&[empty(5, ColumnKind::Name), empty(5, ColumnKind::Name)], 3),
+        "error: 2 rows have no value in the name column — line 5; every row needs a name, so fill them in or delete the rows"
+    );
+}

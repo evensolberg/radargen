@@ -734,8 +734,8 @@ pub enum Fatal {
     /// rows (D-62) and adds the header-first cause, which needs the whole table.
     #[error(
         "{}",
-        crate::errors::one_row(
-            &crate::errors::Mismatch {
+        one_row(
+            &Mismatch {
                 line: *line,
                 found: *found,
                 expected: *expected,
@@ -786,12 +786,84 @@ pub enum Fatal {
 
 impl Fatal {
     /// The stderr line.
+    ///
+    /// Tier-two row errors (`FieldCount`, `DuplicateHeader`, `MissingColumn`,
+    /// `EmptyRequired`) must be printed through [`crate::errors::render_errors`],
+    /// which groups them (D-62) and adds FR-4's header-first cause that a
+    /// single error cannot know.
     #[must_use]
     pub fn render(&self) -> String {
         // Escaped as a whole, so no variant can forget to: `-o` and `--rings`
         // values come from argv, and later variants carry CSV text (NFR-10).
         error_line(&self.to_string())
     }
+}
+
+/// A mismatched row, as FR-4 records it.
+pub(crate) struct Mismatch {
+    pub(crate) line: usize,
+    pub(crate) found: usize,
+    pub(crate) expected: usize,
+    pub(crate) unnamed: usize,
+    pub(crate) padded: bool,
+}
+
+/// FR-4's closing causes for the rows seen, each a clause, joined with `; `
+/// (NFR-20).
+///
+/// `no_match` is "no data row matches the header" and says to look at the
+/// header first. The padding clause needs every row with more values to end in
+/// empty cells; one that does not sends them all to the comma clause.
+pub(crate) fn row_causes(no_match: bool, rows: &[&Mismatch]) -> String {
+    let fewer = rows.iter().any(|m| m.found < m.expected);
+    let mut longer = rows.iter().filter(|m| m.found > m.expected).peekable();
+    let more = longer.peek().is_some();
+    let padded = longer.all(|m| m.padded);
+    [
+        (no_match, "no row matches the header, so check the header first"),
+        (
+            fewer,
+            "a row with fewer values is usually missing one, or an unquoted line break split it",
+        ),
+        (
+            more && padded,
+            "rows with more values end in empty cells: delete them, or give the header matching empty columns",
+        ),
+        (
+            more && !padded,
+            "a row with more values usually has a comma that needs the value in double quotes",
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(applies, cause)| applies.then_some(cause))
+    .collect::<Vec<_>>()
+    .join("; ")
+}
+
+/// `, 1 of them unnamed` when the header has unnamed columns (FR-4, FR-93).
+pub(crate) fn unnamed_clause(unnamed: usize) -> String {
+    if unnamed == 0 {
+        String::new()
+    } else {
+        format!(", {unnamed} of them unnamed")
+    }
+}
+
+/// FR-4's message for one mismatched row.
+///
+/// `no_match` adds the header-first cause; [`Fatal`]'s own message cannot know
+/// it, since it sees one row and not the table.
+pub(crate) fn one_row(m: &Mismatch, no_match: bool) -> String {
+    format!(
+        "line {}: the row has {} {} but the header has {} {}{}; {}",
+        m.line,
+        m.found,
+        plural(m.found, "value", "values"),
+        m.expected,
+        plural(m.expected, "column", "columns"),
+        unnamed_clause(m.unnamed),
+        row_causes(no_match, &[m])
+    )
 }
 
 /// A stderr line for `message`: `error: ` and the message, escaped whole.

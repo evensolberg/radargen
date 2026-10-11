@@ -6,8 +6,12 @@
 //! left out is a line the author finds only on the next run. NFR-11 orders the
 //! output and NFR-16 is why there are several errors to order.
 
+use std::mem;
+
 use crate::columns::ColumnKind;
-use crate::diagnostics::{Fatal, error_line, plural};
+use crate::diagnostics::{
+    Fatal, Mismatch, error_line, one_row, plural, row_causes, unnamed_clause,
+};
 
 // qual:api — PR 14's main.rs is its first production caller
 /// The stderr lines for `errors`, each `error: …`, in NFR-11's order.
@@ -34,66 +38,145 @@ pub fn render_errors(errors: &[Fatal], well_formed_rows: usize) -> Vec<String> {
         .collect()
 }
 
-/// What may share a line: errors of one class.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Class {
-    /// FR-4's mismatched rows.
-    Rows,
-    /// FR-5's missing columns.
-    Missing,
-    /// FR-6's empty values in one column.
-    Empty(ColumnKind),
-    /// Printed on its own line.
-    Alone,
-}
-
-impl Class {
-    const fn of(fatal: &Fatal) -> Self {
-        match fatal {
-            Fatal::FieldCount { .. } => Self::Rows,
-            Fatal::MissingColumn { .. } => Self::Missing,
-            Fatal::EmptyRequired { column, .. } => Self::Empty(*column),
-            _ => Self::Alone,
-        }
-    }
-}
-
-/// One error with its place in the input.
-struct Member<'a> {
+/// One error with its place in the input and what its class needs of it.
+struct Member<T> {
     order: usize,
-    fatal: &'a Fatal,
+    line: usize,
+    item: T,
 }
 
-/// The errors of one class, in line order.
-struct Group<'a> {
-    class: Class,
-    members: Vec<Member<'a>>,
+/// The errors of one class: the first by line, then the rest in line order.
+///
+/// A run holds at least one member by construction, so no code asks for the
+/// first of an empty run.
+struct Run<T> {
+    first: Member<T>,
+    rest: Vec<Member<T>>,
 }
 
-/// Collects `errors` into classes in the order each first appears.
-fn groups(errors: &[Fatal]) -> Vec<Group<'_>> {
-    let mut groups: Vec<Group<'_>> = Vec::new();
-    for (order, fatal) in errors.iter().enumerate() {
-        let class = Class::of(fatal);
-        let member = Member { order, fatal };
-        match groups
-            .iter_mut()
-            .find(|g| class != Class::Alone && g.class == class)
-        {
-            Some(group) => group.members.push(member),
-            None => groups.push(Group {
-                class,
-                members: vec![member],
-            }),
+impl<T> Run<T> {
+    const fn new(first: Member<T>) -> Self {
+        Self {
+            first,
+            rest: Vec::new(),
         }
     }
-    for group in &mut groups {
-        group.members.sort_by_key(|m| line_of(m.fatal));
+
+    /// Adds `member` in line order; one on an equal line goes after, so input
+    /// order breaks ties (NFR-11).
+    fn insert(&mut self, member: Member<T>) {
+        if member.line < self.first.line {
+            let displaced = mem::replace(&mut self.first, member);
+            self.rest.insert(0, displaced);
+        } else {
+            let at = self.rest.partition_point(|m| m.line <= member.line);
+            self.rest.insert(at, member);
+        }
     }
+
+    fn members(&self) -> impl Iterator<Item = &Member<T>> {
+        std::iter::once(&self.first).chain(&self.rest)
+    }
+
+    fn lines(&self) -> Vec<usize> {
+        self.members().map(|m| m.line).collect()
+    }
+}
+
+/// Adds `member` to the run in `slot`, starting it if there is none.
+fn add<T>(slot: &mut Option<Run<T>>, member: Member<T>) {
+    match slot {
+        Some(run) => run.insert(member),
+        None => *slot = Some(Run::new(member)),
+    }
+}
+
+/// A line of output: one error, or the errors of a class that may share one.
+enum Group<'a> {
+    /// Printed on its own line.
+    Alone(Member<&'a Fatal>),
+    /// FR-4's mismatched rows.
+    Rows(Run<Mismatch>),
+    /// FR-5's missing columns, each with the error that names it.
+    Missing(Run<(ColumnKind, &'a Fatal)>),
+    /// FR-6's empty values in one column.
+    Empty(ColumnKind, Run<&'a Fatal>),
+}
+
+/// The groups of `errors`, unsorted.
+fn groups(errors: &[Fatal]) -> Vec<Group<'_>> {
+    let mut alone = Vec::new();
+    let mut rows = None;
+    let mut missing = None;
+    let mut empty: Vec<(ColumnKind, Run<&Fatal>)> = Vec::new();
+    for (order, fatal) in errors.iter().enumerate() {
+        let line = line_of(fatal);
+        match *fatal {
+            Fatal::FieldCount {
+                line,
+                found,
+                expected,
+                unnamed,
+                padded,
+            } => add(
+                &mut rows,
+                Member {
+                    order,
+                    line,
+                    item: Mismatch {
+                        line,
+                        found,
+                        expected,
+                        unnamed,
+                        padded,
+                    },
+                },
+            ),
+            Fatal::MissingColumn { column, .. } => add(
+                &mut missing,
+                Member {
+                    order,
+                    line,
+                    item: (column, fatal),
+                },
+            ),
+            Fatal::EmptyRequired { column, .. } => {
+                let member = Member {
+                    order,
+                    line,
+                    item: fatal,
+                };
+                match empty.iter_mut().find(|(c, _)| *c == column) {
+                    Some((_, run)) => run.insert(member),
+                    None => empty.push((column, Run::new(member))),
+                }
+            }
+            Fatal::UnrecognisedExtension { .. }
+            | Fatal::FormatNotInThisVersion { .. }
+            | Fatal::Rings(_)
+            | Fatal::Unreadable { .. }
+            | Fatal::NotUtf8 { .. }
+            | Fatal::UnterminatedQuote { .. }
+            | Fatal::TextAfterQuote { .. }
+            | Fatal::NoHeader
+            | Fatal::NotCommaSeparated { .. }
+            | Fatal::DuplicateHeader { .. } => alone.push(Group::Alone(Member {
+                order,
+                line,
+                item: fatal,
+            })),
+        }
+    }
+    let mut groups = alone;
+    groups.extend(rows.map(Group::Rows));
+    groups.extend(missing.map(Group::Missing));
+    groups.extend(empty.into_iter().map(|(c, run)| Group::Empty(c, run)));
     groups
 }
 
 /// The line a [`Fatal`] names; an error with none sorts first.
+///
+/// Every variant is listed, so a new one must say here whether it has a line.
 const fn line_of(fatal: &Fatal) -> usize {
     match fatal {
         Fatal::FieldCount { line, .. }
@@ -104,134 +187,66 @@ const fn line_of(fatal: &Fatal) -> usize {
         | Fatal::UnterminatedQuote { line, .. }
         | Fatal::TextAfterQuote { line, .. }
         | Fatal::NotUtf8 { line, .. } => *line,
-        _ => 0,
+        Fatal::UnrecognisedExtension { .. }
+        | Fatal::FormatNotInThisVersion { .. }
+        | Fatal::Rings(_)
+        | Fatal::Unreadable { .. }
+        | Fatal::NoHeader => 0,
     }
 }
 
 /// 0 for an error naming no column position, 1 for one that does.
+///
+/// Every variant is listed, so a new one must pick its rank here.
 const fn rank_of(fatal: &Fatal) -> u8 {
     match fatal {
         Fatal::DuplicateHeader { .. } | Fatal::EmptyRequired { .. } => 1,
-        _ => 0,
+        Fatal::FieldCount { .. }
+        | Fatal::MissingColumn { .. }
+        | Fatal::UnrecognisedExtension { .. }
+        | Fatal::FormatNotInThisVersion { .. }
+        | Fatal::Rings(_)
+        | Fatal::Unreadable { .. }
+        | Fatal::NotUtf8 { .. }
+        | Fatal::UnterminatedQuote { .. }
+        | Fatal::TextAfterQuote { .. }
+        | Fatal::NoHeader
+        | Fatal::NotCommaSeparated { .. } => 0,
     }
 }
 
 impl Group<'_> {
     /// NFR-11's sort key: the first member's line, rank and input order.
-    fn position(&self) -> (usize, u8, usize) {
-        self.members
-            .first()
-            .map_or((0, 0, 0), |m| (line_of(m.fatal), rank_of(m.fatal), m.order))
+    const fn position(&self) -> (usize, u8, usize) {
+        match self {
+            Self::Alone(m) => (m.line, rank_of(m.item), m.order),
+            Self::Rows(run) => (run.first.line, 0, run.first.order),
+            Self::Missing(run) => (run.first.line, 0, run.first.order),
+            Self::Empty(_, run) => (run.first.line, 1, run.first.order),
+        }
     }
 
     fn render(&self, well_formed_rows: usize) -> String {
-        let fatals: Vec<&Fatal> = self.members.iter().map(|m| m.fatal).collect();
-        match (self.class, fatals.as_slice()) {
-            (Class::Rows, [_, _, ..]) => rows_line(&fatals, well_formed_rows == 0),
-            (Class::Missing, [_, _, ..]) => missing_line(&fatals),
-            (Class::Empty(column), [_, _, ..]) => empty_line(column, &fatals),
-            (Class::Rows, [one]) => Mismatch::of(one).map_or_else(
-                || one.render(),
-                |m| error_line(&one_row(&m, well_formed_rows == 0)),
-            ),
-            (_, [one, ..]) => one.render(),
-            (_, []) => String::new(),
+        match self {
+            Self::Alone(m) => m.item.render(),
+            Self::Rows(run) if run.rest.is_empty() => {
+                error_line(&one_row(&run.first.item, well_formed_rows == 0))
+            }
+            Self::Rows(run) => rows_line(run, well_formed_rows == 0),
+            Self::Missing(run) if run.rest.is_empty() => run.first.item.1.render(),
+            Self::Missing(run) => missing_line(run),
+            Self::Empty(_, run) if run.rest.is_empty() => run.first.item.render(),
+            Self::Empty(column, run) => empty_line(*column, run),
         }
     }
-}
-
-/// A mismatched row, as FR-4 records it.
-pub(crate) struct Mismatch {
-    pub(crate) line: usize,
-    pub(crate) found: usize,
-    pub(crate) expected: usize,
-    pub(crate) unnamed: usize,
-    pub(crate) padded: bool,
-}
-
-impl Mismatch {
-    const fn of(fatal: &Fatal) -> Option<Self> {
-        match *fatal {
-            Fatal::FieldCount {
-                line,
-                found,
-                expected,
-                unnamed,
-                padded,
-            } => Some(Self {
-                line,
-                found,
-                expected,
-                unnamed,
-                padded,
-            }),
-            _ => None,
-        }
-    }
-}
-
-/// FR-4's closing causes for the rows seen, each a clause, joined with `; `
-/// (NFR-20).
-///
-/// `no_match` is "no data row matches the header" and says to look at the
-/// header first. The padding clause needs every row with more values to end in
-/// empty cells; one that does not sends them all to the comma clause.
-fn row_causes(no_match: bool, rows: &[Mismatch]) -> String {
-    let fewer = rows.iter().any(|m| m.found < m.expected);
-    let mut longer = rows.iter().filter(|m| m.found > m.expected).peekable();
-    let more = longer.peek().is_some();
-    let padded = longer.all(|m| m.padded);
-    [
-        (no_match, "no row matches the header, so check the header first"),
-        (
-            fewer,
-            "a row with fewer values is usually missing one, or an unquoted line break split it",
-        ),
-        (
-            more && padded,
-            "rows with more values end in empty cells: delete them, or give the header matching empty columns",
-        ),
-        (
-            more && !padded,
-            "a row with more values usually has a comma that needs the value in double quotes",
-        ),
-    ]
-    .into_iter()
-    .filter_map(|(applies, cause)| applies.then_some(cause))
-    .collect::<Vec<_>>()
-    .join("; ")
-}
-
-/// `, 1 of them unnamed` when the header has unnamed columns (FR-4, FR-93).
-fn unnamed_clause(unnamed: usize) -> String {
-    if unnamed == 0 {
-        String::new()
-    } else {
-        format!(", {unnamed} of them unnamed")
-    }
-}
-
-/// FR-4's message for one mismatched row.
-///
-/// `no_match` adds the header-first cause; [`Fatal`]'s own message cannot know
-/// it, since it sees one row and not the table.
-pub(crate) fn one_row(m: &Mismatch, no_match: bool) -> String {
-    format!(
-        "line {}: the row has {} {} but the header has {} {}{}; {}",
-        m.line,
-        m.found,
-        plural(m.found, "value", "values"),
-        m.expected,
-        plural(m.expected, "column", "columns"),
-        unnamed_clause(m.unnamed),
-        row_causes(no_match, std::slice::from_ref(m))
-    )
 }
 
 /// FR-4's one line for two or more mismatched rows (NFR-20's shape).
-fn rows_line(fatals: &[&Fatal], no_match: bool) -> String {
-    let rows: Vec<Mismatch> = fatals.iter().filter_map(|f| Mismatch::of(f)).collect();
-    let (expected, unnamed) = rows.first().map_or((0, 0), |m| (m.expected, m.unnamed));
+fn rows_line(run: &Run<Mismatch>, no_match: bool) -> String {
+    let rows: Vec<&Mismatch> = run.members().map(|m| &m.item).collect();
+    let Mismatch {
+        expected, unnamed, ..
+    } = run.first.item;
     let causes = row_causes(no_match, &rows);
     error_line(&format!(
         "{} rows have a different number of values from the header's {expected} {}{} — {}; {causes}",
@@ -243,7 +258,7 @@ fn rows_line(fatals: &[&Fatal], no_match: bool) -> String {
 }
 
 /// Each distinct number of values with its rows, in order of its first line.
-fn value_counts(rows: &[Mismatch]) -> String {
+fn value_counts(rows: &[&Mismatch]) -> String {
     let mut counts: Vec<(usize, Vec<usize>)> = Vec::new();
     for m in rows {
         match counts.iter_mut().find(|(found, _)| *found == m.found) {
@@ -267,17 +282,11 @@ fn value_counts(rows: &[Mismatch]) -> String {
 }
 
 /// FR-5's one line for two or more missing columns, all on the header's line.
-fn missing_line(fatals: &[&Fatal]) -> String {
-    let columns: Vec<&str> = fatals
-        .iter()
-        .filter_map(|f| match f {
-            Fatal::MissingColumn { column, .. } => Some(column.as_str()),
-            _ => None,
-        })
-        .collect();
-    let line = fatals.first().map_or(0, |f| line_of(f));
+fn missing_line(run: &Run<(ColumnKind, &Fatal)>) -> String {
+    let columns: Vec<&str> = run.members().map(|m| m.item.0.as_str()).collect();
     error_line(&format!(
-        "line {line}: the header has no {} column; add them, or rename the columns that hold them — the header must name at least name, quadrant, ring and description",
+        "line {}: the header has no {} column; add them, or rename the columns that hold them — the header must name at least name, quadrant, ring and description",
+        run.first.line,
         or_list(&columns)
     ))
 }
@@ -293,8 +302,8 @@ fn or_list(names: &[&str]) -> String {
 }
 
 /// FR-6's one line for two or more empty values in one column.
-fn empty_line(column: ColumnKind, fatals: &[&Fatal]) -> String {
-    let lines: Vec<usize> = fatals.iter().map(|f| line_of(f)).collect();
+fn empty_line(column: ColumnKind, run: &Run<&Fatal>) -> String {
+    let lines = run.lines();
     let name = column.as_str();
     error_line(&format!(
         "{} rows have no value in the {name} column — {}; every row needs a {name}, so fill them in or delete the rows",
@@ -303,15 +312,20 @@ fn empty_line(column: ColumnKind, fatals: &[&Fatal]) -> String {
     ))
 }
 
-/// `line 7`; `lines 3, 5, 8`; `lines 2–4, 9, 11–12`. Ascending lines are
-/// expected, as `groups` sorts them.
+/// `line 7`; `lines 3, 5, 8`; `lines 2–4, 9, 11–12`.
+///
+/// `lines` is ascending, as a [`Run`] keeps it. An equal line is skipped, so
+/// a repeat cannot print `5, 5`, and the noun agrees with the lines shown.
 fn line_list(lines: &[usize]) -> String {
     let mut runs: Vec<(usize, usize)> = Vec::new();
+    let mut shown = 0;
     for &line in lines {
         match runs.last_mut() {
+            Some((_, end)) if *end == line => continue,
             Some((_, end)) if *end + 1 == line => *end = line,
             _ => runs.push((line, line)),
         }
+        shown += 1;
     }
     let text = runs
         .iter()
@@ -324,5 +338,5 @@ fn line_list(lines: &[usize]) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ");
-    format!("{} {text}", plural(lines.len(), "line", "lines"))
+    format!("{} {text}", plural(shown, "line", "lines"))
 }
