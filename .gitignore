@@ -14,3 +14,6 @@ target/
 .vscode/
 .obsidian/
 *.swp
+
+# Font sources
+*.zip

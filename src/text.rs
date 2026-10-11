@@ -6,12 +6,12 @@
 //! from real font metrics, and SC-7 requires the wrap points baked into the
 //! HTML to match the ones resvg rasterises.
 
-use rustybuzz::{Face as ShaperFace, UnicodeBuffer};
+use harfrust::{Direction, FontRef, ShapeOptions, ShaperData, UnicodeBuffer};
 
 /// FR-85's family name, as `fontdb` registers both vendored faces.
 pub const FAMILY: &str = "Inter";
 
-/// Inter Regular, Latin and Latin Extended subset (`scripts/subset-inter.sh`).
+/// Inter Regular, subset to the scripts Inter draws (`scripts/subset-inter.sh`, D-68).
 pub const REGULAR_TTF: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
 /// Inter `SemiBold`, same subset, from the same run as [`REGULAR_TTF`].
 pub const SEMIBOLD_TTF: &[u8] = include_bytes!("../assets/Inter-SemiBold.ttf");
@@ -35,6 +35,11 @@ impl Weight {
     }
 }
 
+/// A vendored face the shaper cannot read: NFR-15's font load failure.
+#[derive(Debug, thiserror::Error)]
+#[error("the embedded font cannot be read: {0}")]
+pub struct FontError(String);
+
 /// Both faces, parsed once at startup and passed down.
 ///
 /// Every `Block::size` measures, and re-parsing per call would put a font
@@ -52,14 +57,15 @@ impl Fonts {
     ///
     /// # Errors
     ///
-    /// A vendored face that `ttf-parser` cannot parse.
-    pub fn embedded() -> Result<Self, ttf_parser::FaceParsingError> {
+    /// A vendored face that `harfrust` cannot read.
+    pub fn embedded() -> Result<Self, FontError> {
         Ok(Self {
             regular: FontMetrics::load(REGULAR_TTF)?,
             semibold: FontMetrics::load(SEMIBOLD_TTF)?,
         })
     }
 
+    // qual:api — PR 09's blocks are its first production caller
     /// The metrics for one weight's face.
     #[must_use]
     pub const fn face(&self, w: Weight) -> &FontMetrics<'static> {
@@ -70,8 +76,12 @@ impl Fonts {
     }
 }
 
+/// One face, ready to shape. Measurement goes through `harfrust`, the shaper
+/// `resvg` 0.48 lays text out with, so FR-79's wrap points agree with the
+/// rasterised output by construction (FR-84, D-67).
 pub struct FontMetrics<'a> {
-    face: ShaperFace<'a>,
+    font: FontRef<'a>,
+    data: ShaperData,
 }
 
 impl<'a> FontMetrics<'a> {
@@ -79,37 +89,49 @@ impl<'a> FontMetrics<'a> {
     ///
     /// # Errors
     ///
-    /// [`ttf_parser::FaceParsingError::MalformedFont`] if `data` is not a
-    /// font `rustybuzz` can read.
-    pub fn load(data: &'a [u8]) -> Result<Self, ttf_parser::FaceParsingError> {
-        // Shape rather than sum raw `hmtx` advances: the naive sum ignores
-        // GPOS kerning, which the rasteriser's shaper applies, and FR-79's
-        // wrap points must agree with the rasterised output (D-42). Since
-        // resvg 0.48 that shaper is harfrust, not rustybuzz, so agreement now
-        // rests on `tests/agrees_with_resvg.rs` alone; do not loosen its
-        // tolerance. Crumb rg-mbv moves this measurement to harfrust.
-        let face =
-            ShaperFace::from_slice(data, 0).ok_or(ttf_parser::FaceParsingError::MalformedFont)?;
-        Ok(Self { face })
+    /// [`FontError`] if `data` is not a font `harfrust` can read.
+    pub fn load(data: &'a [u8]) -> Result<Self, FontError> {
+        let font = FontRef::from_index(data, 0).map_err(|e| FontError(e.to_string()))?;
+        let data = ShaperData::new(&font);
+        Ok(Self { font, data })
     }
 
     /// Advance width of `text` in pixels at `size_px`, with `letter_spacing_px`
-    /// applied between glyphs.
+    /// applied between clusters, as resvg applies it.
+    ///
+    /// Shaped, not summed from raw `hmtx` advances: the naive sum ignores
+    /// GPOS kerning, which the rasteriser applies (D-42). The buffer is set
+    /// up as `usvg` sets it up — left to right (A-4 keeps input out of
+    /// right-to-left scripts), segment properties guessed, default options —
+    /// so the two shape identically.
     #[must_use]
     pub fn measure(&self, text: &str, size_px: f64, letter_spacing_px: f64) -> f64 {
         if text.is_empty() {
             return 0.0;
         }
-        let mut buf = UnicodeBuffer::new();
-        buf.push_str(text);
-        let shaped = rustybuzz::shape(&self.face, &[], buf);
-        let units: i32 = shaped.glyph_positions().iter().map(|p| p.x_advance).sum();
-        #[allow(
+        // A built shaper borrows the font and its data, so it is built per
+        // call rather than stored; `usvg` does the same.
+        let shaper = self.data.shaper(&self.font).build();
+        let mut buffer = UnicodeBuffer::new();
+        buffer.push_str(text);
+        buffer.set_direction(Direction::LeftToRight);
+        buffer.guess_segment_properties();
+        let output = shaper.shape(buffer, ShapeOptions::new());
+        let units: i32 = output.glyph_positions().iter().map(|p| p.x_advance).sum();
+        // FR-84: one gap between clusters, none after the last, as resvg
+        // applies letter-spacing. A combining mark that stays a separate glyph
+        // shares its base's cluster and earns no gap of its own.
+        let boundaries = output
+            .glyph_infos()
+            .windows(2)
+            .filter(|pair| pair[0].cluster != pair[1].cluster)
+            .count();
+        #[expect(
             clippy::cast_precision_loss,
-            reason = "f64 holds every integer up to 2^53 exactly, and a glyph count is far below that"
+            reason = "f64 holds every integer up to 2^53 exactly, and a cluster count is far below that"
         )]
-        let gaps = shaped.len().saturating_sub(1) as f64;
-        let upem = f64::from(self.face.units_per_em());
+        let gaps = boundaries as f64;
+        let upem = f64::from(shaper.units_per_em());
         #[expect(
             clippy::suboptimal_flops,
             reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"

@@ -1,7 +1,7 @@
 # radargen — Design
 
 **Status:** draft, for review
-**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.46
+**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.47
 **Date:** 2026-08-29
 
 > **What this document is for.** The PRD says *what* radargen does and carries
@@ -192,18 +192,18 @@ Six of these are corrections rather than additions, and each has a reason:
   text visibly off its column. Both files are subset from one source in one step
   and versioned together.
 
-**`assets/` holds Inter v4.1**, Regular and SemiBold, subset to Latin and Latin
-Extended by `scripts/subset-inter.sh` and vendored (FR-85). Measured sizes —
-TTF: Regular 165,328 bytes, SemiBold 168,856 bytes; WOFF2: Regular 57,456
-bytes, SemiBold 59,268 bytes. Latin-1 alone was half that, but left Czech,
-Polish, Hungarian, Baltic and Turkish names as tofu (PRD v0.40). The WOFF2 pair
-is what NFR-5 inlines into every HTML edition. The subset keeps `.notdef`'s
+**`assets/` holds Inter v4.1**, Regular and SemiBold, subset by
+`scripts/subset-inter.sh` to Latin, Latin Extended, Vietnamese, Greek and
+Cyrillic — every script Inter draws, plus the Combining Diacritical Marks
+block (FR-85, D-68) — and vendored. Measured sizes — TTF: Regular 235,688 bytes, SemiBold 240,792 bytes; WOFF2: Regular
+81,556 bytes, SemiBold 84,436 bytes. The WOFF2 pair is what NFR-5 inlines into
+every HTML edition: about 166 kB, against 117 kB for Latin and Latin Extended
+alone. The script checks the release zip's SHA-256 and pins Python, `fonttools`
+and `brotli`, so a rerun reproduces these bytes. The subset keeps `.notdef`'s
 outline, so a character outside it renders as the tofu box A-4 accepts rather
 than as blank space. R-7's licensing question was answered earlier — Inter
-declares no Reserved Font Name, so the subset keeps the name — and with the
-sizes measured, R-7 has nothing left open but the script-coverage limit A-4
-states. PRD v0.46 (D-68) widens the subset to Vietnamese, Greek and Cyrillic;
-the files and the sizes above change when crumb `rg-mgw` regenerates them.
+declares no Reserved Font Name, so the subset keeps the name — and R-7 has
+nothing left open but the script-coverage limit A-4 states.
 
 ## 4. The `Block` abstraction
 
@@ -564,7 +564,9 @@ rasterises. A test that only checks our measurement against itself would pass
 while the two diverged, which is exactly what the spike found the naive
 implementation doing — silently, and only on strings carrying kerning pairs.
 These tests already exist and predate the layout engine, which is the right
-order.
+order. Since D-67 that shaper is `harfrust`, at the version `usvg` resolves, so
+a `resvg` upgrade that changes it moves both together; the oracle test is what
+notices if it ever does not.
 
 **Determinism is tested across processes, not across calls.** Rendering twice in
 one process shares an allocator and a hash state, so it is the weaker assertion
@@ -642,7 +644,8 @@ Three consequences the design carries:
 
 - **`emit/svg.rs` is a converter, not a serialiser.** It needs glyph outlines
   from `ttf-parser` and a shaping pass it shares with `text.rs`. No new
-  dependency — both are already direct — but §14.2's "SVG export … effectively
+  crate — `harfrust` is direct, and `ttf-parser` returns from dev-dependency
+  to direct when `emit/svg.rs` lands — but §14.2's "SVG export … effectively
   free once rasterisation works" no longer holds, and the file is worth half a
   day to a day of its own.
 - **Outlines are deduplicated through `<use>`.** One `<path>` per distinct glyph

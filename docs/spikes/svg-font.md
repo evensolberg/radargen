@@ -1,5 +1,7 @@
 # SVG font embedding spike — findings
 
+> **Since PRD v0.46 (D-67):** measurement uses `harfrust`, the shaper `resvg` 0.48 uses; this spike's `rustybuzz` findings carry over unchanged, because the oracle test still agrees to the pixel.
+
 **Closes the question design §11 raised:** how does the exported SVG carry its
 font? SC-15 forbids an external font reference in that file as firmly as NFR-5
 does in the HTML, and FR-54 sells it on opening in PowerPoint, Figma and
