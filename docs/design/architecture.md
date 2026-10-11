@@ -417,15 +417,11 @@ errors — returns a single `Fatal` and aborts, because nothing parsed.
 
 `csv::parse` returns `Result<(Table, Vec<Fatal>), Fatal>`. Tier one is the
 `Err`. Its tier-two FR-4 errors travel beside the table rather than instead of
-it, so they join `build_catalogue`'s in the same run. The two lists are merged
-and grouped once, at print time, as `Warnings` is below. NFR-11 orders the
-errors of both stages by line, header errors first. NFR-20 groups FR-4's
-mismatched rows into one line and each column's FR-6 errors into one line per
-column, listing every line, while FR-5's missing columns are named in a single
-error (D-62). They print as one block after the warnings, never interleaved
-(NFR-11), and their sort key needs a line-without-column position — FR-4's
-mismatched row, FR-5 on the header's line — ordered before the same line's
-column positions.
+it, so they join `build_catalogue`'s in the same run. The two lists are merged,
+then sorted (NFR-11) and grouped (NFR-20, D-62) once, at print time, as
+`Warnings` is below, and printed after it. The sort key needs a
+line-without-column position — FR-4's mismatched row, FR-5 on the header's
+line — ordered before the same line's column positions.
 
 `Config` is the resolved run: the ring list and its source (FR-17), the
 palette, the theme, the width, the title strings. It is built once in
