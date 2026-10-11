@@ -1,7 +1,7 @@
 # radargen — Design
 
 **Status:** draft, for review
-**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.45
+**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.46
 **Date:** 2026-08-29
 
 > **What this document is for.** The PRD says *what* radargen does and carries
@@ -196,7 +196,8 @@ outline, so a character outside it renders as the tofu box A-4 accepts rather
 than as blank space. R-7's licensing question was answered earlier — Inter
 declares no Reserved Font Name, so the subset keeps the name — and with the
 sizes measured, R-7 has nothing left open but the script-coverage limit A-4
-states.
+states. PRD v0.46 (D-68) widens the subset to Vietnamese, Greek and Cyrillic;
+the files and the sizes above change when crumb `rg-mgw` regenerates them.
 
 ## 4. The `Block` abstraction
 

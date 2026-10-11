@@ -73,7 +73,7 @@ An earlier version of this spike used a trailing `.` sentinel and subtracted
   largely immune: FR-46 has the generator emit explicit `<tspan>`s, so the browser
   never re-wraps — a metric difference could make a line sit slightly wider than its
   column, but cannot move a wrap point. Worth a check when the HTML output exists.
-- **Complex scripts.** A-4 bounds entry text to Latin. `rustybuzz` would shape more,
+- **Complex scripts.** A-4 bounds entry text to Latin (since PRD v0.46, D-68: Latin, Greek and Cyrillic). `rustybuzz` would shape more,
   but nothing here tested it, and R-7's coverage limit is unchanged.
 
 ## Consequences
