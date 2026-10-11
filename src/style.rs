@@ -65,6 +65,25 @@ pub const LEGEND_BADGE_NUMBER: TextStyle = MARKER_NUMBER;
 pub const KEY_HEADING: TextStyle = style(Weight::SemiBold, 13.0, 0.0);
 /// Ink: `TextMuted`.
 pub const KEY_LABEL: TextStyle = style(Weight::Regular, 11.0, 0.0);
+/// The key heading's baseline.
+pub const KEY_HEADING_BASELINE: f64 = 20.0;
+/// The first key row's sample centre.
+pub const KEY_FIRST_ROW: f64 = 40.0;
+/// Distance between key rows.
+pub const KEY_ROW: f64 = 24.0;
+/// The key samples' centre, from the key's left edge.
+pub const KEY_SAMPLE_X: f64 = 10.0;
+/// Where the key labels start.
+pub const KEY_LABEL_X: f64 = 28.0;
+/// A label's baseline sits this far below its sample's centre.
+pub const KEY_LABEL_DROP: f64 = 4.0;
+/// The key's qualifier samples.
+pub const KEY_MARKER_RADIUS: f64 = 7.0;
+/// The key's status samples.
+pub const KEY_STATUS_MARKER_RADIUS: f64 = 5.0;
+/// Below the last key row: the status ring's outer edge, so it cannot drift
+/// from the samples.
+pub const KEY_BOTTOM: f64 = KEY_STATUS_MARKER_RADIUS + STATUS_RING_GAP + STATUS_RING_STROKE / 2.0;
 /// Legend text line height.
 pub const LINE_HEIGHT: f64 = 15.0;
 
