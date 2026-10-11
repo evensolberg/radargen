@@ -330,7 +330,7 @@ fn the_ring_warning_names_the_default_ring_set_when_no_flag_declared_one() {
     };
     assert_eq!(
         default(37).to_string(),
-        "line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, declare it in --rings"
+        "line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
     );
     let mut w = Warnings::default();
     w.push(default(4));
@@ -338,7 +338,7 @@ fn the_ring_warning_names_the_default_ring_set_when_no_flag_declared_one() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); all appear in the table view; to plot one, declare it in --rings"
+            "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); all appear in the table view; to plot one, pass --rings with every ring you want, since --rings replaces the default set"
         ]
     );
 }
