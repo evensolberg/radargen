@@ -30,9 +30,10 @@ fn both_faces_register_as_family_inter_with_their_weights() {
 }
 
 /// Printable ASCII, the punctuation the key and legend emit, Latin Extended
-/// (FR-85), and Vietnamese, Greek and Cyrillic (D-68): Latin-1 alone left
-/// Czech, Polish, Hungarian, Baltic and Turkish names drawing tofu in the PNG
-/// while the browser fell back to a system font, which breaks SC-7's parity.
+/// (FR-85), Vietnamese, Greek and Cyrillic (D-68), and the combining marks:
+/// Latin-1 alone left Czech, Polish, Hungarian, Baltic and Turkish names
+/// drawing tofu in the PNG while the browser fell back to a system font, which
+/// breaks SC-7's parity. (Inter has no glyph for U+0345, so it is not checked.)
 #[test]
 fn subset_covers_what_it_promises() {
     for (name, face) in faces() {
@@ -42,6 +43,7 @@ fn subset_covers_what_it_promises() {
             .chain("ạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹđĐơưƠƯẤỂỖỰ".chars())
             .chain("ΑαΒβΓγΔδΛλΣσςΩωάέήίόύώἀἄῶ".chars())
             .chain("АаБбЖжЩщЫыЭэЮюЯяЁёЇїҐґЄєЎў".chars())
+            .chain("\u{0306}\u{0313}\u{0342}".chars())
             .filter(|c| face.glyph_index(*c).is_none())
             .collect();
         assert!(missing.is_empty(), "{name} lacks {missing:?}");

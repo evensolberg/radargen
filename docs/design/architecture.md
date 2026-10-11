@@ -194,10 +194,10 @@ Six of these are corrections rather than additions, and each has a reason:
 
 **`assets/` holds Inter v4.1**, Regular and SemiBold, subset by
 `scripts/subset-inter.sh` to Latin, Latin Extended, Vietnamese, Greek and
-Cyrillic — every script Inter draws (FR-85, D-68) — and vendored. Measured
-sizes — TTF: Regular 226,748 bytes, SemiBold 231,696 bytes; WOFF2: Regular
-77,336 bytes, SemiBold 80,496 bytes. The WOFF2 pair is what NFR-5 inlines into
-every HTML edition: about 158 kB, against 117 kB for Latin and Latin Extended
+Cyrillic — every script Inter draws, plus the Combining Diacritical Marks
+block (FR-85, D-68) — and vendored. Measured sizes — TTF: Regular 235,688 bytes, SemiBold 240,792 bytes; WOFF2: Regular
+81,556 bytes, SemiBold 84,436 bytes. The WOFF2 pair is what NFR-5 inlines into
+every HTML edition: about 166 kB, against 117 kB for Latin and Latin Extended
 alone. The script checks the release zip's SHA-256 and pins Python, `fonttools`
 and `brotli`, so a rerun reproduces these bytes. The subset keeps `.notdef`'s
 outline, so a character outside it renders as the tofu box A-4 accepts rather
