@@ -2,6 +2,9 @@
 //! and how warnings reach stderr (NFR-10, NFR-11, NFR-20).
 
 use std::fmt;
+use std::sync::Arc;
+
+use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
 
 use crate::columns::ColumnKind;
 use crate::rings::{RingSource, RingsError};
@@ -59,12 +62,16 @@ impl fmt::Display for DateColumn {
 /// the CSV had them; display trims them (FR-76) and escapes control characters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RowKind {
-    /// FR-17. `source` is what the message says to edit (D-61).
+    /// FR-17. `source` is what the message says to edit (D-61); `rings` are
+    /// the declared rings it lists, so the author sees what would match.
     UndeclaredRing {
         /// The ring cell as the CSV had it.
         value: String,
         /// Whether the ring list came from `--rings` or the default (D-61).
         source: RingSource,
+        /// The declared rings, edge-to-centre, shared by every warning of
+        /// the run.
+        rings: Arc<[String]>,
     },
     /// FR-20 — non-blank only; a blank qualifier claims nothing (D-35).
     UnrecognisedQualifier {
@@ -91,21 +98,23 @@ pub enum RowKind {
         value: String,
         /// The 1-based physical line of the earlier occurrence (D-37).
         first_line: usize,
+        /// The earlier occurrence's name as the CSV had it.
+        first_value: String,
     },
-    /// FR-90: one per field, however many characters it lost. `column` is the
+    /// FR-90: one per value, however many characters it lost. `column` is the
     /// canonical header name, since any column can carry one.
     Undisplayable {
         /// The canonical header name of the affected column.
         column: String,
-        /// The first character the field lost.
+        /// The first character the value lost.
         first: char,
-        /// How many characters the field lost in all.
+        /// How many characters the value lost in all.
         count: usize,
     },
     /// FR-93: a value under a column whose header cell is empty. `column`
-    /// is `column N`, the 1-based position, since there is no name.
+    /// is [`column_label`], since there is no name.
     UnnamedValue {
-        /// `column N`, the 1-based position of the nameless column.
+        /// [`column_label`] of the nameless column: `column 6 (F)`.
         column: String,
     },
 }
@@ -232,9 +241,17 @@ impl RowKind {
     fn message(&self) -> String {
         let v = self.value().map(trim).unwrap_or_default();
         match self {
-            Self::UndeclaredRing { source, .. } => format!(
-                "'{v}' is not declared by {source}; the row is in the table view, not on the radar"
-            ),
+            Self::UndeclaredRing { source, rings, .. } => {
+                let list = rings.join(", ");
+                match source {
+                    RingSource::Default => format!(
+                        "'{v}' is not one of the default rings ({list}); the row is in the table view, not on the radar; to plot it, declare it in --rings"
+                    ),
+                    RingSource::Flag => format!(
+                        "'{v}' is not one of the rings --rings declares ({list}); the row is in the table view, not on the radar; to plot it, add it to --rings"
+                    ),
+                }
+            }
             Self::UnrecognisedQualifier { .. } => {
                 format!("unrecognised qualifier value '{v}'; drawn solid")
             }
@@ -245,9 +262,14 @@ impl RowKind {
                 format!("'{v}' is not a YYYY-MM-DD date; shown as written")
             }
             Self::EmptyDescription => "empty; the detail panel omits it".into(),
-            Self::DuplicateName { first_line, .. } => {
-                format!("'{v}' repeats line {first_line}; both are drawn")
-            }
+            Self::DuplicateName {
+                first_line,
+                first_value,
+                ..
+            } => format!(
+                "'{v}' repeats line {first_line}'s name '{}' (names match ignoring case and surrounding spaces); both are drawn, so rename or delete one if they are the same item",
+                trim(first_value)
+            ),
             Self::Undisplayable {
                 first, count: 1, ..
             } => format!(
@@ -285,6 +307,35 @@ impl RenderKind {
     }
 }
 
+/// A column as NFR-10 names it: `column 6 (F)`.
+///
+/// The 1-based number and the spreadsheet letters, from the 0-based header
+/// `index`. The one place an index becomes a label, so no message counts
+/// differently.
+#[must_use]
+pub fn column_label(index: usize) -> String {
+    format!("column {} ({})", index + 1, column_letters(index + 1))
+}
+
+/// Spreadsheet letters for a 1-based column number: A..Z, AA..AZ, BA..
+fn column_letters(number: usize) -> String {
+    const LETTERS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let mut letters = String::new();
+    let mut rest = number;
+    while rest > 0 {
+        rest -= 1;
+        letters.insert(
+            0,
+            LETTERS
+                .chars()
+                .nth(rest % LETTERS.len())
+                .unwrap_or_default(),
+        );
+        rest /= LETTERS.len();
+    }
+    letters
+}
+
 fn code_point(c: char) -> String {
     format!("U+{:04X}", u32::from(c))
 }
@@ -301,22 +352,28 @@ fn comma_list(items: impl Iterator<Item = String>) -> String {
 fn escape_controls(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
-        if c.is_control()
-            || matches!(
-                c,
-                '\u{061c}'
-                    | '\u{200e}'
-                    | '\u{200f}'
-                    | '\u{2028}'..='\u{202e}'
-                    | '\u{2066}'..='\u{2069}'
-            )
-        {
+        if needs_escape(c) {
             out.extend(c.escape_default());
         } else {
             out.push(c);
         }
     }
     out
+}
+
+/// Control characters; the Unicode line and paragraph separators, which break
+/// a line in some terminals and log viewers; and every format character (Cf),
+/// bidi controls included, so an invisible character inside a value is shown.
+/// The joiners and the tag characters are kept: they build emoji sequences and
+/// subdivision flags, which would otherwise be unreadable (D-61, D-64).
+fn needs_escape(c: char) -> bool {
+    c.is_control()
+        || matches!(c, '\u{2028}' | '\u{2029}')
+        || (c.general_category() == GeneralCategory::Format
+            && !matches!(
+                c,
+                '\u{200c}' | '\u{200d}' | '\u{e0001}' | '\u{e0020}'..='\u{e007f}'
+            ))
 }
 
 /// Warnings collected over a run (NFR-16 tier three).
@@ -401,10 +458,7 @@ impl Member<'_> {
 fn grouped(class: Class, members: &[Member]) -> String {
     let n = members.len();
     match class {
-        Class::Ring(source) => format!(
-            "{n} rows use a ring not declared by {source} — {}; all appear in the table view",
-            tallied(members, normalise)
-        ),
+        Class::Ring(source) => grouped_rings(source, members),
         Class::Qualifier => format!(
             "{n} rows have an unrecognised qualifier — {}; each is drawn solid",
             tallied(members, normalise)
@@ -420,7 +474,7 @@ fn grouped(class: Class, members: &[Member]) -> String {
             tallied(members, |v| trim(v).to_string())
         ),
         Class::DuplicateName => format!(
-            "{n} rows repeat an earlier name — {}; every row is drawn",
+            "{n} rows repeat an earlier name — {}; every row is drawn, so rename or delete the repeats that are the same item",
             tallied(members, normalise)
         ),
         // No value to enumerate, so NFR-20 lists positions, uncapped.
@@ -432,7 +486,7 @@ fn grouped(class: Class, members: &[Member]) -> String {
         // usually invisible in an editor, so it is what tells the author what
         // to look for.
         Class::Undisplayable => format!(
-            "{n} fields had characters the output cannot display — {}; each was removed",
+            "{n} values had characters the output cannot display — {}; each was removed",
             comma_list(members.iter().filter_map(|m| {
                 let RowKind::Undisplayable {
                     column,
@@ -460,6 +514,28 @@ fn grouped(class: Class, members: &[Member]) -> String {
     }
 }
 
+/// FR-17's grouped line: it lists the declared rings and says what to edit,
+/// which depends on where the ring set came from (D-61).
+fn grouped_rings(source: RingSource, members: &[Member]) -> String {
+    let n = members.len();
+    let list = members
+        .iter()
+        .find_map(|m| match m.kind {
+            RowKind::UndeclaredRing { rings, .. } => Some(rings.join(", ")),
+            _ => None,
+        })
+        .unwrap_or_default();
+    let tallies = tallied(members, normalise);
+    match source {
+        RingSource::Default => format!(
+            "{n} rows use a ring that is not one of the default rings ({list}) — {tallies}; all appear in the table view; to plot one, declare it in --rings"
+        ),
+        RingSource::Flag => format!(
+            "{n} rows use a ring --rings does not declare ({list}) — {tallies}; all appear in the table view; to plot one, add it to --rings"
+        ),
+    }
+}
+
 /// NFR-20's enumeration: each distinct value under `key`, in first-occurrence
 /// order, shown as its first occurrence wrote it, with its count and first
 /// line.
@@ -474,19 +550,33 @@ fn tallied(members: &[Member], key: fn(&str) -> String) -> String {
         }
     }
     comma_list(tallies.iter().map(|(_, first, count)| {
-        let shown = trim(first.kind.value().unwrap_or_default());
         let line = first.line;
         match (first.kind, count) {
-            // A duplicate leads with the line it repeats, so "first" can only
-            // mean the first repeat.
-            (RowKind::DuplicateName { first_line, .. }, 1) => {
-                format!("{shown} (line {first_line}; repeated on line {line})")
+            // A duplicate leads with the earlier row's spelling and line, so
+            // "first" can only mean the first repeat.
+            (
+                RowKind::DuplicateName {
+                    first_line,
+                    first_value,
+                    ..
+                },
+                c,
+            ) => {
+                let shown = trim(first_value);
+                if *c == 1 {
+                    format!("{shown} (line {first_line}; repeated on line {line})")
+                } else {
+                    format!("{shown} (line {first_line}; repeated on {c} rows, first line {line})")
+                }
             }
-            (RowKind::DuplicateName { first_line, .. }, c) => {
-                format!("{shown} (line {first_line}; repeated on {c} rows, first line {line})")
+            (kind, c) => {
+                let shown = trim(kind.value().unwrap_or_default());
+                if *c == 1 {
+                    format!("{shown} (1, line {line})")
+                } else {
+                    format!("{shown} ({c}, first line {line})")
+                }
             }
-            (_, 1) => format!("{shown} (1, line {line})"),
-            (_, c) => format!("{shown} ({c}, first line {line})"),
         }
     }))
 }
@@ -579,24 +669,26 @@ pub enum Fatal {
     /// field, so nothing after it parses. `line` is where the quote opened,
     /// which may be after the record's first line (plan RG-005, Decisions).
     #[error(
-        "line {line}, column {column}: a quote opens this value and never closes; add the closing quote, and write any quote inside the value as \"\""
+        "line {line}, {}: a quote opens this value and never closes; add the closing quote, and write any quote inside the value as \"\"",
+        column_label(*column)
     )]
     UnterminatedQuote {
         /// The 1-based line where the quote opened.
         line: usize,
-        /// The 1-based column of the field it opened in.
+        /// The 0-based header index of the column it opened in.
         column: usize,
     },
     /// NFR-15: text after a closing quote. RFC 4180 doubles a quote inside a
     /// quoted field; keeping or dropping the stray text would both guess.
     /// `line` is the closing quote's.
     #[error(
-        "line {line}, column {column}: text follows a closing quote; inside quotes, write a quote as \"\""
+        "line {line}, {}: text follows a closing quote; inside quotes, write a quote as \"\"",
+        column_label(*column)
     )]
     TextAfterQuote {
         /// The 1-based line of the closing quote.
         line: usize,
-        /// The 1-based column of the field it closed.
+        /// The 0-based header index of the column it closed.
         column: usize,
     },
     /// FR-3: the file has no non-blank records, so no header names a column.
@@ -618,19 +710,22 @@ pub enum Fatal {
         separator: Separator,
     },
     /// FR-4: a header name repeated under FR-76's normalisation, so
-    /// `Name` and `name ` collide. Indices are 1-based; names are as
+    /// `Name` and `name ` collide. Indices are 0-based, as
+    /// [`column_label`] takes them; names are as
     /// written, trimmed, so the author can find both cells.
     #[error(
-        "line {line}: column {index} '{name}' repeats column {first_index} '{first_name}'; header names match ignoring case and surrounding spaces, so rename or remove one"
+        "line {line}: {} '{name}' repeats {} '{first_name}'; header names match ignoring case and surrounding spaces, so rename or remove one",
+        column_label(*index),
+        column_label(*first_index)
     )]
     DuplicateHeader {
         /// The header's line.
         line: usize,
-        /// The 1-based index of the repeating column.
+        /// The 0-based header index of the repeating column.
         index: usize,
         /// Its name, as written and trimmed.
         name: String,
-        /// The 1-based index of the earlier column it collides with.
+        /// The 0-based header index of the earlier column it collides with.
         first_index: usize,
         /// The earlier column's name, as written and trimmed.
         first_name: String,
@@ -638,7 +733,7 @@ pub enum Fatal {
     /// FR-4: a record whose field count is not the header's, with the usual
     /// cause for each direction (FR-61's precedent: say what to do).
     #[error(
-        "line {line}: the row's field count is {found} but the header's is {expected}; {}",
+        "line {line}: the row has {found} values but the header has {expected} columns; {}",
         if found > expected {
             "a comma inside a value needs the value in double quotes"
         } else {
@@ -648,7 +743,7 @@ pub enum Fatal {
     FieldCount {
         /// The record's first line.
         line: usize,
-        /// How many fields the record has.
+        /// How many values the record has.
         found: usize,
         /// How many columns the header has.
         expected: usize,

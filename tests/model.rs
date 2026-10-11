@@ -63,7 +63,7 @@ fn the_prd_example_builds_with_one_warning() {
     assert_eq!(
         w.render(),
         [
-            "warning: line 8, ring: 'Rejected' is not declared by the default ring set; the row is in the table view, not on the radar"
+            "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, declare it in --rings"
         ]
     );
 }
@@ -84,8 +84,8 @@ fn row_errors_from_both_stages_arrive_in_one_run() {
     assert_eq!(
         rendered(&parse_errors),
         [
-            "error: line 4: the row's field count is 3 but the header's is 4; a value is missing, or an unquoted line break split the row",
-            "error: line 7: the row's field count is 5 but the header's is 4; a comma inside a value needs the value in double quotes",
+            "error: line 4: the row has 3 values but the header has 4 columns; a value is missing, or an unquoted line break split the row",
+            "error: line 7: the row has 5 values but the header has 4 columns; a comma inside a value needs the value in double quotes",
         ]
     );
     assert_eq!(
@@ -131,7 +131,7 @@ fn parse_errors_do_not_suppress_model_warnings() {
     assert_eq!(
         w.render(),
         [
-            "warning: line 3, ring: 'Adpot' is not declared by the default ring set; the row is in the table view, not on the radar"
+            "warning: line 3, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, declare it in --rings"
         ]
     );
 }

@@ -9,9 +9,10 @@
 
 pub use crate::columns::ColumnKind;
 use crate::csv::parse::{Record, Table};
-use crate::diagnostics::{DateColumn, Fatal, RowKind, Warning, Warnings};
+use crate::diagnostics::{DateColumn, Fatal, RowKind, Warning, Warnings, column_label};
 use crate::rings::{RingSet, RingSource};
 use crate::{normalise, trim};
+use std::sync::Arc;
 
 /// FR-5's required columns, in the order its error lists them.
 const REQUIRED: [ColumnKind; 4] = [
@@ -404,9 +405,12 @@ struct Builder {
     ring_keys: Vec<String>,
     source: RingSource,
     rings: Vec<String>,
+    /// The declared rings, shared by every FR-17 warning of the run.
+    declared: Arc<[String]>,
     quadrants: Vec<Quadrant>,
-    /// Each name's key and the line it first appears on, for FR-28.
-    names: Vec<(String, usize)>,
+    /// Each name's key, the line it first appears on and its spelling there,
+    /// for FR-28.
+    names: Vec<(String, usize, String)>,
     items: Vec<Item>,
 }
 
@@ -418,6 +422,7 @@ impl Builder {
             ring_keys: rings.rings.iter().map(|r| normalise(r)).collect(),
             source: rings.source,
             rings: rings.rings.clone(),
+            declared: rings.rings.as_slice().into(),
             quadrants: Vec::new(),
             names: Vec::new(),
             items: Vec::new(),
@@ -494,15 +499,16 @@ impl Builder {
     /// FR-28: every later occurrence of a name warns, naming the first.
     fn name(&mut self, name: &str, line: usize, warn: &mut impl FnMut(usize, RowKind)) -> String {
         let key = normalise(name);
-        match self.names.iter().find(|(k, _)| *k == key) {
-            Some(&(_, first_line)) => warn(
+        match self.names.iter().find(|(k, _, _)| *k == key) {
+            Some((_, first_line, first_value)) => warn(
                 self.at.name,
                 RowKind::DuplicateName {
                     value: name.to_string(),
-                    first_line,
+                    first_line: *first_line,
+                    first_value: first_value.clone(),
                 },
             ),
-            None => self.names.push((key.clone(), line)),
+            None => self.names.push((key.clone(), line, name.to_string())),
         }
         key
     }
@@ -544,6 +550,7 @@ impl Builder {
                 RowKind::UndeclaredRing {
                     value: value.to_string(),
                     source: self.source,
+                    rings: Arc::clone(&self.declared),
                 },
             );
         }
@@ -620,7 +627,7 @@ fn check_unnamed(value: &str, at: usize, warn: &mut impl FnMut(usize, RowKind)) 
         warn(
             at,
             RowKind::UnnamedValue {
-                column: format!("column {}", at + 1),
+                column: column_label(at),
             },
         );
     }
@@ -1011,14 +1018,14 @@ mod tests {
         assert_eq!(
             warnings,
             [
-                "warning: line 2, ring: 'In Use' is not declared by the default ring set; the row is in the table view, not on the radar"
+                "warning: line 2, ring: 'In Use' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, declare it in --rings"
             ]
         );
         let (_, warnings) = build_with(&csv, Some("Adopt,Hold"));
         assert_eq!(
             warnings,
             [
-                "warning: line 2, ring: 'In Use' is not declared by --rings; the row is in the table view, not on the radar"
+                "warning: line 2, ring: 'In Use' is not one of the rings --rings declares (Adopt, Hold); the row is in the table view, not on the radar; to plot it, add it to --rings"
             ]
         );
     }
@@ -1055,12 +1062,14 @@ mod tests {
             warnings(&format!("{HEAD}Kafka,T,Adopt,d\nKafka\u{1},T,Adopt,d\n")),
             [
                 "warning: line 3, name: removed U+0001, which the output cannot display",
-                "warning: line 3, name: 'Kafka' repeats line 2; both are drawn",
+                "warning: line 3, name: 'Kafka' repeats line 2's name 'Kafka' (names match ignoring case and surrounding spaces); both are drawn, so rename or delete one if they are the same item",
             ]
         );
         assert_eq!(
             warnings(&format!("{HEAD}Kafka,T,Adopt,d\n\u{200b}Kafka,T,Adopt,d\n")),
-            ["warning: line 3, name: 'Kafka' repeats line 2; both are drawn"]
+            [
+                "warning: line 3, name: 'Kafka' repeats line 2's name 'Kafka' (names match ignoring case and surrounding spaces); both are drawn, so rename or delete one if they are the same item"
+            ]
         );
     }
 
@@ -1267,13 +1276,13 @@ mod tests {
         assert_eq!(
             warnings("name,quadrant,ring,description,,\nK,T,Adopt,d,, \nL,T,Adopt,d,,x\n"),
             [
-                "warning: line 3, column 6: this column has no name in the header row, so its value is not shown; add a header name, or delete the value"
+                "warning: line 3, column 6 (F): this column has no name in the header row, so its value is not shown; add a header name, or delete the value"
             ]
         );
         assert_eq!(
             warnings("name,\u{200b},quadrant,ring,description\nK,x,T,Adopt,d\n"),
             [
-                "warning: line 2, column 2: this column has no name in the header row, so its value is not shown; add a header name, or delete the value"
+                "warning: line 2, column 2 (B): this column has no name in the header row, so its value is not shown; add a header name, or delete the value"
             ]
         );
     }
@@ -1286,7 +1295,7 @@ mod tests {
             warnings("name,quadrant,ring,description,\nK,T,Adopt,d,a\u{1}\n"),
             [
                 "warning: line 2, column 5: removed U+0001, which the output cannot display",
-                "warning: line 2, column 5: this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
+                "warning: line 2, column 5 (E): this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
             ]
         );
     }
@@ -1299,8 +1308,8 @@ mod tests {
         assert_eq!(
             warnings(csv),
             [
-                "warning: line 2, column 2: this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
-                "warning: line 2, ring: 'Adpot' is not declared by the default ring set; the row is in the table view, not on the radar",
+                "warning: line 2, column 2 (B): this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
+                "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, declare it in --rings",
                 "warning: line 2, description: removed U+0001, which the output cannot display",
                 "warning: line 3, description: empty; the detail panel omits it",
             ]
@@ -1316,7 +1325,7 @@ mod tests {
             warnings("name,quadrant,,,ring,description\nK,T,,\u{1},Adpot,d\n"),
             [
                 "warning: line 2, column 4: removed U+0001, which the output cannot display",
-                "warning: line 2, ring: 'Adpot' is not declared by the default ring set; the row is in the table view, not on the radar",
+                "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, declare it in --rings",
             ]
         );
     }
