@@ -7,8 +7,59 @@
 
 use std::cmp::Ordering;
 
-use crate::model::{Item, Quadrant};
+use crate::model::{Catalogue, Item, Quadrant};
 use crate::trim;
+
+/// The `resolve` stage's output (architecture §2): every order the
+/// output depends on, as indices into the [`Catalogue`], which is never
+/// reordered.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Plotted {
+    /// FR-10's order, as indices into [`Catalogue::quadrants`]. Layout,
+    /// the legend and the palette read this list (OQ-17).
+    pub quadrants: Vec<usize>,
+    /// `rank[q]` is quadrant `q`'s position in [`Plotted::quadrants`]:
+    /// FR-67's palette index, never [`Item::quadrant`] (architecture §5).
+    pub rank: Vec<usize>,
+    /// The plotted items in FR-34's order, as indices into
+    /// [`Catalogue::items`]. The item at position `i` is number `i + 1`.
+    pub items: Vec<usize>,
+    /// FR-18: each item's number, aligned with [`Catalogue::items`];
+    /// `None` for an unplotted item. FR-78's number column and FR-50's
+    /// accessible names read it.
+    pub numbers: Vec<Option<usize>>,
+}
+
+impl Plotted {
+    /// FR-78's row order: plotted items in FR-34's order, then unplotted
+    /// ones in CSV order, as indices into [`Catalogue::items`].
+    #[must_use]
+    pub fn table_rows(&self) -> Vec<usize> {
+        let unplotted = self
+            .numbers
+            .iter()
+            .enumerate()
+            .filter(|(_, number)| number.is_none())
+            .map(|(i, _)| i);
+        self.items.iter().copied().chain(unplotted).collect()
+    }
+}
+
+/// FR-10, FR-18, FR-34: order the quadrants and the plotted items, and
+/// number the items from 1.
+#[must_use]
+pub fn resolve(catalogue: &Catalogue) -> Plotted {
+    let quadrants = quadrant_order(&catalogue.quadrants);
+    let rank = ranks(&quadrants);
+    let items = item_order(catalogue, &rank);
+    let numbers = numbers(&items, catalogue.items.len());
+    Plotted {
+        quadrants,
+        rank,
+        items,
+        numbers,
+    }
+}
 
 /// FR-10: case-insensitive alphabetical by FR-76's key, in code point
 /// order (D-7, D-53).
@@ -55,7 +106,7 @@ pub fn compare_names(a: &Item, b: &Item) -> Ordering {
 /// then [`compare_names`], then CSV line, which no two rows share.
 ///
 /// An unplotted item (`ring` is `None`) sorts before its quadrant's
-/// plotted ones; `resolve` sorts only plotted items, so that only keeps
+/// plotted ones; [`resolve`] sorts only plotted items, so that only keeps
 /// this total.
 #[must_use]
 pub fn compare_items(rank: &[usize], a: &Item, b: &Item) -> Ordering {
@@ -66,12 +117,47 @@ pub fn compare_items(rank: &[usize], a: &Item, b: &Item) -> Ordering {
         .then_with(|| a.line.cmp(&b.line))
 }
 
+/// The inverse of `order`: `rank[q]` is quadrant `q`'s position in it,
+/// which is FR-67's palette index (architecture §5).
+fn ranks(order: &[usize]) -> Vec<usize> {
+    let mut rank = vec![0; order.len()];
+    for (position, &q) in order.iter().enumerate() {
+        rank[q] = position;
+    }
+    rank
+}
+
+/// The plotted items in FR-34's order, as indices into
+/// `catalogue.items`. Unplotted items get no number (FR-18), so they are
+/// not here.
+fn item_order(catalogue: &Catalogue, rank: &[usize]) -> Vec<usize> {
+    let mut order: Vec<usize> = catalogue
+        .items
+        .iter()
+        .enumerate()
+        .filter(|(_, item)| item.ring.is_some())
+        .map(|(i, _)| i)
+        .collect();
+    order.sort_unstable_by(|&a, &b| compare_items(rank, &catalogue.items[a], &catalogue.items[b]));
+    order
+}
+
+/// FR-18: number `order`'s items from 1, in a list of `len` aligned with
+/// `Catalogue::items`; every other item is `None`.
+fn numbers(order: &[usize], len: usize) -> Vec<Option<usize>> {
+    let mut numbers = vec![None; len];
+    for (position, &i) in order.iter().enumerate() {
+        numbers[i] = Some(position + 1);
+    }
+    numbers
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::csv::parse::parse;
     use crate::diagnostics::Warnings;
-    use crate::model::{Catalogue, Item, build_catalogue};
+    use crate::model::build_catalogue;
     use crate::rings::parse_rings;
 
     /// A `name,quadrant,ring,description` CSV, one row per
@@ -188,23 +274,16 @@ mod tests {
         );
     }
 
-    /// Each quadrant's FR-10 position. Task 3 replaces this with
-    /// `resolve(cat).rank`.
     fn rank_of(cat: &Catalogue) -> Vec<usize> {
-        let mut rank = vec![0; cat.quadrants.len()];
-        for (position, &q) in quadrant_order(&cat.quadrants).iter().enumerate() {
-            rank[q] = position;
-        }
-        rank
+        resolve(cat).rank
     }
 
-    /// The plotted items' names in FR-34's order. Task 3 replaces the body
-    /// with `resolve(cat).items`.
     fn names_in_order(cat: &Catalogue) -> Vec<&str> {
-        let rank = rank_of(cat);
-        let mut plotted: Vec<&Item> = cat.items.iter().filter(|i| i.ring.is_some()).collect();
-        plotted.sort_unstable_by(|a, b| compare_items(&rank, a, b));
-        plotted.iter().map(|i| i.name.as_str()).collect()
+        resolve(cat)
+            .items
+            .iter()
+            .map(|&i| cat.items[i].name.as_str())
+            .collect()
     }
 
     /// FR-34, FR-35, D-33: quadrant (FR-10), then ring in the declared
@@ -260,7 +339,8 @@ mod tests {
     /// D-63: the ordinal step compares trimmed names. ` Kafka` and `Kafka`
     /// are then equal and fall to CSV line, where a raw comparison would
     /// put the spaced one first; and a leading space cannot move
-    /// `Zookeeper` ahead of `Airflow`.
+    /// `Zookeeper` ahead of `Airflow`. The second case is decided by the
+    /// name key, and the third only by the trimmed ordinal step.
     #[test]
     fn names_compare_trimmed_so_a_space_cannot_move_a_name() {
         let cat = catalogue(&csv(&[("Kafka", "T", "Adopt"), (" Kafka", "T", "Adopt")]));
@@ -270,6 +350,8 @@ mod tests {
             ("Airflow", "T", "Adopt"),
         ]));
         assert_eq!(names_in_order(&cat), ["Airflow", " Zookeeper"]);
+        let cat = catalogue(&csv(&[(" kafka", "T", "Adopt"), ("Kafka", "T", "Adopt")]));
+        assert_eq!(names_in_order(&cat), ["Kafka", " kafka"]);
     }
 
     /// D-53: code point order, which is UTF-8 byte order. U+FF21 (FULLWIDTH
@@ -314,5 +396,67 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// FR-18: numbers run 1, 2, … over plotted items only, in FR-34's
+    /// order, with no gap where an unplotted row sits.
+    #[test]
+    fn numbers_are_contiguous_over_plotted_items() {
+        let cat = catalogue(&csv(&[
+            ("B", "Tool", "Adopt"),
+            ("Old", "Tool", "Rejected"),
+            ("A", "Tool", "Adopt"),
+        ]));
+        let plotted = resolve(&cat);
+        assert_eq!(plotted.items, [2, 0]);
+        assert_eq!(plotted.numbers, [Some(2), None, Some(1)]);
+    }
+
+    /// FR-18, FR-42: with nothing plotted there are no numbers, and every
+    /// quadrant is still ordered for its empty legend group.
+    #[test]
+    fn every_row_unplotted_numbers_nothing() {
+        let cat = catalogue(&csv(&[
+            ("A", "Tool", "Gone"),
+            ("B", "Platform", "Rejected"),
+        ]));
+        let plotted = resolve(&cat);
+        assert_eq!(plotted.items, Vec::<usize>::new());
+        assert_eq!(plotted.numbers, [None, None]);
+        assert_eq!(labels(&cat, &plotted.quadrants), ["Platform", "Tool"]);
+    }
+
+    /// FR-78: plotted rows first in FR-34's order, then unplotted rows in
+    /// CSV order, not interleaved.
+    #[test]
+    fn table_rows_put_plotted_first_then_unplotted_in_csv_order() {
+        let cat = catalogue(&csv(&[
+            ("Old2", "Tool", "Gone"),
+            ("B", "Tool", "Adopt"),
+            ("Old1", "Tool", "Rejected"),
+            ("A", "Tool", "Adopt"),
+        ]));
+        assert_eq!(resolve(&cat).table_rows(), [3, 1, 0, 2]);
+    }
+
+    /// The rank inverts FR-10's order: `rank[q]` is quadrant `q`'s place,
+    /// FR-67's palette index (architecture §5).
+    #[test]
+    fn rank_inverts_the_quadrant_order() {
+        let cat = catalogue(&csv(&[
+            ("A", "beta", "Adopt"),
+            ("B", "Gamma", "Adopt"),
+            ("C", "Alpha", "Adopt"),
+        ]));
+        let plotted = resolve(&cat);
+        assert_eq!(plotted.quadrants, [2, 0, 1]);
+        assert_eq!(plotted.rank, [1, 2, 0]);
+    }
+
+    /// An empty catalogue resolves to nothing, without panicking.
+    #[test]
+    fn an_empty_catalogue_resolves_to_nothing() {
+        let plotted = resolve(&catalogue("name,quadrant,ring,description\n"));
+        assert_eq!(plotted, Plotted::default());
     }
 }

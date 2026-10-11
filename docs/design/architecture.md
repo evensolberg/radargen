@@ -86,9 +86,9 @@ unplotted included, carrying every optional column the header declared, and
 **FR-38's detail panel is built from exactly the prose the graphic omits**. Both
 are HTML chrome around the graphic, not part of it. So the HTML emitter takes
 `(&Document wide, &Document narrow, &Catalogue)` and the static emitters take
-`(&Document wide)` alone. The HTML emitter also reads FR-18's numbers from
-`resolve`'s output, keyed by `Item::line`, for FR-78's number column and FR-50's
-accessible names.
+`(&Document wide)` alone. The HTML emitter also reads `Plotted::numbers` (aligned with
+`Catalogue::items`) for FR-78's number column and FR-50's accessible names, and
+`Plotted::table_rows` for FR-78's row order.
 
 **`Catalogue` therefore keeps the CSV's shape, not only its meaning.** FR-27
 ignores unrecognised columns and FR-78 puts every one of them in the table, in
@@ -103,6 +103,12 @@ declared" a lookup rather than a re-parse. The quadrant and a plotted ring are
 displayed through their labels (FR-9, FR-15), not their cells, so the table and
 detail panel match the radar and legend. An unnamed column is not in that list;
 FR-93 drops it.
+
+**`Plotted` is index lists into the `Catalogue`, not a copy of it.** `resolve`
+returns FR-10's quadrant order and its inverse rank (FR-67's palette index),
+the plotted items in FR-34's order, and FR-18's numbers aligned with
+`Catalogue::items`. The `Catalogue`'s own indices stay first-appearance and CSV
+order, so `Item::quadrant` means one thing everywhere.
 
 That asymmetry is not a leak in the waist — it is D-26 expressed as a type
 signature. A static image has nothing to put the prose in, and it is structurally
@@ -130,7 +136,7 @@ declarations only and are not listed.
 | `src/csv/decode.rs` | Bytes → `String`: BOM, UTF-8, line numbering (FR-1, FR-2, FR-61); `read` is the stage's one file read | v1.0 |
 | `src/csv/parse.rs` | String → `Table` (header and records); header, field counts (FR-3, FR-4); removal of undisplayable characters, with a warning, before any other check except the blank-record test (FR-90, FR-3), using `escape::displayable` so both modules share one set | v1.0 |
 | `src/model.rs` | `Item`, `Catalogue`; column validation, quadrant grouping and ring matching (FR-5–FR-29); the named columns in header order and every row's cells (FR-27, FR-78); unnamed columns dropped, with a warning when they hold a value (FR-93); `accessible_name()` (FR-50, FR-75) | v1.0 |
-| `src/order.rs` | Every comparator: quadrants (FR-10), items (FR-34), `compare_names` | v1.0 |
+| `src/order.rs` | `resolve` → `Plotted`: FR-10's quadrant order and rank (`compare_quadrants`, `quadrant_order`), FR-34's item order (`compare_names`, `compare_items`), FR-18's numbers and FR-78's table order | *exists* |
 | `src/style.rs` | Every layout constant: type scale, the legend's three indents (FR-35), marker radius, band label offsets, legend column maximum (FR-79), and the legibility floor FR-69's breakpoint is computed from (§4) | v1.0 |
 | `src/palette.rs` | `Role`; FR-81/FR-82 built-in values; FR-67's quadrant index → series entry, including its cycling; `--palette` parsing and FR-86/FR-87 validation | v1.0 / v1.1 |
 | `src/layout/geometry.rs` | Angles, bands, marker placement (FR-30–FR-33, FR-43, FR-77) and FR-89's computed band capacity | v1.0 |
