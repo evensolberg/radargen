@@ -80,6 +80,16 @@ fn corpus() -> Vec<String> {
     v
 }
 
+/// `base + units * scale`, with the plain multiply and add the code under
+/// test uses so the expected bits match.
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "mirrors the plain arithmetic the code under test uses (NFR-4)"
+)]
+fn shifted(base: f64, units: f64, scale: f64) -> f64 {
+    base + units * scale
+}
+
 /// Emits SVG path commands, scaled from font units and flipped into SVG's
 /// y-down space.
 struct PathSink {
@@ -90,19 +100,11 @@ struct PathSink {
 }
 
 impl PathSink {
-    #[expect(
-        clippy::suboptimal_flops,
-        reason = "mirrors the plain arithmetic the code under test uses (NFR-4)"
-    )]
     fn x(&self, v: f32) -> String {
-        fmt_coord(f64::from(v) * self.scale + self.dx)
+        fmt_coord(shifted(self.dx, f64::from(v), self.scale))
     }
-    #[expect(
-        clippy::suboptimal_flops,
-        reason = "mirrors the plain arithmetic the code under test uses (NFR-4)"
-    )]
     fn y(&self, v: f32) -> String {
-        fmt_coord(-f64::from(v) * self.scale + self.dy)
+        fmt_coord(shifted(self.dy, -f64::from(v), self.scale))
     }
 }
 
@@ -181,16 +183,8 @@ fn build() -> Built {
         let mut pen = 20.0_f64;
         for (info, pos) in output.glyph_infos().iter().zip(output.glyph_positions()) {
             let gid = u16::try_from(info.glyph_id).expect("glyph id fits u16");
-            #[expect(
-                clippy::suboptimal_flops,
-                reason = "mirrors the plain arithmetic the code under test uses (NFR-4)"
-            )]
-            let gx = pen + f64::from(pos.x_offset) * scale;
-            #[expect(
-                clippy::suboptimal_flops,
-                reason = "mirrors the plain arithmetic the code under test uses (NFR-4)"
-            )]
-            let gy = y - f64::from(pos.y_offset) * scale;
+            let gx = shifted(pen, f64::from(pos.x_offset), scale);
+            let gy = shifted(y, -f64::from(pos.y_offset), scale);
             glyphs += 1;
             distinct.insert(gid);
 

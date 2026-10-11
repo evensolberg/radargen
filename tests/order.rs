@@ -1,20 +1,16 @@
 //! CSV in, numbers out: `parse`, `build_catalogue` and `resolve` on whole
 //! files (architecture §2).
 
-use radargen::csv::parse::parse;
-use radargen::diagnostics::Warnings;
-use radargen::model::{Catalogue, build_catalogue};
+use radargen::model::Catalogue;
 use radargen::order::{Plotted, resolve};
-use radargen::rings::parse_rings;
+
+#[path = "common/catalogue.rs"]
+mod catalogue;
 
 const EXAMPLE: &str = include_str!("fixtures/three-quadrant.csv");
 
 fn resolved(csv: &str) -> (Catalogue, Plotted) {
-    let mut w = Warnings::default();
-    let (table, errs) = parse(csv, &mut w).expect("parses");
-    assert!(errs.is_empty(), "{errs:?}");
-    let rings = parse_rings(None).expect("default");
-    let cat = build_catalogue(&table, &rings, &mut w).expect("builds");
+    let cat = catalogue::catalogue(csv, None);
     let plotted = resolve(&cat);
     (cat, plotted)
 }

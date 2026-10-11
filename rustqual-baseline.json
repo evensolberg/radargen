@@ -1,9 +1,9 @@
 {
   "version": 2,
-  "quality_score": 0.7337400926716251,
-  "iosp_score": 0.9964028776978417,
+  "quality_score": 0.7370913083474284,
+  "iosp_score": 0.9964539007092199,
   "violations": 1,
-  "total": 472,
+  "total": 478,
   "complexity_warnings": 0,
   "magic_number_warnings": 22,
   "nesting_depth_warnings": 0,
@@ -16,9 +16,9 @@
   "fragment_groups": 2,
   "boilerplate_warnings": 8,
   "srp_struct_warnings": 1,
-  "srp_module_warnings": 3,
+  "srp_module_warnings": 4,
   "wildcard_import_warnings": 0,
-  "sdp_violations": 2,
+  "sdp_violations": 0,
   "coupling_warnings": 0,
   "coupling_cycles": 0,
   "tq_no_assertion_warnings": 0,
@@ -28,7 +28,7 @@
   "tq_untested_logic_warnings": 0,
   "structural_srp_warnings": 0,
   "structural_coupling_warnings": 1,
-  "total_findings": 126,
+  "total_findings": 125,
   "violation_details": [
     {
       "name": "main",

@@ -10,21 +10,12 @@
 //! equals the raw `hmtx` advance exactly. So usvg lays the string out and we
 //! read the advance straight off it, with no sentinel and no bearing algebra.
 
-use radargen::text::{FAMILY, Fonts, REGULAR_TTF, SEMIBOLD_TTF, Weight};
-use std::sync::Arc;
+use radargen::text::{FAMILY, Fonts, Weight};
+
+#[path = "common/fonts.rs"]
+mod fonts;
 
 const SIZE: f64 = 12.5;
-
-fn options() -> usvg::Options<'static> {
-    let mut db = fontdb::Database::new();
-    db.load_font_data(REGULAR_TTF.to_vec());
-    db.load_font_data(SEMIBOLD_TTF.to_vec());
-    usvg::Options {
-        fontdb: Arc::new(db),
-        font_family: FAMILY.to_string(),
-        ..usvg::Options::default()
-    }
-}
 
 /// Right edge of the laid-out advance for `text`, laid out by usvg at x=0.
 fn usvg_advance(text: &str, weight: Weight, letter_spacing: f64, opt: &usvg::Options) -> f64 {
@@ -43,7 +34,7 @@ fn usvg_advance(text: &str, weight: Weight, letter_spacing: f64, opt: &usvg::Opt
 /// than the tolerance.
 #[test]
 fn our_advance_matches_usvg_layout_for_both_weights() {
-    let opt = options();
+    let opt = fonts::usvg_options();
     let fonts = Fonts::embedded().expect("faces");
     let mut worst = 0.0_f64;
     for weight in [Weight::Regular, Weight::SemiBold] {
@@ -93,7 +84,7 @@ fn our_advance_matches_usvg_layout_for_both_weights() {
 /// not earn a gap of its own.
 #[test]
 fn letter_spacing_matches_usvg_by_cluster() {
-    let opt = options();
+    let opt = fonts::usvg_options();
     let fonts = Fonts::embedded().expect("faces");
     for weight in [Weight::Regular, Weight::SemiBold] {
         for spacing in [0.48, 3.0] {
