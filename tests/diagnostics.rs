@@ -141,6 +141,52 @@ fn each_render_level_kind_has_its_message() {
 fn values_are_shown_trimmed() {
     let w = ring(3, "  Adpot ");
     assert!(w.to_string().contains("ring: 'Adpot' is"), "{w}");
+    // FR-76's trim, so an invisible format character is not quoted either.
+    let w = ring(3, "\u{200b}Adpot\u{feff}");
+    assert!(w.to_string().contains("ring: 'Adpot' is"), "{w}");
+}
+
+/// FR-76's trim in NFR-20's grouped lines and FR-89's labels too: the value
+/// is shown without its boundary format characters.
+#[test]
+fn grouped_values_are_shown_with_fr76s_trim() {
+    let mut w = Warnings::default();
+    w.push(ring(4, "\u{200b}Adpot"));
+    w.push(ring(9, "Adpot\u{feff}"));
+    assert!(
+        w.render()[0].contains("— Adpot (2, first line 4);"),
+        "{:?}",
+        w.render()
+    );
+    let date = |line, value: &str| {
+        at(
+            line,
+            6,
+            RowKind::UnparsableDate {
+                column: DateColumn::ExitDate,
+                value: value.into(),
+            },
+        )
+    };
+    let mut w = Warnings::default();
+    w.push(date(4, "\u{200b}June"));
+    w.push(date(9, "June"));
+    assert!(
+        w.render()[0].contains("— June (2, first line 4);"),
+        "{:?}",
+        w.render()
+    );
+    let band = Warning::Render(RenderKind::OverfullBand {
+        quadrant: "\u{200b}Tool".into(),
+        ring: "Adopt\u{feff}".into(),
+        count: 14,
+        fits: 10,
+    });
+    assert!(
+        band.to_string()
+            .starts_with("quadrant 'Tool', ring 'Adopt':"),
+        "{band}"
+    );
 }
 
 /// NFR-10: a quoted field can hold a newline. Printed raw it would forge a

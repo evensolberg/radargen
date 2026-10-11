@@ -3,8 +3,8 @@
 
 use std::fmt;
 
-use crate::normalise;
 use crate::rings::RingsError;
+use crate::{normalise, trim};
 
 /// Where a warning points: its sort key.
 ///
@@ -50,7 +50,7 @@ impl fmt::Display for DateColumn {
 }
 
 /// The warnings NFR-9 lists that concern one CSV cell. Values are carried as
-/// the CSV had them; display trims them and escapes control characters.
+/// the CSV had them; display trims them (FR-76) and escapes control characters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RowKind {
     /// FR-17.
@@ -176,7 +176,7 @@ impl RowKind {
     }
 
     fn message(&self) -> String {
-        let v = self.value().map(str::trim).unwrap_or_default();
+        let v = self.value().map(trim).unwrap_or_default();
         match self {
             Self::UndeclaredRing { .. } => format!(
                 "'{v}' is not declared by --rings; the row is in the table view, not on the radar"
@@ -221,8 +221,8 @@ impl RenderKind {
                 fits,
             } => format!(
                 "quadrant '{}', ring '{}': {count} items; about {fits} fit comfortably, so some markers overlap",
-                quadrant.trim(),
-                ring.trim()
+                trim(quadrant),
+                trim(ring)
             ),
         }
     }
@@ -358,7 +358,7 @@ fn grouped(class: Class, members: &[Member]) -> String {
         // parsed, so only trimmed, and two spellings are two values.
         Class::Date(column) => format!(
             "{n} rows have {column} values that are not YYYY-MM-DD dates — {}; each is shown as written",
-            tallied(members, |v| v.trim().to_string())
+            tallied(members, |v| trim(v).to_string())
         ),
         Class::DuplicateName => format!(
             "{n} rows repeat an earlier name — {}; every row is drawn",
@@ -410,7 +410,7 @@ fn tallied(members: &[Member], key: fn(&str) -> String) -> String {
         }
     }
     comma_list(tallies.iter().map(|(_, first, count)| {
-        let shown = first.kind.value().unwrap_or_default().trim();
+        let shown = trim(first.kind.value().unwrap_or_default());
         let line = first.line;
         match (first.kind, count) {
             // A duplicate leads with the line it repeats, so "first" can only

@@ -11,6 +11,29 @@ fn omitting_the_flag_yields_the_in_house_default() {
     );
 }
 
+/// FR-15 uses FR-76's trim, so a zero-width space pasted in with a ring
+/// name neither shows in its band label nor stops it matching, nor hides
+/// a duplicate (D-61).
+#[test]
+fn entries_lose_invisible_format_characters_at_their_ends() {
+    assert_eq!(
+        parse_rings(Some("\u{feff}Adopt\u{200b}, Trial")).expect("valid"),
+        vec!["Adopt", "Trial"]
+    );
+    assert!(matches!(
+        parse_rings(Some("Adopt,\u{200b}")).expect_err("empty entry")[..],
+        [RingsError::EmptyEntry { index: 2 }]
+    ));
+    assert!(matches!(
+        parse_rings(Some("Adopt,\u{200b}adopt")).expect_err("duplicate")[..],
+        [RingsError::Duplicate {
+            index: 2,
+            first_index: 1,
+            ..
+        }]
+    ));
+}
+
 #[test]
 fn entries_are_trimmed_but_keep_internal_spaces() {
     // FR-15: `"Adopt, Trial"` and `"Adopt,Trial"` parse identically, while a

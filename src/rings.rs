@@ -4,7 +4,7 @@
 //! from the names, so it is declared rather than derived (D-4). The list is
 //! **edge-to-centre** (FR-12, D-60): the first entry is the outermost band.
 
-use crate::normalise;
+use crate::{normalise, trim};
 
 /// FR-13: the in-house lifecycle, edge-to-centre, so it reads as written:
 /// Assess -> Trial -> Adopt -> Retire.
@@ -34,7 +34,7 @@ pub enum RingsError {
 
 /// Parse `--rings`, or the FR-13 default when the flag is absent.
 ///
-/// Entries are trimmed of leading/trailing whitespace only (FR-15), so a
+/// Entries get FR-76's trim at their ends only (FR-15), so a
 /// multi-word ring name keeps its internal spaces. The declared casing is
 /// preserved: it is what appears as a band label and legend subheading, and
 /// FR-76 only ever trims a label, never re-cases one.
@@ -57,7 +57,7 @@ pub fn parse_rings(declared: Option<&str>) -> Result<Vec<String>, Vec<RingsError
     let mut seen: Vec<(String, usize)> = Vec::new();
     let mut errors: Vec<RingsError> = Vec::new();
     for (i, raw) in list.split(',').enumerate() {
-        let entry = raw.trim();
+        let entry = trim(raw);
         if entry.is_empty() {
             errors.push(RingsError::EmptyEntry { index: i + 1 });
             continue;
