@@ -6,6 +6,7 @@
 //! and no order depends on sort stability.
 
 use std::cmp::Ordering;
+use std::ops::Range;
 
 use crate::model::{Catalogue, Item, Quadrant};
 use crate::trim;
@@ -43,6 +44,42 @@ impl Plotted {
             .map(|(i, _)| i);
         self.items.iter().copied().chain(unplotted).collect()
     }
+
+    /// The bands that hold a plotted item, in FR-34's order: FR-10's
+    /// quadrant order, then declared ring order. FR-33 numbers `j` within
+    /// each, and FR-89 checks each. Every item in [`Plotted::items`] has a
+    /// ring ([`resolve`] plots only those), so the runs cover it exactly
+    /// and `layout::geometry::place` stays aligned with it.
+    #[must_use]
+    pub fn runs(&self, catalogue: &Catalogue) -> Vec<Run> {
+        let band = |i: usize| (catalogue.items[i].quadrant, catalogue.items[i].ring);
+        let mut start = 0;
+        self.items
+            .chunk_by(|&a, &b| band(a) == band(b))
+            .filter_map(|chunk| {
+                let items = start..start + chunk.len();
+                start = items.end;
+                let (quadrant, ring) = band(chunk[0]);
+                ring.map(|ring| Run {
+                    quadrant,
+                    ring,
+                    items,
+                })
+            })
+            .collect()
+    }
+}
+
+/// One quadrant-and-ring band's plotted items: a run of
+/// [`Plotted::items`], which FR-34 orders by quadrant and then ring.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Run {
+    /// Index into [`Catalogue::quadrants`].
+    pub quadrant: usize,
+    /// Index into [`Catalogue::rings`], the declared order.
+    pub ring: usize,
+    /// The run's positions in [`Plotted::items`].
+    pub items: Range<usize>,
 }
 
 /// FR-10, FR-18, FR-34: order the quadrants and the plotted items, and
@@ -473,5 +510,38 @@ mod tests {
     fn an_empty_catalogue_resolves_to_nothing() {
         let plotted = resolve(&catalogue("name,quadrant,ring,description\n"));
         assert_eq!(plotted, Plotted::default());
+    }
+
+    /// The bands are runs of FR-34's order: one per quadrant and ring that
+    /// holds a plotted item, in FR-10 then declared-ring order.
+    #[test]
+    fn runs_group_plotted_items_by_quadrant_and_ring() {
+        let cat = catalogue(&csv(&[
+            ("A", "Tool", "Adopt"),
+            ("B", "Platform", "Trial"),
+            ("C", "Tool", "Adopt"),
+            ("D", "Tool", "Assess"),
+            ("Old", "Tool", "Rejected"),
+        ]));
+        let plotted = resolve(&cat);
+        let runs: Vec<_> = plotted
+            .runs(&cat)
+            .iter()
+            .map(|r| {
+                (
+                    cat.quadrants[r.quadrant].label.as_str(),
+                    cat.rings[r.ring].as_str(),
+                    r.items.clone(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            runs,
+            [
+                ("Platform", "Trial", 0..1),
+                ("Tool", "Assess", 1..2),
+                ("Tool", "Adopt", 2..4)
+            ]
+        );
     }
 }

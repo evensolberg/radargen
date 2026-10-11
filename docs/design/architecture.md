@@ -139,14 +139,14 @@ declarations only and are not listed.
 | `src/order.rs` | `resolve` → `Plotted`: FR-10's quadrant order and rank (`compare_quadrants`, `quadrant_order`), FR-34's item order (`compare_names`, `compare_items`), FR-18's numbers and FR-78's table order | *exists* |
 | `src/style.rs` | Every layout constant: type scale, the legend's three indents (FR-35), marker radius, band label offsets, legend column maximum (FR-79), and the legibility floor FR-69's breakpoint is computed from (§4) | v1.0 |
 | `src/palette.rs` | `Role`; FR-81/FR-82 built-in values; FR-67's quadrant index → series entry, including its cycling; `--palette` parsing and FR-86/FR-87 validation | v1.0 / v1.1 |
-| `src/layout/geometry.rs` | Angles, bands, marker placement (FR-30–FR-33, FR-43, FR-77) and FR-89's computed band capacity | v1.0 |
-| `src/layout/block.rs` | The `Block` trait, `Size`, `Placement`; nothing domain-specific | v1.0 |
+| `src/layout/geometry.rs` | `Geometry`: angles, bands, marker placement (FR-30–FR-33, FR-43, FR-77), FR-89's computed band capacity, `place`, and FR-88/FR-89's render warnings (`warn_crowding`); `Point` | *exists* |
+| `src/layout/block.rs` | The `Block` trait, `Size`, `Placement`; nothing domain-specific — arrives with the first block (PR 09), using `geometry::Point` | v1.0 |
 | `src/layout/title.rs` | Title block (FR-65) | v1.0 |
 | `src/layout/radar.rs` | Radar block: sectors, bands, markers, labels, FR-70's counter-scale | v1.0 |
 | `src/layout/legend.rs` | Legend block (FR-35, FR-74, FR-75) | v1.0 |
 | `src/layout/key.rs` | Encoding key (FR-66) | v1.0 |
 | `src/layout/arrange.rs` | Wide and narrow placement (FR-68–FR-71) | v1.0 |
-| `src/svg/mod.rs` | `Node`, `Document` — the SVG tree and its serialiser | v1.0 |
+| `src/svg/mod.rs` | `Node`, `Document` — the SVG tree and its serialiser. `Node` arrives with the first block that renders (PR 09) and gains variants with each block; `Document` and the serialiser arrive in PR 13 | v1.0 |
 | `src/escape.rs` | NFR-6's five output contexts, one function each | v1.0 |
 | `src/num.rs` | `fmt_coord()` — NFR-17's rounding, used by every emitter | v1.0 |
 | `src/text.rs` | Shaped measurement and FR-79 wrapping, over **both** of FR-85's faces | *exists* |
@@ -228,6 +228,8 @@ pub struct Size { pub w: f64, pub h: f64 }
 pub struct Point { pub x: f64, pub y: f64 }
 pub struct Placement { pub origin: Point, pub scale: f64 }
 ```
+
+`Point` is `layout::geometry::Point`: geometry produces points before any block exists.
 
 **`Placement` carries a scale, and `size` takes one.** An earlier draft of this
 document had `render_at(origin: Point)` — translation only — which cannot
@@ -514,11 +516,13 @@ interface that has not been agreed. Each step is testable when it lands.
 | 0 | `text.rs`, `cli.rs`, `rings.rs` | — | spike, scaffold — **done** |
 | 1 | `diagnostics.rs`, `escape.rs`, `num.rs`, `style.rs`, `palette.rs` (built-ins) | nothing — pure, leaf modules | scaffold |
 | 2 | `csv/`, `model.rs`, `order.rs` | 1 | CSV parsing and validation |
-| 3 | `layout/geometry.rs`, `layout/block.rs` | 1, 2 | layout engine |
-| 4 | `layout/{title,radar,legend,key}.rs`, `arrange.rs` | 3, `text.rs` | layout engine |
+| 3 | `layout/geometry.rs` | 1, 2 | layout engine |
+| 4 | `layout/block.rs` and a minimal `svg::Node`, then `layout/{title,radar,legend,key}.rs`, `arrange.rs` | 3, `text.rs` | layout engine |
 | 5 | `svg/`, `emit/write.rs` | 4 | shared SVG generation |
 | 6 | `emit/html/` | 5, `Catalogue` from 2 | HTML output wrapper |
 | 7 | `emit/{svg,png}.rs`, `--palette`, `--theme`/`--width` plumbing | 5, `text.rs` *(svg outlines re-shape)* | PNG + SVG export — **v1.1** |
+
+`Node` is built up with the blocks rather than ahead of them: each block adds the variants it draws, and step 5 adds `Document` and the serialiser.
 
 Steps 1–6 are v1.0; step 7 is v1.1. The font swap (Libertinus → Inter, FR-85)
 had to land **before step 4**, not with packaging, and did (PR 01): every
