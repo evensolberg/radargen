@@ -58,6 +58,12 @@ impl Qualifier {
             Self::Conditional => "Conditional",
         }
     }
+
+    /// FR-20: `Conditional` is drawn hollow, every other value solid.
+    #[must_use]
+    pub const fn is_hollow(self) -> bool {
+        matches!(self, Self::Conditional)
+    }
 }
 
 /// FR-26's values. An unrecognised one is `NoChange`, with a warning.
@@ -131,7 +137,7 @@ impl Item {
     /// FR-20: drawn hollow.
     #[must_use]
     pub fn hollow(&self) -> bool {
-        self.qualifier == Some(Qualifier::Conditional)
+        self.qualifier.is_some_and(Qualifier::is_hollow)
     }
 
     /// The cell under `column`, an index into [`Catalogue::columns`], or

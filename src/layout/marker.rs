@@ -101,21 +101,22 @@ impl Glyph {
                 ring_stroke,
             )),
         };
-        let marker = match qualifier {
-            Some(Qualifier::Conditional) => Node::Circle {
+        let marker = if qualifier.is_some_and(Qualifier::is_hollow) {
+            Node::Circle {
                 centre,
                 radius,
                 fill: Paint::Role(Role::Neutral(Neutral::MarkerHollow)),
                 stroke: Paint::Role(ink),
                 stroke_width: MARKER_HOLLOW_STROKE * size,
-            },
-            Some(Qualifier::Default) | None => Node::Circle {
+            }
+        } else {
+            Node::Circle {
                 centre,
                 radius,
                 fill: Paint::Role(ink),
                 stroke: Paint::Role(Role::Neutral(Neutral::Surface1)),
                 stroke_width: MARKER_STROKE * size,
-            },
+            }
         };
         ring.into_iter().chain(Some(marker)).collect()
     }
