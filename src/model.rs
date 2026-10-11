@@ -161,7 +161,8 @@ pub struct Item {
     pub ring: Option<usize>,
     /// FR-20; `None` when blank or unrecognised.
     pub qualifier: Option<Qualifier>,
-    /// FR-26: `None` when blank or absent.
+    /// FR-26: `None` when blank or absent; an unrecognised value is
+    /// `Some(Status::NoChange)`, with a warning.
     pub status: Option<Status>,
     /// Every named column's cell, aligned with [`Catalogue::columns`] (not
     /// with the header, which may hold unnamed columns), as written after

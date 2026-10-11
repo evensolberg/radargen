@@ -92,15 +92,17 @@ accessible names.
 
 **`Catalogue` therefore keeps the CSV's shape, not only its meaning.** FR-27
 ignores unrecognised columns and FR-78 puts every one of them in the table, in
-header order — so an `Item` of named, typed fields cannot serve the table on its
-own, and reaching back past the waist to the `Table` would give the HTML
-emitter a second input to keep in step. `Catalogue` carries the named columns in header order and, per row, every named
-cell as written (`Item::cells`, read through `Item::cell`, which applies FR-29).
-Typed fields exist only where behaviour depends on them: quadrant, ring,
-qualifier, status and `name_key`. That makes FR-78's "every optional column the
-header declared" a lookup rather than a re-parse. The quadrant and a plotted
-ring are displayed through their labels (FR-9, FR-15), not their cells, so the
-table and detail panel match the radar and legend. An unnamed column is not in that list; FR-93 drops it.
+header order — so an `Item` of named, typed fields cannot serve the table on
+its own, and reaching back past the waist to the `Table` would give the HTML
+emitter a second input to keep in step. `Catalogue` carries the named columns
+in header order and, per row, every named cell as written (`Item::cells`, read
+through `Item::cell`, which applies FR-29). Typed fields exist only where
+behaviour depends on them: quadrant, ring, qualifier, status and `name_key`,
+plus `name` and `line`. That makes FR-78's "every optional column the header
+declared" a lookup rather than a re-parse. The quadrant and a plotted ring are
+displayed through their labels (FR-9, FR-15), not their cells, so the table and
+detail panel match the radar and legend. An unnamed column is not in that list;
+FR-93 drops it.
 
 That asymmetry is not a leak in the waist — it is D-26 expressed as a type
 signature. A static image has nothing to put the prose in, and it is structurally

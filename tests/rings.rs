@@ -11,9 +11,6 @@ fn omitting_the_flag_yields_the_in_house_default() {
     );
 }
 
-/// FR-15 uses FR-76's trim, so a zero-width space pasted in with a ring
-/// name neither shows in its band label nor stops it matching, nor hides
-/// a duplicate (D-61).
 /// FR-17 (D-61): the warning names where the rings came from.
 #[test]
 fn the_set_records_its_source() {
@@ -27,6 +24,9 @@ fn the_set_records_its_source() {
     );
 }
 
+/// FR-15 uses FR-76's trim, so a zero-width space pasted in with a ring
+/// name neither shows in its band label nor stops it matching, nor hides
+/// a duplicate (D-61).
 #[test]
 fn entries_lose_invisible_format_characters_at_their_ends() {
     assert_eq!(
