@@ -408,6 +408,10 @@ fn glyph_nodes(m: &Marker, r: RadarScale) -> Vec<Node> {
 
 /// A marker's FR-34 number, centred on it: in primary text on a hollow
 /// marker, else in the ink its series entry calls for (D-54).
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+)]
 fn number_node(m: &Marker, r: RadarScale) -> Node {
     let paint = if m.qualifier == Some(Qualifier::Conditional) {
         Paint::Role(Role::Neutral(Neutral::TextPrimary))
@@ -418,7 +422,7 @@ fn number_node(m: &Marker, r: RadarScale) -> Node {
     Node::Text {
         origin: Point {
             x: centre.x,
-            y: (NUMBER_CENTRING * MARKER_NUMBER.size).mul_add(r.marks, centre.y),
+            y: centre.y + NUMBER_CENTRING * MARKER_NUMBER.size * r.marks,
         },
         style: MARKER_NUMBER.scaled(r.marks),
         ink: TextPaint::Fill(paint),
