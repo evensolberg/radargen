@@ -33,3 +33,5 @@ FR-5–FR-29, FR-27/FR-78 (declared header order, unrecognised cells kept), acce
 [2026-10-10] Implementation notes (v0.43 efficiency review): unicode-properties 0.1.4 (general-category feature) is already in the tree via rustybuzz, so use it for Cf. Add one borrowing fr76_trim(&str) -> &str that normalise builds on, and use it at every display-label trim site (parse.rs:368,370, diagnostics.rs:179,225,413). Keep RingSource as a small Copy enum held once in Config, not cloned into each warning. Normalise header names once and reuse the result for duplicate detection and FR-93 unnamed-column detection (duplicate_headers is quadratic today).
 
 [2026-10-10] Ownership open for the plan: FR-93 unnamed-column drop and warning could live in csv::parse (owns the header, has line/position) rather than model.rs; decide in the PR 06 plan.
+
+[2026-10-10] Correction to the v0.43 review note above: FR-93 counts values, not rows. The grouped form is "N values sit under a column with no heading — column 6 (2, first line 4), column 7 (1, line 9)".
