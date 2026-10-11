@@ -27,12 +27,25 @@ sha2 = "0.11.0"
 roxmltree = "0.21"
 ttf-parser = "0.25"
 
-# Architecture §1: no unsafe anywhere, and clippy's pedantic group is an
-# error rather than advice. Declared here, not as crate attributes, so the
-# lib, the binary, tests and examples share one gate, and a plain
-# `cargo clippy` enforces it locally as well as in CI.
+# Architecture §1: no unsafe anywhere, and clippy's pedantic, nursery and
+# cargo groups are errors rather than advice. The lints are declared here,
+# not as crate attributes, so the lib, binary, tests and examples share one
+# gate, and CI's `cargo clippy --all-targets -- -D warnings` enforces all
+# of it, as does a plain `cargo clippy --all-targets` locally.
 [lints.rust]
 unsafe_code = "forbid"
 
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+cargo = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"
+string_slice = "deny"
+unwrap_in_result = "deny"
+missing_assert_message = "deny"
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+disallowed_methods = "deny"

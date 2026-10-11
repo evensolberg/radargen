@@ -226,8 +226,11 @@ impl Column<'_, '_> {
             if cut == 0 {
                 break;
             }
-            lines.push(rest[..cut].to_string());
-            rest = &rest[cut..];
+            let (head, tail) = rest.split_at_checked(cut).expect(
+                "fitting_prefix returns a char_indices end or the first char's length, both char boundaries",
+            );
+            lines.push(head.to_string());
+            rest = tail;
         }
         rest
     }
@@ -240,7 +243,11 @@ impl Column<'_, '_> {
         token
             .char_indices()
             .map(|(i, c)| i + c.len_utf8())
-            .take_while(|&end| !self.overflows(&token[..end]))
+            .take_while(|&end| {
+                token
+                    .get(..end)
+                    .is_some_and(|prefix| !self.overflows(prefix))
+            })
             .last()
             .unwrap_or(first)
     }

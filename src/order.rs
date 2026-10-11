@@ -5,6 +5,8 @@
 //! (FR-76, architecture §6). Every one is total, so the sorts are unstable
 //! and no order depends on sort stability.
 
+// qual:allow(coupling, sdp) reason: "the pipeline runs csv → model → order → layout (architecture §2); depending on the previous stage is the design"
+
 use std::cmp::Ordering;
 use std::ops::Range;
 

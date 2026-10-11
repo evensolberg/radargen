@@ -1,7 +1,7 @@
 ---
 id: rg-9zd
 title: Share the parse→build_catalogue test helper across test files
-status: open
+status: closed
 type: task
 priority: 4
 tags:
@@ -9,6 +9,8 @@ tags:
 - tooling
 created: 2026-10-11
 updated: 2026-10-11
+blocks:
+- rg-f27
 phase: ''
 ---
 
@@ -19,3 +21,7 @@ From the PR 07 simplify review. The chain parse → assert no errors → parse_r
 [2026-10-11] [2026-10-11] PR 08 adds a third copy: tests/geometry.rs has csv/rows/build helpers beside src/order.rs's.
 
 [2026-10-11] [2026-10-11] From PR 08a's simplify review: the fontdb-with-both-faces plus usvg::Options{font_family: FAMILY} setup is repeated in tests/agrees_with_resvg.rs, tests/rasterises_within_measurement.rs (and partly outlines_match_text.rs, font_assets.rs); a tests/common usvg_options() would serve them.
+
+[start] 2026-10-11 11:27:12
+
+[stop]  2026-10-11 11:36:28  9m 16s

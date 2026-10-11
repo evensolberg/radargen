@@ -236,7 +236,10 @@ mod tests {
 
     #[test]
     fn json_strings_are_quoted_and_escaped() {
-        assert_eq!(json("say \"hi\"\n").unwrap(), r#""say \"hi\"\n""#);
+        assert_eq!(
+            json("say \"hi\"\n").expect("the input serialises as JSON"),
+            r#""say \"hi\"\n""#
+        );
     }
 
     /// NFR-6 (4): `</script>` ends the block whatever the entity escaping, in
@@ -245,10 +248,10 @@ mod tests {
     #[test]
     fn no_angle_bracket_survives_json_escaping() {
         for s in ["</script>", "</SCRIPT>", "<!-- x", "a < b"] {
-            let out = json(s).unwrap();
+            let out = json(s).expect("the input serialises as JSON");
             assert!(!out.contains('<'), "{s:?} -> {out}");
             assert_eq!(
-                serde_json::from_str::<String>(&out).unwrap(),
+                serde_json::from_str::<String>(&out).expect("the output is valid JSON"),
                 s,
                 "must round-trip"
             );
@@ -257,17 +260,17 @@ mod tests {
 
     #[test]
     fn line_and_paragraph_separators_are_escaped() {
-        let out = json("x\u{2028}y\u{2029}z").unwrap();
+        let out = json("x\u{2028}y\u{2029}z").expect("the input serialises as JSON");
         assert_eq!(out, r#""x\u2028y\u2029z""#);
         assert_eq!(
-            serde_json::from_str::<String>(&out).unwrap(),
+            serde_json::from_str::<String>(&out).expect("the output is valid JSON"),
             "x\u{2028}y\u{2029}z"
         );
     }
 
     #[test]
     fn json_escapes_structures_too() {
-        let out = json(&["</script>", "ok"]).unwrap();
+        let out = json(&["</script>", "ok"]).expect("the input serialises as JSON");
         assert_eq!(out, r#"["\u003c/script\u003e","ok"]"#);
     }
 
@@ -314,10 +317,10 @@ mod tests {
     /// document.
     #[test]
     fn json_escapes_gt_and_amp_too() {
-        let out = json("a > b & c ]]>").unwrap();
+        let out = json("a > b & c ]]>").expect("the input serialises as JSON");
         assert!(!out.contains('>') && !out.contains('&'), "{out}");
         assert_eq!(
-            serde_json::from_str::<String>(&out).unwrap(),
+            serde_json::from_str::<String>(&out).expect("the output is valid JSON"),
             "a > b & c ]]>"
         );
     }

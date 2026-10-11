@@ -37,7 +37,10 @@ fn width_scales_linearly_with_size() {
     let m = metrics();
     let at12 = m.measure("Terraform", 12.0, 0.0);
     let at24 = m.measure("Terraform", 24.0, 0.0);
-    assert!((at24 - at12 * 2.0).abs() < 1e-9, "{at24} != 2 x {at12}");
+    assert!(
+        at12.mul_add(-2.0, at24).abs() < 1e-9,
+        "{at24} != 2 x {at12}"
+    );
 }
 
 #[test]
@@ -45,7 +48,7 @@ fn repeated_glyph_is_additive() {
     let m = metrics();
     let one = m.measure("H", 12.5, 0.0);
     let two = m.measure("HH", 12.5, 0.0);
-    assert!((two - one * 2.0).abs() < 1e-9, "{two} != 2 x {one}");
+    assert!(one.mul_add(-2.0, two).abs() < 1e-9, "{two} != 2 x {one}");
 }
 
 #[test]
@@ -55,7 +58,7 @@ fn letter_spacing_applies_between_glyphs_not_after() {
     let spaced = m.measure("Kubernetes", 12.5, 0.75);
     // 10 glyphs -> 9 gaps
     assert!(
-        (spaced - (plain + 9.0 * 0.75)).abs() < 1e-9,
+        (spaced - 9.0_f64.mul_add(0.75, plain)).abs() < 1e-9,
         "{spaced} vs {plain}"
     );
 }

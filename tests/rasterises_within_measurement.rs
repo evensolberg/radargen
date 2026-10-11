@@ -11,20 +11,15 @@
 //! ink would fit inside `SemiBold`'s wider measurement; `tests/agrees_with_resvg.rs`
 //! checks that.
 
-use radargen::text::{FAMILY, Fonts, REGULAR_TTF, SEMIBOLD_TTF, Weight};
-use std::sync::Arc;
+use radargen::text::{FAMILY, Fonts, Weight};
+
+#[path = "common/fonts.rs"]
+mod fonts;
 
 const SIZE: f64 = 20.0;
 
 fn rightmost_inked_column(text: &str, weight: Weight) -> u32 {
-    let mut db = fontdb::Database::new();
-    db.load_font_data(REGULAR_TTF.to_vec());
-    db.load_font_data(SEMIBOLD_TTF.to_vec());
-    let opt = usvg::Options {
-        fontdb: Arc::new(db),
-        font_family: FAMILY.to_string(),
-        ..usvg::Options::default()
-    };
+    let opt = fonts::usvg_options();
     let svg = format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" width="900" height="80">
              <text x="0" y="60" font-family="{FAMILY}" font-weight="{}" font-size="{SIZE}">{text}</text>

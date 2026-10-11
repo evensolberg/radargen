@@ -8,7 +8,9 @@ tags:
 - diagnostics
 - cli
 created: 2026-10-09
-updated: 2026-10-09
+updated: 2026-10-11
+blocks:
+- rg-f27
 phase: ''
 ---
 

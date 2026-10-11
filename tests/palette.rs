@@ -1,6 +1,11 @@
 //! FR-81: `docs/product/palette.sample.css` ships as the `--palette` starting
 //! point, so an author copying it must get exactly what the tool draws.
 
+#![expect(
+    clippy::disallowed_methods,
+    reason = "trims fixture text, not CSV or --rings values"
+)]
+
 use radargen::palette::{Palette, Theme};
 
 /// `(name, value)` for every `--x: #hex;` line in the block opened by `opener`.
@@ -8,11 +13,8 @@ fn block(css: &str, opener: &str) -> Vec<(String, String)> {
     let start = css
         .find(opener)
         .unwrap_or_else(|| panic!("no {opener} block"));
-    let body = &css[start
-        ..css[start..]
-            .find('}')
-            .map(|e| start + e)
-            .expect("block closes")];
+    let (_, from_opener) = css.split_at(start);
+    let (body, _) = from_opener.split_once('}').expect("block closes");
     body.lines()
         .map(str::trim)
         .filter(|l| l.starts_with("--"))

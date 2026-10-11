@@ -10,6 +10,9 @@ use radargen::model::{Catalogue, build_catalogue};
 use radargen::order::{Plotted, resolve};
 use radargen::rings::parse_rings;
 
+#[path = "common/catalogue.rs"]
+mod catalogue;
+
 /// A `name,quadrant,ring,description` CSV, one row per
 /// `(name, quadrant, ring)`.
 fn csv(rows: &[(String, String, &str)]) -> String {
@@ -22,11 +25,7 @@ fn csv(rows: &[(String, String, &str)]) -> String {
 
 /// The catalogue, its resolved order, and only the geometry's warnings.
 fn build(csv: &str) -> (Catalogue, Plotted, Vec<String>) {
-    let mut w = Warnings::default();
-    let (table, errs) = parse(csv, &mut w).expect("parses");
-    assert!(errs.is_empty(), "{errs:?}");
-    let rings = parse_rings(None).expect("default");
-    let cat = build_catalogue(&table, &rings, &mut w).expect("builds");
+    let cat = catalogue::catalogue(csv, None);
     let plotted = resolve(&cat);
     let mut geometry_warnings = Warnings::default();
     warn_crowding(&cat, &plotted, &mut geometry_warnings);

@@ -91,10 +91,10 @@ struct PathSink {
 
 impl PathSink {
     fn x(&self, v: f32) -> String {
-        fmt_coord(f64::from(v) * self.scale + self.dx)
+        fmt_coord(f64::from(v).mul_add(self.scale, self.dx))
     }
     fn y(&self, v: f32) -> String {
-        fmt_coord(-f64::from(v) * self.scale + self.dy)
+        fmt_coord((-f64::from(v)).mul_add(self.scale, self.dy))
     }
 }
 
@@ -173,8 +173,8 @@ fn build() -> Built {
         let mut pen = 20.0_f64;
         for (info, pos) in output.glyph_infos().iter().zip(output.glyph_positions()) {
             let gid = u16::try_from(info.glyph_id).expect("glyph id fits u16");
-            let gx = pen + f64::from(pos.x_offset) * scale;
-            let gy = y - f64::from(pos.y_offset) * scale;
+            let gx = f64::from(pos.x_offset).mul_add(scale, pen);
+            let gy = (-f64::from(pos.y_offset)).mul_add(scale, y);
             glyphs += 1;
             distinct.insert(gid);
 
@@ -193,7 +193,7 @@ fn build() -> Built {
                 fmt_coord(gy)
             )
             .expect("String write");
-            pen += f64::from(pos.x_advance) * scale;
+            pen = f64::from(pos.x_advance).mul_add(scale, pen);
         }
         write!(outlined, r#"<path d="{run}"/>"#).expect("String write");
         y += 22.0;
