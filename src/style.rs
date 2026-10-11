@@ -210,7 +210,7 @@ mod tests {
                 .fold(0.0_f64, f64::max)
         };
         // A hollow stroke is centred on r, so the clear interior is 2r − stroke.
-        let clear = |r: f64, stroke: f64| 2.0 * r - stroke;
+        let clear = |r: f64, stroke: f64| r.mul_add(2.0, -stroke);
         let marker = widest(MARKER_NUMBER);
         assert!(
             marker < clear(MARKER_RADIUS, MARKER_HOLLOW_STROKE),

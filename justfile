@@ -159,17 +159,17 @@ publish:
     rustqual . --compare rustqual-baseline.json --fail-on-regression --no-fail > /dev/null
     -rustqual . --save-baseline rustqual-baseline.json > /dev/null
 
-# Checks for potential code improvements
+# Checks every target for lint findings; the lint levels live in Cargo.toml
 @lint:
-    cargo lclippy -- -W clippy::pedantic -W clippy::nursery -W clippy::unwrap_used
+    cargo lclippy --all-targets -- -D warnings
 
 # Checks for potential code improvements and fixes what it can
 @lintfix:
-    cargo lclippy --fix -- -W clippy::pedantic -W clippy::nursery -W clippy::unwrap_used
+    cargo lclippy --fix --all-targets -- -D warnings
 
 # Checks for potential code improvements and fixes what it can (allows dirty)
 @lintfixd:
-    cargo lclippy --fix --allow-dirty -- -W clippy::pedantic -W clippy::nursery -W clippy::unwrap_used
+    cargo lclippy --fix --allow-dirty --all-targets -- -D warnings
 
 # Initialize directory for various services such as cargo deny
 @init:

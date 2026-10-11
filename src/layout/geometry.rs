@@ -313,11 +313,11 @@ mod tests {
         let g = geometry(4, 4);
         // Position 1's sector opens at 0°; one item sits at its centre.
         assert!(close(g.angle(1, 0, 1), 45.0));
-        assert!(close(g.radius(0, 0), 195.0 + 65.0 * 0.38));
-        assert!(close(g.radius(0, 1), 195.0 + 65.0 * 0.68));
+        assert!(close(g.radius(0, 0), 65.0_f64.mul_add(0.38, 195.0)));
+        assert!(close(g.radius(0, 1), 65.0_f64.mul_add(0.68, 195.0)));
         assert!(close(g.radius(0, 2), g.radius(0, 0)));
         let p = g.marker(1, 0, 0, 1);
-        let r = 195.0 + 65.0 * 0.38;
+        let r = 65.0_f64.mul_add(0.38, 195.0);
         let h = r * std::f64::consts::FRAC_1_SQRT_2;
         assert!(close(p.x, h) && close(p.y, h), "{p:?}");
     }
@@ -343,11 +343,11 @@ mod tests {
                 for j in 0..n {
                     let a = g.angle(0, j, n);
                     assert!(
-                        a > g.divider(0) + 0.08 * g.sector() - 1e-9,
+                        a > 0.08_f64.mul_add(g.sector(), g.divider(0)) - 1e-9,
                         "N={quadrants} n={n} j={j}"
                     );
                     assert!(
-                        a < g.divider(0) + 0.92 * g.sector() + 1e-9,
+                        a < 0.92_f64.mul_add(g.sector(), g.divider(0)) + 1e-9,
                         "N={quadrants} n={n} j={j}"
                     );
                 }
@@ -364,8 +364,14 @@ mod tests {
         assert!(close(g.angle(0, 0, 1), 90.0));
         let first = g.angle(0, 0, 3);
         let last = g.angle(0, 2, 3);
-        assert!(close(first, -90.0 + 360.0 * (0.08 + 0.25 * 0.84)));
-        assert!(close(last, -90.0 + 360.0 * (0.08 + 0.75 * 0.84)));
+        assert!(close(
+            first,
+            360.0_f64.mul_add(0.25_f64.mul_add(0.84, 0.08), -90.0)
+        ));
+        assert!(close(
+            last,
+            360.0_f64.mul_add(0.75_f64.mul_add(0.84, 0.08), -90.0)
+        ));
         assert!(first > -90.0 + 28.0 && last < 270.0 - 28.0);
     }
 

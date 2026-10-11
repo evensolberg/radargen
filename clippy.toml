@@ -1,0 +1,5 @@
+# FR-76 (D-61): one trim for every CSV and --rings value. `str::trim` strips
+# whitespace only, so a stray byte-order mark or zero-width space survives it.
+disallowed-methods = [
+    { path = "str::trim", reason = "FR-76 (D-61): use radargen::trim" },
+]

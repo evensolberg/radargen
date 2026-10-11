@@ -6,7 +6,7 @@ use radargen::diagnostics::{
 };
 use radargen::rings::{RingSource, RingsError};
 
-fn at(line: usize, column: usize, kind: RowKind) -> Warning {
+const fn at(line: usize, column: usize, kind: RowKind) -> Warning {
     Warning::Row { line, column, kind }
 }
 

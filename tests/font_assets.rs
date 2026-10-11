@@ -1,6 +1,11 @@
 //! FR-85: the vendored faces are Inter Regular and `SemiBold`, subset to
 //! the scripts Inter draws (D-68), and each TTF/WOFF2 pair came out of one subsetting run.
 
+#![expect(
+    clippy::disallowed_methods,
+    reason = "trims fixture text, not CSV or --rings values"
+)]
+
 use radargen::text::{REGULAR_TTF as REGULAR, SEMIBOLD_TTF as SEMIBOLD};
 use ttf_parser::Face;
 

@@ -226,8 +226,12 @@ impl Column<'_, '_> {
             if cut == 0 {
                 break;
             }
-            lines.push(rest[..cut].to_string());
-            rest = &rest[cut..];
+            // `cut` is a char boundary by construction; the `else` is unreachable.
+            let Some((head, tail)) = rest.split_at_checked(cut) else {
+                break;
+            };
+            lines.push(head.to_string());
+            rest = tail;
         }
         rest
     }
@@ -240,7 +244,11 @@ impl Column<'_, '_> {
         token
             .char_indices()
             .map(|(i, c)| i + c.len_utf8())
-            .take_while(|&end| !self.overflows(&token[..end]))
+            .take_while(|&end| {
+                token
+                    .get(..end)
+                    .is_some_and(|prefix| !self.overflows(prefix))
+            })
             .last()
             .unwrap_or(first)
     }
