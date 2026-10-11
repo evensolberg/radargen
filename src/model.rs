@@ -40,21 +40,27 @@ pub enum ColumnKind {
 }
 
 impl ColumnKind {
+    /// Every known kind, so the header names are written once, in
+    /// [`ColumnKind::as_str`].
+    const KNOWN: [Self; 10] = [
+        Self::Name,
+        Self::Quadrant,
+        Self::Ring,
+        Self::Description,
+        Self::Qualifier,
+        Self::Domain,
+        Self::Rationale,
+        Self::LastAffirmed,
+        Self::ExitDate,
+        Self::Status,
+    ];
+
     /// The kind a header name under FR-76 names.
     fn of(key: &str) -> Self {
-        match key {
-            "name" => Self::Name,
-            "quadrant" => Self::Quadrant,
-            "ring" => Self::Ring,
-            "description" => Self::Description,
-            "qualifier" => Self::Qualifier,
-            "domain" => Self::Domain,
-            "rationale" => Self::Rationale,
-            "last_affirmed" => Self::LastAffirmed,
-            "exit_date" => Self::ExitDate,
-            "status" => Self::Status,
-            _ => Self::Other,
-        }
+        Self::KNOWN
+            .into_iter()
+            .find(|k| k.as_str() == key)
+            .unwrap_or(Self::Other)
     }
 
     /// The canonical header name; empty for [`ColumnKind::Other`].
@@ -317,25 +323,39 @@ struct Header {
     /// `None` for an unnamed one (FR-93).
     slots: Vec<Option<usize>>,
     columns: Vec<Column>,
+    /// The header positions of the named columns, in order: where each
+    /// `Item::cells` entry is read from.
+    cell_positions: Vec<usize>,
+    /// FR-93's unnamed columns.
+    unnamed: Vec<usize>,
 }
 
 impl Header {
     fn of(names: &[String]) -> Self {
         let mut slots = Vec::with_capacity(names.len());
         let mut columns = Vec::new();
-        for name in names {
+        let mut cell_positions = Vec::new();
+        let mut unnamed = Vec::new();
+        for (p, name) in names.iter().enumerate() {
             let key = normalise(name);
             if key.is_empty() {
                 slots.push(None);
+                unnamed.push(p);
                 continue;
             }
             slots.push(Some(columns.len()));
+            cell_positions.push(p);
             columns.push(Column {
                 heading: name.clone(),
                 kind: ColumnKind::of(&key),
             });
         }
-        Self { slots, columns }
+        Self {
+            slots,
+            columns,
+            cell_positions,
+            unnamed,
+        }
     }
 
     /// The header position of the first column of `kind`. A repeat is
@@ -391,8 +411,6 @@ struct Positions {
     status: Option<usize>,
     last_affirmed: Option<usize>,
     exit_date: Option<usize>,
-    /// FR-93's unnamed columns.
-    unnamed: Vec<usize>,
 }
 
 impl Positions {
@@ -409,9 +427,6 @@ impl Positions {
             status: header.position(ColumnKind::Status),
             last_affirmed: header.position(ColumnKind::LastAffirmed),
             exit_date: header.position(ColumnKind::ExitDate),
-            unnamed: (0..header.slots.len())
-                .filter(|&p| header.slots[p].is_none())
-                .collect(),
         }
     }
 }
@@ -488,18 +503,16 @@ impl Builder {
                 check_date(at(p), p, column, &mut warn);
             }
         }
-        for &p in &self.at.unnamed {
+        for &p in &self.header.unnamed {
             check_unnamed(at(p), p, &mut warn);
         }
         // Built from the header, not zipped with the record, so a short
         // hand-built record still gives one cell per named column.
         let cells = self
             .header
-            .slots
+            .cell_positions
             .iter()
-            .enumerate()
-            .filter(|(_, slot)| slot.is_some())
-            .map(|(p, _)| at(p).to_string())
+            .map(|&p| at(p).to_string())
             .collect();
         self.items.push(Item {
             line: record.line,
@@ -605,15 +618,15 @@ fn read_status(
     let known = Status::ALL
         .into_iter()
         .find(|s| normalise(s.label()) == key);
-    if known.is_none() {
+    Some(known.unwrap_or_else(|| {
         warn(
             column,
             RowKind::UnrecognisedStatus {
                 value: value.to_string(),
             },
         );
-    }
-    Some(known.unwrap_or(Status::NoChange))
+        Status::NoChange
+    }))
 }
 
 /// FR-24, FR-25: a non-blank value that is not `YYYY-MM-DD` warns. Either
