@@ -164,10 +164,7 @@ impl Geometry {
     /// fits, so this is at least 1 when `limit` is.
     #[must_use]
     pub fn capacity(self, ring: usize, limit: usize) -> usize {
-        (1..=limit)
-            .take_while(|&n| self.fits(ring, n))
-            .last()
-            .unwrap_or(0)
+        (1..=limit).take_while(|&n| self.fits(ring, n)).count()
     }
 }
 
@@ -458,7 +455,7 @@ mod tests {
     /// `sin` might produce, still fits; a visibly short one does not.
     #[test]
     fn capacity_tolerates_rounding_at_the_threshold() {
-        let diameter = 2.0 * crate::style::MARKER_RADIUS;
+        let diameter = 2.0 * MARKER_RADIUS;
         assert!(far_enough(diameter - 1e-12));
         assert!(far_enough(diameter));
         assert!(!far_enough(diameter - 1e-3));
