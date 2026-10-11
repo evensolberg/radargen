@@ -1,0 +1,28 @@
+version: 2
+updates:
+  # Keeps ci.yml's SHA-pinned actions current; Dependabot rewrites the
+  # SHA and its version comment together.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore(ci)
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  # Cargo.lock updates, grouped so a routine week is one PR. Major
+  # bumps stay separate: they can change behaviour, and for resvg or
+  # harfrust they can change output bytes (NFR-4, FR-84).
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      cargo:
+        patterns: ["*"]
+        update-types: [minor, patch]
