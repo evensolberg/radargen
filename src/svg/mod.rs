@@ -34,6 +34,27 @@ impl Point {
     }
 }
 
+/// How far positions and sizes are multiplied; they differ inside the radar
+/// (FR-70).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Scale {
+    /// The factor for origins and offsets.
+    pub position: f64,
+    /// The factor for text sizes, letter-spacing and leading.
+    pub size: f64,
+}
+
+impl Scale {
+    /// Positions and sizes multiplied alike by `k`.
+    #[must_use]
+    pub const fn uniform(k: f64) -> Self {
+        Self {
+            position: k,
+            size: k,
+        }
+    }
+}
+
 /// A fill or stroke: a palette role, or nothing (architecture §5).
 ///
 /// `None` is SVG's `none`, for stroked-but-unfilled shapes. It is not FR-20's
@@ -44,6 +65,22 @@ pub enum Paint {
     Role(Role),
     /// Not painted: SVG's `none`.
     None,
+}
+
+/// How a text is painted.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TextPaint {
+    /// Glyphs filled; no outline.
+    Fill(Paint),
+    /// An outline only, drawn under a filled copy so lines behind the text
+    /// stop short of it. No fill, a round line join, and hidden from
+    /// assistive technology: the filled copy is the one that is read.
+    Halo {
+        /// The outline's paint.
+        stroke: Paint,
+        /// The outline's width.
+        width: f64,
+    },
 }
 
 /// Which end of a text line sits at its origin.
@@ -126,8 +163,8 @@ pub enum Node {
         origin: Point,
         /// The face, size and spacing the text is measured and drawn with (FR-85).
         style: TextStyle,
-        /// The text colour.
-        ink: Paint,
+        /// How the text is painted.
+        ink: TextPaint,
         /// Which end of each line sits at `origin`.
         anchor: Anchor,
         /// The lines, already wrapped.
@@ -148,6 +185,17 @@ pub enum Node {
         /// The outline's width.
         stroke_width: f64,
     },
+    /// A straight line.
+    Line {
+        /// Where the line starts.
+        from: Point,
+        /// Where the line ends.
+        to: Point,
+        /// The line's paint.
+        stroke: Paint,
+        /// The line's width.
+        stroke_width: f64,
+    },
     /// An outline built from commands.
     Path {
         /// The outline's steps.
@@ -161,7 +209,7 @@ pub enum Node {
     },
 }
 
-/// A start-anchored block of text, described at scale 1.
+/// A block of text, described at scale 1.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextRun {
     /// Where the first line's baseline starts.
@@ -170,6 +218,8 @@ pub struct TextRun {
     pub style: TextStyle,
     /// The text's neutral colour role.
     pub ink: Neutral,
+    /// Which end of each line sits at `origin`.
+    pub anchor: Anchor,
     /// The lines, already wrapped.
     pub lines: Vec<String>,
     /// Distance from one baseline to the next.
@@ -177,17 +227,36 @@ pub struct TextRun {
 }
 
 impl TextRun {
-    /// The text node at `scale`: origin, the style's sizes and leading are
-    /// multiplied here, in one place.
+    /// The text node at `scale`: the origin is multiplied by the position
+    /// factor; the style's sizes and the leading by the size factor. Both
+    /// happen here, in one place.
     #[must_use]
-    pub fn node(&self, scale: f64) -> Node {
+    pub fn node(&self, scale: Scale) -> Node {
+        self.painted(TextPaint::Fill(Paint::Role(Role::Neutral(self.ink))), scale)
+    }
+
+    /// The same text as an outline of `width` (at scale 1), to draw under
+    /// [`node`](Self::node) in the surface colour so lines behind it stop
+    /// short of the glyphs.
+    #[must_use]
+    pub fn halo(&self, width: f64, scale: Scale) -> Node {
+        self.painted(
+            TextPaint::Halo {
+                stroke: Paint::Role(Role::Neutral(Neutral::Surface1)),
+                width: width * scale.size,
+            },
+            scale,
+        )
+    }
+
+    fn painted(&self, ink: TextPaint, scale: Scale) -> Node {
         Node::Text {
-            origin: self.origin.scaled(scale),
-            style: self.style.scaled(scale),
-            ink: Paint::Role(Role::Neutral(self.ink)),
-            anchor: Anchor::Start,
+            origin: self.origin.scaled(scale.position),
+            style: self.style.scaled(scale.size),
+            ink,
+            anchor: self.anchor,
             lines: self.lines.clone(),
-            leading: self.leading * scale,
+            leading: self.leading * scale.size,
         }
     }
 }
@@ -217,35 +286,108 @@ mod tests {
         );
     }
 
-    #[test]
-    fn text_scales_origin_style_and_leading_together() {
-        let style = TextStyle {
-            weight: crate::text::Weight::Regular,
-            size: 10.0,
-            letter_spacing: 1.0,
-        };
-        let node = TextRun {
-            origin: Point { x: 2.0, y: 4.0 },
-            style,
+    fn run(anchor: Anchor) -> TextRun {
+        TextRun {
+            origin: Point { x: 10.0, y: 20.0 },
+            style: TextStyle {
+                weight: crate::text::Weight::Regular,
+                size: 12.0,
+                letter_spacing: 0.48,
+            },
             ink: Neutral::TextMuted,
+            anchor,
             lines: vec!["a".to_owned()],
-            leading: 12.0,
+            leading: 15.0,
         }
-        .node(0.5);
+    }
+
+    fn close(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-9
+    }
+
+    #[test]
+    fn scale_splits_position_from_size() {
+        let Node::Text {
+            origin,
+            style,
+            anchor,
+            leading,
+            ..
+        } = run(Anchor::Middle).node(Scale {
+            position: 0.5,
+            size: 1.0,
+        })
+        else {
+            panic!("expected text");
+        };
+        assert_eq!(origin, Point { x: 5.0, y: 10.0 });
+        assert!(close(style.size, 12.0) && close(style.letter_spacing, 0.48));
+        assert!(close(leading, 15.0));
+        assert_eq!(anchor, Anchor::Middle);
+
         let Node::Text {
             origin,
             style,
             leading,
-            anchor,
             ..
-        } = node
+        } = run(Anchor::Middle).node(Scale::uniform(2.0))
         else {
             panic!("expected text");
         };
-        assert_eq!(origin, Point { x: 1.0, y: 2.0 });
-        assert!((style.size - 5.0).abs() < 1e-9 && (style.letter_spacing - 0.5).abs() < 1e-9);
-        assert!((leading - 6.0).abs() < 1e-9);
-        assert_eq!(anchor, Anchor::Start);
+        assert_eq!(origin, Point { x: 20.0, y: 40.0 });
+        assert!(close(style.size, 24.0) && close(style.letter_spacing, 0.96));
+        assert!(close(leading, 30.0));
+    }
+
+    #[test]
+    fn halo_is_an_outline_of_the_same_text() {
+        let scale = Scale {
+            position: 0.5,
+            size: 2.0,
+        };
+        let text = run(Anchor::Middle);
+        let Node::Text {
+            origin,
+            style,
+            anchor,
+            lines,
+            leading,
+            ..
+        } = text.node(scale)
+        else {
+            panic!("expected text");
+        };
+        let Node::Text {
+            origin: h_origin,
+            style: h_style,
+            ink,
+            anchor: h_anchor,
+            lines: h_lines,
+            leading: h_leading,
+        } = text.halo(3.0, scale)
+        else {
+            panic!("expected text");
+        };
+        assert_eq!(
+            (h_origin, h_style, h_anchor, &h_lines, h_leading),
+            (origin, style, anchor, &lines, leading)
+        );
+        let TextPaint::Halo { stroke, width } = ink else {
+            panic!("expected a halo, got {ink:?}");
+        };
+        assert_eq!(stroke, Paint::Role(Role::Neutral(Neutral::Surface1)));
+        assert!(close(width, 6.0));
+    }
+
+    #[test]
+    fn ordinary_text_is_filled() {
+        let Node::Text { ink, .. } = run(Anchor::Start).node(Scale::uniform(1.0)) else {
+            panic!("expected text");
+        };
+        assert_eq!(
+            ink,
+            TextPaint::Fill(Paint::Role(Role::Neutral(Neutral::TextMuted)))
+        );
     }
 
     #[test]

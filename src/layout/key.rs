@@ -11,7 +11,7 @@ use crate::style::{
     KEY_BOTTOM, KEY_FIRST_ROW, KEY_HEADING, KEY_HEADING_BASELINE, KEY_LABEL, KEY_LABEL_DROP,
     KEY_LABEL_X, KEY_MARKER_RADIUS, KEY_ROW, KEY_SAMPLE_X, KEY_STATUS_MARKER_RADIUS, TextStyle,
 };
-use crate::svg::{Group, Node, Point, Semantics, TextRun};
+use crate::svg::{Anchor, Group, Node, Point, Scale, Semantics, TextRun};
 use crate::text::Fonts;
 
 /// The heading's text.
@@ -86,10 +86,11 @@ fn text(label: &str, origin: Point, style: TextStyle, ink: Neutral, scale: f64) 
         origin,
         style,
         ink,
+        anchor: Anchor::Start,
         lines: vec![label.to_owned()],
         leading: 0.0,
     }
-    .node(scale)
+    .node(Scale::uniform(scale))
 }
 
 /// One row: its decorative sample, then its label.
@@ -182,6 +183,7 @@ mod tests {
     use crate::style::{STATUS_RING_GAP, STATUS_RING_STROKE};
     use crate::svg::Paint;
     use crate::svg::PathCommand;
+    use crate::svg::TextPaint;
 
     fn rendered(scale: f64) -> Vec<Node> {
         let Node::Group(group) = KeyBlock::new(&fonts()).render(at(scale)) else {
@@ -210,7 +212,7 @@ mod tests {
         child(nodes, 2 + 2 * i)
     }
 
-    fn text_parts(node: &Node) -> (Point, &[String], &TextStyle, Paint) {
+    fn text_parts(node: &Node) -> (Point, &[String], &TextStyle, TextPaint) {
         let Node::Text {
             origin,
             lines,
@@ -393,12 +395,18 @@ mod tests {
         let (origin, _, style, ink) = text_parts(child(&group(child(&nodes, 0)).children, 0));
         assert!(close(origin.y, 20.0) && close(origin.x, 0.0));
         assert_eq!(*style, KEY_HEADING);
-        assert_eq!(ink, Paint::Role(Role::Neutral(Neutral::TextPrimary)));
+        assert_eq!(
+            ink,
+            TextPaint::Fill(Paint::Role(Role::Neutral(Neutral::TextPrimary)))
+        );
         for (i, y) in [40.0, 64.0, 88.0, 112.0, 136.0].into_iter().enumerate() {
             let (origin, _, style, ink) = text_parts(label(&nodes, i));
             assert!(close(origin.x, 28.0) && close(origin.y, y + 4.0));
             assert_eq!(*style, KEY_LABEL);
-            assert_eq!(ink, Paint::Role(Role::Neutral(Neutral::TextMuted)));
+            assert_eq!(
+                ink,
+                TextPaint::Fill(Paint::Role(Role::Neutral(Neutral::TextMuted)))
+            );
         }
         let size = KeyBlock::new(&fonts()).size(1.0);
         assert!(close(size.height, 146.0));
@@ -563,6 +571,10 @@ mod tests {
                 stroke_width,
                 ..
             } => assert_arcs_inside(commands, *stroke_width, frame),
+            Node::Line { from, to, .. } => {
+                frame.contains(from.x, from.y, "line start");
+                frame.contains(to.x, to.y, "line end");
+            }
             Node::Text { .. } => assert_text_inside(node, frame, fonts),
         }
     }

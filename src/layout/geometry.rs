@@ -88,6 +88,13 @@ impl Geometry {
         FIRST_DIVIDER + real(position) * self.sector()
     }
 
+    /// The angle halfway across `position`'s sector, in degrees. NaN with
+    /// no quadrants, like [`divider`](Self::divider).
+    #[must_use]
+    pub fn middle(self, position: usize) -> f64 {
+        f64::midpoint(self.divider(position), self.divider(position + 1))
+    }
+
     /// FR-32: declared ring `ring`'s band. Widths are equal and depend on
     /// the ring count alone (D-47); the first declared ring is outermost
     /// (D-60).
@@ -279,6 +286,29 @@ mod tests {
 
     fn geometry(quadrants: usize, rings: usize) -> Geometry {
         Geometry { quadrants, rings }
+    }
+
+    #[test]
+    fn middle_is_halfway_across_the_sector() {
+        let middles = |n: usize| -> Vec<f64> { (0..n).map(|i| geometry(n, 4).middle(i)).collect() };
+        let expect = |n: usize, want: &[f64]| {
+            let got = middles(n);
+            assert!(
+                got.len() == want.len() && got.iter().zip(want).all(|(a, b)| close(*a, *b)),
+                "{n}: {got:?} vs {want:?}"
+            );
+        };
+        expect(1, &[90.0]);
+        expect(2, &[0.0, 180.0]);
+        expect(3, &[-30.0, 90.0, 210.0]);
+        expect(4, &[-45.0, 45.0, 135.0, 225.0]);
+        for p in 0..4 {
+            assert!(close(
+                geometry(4, 4).middle(p),
+                geometry(4, 4).angle(p, 0, 1)
+            ));
+        }
+        assert!(geometry(0, 4).middle(0).is_nan());
     }
 
     /// FR-77, FR-43: divider 0 at 12 o'clock (-90°), the rest clockwise at

@@ -16,6 +16,13 @@ pub const REGULAR_TTF: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
 /// Inter `SemiBold`, same subset, from the same run as [`REGULAR_TTF`].
 pub const SEMIBOLD_TTF: &[u8] = include_bytes!("../assets/Inter-SemiBold.ttf");
 
+/// Inter's ascent as a fraction of the em: the `hhea` ascender, 1984, over
+/// 2048 units per em. Both vendored faces agree.
+pub const TEXT_ASCENT: f64 = 1984.0 / 2048.0;
+/// Inter's descent as a fraction of the em: the negated `hhea` descender,
+/// 494, over 2048 units per em. The line gap is 0 in both faces.
+pub const TEXT_DESCENT: f64 = 494.0 / 2048.0;
+
 /// FR-85 pins exactly two weights; FR-35 separates the legend's levels with
 /// them plus size, letter-spacing and indentation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -253,5 +260,22 @@ impl Column<'_, '_> {
             })
             .last()
             .unwrap_or(first)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ttf_parser::Face;
+
+    #[test]
+    fn text_metrics_match_the_vendored_faces() {
+        for bytes in [REGULAR_TTF, SEMIBOLD_TTF] {
+            let face = Face::parse(bytes, 0).expect("the vendored face parses");
+            assert_eq!(face.units_per_em(), 2048);
+            assert_eq!(face.ascender(), 1984);
+            assert_eq!(face.descender(), -494);
+            assert_eq!(face.line_gap(), 0);
+        }
     }
 }

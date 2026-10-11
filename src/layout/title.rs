@@ -9,7 +9,7 @@ use crate::style::{
     LEGEND_WIDTH_MAX, SUBTITLE, SUBTITLE_AFTER_TITLE, SUBTITLE_ALONE, SUBTITLE_LEADING, TITLE,
     TITLE_BOTTOM, TITLE_FIRST_BASELINE, TITLE_LEADING, TITLE_TOP, TextStyle,
 };
-use crate::svg::{Group, Node, Point, Semantics, TextRun};
+use crate::svg::{Anchor, Group, Node, Point, Scale, Semantics, TextRun};
 use crate::text::{Fonts, wrap};
 
 /// The title's heading level: the document's top.
@@ -81,10 +81,11 @@ impl Run {
             origin,
             style: self.style,
             ink: self.ink,
+            anchor: Anchor::Start,
             lines: self.lines.clone(),
             leading: self.leading,
         }
-        .node(scale)
+        .node(Scale::uniform(scale))
     }
 }
 
