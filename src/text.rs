@@ -67,7 +67,6 @@ impl Fonts {
         })
     }
 
-    // qual:api — PR 09's blocks are its first production caller
     /// The metrics for one weight's face.
     #[must_use]
     pub const fn face(&self, w: Weight) -> &FontMetrics<'static> {

@@ -3,3 +3,4 @@
 pub mod block;
 pub mod geometry;
 pub mod marker;
+pub mod title;

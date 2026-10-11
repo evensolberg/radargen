@@ -68,6 +68,22 @@ pub const KEY_LABEL: TextStyle = style(Weight::Regular, 11.0, 0.0);
 /// Legend text line height.
 pub const LINE_HEIGHT: f64 = 15.0;
 
+// --- Title block (FR-65), from the mockup's `buildTitle` ---------------------------
+/// Space above the title's text box.
+pub const TITLE_TOP: f64 = 4.0;
+/// From `TITLE_TOP` to the title's first baseline.
+pub const TITLE_FIRST_BASELINE: f64 = 18.0;
+/// Baseline-to-baseline distance within a wrapped title.
+pub const TITLE_LEADING: f64 = 21.0;
+/// From the title's last baseline to the subtitle's first.
+pub const SUBTITLE_AFTER_TITLE: f64 = 17.0;
+/// From `TITLE_TOP` to the first baseline of a subtitle with no title.
+pub const SUBTITLE_ALONE: f64 = 15.0;
+/// Baseline-to-baseline distance within a wrapped subtitle.
+pub const SUBTITLE_LEADING: f64 = 15.0;
+/// Space below the last baseline.
+pub const TITLE_BOTTOM: f64 = 14.0;
+
 // --- Legend (FR-35, FR-74, FR-79) -----------------------------------------------
 /// Left indent, in user units, of a quadrant heading: the legend's top level.
 pub const INDENT_QUADRANT: f64 = 16.0;
