@@ -109,6 +109,16 @@ fn each_row_kind_has_its_per_row_message() {
             ),
             "line 15, name: removed 3 characters the output cannot display, the first U+001F",
         ),
+        (
+            at(
+                16,
+                5,
+                RowKind::UnnamedValue {
+                    column: "column 6".into(),
+                },
+            ),
+            "line 16, column 6: this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
+        ),
     ];
     for (warning, expected) in cases {
         assert_eq!(warning.to_string(), expected);
@@ -800,4 +810,53 @@ fn csv_header_and_row_messages() {
     for (fatal, expected) in cases {
         assert_eq!(fatal.render(), expected);
     }
+}
+
+/// FR-5 and FR-6, which `model::build_catalogue` raises (PR 06).
+#[test]
+fn model_messages() {
+    let cases = [
+        (
+            Fatal::MissingColumn {
+                line: 1,
+                column: "ring",
+            },
+            "error: line 1: the header has no 'ring' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description",
+        ),
+        (
+            Fatal::EmptyRequired {
+                line: 7,
+                column: "quadrant",
+            },
+            "error: line 7, quadrant: empty; every row needs a quadrant, so fill it in or delete the row",
+        ),
+    ];
+    for (fatal, expected) in cases {
+        assert_eq!(fatal.render(), expected);
+    }
+}
+
+/// FR-93 through NFR-20: values are counted, each column enumerated with
+/// its count and first line, in first-occurrence order (NFR-11).
+#[test]
+fn unnamed_column_values_group_by_column() {
+    let unnamed = |line, column: usize| {
+        at(
+            line,
+            column,
+            RowKind::UnnamedValue {
+                column: format!("column {}", column + 1),
+            },
+        )
+    };
+    let mut w = Warnings::default();
+    w.push(unnamed(9, 6));
+    w.push(unnamed(4, 5));
+    w.push(unnamed(5, 5));
+    assert_eq!(
+        w.render(),
+        vec![
+            "warning: 3 values are under columns with no name in the header row — column 6 (2, first line 4), column 7 (1, line 9); none is shown, so add a header name, or delete the values"
+        ]
+    );
 }

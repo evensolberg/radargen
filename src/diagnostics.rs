@@ -72,6 +72,9 @@ pub enum RowKind {
         first: char,
         count: usize,
     },
+    /// FR-93: a value under a column whose header cell is empty. `column`
+    /// is `column N`, the 1-based position, since there is no name.
+    UnnamedValue { column: String },
 }
 
 /// The warnings that concern the render as a whole. They never group: FR-88
@@ -135,6 +138,7 @@ enum Class {
     Description,
     DuplicateName,
     Undisplayable,
+    Unnamed,
 }
 
 impl RowKind {
@@ -147,6 +151,7 @@ impl RowKind {
             Self::EmptyDescription => Class::Description,
             Self::DuplicateName { .. } => Class::DuplicateName,
             Self::Undisplayable { .. } => Class::Undisplayable,
+            Self::UnnamedValue { .. } => Class::Unnamed,
         }
     }
 
@@ -161,18 +166,20 @@ impl RowKind {
             Self::DuplicateName { .. } => "name",
             // A header name is CSV text (FR-18's extra columns); it is escaped
             // with the rest of the line.
-            Self::Undisplayable { column, .. } => column,
+            Self::Undisplayable { column, .. } | Self::UnnamedValue { column } => column,
         }
     }
 
     /// The value NFR-20 enumerates; `None` for a class that lists positions.
+    /// FR-93's class enumerates its columns, so its value is the column.
     fn value(&self) -> Option<&str> {
         match self {
             Self::UndeclaredRing { value, .. }
             | Self::UnrecognisedQualifier { value }
             | Self::UnrecognisedStatus { value }
             | Self::UnparsableDate { value, .. }
-            | Self::DuplicateName { value, .. } => Some(value),
+            | Self::DuplicateName { value, .. }
+            | Self::UnnamedValue { column: value } => Some(value),
             Self::EmptyDescription | Self::Undisplayable { .. } => None,
         }
     }
@@ -206,6 +213,9 @@ impl RowKind {
                 "removed {count} characters the output cannot display, the first {}",
                 code_point(*first)
             ),
+            Self::UnnamedValue { .. } => {
+                "this column has no name in the header row, so its value is not shown; add a header name, or delete the value".into()
+            }
         }
     }
 }
@@ -395,6 +405,11 @@ fn grouped(class: Class, members: &[Member]) -> String {
                 })
             }))
         ),
+        // FR-93 counts values, each column with its count and first line.
+        Class::Unnamed => format!(
+            "{n} values are under columns with no name in the header row — {}; none is shown, so add a header name, or delete the values",
+            tallied(members, str::to_string)
+        ),
     }
 }
 
@@ -553,6 +568,18 @@ pub enum Fatal {
         found: usize,
         expected: usize,
     },
+    /// FR-5: the header lacks a required column. Every missing one is
+    /// reported (NFR-16 tier two). `line` is the header's.
+    #[error(
+        "line {line}: the header has no '{column}' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description"
+    )]
+    MissingColumn { line: usize, column: &'static str },
+    /// FR-6: an empty `name`, `quadrant` or `ring`, empty under FR-76's
+    /// trim, so a cell of spaces or a lone zero-width space counts.
+    #[error(
+        "line {line}, {column}: empty; every row needs a {column}, so fill it in or delete the row"
+    )]
+    EmptyRequired { line: usize, column: &'static str },
 }
 
 impl Fatal {
