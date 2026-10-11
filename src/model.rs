@@ -5,6 +5,8 @@
 //! (`order::quadrant_order`, `order::resolve`), so a `Catalogue` keeps
 //! quadrants and items in CSV order.
 
+// qual:allow(coupling, sdp) reason: "the pipeline runs csv → model → order → layout (architecture §2); depending on the previous stage is the design"
+
 use crate::csv::parse::{Record, Table};
 use crate::diagnostics::{DateColumn, Fatal, RowKind, Warning, Warnings};
 use crate::rings::{RingSet, RingSource};
