@@ -875,12 +875,13 @@ mod tests {
         assert_eq!(errors(&csv), [empty(4, ColumnKind::Name)]);
     }
 
-    /// FR-3's blank test counts only spaces and tabs (D-59), so a row
-    /// holding only a zero-width space is a row, and FR-6 reports it.
+    /// FR-3's blank test skips format characters FR-90 keeps, but not
+    /// whitespace FR-90 removes (D-59): a row holding only a vertical tab
+    /// is a row, and FR-6 reports it.
     #[test]
-    fn a_row_of_only_format_characters_is_not_blank() {
+    fn a_row_of_only_removed_whitespace_is_not_blank() {
         assert_eq!(
-            errors(&format!("{HEAD}\u{200b},,,\n")),
+            errors(&format!("{HEAD}\u{b},,,\n")),
             [
                 empty(2, ColumnKind::Name),
                 empty(2, ColumnKind::Quadrant),
