@@ -104,12 +104,10 @@ const INK_DARK: &str = "#16191F";
 /// WCAG 2.x relative luminance of a `#RRGGBB` value.
 fn luminance(hex: &str) -> f64 {
     let channel = |i: usize| {
-        let v = u8::from_str_radix(
-            hex.get(i..i + 2)
-                .expect("a #RRGGBB value has six ASCII hex digits"),
-            16,
-        )
-        .expect("palette values are #RRGGBB; PR 18 rejects anything else");
+        let v = hex
+            .get(i..i + 2)
+            .and_then(|d| u8::from_str_radix(d, 16).ok())
+            .expect("palette values are #RRGGBB; PR 18 rejects anything else");
         let c = f64::from(v) / 255.0;
         if c <= 0.040_45 {
             c / 12.92

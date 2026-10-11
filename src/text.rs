@@ -226,10 +226,9 @@ impl Column<'_, '_> {
             if cut == 0 {
                 break;
             }
-            // `cut` is a char boundary by construction; the `else` is unreachable.
-            let Some((head, tail)) = rest.split_at_checked(cut) else {
-                break;
-            };
+            let (head, tail) = rest.split_at_checked(cut).expect(
+                "fitting_prefix returns a char_indices end or the first char's length, both char boundaries",
+            );
             lines.push(head.to_string());
             rest = tail;
         }

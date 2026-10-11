@@ -2,4 +2,6 @@
 # whitespace only, so a stray byte-order mark or zero-width space survives it.
 disallowed-methods = [
     { path = "str::trim", reason = "FR-76 (D-61): use radargen::trim" },
+    { path = "str::trim_start", reason = "FR-76 (D-61): use radargen::trim" },
+    { path = "str::trim_end", reason = "FR-76 (D-61): use radargen::trim" },
 ]

@@ -5,23 +5,16 @@ use radargen::csv::parse::parse;
 use radargen::diagnostics::{Fatal, Warnings};
 
 /// `read` of a temporary file holding `bytes`, removed before returning.
+#[expect(
+    clippy::unwrap_in_result,
+    reason = "the Result is the value under test; a fixture IO failure is a test bug and should panic"
+)]
 fn read_fixture(name: &str, bytes: &[u8]) -> Result<String, Fatal> {
-    let path = write_fixture(name, bytes);
-    let text = read(&path);
-    remove_fixture(&path);
-    text
-}
-
-/// Write `bytes` to a per-process temporary CSV and return its path.
-fn write_fixture(name: &str, bytes: &[u8]) -> std::path::PathBuf {
     let path = std::env::temp_dir().join(format!("radargen-{name}-{}.csv", std::process::id()));
     std::fs::write(&path, bytes).expect("the temp directory is writable");
-    path
-}
-
-/// Remove a fixture written by `write_fixture`.
-fn remove_fixture(path: &std::path::Path) {
-    std::fs::remove_file(path).expect("the fixture was just written");
+    let text = read(&path);
+    std::fs::remove_file(&path).expect("the fixture was just written");
+    text
 }
 
 /// Review focus 1, end to end: BOM, CRLF, a cell with Alt+Enter, a blank
