@@ -30,7 +30,8 @@ program is the unusual one: **its diagnostics are a specified output format**,
 not incidental failure reporting. NFR-16 collects row errors rather than
 propagating the first; NFR-20 groups warnings and row-level errors (D-62) by
 class *and* value, which means matching on variants and reading their fields;
-SC-10 golden-tests the exact messages. Type erasure would be fought at every one of those points.
+SC-10 golden-tests the exact messages. Type erasure would be fought at every
+one of those points.
 
 **The licence check is mechanised, not asserted.** NFR-18's claim that the whole
 tree is permissive is true today and is exactly the kind of claim a routine
@@ -417,10 +418,11 @@ errors — returns a single `Fatal` and aborts, because nothing parsed.
 `csv::parse` returns `Result<(Table, Vec<Fatal>), Fatal>`. Tier one is the
 `Err`. Its tier-two FR-4 errors travel beside the table rather than instead of
 it, so they join `build_catalogue`'s in the same run. The two lists are merged
-and grouped once, at print time, as `Warnings` is below: NFR-11 orders the
-errors of both stages by line, header errors first, and NFR-20 groups FR-4's
-field-count errors and each column's FR-6 errors and names FR-5's missing
-columns in one line (D-62).
+and grouped once, at print time, as `Warnings` is below. NFR-11 orders the
+errors of both stages by line, header errors first. NFR-20 groups FR-4's
+mismatched rows into one line and each column's FR-6 errors into one line per
+column, listing every line, while FR-5's missing columns are named in a single
+error (D-62).
 
 `Config` is the resolved run: the ring list and its source (FR-17), the
 palette, the theme, the width, the title strings. It is built once in
