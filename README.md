@@ -32,7 +32,7 @@ extensions fails with a message saying so.
 
 ## Licence
 
-GPL-3.0-or-later. The bundled font (Inter, subset to Latin, Greek, Cyrillic and Vietnamese) keeps its own OFL-1.1
+GPL-3.0-or-later; the full text is in [`LICENSE`](LICENSE). The bundled font (Inter, subset to Latin, Greek, Cyrillic and Vietnamese) keeps its own OFL-1.1
 terms; see [`assets/OFL.txt`](assets/OFL.txt).
 
 Running `radargen` places no obligation on you, and the radars it renders —
