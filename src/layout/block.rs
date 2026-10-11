@@ -57,6 +57,31 @@ pub trait Block {
     fn render(&self, at: Placement) -> Node;
 }
 
+/// Test helper: the vendored fonts.
+#[cfg(test)]
+pub(crate) fn fonts() -> crate::text::Fonts {
+    crate::text::Fonts::embedded().expect("the vendored fonts parse")
+}
+
+/// How close two computed lengths must be to count as equal in tests.
+#[cfg(test)]
+const TOLERANCE: f64 = 1e-9;
+
+/// Test helper: whether `a` and `b` agree to within [`TOLERANCE`].
+#[cfg(test)]
+pub(crate) fn close(a: f64, b: f64) -> bool {
+    (a - b).abs() < TOLERANCE
+}
+
+/// Test helper: a placement at the origin at `scale`.
+#[cfg(test)]
+pub(crate) const fn at(scale: f64) -> Placement {
+    Placement {
+        origin: Point::ORIGIN,
+        scale,
+    }
+}
+
 #[cfg(test)]
 const TRANSLATED_TO: Point = Point { x: 5.0, y: 7.0 };
 
@@ -76,7 +101,7 @@ pub(crate) fn assert_translates(block: &impl Block) {
         };
         group
     };
-    let home = rendered(Point { x: 0.0, y: 0.0 });
+    let home = rendered(Point::ORIGIN);
     let placed = rendered(TRANSLATED_TO);
     assert_eq!(placed.offset, TRANSLATED_TO);
     assert_eq!(placed.children, home.children);

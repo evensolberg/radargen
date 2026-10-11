@@ -11,7 +11,7 @@ use crate::style::{
     KEY_BOTTOM, KEY_FIRST_ROW, KEY_HEADING, KEY_HEADING_BASELINE, KEY_LABEL, KEY_LABEL_DROP,
     KEY_LABEL_X, KEY_MARKER_RADIUS, KEY_ROW, KEY_SAMPLE_X, KEY_STATUS_MARKER_RADIUS, TextStyle,
 };
-use crate::svg::{Anchor, Group, Node, Paint, Point, Semantics};
+use crate::svg::{Group, Node, Point, Semantics};
 use crate::text::Fonts;
 
 /// The heading's text.
@@ -82,14 +82,7 @@ const fn sample_centre(index: usize) -> Point {
 
 /// A text node of one line, muted or primary.
 fn text(label: &str, origin: Point, style: TextStyle, ink: Neutral, scale: f64) -> Node {
-    Node::Text {
-        origin: origin.scaled(scale),
-        style: style.scaled(scale),
-        ink: Paint::Role(Role::Neutral(ink)),
-        anchor: Anchor::Start,
-        lines: vec![label.to_owned()],
-        leading: 0.0,
-    }
+    Node::text(origin, style, ink, vec![label.to_owned()], 0.0, scale)
 }
 
 /// One row: its decorative sample, then its label.
@@ -108,7 +101,7 @@ fn row_nodes(index: usize, row: Row, scale: f64) -> [Node; 2] {
         y: centre.y + KEY_LABEL_DROP,
     };
     [
-        Node::Group(Group::new(Point { x: 0.0, y: 0.0 }, glyph).with(Semantics::Decorative)),
+        Node::Group(Group::new(Point::ORIGIN, glyph).with(Semantics::Decorative)),
         text(row.label, origin, KEY_LABEL, Neutral::TextMuted, scale),
     ]
 }
@@ -120,9 +113,7 @@ fn heading_node(scale: f64) -> Node {
         y: KEY_HEADING_BASELINE,
     };
     let node = text(HEADING, origin, KEY_HEADING, Neutral::TextPrimary, scale);
-    Node::Group(
-        Group::new(Point { x: 0.0, y: 0.0 }, vec![node]).with(Semantics::Heading(HEADING_LEVEL)),
-    )
+    Node::Group(Group::new(Point::ORIGIN, vec![node]).with(Semantics::Heading(HEADING_LEVEL)))
 }
 
 /// The scale-1 size: the widest label (after its indent) or the heading.
@@ -178,25 +169,12 @@ impl Block for KeyBlock {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::layout::block::{at, close, fonts};
     use crate::layout::geometry::polar;
     use crate::layout::title::TitleBlock;
     use crate::style::{STATUS_RING_GAP, STATUS_RING_STROKE};
+    use crate::svg::Paint;
     use crate::svg::PathCommand;
-
-    fn fonts() -> Fonts {
-        Fonts::embedded().expect("the vendored fonts parse")
-    }
-
-    fn close(a: f64, b: f64) -> bool {
-        (a - b).abs() < 1e-9
-    }
-
-    fn at(scale: f64) -> Placement {
-        Placement {
-            origin: Point { x: 0.0, y: 0.0 },
-            scale,
-        }
-    }
 
     fn rendered(scale: f64) -> Vec<Node> {
         let Node::Group(group) = KeyBlock::new(&fonts()).render(at(scale)) else {
@@ -223,10 +201,6 @@ mod tests {
 
     fn label(nodes: &[Node], i: usize) -> &Node {
         child(nodes, 2 + 2 * i)
-    }
-
-    fn node_at(nodes: &[Node], i: usize) -> &Node {
-        nodes.get(i).expect("the node exists")
     }
 
     fn text_parts(node: &Node) -> (Point, &[String], &TextStyle, Paint) {
@@ -345,11 +319,11 @@ mod tests {
     #[test]
     fn key_status_rows_literal_geometry() {
         let nodes = rendered(1.0);
-        let (start, end) = arc_ends(node_at(sample(&nodes, 3), 0));
+        let (start, end) = arc_ends(child(sample(&nodes, 3), 0));
         assert!(near(start, 10.0, 121.0) && near(end, 10.0, 103.0));
-        let (start, end) = arc_ends(node_at(sample(&nodes, 4), 0));
+        let (start, end) = arc_ends(child(sample(&nodes, 4), 0));
         assert!(near(start, 10.0, 127.0) && near(end, 10.0, 145.0));
-        let (centre, radius, _, _) = circle(node_at(sample(&nodes, 2), 0));
+        let (centre, radius, _, _) = circle(child(sample(&nodes, 2), 0));
         assert!(near(centre, 10.0, 88.0) && close(radius, 9.0));
     }
 
@@ -371,7 +345,7 @@ mod tests {
         // Moved in bulges left, toward the radar's centre (180 degrees);
         // moved out bulges right.
         for (row, y, direction, x) in [(3, 112.0, 180.0, 1.0), (4, 136.0, 0.0, 19.0)] {
-            let (start, end) = arc_ends(node_at(sample(&nodes, row), 0));
+            let (start, end) = arc_ends(child(sample(&nodes, row), 0));
             let got = apex(start, end, reach);
             let want = polar(direction, reach);
             assert!(near(got, 10.0 + want.x, y + want.y), "row {row}: {got:?}");
@@ -383,9 +357,9 @@ mod tests {
     fn key_solid_sample_fill_is_text_muted() {
         let nodes = rendered(1.0);
         let muted = Paint::Role(Role::Neutral(Neutral::TextMuted));
-        let (_, _, fill, _) = circle(node_at(sample(&nodes, 0), 0));
+        let (_, _, fill, _) = circle(child(sample(&nodes, 0), 0));
         assert_eq!(fill, muted);
-        let (_, _, fill, stroke) = circle(node_at(sample(&nodes, 1), 0));
+        let (_, _, fill, stroke) = circle(child(sample(&nodes, 1), 0));
         assert_eq!(stroke, muted);
         assert_eq!(fill, Paint::Role(Role::Neutral(Neutral::MarkerHollow)));
     }
@@ -448,7 +422,7 @@ mod tests {
             radius,
             stroke_width,
             ..
-        } = node_at(sample(&nodes, 2), 0)
+        } = child(sample(&nodes, 2), 0)
         else {
             panic!("row 3 starts with its ring");
         };
@@ -589,7 +563,7 @@ mod tests {
     #[test]
     fn everything_drawn_lies_inside_the_size() {
         let fonts = fonts();
-        let origin = Point { x: 0.0, y: 0.0 };
+        let origin = Point::ORIGIN;
         let key = KeyBlock::new(&fonts);
         let title = TitleBlock::new(Some("A title"), Some("A subtitle"), &fonts);
         for scale in [1.0, 0.5] {

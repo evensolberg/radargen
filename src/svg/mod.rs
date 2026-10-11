@@ -6,7 +6,7 @@
 
 use std::num::NonZeroU8;
 
-use crate::palette::Role;
+use crate::palette::{Neutral, Role};
 use crate::style::TextStyle;
 
 /// A point in SVG user units; the origin depends on the frame it is used in.
@@ -21,6 +21,9 @@ pub struct Point {
 }
 
 impl Point {
+    /// The frame's origin.
+    pub const ORIGIN: Self = Self { x: 0.0, y: 0.0 };
+
     /// Both coordinates multiplied by `k`.
     #[must_use]
     pub fn scaled(self, k: f64) -> Self {
@@ -158,6 +161,29 @@ pub enum Node {
     },
 }
 
+impl Node {
+    /// Start-anchored text at scale `scale`: `origin`, the style's sizes and
+    /// `leading` are given at scale 1 and multiplied here, in one place.
+    #[must_use]
+    pub fn text(
+        origin: Point,
+        style: TextStyle,
+        ink: Neutral,
+        lines: Vec<String>,
+        leading: f64,
+        scale: f64,
+    ) -> Self {
+        Self::Text {
+            origin: origin.scaled(scale),
+            style: style.scaled(scale),
+            ink: Paint::Role(Role::Neutral(ink)),
+            anchor: Anchor::Start,
+            lines,
+            leading: leading * scale,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -181,6 +207,37 @@ mod tests {
             group.with(Semantics::Heading(LEVEL_1)).semantics,
             Semantics::Heading(LEVEL_1)
         );
+    }
+
+    #[test]
+    fn text_scales_origin_style_and_leading_together() {
+        let style = TextStyle {
+            weight: crate::text::Weight::Regular,
+            size: 10.0,
+            letter_spacing: 1.0,
+        };
+        let node = Node::text(
+            Point { x: 2.0, y: 4.0 },
+            style,
+            Neutral::TextMuted,
+            vec!["a".to_owned()],
+            12.0,
+            0.5,
+        );
+        let Node::Text {
+            origin,
+            style,
+            leading,
+            anchor,
+            ..
+        } = node
+        else {
+            panic!("expected text");
+        };
+        assert_eq!(origin, Point { x: 1.0, y: 2.0 });
+        assert!((style.size - 5.0).abs() < 1e-9 && (style.letter_spacing - 0.5).abs() < 1e-9);
+        assert!((leading - 6.0).abs() < 1e-9);
+        assert_eq!(anchor, Anchor::Start);
     }
 
     #[test]

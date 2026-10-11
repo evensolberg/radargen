@@ -4,12 +4,12 @@
 use std::num::NonZeroU8;
 
 use crate::layout::block::{Block, Placement, Size};
-use crate::palette::{Neutral, Role};
+use crate::palette::Neutral;
 use crate::style::{
     LEGEND_WIDTH_MAX, SUBTITLE, SUBTITLE_AFTER_TITLE, SUBTITLE_ALONE, SUBTITLE_LEADING, TITLE,
     TITLE_BOTTOM, TITLE_FIRST_BASELINE, TITLE_LEADING, TITLE_TOP, TextStyle,
 };
-use crate::svg::{Anchor, Group, Node, Paint, Point, Semantics};
+use crate::svg::{Group, Node, Point, Semantics};
 use crate::text::{Fonts, wrap};
 
 /// The title's heading level: the document's top.
@@ -73,17 +73,18 @@ impl Run {
     }
 
     fn node(&self, scale: f64) -> Node {
-        Node::Text {
-            origin: Point {
-                x: 0.0,
-                y: self.first_baseline * scale,
-            },
-            style: self.style.scaled(scale),
-            ink: Paint::Role(Role::Neutral(self.ink)),
-            anchor: Anchor::Start,
-            lines: self.lines.clone(),
-            leading: self.leading * scale,
-        }
+        let origin = Point {
+            x: 0.0,
+            y: self.first_baseline,
+        };
+        Node::text(
+            origin,
+            self.style,
+            self.ink,
+            self.lines.clone(),
+            self.leading,
+            scale,
+        )
     }
 }
 
@@ -149,7 +150,7 @@ impl Block for TitleBlock {
     }
 
     fn render(&self, at: Placement) -> Node {
-        let origin = Point { x: 0.0, y: 0.0 };
+        let origin = Point::ORIGIN;
         let heading = self.title.iter().map(|run| {
             Node::Group(
                 Group::new(origin, vec![run.node(at.scale)]).with(Semantics::Heading(TITLE_LEVEL)),
@@ -163,24 +164,10 @@ impl Block for TitleBlock {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn fonts() -> Fonts {
-        Fonts::embedded().expect("the vendored fonts parse")
-    }
+    use crate::layout::block::{at, close, fonts};
 
     fn block(title: Option<&str>, subtitle: Option<&str>) -> TitleBlock {
         TitleBlock::new(title, subtitle, &fonts())
-    }
-
-    fn close(a: f64, b: f64) -> bool {
-        (a - b).abs() < 1e-9
-    }
-
-    fn at(scale: f64) -> Placement {
-        Placement {
-            origin: Point { x: 0.0, y: 0.0 },
-            scale,
-        }
     }
 
     /// The text nodes of a rendered block, flattened in paint order, with
@@ -207,14 +194,6 @@ mod tests {
 
     fn pick<'a>(nodes: &[(bool, &'a Node)], i: usize) -> &'a Node {
         nodes.get(i).expect("the node exists").1
-    }
-
-    fn flag(nodes: &[(bool, &Node)], i: usize) -> bool {
-        nodes.get(i).expect("the node exists").0
-    }
-
-    fn mark(marks: &[f64], i: usize) -> f64 {
-        *marks.get(i).expect("the baseline exists")
     }
 
     fn baseline(node: &Node) -> f64 {
@@ -327,7 +306,10 @@ mod tests {
         let nodes = texts(&rendered);
         assert_eq!(lines(pick(&nodes, 0)).len(), 2);
         let marks = baselines(pick(&nodes, 0));
-        assert!(close(mark(&marks, 0), 22.0) && close(mark(&marks, 1), 43.0));
+        let [first, second] = marks.as_slice() else {
+            panic!("two lines, two baselines");
+        };
+        assert!(close(*first, 22.0) && close(*second, 43.0));
         assert!(close(baseline(pick(&nodes, 1)), 60.0));
         assert!(close(b.size(1.0).height, 74.0));
     }
@@ -339,7 +321,10 @@ mod tests {
         let rendered = b.render(at(1.0));
         let marks = baselines(pick(&texts(&rendered), 0));
         assert_eq!(marks.len(), 2);
-        assert!(close(mark(&marks, 0), 19.0) && close(mark(&marks, 1), 34.0));
+        let [first, second] = marks.as_slice() else {
+            panic!("two lines, two baselines");
+        };
+        assert!(close(*first, 19.0) && close(*second, 34.0));
     }
 
     #[test]
@@ -348,8 +333,11 @@ mod tests {
         let rendered = b.render(at(1.0));
         let nodes = texts(&rendered);
         assert_eq!(nodes.len(), 2);
-        assert!(flag(&nodes, 0) && lines(pick(&nodes, 0)).len() >= 2);
-        assert!(!flag(&nodes, 1));
+        let [(title_is_heading, title), (subtitle_is_heading, _)] = nodes.as_slice() else {
+            panic!("a title and a subtitle");
+        };
+        assert!(*title_is_heading && lines(title).len() >= 2);
+        assert!(!subtitle_is_heading);
     }
 
     fn measured(text: &str, style: TextStyle) -> f64 {
