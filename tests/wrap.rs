@@ -93,17 +93,31 @@ fn an_overlong_token_mid_sentence_breaks_in_place() {
     );
 }
 
-/// Letter-spacing counts toward the width, as `measure` adds it.
+/// Letter-spacing counts toward the width, as `measure` adds it: at 76
+/// units "Trunk Based" fits unspaced (73.96) but not at 0.48 (78.76).
 #[test]
 fn letter_spacing_moves_the_wrap_point() {
+    let m = metrics();
+    assert_eq!(wrap("Trunk Based", 76.0, &m, SIZE, 0.0), ["Trunk Based"]);
     assert_eq!(
-        wrap(
-            "Trunk Based Development practice",
-            120.0,
-            &metrics(),
-            SIZE,
-            0.48
-        ),
-        ["Trunk Based", "Development", "practice"]
+        wrap("Trunk Based", 76.0, &m, SIZE, 0.48),
+        ["Trunk", "Based"]
     );
+}
+
+/// A mid-token break lands on a character boundary in multi-byte text,
+/// so `Ł` and `ř` survive whole.
+#[test]
+fn a_mid_token_break_keeps_multi_byte_characters_whole() {
+    assert_eq!(
+        wrap("Łukasiewicz Dvořák", 30.0, &metrics(), SIZE, 0.0),
+        ["Łuka", "siewi", "cz", "Dvoř", "ák"]
+    );
+}
+
+/// A NaN width keeps words whole, as the original loop did: the break
+/// only runs on a width that is definitely too wide.
+#[test]
+fn a_nan_width_keeps_words_whole() {
+    assert_eq!(wrap("ab cd", f64::NAN, &metrics(), SIZE, 0.0), ["ab", "cd"]);
 }

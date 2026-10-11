@@ -158,10 +158,21 @@ struct Column<'m, 'f> {
 }
 
 impl Column<'_, '_> {
+    /// Whether `text` fits on a line, for greedy placement.
     fn fits(&self, text: &str) -> bool {
+        self.width(text) <= self.max_width
+    }
+
+    /// Whether `text` is wider than the column, for the mid-token break.
+    /// Not `!fits`: the two differ only when a width is NaN, where the
+    /// break keeps words whole as the original loop did.
+    fn overflows(&self, text: &str) -> bool {
+        self.width(text) > self.max_width
+    }
+
+    fn width(&self, text: &str) -> f64 {
         self.metrics
             .measure(text, self.size_px, self.letter_spacing_px)
-            <= self.max_width
     }
 
     /// Greedy first-fit: `word` joins `line` if the two fit together;
@@ -186,8 +197,10 @@ impl Column<'_, '_> {
     /// in order, and return the tail that fits. Nothing is dropped.
     fn break_token<'w>(&self, token: &'w str, lines: &mut Vec<String>) -> &'w str {
         let mut rest = token;
-        while !self.fits(rest) {
+        while self.overflows(rest) {
             let cut = self.fitting_prefix(rest);
+            // Only an empty `rest` has no first character, and it overflows
+            // only a negative width: stop rather than loop.
             if cut == 0 {
                 break;
             }
@@ -205,7 +218,7 @@ impl Column<'_, '_> {
         token
             .char_indices()
             .map(|(i, c)| i + c.len_utf8())
-            .take_while(|&end| self.fits(&token[..end]))
+            .take_while(|&end| !self.overflows(&token[..end]))
             .last()
             .unwrap_or(first)
     }
