@@ -14,6 +14,7 @@ blocks:
 blocked_by:
 - rg-osr
 - rg-48z
+- rg-6w7
 phase: v1.0
 ---
 

@@ -17,6 +17,7 @@ blocks:
 blocked_by:
 - rg-ozb
 - rg-vgm
+- rg-f4o
 phase: v1.0
 ---
 
