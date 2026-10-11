@@ -112,8 +112,15 @@ struct QuadrantLabel {
     label: Label,
     /// Along the middle angle, at natural size: half the name's width times
     /// `|cos|` of the angle, which puts a middle-anchored name's inner end on
-    /// the label circle. Nothing at 12 and 6 o'clock, half the width at 3
-    /// and 9.
+    /// the label circle's tangent at the label point: on the circle at 3 and
+    /// 9 o'clock, beyond it elsewhere, at `√(R² + h² sin² θ)` for a drawn
+    /// half-width `h`. Nothing at 12 and 6 o'clock, half the width at 3 and 9.
+    ///
+    /// So the name's box, which reaches its ascent (11.625) above the
+    /// baseline, comes no closer to the centre than `300 s − 11.625` for
+    /// `s <= 1`, which clears the outer ring (`260 s` plus half a stroke)
+    /// from `s` of about 0.3 up. Below that a 6 o'clock name touches the
+    /// ring's stroke whatever its length, unpushed.
     push: Point,
 }
 
@@ -128,7 +135,7 @@ impl QuadrantLabel {
 
     /// Where the name's middle sits at `r`. The label point moves with the
     /// geometry and the push with the text, so the inner end stays on the
-    /// label circle at any scale.
+    /// label circle's tangent at the label point at any scale.
     fn centre(&self, r: RadarScale) -> Point {
         let at = self.label.at.scaled(r.geometry);
         let push = self.push.scaled(r.labels);
@@ -450,7 +457,7 @@ mod tests {
     use super::*;
     use crate::layout::block::{assert_translates, at, close, fonts};
     use crate::layout::geometry::place;
-    use crate::layout::test_support::{Rect, assert_finite, bounds, fill, near, plotted};
+    use crate::layout::test_support::{Rect, assert_finite, bounds, fill, near, plotted, plus};
     use crate::svg::TextPaint;
     use crate::text::Weight;
 
@@ -673,15 +680,13 @@ mod tests {
     /// its parts: the label point at `s`, plus the push of half the width
     /// times `|cos|` along the same angle at `max(s, 1)` (D-70).
     fn pushed(middle: f64, width: f64, s: f64) -> Point {
-        let at = polar(middle, 300.0 * s);
-        let push = polar(
-            middle,
-            width / 2.0 * middle.to_radians().cos().abs() * s.max(1.0),
-        );
-        Point {
-            x: at.x + push.x,
-            y: at.y + push.y,
-        }
+        plus(
+            polar(middle, 300.0 * s),
+            polar(
+                middle,
+                width / 2.0 * middle.to_radians().cos().abs() * s.max(1.0),
+            ),
+        )
     }
 
     fn label_texts(nodes: &[Node]) -> Vec<String> {
@@ -1193,11 +1198,17 @@ mod tests {
     )]
     fn long_names_clear_the_outer_ring() {
         let fonts = fonts();
-        for n in [2, 3, 4, 8] {
-            let names: Vec<String> = (0..n).map(|i| format!("{}{i}", long(30))).collect();
+        // Short widths too: the push shrinks with the name, so a short
+        // name's box is the one nearest the ring.
+        let stems = ["i".to_owned(), "WW".to_owned(), "WWWW".to_owned(), long(30)];
+        for (n, stem) in [2, 3, 4, 8]
+            .into_iter()
+            .flat_map(|n| stems.iter().map(move |stem| (n, stem)))
+        {
+            let names: Vec<String> = (0..n).map(|i| format!("{stem}{i}")).collect();
             let names: Vec<&str> = names.iter().map(String::as_str).collect();
             let b = block(fonts, &csv_of(&names, "Adopt"), None);
-            for s in [1.0, 0.576, 0.4] {
+            for s in [1.0, 0.576, 0.4, 0.31] {
                 let ring = BAND_OUTER_RADIUS * s
                     + f64::midpoint(0.0, GRID_STROKE * RadarScale::of(s).marks);
                 let nodes = frame_at(&b, s);
@@ -1211,8 +1222,54 @@ mod tests {
                     let gap = nearest(rect);
                     assert!(
                         gap > ring,
-                        "N = {n} at {s}: {rect:?} reaches {gap} ≤ {ring}"
+                        "N = {n}, {stem} at {s}: {rect:?} reaches {gap} ≤ {ring}"
                     );
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    fn the_inner_end_sits_on_the_tangent() {
+        let fonts = fonts();
+        for (n, stem) in [2, 3, 4, 8]
+            .into_iter()
+            .flat_map(|n| ["i", "Tool", "WWWWWWWWWWWW"].map(|stem| (n, stem)))
+        {
+            let names: Vec<String> = (0..n).map(|i| format!("{stem}{i}")).collect();
+            let names: Vec<&str> = names.iter().map(String::as_str).collect();
+            let b = block(fonts, &csv_of(&names, "Adopt"), None);
+            let g = Geometry {
+                quadrants: n,
+                rings: 4,
+            };
+            for s in [1.5, 1.0, 0.576, 0.4] {
+                let nodes = frame_at(&b, s);
+                for (p, label) in quadrant_labels(&nodes).iter().enumerate() {
+                    // The drawn node's own origin and measured width.
+                    let half = fonts.face(label.style.weight).measure(
+                        &label.lines.concat(),
+                        label.style.size,
+                        label.style.letter_spacing,
+                    ) / 2.0;
+                    let unit = polar(g.middle(p), 1.0);
+                    let inner = label.origin.x - unit.x.signum() * half;
+                    let point = polar(g.middle(p), 300.0 * s);
+                    let along = (inner - point.x) * unit.x + (label.origin.y - point.y) * unit.y;
+                    assert!(
+                        along.abs() < 1e-9,
+                        "N = {n}, {stem}{p} at {s}: {along} off the tangent"
+                    );
+                    if close(unit.y, 0.0) {
+                        assert!(
+                            close(inner, 300.0 * s * unit.x),
+                            "N = {n}, {stem}{p} at {s}: {inner}"
+                        );
+                    }
                 }
             }
         }
@@ -1221,22 +1278,8 @@ mod tests {
     #[test]
     fn short_names_barely_move() {
         let fonts = fonts();
-        let b = quadrants(fonts, 8);
-        let g = Geometry {
-            quadrants: 8,
-            rings: 4,
-        };
-        for s in [1.5, 1.0, 0.576] {
-            let nodes = frame_at(&b, s);
-            for (p, label) in quadrant_labels(&nodes).iter().enumerate() {
-                let name = label.lines.concat();
-                let half = quadrant_width(fonts, &name) / 2.0 * s.max(1.0);
-                let old = polar(g.middle(p), 300.0 * s);
-                let moved = (label.origin.x - old.x).hypot(label.origin.y - old.y);
-                assert!(moved <= half, "{name} at {s}: moved {moved} > {half}");
-            }
-        }
-        // A one-character name moves less than its own half-width.
+        // At 3/9 o'clock a one-character name moves its full half-width,
+        // under 6 units.
         let one = block(fonts, &csv_of(&["A", "B"], "Adopt"), None);
         let nodes = frame_at(&one, 1.0);
         for (label, middle) in quadrant_labels(&nodes).iter().zip([0.0, 180.0]) {
