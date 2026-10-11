@@ -275,7 +275,7 @@ impl RowKind {
                 let list = rings.join(", ");
                 match source {
                     RingSource::Default => format!(
-                        "'{v}' is not one of the default rings ({list}); the row is in the table view, not on the radar; to plot it, declare it in --rings"
+                        "'{v}' is not one of the default rings ({list}); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
                     ),
                     RingSource::Flag => format!(
                         "'{v}' is not one of the rings --rings declares ({list}); the row is in the table view, not on the radar; to plot it, add it to --rings"
@@ -569,7 +569,7 @@ fn grouped_rings(source: RingSource, members: &[Member]) -> String {
     let tallies = tallied(members, normalise);
     match source {
         RingSource::Default => format!(
-            "{n} rows use a ring that is not one of the default rings ({list}) — {tallies}; all appear in the table view; to plot one, declare it in --rings"
+            "{n} rows use a ring that is not one of the default rings ({list}) — {tallies}; all appear in the table view; to plot one, pass --rings with every ring you want, since --rings replaces the default set"
         ),
         RingSource::Flag => format!(
             "{n} rows use a ring --rings does not declare ({list}) — {tallies}; all appear in the table view; to plot one, add it to --rings"

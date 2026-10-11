@@ -1022,7 +1022,7 @@ mod tests {
         assert_eq!(
             warnings,
             [
-                "warning: line 2, ring: 'In Use' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, declare it in --rings"
+                "warning: line 2, ring: 'In Use' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
             ]
         );
         let (_, warnings) = build_with(&csv, Some("Adopt,Hold"));
@@ -1313,7 +1313,7 @@ mod tests {
             warnings(csv),
             [
                 "warning: line 2, column 2 (B): this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
-                "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, declare it in --rings",
+                "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set",
                 "warning: line 2, description: removed U+0001, which the output cannot display",
                 "warning: line 3, description: empty; the detail panel omits it",
             ]
@@ -1329,7 +1329,7 @@ mod tests {
             warnings("name,quadrant,,,ring,description\nK,T,,\u{1},Adpot,d\n"),
             [
                 "warning: line 2, column 4 (D): removed U+0001, which the output cannot display",
-                "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, declare it in --rings",
+                "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set",
             ]
         );
     }

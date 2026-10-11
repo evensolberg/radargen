@@ -63,7 +63,7 @@ fn the_prd_example_builds_with_one_warning() {
     assert_eq!(
         w.render(),
         [
-            "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, declare it in --rings"
+            "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
         ]
     );
 }
@@ -131,7 +131,7 @@ fn parse_errors_do_not_suppress_model_warnings() {
     assert_eq!(
         w.render(),
         [
-            "warning: line 3, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, declare it in --rings"
+            "warning: line 3, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
         ]
     );
 }
