@@ -149,8 +149,9 @@ fn half_ring(centre: Point, radius: f64, direction: f64, ink: Role, stroke_width
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::test_support::near;
+    use crate::layout::test_support::{near, plus};
 
+    const UNIT: Scale = Scale::uniform(1.0);
     const INK: Role = Role::Series(2);
     const CENTRE: Point = Point { x: 100.0, y: 50.0 };
 
@@ -195,11 +196,7 @@ mod tests {
     }
 
     fn from_centre(angle: f64) -> Point {
-        let p = polar(angle, 7.0 + STATUS_RING_GAP);
-        Point {
-            x: CENTRE.x + p.x,
-            y: CENTRE.y + p.y,
-        }
+        plus(CENTRE, polar(angle, 7.0 + STATUS_RING_GAP))
     }
 
     #[test]
@@ -211,7 +208,7 @@ mod tests {
             mark: None,
             ink: INK,
         }
-        .draw(Scale::uniform(1.0));
+        .draw(UNIT);
         assert_eq!(nodes.len(), 1);
         assert_eq!(
             circle_fill(first(&nodes)),
@@ -228,7 +225,7 @@ mod tests {
             mark: None,
             ink: INK,
         }
-        .draw(Scale::uniform(1.0));
+        .draw(UNIT);
         assert_eq!(
             stroke_of(first(&hollow)),
             (Paint::Role(INK), MARKER_HOLLOW_STROKE)
@@ -240,7 +237,7 @@ mod tests {
             mark: None,
             ink: INK,
         }
-        .draw(Scale::uniform(1.0));
+        .draw(UNIT);
         assert_eq!(
             stroke_of(first(&solid)),
             (Paint::Role(Role::Neutral(Neutral::Surface1)), MARKER_STROKE)
@@ -261,7 +258,7 @@ mod tests {
                 mark: Some(mark),
                 ink: INK,
             }
-            .draw(Scale::uniform(1.0));
+            .draw(UNIT);
             assert_eq!(
                 stroke_of(first(&nodes)),
                 (Paint::Role(INK), STATUS_RING_STROKE)
@@ -343,7 +340,7 @@ mod tests {
                 mark: None,
                 ink: INK,
             }
-            .draw(Scale::uniform(1.0));
+            .draw(UNIT);
             assert_eq!(circle_fill(first(&nodes)), Paint::Role(INK));
         }
     }
@@ -357,7 +354,7 @@ mod tests {
             mark: Some(StatusMark::New),
             ink: INK,
         }
-        .draw(Scale::uniform(1.0));
+        .draw(UNIT);
         assert_eq!(nodes.len(), 2);
         match first(&nodes) {
             Node::Circle { radius, fill, .. } => {
@@ -379,7 +376,7 @@ mod tests {
                 mark: Some(StatusMark::MovedIn { centreward: c }),
                 ink: INK,
             }
-            .draw(Scale::uniform(1.0));
+            .draw(UNIT);
             let (s, e) = ends(first(&moved_in));
             assert!(near(s, from_centre(c - 90.0)) && near(e, from_centre(c + 90.0)));
             let moved_out = Glyph {
@@ -389,7 +386,7 @@ mod tests {
                 mark: Some(StatusMark::MovedOut { centreward: c }),
                 ink: INK,
             }
-            .draw(Scale::uniform(1.0));
+            .draw(UNIT);
             let (s, e) = ends(first(&moved_out));
             assert!(near(s, from_centre(c + 90.0)) && near(e, from_centre(c + 270.0)));
         }
@@ -405,7 +402,7 @@ mod tests {
             mark: Some(StatusMark::MovedIn { centreward: c }),
             ink: INK,
         }
-        .draw(Scale::uniform(1.0));
+        .draw(UNIT);
         let moved_out = Glyph {
             centre: CENTRE,
             radius: 7.0,
@@ -413,7 +410,7 @@ mod tests {
             mark: Some(StatusMark::MovedOut { centreward: c }),
             ink: INK,
         }
-        .draw(Scale::uniform(1.0));
+        .draw(UNIT);
         let (in_s, in_e) = ends(first(&moved_in));
         let (out_s, out_e) = ends(first(&moved_out));
         assert!(near(in_s, out_e) && near(in_e, out_s));
@@ -428,7 +425,7 @@ mod tests {
             mark: Some(StatusMark::MovedIn { centreward: 30.0 }),
             ink: INK,
         }
-        .draw(Scale::uniform(1.0));
+        .draw(UNIT);
         let Node::Path { commands, .. } = first(&nodes) else {
             panic!("expected a path");
         };
@@ -466,7 +463,7 @@ mod tests {
                 mark: None,
                 ink: INK
             }
-            .draw(Scale::uniform(1.0))
+            .draw(UNIT)
             .len(),
             1
         );

@@ -196,7 +196,7 @@ fn text_bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
 }
 
 /// `a` moved by `b`.
-fn plus(a: Point, b: Point) -> Point {
+pub(crate) fn plus(a: Point, b: Point) -> Point {
     Point {
         x: a.x + b.x,
         y: a.y + b.y,
@@ -366,8 +366,8 @@ mod tests {
     fn a_middle_anchored_text_is_centred_on_its_origin() {
         let fonts = fonts();
         let node = text(Anchor::Middle, TextPaint::Fill(INK), &["Adopt"], 0.0);
-        let got = bounds(&node, &fonts).expect("text paints");
-        let half = f64::midpoint(0.0, width_of(&fonts, "Adopt"));
+        let got = bounds(&node, fonts).expect("text paints");
+        let half = f64::midpoint(0.0, width_of(fonts, "Adopt"));
         let size = KEY_LABEL.size;
         same(
             got,
@@ -384,8 +384,8 @@ mod tests {
     fn a_start_anchored_text_begins_at_its_origin() {
         let fonts = fonts();
         let node = text(Anchor::Start, TextPaint::Fill(INK), &["Adopt"], 0.0);
-        let got = bounds(&node, &fonts).expect("text paints");
-        assert!(close(got.left, 100.0) && close(got.right, 100.0 + width_of(&fonts, "Adopt")));
+        let got = bounds(&node, fonts).expect("text paints");
+        assert!(close(got.left, 100.0) && close(got.right, 100.0 + width_of(fonts, "Adopt")));
     }
 
     #[test]
@@ -396,7 +396,7 @@ mod tests {
     fn later_lines_step_down_by_the_leading() {
         let fonts = fonts();
         let node = text(Anchor::Start, TextPaint::Fill(INK), &["a", "b", "c"], 13.0);
-        let got = bounds(&node, &fonts).expect("text paints");
+        let got = bounds(&node, fonts).expect("text paints");
         assert!(close(
             got.bottom,
             50.0 + 26.0 + TEXT_DESCENT * KEY_LABEL.size
@@ -414,8 +414,8 @@ mod tests {
         };
         let haloed = text(Anchor::Middle, halo, &["Adopt"], 0.0);
         let (plain, haloed) = (
-            bounds(&plain, &fonts).expect("paints"),
-            bounds(&haloed, &fonts).expect("paints"),
+            bounds(&plain, fonts).expect("paints"),
+            bounds(&haloed, fonts).expect("paints"),
         );
         same(
             haloed,
@@ -433,7 +433,7 @@ mod tests {
         let fonts = fonts();
         let node = line(Point::ORIGIN, Point { x: 10.0, y: 0.0 }, 2.0);
         same(
-            bounds(&node, &fonts).expect("paints"),
+            bounds(&node, fonts).expect("paints"),
             [-1.0, -1.0, 11.0, 1.0],
         );
     }
@@ -449,7 +449,7 @@ mod tests {
             stroke_width: 2.0,
         };
         same(
-            bounds(&node, &fonts).expect("paints"),
+            bounds(&node, fonts).expect("paints"),
             [4.0, 14.0, 16.0, 26.0],
         );
     }
@@ -463,7 +463,7 @@ mod tests {
             key: ItemKey(3),
         };
         same(
-            bounds(&node, &fonts).expect("paints"),
+            bounds(&node, fonts).expect("paints"),
             [-6.0, 4.0, 26.0, 36.0],
         );
     }
@@ -486,7 +486,7 @@ mod tests {
             stroke_width: 2.0,
         };
         same(
-            bounds(&node, &fonts).expect("paints"),
+            bounds(&node, fonts).expect("paints"),
             [-6.0, -1.0, 6.0, 11.0],
         );
     }
@@ -496,12 +496,9 @@ mod tests {
         let fonts = fonts();
         let inner = line(Point::ORIGIN, Point { x: 10.0, y: 0.0 }, 2.0);
         let node = Node::Group(Group::new(Point { x: 3.0, y: 4.0 }, vec![inner]));
-        same(
-            bounds(&node, &fonts).expect("paints"),
-            [2.0, 3.0, 14.0, 5.0],
-        );
+        same(bounds(&node, fonts).expect("paints"), [2.0, 3.0, 14.0, 5.0]);
         let empty = Node::Group(Group::new(Point { x: 3.0, y: 4.0 }, Vec::new()));
-        assert_eq!(bounds(&empty, &fonts), None);
+        assert_eq!(bounds(&empty, fonts), None);
     }
 
     /// The text a panic carried; fails if the closure did not panic.
@@ -523,7 +520,7 @@ mod tests {
             width: 12.0,
             height: 2.0,
         };
-        assert_inside(&node, fits, &fonts);
+        assert_inside(&node, fits, fonts);
         let result = std::panic::catch_unwind(|| {
             assert_inside(
                 &node,
@@ -531,7 +528,7 @@ mod tests {
                     width: 11.0,
                     height: 2.0,
                 },
-                &fonts,
+                fonts,
             );
         });
         let message = panic_message(result);

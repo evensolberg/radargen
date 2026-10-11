@@ -490,13 +490,6 @@ mod tests {
         assert!(Node::Group(group(vec![hit(1), hit(2)])).is_interactive_only());
         assert!(!Node::Group(group(Vec::new())).is_interactive_only());
         assert!(!Node::Group(group(vec![hit(1), disc()])).is_interactive_only());
-        let control = Control {
-            key: ItemKey(1),
-            label: "1".to_owned(),
-            tooltip: None,
-        };
-        let control = group(vec![disc()]).with(Semantics::Marker(control));
-        assert!(!Node::Group(control).is_interactive_only());
         let control = |children| {
             let control = Control {
                 key: ItemKey(1),
@@ -505,6 +498,7 @@ mod tests {
             };
             Node::Group(group(children).with(Semantics::Marker(control)))
         };
+        assert!(!control(vec![disc()]).is_interactive_only());
         assert!(!control(vec![hit(1)]).is_interactive_only());
         let indicator = Node::Group(group(vec![disc()]).with(Semantics::Indicator(ItemKey(1))));
         assert!(!control(vec![indicator]).is_interactive_only());

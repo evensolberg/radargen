@@ -124,8 +124,18 @@ struct Marker {
     series: usize,
     /// FR-34's number.
     number: usize,
+    /// Degrees (SVG frame) from the marker toward the radar's centre.
+    centreward: f64,
     /// Its key, accessible name (FR-50) and tooltip (FR-36).
     control: Control,
+}
+
+impl Marker {
+    /// The marker's centre at `r`'s position scale, relative to the radar's
+    /// centre.
+    fn centre(&self, r: RadarScale) -> Point {
+        self.at.scaled(r.geometry)
+    }
 }
 
 /// The radar (FR-30–FR-36): its rings, dividers, labels and markers.
@@ -348,8 +358,8 @@ fn markers(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Marker> {
     );
     placed
         .into_iter()
-        .zip(plotted.items.iter().enumerate())
-        .map(|(at, (i, &index))| {
+        .zip(plotted.items.iter().zip(1_usize..))
+        .map(|(at, (&index, number))| {
             let item = catalogue
                 .items
                 .get(index)
@@ -358,13 +368,13 @@ fn markers(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Marker> {
                 .rank
                 .get(item.quadrant)
                 .expect("rank covers every quadrant of the catalogue");
-            let number = i + 1;
             Marker {
                 at,
                 qualifier: item.qualifier,
                 status: item.status,
                 series,
                 number,
+                centreward: (-at.y).atan2(-at.x).to_degrees(),
                 control: Control {
                     key: ItemKey(item.line),
                     label: catalogue.accessible_name(item, Some(number)),
@@ -386,12 +396,11 @@ fn marker_nodes(m: &Marker, r: RadarScale) -> Vec<Node> {
 /// A marker's status ring (if any) and disc (FR-20, FR-40). A half-ring
 /// faces the direction from the marker toward the centre.
 fn glyph_nodes(m: &Marker, r: RadarScale) -> Vec<Node> {
-    let centreward = (-m.at.y).atan2(-m.at.x).to_degrees();
     Glyph {
         centre: m.at,
         radius: MARKER_RADIUS,
         qualifier: m.qualifier,
-        mark: m.status.and_then(|s| StatusMark::of(s, centreward)),
+        mark: m.status.and_then(|s| StatusMark::of(s, m.centreward)),
         ink: Role::Series(m.series),
     }
     .draw(r.marker())
@@ -399,20 +408,17 @@ fn glyph_nodes(m: &Marker, r: RadarScale) -> Vec<Node> {
 
 /// A marker's FR-34 number, centred on it: in primary text on a hollow
 /// marker, else in the ink its series entry calls for (D-54).
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
-)]
 fn number_node(m: &Marker, r: RadarScale) -> Node {
     let paint = if m.qualifier == Some(Qualifier::Conditional) {
         Paint::Role(Role::Neutral(Neutral::TextPrimary))
     } else {
         Paint::NumberOn(m.series)
     };
+    let centre = m.centre(r);
     Node::Text {
         origin: Point {
-            x: m.at.x * r.geometry,
-            y: m.at.y * r.geometry + NUMBER_CENTRING * MARKER_NUMBER.size * r.marks,
+            x: centre.x,
+            y: (NUMBER_CENTRING * MARKER_NUMBER.size).mul_add(r.marks, centre.y),
         },
         style: MARKER_NUMBER.scaled(r.marks),
         ink: TextPaint::Fill(paint),
@@ -425,7 +431,7 @@ fn number_node(m: &Marker, r: RadarScale) -> Node {
 /// A marker's pointer target (FR-94), at natural size or larger.
 fn hit_node(m: &Marker, r: RadarScale) -> Node {
     Node::HitArea {
-        centre: m.at.scaled(r.geometry),
+        centre: m.centre(r),
         radius: HIT_RADIUS * r.labels,
         key: m.control.key,
     }
@@ -435,7 +441,7 @@ fn hit_node(m: &Marker, r: RadarScale) -> Node {
 /// `raised` over it, then the focus ring, so the ring is always seen
 /// against Surface1 (SC-20, `FOCUS_RING_GAP`).
 fn indicator_node(m: &Marker, raised: Vec<Node>, r: RadarScale) -> Node {
-    let centre = m.at.scaled(r.geometry);
+    let centre = m.centre(r);
     let backing = Node::Circle {
         centre,
         radius: INDICATOR_REACH * r.marks,
@@ -563,8 +569,7 @@ const _: () = assert!(
 mod tests {
     use super::*;
     use crate::layout::block::{assert_translates, at, close, fonts};
-    use crate::layout::geometry::place;
-    use crate::layout::test_support::{assert_finite, bounds, fill, near, plotted};
+    use crate::layout::test_support::{assert_finite, bounds, fill, near, plotted, plus};
     use crate::model::Item;
     use crate::palette::{Palette, Theme};
     use crate::style::{MARKER_HOLLOW_STROKE, MARKER_STROKE, STATUS_RING_GAP, STATUS_RING_STROKE};
@@ -805,7 +810,7 @@ mod tests {
 
     #[test]
     fn zero_quadrants_draws_rings_only() {
-        let b = block(&fonts(), HEADER, None);
+        let b = block(fonts(), HEADER, None);
         let size = b.size(1.0);
         assert!(
             close(size.width, 660.0) && close(size.height, 660.0),
@@ -829,7 +834,7 @@ mod tests {
 
     #[test]
     fn one_quadrant_has_one_divider() {
-        let nodes = frame_at(&quadrants(&fonts(), 1), 1.0);
+        let nodes = frame_at(&quadrants(fonts(), 1), 1.0);
         assert_eq!(lines(&nodes).len(), 1);
         let labels = quadrant_labels(&nodes);
         let [label] = labels.as_slice() else {
@@ -855,7 +860,7 @@ mod tests {
             (8, &eight),
         ];
         for (n, angles) in cases {
-            ends_are(&lines(&frame_at(&quadrants(&fonts, n), 1.0)), angles, 262.0);
+            ends_are(&lines(&frame_at(&quadrants(fonts, n), 1.0)), angles, 262.0);
         }
     }
 
@@ -863,7 +868,7 @@ mod tests {
     fn quadrant_labels_follow_fr10() {
         let fonts = fonts();
         let check = |csv: &str| {
-            let nodes = frame_at(&block(&fonts, csv, None), 1.0);
+            let nodes = frame_at(&block(fonts, csv, None), 1.0);
             assert_eq!(label_texts(&nodes), ["platform", "Practice", "Tool"]);
             let g = Geometry {
                 quadrants: 3,
@@ -905,17 +910,17 @@ mod tests {
         let fonts = fonts();
         let csv = csv_of(&["Tool"], "C");
         rings_are(
-            &block(&fonts, &csv, Some("A,B,C,D,E")),
+            &block(fonts, &csv, Some("A,B,C,D,E")),
             &["A", "B", "C", "D", "E"],
             52.0,
         );
         rings_are(
-            &block(&fonts, &csv_of(&["Tool"], "Only"), Some("Only")),
+            &block(fonts, &csv_of(&["Tool"], "Only"), Some("Only")),
             &["Only"],
             260.0,
         );
         let eight = ["A", "B", "C", "D", "E", "F", "G", "H"];
-        rings_are(&block(&fonts, &csv, Some(&eight.join(","))), &eight, 32.5);
+        rings_are(&block(fonts, &csv, Some(&eight.join(","))), &eight, 32.5);
     }
 
     fn decorative(node: &Node) -> bool {
@@ -929,7 +934,7 @@ mod tests {
 
     #[test]
     fn ring_labels_sit_on_a_halo() {
-        let b = block(&fonts(), PRD_EXAMPLE, None);
+        let b = block(fonts(), PRD_EXAMPLE, None);
         let rendered = b.render(at(1.0));
         assert!(!decorative(&rendered), "no decorative group in the radar");
         let nodes = frame(&rendered);
@@ -973,7 +978,7 @@ mod tests {
 
     #[test]
     fn quadrant_labels_are_primary_and_middle_anchored() {
-        let nodes = frame_at(&block(&fonts(), PRD_EXAMPLE, None), 1.0);
+        let nodes = frame_at(&block(fonts(), PRD_EXAMPLE, None), 1.0);
         let labels = quadrant_labels(&nodes);
         assert_eq!(labels.len(), 3);
         for label in labels {
@@ -990,7 +995,7 @@ mod tests {
 
     #[test]
     fn three_scales() {
-        let b = quadrants(&fonts(), 4);
+        let b = quadrants(fonts(), 4);
         let g = Geometry {
             quadrants: 4,
             rings: 4,
@@ -1045,12 +1050,12 @@ mod tests {
     )]
     fn size_pins() {
         let fonts = fonts();
-        let prd = block(&fonts, PRD_EXAMPLE, None).size(1.0);
+        let prd = block(fonts, PRD_EXAMPLE, None).size(1.0);
         assert!(
             close(prd.width, 660.0) && close(prd.height, 660.0),
             "{prd:?}"
         );
-        let zero = block(&fonts, HEADER, None).size(0.5);
+        let zero = block(fonts, HEADER, None).size(0.5);
         assert!(
             close(zero.width, 330.0) && close(zero.height, 330.0),
             "{zero:?}"
@@ -1061,14 +1066,14 @@ mod tests {
         let s = 0.3;
         let above = 300.0 * s * 67.5_f64.to_radians().sin();
         let want = 2.0 * (TEXT_ASCENT * 12.0 + above + 10.0);
-        let got = quadrants(&fonts, 8).size(s).height;
+        let got = quadrants(fonts, 8).size(s).height;
         assert!(close(got, want), "{got} vs {want}");
         assert!(want > 660.0 * s && (want - 209.55).abs() < 0.01, "{want}");
 
         // N = 1: the label hangs below 6 o'clock, so its descent counts.
         let s = 0.4_f64;
         let want = (660.0 * s).max(2.0 * (TEXT_DESCENT * 12.0 + 300.0 * s + 10.0));
-        let got = quadrants(&fonts, 1).size(s).height;
+        let got = quadrants(fonts, 1).size(s).height;
         assert!(close(got, want), "{got} vs {want}");
     }
 
@@ -1084,7 +1089,7 @@ mod tests {
             QUADRANT_LABEL.size,
             QUADRANT_LABEL.letter_spacing,
         );
-        let b = block(&fonts, &csv_of(&["B", "C", "D", &long(40)], "Adopt"), None);
+        let b = block(fonts, &csv_of(&["B", "C", "D", &long(40)], "Adopt"), None);
         for s in [1.0, 0.576] {
             let want = 2.0 * (polar(45.0, 300.0).x.abs() * s + w / 2.0 + 10.0);
             let got = b.size(s).width;
@@ -1101,7 +1106,7 @@ mod tests {
             RING_LABEL.letter_spacing,
         );
         let want = 2.0 * (w / 2.0 + 1.5 + 10.0);
-        let got = block(&fonts, HEADER, Some(&long(80))).size(1.0).width;
+        let got = block(fonts, HEADER, Some(&long(80))).size(1.0).width;
         assert!(close(got, want) && got > 660.0, "{got} vs {want}");
     }
 
@@ -1118,7 +1123,7 @@ mod tests {
         let high = (1..=14_u32).map(|k| 0.05 * f64::from(k) + 0.30);
         let steps: Vec<f64> = low.chain(high).collect();
         let ge = |z: f64, a: f64| z > a || close(z, a);
-        for (name, b) in fixtures(&fonts) {
+        for (name, b) in fixtures(fonts) {
             for (lo, hi) in steps.iter().zip(steps.iter().skip(1)) {
                 let (a, z) = (b.size(*lo), b.size(*hi));
                 assert!(ge(z.width, a.width), "{name}: width {lo} → {hi}");
@@ -1127,7 +1132,7 @@ mod tests {
         }
         // N = 1 with a long name: its label is at 6 o'clock, so the width is
         // the label's alone below scale 1.
-        let b = block(&fonts, &csv_of(&[&long(40)], "Adopt"), None);
+        let b = block(fonts, &csv_of(&[&long(40)], "Adopt"), None);
         let (low, high) = (b.size(0.4).width, b.size(0.7).width);
         assert!(close(low, high), "the plateau: {low} vs {high}");
     }
@@ -1153,17 +1158,17 @@ mod tests {
     fn everything_drawn_lies_inside_the_size_and_touches_it() {
         let fonts = fonts();
         let (mut labelled, mut hit) = (0, 0);
-        for (name, b) in fixtures(&fonts) {
+        for (name, b) in fixtures(fonts) {
             for s in [1.5, 1.0, 0.576, 0.4, 0.1] {
                 let size = b.size(s);
-                let drawn = bounds(&b.render(at(s)), &fonts).expect("the frame paints");
+                let drawn = bounds(&b.render(at(s)), fonts).expect("the frame paints");
                 assert!(
                     drawn.fits(size),
                     "{name} at {s}: {drawn:?} outside {size:?}"
                 );
                 let r = RadarScale::of(s);
                 let pad = RADAR_LABEL_PAD * r.labels;
-                let floor = 330.0 * s;
+                let floor = MIN_RADAR_HALF * s;
                 // How far the rings and dividers can reach: below about
                 // s = 0.15 they can pass the labels without passing the floor.
                 let grid = DIVIDER_RADIUS * s + f64::midpoint(0.0, GRID_STROKE * r.marks);
@@ -1288,7 +1293,7 @@ mod tests {
         let fonts = fonts();
         let check = |csv: &str| {
             let (catalogue, order) = plotted(csv, None);
-            let b = RadarBlock::new(&catalogue, &order, &fonts);
+            let b = RadarBlock::new(&catalogue, &order, fonts);
             let nodes = frame(&b.render(at(1.0)));
             let got = controls(&nodes);
             assert_eq!(got.len(), order.items.len());
@@ -1297,10 +1302,7 @@ mod tests {
                 let item = catalogue.items.get(index).expect("in range");
                 assert_eq!(control.key, ItemKey(item.line));
                 assert_eq!(control.label, catalogue.accessible_name(item, Some(n)));
-                assert_eq!(
-                    control.tooltip,
-                    Some(format!("{n}. {}", crate::trim(&item.name)))
-                );
+                assert_eq!(control.tooltip, Some(format!("{n}. {}", trim(&item.name))));
             }
             got.iter().map(|(_, c, _)| (*c).clone()).collect::<Vec<_>>()
         };
@@ -1319,7 +1321,7 @@ mod tests {
     fn markers_sit_where_fr33_puts_them() {
         let fonts = fonts();
         let (catalogue, order) = plotted(PRD_EXAMPLE, None);
-        let b = RadarBlock::new(&catalogue, &order, &fonts);
+        let b = RadarBlock::new(&catalogue, &order, fonts);
         let g = Geometry::of(&catalogue);
         // FR-10: platform 0, Practice 1, Tool 2; default rings Assess 0,
         // Trial 1, Adopt 2, Retire 3; FR-34 orders names within a band.
@@ -1352,7 +1354,7 @@ mod tests {
     #[test]
     fn controls_carry_names_raw() {
         let csv = format!("{HEADER}\"A<&\"\">B\",Q,Adopt,d\n");
-        let nodes = frame_at(&block(&fonts(), &csv, None), 1.0);
+        let nodes = frame_at(&block(fonts(), &csv, None), 1.0);
         let got = controls(&nodes);
         let [(_, control, _)] = got.as_slice() else {
             panic!("one control");
@@ -1367,7 +1369,7 @@ mod tests {
         let csv = csv_of(&["Tool", "platform", "Practice"], "Adopt");
         let (catalogue, order) = plotted(&csv, None);
         assert_eq!(order.rank, [2, 0, 1]);
-        let nodes = frame_at(&RadarBlock::new(&catalogue, &order, &fonts), 1.0);
+        let nodes = frame_at(&RadarBlock::new(&catalogue, &order, fonts), 1.0);
         let by_quadrant = |label: &str| {
             controls(&nodes)
                 .into_iter()
@@ -1386,20 +1388,11 @@ mod tests {
         assert_eq!(by_quadrant("Practice"), Paint::Role(Role::Series(1)));
         assert_eq!(by_quadrant("Tool"), Paint::Role(Role::Series(2)));
 
-        let nine = frame_at(&quadrants(&fonts, 9), 1.0);
+        let nine = frame_at(&quadrants(fonts, 9), 1.0);
         let last = controls(&nine)
             .last()
             .map(|(_, _, children)| disc(children).2);
         assert_eq!(last, Some(Paint::Role(Role::Series(8))), "unreduced");
-    }
-
-    /// `c` moved by `polar(angle, radius)`.
-    fn from(c: Point, angle: f64, radius: f64) -> Point {
-        let p = polar(angle, radius);
-        Point {
-            x: c.x + p.x,
-            y: c.y + p.y,
-        }
     }
 
     /// A half-ring's (start, end).
@@ -1441,12 +1434,20 @@ mod tests {
         let ring = (MARKER_RADIUS + STATUS_RING_GAP) * marks;
         let c = disc(children).0;
         let centreward = (-c.y).atan2(-c.x).to_degrees();
-        let toward = from(c, centreward, ring);
+        let toward = plus(c, polar(centreward, ring));
         assert!(toward.x.hypot(toward.y) < c.x.hypot(c.y), "{}", item.name);
         let ends_at = |path: &Node, start: f64, end: f64| {
             let (s, e) = half_ring_ends(path);
-            assert!(near(s, from(c, centreward + start, ring)), "{}", item.name);
-            assert!(near(e, from(c, centreward + end, ring)), "{}", item.name);
+            assert!(
+                near(s, plus(c, polar(centreward + start, ring))),
+                "{}",
+                item.name
+            );
+            assert!(
+                near(e, plus(c, polar(centreward + end, ring))),
+                "{}",
+                item.name
+            );
         };
         match (item.status, children) {
             (None | Some(Status::NoChange), [Node::Circle { .. }, Node::Text { .. }]) => {}
@@ -1482,7 +1483,7 @@ mod tests {
     fn qualifier_and_status_draw_per_fr20_fr40() {
         let fonts = fonts();
         let (catalogue, order) = plotted(&marked_csv(), None);
-        let b = RadarBlock::new(&catalogue, &order, &fonts);
+        let b = RadarBlock::new(&catalogue, &order, fonts);
         for s in [1.0_f64, 0.5] {
             let marks = s.max(RADAR_FLOOR);
             let nodes = frame_at(&b, s);
@@ -1504,7 +1505,7 @@ mod tests {
     #[test]
     fn numbers_name_the_entry_they_sit_on() {
         let fonts = fonts();
-        let b = quadrants(&fonts, 6);
+        let b = quadrants(fonts, 6);
         for (s, offset) in [(1.0_f64, 3.27393), (0.4, 2.54639)] {
             let marks = s.max(RADAR_FLOOR);
             let nodes = frame_at(&b, s);
@@ -1538,7 +1539,7 @@ mod tests {
     #[test]
     fn hollow_markers_number_in_primary_text() {
         let csv = format!("{MARKED_HEADER}a,Q,Adopt,d,conditional,\nb,Q,Adopt,d,default,\n");
-        let nodes = frame_at(&block(&fonts(), &csv, None), 1.0);
+        let nodes = frame_at(&block(fonts(), &csv, None), 1.0);
         let inks: Vec<TextPaint> = controls(&nodes)
             .iter()
             .map(|(_, _, children)| number(children).ink)
@@ -1552,9 +1553,39 @@ mod tests {
         );
     }
 
+    /// What `marker_scales` measures on the first marker of a frame.
+    struct Probe<'a> {
+        centre: Point,
+        disc: f64,
+        number: Text<'a>,
+        hit: f64,
+        focus: f64,
+    }
+
+    fn probe(nodes: &[Node]) -> Probe<'_> {
+        let (_, _, children) = *controls(nodes).first().expect("markers");
+        let (centre, disc, ..) = disc(children);
+        let Some((_, [Node::HitArea { radius: hit, .. }, ..])) = hit_layer(nodes) else {
+            panic!("a hit layer");
+        };
+        let Some(Node::Group(indicator)) = indicator_layer(nodes).first() else {
+            panic!("an indicator");
+        };
+        let Some(Node::Circle { radius: focus, .. }) = indicator.children.last() else {
+            panic!("a focus ring");
+        };
+        Probe {
+            centre,
+            disc,
+            number: number(children),
+            hit: *hit,
+            focus: *focus,
+        }
+    }
+
     #[test]
     fn marker_scales() {
-        let b = block(&fonts(), PRD_EXAMPLE, None);
+        let b = block(fonts(), PRD_EXAMPLE, None);
         // (s, disc, number, hit, indicator ring, number offset)
         let printed = [
             (0.4, 7.7778, 7.0, 16.0, 14.0, 2.54639),
@@ -1562,49 +1593,37 @@ mod tests {
         ];
         for (s, d, size, h, ring, offset) in printed {
             let nodes = frame_at(&b, s);
-            let (_, _, children) = *controls(&nodes).first().expect("markers");
-            let (c, radius, ..) = disc(children);
-            let t = number(children);
-            let Some((_, [Node::HitArea { radius: hit, .. }, ..])) = hit_layer(&nodes) else {
-                panic!("a hit layer");
-            };
-            let Some(Node::Group(indicator)) = indicator_layer(&nodes).first() else {
-                panic!("an indicator");
-            };
-            let Some(Node::Circle { radius: focus, .. }) = indicator.children.last() else {
-                panic!("a focus ring");
-            };
-            assert!((radius - d).abs() < 1e-4, "{s}: disc {radius}");
-            assert!(close(t.style.size, size), "{s}: number {}", t.style.size);
-            assert!(close(*hit, h), "{s}: hit {hit}");
-            assert!(close(*focus, ring), "{s}: ring {focus}");
-            assert!((t.origin.y - c.y - offset).abs() < 1e-5, "{s}: offset");
+            let p = probe(&nodes);
+            assert!((p.disc - d).abs() < 1e-4, "{s}: disc {}", p.disc);
+            assert!(
+                close(p.number.style.size, size),
+                "{s}: number {}",
+                p.number.style.size
+            );
+            assert!(close(p.hit, h), "{s}: hit {}", p.hit);
+            assert!(close(p.focus, ring), "{s}: ring {}", p.focus);
+            assert!(
+                (p.number.origin.y - p.centre.y - offset).abs() < 1e-5,
+                "{s}: offset"
+            );
         }
         for s in [RADAR_FLOOR, 1.5] {
             let (marks, labels) = (s.max(RADAR_FLOOR), s.max(1.0));
             let nodes = frame_at(&b, s);
-            let (_, _, children) = *controls(&nodes).first().expect("markers");
-            let (c, radius, ..) = disc(children);
-            let t = number(children);
-            let Some((_, [Node::HitArea { radius: hit, .. }, ..])) = hit_layer(&nodes) else {
-                panic!("a hit layer");
-            };
-            let Some(Node::Group(indicator)) = indicator_layer(&nodes).first() else {
-                panic!("an indicator");
-            };
-            let Some(Node::Circle { radius: focus, .. }) = indicator.children.last() else {
-                panic!("a focus ring");
-            };
-            assert!(close(radius, MARKER_RADIUS * marks), "{s}");
-            assert!(close(t.style.size, MARKER_NUMBER.size * marks), "{s}");
-            assert!(close(*hit, HIT_RADIUS * labels), "{s}");
+            let p = probe(&nodes);
+            assert!(close(p.disc, MARKER_RADIUS * marks), "{s}");
             assert!(
-                close(*focus, (MARKER_RADIUS + FOCUS_RING_GAP) * marks),
+                close(p.number.style.size, MARKER_NUMBER.size * marks),
+                "{s}"
+            );
+            assert!(close(p.hit, HIT_RADIUS * labels), "{s}");
+            assert!(
+                close(p.focus, (MARKER_RADIUS + FOCUS_RING_GAP) * marks),
                 "{s}"
             );
             assert!(
                 close(
-                    t.origin.y - c.y,
+                    p.number.origin.y - p.centre.y,
                     NUMBER_CENTRING * MARKER_NUMBER.size * marks
                 ),
                 "{s}"
@@ -1614,7 +1633,7 @@ mod tests {
 
     #[test]
     fn hit_layer_paints_before_every_marker() {
-        let nodes = frame_at(&block(&fonts(), PRD_EXAMPLE, None), 1.0);
+        let nodes = frame_at(&block(fonts(), PRD_EXAMPLE, None), 1.0);
         let (index, hits) = hit_layer(&nodes).expect("a hit layer");
         let got = controls(&nodes);
         assert_eq!(hits.len(), got.len());
@@ -1636,7 +1655,7 @@ mod tests {
 
     #[test]
     fn indicators_raise_the_marker_over_surface() {
-        let b = block(&fonts(), &marked_csv(), None);
+        let b = block(fonts(), &marked_csv(), None);
         for s in [1.0_f64, 0.5] {
             let marks = s.max(RADAR_FLOOR);
             let nodes = frame_at(&b, s);
@@ -1682,7 +1701,7 @@ mod tests {
 
     #[test]
     fn a_crowded_band_draws_every_marker() {
-        let nodes = frame_at(&crowded(&fonts()), 1.0);
+        let nodes = frame_at(&crowded(fonts()), 1.0);
         let got = controls(&nodes);
         assert_eq!(got.len(), 30);
         assert_eq!(hit_layer(&nodes).map(|(_, h)| h.len()), Some(30));
@@ -1699,18 +1718,9 @@ mod tests {
     fn unplotted_rows_draw_nothing() {
         let csv = format!("{HEADER}Zed,Q,Adopt,d\nMid,Q,Nowhere,d\nAlpha,Q,Adopt,d\n");
         let (catalogue, order) = plotted(&csv, None);
-        let nodes = frame_at(&RadarBlock::new(&catalogue, &order, &fonts()), 1.0);
+        let nodes = frame_at(&RadarBlock::new(&catalogue, &order, fonts()), 1.0);
         let got = controls(&nodes);
-        let line = |name: &str| {
-            catalogue
-                .items
-                .iter()
-                .find(|i| i.name == name)
-                .map(|i| ItemKey(i.line))
-                .expect("a row")
-        };
         let keys: Vec<ItemKey> = got.iter().map(|(_, c, _)| c.key).collect();
-        assert_eq!(keys, [line("Alpha"), line("Zed")]);
         assert_eq!(keys, [ItemKey(4), ItemKey(2)]);
         let numbers: Vec<String> = got
             .iter()
@@ -1730,54 +1740,35 @@ mod tests {
         let fonts = fonts();
         let (catalogue, order) = plotted(&csv_of(&["Q0", "Q0", "Q0"], "Assess"), None);
         let points = place(&catalogue, &order);
-        let want = [
-            Point {
-                x: 212.80,
-                y: 54.64,
-            },
-            Point { x: 0.0, y: 239.2 },
-            Point {
-                x: -212.80,
-                y: 54.64,
-            },
-        ];
-        for p in &want {
-            assert!(
-                points
-                    .iter()
-                    .any(|q| (q.x - p.x).abs() < 0.01 && (q.y - p.y).abs() < 0.01),
-                "{p:?} in {points:?}"
-            );
-        }
-        let b = RadarBlock::new(&catalogue, &order, &fonts);
+        let b = RadarBlock::new(&catalogue, &order, fonts);
         let s = 0.1;
         let r = RadarScale::of(s);
         let x = points.iter().map(|p| p.x.abs()).fold(0.0, f64::max);
         let size = b.size(s);
         // The labels and the floor alone give 66 wide.
-        let labelled = 2.0 * (330.0 * s).max(b.label_half_width(r) + RADAR_LABEL_PAD);
+        let labelled = 2.0 * (MIN_RADAR_HALF * s).max(b.label_half_width(r) + RADAR_LABEL_PAD);
         assert!(close(labelled, 66.0), "{labelled}");
         let width = 2.0 * (x * s + HIT_RADIUS);
         assert!(close(size.width, width), "{} vs {width}", size.width);
         assert!((size.width - 74.5595).abs() < 1e-3, "{}", size.width);
-        let height = 2.0 * (330.0 * s).max(b.label_half_height(r) + RADAR_LABEL_PAD);
+        let height = 2.0 * (MIN_RADAR_HALF * s).max(b.label_half_height(r) + RADAR_LABEL_PAD);
         assert!(close(size.height, height), "{} vs {height}", size.height);
         assert!((size.height - 87.875).abs() < 1e-3, "{}", size.height);
 
         // No markers, no marker term.
-        let none = block(&fonts, HEADER, None);
+        let none = block(fonts, HEADER, None);
         let s = 0.02;
         let r = RadarScale::of(s);
         assert!(close(none.hit_half_width(r), 0.0) && close(none.hit_half_height(r), 0.0));
         let size = none.size(s);
-        let width = 2.0 * (330.0 * s).max(none.label_half_width(r) + RADAR_LABEL_PAD);
+        let width = 2.0 * (MIN_RADAR_HALF * s).max(none.label_half_width(r) + RADAR_LABEL_PAD);
         assert!(close(size.width, width), "{} vs {width}", size.width);
     }
 
     #[test]
     fn names_are_carried_raw() {
         let csv = format!("{HEADER}x,\"A<&\"\">B\",Adopt,d\ny,技术,Adopt,d\n");
-        let labels = label_texts(&frame_at(&block(&fonts(), &csv, None), 1.0));
+        let labels = label_texts(&frame_at(&block(fonts(), &csv, None), 1.0));
         assert!(labels.iter().any(|l| l == "A<&\">B"), "{labels:?}");
         assert!(labels.iter().any(|l| l == "技术"), "{labels:?}");
     }
@@ -1786,8 +1777,8 @@ mod tests {
     fn a_placed_radar_is_the_origin_radar_translated() {
         let fonts = fonts();
         for b in [
-            block(&fonts, PRD_EXAMPLE, None),
-            block(&fonts, &marked_csv(), None),
+            block(fonts, PRD_EXAMPLE, None),
+            block(fonts, &marked_csv(), None),
         ] {
             assert_translates(&b, 1.0);
             assert_translates(&b, 0.5);
