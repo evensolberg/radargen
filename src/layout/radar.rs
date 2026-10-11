@@ -530,7 +530,7 @@ fn hit_reach(offset: f64, r: RadarScale) -> f64 {
 /// <= HIT_RADIUS`; from `RADAR_FLOOR` up it reaches `(|p| + 19) s`, under
 /// the floor's `330 s` because `|p| < BAND_OUTER_RADIUS` and
 /// `BAND_OUTER_RADIUS + INDICATOR_REACH <= MIN_RADAR_HALF`. Both are
-/// asserted at compile time in the tests. The hit term itself binds only
+/// asserted at compile time, below `half_extent`. The hit term itself binds only
 /// for `s < 16 / (330 - |p|)`, about 0.23 at most.
 ///
 /// The block's size is non-decreasing in `s` from 0.0034 up. The only
@@ -539,18 +539,6 @@ fn hit_reach(offset: f64, r: RadarScale) -> f64 {
 /// outgrows it from there. That relies on at least one ring, which
 /// `rings.rs` guarantees by rejecting an empty list. The hit term, `|p| s +
 /// 16 · max(s, 1)`, is increasing.
-// The proof above, as far as constants carry it, checked in every build:
-// below the floor scale an indicator reaches less far than a hit area, and
-// above it less far than the floor.
-const _: () = assert!(
-    INDICATOR_REACH * RADAR_FLOOR <= HIT_RADIUS,
-    "below the floor scale an indicator must stay inside the hit area"
-);
-const _: () = assert!(
-    BAND_OUTER_RADIUS + INDICATOR_REACH <= MIN_RADAR_HALF,
-    "above the floor scale an indicator must stay inside the floor"
-);
-
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
@@ -560,6 +548,16 @@ fn half_extent(label_reach: f64, hit_reach: f64, r: RadarScale) -> f64 {
         .max(label_reach + RADAR_LABEL_PAD * r.labels)
         .max(hit_reach)
 }
+
+// `half_extent`'s indicator bounds, checked in every build.
+const _: () = assert!(
+    INDICATOR_REACH * RADAR_FLOOR <= HIT_RADIUS,
+    "below the floor scale an indicator must stay inside the hit area"
+);
+const _: () = assert!(
+    BAND_OUTER_RADIUS + INDICATOR_REACH <= MIN_RADAR_HALF,
+    "above the floor scale an indicator must stay inside the floor"
+);
 
 #[cfg(test)]
 mod tests {
