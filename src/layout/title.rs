@@ -69,7 +69,7 @@ impl Run {
             reason = "a line count is far below 2^53, so the conversion is exact"
         )]
         let gaps = self.lines.len().saturating_sub(1) as f64;
-        gaps.mul_add(self.leading, self.first_baseline)
+        self.first_baseline + gaps * self.leading
     }
 
     fn node(&self, scale: f64) -> Node {
