@@ -5,7 +5,7 @@
 //! 3 o'clock, angles grow clockwise on screen, and y grows downward. The
 //! formulas are the prototype's, ratified rather than re-derived (D-36).
 
-use crate::style::BAND_OUTER_RADIUS;
+use crate::style::{BAND_OUTER_RADIUS, MARKER_RADIUS};
 
 /// FR-30: a full turn, which N equal sectors divide.
 const FULL_TURN: f64 = 360.0;
@@ -19,6 +19,13 @@ const SPREAD: f64 = 0.84;
 /// even-indexed items take the inner one.
 const INNER_TRACK: f64 = 0.38;
 const OUTER_TRACK: f64 = 0.68;
+/// FR-89: how far below one marker diameter two centres may be and still
+/// count as clear. `sin` and `cos` differ across platforms by about 1e-13,
+/// so a distance exactly at the threshold could otherwise classify
+/// differently on two machines and change the warning (NFR-4).
+const CAPACITY_TOLERANCE: f64 = 1e-9;
+/// FR-89: the least distance between two clear marker centres.
+const CLEARANCE: f64 = 2.0 * MARKER_RADIUS - CAPACITY_TOLERANCE;
 
 /// A point relative to the radar's centre, in SVG user units.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -67,10 +74,11 @@ impl Geometry {
     ///
     /// # Panics
     ///
-    /// In debug builds, if `ring` exceeds `rings`, which overflows the
-    /// subtraction. Callers pass a declared ring index, which is below it.
+    /// In debug builds, if `ring` is not below `rings`. Callers pass a
+    /// declared ring index, which is.
     #[must_use]
     pub fn band(self, ring: usize) -> Band {
+        debug_assert!(ring < self.rings, "ring {ring} of {}", self.rings);
         let width = BAND_OUTER_RADIUS / real(self.rings);
         let from_centre = real(self.rings - ring);
         Band {
@@ -115,6 +123,31 @@ impl Geometry {
     pub fn marker(self, position: usize, ring: usize, j: usize, n: usize) -> Point {
         polar(self.angle(position, j, n), self.radius(ring, j))
     }
+
+    /// FR-89: whether `n` plain markers in ring `ring`'s band, placed by
+    /// FR-33, keep every two centres at least one marker diameter apart.
+    /// Placement is the same in every sector, so sector 0 stands for all.
+    #[must_use]
+    pub fn fits(self, ring: usize, n: usize) -> bool {
+        let points: Vec<Point> = (0..n).map(|j| self.marker(0, ring, j, n)).collect();
+        points.iter().enumerate().all(|(i, a)| {
+            points[i + 1..]
+                .iter()
+                .all(|b| far_enough((a.x - b.x).hypot(a.y - b.y)))
+        })
+    }
+
+    /// FR-89: the largest `n`, up to `limit`, for which the band fits —
+    /// searched upward and stopping at the first failure, which is the
+    /// largest because fitting is monotone in `n`. A band of one always
+    /// fits, so this is at least 1 when `limit` is.
+    #[must_use]
+    pub fn capacity(self, ring: usize, limit: usize) -> usize {
+        (1..=limit)
+            .take_while(|&n| self.fits(ring, n))
+            .last()
+            .unwrap_or(0)
+    }
 }
 
 /// The point at `angle` degrees and `radius` from the centre, in SVG's
@@ -126,6 +159,11 @@ pub fn polar(angle: f64, radius: f64) -> Point {
         x: radius * cos,
         y: radius * sin,
     }
+}
+
+/// FR-89: whether two marker centres `distance` apart do not overlap.
+fn far_enough(distance: f64) -> bool {
+    distance >= CLEARANCE
 }
 
 /// A count as `f64`.
@@ -274,5 +312,79 @@ mod tests {
                 assert!(band.inner < r && r < band.outer, "ring {ring} j {j}");
             }
         }
+    }
+
+    /// Each band's capacity, outermost first, with no practical limit.
+    fn capacities(quadrants: usize, rings: usize) -> Vec<usize> {
+        let g = geometry(quadrants, rings);
+        (0..rings).map(|ring| g.capacity(ring, 1000)).collect()
+    }
+
+    /// FR-89 against every figure the PRD and crumb `rg-cbx` quote, for
+    /// plain markers of radius 10 on a 260-unit radar:
+    /// - `rg-cbx`'s table, 3/4/6/8 quadrants × 4 rings, innermost last;
+    /// - OQ-16: 28 per quadrant at eight quadrants;
+    /// - FR-14: at four quadrants the innermost band holds 2, the next 10;
+    /// - D-50: five rings at four quadrants, `In Use` 7 and `Retire` 1;
+    /// - `rg-cbx`: three quadrants' innermost band holds 4, 3 and 2 at
+    ///   three, four and five rings.
+    #[test]
+    fn capacity_matches_the_prd_figures() {
+        assert_eq!(capacities(3, 4), [37, 26, 14, 3]);
+        assert_eq!(capacities(4, 4), [27, 19, 10, 2]);
+        assert_eq!(capacities(6, 4), [18, 12, 6, 2]);
+        assert_eq!(capacities(8, 4), [13, 9, 4, 2]);
+        assert_eq!(capacities(8, 4).iter().sum::<usize>(), 28);
+        assert_eq!(capacities(4, 5), [23, 18, 12, 7, 1]);
+        assert_eq!(capacities(3, 3).last(), Some(&4));
+        assert_eq!(capacities(3, 5).last(), Some(&2));
+    }
+
+    /// FR-43: one and two quadrants have capacities like any other count.
+    #[test]
+    fn capacity_at_one_and_two_quadrants() {
+        assert_eq!(capacities(1, 4), [114, 80, 46, 11]);
+        assert_eq!(capacities(2, 4), [56, 39, 22, 5]);
+    }
+
+    /// A band of one always fits, and the search stops at `limit`.
+    #[test]
+    fn capacity_is_at_least_one_and_at_most_the_limit() {
+        let g = geometry(8, 6);
+        assert!(g.fits(5, 1));
+        assert_eq!(g.capacity(5, 1), 1);
+        assert_eq!(g.capacity(0, 3), 3);
+        assert_eq!(g.capacity(0, 0), 0);
+    }
+
+    /// FR-89's "largest n" is the first failure's predecessor only because
+    /// fitting is monotone: once a band overflows, adding items never makes
+    /// it fit again.
+    #[test]
+    fn fitting_is_monotone_in_n() {
+        for quadrants in 1..=8 {
+            for rings in 2..=6 {
+                let g = geometry(quadrants, rings);
+                for ring in 0..rings {
+                    let cap = g.capacity(ring, 200);
+                    for n in cap + 1..=cap + 20 {
+                        assert!(
+                            !g.fits(ring, n),
+                            "N={quadrants} rings={rings} ring={ring} n={n}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// NFR-4: a distance a hair under one diameter, as another platform's
+    /// `sin` might produce, still fits; a visibly short one does not.
+    #[test]
+    fn capacity_tolerates_rounding_at_the_threshold() {
+        let diameter = 2.0 * crate::style::MARKER_RADIUS;
+        assert!(far_enough(diameter - 1e-12));
+        assert!(far_enough(diameter));
+        assert!(!far_enough(diameter - 1e-3));
     }
 }
