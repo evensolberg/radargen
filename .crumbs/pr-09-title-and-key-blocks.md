@@ -1,7 +1,7 @@
 ---
 id: rg-y1t
 title: 'PR 09: Title and key blocks'
-status: in_progress
+status: closed
 type: task
 priority: 2
 tags:
@@ -30,3 +30,5 @@ FR-65 title block, FR-66 encoding key (markers drawn the same way the radar draw
 [2026-10-11] [2026-10-11] From PR 08a's final review: text::FontError(String) drops the source error and does not name the face. PR 09 is the first pipeline caller of Fonts::embedded (NFR-15's font load failure); consider a face field (Regular/SemiBold) when wiring the error.
 
 [start] 2026-10-11 13:08:17
+
+[stop]  2026-10-11 13:27:27  19m 10s

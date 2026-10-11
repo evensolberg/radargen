@@ -10,7 +10,7 @@ crumb_id: rg-y1t
 document_title: "PR 09 — the Block trait, a first svg::Node, and the title and key blocks: Implementation Plan"
 created_date: 2026-10-11
 synopsis: "The first blocks that draw: layout/block.rs (Block, Size, Placement), a minimal svg::Node and Paint, one marker-drawing helper the radar will reuse, FR-65's title block and FR-66's key."
-status: draft
+status: done
 type: Plan
 revision: "1.1"
 review_date: 2026-10-11
@@ -20,7 +20,7 @@ reviewed_by:
   - architect-reviewer
   - ui-designer
   - accessibility-tester
-completed_date:
+completed_date: 2026-10-11
 comments:
 ---
 # PR 09 — Block, a first svg::Node, and the title and key blocks: Implementation Plan
@@ -133,12 +133,12 @@ pub trait Block {
 
 `Text`'s first line's baseline is at `origin`; each further line is `leading` below. Every public item carries a doc comment saying what it means and the requirement it serves (`missing_docs` is denied). `Node` is not `Eq` (it holds `f64`); `Paint`, `Anchor` and `Semantics` must derive `Eq` (nursery's `derive_partial_eq_without_eq`).
 
-- [ ] **Step 1: Write the failing tests.** `src/layout/block.rs`: `Size::scaled` multiplies both sides; `Size::default().is_empty()`; a non-zero size is not; `Placement::at(p)` has scale 1. `src/svg/mod.rs`: `Paint::None` ≠ `Paint::Role(Role::Neutral(Neutral::MarkerHollow))` (architecture §5's distinction); `Group::new` defaults to `Semantics::None` and `with` sets it; a `Group` keeps its children in order. Existing geometry tests still compile through the re-export.
-- [ ] **Step 2: Run** `cargo test --lib svg:: layout::` — expect compile failure.
-- [ ] **Step 3: Implement** the types with their docs; move `Point` and re-export it.
-- [ ] **Step 4: Run** the tests, `cargo clippy --all-targets -- -D warnings`, `/opt/homebrew/bin/just lint`, and `rustqual .` — confirm no `CYCLE` and no new SDP finding.
-- [ ] **Step 5: Update architecture.** §4: the code block becomes the trait as built; `Size { width, height }` (renamed from `w`, `h`); add "Scale is applied to coordinates, never as an SVG transform: a block draws at the scale it is asked for, so the radar can shrink positions while labels keep their size (FR-70); a `Group` only translates." and "`Point` is `svg::Point`, re-exported by `layout::geometry`, so `layout` depends on `svg` and not the reverse." §5: replace the `Node` sketch with the variants above, noting that variants and `Semantics` values are added by the PR that first needs them.
-- [ ] **Step 6: Commit** `feat(svg): Node, Point and Paint; Block, Size and Placement`.
+- [x] **Step 1: Write the failing tests.** `src/layout/block.rs`: `Size::scaled` multiplies both sides; `Size::default().is_empty()`; a non-zero size is not; `Placement::at(p)` has scale 1. `src/svg/mod.rs`: `Paint::None` ≠ `Paint::Role(Role::Neutral(Neutral::MarkerHollow))` (architecture §5's distinction); `Group::new` defaults to `Semantics::None` and `with` sets it; a `Group` keeps its children in order. Existing geometry tests still compile through the re-export.
+- [x] **Step 2: Run** `cargo test --lib svg:: layout::` — expect compile failure.
+- [x] **Step 3: Implement** the types with their docs; move `Point` and re-export it.
+- [x] **Step 4: Run** the tests, `cargo clippy --all-targets -- -D warnings`, `/opt/homebrew/bin/just lint`, and `rustqual .` — confirm no `CYCLE` and no new SDP finding.
+- [x] **Step 5: Update architecture.** §4: the code block becomes the trait as built; `Size { width, height }` (renamed from `w`, `h`); add "Scale is applied to coordinates, never as an SVG transform: a block draws at the scale it is asked for, so the radar can shrink positions while labels keep their size (FR-70); a `Group` only translates." and "`Point` is `svg::Point`, re-exported by `layout::geometry`, so `layout` depends on `svg` and not the reverse." §5: replace the `Node` sketch with the variants above, noting that variants and `Semantics` values are added by the PR that first needs them.
+- [x] **Step 6: Commit** `feat(svg): Node, Point and Paint; Block, Size and Placement`.
 
 ---
 
@@ -166,7 +166,7 @@ Behaviour (FR-20, FR-40, mockup `statusRingMarkup`):
 - `MovedIn { c }` / `MovedOut { c }`: a half-ring `Path [MoveTo(centre + polar(d − 90, R)), Arc { radius: R, large_arc: false, sweep: true, end: centre + polar(d + 90, R) }]`, `R = radius + STATUS_RING_GAP`, `fill: Paint::None`, before the marker, where `d = c` (In) or `c + 180` (Out).
 - No mark: the marker alone.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `the_hollow_marker_fills_with_marker_hollow`; `a_solid_marker_fills_with_its_ink` (Default and `None`).
   - `new_draws_a_full_ring_under_the_marker`: two nodes, ring first, radius `r + STATUS_RING_GAP`, fill `Paint::None`.
   - `half_ring_endpoints_follow_centreward`: centre (100, 50), radius 7, `centreward` ∈ {0, 90, 225}: Moved In starts at centre + `polar(c − 90, 11)` and ends at centre + `polar(c + 90, 11)`; Moved Out the same with `c + 180`. Literal expectations computed in the test with `polar`, compared within 1e-9.
@@ -174,8 +174,8 @@ Behaviour (FR-20, FR-40, mockup `statusRingMarkup`):
   - `arc_flags`: the half-ring's Arc has `large_arc: false, sweep: true`.
   - `status_mark_of_maps_every_status`: New → New; MovedIn/MovedOut carry the angle; NoChange → None.
   - `no_mark_draws_the_marker_alone`.
-- [ ] **Step 2–4:** red, implement, green; clippy, `just lint`.
-- [ ] **Step 5: Commit** `feat(layout): one marker glyph for key and radar (FR-20, FR-40)`.
+- [x] **Step 2–4:** red, implement, green; clippy, `just lint`.
+- [x] **Step 5: Commit** `feat(layout): one marker glyph for key and radar (FR-20, FR-40)`.
 
 ---
 
@@ -197,7 +197,7 @@ Layout, from the mockup's `buildTitle`, with named constants in `style.rs`: `TIT
 - Words are stored as written; runs of whitespace collapse, since FR-79's wrap splits on whitespace. Escaping is PR 13's (NFR-6).
 - rustqual: keep `new` an integration function — pure helpers (e.g. `omitted`, `subtitle_baseline`, `widest`) and a small builder taking a `Part { style, ink, leading }` const per value — so IOSP and the parameter count stay clean (the plan review saw a violation from the obvious shape).
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `an_omitted_title_block_is_empty`; `empty_string_equals_none` (`Some("")` ≡ `None`); `whitespace_only_counts_as_omitted` (`Some("  ")`, `Some("\u{200B}")`, `Some("\u{FEFF}\u{200B}")`).
   - `blank_title_with_subtitle_is_subtitle_alone`: `(Some(" \t"), Some("Sub"))` → subtitle baseline 19, height 33.
   - `title_alone` (baseline 22, height 36), `subtitle_alone` (19, 33), `title_and_subtitle` (22 and 39, height 53).
@@ -209,8 +209,8 @@ Layout, from the mockup's `buildTitle`, with named constants in `style.rs`: `TIT
   - `title_text_is_stored_as_written` (`"R&D <2026>"`); `interior_whitespace_collapses` (`"Q3\n2026\tEdition"` → one line `"Q3 2026 Edition"`).
   - `title_width_is_widest_line`.
   - `size_scales_linearly` and `render_matches_size_at_half_scale` (baselines and text size halve at scale 0.5).
-- [ ] **Step 2–4:** red, implement, green; clippy, `just lint`, `rustqual .` (no IOSP violation).
-- [ ] **Step 5: Commit** `feat(layout): the title block (FR-65)`.
+- [x] **Step 2–4:** red, implement, green; clippy, `just lint`, `rustqual .` (no IOSP violation).
+- [x] **Step 5: Commit** `feat(layout): the title block (FR-65)`.
 
 ---
 
@@ -234,7 +234,7 @@ Content, fixed whatever the dataset uses (D-25), from the mockup's `buildKey` wi
 - Height: last row + `KEY_BOTTOM` = 146. Width: `KEY_LABEL_X` + the widest measured label, or the heading's width if wider.
 - At `scale` ≠ 1, everything scales linearly as for the title.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `the_key_draws_every_row_always`: heading then five rows, labels exactly as above, in order.
   - `the_key_samples_are_the_radar_s_markers`: each row's sample equals `draw(...)` with that row's arguments (one code path).
   - `key_status_rows_literal_geometry` (not circular): row 4's half-ring runs from (10, 121) to (10, 103) and bulges left; row 5's from (10, 127) to (10, 145) and bulges right; row 3's ring is a circle of radius 9 at (10, 88). Literal numbers, within 1e-9.
@@ -243,9 +243,9 @@ Content, fixed whatever the dataset uses (D-25), from the mockup's `buildKey` wi
   - `key_geometry`: heading baseline 20; rows 40, 64, 88, 112, 136; labels 4 below; height 146; width 28 + the widest label as `Fonts` measures it.
   - `everything_drawn_lies_inside_the_size`: a test helper walks the rendered `Node` tree (translating through groups) and checks every `Circle` (centre ± radius + stroke/2), every `Path` endpoint ± the arc radius, and every text line's baseline + 0.3 × size lie within `size(1.0)`; run it for the key and the title.
   - `size_scales_linearly`.
-- [ ] **Step 2–4:** red, implement, green; clippy, `just lint`.
-- [ ] **Step 5: Gate:** `just ci` (if rustqual rises, `just quality-baseline`; if it falls, find the cause — e.g. an IOSP mix or a parameter count — and fix the structure honestly).
-- [ ] **Step 6: Commit** `feat(layout): the key (FR-66)`.
+- [x] **Step 2–4:** red, implement, green; clippy, `just lint`.
+- [x] **Step 5: Gate:** `just ci` (if rustqual rises, `just quality-baseline`; if it falls, find the cause — e.g. an IOSP mix or a parameter count — and fix the structure honestly).
+- [x] **Step 6: Commit** `feat(layout): the key (FR-66)`.
 
 ---
 

@@ -8,7 +8,7 @@ tags:
 - impl
 - layout
 created: 2026-10-08
-updated: 2026-10-08
+updated: 2026-10-11
 blocks:
 - rg-6ku
 blocked_by:
@@ -21,3 +21,5 @@ phase: v1.0
 # PR 12: arrange.rs — wide and narrow arrangements
 
 FR-68–FR-71. One Blocks, two placements. FR-69 breakpoint computed per document from the wide width and the legibility floor.
+
+[2026-10-11] [2026-10-11] From PR 09: the key has no rule of its own; separators and margins are the arrangement's. Keep the title and key at scale 1 in the narrow arrangement (D-56); check the key's legibility at 320 px against SC-17. Document order: title, radar, key, legend (screen readers read in DOM order). Blocks wrap themselves in a translating Group at Placement.origin; block::assert_translates is the shared test.
