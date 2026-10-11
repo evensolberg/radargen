@@ -8,7 +8,7 @@ tags:
 - prd
 - spec
 created: 2026-08-27
-updated: 2026-10-09
+updated: 2026-10-10
 phase: ''
 ---
 
@@ -23,3 +23,5 @@ Small gaps found by the v0.13 audits, none worth an open question on its own.
 - The decision log's '*Added on this review*' markers now span seven reviews and no longer identify which one.
 
 [2026-10-09] PRD v0.39 FR-65 settles the first point: an empty or whitespace-only --title/--subtitle counts as omitted (and on the command line suppresses a --config value).
+
+[2026-10-10] Settled by PR 06 (#25): FR-76 trims for parsing only, and the cell renders as written, pinned by unparsable_dates_warn_and_keep_their_text.
