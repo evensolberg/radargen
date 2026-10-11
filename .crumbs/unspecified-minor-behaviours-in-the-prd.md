@@ -1,14 +1,14 @@
 ---
 id: rg-dsa
 title: Unspecified minor behaviours in the PRD
-status: open
+status: closed
 type: task
 priority: 3
 tags:
 - prd
 - spec
 created: 2026-08-27
-updated: 2026-10-10
+updated: 2026-10-11
 phase: ''
 ---
 
@@ -25,3 +25,5 @@ Small gaps found by the v0.13 audits, none worth an open question on its own.
 [2026-10-09] PRD v0.39 FR-65 settles the first point: an empty or whitespace-only --title/--subtitle counts as omitted (and on the command line suppresses a --config value).
 
 [2026-10-10] Settled by PR 06 (#25): FR-76 trims for parsing only, and the cell renders as written, pinned by unparsable_dates_warn_and_keep_their_text.
+
+[2026-10-11] Remaining points settled in PRD v0.46: §14.1 names --width beside --theme, R-8 records the repository-size cost, §9's intro defines 'Added on this review'.

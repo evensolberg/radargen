@@ -9,7 +9,7 @@ tags:
 - cli
 - config
 created: 2026-10-09
-updated: 2026-10-10
+updated: 2026-10-11
 phase: v1.1
 ---
 
@@ -20,3 +20,5 @@ PRD v0.39 FR-91/FR-92, D-57/D-58, SC-26/SC-27, v1.1. TOML config (serde + toml c
 [2026-10-09] Review clarifications in v0.39: config values re-checked post-merge with clap's wording (FR-56/59/64); rings array entries trimmed, [] = FR-63, comma in entry fatal; diagnostics name key+file, all reported together; empty --title/--subtitle suppress; placeholder regex \{[A-Za-z][A-Za-z0-9_]*\}, unknown fatal only when in use; unused --edition warns; order FR-90 removal -> {edition} -> path resolution -> checks; no ~ expansion.
 
 [2026-10-10] From PR 06 (#25): RingSource needs a variant for --config's rings key, naming the file as given (FR-17, FR-91). Hold the path as Arc<str>. RingSource and diagnostics::Class then become Clone rather than Copy, and RowKind::class stops being const fn. Build the config's RingSet through parse_rings' validation (FR-63: non-empty, no duplicates under FR-76), not a struct literal; if a second constructor appears, make RingSet's fields private behind accessors.
+
+[2026-10-11] From PRD v0.46 NFR-10 (D-64, was rg-s71): any diagnostic about a configurable setting names its effective source — flag, --config key with file, or default. Record the source per setting during the cli.rs merge rather than as a ring-only field.
