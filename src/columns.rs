@@ -3,7 +3,7 @@
 
 /// What a named column means. A header name is matched under FR-76, so
 /// `Name ` is `name`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ColumnKind {
     /// The item's name (FR-5); required and never empty (FR-6).
     Name,

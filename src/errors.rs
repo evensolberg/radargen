@@ -6,7 +6,7 @@
 //! left out is a line the author finds only on the next run. NFR-11 orders the
 //! output and NFR-16 is why there are several errors to order.
 
-use std::mem;
+use std::collections::BTreeMap;
 
 use crate::columns::ColumnKind;
 use crate::diagnostics::{
@@ -45,6 +45,17 @@ struct Member<T> {
     item: T,
 }
 
+impl<T> Member<T> {
+    /// `item` standing for `fatal`, the `order`th error, on the line it names.
+    const fn at(order: usize, fatal: &Fatal, item: T) -> Self {
+        Self {
+            order,
+            line: line_of(fatal),
+            item,
+        }
+    }
+}
+
 /// The errors of one class: the first by line, then the rest in line order.
 ///
 /// A run holds at least one member by construction, so no code asks for the
@@ -55,23 +66,15 @@ struct Run<T> {
 }
 
 impl<T> Run<T> {
-    const fn new(first: Member<T>) -> Self {
-        Self {
+    /// The run of `members` in line order, or `None` for none. The sort is
+    /// stable, so input order breaks ties (NFR-11).
+    fn of(mut members: Vec<Member<T>>) -> Option<Self> {
+        members.sort_by_key(|m| m.line);
+        let mut sorted = members.into_iter();
+        sorted.next().map(|first| Self {
             first,
-            rest: Vec::new(),
-        }
-    }
-
-    /// Adds `member` in line order; one on an equal line goes after, so input
-    /// order breaks ties (NFR-11).
-    fn insert(&mut self, member: Member<T>) {
-        if member.line < self.first.line {
-            let displaced = mem::replace(&mut self.first, member);
-            self.rest.insert(0, displaced);
-        } else {
-            let at = self.rest.partition_point(|m| m.line <= member.line);
-            self.rest.insert(at, member);
-        }
+            rest: sorted.collect(),
+        })
     }
 
     fn members(&self) -> impl Iterator<Item = &Member<T>> {
@@ -80,14 +83,6 @@ impl<T> Run<T> {
 
     fn lines(&self) -> Vec<usize> {
         self.members().map(|m| m.line).collect()
-    }
-}
-
-/// Adds `member` to the run in `slot`, starting it if there is none.
-fn add<T>(slot: &mut Option<Run<T>>, member: Member<T>) {
-    match slot {
-        Some(run) => run.insert(member),
-        None => *slot = Some(Run::new(member)),
     }
 }
 
@@ -103,75 +98,95 @@ enum Group<'a> {
     Empty(ColumnKind, Run<&'a Fatal>),
 }
 
-/// The groups of `errors`, unsorted.
-fn groups(errors: &[Fatal]) -> Vec<Group<'_>> {
-    let mut alone = Vec::new();
-    let mut rows = None;
-    let mut missing = None;
-    let mut empty: Vec<(ColumnKind, Run<&Fatal>)> = Vec::new();
-    for (order, fatal) in errors.iter().enumerate() {
-        let line = line_of(fatal);
-        match *fatal {
-            Fatal::FieldCount {
+/// An error with the class it belongs to.
+enum Classified<'a> {
+    Alone(Member<&'a Fatal>),
+    Row(Member<Mismatch>),
+    Missing(Member<(ColumnKind, &'a Fatal)>),
+    Empty(ColumnKind, Member<&'a Fatal>),
+}
+
+/// Which class `fatal` belongs to. Every variant is listed, so a new one must
+/// say whether its errors may share a line.
+const fn classify(order: usize, fatal: &Fatal) -> Classified<'_> {
+    match *fatal {
+        Fatal::FieldCount {
+            line,
+            found,
+            expected,
+            unnamed,
+            padded,
+        } => Classified::Row(Member::at(
+            order,
+            fatal,
+            Mismatch {
                 line,
                 found,
                 expected,
                 unnamed,
                 padded,
-            } => add(
-                &mut rows,
-                Member {
-                    order,
-                    line,
-                    item: Mismatch {
-                        line,
-                        found,
-                        expected,
-                        unnamed,
-                        padded,
-                    },
-                },
-            ),
-            Fatal::MissingColumn { column, .. } => add(
-                &mut missing,
-                Member {
-                    order,
-                    line,
-                    item: (column, fatal),
-                },
-            ),
-            Fatal::EmptyRequired { column, .. } => {
-                let member = Member {
-                    order,
-                    line,
-                    item: fatal,
-                };
-                match empty.iter_mut().find(|(c, _)| *c == column) {
-                    Some((_, run)) => run.insert(member),
-                    None => empty.push((column, Run::new(member))),
-                }
-            }
-            Fatal::UnrecognisedExtension { .. }
-            | Fatal::FormatNotInThisVersion { .. }
-            | Fatal::Rings(_)
-            | Fatal::Unreadable { .. }
-            | Fatal::NotUtf8 { .. }
-            | Fatal::UnterminatedQuote { .. }
-            | Fatal::TextAfterQuote { .. }
-            | Fatal::NoHeader
-            | Fatal::NotCommaSeparated { .. }
-            | Fatal::DuplicateHeader { .. } => alone.push(Group::Alone(Member {
-                order,
-                line,
-                item: fatal,
-            })),
+            },
+        )),
+        Fatal::MissingColumn { column, .. } => {
+            Classified::Missing(Member::at(order, fatal, (column, fatal)))
+        }
+        Fatal::EmptyRequired { column, .. } => {
+            Classified::Empty(column, Member::at(order, fatal, fatal))
+        }
+        Fatal::UnrecognisedExtension { .. }
+        | Fatal::FormatNotInThisVersion { .. }
+        | Fatal::Rings(_)
+        | Fatal::Unreadable { .. }
+        | Fatal::NotUtf8 { .. }
+        | Fatal::UnterminatedQuote { .. }
+        | Fatal::TextAfterQuote { .. }
+        | Fatal::NoHeader
+        | Fatal::NotCommaSeparated { .. }
+        | Fatal::DuplicateHeader { .. } => Classified::Alone(Member::at(order, fatal, fatal)),
+    }
+}
+
+/// The members of each class, before they become groups.
+#[derive(Default)]
+struct Buckets<'a> {
+    alone: Vec<Member<&'a Fatal>>,
+    rows: Vec<Member<Mismatch>>,
+    missing: Vec<Member<(ColumnKind, &'a Fatal)>>,
+    empty: BTreeMap<ColumnKind, Vec<Member<&'a Fatal>>>,
+}
+
+impl<'a> Buckets<'a> {
+    fn add(&mut self, classified: Classified<'a>) {
+        match classified {
+            Classified::Alone(m) => self.alone.push(m),
+            Classified::Row(m) => self.rows.push(m),
+            Classified::Missing(m) => self.missing.push(m),
+            Classified::Empty(column, m) => self.empty.entry(column).or_default().push(m),
         }
     }
-    let mut groups = alone;
-    groups.extend(rows.map(Group::Rows));
-    groups.extend(missing.map(Group::Missing));
-    groups.extend(empty.into_iter().map(|(c, run)| Group::Empty(c, run)));
-    groups
+
+    fn into_groups(self) -> Vec<Group<'a>> {
+        let empty = self
+            .empty
+            .into_iter()
+            .filter_map(|(column, ms)| Run::of(ms).map(|run| Group::Empty(column, run)));
+        self.alone
+            .into_iter()
+            .map(Group::Alone)
+            .chain(Run::of(self.rows).map(Group::Rows))
+            .chain(Run::of(self.missing).map(Group::Missing))
+            .chain(empty)
+            .collect()
+    }
+}
+
+/// The groups of `errors`, unsorted.
+fn groups(errors: &[Fatal]) -> Vec<Group<'_>> {
+    let mut buckets = Buckets::default();
+    for (order, fatal) in errors.iter().enumerate() {
+        buckets.add(classify(order, fatal));
+    }
+    buckets.into_groups()
 }
 
 /// The line a [`Fatal`] names; an error with none sorts first.
