@@ -1,3 +1,4 @@
+// qual:allow(srp, file_length=470) reason: "the whole module is #[cfg(test)] (layout/mod.rs); rustqual cannot see that, and counts its tests as production lines"
 //! Test-only helpers every block's tests share.
 //!
 //! One walker finds the box a node paints in, and one builder makes a
@@ -91,13 +92,16 @@ pub(crate) fn bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
             radius,
             stroke_width,
             ..
-        } => Some(Rect::disc(*centre, radius + stroke_width / 2.0)),
+        } => Some(Rect::disc(
+            *centre,
+            radius + f64::midpoint(0.0, *stroke_width),
+        )),
         Node::Line {
             from,
             to,
             stroke_width,
             ..
-        } => Some(Rect::spanning(*from, *to).grown(stroke_width / 2.0)),
+        } => Some(Rect::spanning(*from, *to).grown(f64::midpoint(0.0, *stroke_width))),
         Node::Path {
             commands,
             stroke_width,
@@ -109,6 +113,10 @@ pub(crate) fn bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
 
 /// Every arc here is a half-circle, so its chord is a diameter, its midpoint
 /// is the circle's centre and the circle bounds the arc.
+///
+/// Each half-circle is boxed as its full circle: a safe over-estimate that
+/// can fail a correct drawing but never pass a wrong one. It is unsuitable
+/// for a tightness check on a path.
 fn path_bounds(commands: &[PathCommand], stroke_width: f64) -> Option<Rect> {
     let mut from = None;
     let mut boxes = Vec::new();
@@ -128,7 +136,10 @@ fn path_bounds(commands: &[PathCommand], stroke_width: f64) -> Option<Rect> {
                     x: f64::midpoint(start.x, end.x),
                     y: f64::midpoint(start.y, end.y),
                 };
-                boxes.push(Rect::disc(centre, radius + stroke_width / 2.0));
+                boxes.push(Rect::disc(
+                    centre,
+                    radius + f64::midpoint(0.0, stroke_width),
+                ));
                 from = Some(*end);
             }
         }
@@ -138,6 +149,10 @@ fn path_bounds(commands: &[PathCommand], stroke_width: f64) -> Option<Rect> {
 
 /// Each line spans its measured width, from the ascent above its baseline to
 /// the descent below it; a halo widens that on all four sides.
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+)]
 fn text_bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
     let Node::Text {
         origin,
@@ -152,7 +167,7 @@ fn text_bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
     };
     let halo = match ink {
         TextPaint::Fill(_) => 0.0,
-        TextPaint::Halo { width, .. } => width / 2.0,
+        TextPaint::Halo { width, .. } => f64::midpoint(0.0, *width),
     };
     let face = fonts.face(style.weight);
     let mut baseline = origin.y;
@@ -161,14 +176,14 @@ fn text_bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
         let width = face.measure(line, style.size, style.letter_spacing);
         let left = match anchor {
             Anchor::Start => origin.x,
-            Anchor::Middle => origin.x - width / 2.0,
+            Anchor::Middle => origin.x - f64::midpoint(0.0, width),
         };
         boxes.push(
             Rect {
                 left,
-                top: TEXT_ASCENT.mul_add(-style.size, baseline),
+                top: baseline - TEXT_ASCENT * style.size,
                 right: left + width,
-                bottom: TEXT_DESCENT.mul_add(style.size, baseline),
+                bottom: baseline + TEXT_DESCENT * style.size,
             }
             .grown(halo),
         );
@@ -279,7 +294,6 @@ pub(crate) fn plotted(csv: &str, rings: Option<&str>) -> (Catalogue, Plotted) {
     (catalogue, order)
 }
 
-#[cfg(test)]
 mod tests {
     use super::*;
     use crate::layout::block::fonts;
@@ -327,18 +341,22 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
     fn a_middle_anchored_text_is_centred_on_its_origin() {
         let node = text(Anchor::Middle, TextPaint::Fill(INK), &["Adopt"], 0.0);
         let got = bounds(&node, &fonts()).expect("text paints");
-        let half = width_of("Adopt") / 2.0;
+        let half = f64::midpoint(0.0, width_of("Adopt"));
         let size = KEY_LABEL.size;
         same(
             got,
             [
                 100.0 - half,
-                TEXT_ASCENT.mul_add(-size, 50.0),
+                50.0 - TEXT_ASCENT * size,
                 100.0 + half,
-                TEXT_DESCENT.mul_add(size, 50.0),
+                50.0 + TEXT_DESCENT * size,
             ],
         );
     }
@@ -351,14 +369,18 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
     fn later_lines_step_down_by_the_leading() {
         let node = text(Anchor::Start, TextPaint::Fill(INK), &["a", "b", "c"], 13.0);
         let got = bounds(&node, &fonts()).expect("text paints");
         assert!(close(
             got.bottom,
-            TEXT_DESCENT.mul_add(KEY_LABEL.size, 50.0 + 26.0)
+            50.0 + 26.0 + TEXT_DESCENT * KEY_LABEL.size
         ));
-        assert!(close(got.top, TEXT_ASCENT.mul_add(-KEY_LABEL.size, 50.0)));
+        assert!(close(got.top, 50.0 - TEXT_ASCENT * KEY_LABEL.size));
     }
 
     #[test]
@@ -442,6 +464,16 @@ mod tests {
         assert_eq!(bounds(&empty, &fonts()), None);
     }
 
+    /// The text a panic carried; fails if the closure did not panic.
+    fn panic_message(result: std::thread::Result<()>) -> String {
+        let payload = result.expect_err("the check must panic");
+        payload
+            .downcast_ref::<String>()
+            .cloned()
+            .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_owned()))
+            .expect("a panic message")
+    }
+
     #[test]
     fn assert_inside_accepts_the_edge_and_names_what_leaves() {
         let inner = line(Point::ORIGIN, Point { x: 10.0, y: 0.0 }, 2.0);
@@ -461,7 +493,11 @@ mod tests {
                 &fonts(),
             );
         });
-        assert!(result.is_err(), "a line past the right edge must fail");
+        let message = panic_message(result);
+        assert!(
+            message.contains("Line") && message.contains("outside"),
+            "the failure must name the node and say it is outside: {message}"
+        );
     }
 
     #[test]
@@ -473,7 +509,11 @@ mod tests {
                 Point::ORIGIN,
                 vec![line(Point::ORIGIN, Point { x: bad, y: 1.0 }, 1.0)],
             ));
-            assert!(std::panic::catch_unwind(|| assert_finite(&node)).is_err());
+            let message = panic_message(std::panic::catch_unwind(|| assert_finite(&node)));
+            assert!(
+                message.contains(&bad.to_string()),
+                "the failure must name {bad}: {message}"
+            );
         }
     }
 

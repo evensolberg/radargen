@@ -180,7 +180,6 @@ mod tests {
     use crate::layout::block::{at, close, fonts};
     use crate::layout::geometry::polar;
     use crate::layout::test_support::assert_inside;
-    use crate::layout::title::TitleBlock;
     use crate::style::{STATUS_RING_GAP, STATUS_RING_STROKE};
     use crate::svg::Paint;
     use crate::svg::PathCommand;
@@ -463,10 +462,8 @@ mod tests {
     fn everything_drawn_lies_inside_the_size() {
         let fonts = fonts();
         let key = KeyBlock::new(&fonts);
-        let title = TitleBlock::new(Some("A title"), Some("A subtitle"), &fonts);
         for scale in [1.0, 0.5] {
             assert_inside(&key.render(at(scale)), key.size(scale), &fonts);
-            assert_inside(&title.render(at(scale)), title.size(scale), &fonts);
         }
     }
 

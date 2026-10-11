@@ -139,8 +139,10 @@ impl RadarBlock {
 
     /// The furthest any label reaches left or right of the centre.
     fn label_half_width(&self, r: RadarScale) -> f64 {
-        let quadrants = (0..self.quadrants.len())
-            .zip(&self.quadrants)
+        let quadrants = self
+            .quadrants
+            .iter()
+            .enumerate()
             .map(|(p, label)| quadrant_reach_x(self.anchor(p), label.width, r));
         let rings = self.rings.iter().map(|label| ring_reach_x(label.width, r));
         quadrants.chain(rings).fold(0.0, f64::max)
@@ -163,11 +165,12 @@ impl RadarBlock {
 
     /// The block's size at `r`. PR 10b adds the markers' and hit areas'
     /// reach as one more term each.
+    // qual:allow(complexity, magic_numbers) reason: "a box centred on its centre spans twice the centre offset"
     fn extent(&self, r: RadarScale) -> Size {
         let centre = self.centre(r);
         Size {
-            width: centre.x + centre.x,
-            height: centre.y + centre.y,
+            width: 2.0 * centre.x,
+            height: 2.0 * centre.y,
         }
     }
 
@@ -286,6 +289,19 @@ fn ring_reach_y(mid: f64, r: RadarScale) -> f64 {
 
 /// Half the block on one axis: half the minimum radar width at this scale,
 /// or the labels' reach plus the pad, whichever is larger.
+///
+/// The `MIN_RADAR_HALF * s` floor is also what keeps the ring circles (at
+/// most `260 * s` plus half a stroke) and the dividers (`262 * s` plus half
+/// a stroke) inside the block: the label terms never count them. That holds
+/// for `s` of about 0.0056 and up, where `70 * s` covers half a floored
+/// stroke. PR 10b must add an explicit term for anything that can reach
+/// further than the floor.
+///
+/// The block's size is non-decreasing in `s` from 0.0034 up. The only
+/// decreasing term is a below-centre quadrant label's ascent, at most
+/// 11.625; the outermost ring name's reach, at least `130 * s + 11.19`,
+/// outgrows it from there. That relies on at least one ring, which
+/// `rings.rs` guarantees by rejecting an empty list.
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
@@ -560,10 +576,12 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
     fn dividers_follow_fr77() {
-        let eight: Vec<f64> = (0..8_u32)
-            .map(|k| 45.0_f64.mul_add(f64::from(k), -90.0))
-            .collect();
+        let eight: Vec<f64> = (0..8_u32).map(|k| 45.0 * f64::from(k) - 90.0).collect();
         let cases: [(usize, &[f64]); 4] = [
             (2, &[-90.0, 90.0]),
             (3, &[-90.0, 30.0, 150.0]),
@@ -658,10 +676,12 @@ mod tests {
                 .and_then(|j| nodes.get(j))
                 .and_then(text)
                 .expect("a text precedes every ring name");
-            assert_eq!(
-                (halo.origin, halo.style, halo.anchor, halo.lines),
-                (name.origin, name.style, name.anchor, name.lines)
-            );
+            assert!(same(halo.origin, name.origin));
+            assert!(close(halo.style.size, name.style.size));
+            assert!(close(halo.style.letter_spacing, name.style.letter_spacing));
+            assert_eq!(halo.style.weight, name.style.weight);
+            assert_eq!(halo.anchor, name.anchor);
+            assert_eq!(halo.lines, name.lines);
             let TextPaint::Halo { stroke, width } = halo.ink else {
                 panic!("expected a halo, got {:?}", halo.ink);
             };
@@ -710,7 +730,9 @@ mod tests {
         for s in [1.0_f64, 0.9, 7.0 / 9.0, 0.7, 0.5, 0.4] {
             let nodes = frame_at(&b, s);
             let stroke = GRID_STROKE * s.max(7.0 / 9.0);
-            for (i, (radius, width)) in circles(&nodes).into_iter().enumerate() {
+            let rings = circles(&nodes);
+            assert_eq!(rings.len(), 4, "{s}");
+            for (i, (radius, width)) in rings.into_iter().enumerate() {
                 assert!(close(radius, g.band(i).outer * s), "{s} ring {i}");
                 assert!(close(width, stroke), "{s} ring {i}: {width}");
             }
@@ -735,6 +757,11 @@ mod tests {
             }
             let texts = ring_texts(&nodes);
             assert_eq!(texts.len(), 8);
+            let halos = texts
+                .iter()
+                .filter(|t| matches!(t.ink, TextPaint::Halo { .. }))
+                .count();
+            assert_eq!(halos, 4, "{s}: one halo per ring name");
             for (i, t) in texts.iter().enumerate() {
                 let band = g.band(i / 2);
                 let y = -f64::midpoint(band.inner, band.outer) * s;
@@ -748,6 +775,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
     fn size_pins() {
         let prd = block(PRD_EXAMPLE, None).size(1.0);
         assert!(
@@ -764,19 +795,23 @@ mod tests {
         // sets the height once the floor (198 at 0.3) is passed.
         let s = 0.3;
         let above = 300.0 * s * 67.5_f64.to_radians().sin();
-        let want = 2.0 * (TEXT_ASCENT.mul_add(12.0, above) + 10.0);
+        let want = 2.0 * (TEXT_ASCENT * 12.0 + above + 10.0);
         let got = quadrants(8).size(s).height;
         assert!(close(got, want), "{got} vs {want}");
         assert!(want > 660.0 * s && (want - 209.55).abs() < 0.01, "{want}");
 
         // N = 1: the label hangs below 6 o'clock, so its descent counts.
         let s = 0.4_f64;
-        let want = (660.0 * s).max(2.0 * (TEXT_DESCENT.mul_add(12.0, 300.0 * s) + 10.0));
+        let want = (660.0 * s).max(2.0 * (TEXT_DESCENT * 12.0 + 300.0 * s + 10.0));
         let got = quadrants(1).size(s).height;
         assert!(close(got, want), "{got} vs {want}");
     }
 
     #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
     fn a_long_quadrant_label_widens_the_block() {
         let w = fonts().face(QUADRANT_LABEL.weight).measure(
             &long_quadrant(),
@@ -785,7 +820,7 @@ mod tests {
         );
         let b = long_quadrant_block();
         for s in [1.0, 0.576] {
-            let want = 2.0 * (polar(45.0, 300.0).x.abs().mul_add(s, w / 2.0) + 10.0);
+            let want = 2.0 * (polar(45.0, 300.0).x.abs() * s + w / 2.0 + 10.0);
             let got = b.size(s).width;
             assert!(close(got, want) && got > 660.0, "{s}: {got} vs {want}");
         }
@@ -804,10 +839,12 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
     fn size_is_non_decreasing() {
-        let steps: Vec<f64> = (0..=14_u32)
-            .map(|k| 0.05_f64.mul_add(f64::from(k), 0.30))
-            .collect();
+        let steps: Vec<f64> = (0..=14_u32).map(|k| 0.05 * f64::from(k) + 0.30).collect();
         for (name, b) in fixtures() {
             for pair in steps.windows(2) {
                 let [lo, hi] = pair else {
@@ -834,7 +871,7 @@ mod tests {
         let fonts = fonts();
         let mut dominated = 0;
         for (name, b) in fixtures() {
-            for s in [1.0, 0.576, 0.4] {
+            for s in [1.5, 1.0, 0.576, 0.4] {
                 let size = b.size(s);
                 let rendered = b.render(at(s));
                 assert_inside(&rendered, size, &fonts);

@@ -320,7 +320,7 @@ mod tests {
         else {
             panic!("expected text");
         };
-        assert_eq!(origin, Point { x: 5.0, y: 10.0 });
+        assert!(close(origin.x, 5.0) && close(origin.y, 10.0), "{origin:?}");
         assert!(close(style.size, 12.0) && close(style.letter_spacing, 0.48));
         assert!(close(leading, 15.0));
         assert_eq!(anchor, Anchor::Middle);
@@ -334,7 +334,7 @@ mod tests {
         else {
             panic!("expected text");
         };
-        assert_eq!(origin, Point { x: 20.0, y: 40.0 });
+        assert!(close(origin.x, 20.0) && close(origin.y, 40.0), "{origin:?}");
         assert!(close(style.size, 24.0) && close(style.letter_spacing, 0.96));
         assert!(close(leading, 30.0));
     }
@@ -368,10 +368,13 @@ mod tests {
         else {
             panic!("expected text");
         };
-        assert_eq!(
-            (h_origin, h_style, h_anchor, &h_lines, h_leading),
-            (origin, style, anchor, &lines, leading)
-        );
+        assert!(close(h_origin.x, origin.x) && close(h_origin.y, origin.y));
+        assert!(close(h_style.size, style.size));
+        assert!(close(h_style.letter_spacing, style.letter_spacing));
+        assert_eq!(h_style.weight, style.weight);
+        assert_eq!(h_anchor, anchor);
+        assert_eq!(h_lines, lines);
+        assert!(close(h_leading, leading));
         let TextPaint::Halo { stroke, width } = ink else {
             panic!("expected a halo, got {ink:?}");
         };

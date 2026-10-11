@@ -300,8 +300,8 @@ pub enum Node {
     Group(Group),
     Text { origin: Point, style: TextStyle, ink: TextPaint, anchor: Anchor,
            lines: Vec<String>, leading: f64 },
-    Line { from: Point, to: Point, stroke: Paint, stroke_width: f64 },
     Circle { centre: Point, radius: f64, fill: Paint, stroke: Paint, stroke_width: f64 },
+    Line { from: Point, to: Point, stroke: Paint, stroke_width: f64 },
     Path { commands: Vec<PathCommand>, fill: Paint, stroke: Paint, stroke_width: f64 },
 }
 
