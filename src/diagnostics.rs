@@ -138,6 +138,37 @@ pub enum RenderKind {
         /// How many of them the band has room for.
         fits: usize,
     },
+    /// FR-90 on a flag value: one per flag, however many characters it lost.
+    FlagUndisplayable {
+        /// The flag whose value lost characters.
+        flag: Flag,
+        /// The first character the value lost.
+        first: char,
+        /// How many characters the value lost in all.
+        count: usize,
+    },
+}
+
+/// A command-line flag whose value FR-90 cleans. `--config` keys arrive with
+/// PR 19 and will name themselves the same way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Flag {
+    /// `--title` (FR-65).
+    Title,
+    /// `--subtitle` (FR-65).
+    Subtitle,
+    /// `--rings` (FR-12).
+    Rings,
+}
+
+impl fmt::Display for Flag {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Title => "--title",
+            Self::Subtitle => "--subtitle",
+            Self::Rings => "--rings",
+        })
+    }
 }
 
 /// One warning. Split by kind, so a row warning always has a line and a
@@ -301,6 +332,18 @@ impl RenderKind {
                 "quadrant '{}', ring '{}': {count} items; about {fits} fit comfortably, so some markers overlap",
                 trim(quadrant),
                 trim(ring)
+            ),
+            Self::FlagUndisplayable {
+                flag,
+                first,
+                count: 1,
+            } => format!(
+                "{flag}: removed {}, which the output cannot display",
+                code_point(*first)
+            ),
+            Self::FlagUndisplayable { flag, first, count } => format!(
+                "{flag}: removed {count} characters the output cannot display, the first {}",
+                code_point(*first)
             ),
         }
     }

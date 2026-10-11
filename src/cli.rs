@@ -6,7 +6,8 @@
 use clap::Parser;
 use std::path::PathBuf;
 
-use crate::diagnostics::Fatal;
+use crate::diagnostics::{Fatal, Flag, RenderKind, Warning, Warnings};
+use crate::escape::displayable;
 pub use crate::palette::Theme;
 
 /// The output format, inferred from the `-o` extension (FR-52).
@@ -90,4 +91,25 @@ impl Cli {
             }),
         }
     }
+}
+
+/// FR-90 on a flag value: removes every character the output cannot display
+/// (the set [`displayable`] rejects, the one FR-90 removes from CSV fields) and
+/// warns once, naming `flag`, when it removed any.
+///
+/// For `--rings` the caller cleans before [`crate::rings::parse_rings`], so
+/// FR-63's empty and duplicate checks see the cleaned list; FR-65's
+/// empty-or-whitespace rule likewise applies to the cleaned title.
+// qual:api — PR 14's main.rs is its first caller
+pub fn clean_flag(flag: Flag, value: &str, warnings: &mut Warnings) -> String {
+    let removed: Vec<char> = value.chars().filter(|c| !displayable(*c)).collect();
+    let Some(&first) = removed.first() else {
+        return value.to_string();
+    };
+    warnings.push(Warning::Render(RenderKind::FlagUndisplayable {
+        flag,
+        first,
+        count: removed.len(),
+    }));
+    value.chars().filter(|c| displayable(*c)).collect()
 }
