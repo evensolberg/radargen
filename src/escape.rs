@@ -103,7 +103,9 @@ pub fn json<T: serde::Serialize + ?Sized>(value: &T) -> Result<String, serde_jso
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 #[error("'{value}' contains '{found}', which cannot appear in a colour value")]
 pub struct CssValueError {
+    /// The rejected value, as given.
     pub value: String,
+    /// The first character that could end the declaration.
     pub found: char,
 }
 

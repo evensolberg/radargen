@@ -42,6 +42,7 @@ pub struct RingSet {
     /// As declared, after FR-15's trim: the band labels and legend
     /// subheadings.
     pub rings: Vec<String>,
+    /// Whether the list came from `--rings` or the FR-13 default (D-61).
     pub source: RingSource,
 }
 
@@ -51,15 +52,21 @@ pub struct RingSet {
 pub enum RingsError {
     /// An empty entry would draw a nameless band. `index` is 1-based.
     #[error("entry {index} is empty")]
-    EmptyEntry { index: usize },
+    EmptyEntry {
+        /// The empty entry's 1-based position.
+        index: usize,
+    },
     /// A duplicate would make FR-16's match ambiguous and FR-32's band order
     /// undefined. `entry` is the offending text as written, trimmed.
     /// `index` is the duplicate's own 1-based position, so a long list need
     /// not be searched for it.
     #[error("entry {index} '{entry}' repeats entry {first_index}")]
     Duplicate {
+        /// The duplicate's own 1-based position.
         index: usize,
+        /// The offending text as written, trimmed.
         entry: String,
+        /// The 1-based position of the earlier entry it repeats.
         first_index: usize,
     },
     /// The list yielded no rings at all.

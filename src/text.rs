@@ -20,7 +20,9 @@ pub const SEMIBOLD_TTF: &[u8] = include_bytes!("../assets/Inter-SemiBold.ttf");
 /// them plus size, letter-spacing and indentation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Weight {
+    /// Inter Regular, 400.
     Regular,
+    /// Inter `SemiBold`, 600.
     SemiBold,
 }
 
@@ -124,11 +126,12 @@ impl<'a> FontMetrics<'a> {
         let boundaries = output
             .glyph_infos()
             .windows(2)
-            .filter(|pair| pair[0].cluster != pair[1].cluster)
+            .filter(|pair| matches!(pair, [a, b] if a.cluster != b.cluster))
             .count();
         #[expect(
             clippy::cast_precision_loss,
-            reason = "f64 holds every integer up to 2^53 exactly, and a cluster count is far below that"
+            clippy::as_conversions,
+            reason = "usize has no lossless conversion to f64, and f64 holds every integer up to 2^53 exactly; a cluster count is far below that"
         )]
         let gaps = boundaries as f64;
         let upem = f64::from(shaper.units_per_em());
@@ -217,6 +220,7 @@ impl Column<'_, '_> {
 
     /// FR-46: push the column-wide pieces of a token wider than the column,
     /// in order, and return the tail that fits. Nothing is dropped.
+    // qual:allow(complexity, error_handling) reason: "fitting_prefix returns a char boundary, so split_at_checked cannot fail"
     fn break_token<'w>(&self, token: &'w str, lines: &mut Vec<String>) -> &'w str {
         let mut rest = token;
         while self.overflows(rest) {

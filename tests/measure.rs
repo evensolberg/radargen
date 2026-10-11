@@ -1,3 +1,6 @@
+//! Pins `FontMetrics` widths for Latin text to the values the vendored Inter
+//! subset produces, so a font or shaper change cannot move them unseen (NFR-4).
+
 use radargen::text::{FontMetrics, REGULAR_TTF as FONT};
 
 /// Latin text whose widths must not move: kerning pairs, Latin Extended

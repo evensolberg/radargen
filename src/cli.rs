@@ -12,11 +12,15 @@ pub use crate::palette::Theme;
 /// The output format, inferred from the `-o` extension (FR-52).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputFormat {
+    /// `.html`: the shared document the radar is embedded in (FR-52).
     Html,
+    /// `.png`: the raster export, arriving in v1.1 (§14.1).
     Png,
+    /// `.svg`: the bare vector radar, arriving in v1.1 (§14.1).
     Svg,
 }
 
+/// The parsed command line: one CSV in, one file out (D-28, §6.6).
 #[derive(Debug, Parser)]
 #[command(name = "radargen", version, about, long_about = None)]
 pub struct Cli {

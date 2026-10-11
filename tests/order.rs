@@ -29,7 +29,13 @@ fn labels(cat: &Catalogue, plotted: &Plotted) -> Vec<String> {
     plotted
         .quadrants
         .iter()
-        .map(|&q| cat.quadrants[q].label.clone())
+        .map(|&q| {
+            cat.quadrants
+                .get(q)
+                .expect("q indexes the catalogue's quadrants")
+                .label
+                .clone()
+        })
         .collect()
 }
 
@@ -47,14 +53,18 @@ fn the_prd_example_numbers_in_legend_order() {
     );
 
     // FR-50's names read FR-34's numbers; the unplotted row has none.
-    let kubernetes = &cat.items[4];
+    let [_, _, _, _, kubernetes, _, legacy] = cat.items.as_slice() else {
+        panic!("expected seven items: {:#?}", cat.items)
+    };
+    let [_, _, _, _, kubernetes_number, _, legacy_number] = plotted.numbers.as_slice() else {
+        panic!("expected seven numbers: {:?}", plotted.numbers)
+    };
     assert_eq!(
-        cat.accessible_name(kubernetes, plotted.numbers[4]),
+        cat.accessible_name(kubernetes, *kubernetes_number),
         "1. Kubernetes, Default; Platform quadrant, Adopt ring"
     );
-    let legacy = &cat.items[6];
     assert_eq!(
-        cat.accessible_name(legacy, plotted.numbers[6]),
+        cat.accessible_name(legacy, *legacy_number),
         "Legacy Ticketing-Driven Change; Practice quadrant, Rejected ring; not on the radar"
     );
 }

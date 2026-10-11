@@ -46,16 +46,19 @@ fn the_prd_example_builds_with_one_warning() {
         ]
     );
     // FR-23: free text is kept verbatim.
+    let [first, _, _, fourth, _, _, seventh] = cat.items.as_slice() else {
+        panic!("expected seven items: {:#?}", cat.items)
+    };
     let rationale = cat.column(ColumnKind::Rationale).expect("rationale");
     assert_eq!(
-        cat.items[6].cell(rationale),
+        seventh.cell(rationale),
         Some("Declined during the 2026 review — see the domain ADR.")
     );
     // FR-22: the domain verbatim; FR-25: an exit date whatever the ring.
     let domain = cat.column(ColumnKind::Domain).expect("domain");
-    assert_eq!(cat.items[0].cell(domain), Some("Infrastructure as Code"));
+    assert_eq!(first.cell(domain), Some("Infrastructure as Code"));
     let exit = cat.column(ColumnKind::ExitDate).expect("exit_date");
-    assert_eq!(cat.items[3].cell(exit), Some("2027-01-31"));
+    assert_eq!(fourth.cell(exit), Some("2027-01-31"));
 
     assert_eq!(
         w.render(),

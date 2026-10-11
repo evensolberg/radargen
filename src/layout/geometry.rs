@@ -37,14 +37,18 @@ const CLEARANCE: f64 = 2.0 * MARKER_RADIUS - CAPACITY_TOLERANCE;
 /// A point relative to the radar's centre, in SVG user units.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Point {
+    /// Distance right of the centre; negative is left.
     pub x: f64,
+    /// Distance below the centre (SVG's y-axis); negative is above.
     pub y: f64,
 }
 
 /// One ring's band: the radii it spans (FR-32).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Band {
+    /// The radius of the band's edge nearer the centre.
     pub inner: f64,
+    /// The radius of the band's edge nearer the rim.
     pub outer: f64,
 }
 
@@ -52,7 +56,9 @@ pub struct Band {
 /// (FR-32).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Geometry {
+    /// How many distinct quadrants the catalogue has (FR-30).
     pub quadrants: usize,
+    /// How many rings are declared (FR-32).
     pub rings: usize,
 }
 
@@ -152,8 +158,9 @@ impl Geometry {
     pub fn fits(self, ring: usize, n: usize) -> bool {
         let points: Vec<Point> = (0..n).map(|j| self.marker(0, ring, j, n)).collect();
         points.iter().enumerate().all(|(i, a)| {
-            points[i + 1..]
+            points
                 .iter()
+                .skip(i + 1)
                 .all(|b| far_enough((a.x - b.x).hypot(a.y - b.y)))
         })
     }
@@ -182,7 +189,13 @@ pub fn polar(angle: f64, radius: f64) -> Point {
 /// FR-33: every plotted item's marker centre, aligned with
 /// [`Plotted::items`] for a `Plotted` that `resolve` built. Item `j` of a
 /// band is its `j`th in FR-34's order.
+///
+/// # Panics
+///
+/// If `plotted` was not built from `catalogue`, so a run's quadrant is
+/// missing from `plotted.rank`.
 #[must_use]
+// qual:allow(complexity, error_handling) reason: "the documented # Panics: a Plotted from another catalogue is a caller bug"
 pub fn place(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Point> {
     let geometry = Geometry::of(catalogue);
     let points: Vec<Point> = plotted
@@ -190,7 +203,10 @@ pub fn place(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Point> {
         .iter()
         .flat_map(|run| {
             let n = run.items.len();
-            let position = plotted.rank[run.quadrant];
+            let position = *plotted
+                .rank
+                .get(run.quadrant)
+                .expect("rank covers every quadrant of the catalogue");
             (0..n).map(move |j| geometry.marker(position, run.ring, j, n))
         })
         .collect();
@@ -209,6 +225,12 @@ pub fn place(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Point> {
 /// Capacity stops at the first failure, so a band of any size costs at
 /// most its capacity's checks; this relies on the monotonicity that
 /// `fitting_is_monotone_in_n` verifies.
+///
+/// # Panics
+///
+/// If `plotted` was not built from `catalogue`, so a run names a quadrant
+/// or ring the catalogue lacks.
+// qual:allow(complexity, error_handling) reason: "the documented # Panics: a Plotted from another catalogue is a caller bug"
 pub fn warn_crowding(catalogue: &Catalogue, plotted: &Plotted, warnings: &mut Warnings) {
     let geometry = Geometry::of(catalogue);
     if geometry.quadrants > COMFORTABLE_QUADRANTS {
@@ -221,8 +243,17 @@ pub fn warn_crowding(catalogue: &Catalogue, plotted: &Plotted, warnings: &mut Wa
         let fits = geometry.capacity(run.ring, count);
         if fits < count {
             warnings.push(Warning::Render(RenderKind::OverfullBand {
-                quadrant: catalogue.quadrants[run.quadrant].label.clone(),
-                ring: catalogue.rings[run.ring].clone(),
+                quadrant: catalogue
+                    .quadrants
+                    .get(run.quadrant)
+                    .expect("a run's quadrant is one of the catalogue's")
+                    .label
+                    .clone(),
+                ring: catalogue
+                    .rings
+                    .get(run.ring)
+                    .expect("a run's ring is one of the catalogue's")
+                    .clone(),
                 count,
                 fits,
             }));
@@ -238,7 +269,8 @@ fn far_enough(distance: f64) -> bool {
 /// A count as `f64`.
 #[expect(
     clippy::cast_precision_loss,
-    reason = "f64 holds every integer up to 2^53 exactly, and a count is far below that"
+    clippy::as_conversions,
+    reason = "usize has no lossless conversion to f64, and f64 holds every integer up to 2^53 exactly; a count is far below that"
 )]
 const fn real(n: usize) -> f64 {
     n as f64

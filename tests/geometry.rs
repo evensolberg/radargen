@@ -123,7 +123,16 @@ fn placement_does_not_depend_on_row_order() {
             .items
             .iter()
             .zip(points)
-            .map(|(&i, p)| (cat.items[i].name.clone(), p))
+            .map(|(&i, p)| {
+                (
+                    cat.items
+                        .get(i)
+                        .expect("a plotted index is an item")
+                        .name
+                        .clone(),
+                    p,
+                )
+            })
             .collect();
         named.sort_by(|a, b| a.0.cmp(&b.0));
         named
@@ -148,9 +157,21 @@ fn place_uses_fr34_order_within_a_band() {
         .iter()
         .position(|r| r == "Adopt")
         .expect("Adopt is a default ring");
-    assert_eq!(cat.items[plotted.items[0]].name, "Alpha");
-    assert_eq!(points[0], g.marker(0, adopt, 0, 2));
-    assert_eq!(points[1], g.marker(0, adopt, 1, 2));
+    let [first_item, ..] = plotted.items.as_slice() else {
+        panic!("expected plotted items: {:?}", plotted.items)
+    };
+    assert_eq!(
+        cat.items
+            .get(*first_item)
+            .expect("a plotted index is an item")
+            .name,
+        "Alpha"
+    );
+    let [first, second] = points.as_slice() else {
+        panic!("expected two points: {points:?}")
+    };
+    assert_eq!(*first, g.marker(0, adopt, 0, 2));
+    assert_eq!(*second, g.marker(0, adopt, 1, 2));
 }
 
 /// FR-10, FR-8: a sector's position is the quadrant's FR-10 rank, not its
@@ -174,7 +195,10 @@ fn place_uses_the_fr10_position_not_the_catalogue_index() {
     );
     let points = place(&cat, &plotted);
     assert_eq!(points, [g.marker(1, 2, 0, 1)]);
-    assert!(points[0].x < -1.0, "{:?}", points[0]);
+    let [point] = points.as_slice() else {
+        panic!("expected one point: {points:?}")
+    };
+    assert!(point.x < -1.0, "{point:?}");
 }
 
 /// FR-88 first, then FR-89 one per band in FR-34's order: FR-10's
@@ -216,9 +240,11 @@ fn geometry_warnings_precede_row_warnings() {
     let cat = build_catalogue(&table, &rings, &mut w).expect("builds");
     warn_crowding(&cat, &resolve(&cat), &mut w);
     let lines = w.render();
-    assert_eq!(lines.len(), 2, "{lines:?}");
-    assert!(lines[0].starts_with("warning: 7 quadrants"), "{lines:?}");
-    assert!(lines[1].contains("Rejected"), "{lines:?}");
+    let [crowded, rejected] = lines.as_slice() else {
+        panic!("expected 2 lines: {lines:?}")
+    };
+    assert!(crowded.starts_with("warning: 7 quadrants"), "{lines:?}");
+    assert!(rejected.contains("Rejected"), "{lines:?}");
 }
 
 /// Nothing plotted: no markers, no bands, no geometry warning, and the

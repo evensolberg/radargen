@@ -10,19 +10,27 @@ use std::fmt;
 /// FR-82's eight neutral roles, in the PRD's order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Neutral {
+    /// The radar ground (FR-82).
     Surface1,
+    /// The legend, detail panel and table background (FR-82).
     Surface2,
+    /// Body text: names, headings, legend rows (FR-82).
     TextPrimary,
+    /// De-emphasised text: meta, labels, the key (FR-82).
     TextMuted,
+    /// Ring circles (FR-82).
     StrokeRing,
+    /// Quadrant dividers (FR-82).
     StrokeDivider,
     /// FR-20's conditional fill. Not `Paint::None`: FR-66's key draws it on a
     /// different background, where the two differ (architecture §5).
     MarkerHollow,
+    /// The keyboard focus indicator (FR-48, FR-82).
     Focus,
 }
 
 impl Neutral {
+    /// All eight roles, in FR-82's order.
     pub const ALL: [Self; 8] = [
         Self::Surface1,
         Self::Surface2,
@@ -61,6 +69,7 @@ impl fmt::Display for Neutral {
 /// A colour a node asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
+    /// One of FR-82's eight neutral roles.
     Neutral(Neutral),
     /// The quadrant's 0-based index in FR-10's order — **not** reduced modulo
     /// the palette's length. FR-87 makes that length a property of a file the
@@ -81,7 +90,9 @@ impl fmt::Display for Role {
 /// FR-56. Picks the palette a static snapshot is bound to; HTML carries both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum Theme {
+    /// The light palette: dark ink on pale grounds.
     Light,
+    /// The dark palette: pale ink on near-black grounds.
     Dark,
 }
 
@@ -102,6 +113,7 @@ const INK_LIGHT: &str = "#FFFFFF";
 const INK_DARK: &str = "#16191F";
 
 /// WCAG 2.x relative luminance of a `#RRGGBB` value.
+// qual:allow(complexity, error_handling) reason: "palette values are #RRGGBB; PR 18 rejects anything else"
 fn luminance(hex: &str) -> f64 {
     let channel = |i: usize| {
         let v = hex
@@ -149,6 +161,7 @@ pub struct Palette {
 }
 
 impl Palette {
+    /// The built-in palette for `theme` (FR-81, FR-82).
     #[must_use]
     pub fn built_in(theme: Theme) -> Self {
         let neutrals = match theme {
@@ -161,6 +174,7 @@ impl Palette {
         }
     }
 
+    /// How many series colours the palette holds (FR-87).
     #[must_use]
     pub const fn series_len(&self) -> usize {
         self.series.len()
@@ -186,11 +200,32 @@ impl Palette {
 
     /// The literal value — SVG and PNG, whose consumers do not resolve custom
     /// properties (`resvg` renders an unresolved `var()` black).
+    ///
+    /// # Panics
+    ///
+    /// If the palette has no series entries, which FR-87 rules out and no
+    /// constructor produces: `bind` then panics on `% 0`, before the lookup.
     #[must_use]
+    // qual:allow(complexity, error_handling) reason: "`series` is never empty (FR-87) and `bind` reduces modulo its length"
     pub fn value(&self, role: Role) -> &str {
         match self.bind(role) {
-            Role::Neutral(n) => &self.neutrals[n as usize],
-            Role::Series(i) => &self.series[i],
+            Role::Neutral(n) => {
+                let [s1, s2, tp, tm, sr, sd, mh, focus] = &self.neutrals;
+                match n {
+                    Neutral::Surface1 => s1,
+                    Neutral::Surface2 => s2,
+                    Neutral::TextPrimary => tp,
+                    Neutral::TextMuted => tm,
+                    Neutral::StrokeRing => sr,
+                    Neutral::StrokeDivider => sd,
+                    Neutral::MarkerHollow => mh,
+                    Neutral::Focus => focus,
+                }
+            }
+            Role::Series(i) => self
+                .series
+                .get(i)
+                .expect("`bind` reduced the index modulo the series length"),
         }
     }
 
@@ -326,8 +361,8 @@ mod tests {
                 "#FFFFFF"
             ]
         );
-        for (i, ink) in inks.iter().enumerate() {
-            let ratio = contrast(SERIES[i], ink);
+        for (i, (ink, series)) in inks.iter().zip(SERIES).enumerate() {
+            let ratio = contrast(series, ink);
             assert!(ratio >= 4.5, "series-{} {ratio:.2}", i + 1);
         }
         assert_eq!(p.number_ink(13), p.number_ink(5), "cycles with FR-67");
