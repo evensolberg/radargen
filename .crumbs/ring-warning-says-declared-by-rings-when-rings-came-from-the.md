@@ -1,7 +1,7 @@
 ---
 id: rg-dy8
 title: Ring warning says 'declared by --rings' when rings came from the default or --config
-status: open
+status: closed
 type: task
 priority: 3
 tags:
@@ -9,6 +9,7 @@ tags:
 - diagnostics
 created: 2026-10-10
 updated: 2026-10-10
+closed_reason: 'PRD v0.43, D-61: FR-17 warning names the ring set source; implemented in PR 06 (rg-rnc)'
 phase: ''
 ---
 

@@ -94,7 +94,8 @@ own, and reaching back past the waist to the `Table` would give the HTML
 emitter a second input to keep in step. `Catalogue` carries the declared header as an
 ordered list and each row's unrecognised cells beside its typed ones, which
 makes FR-78's "every optional column the header declared" a lookup rather than a
-re-parse.
+re-parse. A column with an empty header cell is not part of that list: FR-93
+drops it, so the table never needs a heading for it.
 
 That asymmetry is not a leak in the waist — it is D-26 expressed as a type
 signature. A static image has nothing to put the prose in, and it is structurally

@@ -1,7 +1,7 @@
 ---
 id: rg-lme
 title: Invisible format characters in header names
-status: open
+status: closed
 type: task
 priority: 3
 tags:
@@ -9,6 +9,7 @@ tags:
 - csv
 created: 2026-10-10
 updated: 2026-10-10
+closed_reason: 'PRD v0.43, D-61: FR-76 trims leading/trailing Cf; implemented in PR 06 (rg-rnc)'
 phase: ''
 ---
 
