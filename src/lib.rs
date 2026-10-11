@@ -6,6 +6,7 @@ pub mod cli;
 pub mod csv;
 pub mod diagnostics;
 pub mod escape;
+pub mod layout;
 pub mod model;
 pub mod num;
 pub mod order;
