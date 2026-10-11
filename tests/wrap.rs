@@ -70,3 +70,54 @@ fn wrapping_is_deterministic() {
 fn empty_text_yields_no_lines() {
     assert_eq!(wrap("", 100.0, &metrics(), SIZE, 0.0), Vec::<String>::new());
 }
+
+/// A column narrower than any glyph still makes progress: one glyph per
+/// line, every character kept (FR-46), rather than looping.
+#[test]
+fn a_column_narrower_than_one_glyph_emits_one_glyph_per_line() {
+    assert_eq!(
+        wrap("Kafka", 1.0, &metrics(), SIZE, 0.0),
+        ["K", "a", "f", "k", "a"]
+    );
+}
+
+/// An overlong token mid-sentence: the line before it ends, the token
+/// breaks at the last character that fits, and its tail is the line the
+/// next words are tried against (FR-79). Pinned exactly, so a refactor
+/// cannot move a wrap point (SC-7).
+#[test]
+fn an_overlong_token_mid_sentence_breaks_in_place() {
+    assert_eq!(
+        wrap("a Internationalisation of b c", 40.0, &metrics(), SIZE, 0.0),
+        ["a", "Intern", "ational", "isation", "of b c"]
+    );
+}
+
+/// Letter-spacing counts toward the width, as `measure` adds it: at 76
+/// units "Trunk Based" fits unspaced (73.96) but not at 0.48 (78.76).
+#[test]
+fn letter_spacing_moves_the_wrap_point() {
+    let m = metrics();
+    assert_eq!(wrap("Trunk Based", 76.0, &m, SIZE, 0.0), ["Trunk Based"]);
+    assert_eq!(
+        wrap("Trunk Based", 76.0, &m, SIZE, 0.48),
+        ["Trunk", "Based"]
+    );
+}
+
+/// A mid-token break lands on a character boundary in multi-byte text,
+/// so `Ł` and `ř` survive whole.
+#[test]
+fn a_mid_token_break_keeps_multi_byte_characters_whole() {
+    assert_eq!(
+        wrap("Łukasiewicz Dvořák", 30.0, &metrics(), SIZE, 0.0),
+        ["Łuka", "siewi", "cz", "Dvoř", "ák"]
+    );
+}
+
+/// A NaN width keeps words whole, as the original loop did: the break
+/// only runs on a width that is definitely too wide.
+#[test]
+fn a_nan_width_keeps_words_whole() {
+    assert_eq!(wrap("ab cd", f64::NAN, &metrics(), SIZE, 0.0), ["ab", "cd"]);
+}
