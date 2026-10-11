@@ -10,14 +10,14 @@ crumb_id: rg-48z
 document_title: "PR 08 — `layout/geometry.rs`: sectors, bands, placement, capacity: Implementation Plan"
 created_date: 2026-10-11
 synopsis: "The radar's geometry as pure functions: FR-77's dividers, FR-32's bands, FR-33's marker placement and FR-89's computed capacity, plus the FR-88 and FR-89 warnings. The Block trait and svg::Node move to PR 09, their first user."
-status: draft
+status: done
 type: Plan
 revision: "1.1"
 review_date: 2026-10-11
 reviewed_by:
   - rust-engineer
   - qa-expert
-completed_date:
+completed_date: 2026-10-11
 comments:
 ---
 # PR 08 — `layout/geometry.rs`: sectors, bands, placement, capacity: Implementation Plan

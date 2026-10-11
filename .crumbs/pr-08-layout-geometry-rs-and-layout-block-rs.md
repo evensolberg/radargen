@@ -1,7 +1,7 @@
 ---
 id: rg-48z
 title: 'PR 08: layout/geometry.rs and layout/block.rs'
-status: in_progress
+status: closed
 type: task
 priority: 1
 tags:
@@ -29,3 +29,5 @@ FR-30–FR-33, FR-43, FR-77, FR-89 capacity. Block trait, Size, Placement (with 
 [2026-10-11] [2026-10-11] Scope: geometry only (FR-30–FR-33, FR-43, FR-77, FR-88, FR-89, Plotted::runs). Block and Node moved to PR 09 (rg-y1t) at the maintainer's ruling. Plan: docs/plans/pr-08-geometry.md.
 
 [start] 2026-10-11 10:19:56
+
+[stop]  2026-10-11 10:33:29  13m 33s
