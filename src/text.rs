@@ -125,6 +125,7 @@ impl<'a> FontMetrics<'a> {
 /// starts a new line. A single token wider than the column is broken mid-token
 /// at the last character that fits — FR-46 forbids truncating it, and letting
 /// it overflow would push it outside the `viewBox`.
+#[must_use]
 pub fn wrap(
     text: &str,
     max_width: f64,
@@ -132,55 +133,80 @@ pub fn wrap(
     size_px: f64,
     letter_spacing_px: f64,
 ) -> Vec<String> {
-    let mut lines: Vec<String> = Vec::new();
-    let mut line = String::new();
+    let column = Column {
+        max_width,
+        metrics: m,
+        size_px,
+        letter_spacing_px,
+    };
+    let mut lines = Vec::new();
+    let last = text.split_whitespace().fold(String::new(), |line, word| {
+        column.place(word, line, &mut lines)
+    });
+    if !last.is_empty() {
+        lines.push(last);
+    }
+    lines
+}
 
-    for word in text.split_whitespace() {
-        let candidate = if line.is_empty() {
+/// FR-79's column: a maximum width, measured in one face at one size.
+struct Column<'m, 'f> {
+    max_width: f64,
+    metrics: &'m FontMetrics<'f>,
+    size_px: f64,
+    letter_spacing_px: f64,
+}
+
+impl Column<'_, '_> {
+    fn fits(&self, text: &str) -> bool {
+        self.metrics
+            .measure(text, self.size_px, self.letter_spacing_px)
+            <= self.max_width
+    }
+
+    /// Greedy first-fit: `word` joins `line` if the two fit together;
+    /// otherwise `line` is finished and `word` starts the next, broken first
+    /// if it is wider than the column. Returns the line now being filled.
+    fn place(&self, word: &str, line: String, lines: &mut Vec<String>) -> String {
+        let joined = if line.is_empty() {
             word.to_string()
         } else {
             format!("{line} {word}")
         };
-        if m.measure(&candidate, size_px, letter_spacing_px) <= max_width {
-            line = candidate;
-            continue;
+        if self.fits(&joined) {
+            return joined;
         }
         if !line.is_empty() {
-            lines.push(std::mem::take(&mut line));
+            lines.push(line);
         }
-        // The word now starts a line of its own. If it still does not fit,
-        // break it at the last character that does.
-        let mut rest = word;
-        #[expect(
-            clippy::while_float,
-            reason = "the comparison is the point; each pass removes at least one character from `rest` or breaks, so it terminates"
-        )]
-        while m.measure(rest, size_px, letter_spacing_px) > max_width {
-            let mut cut = 0;
-            let mut fitted = String::new();
-            for (idx, ch) in rest.char_indices() {
-                let mut trial = fitted.clone();
-                trial.push(ch);
-                if m.measure(&trial, size_px, letter_spacing_px) > max_width {
-                    break;
-                }
-                fitted = trial;
-                cut = idx + ch.len_utf8();
-            }
+        self.break_token(word, lines).to_string()
+    }
+
+    /// FR-46: push the column-wide pieces of a token wider than the column,
+    /// in order, and return the tail that fits. Nothing is dropped.
+    fn break_token<'w>(&self, token: &'w str, lines: &mut Vec<String>) -> &'w str {
+        let mut rest = token;
+        while !self.fits(rest) {
+            let cut = self.fitting_prefix(rest);
             if cut == 0 {
-                // Column narrower than one glyph: emit that glyph rather than loop.
-                cut = rest.chars().next().map_or(0, char::len_utf8);
-                if cut == 0 {
-                    break;
-                }
+                break;
             }
             lines.push(rest[..cut].to_string());
             rest = &rest[cut..];
         }
-        line = rest.to_string();
+        rest
     }
-    if !line.is_empty() {
-        lines.push(line);
+
+    /// The byte length of `token`'s longest prefix that fits — or of its
+    /// first character when not even that fits, so a column narrower than
+    /// one glyph still makes progress. Zero only for an empty token.
+    fn fitting_prefix(&self, token: &str) -> usize {
+        let first = token.chars().next().map_or(0, char::len_utf8);
+        token
+            .char_indices()
+            .map(|(i, c)| i + c.len_utf8())
+            .take_while(|&end| self.fits(&token[..end]))
+            .last()
+            .unwrap_or(first)
     }
-    lines
 }
