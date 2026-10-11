@@ -83,20 +83,44 @@ pub fn html_attr(s: &str) -> String {
 /// inside an XML document. The substitutions are safe on serializer output:
 /// none of these characters can occur in JSON outside a string.
 ///
-/// Floats must not reach this unformatted: `serde_json` would print them
-/// unrounded, with exponents, and NaN as `null`, bypassing NFR-17's
-/// [`crate::num::fmt_coord`]. Pass coordinates as its strings.
+/// A float is refused, not merely discouraged: `serde_json` would print it
+/// unrounded, with exponents, bypassing NFR-17's [`crate::num::fmt_coord`].
+/// Pass coordinates as its strings. The refusal is made on the serialised
+/// value, so it holds however deeply the float is nested.
+///
+/// NaN and infinity are the one gap: `serde_json::to_value` turns them into
+/// `null` before this can see them, so they serialise as `null` rather than
+/// being refused. Callers format coordinates with `fmt_coord`, so none
+/// should reach here as a float at all.
 ///
 /// # Errors
 ///
-/// When `value`'s `Serialize` implementation fails.
+/// When `value`'s `Serialize` implementation fails, or a non-integer number
+/// is found anywhere in it.
 pub fn json<T: serde::Serialize + ?Sized>(value: &T) -> Result<String, serde_json::Error> {
-    Ok(serde_json::to_string(value)?
+    let value = serde_json::to_value(value)?;
+    if contains_float(&value) {
+        return Err(serde::ser::Error::custom(
+            "a raw float reached json(); format coordinates with num::fmt_coord and pass the string (NFR-17)",
+        ));
+    }
+    Ok(serde_json::to_string(&value)?
         .replace('<', "\\u003c")
         .replace('>', "\\u003e")
         .replace('&', "\\u0026")
         .replace('\u{2028}', "\\u2028")
         .replace('\u{2029}', "\\u2029"))
+}
+
+/// Whether `value` holds a number that is not an integer, at any depth.
+fn contains_float(value: &serde_json::Value) -> bool {
+    use serde_json::Value;
+    match value {
+        Value::Number(n) => n.is_f64(),
+        Value::Array(items) => items.iter().any(contains_float),
+        Value::Object(map) => map.values().any(contains_float),
+        Value::Null | Value::Bool(_) | Value::String(_) => false,
+    }
 }
 
 /// A `--palette` value that could break out of its declaration (NFR-6 (5)).
@@ -274,6 +298,43 @@ mod tests {
     fn json_escapes_structures_too() {
         let out = json(&["</script>", "ok"]).expect("the input serialises as JSON");
         assert_eq!(out, r#"["\u003c/script\u003e","ok"]"#);
+    }
+
+    const RAW_FLOAT: &str = "a raw float reached json(); format coordinates with num::fmt_coord and pass the string (NFR-17)";
+
+    #[test]
+    fn a_raw_float_is_refused() {
+        for value in [
+            serde_json::json!({"x": 1.5}),
+            serde_json::json!([1, [2, {"deep": 0.25}]]),
+            serde_json::json!({"a": {"b": [3.0]}}),
+        ] {
+            let err = json(&value).expect_err("a float must be refused");
+            assert!(err.to_string().starts_with(RAW_FLOAT), "{err}");
+        }
+        let err = json(&1.5_f64).expect_err("a bare float must be refused");
+        assert!(err.to_string().starts_with(RAW_FLOAT), "{err}");
+    }
+
+    #[test]
+    fn integers_and_formatted_coordinates_are_accepted() {
+        let coord = crate::num::fmt_coord(1.5);
+        let out = json(&serde_json::json!({"n": 7, "neg": -3, "big": u64::MAX, "x": coord}))
+            .expect("integers and strings serialise");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&out).expect("valid JSON"),
+            serde_json::json!({"n": 7, "neg": -3, "big": u64::MAX, "x": coord})
+        );
+    }
+
+    /// `serde_json::to_value` maps NaN and infinity to `Null`, so they cannot
+    /// be told from a real null after the fact. Pinned so a change in
+    /// `serde_json` is noticed.
+    #[test]
+    fn non_finite_floats_become_null_and_cannot_be_detected() {
+        for f in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(json(&f).expect("serialises as null"), "null");
+        }
     }
 
     #[test]
