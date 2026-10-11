@@ -1,7 +1,7 @@
 ---
 id: rg-vth
 title: Add a LICENSE file for GPL-3.0-or-later
-status: open
+status: closed
 type: task
 priority: 3
 tags:
