@@ -1,4 +1,3 @@
-// qual:allow(srp, file_length=470) reason: "the whole module is #[cfg(test)] (layout/mod.rs); rustqual cannot see that, and counts its tests as production lines"
 //! Test-only helpers every block's tests share.
 //!
 //! One walker finds the box a node paints in, and one builder makes a
@@ -294,6 +293,9 @@ pub(crate) fn plotted(csv: &str, rings: Option<&str>) -> (Catalogue, Plotted) {
     (catalogue, order)
 }
 
+// Redundant for the compiler (the module is already test-only), but it is
+// how rustqual tells this module's own tests from the helpers it checks.
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::layout::block::fonts;
