@@ -10,6 +10,8 @@ use crate::model::Catalogue;
 use crate::order::Plotted;
 use crate::style::{BAND_OUTER_RADIUS, MARKER_RADIUS};
 
+pub use crate::svg::Point;
+
 /// FR-30: a full turn, which N equal sectors divide.
 const FULL_TURN: f64 = 360.0;
 /// FR-77: divider 0 sits at 12 o'clock.
@@ -33,15 +35,6 @@ const CAPACITY_TOLERANCE: f64 = 1e-9;
 const COMFORTABLE_QUADRANTS: usize = 6;
 /// FR-89: the least distance between two clear marker centres.
 const CLEARANCE: f64 = 2.0 * MARKER_RADIUS - CAPACITY_TOLERANCE;
-
-/// A point relative to the radar's centre, in SVG user units.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Point {
-    /// Distance right of the centre; negative is left.
-    pub x: f64,
-    /// Distance below the centre (SVG's y-axis); negative is above.
-    pub y: f64,
-}
 
 /// One ring's band: the radii it spans (FR-32).
 #[derive(Debug, Clone, Copy, PartialEq)]
