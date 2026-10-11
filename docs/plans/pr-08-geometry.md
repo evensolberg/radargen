@@ -22,7 +22,7 @@ comments:
 ---
 # PR 08 — `layout/geometry.rs`: sectors, bands, placement, capacity: Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Crumb:** `rg-48z` · **Phase:** v1.0 · **Blocks:** `rg-y1t` (PR 09), `rg-svr` (PR 10), `rg-67j` (PR 11)
 
@@ -115,7 +115,7 @@ pub fn polar(angle: f64, radius: f64) -> Point;                  // degrees, SVG
 
 `position` is a quadrant's FR-10 position (`Plotted::rank[q]`); `ring` is the declared index (0 = outermost); `j` and `n` are FR-33's.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `src/layout/mod.rs`:
 
@@ -251,12 +251,12 @@ mod tests {
 
 Add `pub mod layout;` to `src/lib.rs` between `pub mod escape;` and `pub mod model;`.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --lib layout::geometry`
 Expected: FAIL to compile — `cannot find type Geometry`, `Band`, `function polar`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/layout/geometry.rs`, between the `use` line and `#[cfg(test)]`:
 
@@ -394,7 +394,7 @@ const fn real(n: usize) -> f64 {
 
 Each `#[expect(clippy::suboptimal_flops)]` is where `just lint` fires (verified on toolchain 1.99 in the plan review). If one reports its expectation unfulfilled, remove it; if `just lint` reports `suboptimal_flops` somewhere without one, add it there with the same reason.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cargo test --lib layout::geometry`
 Expected: 7 passed.
@@ -402,7 +402,7 @@ Expected: 7 passed.
 Run: `cargo fmt && cargo clippy --all-targets -- -D warnings && /opt/homebrew/bin/just lint`
 Expected: clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 /opt/homebrew/bin/git-mit es
@@ -429,7 +429,7 @@ git log -1 --format=%B
 - Consumes: Task 1's `Geometry::marker`, `style::MARKER_RADIUS` (10.0).
 - Produces: `pub fn fits(self, ring: usize, n: usize) -> bool`; `pub fn capacity(self, ring: usize, limit: usize) -> usize` (on `Geometry`).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `mod tests` in `src/layout/geometry.rs`:
 
@@ -506,12 +506,12 @@ Add to `mod tests` in `src/layout/geometry.rs`:
     }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --lib layout::geometry`
 Expected: FAIL to compile — no method `capacity`, `fits`; no function `far_enough`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Change the `use` line to:
 
@@ -569,7 +569,7 @@ fn far_enough(distance: f64) -> bool {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cargo test --lib layout::geometry`
 Expected: 12 passed. `fitting_is_monotone_in_n` is the slowest; it should finish in well under a second in a debug build. If it takes more than five seconds, report it rather than shrinking the ranges.
@@ -577,7 +577,7 @@ Expected: 12 passed. `fitting_is_monotone_in_n` is the slowest; it should finish
 Run: `cargo fmt && cargo clippy --all-targets -- -D warnings && /opt/homebrew/bin/just lint`
 Expected: clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 /opt/homebrew/bin/git-mit es
@@ -619,7 +619,7 @@ pub fn warn_crowding(catalogue: &Catalogue, plotted: &Plotted, warnings: &mut Wa
 
 `Run::quadrant` is the catalogue index (`Catalogue::quadrants`), `Run::ring` the declared ring index, and `Run::items` the run's positions in `Plotted::items`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `mod tests` in `src/order.rs`:
 
@@ -883,12 +883,12 @@ fn nothing_plotted_places_nothing_and_warns_nothing() {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --lib order:: && cargo test --lib layout::geometry && cargo test --test geometry`
 Expected: FAIL to compile — no method `runs`, no function `Geometry::of`, `place`, `warn_crowding`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/order.rs`, add after `Plotted`'s `impl` block:
 
@@ -1009,7 +1009,7 @@ pub fn warn_crowding(catalogue: &Catalogue, plotted: &Plotted, warnings: &mut Wa
 
 rustqual's IOSP does not flag `warn_crowding` (checked in the plan review). If a later rustqual does, split it into an integration function calling two operations, `warn_quadrant_count(geometry, warnings)` and `warn_overfull_bands(catalogue, plotted, geometry, warnings)`, and say so in the report.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cargo test --lib order:: && cargo test --lib layout::geometry && cargo test --test geometry`
 Expected: 17 + 13 passed in the library, 10 in `tests/geometry.rs`.
@@ -1019,7 +1019,7 @@ If `an_overfull_band_warns_once_and_keeps_every_marker` or `more_than_six_quadra
 Run: `cargo fmt && cargo clippy --all-targets -- -D warnings && /opt/homebrew/bin/just lint`
 Expected: clean.
 
-- [ ] **Step 5: Update the architecture**
+- [x] **Step 5: Update the architecture**
 
 In `docs/design/architecture.md`:
 
@@ -1029,7 +1029,7 @@ In `docs/design/architecture.md`:
 4. §4, under the code block that defines `Size`, `Point` and `Placement`, add: "`Point` is `layout::geometry::Point`: geometry produces points before any block exists."
 5. §9, the step 3 row: change "`layout/geometry.rs`, `layout/block.rs`" to "`layout/geometry.rs`", and the step 4 row's first cell to "`layout/block.rs` and a minimal `svg::Node`, then `layout/{title,radar,legend,key}.rs`, `arrange.rs`". Add one sentence after the table: "`Node` is built up with the blocks rather than ahead of them: each block adds the variants it draws, and step 5 adds `Document` and the serialiser."
 
-- [ ] **Step 6: Run the gate and commit**
+- [x] **Step 6: Run the gate and commit**
 
 Run: `/opt/homebrew/bin/just ci`
 Expected: pass, with rustqual's quality rising (about 69.6% → 72%; `place` and `warn_crowding` show as test-only dead code until PR 10 and PR 14 call them). Run `/opt/homebrew/bin/just quality-baseline` to lock the rise in.

@@ -16,7 +16,9 @@ const FULL_TURN: f64 = 360.0;
 const FIRST_DIVIDER: f64 = -90.0;
 /// FR-33: markers keep this proportion of the sector clear of each divider.
 const INSET: f64 = 0.08;
-/// FR-33: the proportion of the sector markers spread across, `1 − 2 × INSET`.
+/// FR-33: the proportion of the sector markers spread across. FR-33 states
+/// 0.84 literally; it equals `1 − 2 × INSET`, and the literal keeps
+/// bit-parity with the prototype.
 const SPREAD: f64 = 0.84;
 /// FR-33: the inner and outer tracks, as proportions of the band's width;
 /// even-indexed items take the inner one.
@@ -65,7 +67,9 @@ impl Geometry {
         }
     }
 
-    /// FR-30: the degrees each quadrant's sector spans.
+    /// FR-30: the degrees each quadrant's sector spans. With zero quadrants
+    /// (a catalogue with no rows, FR-42) there is no sector: this is
+    /// infinite, so a caller draws only the ring circles then.
     #[must_use]
     pub fn sector(self) -> f64 {
         FULL_TURN / real(self.quadrants)
@@ -73,7 +77,9 @@ impl Geometry {
 
     /// FR-77: the angle of the divider that opens the sector at FR-10
     /// `position`, in degrees. Divider 0 is at 12 o'clock and the rest
-    /// follow clockwise, so FR-31 holds at every count.
+    /// follow clockwise, so FR-31 holds at every count. With zero quadrants
+    /// (FR-42) there is no sector and this is NaN, so a caller draws only
+    /// the ring circles then.
     #[must_use]
     #[expect(
         clippy::suboptimal_flops,
@@ -177,11 +183,12 @@ pub fn polar(angle: f64, radius: f64) -> Point {
 }
 
 /// FR-33: every plotted item's marker centre, aligned with
-/// [`Plotted::items`]. Item `j` of a band is its `j`th in FR-34's order.
+/// [`Plotted::items`] for a `Plotted` that `resolve` built. Item `j` of a
+/// band is its `j`th in FR-34's order.
 #[must_use]
 pub fn place(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Point> {
     let geometry = Geometry::of(catalogue);
-    plotted
+    let points: Vec<Point> = plotted
         .runs(catalogue)
         .iter()
         .flat_map(|run| {
@@ -189,12 +196,22 @@ pub fn place(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Point> {
             let position = plotted.rank[run.quadrant];
             (0..n).map(move |j| geometry.marker(position, run.ring, j, n))
         })
-        .collect()
+        .collect();
+    debug_assert_eq!(
+        points.len(),
+        plotted.items.len(),
+        "every plotted item has a ring and FR-34 keeps bands contiguous"
+    );
+    points
 }
 
 /// FR-88 and FR-89: one warning when the quadrant count passes A-5's six,
 /// then one per overfull band in FR-34's order. Both concern the render
 /// as a whole, so NFR-11 prints them before every row warning.
+///
+/// Capacity stops at the first failure, so a band of any size costs at
+/// most its capacity's checks; this relies on the monotonicity that
+/// `fitting_is_monotone_in_n` verifies.
 pub fn warn_crowding(catalogue: &Catalogue, plotted: &Plotted, warnings: &mut Warnings) {
     let geometry = Geometry::of(catalogue);
     if geometry.quadrants > COMFORTABLE_QUADRANTS {
@@ -204,12 +221,13 @@ pub fn warn_crowding(catalogue: &Catalogue, plotted: &Plotted, warnings: &mut Wa
     }
     for run in plotted.runs(catalogue) {
         let count = run.items.len();
-        if !geometry.fits(run.ring, count) {
+        let fits = geometry.capacity(run.ring, count);
+        if fits < count {
             warnings.push(Warning::Render(RenderKind::OverfullBand {
                 quadrant: catalogue.quadrants[run.quadrant].label.clone(),
                 ring: catalogue.rings[run.ring].clone(),
                 count,
-                fits: geometry.capacity(run.ring, count),
+                fits,
             }));
         }
     }
@@ -458,5 +476,7 @@ mod tests {
             items: vec![],
         };
         assert_eq!(Geometry::of(&cat), geometry(0, 3));
+        let band = Geometry::of(&cat).band(0);
+        assert!(close(band.inner, 520.0 / 3.0) && close(band.outer, 260.0));
     }
 }

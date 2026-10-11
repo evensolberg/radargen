@@ -144,7 +144,11 @@ fn place_uses_fr34_order_within_a_band() {
     let (cat, plotted, _) = build(&csv(&all));
     let points = place(&cat, &plotted);
     let g = Geometry::of(&cat);
-    let adopt = 2;
+    let adopt = cat
+        .rings
+        .iter()
+        .position(|r| r == "Adopt")
+        .expect("Adopt is a default ring");
     assert_eq!(cat.items[plotted.items[0]].name, "Alpha");
     assert_eq!(points[0], g.marker(0, adopt, 0, 2));
     assert_eq!(points[1], g.marker(0, adopt, 1, 2));
