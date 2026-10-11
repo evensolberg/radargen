@@ -94,8 +94,7 @@ own, and reaching back past the waist to the `Table` would give the HTML
 emitter a second input to keep in step. `Catalogue` carries the declared header as an
 ordered list and each row's unrecognised cells beside its typed ones, which
 makes FR-78's "every optional column the header declared" a lookup rather than a
-re-parse. A column with an empty header cell is not part of that list: FR-93
-drops it, so the table never needs a heading for it.
+re-parse. An unnamed column is not in that list; FR-93 drops it.
 
 That asymmetry is not a leak in the waist — it is D-26 expressed as a type
 signature. A static image has nothing to put the prose in, and it is structurally
@@ -119,7 +118,7 @@ declarations only and are not listed.
 | `src/main.rs` | Parse args, run the pipeline, map outcome to exit code and stderr (NFR-16 tier one) | *stub* |
 | `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52). In v1.1, also the `--config` merge under the command-line flags and `{edition}` expansion, both before any other validation (FR-91, FR-92) | *exists* |
 | `src/diagnostics.rs` | `Fatal`, `Warning`, `Warnings` — the taxonomy and NFR-20 grouping | v1.0 |
-| `src/rings.rs` | `--rings` parsing, FR-63 validation, and where the set came from (FR-17) | *exists* |
+| `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17) | *exists* |
 | `src/csv/decode.rs` | Bytes → `String`: BOM, UTF-8, line numbering (FR-1, FR-2, FR-61); `read` is the stage's one file read | v1.0 |
 | `src/csv/parse.rs` | String → `Table` (header and records); header, field counts (FR-3, FR-4); removal of undisplayable characters, with a warning, before any other check except the blank-record test (FR-90, FR-3), using `escape::displayable` so both modules share one set | v1.0 |
 | `src/model.rs` | `Item`, `Catalogue`; column validation (FR-5–FR-29); the declared header order and each row's unrecognised cells (FR-27, FR-78); `accessible_name()` (FR-50, FR-75) | v1.0 |
@@ -419,10 +418,10 @@ errors — returns a single `Fatal` and aborts, because nothing parsed.
 `Err`. Its tier-two FR-4 errors travel beside the table rather than instead of
 it, so they join `build_catalogue`'s in the same run.
 
-`Config` is the resolved run: the ring list and its source (FR-17), the palette, the theme, the width,
-the title strings. It is built once in `main.rs` from `Cli` plus `rings.rs` plus
-`palette.rs` and is read-only thereafter, so no stage below can reinterpret a
-flag differently from another.
+`Config` is the resolved run: the ring list and its source (FR-17), the
+palette, the theme, the width, the title strings. It is built once in
+`main.rs` from `Cli` plus `rings.rs` plus `palette.rs` and is read-only
+thereafter, so no stage below can reinterpret a flag differently from another.
 
 **There is a third failure point below both tiers, and NFR-14 makes it the
 delicate one.** NFR-15's runtime failures — an unwritable path, a path naming a
