@@ -97,7 +97,7 @@ impl<'a> FontMetrics<'a> {
     }
 
     /// Advance width of `text` in pixels at `size_px`, with `letter_spacing_px`
-    /// applied between glyphs.
+    /// applied between clusters, as resvg applies it.
     ///
     /// Shaped, not summed from raw `hmtx` advances: the naive sum ignores
     /// GPOS kerning, which the rasteriser applies (D-42). The buffer is set
@@ -118,11 +118,20 @@ impl<'a> FontMetrics<'a> {
         buffer.guess_segment_properties();
         let output = shaper.shape(buffer, ShapeOptions::new());
         let units: i32 = output.glyph_positions().iter().map(|p| p.x_advance).sum();
+        // FR-84: one gap between clusters, none after the last, as resvg
+        // applies letter-spacing. A combining mark that stays a separate glyph
+        // shares its base's cluster and earns no gap of its own.
+        let clusters = output
+            .glyph_infos()
+            .windows(2)
+            .filter(|pair| pair[0].cluster != pair[1].cluster)
+            .count()
+            + 1;
         #[expect(
             clippy::cast_precision_loss,
-            reason = "f64 holds every integer up to 2^53 exactly, and a glyph count is far below that"
+            reason = "f64 holds every integer up to 2^53 exactly, and a cluster count is far below that"
         )]
-        let gaps = output.len().saturating_sub(1) as f64;
+        let gaps = clusters.saturating_sub(1) as f64;
         let upem = f64::from(shaper.units_per_em());
         #[expect(
             clippy::suboptimal_flops,

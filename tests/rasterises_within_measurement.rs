@@ -6,6 +6,10 @@
 //! Method: draw the string, rasterise, and find the rightmost inked column.
 //! It must fall inside the width we computed — and, as a discrimination check,
 //! must fall outside a box deliberately shrunk below it.
+//!
+//! It does not check that weight 600 resolves to the `SemiBold` face — Regular
+//! ink would fit inside `SemiBold`'s wider measurement; `tests/agrees_with_resvg.rs`
+//! checks that.
 
 use radargen::text::{FAMILY, Fonts, REGULAR_TTF, SEMIBOLD_TTF, Weight};
 use std::sync::Arc;

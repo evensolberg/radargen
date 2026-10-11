@@ -27,10 +27,10 @@ fn options() -> usvg::Options<'static> {
 }
 
 /// Right edge of the laid-out advance for `text`, laid out by usvg at x=0.
-fn usvg_advance(text: &str, weight: Weight, opt: &usvg::Options) -> f64 {
+fn usvg_advance(text: &str, weight: Weight, letter_spacing: f64, opt: &usvg::Options) -> f64 {
     let svg = format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="200">
-             <text x="0" y="100" font-family="{FAMILY}" font-weight="{}" font-size="{SIZE}">{text}</text>
+             <text x="0" y="100" font-family="{FAMILY}" font-weight="{}" font-size="{SIZE}" letter-spacing="{letter_spacing}">{text}</text>
            </svg>"#,
         weight.css()
     );
@@ -77,7 +77,7 @@ fn our_advance_matches_usvg_layout_for_both_weights() {
             "日本語",
         ] {
             let ours = fonts.face(weight).measure(word, SIZE, 0.0);
-            let theirs = usvg_advance(word, weight, &opt);
+            let theirs = usvg_advance(word, weight, 0.0, &opt);
             let delta = (ours - theirs).abs();
             // Per word, not via `worst`: `f64::max` would swallow a NaN.
             assert!(delta < 0.01, "{weight:?} {word}: ours {ours} usvg {theirs}");
@@ -86,4 +86,33 @@ fn our_advance_matches_usvg_layout_for_both_weights() {
         }
     }
     eprintln!("worst delta across corpus: {worst:.6} px at {SIZE}px");
+}
+
+/// FR-84: letter-spacing goes once between clusters, never after the last,
+/// as resvg applies it. A combining mark that stays a separate glyph must
+/// not earn a gap of its own.
+#[test]
+fn letter_spacing_matches_usvg_by_cluster() {
+    let opt = options();
+    let fonts = Fonts::embedded().expect("faces");
+    for weight in [Weight::Regular, Weight::SemiBold] {
+        for spacing in [0.48, 3.0] {
+            for word in [
+                "Terraform",
+                "Trunk-Based Development",
+                "Tiếng Việt",
+                "За\u{0301}мок",
+                "i\u{0307}x",
+                "α\u{0313}\u{0301}",
+                "Tie\u{0302}\u{0301}ng",
+            ] {
+                let ours = fonts.face(weight).measure(word, SIZE, spacing);
+                let theirs = usvg_advance(word, weight, spacing, &opt);
+                assert!(
+                    (ours - theirs).abs() < 0.01,
+                    "{weight:?} {word:?} at {spacing}: ours {ours} usvg {theirs}"
+                );
+            }
+        }
+    }
 }

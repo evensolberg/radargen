@@ -142,3 +142,26 @@ fn latin_measurements_are_pinned() {
         );
     }
 }
+
+/// FR-84: letter-spacing adds one gap per cluster but the last. Latin text
+/// without combining marks has one glyph per cluster, so these widths must
+/// not move when the count switches from glyphs to clusters.
+#[test]
+fn letter_spaced_latin_is_pinned() {
+    use radargen::text::Weight::{Regular, SemiBold};
+    const PINNED: [(radargen::text::Weight, &str, u64); 4] = [
+        (Regular, "Terraform", 0x404f_39dd_1eb8_51ec),
+        (Regular, "Trunk-Based Development", 0x4064_f705_851e_b852),
+        (SemiBold, "Terraform", 0x4050_07f6_8f5c_28f6),
+        (SemiBold, "Trunk-Based Development", 0x4065_6a73_851e_b852),
+    ];
+    let fonts = radargen::text::Fonts::embedded().expect("faces");
+    for (weight, text, bits) in PINNED {
+        let width = fonts.face(weight).measure(text, 12.5, 0.48);
+        assert_eq!(
+            width.to_bits(),
+            bits,
+            "{weight:?} {text:?} measures {width}"
+        );
+    }
+}
