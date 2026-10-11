@@ -2,7 +2,8 @@
 //! row claims, and what is wrong with it (FR-5–FR-29, FR-93).
 //!
 //! Ordering and numbering are not here: FR-10 and FR-34 are `order.rs`'s
-//! (PR 07), so a `Catalogue` keeps quadrants and items in CSV order.
+//! (`order::quadrant_order`, `order::resolve`), so a `Catalogue` keeps
+//! quadrants and items in CSV order.
 
 use crate::csv::parse::{Record, Table};
 use crate::diagnostics::{DateColumn, Fatal, RowKind, Warning, Warnings};
@@ -160,7 +161,7 @@ pub struct Item {
     pub name_key: String,
     /// Index into [`Catalogue::quadrants`], which is in first-appearance
     /// order — **not** FR-10's, and never a palette index (architecture
-    /// §5). `order.rs` (PR 07) gives the FR-10 rank.
+    /// §5). `order::resolve` gives the FR-10 rank.
     pub quadrant: usize,
     /// Index into [`Catalogue::rings`]; `None` when the ring is not
     /// declared (FR-17), which leaves the row unplotted.
@@ -201,7 +202,8 @@ pub struct Catalogue {
     /// The named columns in header order. An unnamed column is not here:
     /// FR-93 drops it.
     pub columns: Vec<Column>,
-    /// In order of first appearance; FR-10 orders them (PR 07).
+    /// In order of first appearance; `order::quadrant_order` gives FR-10's
+    /// order.
     pub quadrants: Vec<Quadrant>,
     /// The declared rings, edge-to-centre (FR-12). [`Item::ring`] indexes
     /// this copy; nothing below the model reads the `RingSet`.
@@ -549,7 +551,7 @@ impl Builder {
         let label = trim(value);
         if let Some(i) = self.quadrants.iter().position(|q| q.key == key) {
             // D-53: "ordinally" is code-point order, which is `str`'s `<`.
-            // `order::compare_names` (PR 07) is the same rule; this site
+            // `order::compare_names` is the same rule; this site
             // cannot call it, since `order.rs` depends on this module.
             if label < self.quadrants[i].label.as_str() {
                 self.quadrants[i].label = label.to_string();

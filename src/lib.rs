@@ -8,6 +8,7 @@ pub mod diagnostics;
 pub mod escape;
 pub mod model;
 pub mod num;
+pub mod order;
 pub mod palette;
 pub mod rings;
 pub mod style;
