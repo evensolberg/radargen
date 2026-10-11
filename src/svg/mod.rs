@@ -161,25 +161,33 @@ pub enum Node {
     },
 }
 
-impl Node {
-    /// Start-anchored text at scale `scale`: `origin`, the style's sizes and
-    /// `leading` are given at scale 1 and multiplied here, in one place.
+/// A start-anchored block of text, described at scale 1.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TextRun {
+    /// Where the first line's baseline starts.
+    pub origin: Point,
+    /// The face, size and spacing.
+    pub style: TextStyle,
+    /// The text's neutral colour role.
+    pub ink: Neutral,
+    /// The lines, already wrapped.
+    pub lines: Vec<String>,
+    /// Distance from one baseline to the next.
+    pub leading: f64,
+}
+
+impl TextRun {
+    /// The text node at `scale`: origin, the style's sizes and leading are
+    /// multiplied here, in one place.
     #[must_use]
-    pub fn text(
-        origin: Point,
-        style: TextStyle,
-        ink: Neutral,
-        lines: Vec<String>,
-        leading: f64,
-        scale: f64,
-    ) -> Self {
-        Self::Text {
-            origin: origin.scaled(scale),
-            style: style.scaled(scale),
-            ink: Paint::Role(Role::Neutral(ink)),
+    pub fn node(&self, scale: f64) -> Node {
+        Node::Text {
+            origin: self.origin.scaled(scale),
+            style: self.style.scaled(scale),
+            ink: Paint::Role(Role::Neutral(self.ink)),
             anchor: Anchor::Start,
-            lines,
-            leading: leading * scale,
+            lines: self.lines.clone(),
+            leading: self.leading * scale,
         }
     }
 }
@@ -216,14 +224,14 @@ mod tests {
             size: 10.0,
             letter_spacing: 1.0,
         };
-        let node = Node::text(
-            Point { x: 2.0, y: 4.0 },
+        let node = TextRun {
+            origin: Point { x: 2.0, y: 4.0 },
             style,
-            Neutral::TextMuted,
-            vec!["a".to_owned()],
-            12.0,
-            0.5,
-        );
+            ink: Neutral::TextMuted,
+            lines: vec!["a".to_owned()],
+            leading: 12.0,
+        }
+        .node(0.5);
         let Node::Text {
             origin,
             style,

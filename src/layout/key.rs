@@ -11,7 +11,7 @@ use crate::style::{
     KEY_BOTTOM, KEY_FIRST_ROW, KEY_HEADING, KEY_HEADING_BASELINE, KEY_LABEL, KEY_LABEL_DROP,
     KEY_LABEL_X, KEY_MARKER_RADIUS, KEY_ROW, KEY_SAMPLE_X, KEY_STATUS_MARKER_RADIUS, TextStyle,
 };
-use crate::svg::{Group, Node, Point, Semantics};
+use crate::svg::{Group, Node, Point, Semantics, TextRun};
 use crate::text::Fonts;
 
 /// The heading's text.
@@ -82,7 +82,14 @@ const fn sample_centre(index: usize) -> Point {
 
 /// A text node of one line, muted or primary.
 fn text(label: &str, origin: Point, style: TextStyle, ink: Neutral, scale: f64) -> Node {
-    Node::text(origin, style, ink, vec![label.to_owned()], 0.0, scale)
+    TextRun {
+        origin,
+        style,
+        ink,
+        lines: vec![label.to_owned()],
+        leading: 0.0,
+    }
+    .node(scale)
 }
 
 /// One row: its decorative sample, then its label.
