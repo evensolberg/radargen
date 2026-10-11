@@ -7,6 +7,9 @@
 //! At the crate root rather than under `svg/`: contexts 4 and 5 never touch an
 //! SVG node, and the `</script>` rule is an HTML fact (architecture §3).
 
+/// Why [`json`] refused: a float reached it.
+const RAW_FLOAT: &str = "a raw float reached json(); format coordinates with num::fmt_coord and pass the string (NFR-17)";
+
 /// FR-90's set: every control character (`char::is_control`, so C0, DEL and C1)
 /// except tab, LF and CR, plus U+FFFE/U+FFFF.
 ///
@@ -17,6 +20,23 @@
 #[must_use]
 pub const fn displayable(c: char) -> bool {
     matches!(c, '\t' | '\n' | '\r') || !(c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}'))
+}
+
+/// FR-90's removal, in one pass: deletes every character [`displayable`]
+/// rejects from `text`, returning the first one removed and how many, or `None`
+/// when the text was already clean.
+pub(crate) fn remove_undisplayable(text: &mut String) -> Option<(char, usize)> {
+    let mut first = None;
+    let mut count = 0;
+    text.retain(|c| {
+        let keep = displayable(c);
+        if !keep {
+            first.get_or_insert(c);
+            count += 1;
+        }
+        keep
+    });
+    first.map(|c| (c, count))
 }
 
 /// Contexts 1 and 2 share one loop; an attribute additionally escapes both
@@ -86,25 +106,16 @@ pub fn html_attr(s: &str) -> String {
 /// A float is refused, not merely discouraged: `serde_json` would print it
 /// unrounded, with exponents, bypassing NFR-17's [`crate::num::fmt_coord`].
 /// Pass coordinates as its strings. The refusal is made on the serialised
-/// value, so it holds however deeply the float is nested.
-///
-/// NaN and infinity are the one gap: `serde_json::to_value` turns them into
-/// `null` before this can see them, so they serialise as `null` rather than
-/// being refused. Callers format coordinates with `fmt_coord`, so none
-/// should reach here as a float at all.
+/// value, so it holds however deeply the float is nested, and for NaN, infinity
+/// and `f32` alike. Output for everything else is `serde_json::to_string`'s.
 ///
 /// # Errors
 ///
 /// When `value`'s `Serialize` implementation fails, or a non-integer number
 /// is found anywhere in it.
 pub fn json<T: serde::Serialize + ?Sized>(value: &T) -> Result<String, serde_json::Error> {
-    let value = serde_json::to_value(value)?;
-    if contains_float(&value) {
-        return Err(serde::ser::Error::custom(
-            "a raw float reached json(); format coordinates with num::fmt_coord and pass the string (NFR-17)",
-        ));
-    }
-    Ok(serde_json::to_string(&value)?
+    value.serialize(FloatDetector)?;
+    Ok(serde_json::to_string(value)?
         .replace('<', "\\u003c")
         .replace('>', "\\u003e")
         .replace('&', "\\u0026")
@@ -112,14 +123,194 @@ pub fn json<T: serde::Serialize + ?Sized>(value: &T) -> Result<String, serde_jso
         .replace('\u{2029}', "\\u2029"))
 }
 
-/// Whether `value` holds a number that is not an integer, at any depth.
-fn contains_float(value: &serde_json::Value) -> bool {
-    use serde_json::Value;
-    match value {
-        Value::Number(n) => n.is_f64(),
-        Value::Array(items) => items.iter().any(contains_float),
-        Value::Object(map) => map.values().any(contains_float),
-        Value::Null | Value::Bool(_) | Value::String(_) => false,
+/// A `serde::Serializer` that prints nothing and fails on the first float.
+///
+/// It exists because [`json`] must refuse every float (NFR-17, rg-9bv) and
+/// neither obvious route can: `serde_json::to_value` turns NaN and infinity
+/// into `null` before they can be seen, and its `Value` reorders struct fields.
+/// Walking the `Serialize` calls directly sees each float as it is emitted, and
+/// leaves the real serialisation untouched.
+struct FloatDetector;
+
+/// Every compound form of [`FloatDetector`]: it only recurses into what it is given.
+struct Walk;
+
+macro_rules! accept {
+    ($($method:ident($ty:ty)),* $(,)?) => {
+        $(fn $method(self, _: $ty) -> Result<(), serde_json::Error> { Ok(()) })*
+    };
+}
+
+macro_rules! walk_elements {
+    ($($trait:ident::$method:ident),* $(,)?) => {
+        $(impl serde::ser::$trait for Walk {
+            type Ok = ();
+            type Error = serde_json::Error;
+            fn $method<T: serde::Serialize + ?Sized>(
+                &mut self,
+                value: &T,
+            ) -> Result<(), serde_json::Error> {
+                value.serialize(FloatDetector)
+            }
+            fn end(self) -> Result<(), serde_json::Error> {
+                Ok(())
+            }
+        })*
+    };
+}
+
+macro_rules! walk_fields {
+    ($($trait:ident),* $(,)?) => {
+        $(impl serde::ser::$trait for Walk {
+            type Ok = ();
+            type Error = serde_json::Error;
+            fn serialize_field<T: serde::Serialize + ?Sized>(
+                &mut self,
+                _: &'static str,
+                value: &T,
+            ) -> Result<(), serde_json::Error> {
+                value.serialize(FloatDetector)
+            }
+            fn end(self) -> Result<(), serde_json::Error> {
+                Ok(())
+            }
+        })*
+    };
+}
+
+walk_elements!(
+    SerializeSeq::serialize_element,
+    SerializeTuple::serialize_element,
+    SerializeTupleStruct::serialize_field,
+    SerializeTupleVariant::serialize_field,
+);
+walk_fields!(SerializeStruct, SerializeStructVariant);
+
+impl serde::ser::SerializeMap for Walk {
+    type Ok = ();
+    type Error = serde_json::Error;
+    fn serialize_key<T: serde::Serialize + ?Sized>(
+        &mut self,
+        key: &T,
+    ) -> Result<(), serde_json::Error> {
+        key.serialize(FloatDetector)
+    }
+    fn serialize_value<T: serde::Serialize + ?Sized>(
+        &mut self,
+        value: &T,
+    ) -> Result<(), serde_json::Error> {
+        value.serialize(FloatDetector)
+    }
+    fn end(self) -> Result<(), serde_json::Error> {
+        Ok(())
+    }
+}
+
+impl serde::Serializer for FloatDetector {
+    type Ok = ();
+    type Error = serde_json::Error;
+    type SerializeSeq = Walk;
+    type SerializeTuple = Walk;
+    type SerializeTupleStruct = Walk;
+    type SerializeTupleVariant = Walk;
+    type SerializeMap = Walk;
+    type SerializeStruct = Walk;
+    type SerializeStructVariant = Walk;
+
+    accept!(
+        serialize_bool(bool),
+        serialize_i8(i8),
+        serialize_i16(i16),
+        serialize_i32(i32),
+        serialize_i64(i64),
+        serialize_i128(i128),
+        serialize_u8(u8),
+        serialize_u16(u16),
+        serialize_u32(u32),
+        serialize_u64(u64),
+        serialize_u128(u128),
+        serialize_char(char),
+        serialize_str(&str),
+        serialize_bytes(&[u8]),
+    );
+
+    fn serialize_f32(self, _: f32) -> Result<(), serde_json::Error> {
+        Err(serde::ser::Error::custom(RAW_FLOAT))
+    }
+    fn serialize_f64(self, _: f64) -> Result<(), serde_json::Error> {
+        Err(serde::ser::Error::custom(RAW_FLOAT))
+    }
+    fn serialize_none(self) -> Result<(), serde_json::Error> {
+        Ok(())
+    }
+    fn serialize_some<T: serde::Serialize + ?Sized>(
+        self,
+        value: &T,
+    ) -> Result<(), serde_json::Error> {
+        value.serialize(self)
+    }
+    fn serialize_unit(self) -> Result<(), serde_json::Error> {
+        Ok(())
+    }
+    fn serialize_unit_struct(self, _: &'static str) -> Result<(), serde_json::Error> {
+        Ok(())
+    }
+    fn serialize_unit_variant(
+        self,
+        _: &'static str,
+        _: u32,
+        _: &'static str,
+    ) -> Result<(), serde_json::Error> {
+        Ok(())
+    }
+    fn serialize_newtype_struct<T: serde::Serialize + ?Sized>(
+        self,
+        _: &'static str,
+        value: &T,
+    ) -> Result<(), serde_json::Error> {
+        value.serialize(self)
+    }
+    fn serialize_newtype_variant<T: serde::Serialize + ?Sized>(
+        self,
+        _: &'static str,
+        _: u32,
+        _: &'static str,
+        value: &T,
+    ) -> Result<(), serde_json::Error> {
+        value.serialize(self)
+    }
+    fn serialize_seq(self, _: Option<usize>) -> Result<Walk, serde_json::Error> {
+        Ok(Walk)
+    }
+    fn serialize_tuple(self, _: usize) -> Result<Walk, serde_json::Error> {
+        Ok(Walk)
+    }
+    fn serialize_tuple_struct(self, _: &'static str, _: usize) -> Result<Walk, serde_json::Error> {
+        Ok(Walk)
+    }
+    fn serialize_tuple_variant(
+        self,
+        _: &'static str,
+        _: u32,
+        _: &'static str,
+        _: usize,
+    ) -> Result<Walk, serde_json::Error> {
+        Ok(Walk)
+    }
+    fn serialize_map(self, _: Option<usize>) -> Result<Walk, serde_json::Error> {
+        Ok(Walk)
+    }
+    fn serialize_struct(self, _: &'static str, _: usize) -> Result<Walk, serde_json::Error> {
+        Ok(Walk)
+    }
+    fn serialize_struct_variant(
+        self,
+        _: &'static str,
+        _: u32,
+        _: &'static str,
+        _: usize,
+    ) -> Result<Walk, serde_json::Error> {
+        Ok(Walk)
     }
 }
 
@@ -300,8 +491,6 @@ mod tests {
         assert_eq!(out, r#"["\u003c/script\u003e","ok"]"#);
     }
 
-    const RAW_FLOAT: &str = "a raw float reached json(); format coordinates with num::fmt_coord and pass the string (NFR-17)";
-
     #[test]
     fn a_raw_float_is_refused() {
         for value in [
@@ -322,19 +511,67 @@ mod tests {
         let out = json(&serde_json::json!({"n": 7, "neg": -3, "big": u64::MAX, "x": coord}))
             .expect("integers and strings serialise");
         assert_eq!(
-            serde_json::from_str::<serde_json::Value>(&out).expect("valid JSON"),
-            serde_json::json!({"n": 7, "neg": -3, "big": u64::MAX, "x": coord})
+            out,
+            format!(r#"{{"big":{},"n":7,"neg":-3,"x":"{coord}"}}"#, u64::MAX)
         );
     }
 
-    /// `serde_json::to_value` maps NaN and infinity to `Null`, so they cannot
-    /// be told from a real null after the fact. Pinned so a change in
-    /// `serde_json` is noticed.
+    fn assert_refused<T: serde::Serialize + ?Sized>(value: &T) {
+        let err = json(value).expect_err("a float must be refused");
+        assert!(err.to_string().starts_with(RAW_FLOAT), "{err}");
+    }
+
+    /// `serde_json::to_value` maps NaN and infinity to `Null`, so the check
+    /// runs on the `Serialize` calls themselves.
     #[test]
-    fn non_finite_floats_become_null_and_cannot_be_detected() {
-        for f in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            assert_eq!(json(&f).expect("serialises as null"), "null");
+    fn every_float_is_refused_including_non_finite_and_f32() {
+        assert_refused(&f64::NAN);
+        assert_refused(&f64::INFINITY);
+        assert_refused(&f64::NEG_INFINITY);
+        assert_refused(&f32::NAN);
+        assert_refused(&1.5_f32);
+        assert_refused(&[Some(1.5_f64)]);
+        assert_refused(&std::collections::BTreeMap::from([("k", f64::NAN)]));
+        assert_refused(&(1, "a", f32::INFINITY));
+        assert_refused(&Some(f64::NEG_INFINITY));
+    }
+
+    struct Pair {
+        float: f64,
+    }
+
+    impl serde::Serialize for Pair {
+        fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            use serde::ser::SerializeStruct;
+            let mut st = s.serialize_struct("Pair", 2)?;
+            st.serialize_field("z", "last")?;
+            st.serialize_field("a", &self.float)?;
+            st.end()
         }
+    }
+
+    #[test]
+    fn a_float_in_a_struct_field_is_refused() {
+        assert_refused(&Pair { float: f64::NAN });
+    }
+
+    /// Main's output keeps declaration order; going through `Value` sorted it.
+    #[test]
+    fn struct_fields_keep_declaration_order() {
+        struct Ordered;
+        impl serde::Serialize for Ordered {
+            fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                use serde::ser::SerializeStruct;
+                let mut st = s.serialize_struct("Ordered", 2)?;
+                st.serialize_field("z", "<")?;
+                st.serialize_field("a", &1)?;
+                st.end()
+            }
+        }
+        assert_eq!(
+            json(&Ordered).expect("serialises"),
+            r#"{"z":"\u003c","a":1}"#
+        );
     }
 
     #[test]
