@@ -1,7 +1,7 @@
 # radargen — Design
 
 **Status:** draft, for review
-**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.49
+**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.50
 **Date:** 2026-08-29
 
 > **What this document is for.** The PRD says *what* radargen does and carries
@@ -142,7 +142,7 @@ declarations only and are not listed.
 | `src/layout/geometry.rs` | `Geometry`: angles, bands, marker placement (FR-30–FR-33, FR-43, FR-77), FR-89's computed band capacity, `place`, and FR-88/FR-89's render warnings (`warn_crowding`); `Point` | *exists* |
 | `src/layout/block.rs` | The `Block` trait, `Size`, `Placement`; nothing domain-specific — arrives with the first block (PR 09), using `geometry::Point` | v1.0 |
 | `src/layout/title.rs` | Title block (FR-65) | v1.0 |
-| `src/layout/radar.rs` | Radar block: sectors, bands, markers, labels, FR-70's counter-scale | v1.0 |
+| `src/layout/radar.rs` | Radar block: sectors, bands, markers, labels, FR-70's three scales | v1.0 |
 | `src/layout/legend.rs` | Legend block (FR-35, FR-74, FR-75) | v1.0 |
 | `src/layout/key.rs` | Encoding key (FR-66) | v1.0 |
 | `src/layout/arrange.rs` | Wide and narrow placement (FR-68–FR-71) | v1.0 |
@@ -243,8 +243,9 @@ text-appropriate document and **counter-scales its internal labels** so ring and
 quadrant names survive the reduction; a plain `transform="scale(k)"` on the group
 would shrink the labels along with it, which is the illegibility SC-6 asserts
 against. The radar block therefore has to know the scale it is being drawn at,
-and — because its labels do not shrink — its box is not `size(1.0) * k`. Both
-facts are in the signature rather than in a comment somebody has to find.
+and — because it has three scales, not one — its box is not `size(1.0) * k`:
+geometry scales by `s`, labels by `max(s, 1)`, and marks by `max(s, 7/9)`
+(D-69). Both facts are in the signature rather than in a comment somebody has to find.
 
 An arrangement is then a choice of placements:
 
@@ -297,13 +298,17 @@ pub struct Group { pub offset: Point, pub semantics: Semantics, pub children: Ve
 
 pub enum Node {
     Group(Group),
-    Text { origin: Point, style: TextStyle, ink: Paint, anchor: Anchor,
+    Text { origin: Point, style: TextStyle, ink: TextPaint, anchor: Anchor,
            lines: Vec<String>, leading: f64 },
+    Line { from: Point, to: Point, stroke: Paint, stroke_width: f64 },
     Circle { centre: Point, radius: f64, fill: Paint, stroke: Paint, stroke_width: f64 },
     Path { commands: Vec<PathCommand>, fill: Paint, stroke: Paint, stroke_width: f64 },
 }
 
 pub enum Paint { Role(palette::Role), None }
+
+// A halo is text with no fill, a round join, and hidden from assistive technology.
+pub enum TextPaint { Fill(Paint), Halo { stroke: Paint, width: f64 } }
 ```
 
 Variants and `Semantics` values are added by the PR that first needs them.
