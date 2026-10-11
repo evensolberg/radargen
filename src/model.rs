@@ -5,7 +5,7 @@
 //! (PR 07), so a `Catalogue` keeps quadrants and items in CSV order.
 
 use crate::csv::parse::{Record, Table};
-use crate::diagnostics::{Fatal, RowKind, Warning, Warnings};
+use crate::diagnostics::{DateColumn, Fatal, RowKind, Warning, Warnings};
 use crate::rings::{RingSet, RingSource};
 use crate::{normalise, trim};
 
@@ -86,6 +86,53 @@ pub struct Column {
     pub kind: ColumnKind,
 }
 
+/// FR-20's recognised values. Blank and unrecognised values claim nothing,
+/// so they have no variant: the marker is solid and the legend row shows
+/// no qualifier (FR-74).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Qualifier {
+    Default,
+    Conditional,
+}
+
+impl Qualifier {
+    /// What a legend row shows (FR-74), so an accessible name can contain
+    /// it (WCAG 2.5.3).
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Default => "Default",
+            Self::Conditional => "Conditional",
+        }
+    }
+}
+
+/// FR-26's values. An unrecognised one is `NoChange`, with a warning.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Status {
+    New,
+    MovedIn,
+    MovedOut,
+    NoChange,
+}
+
+impl Status {
+    /// Every value, so the vocabulary is written once, in [`Status::label`].
+    const ALL: [Self; 4] = [Self::New, Self::MovedIn, Self::MovedOut, Self::NoChange];
+
+    /// The canonical spelling: what a legend row and the detail panel show
+    /// (FR-26, FR-74), and what a cell matches under FR-76.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::New => "New",
+            Self::MovedIn => "Moved In",
+            Self::MovedOut => "Moved Out",
+            Self::NoChange => "No Change",
+        }
+    }
+}
+
 /// One quadrant (FR-8, FR-9).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Quadrant {
@@ -112,10 +159,33 @@ pub struct Item {
     /// Index into [`Catalogue::rings`]; `None` when the ring is not
     /// declared (FR-17), which leaves the row unplotted.
     pub ring: Option<usize>,
+    /// FR-20; `None` when blank or unrecognised.
+    pub qualifier: Option<Qualifier>,
+    /// FR-26: `None` when blank or absent.
+    pub status: Option<Status>,
     /// Every named column's cell, aligned with [`Catalogue::columns`] (not
     /// with the header, which may hold unnamed columns), as written after
     /// FR-90's removal (FR-78).
     pub cells: Vec<String>,
+}
+
+impl Item {
+    /// FR-20: drawn hollow.
+    #[must_use]
+    pub fn hollow(&self) -> bool {
+        self.qualifier == Some(Qualifier::Conditional)
+    }
+
+    /// The cell under `column`, an index into [`Catalogue::columns`], or
+    /// `None` when it is empty under FR-76's trim, which FR-29 omits rather
+    /// than showing an empty label.
+    #[must_use]
+    pub fn cell(&self, column: usize) -> Option<&str> {
+        self.cells
+            .get(column)
+            .map(String::as_str)
+            .filter(|c| !trim(c).is_empty())
+    }
 }
 
 /// The rows and what they mean, in CSV order.
@@ -254,6 +324,12 @@ struct Positions {
     quadrant: usize,
     ring: usize,
     description: usize,
+    qualifier: Option<usize>,
+    status: Option<usize>,
+    last_affirmed: Option<usize>,
+    exit_date: Option<usize>,
+    /// FR-93's unnamed columns.
+    unnamed: Vec<usize>,
 }
 
 impl Positions {
@@ -266,6 +342,13 @@ impl Positions {
             quadrant: required(ColumnKind::Quadrant),
             ring: required(ColumnKind::Ring),
             description: required(ColumnKind::Description),
+            qualifier: header.position(ColumnKind::Qualifier),
+            status: header.position(ColumnKind::Status),
+            last_affirmed: header.position(ColumnKind::LastAffirmed),
+            exit_date: header.position(ColumnKind::ExitDate),
+            unnamed: (0..header.slots.len())
+                .filter(|&p| header.slots[p].is_none())
+                .collect(),
         }
     }
 }
@@ -326,6 +409,25 @@ impl Builder {
         if trim(at(self.at.description)).is_empty() {
             warn(self.at.description, RowKind::EmptyDescription);
         }
+        let qualifier = self
+            .at
+            .qualifier
+            .and_then(|p| read_qualifier(at(p), p, &mut warn));
+        let status = self
+            .at
+            .status
+            .and_then(|p| read_status(at(p), p, &mut warn));
+        for (column, position) in [
+            (DateColumn::LastAffirmed, self.at.last_affirmed),
+            (DateColumn::ExitDate, self.at.exit_date),
+        ] {
+            if let Some(p) = position {
+                check_date(at(p), p, column, &mut warn);
+            }
+        }
+        for &p in &self.at.unnamed {
+            check_unnamed(at(p), p, &mut warn);
+        }
         // Built from the header, not zipped with the record, so a short
         // hand-built record still gives one cell per named column.
         let cells = self
@@ -342,6 +444,8 @@ impl Builder {
             name_key,
             quadrant,
             ring,
+            qualifier,
+            status,
             cells,
         });
     }
@@ -401,6 +505,120 @@ impl Builder {
     }
 }
 
+/// FR-20: `conditional` and `default` are recognised; blank claims nothing;
+/// anything else claims nothing too, with a warning (D-6, D-35).
+fn read_qualifier(
+    value: &str,
+    column: usize,
+    warn: &mut impl FnMut(usize, RowKind),
+) -> Option<Qualifier> {
+    match normalise(value).as_str() {
+        "conditional" => Some(Qualifier::Conditional),
+        "default" => Some(Qualifier::Default),
+        "" => None,
+        _ => {
+            warn(
+                column,
+                RowKind::UnrecognisedQualifier {
+                    value: value.to_string(),
+                },
+            );
+            None
+        }
+    }
+}
+
+/// FR-26: blank is absent; an unrecognised value is `NoChange`, with a
+/// warning (D-35).
+fn read_status(
+    value: &str,
+    column: usize,
+    warn: &mut impl FnMut(usize, RowKind),
+) -> Option<Status> {
+    let key = normalise(value);
+    if key.is_empty() {
+        return None;
+    }
+    let known = Status::ALL
+        .into_iter()
+        .find(|s| normalise(s.label()) == key);
+    if known.is_none() {
+        warn(
+            column,
+            RowKind::UnrecognisedStatus {
+                value: value.to_string(),
+            },
+        );
+    }
+    Some(known.unwrap_or(Status::NoChange))
+}
+
+/// FR-24, FR-25: a non-blank value that is not `YYYY-MM-DD` warns. Either
+/// way it renders as written (FR-24), so nothing is returned.
+fn check_date(value: &str, at: usize, column: DateColumn, warn: &mut impl FnMut(usize, RowKind)) {
+    let t = trim(value);
+    if !t.is_empty() && !is_iso_date(t) {
+        warn(
+            at,
+            RowKind::UnparsableDate {
+                column,
+                value: value.to_string(),
+            },
+        );
+    }
+}
+
+/// FR-93: a value under a column with no name is not shown, so say so.
+fn check_unnamed(value: &str, at: usize, warn: &mut impl FnMut(usize, RowKind)) {
+    if !trim(value).is_empty() {
+        warn(
+            at,
+            RowKind::UnnamedValue {
+                column: format!("column {}", at + 1),
+            },
+        );
+    }
+}
+
+/// FR-24's shape: a digit wherever the pattern has a letter.
+const ISO_DATE: &str = "YYYY-MM-DD";
+/// Days per month in a common year.
+const MONTH_DAYS: [usize; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const FEBRUARY: usize = 2;
+/// The Gregorian leap rule: every fourth year, except centuries, except
+/// every fourth century.
+const LEAP_YEAR: usize = 4;
+const CENTURY: usize = 100;
+const LEAP_CENTURY: usize = 400;
+
+/// `YYYY-MM-DD`, a real calendar date. Exactly that shape: no week dates,
+/// no times, no unpadded fields (FR-24). The shape is checked first, so
+/// what is split is ASCII digits and hyphens only.
+fn is_iso_date(s: &str) -> bool {
+    let shaped = s.len() == ISO_DATE.len()
+        && s.bytes().zip(ISO_DATE.bytes()).all(|(c, p)| {
+            if p == b'-' {
+                c == b'-'
+            } else {
+                c.is_ascii_digit()
+            }
+        });
+    if !shaped {
+        return false;
+    }
+    let mut fields = s.split('-').filter_map(|f| f.parse::<usize>().ok());
+    let (Some(year), Some(month), Some(day)) = (fields.next(), fields.next(), fields.next()) else {
+        return false;
+    };
+    let leap = year.is_multiple_of(LEAP_YEAR)
+        && (!year.is_multiple_of(CENTURY) || year.is_multiple_of(LEAP_CENTURY));
+    month
+        .checked_sub(1)
+        .and_then(|m| MONTH_DAYS.get(m))
+        .map(|&d| d + usize::from(leap && month == FEBRUARY))
+        .is_some_and(|d| (1..=d).contains(&day))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -408,6 +626,7 @@ mod tests {
     use crate::rings::parse_rings;
 
     const HEAD: &str = "name,quadrant,ring,description\n";
+    const FULL: &str = "name,quadrant,ring,description,qualifier,last_affirmed,exit_date,status\n";
 
     /// `csv` through `parse` and `build_catalogue` under the default rings,
     /// with the rendered warnings. Parse must succeed with no error.
@@ -441,6 +660,15 @@ mod tests {
         let (result, warnings) = build(csv);
         result.expect("builds");
         warnings
+    }
+
+    /// Each item's `f`, in CSV order, with the rendered warnings.
+    fn per_item<T>(csv: &str, f: impl Fn(&Item) -> T) -> (Vec<T>, Vec<String>) {
+        let (result, warnings) = build(csv);
+        (
+            result.expect("builds").items.iter().map(f).collect(),
+            warnings,
+        )
     }
 
     fn missing(column: &'static str) -> String {
@@ -769,6 +997,228 @@ mod tests {
         assert_eq!(
             warnings(&format!("{HEAD}K,T,Adopt, \nL,T,Adopt,\u{200b}\n")),
             ["warning: 2 rows have an empty description — lines 2, 3; each detail panel omits it"]
+        );
+    }
+
+    // --- Optional columns: FR-20, FR-21, FR-24–FR-26, FR-29, FR-93 ---
+
+    /// FR-20: `conditional` is hollow and `default` is recognised; blank —
+    /// spaces and format characters included (FR-76) — claims nothing,
+    /// silently; anything else claims nothing, with a warning.
+    #[test]
+    fn qualifiers_are_read_under_fr76() {
+        let csv = format!(
+            "{FULL}a,T,Adopt,d, Conditional,,,\nb,T,Adopt,d,default,,,\nc,T,Adopt,d,,,,\nd,T,Adopt,d,  ,,,\ne,T,Adopt,d,\u{200b},,,\nf,T,Adopt,d,\u{200b}conditional,,,\ng,T,Adopt,d,maybe,,,\n"
+        );
+        let (qualifiers, warnings) = per_item(&csv, |i| (i.qualifier, i.hollow()));
+        assert_eq!(
+            qualifiers,
+            [
+                (Some(Qualifier::Conditional), true),
+                (Some(Qualifier::Default), false),
+                (None, false),
+                (None, false),
+                (None, false),
+                (Some(Qualifier::Conditional), true),
+                (None, false),
+            ]
+        );
+        assert_eq!(
+            warnings,
+            ["warning: line 8, qualifier: unrecognised qualifier value 'maybe'; drawn solid"]
+        );
+    }
+
+    /// FR-21: the qualifier ignores the ring, under any ring set.
+    #[test]
+    fn the_qualifier_ignores_the_ring() {
+        let csv = format!("{FULL}a,T,Use,d,conditional,,,\nb,T,Gone,d,conditional,,,\n");
+        let (result, _) = build_with(&csv, Some("Use,Approved"));
+        let hollow: Vec<_> = result
+            .expect("builds")
+            .items
+            .iter()
+            .map(Item::hollow)
+            .collect();
+        assert_eq!(hollow, [true, true]);
+    }
+
+    /// FR-26: four values under FR-76; blank (spaces and format characters
+    /// included) is absent; anything else is `No Change` with a warning.
+    #[test]
+    fn statuses_are_read_under_fr76() {
+        let csv = format!(
+            "{FULL}a,T,Adopt,d,,,,new\nb,T,Adopt,d,,,,Moved In\nc,T,Adopt,d,,,,MOVED OUT\nd,T,Adopt,d,,,,\u{feff}no change\ne,T,Adopt,d,,,,\nf,T,Adopt,d,,,,  \ng,T,Adopt,d,,,,\u{200b}\nh,T,Adopt,d,,,,Gone\n"
+        );
+        let (statuses, warnings) = per_item(&csv, |i| i.status);
+        assert_eq!(
+            statuses,
+            [
+                Some(Status::New),
+                Some(Status::MovedIn),
+                Some(Status::MovedOut),
+                Some(Status::NoChange),
+                None,
+                None,
+                None,
+                Some(Status::NoChange)
+            ]
+        );
+        assert_eq!(
+            warnings,
+            ["warning: line 9, status: unrecognised status value 'Gone'; drawn as No Change"]
+        );
+    }
+
+    /// FR-24, FR-25: an unparsable date warns in either date column, naming
+    /// it; a blank one does not, and nor does one inside spaces or format
+    /// characters. Either way the cell is kept as written.
+    #[test]
+    fn unparsable_dates_warn_and_keep_their_text() {
+        let csv = format!(
+            "{FULL}a,T,Adopt,d,, 2026-06-01 ,June 2027,\nb,T,Adopt,d,,\u{200b}2026-06-01\u{feff},,\nc,T,Adopt,d,,,,\nd,T,Adopt,d,,2026-6-1,,\ne,T,Adopt,d,,\u{200b},,\n"
+        );
+        let (result, warnings) = build(&csv);
+        let items = result.expect("builds").items;
+        assert_eq!(items[0].cell(5), Some(" 2026-06-01 "));
+        assert_eq!(items[1].cell(5), Some("\u{200b}2026-06-01\u{feff}"));
+        assert_eq!(
+            warnings,
+            [
+                "warning: line 2, exit_date: 'June 2027' is not a YYYY-MM-DD date; shown as written",
+                "warning: line 5, last_affirmed: '2026-6-1' is not a YYYY-MM-DD date; shown as written",
+            ]
+        );
+    }
+
+    /// FR-24's shape exactly, and a real calendar date. A multi-byte
+    /// character at a field boundary is rejected, not sliced.
+    #[test]
+    fn iso_dates_are_exactly_the_shape_and_real() {
+        for ok in [
+            "2026-06-01",
+            "2026-04-30",
+            "2024-02-29",
+            "2000-02-29",
+            "1999-12-31",
+        ] {
+            assert!(is_iso_date(ok), "{ok}");
+        }
+        for bad in [
+            "2026-6-1",
+            "2026-04-31",
+            "2026-02-30",
+            "2023-02-29",
+            "1900-02-29",
+            "2026-13-01",
+            "2026-00-10",
+            "2026-01-00",
+            "2026/06/01",
+            "20260601",
+            "2026-06-01T00:00",
+            "２０２６-06-01",
+            "202é06-01",
+            "",
+        ] {
+            assert!(!is_iso_date(bad), "{bad}");
+        }
+    }
+
+    /// FR-29: an absent optional column claims nothing and warns nothing.
+    #[test]
+    fn absent_optional_columns_claim_nothing() {
+        let csv = format!("{HEAD}K,T,Adopt,d\n");
+        let (result, warnings) = build(&csv);
+        let item = &result.expect("builds").items[0];
+        assert_eq!((item.qualifier, item.status), (None, None));
+        assert!(warnings.is_empty(), "{warnings:?}");
+    }
+
+    /// FR-29: an empty cell is omitted, not shown as an empty label.
+    #[test]
+    fn an_empty_cell_is_omitted() {
+        let item = &catalogue(&format!("{FULL}K,T,Adopt,d,,  ,,\n")).items[0];
+        assert_eq!(
+            (item.cell(4), item.cell(5), item.cell(99)),
+            (None, None, None)
+        );
+        assert_eq!(item.cell(0), Some("K"));
+    }
+
+    /// `Item::cell` indexes the named columns, not the header: an unnamed
+    /// column before `exit_date` does not shift it.
+    #[test]
+    fn cells_index_named_columns_not_header_positions() {
+        let cat = catalogue(
+            "name,,quadrant,ring,description,exit_date\nOld,,Tool,Rejected,d,2027-01-01\n",
+        );
+        assert_eq!(cat.items[0].cell(4), Some("2027-01-01"));
+    }
+
+    /// FR-93: Excel's trailing padding passes silently, and so does a cell
+    /// of only a format character (FR-76); a value under no name warns,
+    /// naming the column's position — wherever the column is, and whether
+    /// the header cell is empty or only a format character.
+    #[test]
+    fn unnamed_columns_warn_only_when_they_hold_a_value() {
+        let padding = warnings("name,quadrant,ring,description,,\nK,T,Adopt,d,,\n");
+        assert!(padding.is_empty(), "{padding:?}");
+        let invisible = warnings("name,quadrant,ring,description,\nK,T,Adopt,d,\u{200b}\n");
+        assert!(invisible.is_empty(), "{invisible:?}");
+        assert_eq!(
+            warnings("name,quadrant,ring,description,,\nK,T,Adopt,d,, \nL,T,Adopt,d,,x\n"),
+            [
+                "warning: line 3, column 6: this column has no name in the header row, so its value is not shown; add a header name, or delete the value"
+            ]
+        );
+        assert_eq!(
+            warnings("name,\u{200b},quadrant,ring,description\nK,x,T,Adopt,d\n"),
+            [
+                "warning: line 2, column 2: this column has no name in the header row, so its value is not shown; add a header name, or delete the value"
+            ]
+        );
+    }
+
+    /// `rg-rnc`: FR-90 still warns for a cell in a column FR-93 drops, and
+    /// FR-93 warns as well, since the cell still holds a value.
+    #[test]
+    fn a_dropped_column_still_gets_fr90s_warning() {
+        assert_eq!(
+            warnings("name,quadrant,ring,description,\nK,T,Adopt,d,a\u{1}\n"),
+            [
+                "warning: line 2, column 5: removed U+0001, which the output cannot display",
+                "warning: line 2, column 5: this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
+            ]
+        );
+    }
+
+    /// NFR-11 across the two stages: parse's and the model's warnings on
+    /// one line sort by header column, whichever stage pushed first.
+    #[test]
+    fn warnings_from_both_stages_sort_by_header_column() {
+        let csv = "name,,quadrant,ring,description,\nK,x,T,Adpot,d\u{1},\nL,,T,Adopt,,\n";
+        assert_eq!(
+            warnings(csv),
+            [
+                "warning: line 2, column 2: this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
+                "warning: line 2, ring: 'Adpot' is not declared by the default ring set; the row is in the table view, not on the radar",
+                "warning: line 2, description: removed U+0001, which the output cannot display",
+                "warning: line 3, description: empty; the detail panel omits it",
+            ]
+        );
+    }
+
+    /// Two unnamed columns put the ring at header position 4 but named
+    /// index 2, so a model warning keyed by the named index would sort
+    /// before FR-90's at header position 3 (NFR-11).
+    #[test]
+    fn model_warnings_use_header_indices_not_named_ones() {
+        assert_eq!(
+            warnings("name,quadrant,,,ring,description\nK,T,,\u{1},Adpot,d\n"),
+            [
+                "warning: line 2, column 4: removed U+0001, which the output cannot display",
+                "warning: line 2, ring: 'Adpot' is not declared by the default ring set; the row is in the table view, not on the radar",
+            ]
         );
     }
 }
