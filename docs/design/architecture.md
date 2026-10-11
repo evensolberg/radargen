@@ -434,8 +434,9 @@ errors — returns a single `Fatal` and aborts, because nothing parsed.
 `csv::parse` returns `Result<(Table, Vec<Fatal>), Fatal>`. Tier one is the
 `Err`. Its tier-two FR-4 errors travel beside the table rather than instead of
 it, so they join `build_catalogue`'s in the same run. The two lists are merged,
-then sorted (NFR-11) and grouped (NFR-20, D-62) once, at print time, as
-`Warnings` is below, and printed after the warnings. The sort key needs a
+then sorted (NFR-11) and grouped (NFR-20, D-62) once, at print time, by
+`errors::render_errors(errors, well_formed_rows)`, as `Warnings` is below, and
+printed after the warnings. The sort key needs a
 line-without-column position — FR-4's mismatched row, FR-5 on the header's
 line — ordered before the same line's column positions.
 
