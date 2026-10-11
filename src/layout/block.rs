@@ -94,8 +94,19 @@ const TRANSLATED_TO: Point = Point { x: 5.0, y: 7.0 };
 /// but the offset.
 #[cfg(test)]
 pub(crate) fn assert_translates(block: &impl Block) {
+    assert_translates_at(block, 1.0);
+}
+
+/// Test helper: [`assert_translates`] at `scale`, for a block whose drawing
+/// changes shape with scale (FR-70).
+///
+/// # Panics
+///
+/// As [`assert_translates`].
+#[cfg(test)]
+pub(crate) fn assert_translates_at(block: &impl Block, scale: f64) {
     let rendered = |origin| {
-        let at = Placement { origin, scale: 1.0 };
+        let at = Placement { origin, scale };
         let Node::Group(group) = block.render(at) else {
             panic!("a block renders a group");
         };

@@ -368,6 +368,20 @@ mod tests {
         assert_eq!(p.number_ink(13), p.number_ink(5), "cycles with FR-67");
     }
 
+    /// The radar's ring names are `TextMuted` over a `Surface1` halo, so
+    /// that pair is what WCAG 1.4.3 measures them against, in both themes.
+    #[test]
+    fn ring_names_clear_4_5_on_their_halo() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let p = Palette::built_in(theme);
+            let ratio = contrast(
+                p.value(Role::Neutral(Neutral::TextMuted)),
+                p.value(Role::Neutral(Neutral::Surface1)),
+            );
+            assert!(ratio >= 4.5, "{theme:?}: {ratio:.2}");
+        }
+    }
+
     #[test]
     fn contrast_matches_wcag_reference_values() {
         assert!((contrast("#FFFFFF", "#000000") - 21.0).abs() < 1e-9);
