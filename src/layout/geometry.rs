@@ -5,6 +5,9 @@
 //! 3 o'clock, angles grow clockwise on screen, and y grows downward. The
 //! formulas are the prototype's, ratified rather than re-derived (D-36).
 
+use crate::diagnostics::{RenderKind, Warning, Warnings};
+use crate::model::Catalogue;
+use crate::order::Plotted;
 use crate::style::{BAND_OUTER_RADIUS, MARKER_RADIUS};
 
 /// FR-30: a full turn, which N equal sectors divide.
@@ -24,6 +27,8 @@ const OUTER_TRACK: f64 = 0.68;
 /// so a distance exactly at the threshold could otherwise classify
 /// differently on two machines and change the warning (NFR-4).
 const CAPACITY_TOLERANCE: f64 = 1e-9;
+/// FR-88, A-5: above this many quadrants, sectors narrow and labels crowd.
+const COMFORTABLE_QUADRANTS: usize = 6;
 /// FR-89: the least distance between two clear marker centres.
 const CLEARANCE: f64 = 2.0 * MARKER_RADIUS - CAPACITY_TOLERANCE;
 
@@ -50,6 +55,16 @@ pub struct Geometry {
 }
 
 impl Geometry {
+    /// The counts for `catalogue`: FR-8's distinct quadrants and every
+    /// declared ring, empty ones included (FR-19).
+    #[must_use]
+    pub const fn of(catalogue: &Catalogue) -> Self {
+        Self {
+            quadrants: catalogue.quadrants.len(),
+            rings: catalogue.rings.len(),
+        }
+    }
+
     /// FR-30: the degrees each quadrant's sector spans.
     #[must_use]
     pub fn sector(self) -> f64 {
@@ -158,6 +173,45 @@ pub fn polar(angle: f64, radius: f64) -> Point {
     Point {
         x: radius * cos,
         y: radius * sin,
+    }
+}
+
+/// FR-33: every plotted item's marker centre, aligned with
+/// [`Plotted::items`]. Item `j` of a band is its `j`th in FR-34's order.
+#[must_use]
+pub fn place(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Point> {
+    let geometry = Geometry::of(catalogue);
+    plotted
+        .runs(catalogue)
+        .iter()
+        .flat_map(|run| {
+            let n = run.items.len();
+            let position = plotted.rank[run.quadrant];
+            (0..n).map(move |j| geometry.marker(position, run.ring, j, n))
+        })
+        .collect()
+}
+
+/// FR-88 and FR-89: one warning when the quadrant count passes A-5's six,
+/// then one per overfull band in FR-34's order. Both concern the render
+/// as a whole, so NFR-11 prints them before every row warning.
+pub fn warn_crowding(catalogue: &Catalogue, plotted: &Plotted, warnings: &mut Warnings) {
+    let geometry = Geometry::of(catalogue);
+    if geometry.quadrants > COMFORTABLE_QUADRANTS {
+        warnings.push(Warning::Render(RenderKind::QuadrantCount {
+            count: geometry.quadrants,
+        }));
+    }
+    for run in plotted.runs(catalogue) {
+        let count = run.items.len();
+        if !geometry.fits(run.ring, count) {
+            warnings.push(Warning::Render(RenderKind::OverfullBand {
+                quadrant: catalogue.quadrants[run.quadrant].label.clone(),
+                ring: catalogue.rings[run.ring].clone(),
+                count,
+                fits: geometry.capacity(run.ring, count),
+            }));
+        }
     }
 }
 
@@ -367,6 +421,10 @@ mod tests {
                 let g = geometry(quadrants, rings);
                 for ring in 0..rings {
                     let cap = g.capacity(ring, 200);
+                    assert!(
+                        cap < 200,
+                        "N={quadrants} rings={rings} ring={ring}: capacity reached the search limit"
+                    );
                     for n in cap + 1..=cap + 20 {
                         assert!(
                             !g.fits(ring, n),
@@ -386,5 +444,19 @@ mod tests {
         assert!(far_enough(diameter - 1e-12));
         assert!(far_enough(diameter));
         assert!(!far_enough(diameter - 1e-3));
+    }
+
+    /// The quadrant and ring counts come from the catalogue: FR-8's
+    /// distinct quadrants and the declared rings, including empty ones
+    /// (FR-19).
+    #[test]
+    fn geometry_counts_quadrants_and_declared_rings() {
+        let cat = crate::model::Catalogue {
+            columns: vec![],
+            quadrants: vec![],
+            rings: vec!["A".into(), "B".into(), "C".into()],
+            items: vec![],
+        };
+        assert_eq!(Geometry::of(&cat), geometry(0, 3));
     }
 }
