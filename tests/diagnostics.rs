@@ -775,6 +775,14 @@ fn fatal_messages() {
             }),
             r"error: --rings: entry 2 'a\nerror: forged' repeats entry 1",
         ),
+        (
+            Fatal::FieldCount {
+                line: 4,
+                found: 2,
+                expected: 1,
+            },
+            "error: line 4: the row has 2 values but the header has 1 column; a comma inside a value needs the value in double quotes",
+        ),
     ];
     for (fatal, expected) in cases {
         assert_eq!(fatal.render(), expected);
@@ -858,7 +866,7 @@ fn csv_header_and_row_messages() {
         ),
         (
             count(1),
-            "error: line 4: the row has 1 values but the header has 2 columns; a value is missing, or an unquoted line break split the row",
+            "error: line 4: the row has 1 value but the header has 2 columns; a value is missing, or an unquoted line break split the row",
         ),
     ];
     for (fatal, expected) in cases {
@@ -926,6 +934,8 @@ fn column_labels_count_like_a_spreadsheet() {
         (52, "column 53 (BA)"),
         (701, "column 702 (ZZ)"),
         (702, "column 703 (AAA)"),
+        (18277, "column 18278 (ZZZ)"),
+        (18278, "column 18279 (AAAA)"),
     ] {
         assert_eq!(column_label(index), expected);
     }
@@ -940,7 +950,9 @@ fn interior_format_characters_are_escaped_except_joiners_and_tags() {
     assert!(shown.contains("'Ad\\u{200b}opt'"), "{shown}");
     let family = "\u{1F468}\u{200D}\u{1F469}";
     let england = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}";
-    for kept in [family, england, "a\u{200C}b"] {
+    let word_joiner = ring(3, "Ad\u{2060}opt").to_string();
+    assert!(word_joiner.contains("'Ad\\u{2060}opt'"), "{word_joiner}");
+    for kept in [family, england, "a\u{200C}b", "a\u{E0001}b"] {
         let shown = ring(3, kept).to_string();
         assert!(shown.contains(&format!("'{kept}'")), "{shown}");
     }

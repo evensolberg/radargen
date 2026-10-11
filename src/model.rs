@@ -404,8 +404,11 @@ struct Builder {
     /// The declared rings under FR-76, for FR-16's match.
     ring_keys: Vec<String>,
     source: RingSource,
+    /// The declared rings, moved into the [`Catalogue`] at the end.
     rings: Vec<String>,
-    /// The declared rings, shared by every FR-17 warning of the run.
+    /// The same rings, shared by every FR-17 warning of the run. Kept apart
+    /// from `rings` because the catalogue owns a `Vec` while each warning
+    /// holds a cheap `Arc` clone.
     declared: Arc<[String]>,
     quadrants: Vec<Quadrant>,
     /// Each name's key, the line it first appears on and its spelling there,
@@ -421,8 +424,8 @@ impl Builder {
             header,
             ring_keys: rings.rings.iter().map(|r| normalise(r)).collect(),
             source: rings.source,
+            declared: Arc::from(rings.rings.as_slice()),
             rings: rings.rings.clone(),
-            declared: rings.rings.as_slice().into(),
             quadrants: Vec::new(),
             names: Vec::new(),
             items: Vec::new(),
@@ -1294,7 +1297,7 @@ mod tests {
         assert_eq!(
             warnings("name,quadrant,ring,description,\nK,T,Adopt,d,a\u{1}\n"),
             [
-                "warning: line 2, column 5: removed U+0001, which the output cannot display",
+                "warning: line 2, column 5 (E): removed U+0001, which the output cannot display",
                 "warning: line 2, column 5 (E): this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
             ]
         );
@@ -1324,7 +1327,7 @@ mod tests {
         assert_eq!(
             warnings("name,quadrant,,,ring,description\nK,T,,\u{1},Adpot,d\n"),
             [
-                "warning: line 2, column 4: removed U+0001, which the output cannot display",
+                "warning: line 2, column 4 (D): removed U+0001, which the output cannot display",
                 "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, declare it in --rings",
             ]
         );

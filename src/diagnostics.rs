@@ -4,11 +4,9 @@
 use std::fmt;
 use std::sync::Arc;
 
-use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
-
 use crate::columns::ColumnKind;
 use crate::rings::{RingSource, RingsError};
-use crate::{normalise, trim};
+use crate::{is_untagged_format, normalise, trim};
 
 /// Where a warning points: its sort key.
 ///
@@ -104,7 +102,8 @@ pub enum RowKind {
     /// FR-90: one per value, however many characters it lost. `column` is the
     /// canonical header name, since any column can carry one.
     Undisplayable {
-        /// The canonical header name of the affected column.
+        /// The canonical header name of the affected column; an unnamed
+        /// column is named by [`column_label`].
         column: String,
         /// The first character the value lost.
         first: char,
@@ -318,22 +317,25 @@ pub fn column_label(index: usize) -> String {
 }
 
 /// Spreadsheet letters for a 1-based column number: A..Z, AA..AZ, BA..
+// qual:allow(complexity, error_handling) reason: "a remainder of 26 always fits in u8"
 fn column_letters(number: usize) -> String {
-    const LETTERS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    let mut letters = String::new();
+    const ALPHABET: usize = 26;
+    let mut letters = Vec::new();
     let mut rest = number;
     while rest > 0 {
         rest -= 1;
-        letters.insert(
-            0,
-            LETTERS
-                .chars()
-                .nth(rest % LETTERS.len())
-                .unwrap_or_default(),
-        );
-        rest /= LETTERS.len();
+        let offset = u8::try_from(rest % ALPHABET).expect("a remainder of 26 is below 26");
+        letters.push(char::from(b'A' + offset));
+        rest /= ALPHABET;
     }
-    letters
+    letters.into_iter().rev().collect()
+}
+
+/// `one` when `n` is 1, otherwise `many`: the count-agreeing noun in a message.
+#[must_use]
+// qual:api — called from the Fatal::FieldCount #[error] attribute, which the analyser cannot see
+pub const fn plural<'a>(n: usize, one: &'a str, many: &'a str) -> &'a str {
+    if n == 1 { one } else { many }
 }
 
 fn code_point(c: char) -> String {
@@ -369,11 +371,7 @@ fn escape_controls(s: &str) -> String {
 fn needs_escape(c: char) -> bool {
     c.is_control()
         || matches!(c, '\u{2028}' | '\u{2029}')
-        || (c.general_category() == GeneralCategory::Format
-            && !matches!(
-                c,
-                '\u{200c}' | '\u{200d}' | '\u{e0001}' | '\u{e0020}'..='\u{e007f}'
-            ))
+        || (is_untagged_format(c) && !matches!(c, '\u{200c}' | '\u{200d}'))
 }
 
 /// Warnings collected over a run (NFR-16 tier three).
@@ -516,6 +514,7 @@ fn grouped(class: Class, members: &[Member]) -> String {
 
 /// FR-17's grouped line: it lists the declared rings and says what to edit,
 /// which depends on where the ring set came from (D-61).
+// qual:allow(complexity, error_handling) reason: "a Ring class is built only from UndeclaredRing rows, so a member is always found"
 fn grouped_rings(source: RingSource, members: &[Member]) -> String {
     let n = members.len();
     let list = members
@@ -524,7 +523,7 @@ fn grouped_rings(source: RingSource, members: &[Member]) -> String {
             RowKind::UndeclaredRing { rings, .. } => Some(rings.join(", ")),
             _ => None,
         })
-        .unwrap_or_default();
+        .expect("a Ring class holds only UndeclaredRing members");
     let tallies = tallied(members, normalise);
     match source {
         RingSource::Default => format!(
@@ -733,7 +732,9 @@ pub enum Fatal {
     /// FR-4: a record whose field count is not the header's, with the usual
     /// cause for each direction (FR-61's precedent: say what to do).
     #[error(
-        "line {line}: the row has {found} values but the header has {expected} columns; {}",
+        "line {line}: the row has {found} {} but the header has {expected} {}; {}",
+        plural(*found, "value", "values"),
+        plural(*expected, "column", "columns"),
         if found > expected {
             "a comma inside a value needs the value in double quotes"
         } else {

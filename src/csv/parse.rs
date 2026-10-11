@@ -7,7 +7,7 @@
 use std::iter::{FusedIterator, Peekable};
 use std::str::Chars;
 
-use crate::diagnostics::{Fatal, RowKind, Separator, Warning, Warnings};
+use crate::diagnostics::{Fatal, RowKind, Separator, Warning, Warnings, column_label};
 use crate::escape::displayable;
 use crate::{normalise, trim};
 
@@ -337,7 +337,7 @@ fn warn(w: &mut Warnings, line: usize, removed: &[Removed], header: &[String]) {
             .map(String::as_str)
             .map(normalise)
             .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| format!("column {}", column + 1));
+            .unwrap_or_else(|| column_label(column));
         w.push(Warning::Row {
             line,
             column,
@@ -847,7 +847,7 @@ mod tests {
         assert_eq!(
             warnings,
             [
-                "warning: 2 values had characters the output cannot display — column 1 on line 1 (U+0001), column 2 on line 1 (U+0001); each was removed"
+                "warning: 2 values had characters the output cannot display — column 1 (A) on line 1 (U+0001), column 2 (B) on line 1 (U+0001); each was removed"
             ]
         );
     }
@@ -1112,7 +1112,7 @@ mod tests {
         let (_, _, warnings) = parsed("name,\nx,\u{1}\n");
         assert_eq!(
             warnings,
-            ["warning: line 2, column 2: removed U+0001, which the output cannot display"]
+            ["warning: line 2, column 2 (B): removed U+0001, which the output cannot display"]
         );
     }
 
@@ -1125,7 +1125,7 @@ mod tests {
         assert_eq!(
             warnings,
             [
-                "warning: 3 values had characters the output cannot display — a on line 2 (U+0001), b on line 3 (U+0002), column 3 on line 3 (U+0003); each was removed"
+                "warning: 3 values had characters the output cannot display — a on line 2 (U+0001), b on line 3 (U+0002), column 3 (C) on line 3 (U+0003); each was removed"
             ]
         );
     }
