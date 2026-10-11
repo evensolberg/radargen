@@ -695,11 +695,11 @@ pub enum Fatal {
         "the CSV has no header row (it is empty or blank); the header must name at least name, quadrant, ring and description"
     )]
     NoHeader,
-    /// FR-1: a one-column header holding `;` or a tab is a file with another
-    /// separator — Excel writes `;` where a comma is the decimal mark.
+    /// FR-1: a header with `;` or a tab between its names, or after a closing
+    /// quote, is a file with another separator — Excel writes `;` where a comma is the decimal mark.
     /// Without this, every row would mis-report its field count.
     #[error(
-        "line {line}: the header is one column holding {separator}; radargen reads comma-separated files only, so export the file with commas as the separator"
+        "line {line}: the header has {separator} between its names, not commas; radargen reads comma-separated files only, so export the file with commas as the separator"
     )]
     NotCommaSeparated {
         /// The header's line.

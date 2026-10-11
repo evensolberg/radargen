@@ -141,13 +141,15 @@ impl<'a> Scanner<'a> {
     }
 }
 
-/// Decisions: a record whose every field is empty or only spaces and tabs
-/// looks blank to the author — an empty line, or Excel's `,,,` for a
-/// cleared row. Read before FR-90's removal, so U+0001 is not blank.
+/// FR-3: a record whose every field FR-76 trims to nothing looks blank to
+/// the author — an empty line, Excel's `,,,` for a cleared row, or a line
+/// holding only a byte-order mark. Read before FR-90's removal, so a field
+/// holding a character FR-90 removes (U+0001, U+000B, U+0085) is not blank:
+/// it becomes a row and FR-90 warns of it (D-59).
 fn is_blank(fields: &[String]) -> bool {
     fields
         .iter()
-        .all(|f| f.chars().all(|c| c == ' ' || c == '\t'))
+        .all(|f| trim(f).is_empty() && f.chars().all(displayable))
 }
 
 /// Each record with the physical line it begins on. A blank record is
@@ -164,7 +166,9 @@ impl Iterator for Scanner<'_> {
                 let (field, end) = match self.field(fields.len()) {
                     Ok(field) => field,
                     Err(fault) => {
-                        // A text-after-quote fault leaves its text unread.
+                        // A text-after-quote fault leaves its text unread;
+                        // spaces between the quote and a separator are not text.
+                        while self.chars.next_if_eq(&' ').is_some() {}
                         let after = self.chars.peek().copied().and_then(Separator::of);
                         // Nothing after malformed quoting parses, so yield
                         // nothing more: a record read past it is a guess.
@@ -240,14 +244,14 @@ pub fn parse(text: &str, w: &mut Warnings) -> Result<(Table, Vec<Fatal>), Fatal>
 }
 
 /// The header record, from the scanner's first result. A quoting error in
-/// its first cell that a `;` or tab caused (`"name";"ring"`) is the
+/// any of its cells that a `;` or tab caused (`"name" ;"ring"`) is the
 /// separator's error instead, at the header's line.
 fn header(first: Option<Result<Record, Malformed>>) -> Result<Record, Fatal> {
     match first {
         None => Err(Fatal::NoHeader),
         Some(Ok(head)) => Ok(head),
         Some(Err(Malformed {
-            fault: Fatal::TextAfterQuote { column: 0, .. },
+            fault: Fatal::TextAfterQuote { .. },
             record_line,
             after: Some(separator),
         })) => Err(Fatal::NotCommaSeparated {
@@ -799,9 +803,24 @@ mod tests {
         ] {
             assert_eq!(errors(text), [not_comma(line, separator)], "{text:?}");
         }
-        // A header that already split on a comma is not one column, so a
-        // `;` after a later quoted cell is a quoting error.
-        assert_eq!(errors("name,\"Notes\";x\nKafka,y\n"), [after_quote(1, 1)]);
+        // FR-1: a `;` or tab after any header cell's closing quote, spaces
+        // aside, is the separator, not a quoting error.
+        for text in [
+            "name;quadrant;ring;description\n",
+            "\"name\" ;quadrant;ring;description\n",
+            "name,\"quadrant\";ring,description\n",
+            "name,\"quadrant\"  \tring\n",
+            "\"name\";,ring\n",
+        ] {
+            let separator = if text.contains('\t') {
+                Separator::Tab
+            } else {
+                Separator::Semicolon
+            };
+            assert_eq!(errors(text), [not_comma(1, separator)], "{text:?}");
+        }
+        // Only the header gets that mapping: a data row stays a quoting error.
+        assert_eq!(errors("name,ring\nx,\"y\";z\n"), [after_quote(2, 1)]);
         // A quoting error in a comma-separated header is still one.
         assert_eq!(errors("\"name\"x,ring\n"), [after_quote(1, 0)]);
         assert!(
@@ -862,13 +881,29 @@ mod tests {
         );
     }
 
-    /// Blank means spaces and tabs only (Decisions): a form feed or a
-    /// no-break space is content the author may not see, so it is a row.
+    /// Blank means FR-76 trims it and FR-90 keeps it (FR-3): a form feed, a
+    /// vertical tab or U+0085 is content FR-90 removes, and D-59 warns of
+    /// it, so it is a row.
     #[test]
     fn other_whitespace_is_not_blank() {
-        for text in ["a,b\n\u{c}\n", "a,b\n\u{a0}\n"] {
+        for text in ["a,b\n\u{c}\n", "a,b\n\u{b}\n", "a,b\n\u{85}\n"] {
             assert_eq!(errors(text), [count(2, 1)], "{text:?}");
         }
+    }
+
+    /// FR-3: a line of only format characters looks blank to the author,
+    /// BOM lines above the header included, and still counts as a line.
+    #[test]
+    fn format_character_lines_are_blank() {
+        assert_eq!(
+            lines("\u{feff}\na,b\n\u{200b},\u{feff}\n1,2\n \u{feff}\t\n"),
+            [rec(2, &["a", "b"]), rec(4, &["1", "2"])]
+        );
+        assert_eq!(errors("\u{feff}\na,b\n1,2\n"), Vec::<String>::new());
+        assert_eq!(errors("a,b\n\u{b}\n"), [count(2, 1)]);
+        assert_eq!(lines(",,,\n  \na\n"), [rec(3, &["a"])]);
+        // A no-break space is whitespace FR-76 trims and FR-90 keeps: blank.
+        assert_eq!(lines("\u{a0}\na\n"), [rec(2, &["a"])]);
     }
 
     /// After a quoting error nothing parses, so the scanner yields nothing

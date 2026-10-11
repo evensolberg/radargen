@@ -817,11 +817,11 @@ fn csv_file_messages() {
         ),
         (
             separated(1, Separator::Semicolon),
-            "error: line 1: the header is one column holding semicolons; radargen reads comma-separated files only, so export the file with commas as the separator",
+            "error: line 1: the header has semicolons between its names, not commas; radargen reads comma-separated files only, so export the file with commas as the separator",
         ),
         (
             separated(2, Separator::Tab),
-            "error: line 2: the header is one column holding tabs; radargen reads comma-separated files only, so export the file with commas as the separator",
+            "error: line 2: the header has tabs between its names, not commas; radargen reads comma-separated files only, so export the file with commas as the separator",
         ),
         (
             Fatal::UnterminatedQuote { line: 3, column: 2 },

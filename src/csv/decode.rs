@@ -19,14 +19,21 @@ pub(crate) struct NotUtf8 {
 ///
 /// # Errors
 ///
-/// [`NotUtf8`] naming the line of the first byte that is not UTF-8.
+/// [`NotUtf8`] naming the line of the first byte that is not UTF-8, or of
+/// the first NUL (FR-61).
 pub(crate) fn decode(bytes: &[u8]) -> Result<String, NotUtf8> {
     let body = bytes.strip_prefix(BOM).unwrap_or(bytes);
-    std::str::from_utf8(body)
-        .map(str::to_string)
-        .map_err(|e| NotUtf8 {
-            line: line_at(body, e.valid_up_to()),
-        })
+    let text = std::str::from_utf8(body).map_err(|e| NotUtf8 {
+        line: line_at(body, e.valid_up_to()),
+    })?;
+    // UTF-16 without a BOM is valid UTF-8 full of NULs, and no text file
+    // holds one, so a NUL gets the same error and advice (re-save as UTF-8).
+    if let Some(nul) = text.find('\0') {
+        return Err(NotUtf8 {
+            line: line_at(body, nul),
+        });
+    }
+    Ok(text.to_string())
 }
 
 /// The 1-based physical line holding byte `offset`, counting LF, CRLF and a
@@ -102,6 +109,15 @@ mod tests {
         assert_eq!(decode(b"name\n\xC3"), Err(NotUtf8 { line: 2 }));
         // FR-61 names the byte's line, even inside a multi-line quoted field.
         assert_eq!(decode(b"a\n\"x\ny\xE9\"\n"), Err(NotUtf8 { line: 3 }));
+    }
+
+    /// FR-61: UTF-16 without a BOM is valid UTF-8 full of NULs, and no text
+    /// file holds one; the same error and advice apply.
+    #[test]
+    fn a_nul_byte_names_its_line() {
+        assert_eq!(decode(b"n\0a\0m\0e\0\n\0"), Err(NotUtf8 { line: 1 }));
+        assert_eq!(decode(b"name\nKa\0fka\n"), Err(NotUtf8 { line: 2 }));
+        assert_eq!(decode(b"name\nKafka\n").as_deref(), Ok("name\nKafka\n"));
     }
 
     /// NFR-10: CRLF is one break, and a lone CR is one too, as editors count.
