@@ -12,7 +12,7 @@ created_date: 2026-10-10
 synopsis: "Records to meaning: FR-76's trim widened to invisible format characters, the ring set's source carried into FR-17's warning, and model.rs turning a parsed Table into a Catalogue — required columns, empty values, quadrants, ring matching, optional columns, unnamed columns and accessible names."
 status: draft
 type: Plan
-revision: "1.4"
+revision: "1.5"
 review_date: 2026-10-10
 reviewed_by:
   - architect-reviewer
@@ -46,7 +46,7 @@ Ordering (FR-10, FR-34) and numbering (FR-18) are PR 07's. A `Catalogue` keeps q
 ## Global Constraints
 
 - **One trim, one fold** (FR-76, D-61). Every comparison goes through `normalise`, and every display trim goes through `trim`. Never call `str::trim` on CSV or `--rings` text, and never restate the trimmable set.
-- **Displayed text is never edited** beyond FR-90's removal and the two label trims, FR-9's quadrant label and FR-15's ring name. An `Item` keeps `name` and `cells` exactly as `parse` left them, and a `Column` keeps its heading as written. The accessible name trims the item's name, since it is spoken, not displayed.
+- **Displayed text is never edited** beyond FR-90's removal and the two label trims, FR-9's quadrant label and FR-15's ring name. An `Item` keeps `name` and `cells` exactly as `parse` left them, and a `Column` keeps its heading as written. The accessible name trims the item's name and an unplotted ring's cell, since it is spoken, not displayed.
 - **NFR-16 tier two:** `build_catalogue` returns **every** FR-5 and FR-6 error together, in line order and then **header** column order. It checks every row before building any, so an `Err` comes with no warning from this stage.
 - **Two index spaces, never mixed.** Warning positions are **header** indices (`Position::Cell { column }`, 0-based), the space `parse` uses for FR-90, which keeps NFR-11's within-line order total across both stages. `Item::cells`, `Item::cell` and `Catalogue::column` index the **named** columns (`Catalogue::columns`), which skip FR-93's unnamed ones.
 - **No `HashMap` iteration** in output-affecting code (architecture §6). Look-ups here are `Vec` scans in first-occurrence order; FR-28's is O(rows²), which is fine at A-2's tens of rows and took 1.4 s for 20,000 rows in a debug build.
@@ -86,7 +86,7 @@ Ordering (FR-10, FR-34) and numbering (FR-18) are PR 07's. A `Catalogue` keeps q
 | `rg-efx` (PR 07) | Comparators | Not here. It reads `Item::name_key`, `Quadrant::key` and `Item::line` (Finishing step 4) |
 | `rg-akv`, `rg-s71` | FR-90 on flag values; one provenance rule | Out of scope: both concern flags, not the CSV model |
 | `rg-6ny`, `rg-owp`, `rg-bvl`, `rg-fju`, `rg-85c`, `rg-40l`, `rg-q2b` *(new, from this plan's review)* | Table rows' role; one phrase for unplotted rows; the default-ring message; column letters; 'field' in old messages; FR-9 vs FR-76 'raw'; visible Cf marks | Each needs a PRD change or belongs to a later PR, so each is a crumb |
-| `rg-fp5`, `rg-3z2`, `rg-lag`, `rg-o6r`, `rg-ei7` *(new, from rev 1.3's review)*; notes on `rg-pcd`, `rg-40l` | Escape interior zero-width characters in quoted values; the duplicate-name message; `clippy` `disallowed-methods` for `str::trim`; `Fatal`'s column typed as `ColumnKind`; a BOM-only line above the header; FR-6 errors grouped like FR-4's; one all-caps cell relabelling a quadrant | Each needs a PRD change or touches shipped messages and types beyond this PR, so each is a crumb |
+| `rg-fp5`, `rg-3z2`, `rg-lag`, `rg-o6r`, `rg-ei7` *(new, from rev 1.3's review)*; notes on `rg-pcd`, `rg-40l` | Escape interior zero-width characters in quoted values; the duplicate-name message; `clippy` `disallowed-methods` for `str::trim`; `Fatal`'s column typed as `ColumnKind`; a BOM-only line above the header; FR-6 errors grouped like FR-4's; one all-caps cell relabelling a quadrant; `rg-pcd`'s FR-6 grouping is since decided by D-62 (v0.44) | Each needs a PRD change or touches shipped messages and types beyond this PR, so each is a crumb |
 
 ## Decisions taken in this plan (flag on review)
 
@@ -100,7 +100,7 @@ Ordering (FR-10, FR-34) and numbering (FR-18) are PR 07's. A `Catalogue` keeps q
 - **A short record reads as empty, not as a panic.** `parse` keeps only records as long as the header, but `Table` and `Record` are public, so `field(record, p)` uses `.get` and FR-6 reports a missing cell instead of indexing past the end.
 - **No error grouping here (D-62).** PRD v0.44 groups repeated row-level errors as NFR-20 groups warnings, lists every line, and orders both stages' errors by NFR-11. That is a print-time pass over the merged list, so it belongs with the printing: `rg-pcd` implements it, and `rg-f27` (PR 14) merges and prints. `build_catalogue` returns one `Fatal` per missing column and per empty cell, in line then header column order. Each one's message is D-62's form for a class seen once, and the grouping pass folds several FR-5 errors into the single error D-62 asks for.
 - **FR-6 still runs when FR-5 fails**, for the required columns that are present. NFR-16 asks for every row-level error in one run, and a missing `description` should not hide an empty `name`.
-- **No warning from the model when there are errors.** It checks every row before building any, so warnings about rendering are never produced for a run that cannot render. This is a property of the stage, not a run-wide rule: `parse`'s FR-90 warnings are already pushed, and when `parse` returns FR-4 errors but the model succeeds, the model warns for the valid rows. What a failed run prints is `main.rs`'s rule (PR 14, which wires `main.rs`), as RG-005 recorded. `errors_push_no_model_warnings` and `parse_errors_do_not_suppress_model_warnings` pin the two halves. `main.rs` must merge the two stages' errors by line, header errors first, so an author can fix the file top to bottom (noted on `rg-f27`).
+- **No warning from the model when there are errors.** It checks every row before building any, so warnings about rendering are never produced for a run that cannot render. This is a property of the stage, not a run-wide rule: `parse`'s FR-90 warnings are already pushed, and when `parse` returns FR-4 errors but the model succeeds, the model warns for the valid rows. What a failed run prints is NFR-11's rule (PRD v0.44: the warnings, then the errors as one block), which `main.rs` applies in PR 14. `errors_push_no_model_warnings` and `parse_errors_do_not_suppress_model_warnings` pin the two halves. `main.rs` must merge the two stages' errors by line, header errors first, so an author can fix the file top to bottom (noted on `rg-f27`).
 - **FR-9's label is the minimum of the trimmed variants by `str::cmp`**, computed as each row arrives, so it does not depend on row order (D-29). That is FR-76's code-point order (D-53), which is a plain `<` on `&str`; the site cites D-53, and architecture §8 lists it beside `order::compare_names` (it cannot call it: `order.rs` depends on `model.rs`). FR-76 elsewhere says the FR-9 tiebreak compares 'raw' values; the two readings differ for ` tool` against `Tool`. This plan follows FR-9's own text, and `rg-40l` asks the PRD to settle it.
 - **FR-28 warns at every later occurrence, naming the first.** The grouped line then reads `kafka (line 2; repeated on 2 rows, first line 3)` (PR 02's format).
 - **FR-24's check is hand-written, about 25 lines.** `chrono`, `jiff` and `time` were considered. FR-24 wants exactly `YYYY-MM-DD`: zero-padded, no week dates or times, and a real Gregorian date. A library would need a format description plus a separate padding check, or would accept forms FR-24 rejects. The check matches a `YYYY-MM-DD` template byte by byte and returns early if it fails, so what is split is only ASCII digits and hyphens and nothing is sliced. Rustqual's magic-number rule is why the month lengths and leap rule are named constants.
@@ -119,7 +119,7 @@ Ordering (FR-10, FR-34) and numbering (FR-18) are PR 07's. A `Catalogue` keeps q
 | `RowKind::UndeclaredRing` (FR-17), one | `line {line}, ring: '{value}' is not declared by {--rings \| the default ring set}; the row is in the table view, not on the radar` |
 | `RowKind::UndeclaredRing`, grouped | `{n} rows use a ring not declared by {source} — {values}; all appear in the table view` |
 
-The FR-17 wording is the PRD's (D-61). A clearer default-set message that lists the rings is `rg-bvl`; column letters (`column 6 (F)`) are `rg-fju`. FR-5's message now matches `NoHeader`'s wording for the same rule, and FR-6's names only the column it reports, since a 200-row file can print it many times (`rg-pcd`).
+The FR-17 wording is the PRD's (D-61). A clearer default-set message that lists the rings is `rg-bvl`; column letters (`column 6 (F)`) are `rg-fju`. FR-5's message now matches `NoHeader`'s wording for the same rule, and FR-6's names only the column it reports, matching D-62's grouped form for that column ('every row needs a ring').
 
 - **One PR, not two.** Tasks 1–2 change shipped code (`parse`, `diagnostics`, `rings`) and could ship alone. They stay here because they are D-61's other two halves, which `rg-rnc` carries: `model.rs`'s FR-5 match depends on Task 1's trim (`rg-lme`), and FR-17's warning on Task 2's source. Each task is its own commit, so the review can read them apart.
 - **No version bump.** The binary still exits 1 without reading a file.
@@ -968,7 +968,7 @@ pub struct Catalogue {
 /// then column order. Rows are checked before any is built, so an `Err`
 /// comes with no warning from this stage. `csv::parse`'s FR-4 errors and
 /// FR-90 warnings are separate: `main.rs` merges both stages' errors in
-/// line order and decides what a failed run prints (PR 14).
+/// NFR-11's order and prints them after the warnings (PR 14).
 ///
 /// # Errors
 ///
@@ -1810,8 +1810,9 @@ Append to the test module:
     }
 
     /// FR-93: Excel's trailing padding passes silently, and so does a cell
-    /// of only a format character (FR-76); a value under no name warns, naming the column's position — wherever the column is,
-    /// and whether the header cell is empty or only a format character.
+    /// of only a format character (FR-76); a value under no name warns,
+    /// naming the column's position — wherever the column is, and whether
+    /// the header cell is empty or only a format character.
     #[test]
     fn unnamed_columns_warn_only_when_they_hold_a_value() {
         let padding = warnings("name,quadrant,ring,description,,\nK,T,Adopt,d,,\n");
@@ -2467,7 +2468,7 @@ fn a_repeated_required_header_reads_the_first() {
 }
 
 /// A row FR-4 rejected does not stop the model warning for the rest; what
-/// a failed run prints is `main.rs`'s rule (PR 14).
+/// a failed run prints is NFR-11's rule, applied by `main.rs` (PR 14).
 #[test]
 fn parse_errors_do_not_suppress_model_warnings() {
     let mut w = Warnings::default();
@@ -2567,7 +2568,7 @@ In `docs/design/architecture.md`:
 - **§3, the `src/lib.rs` row:** after "`normalise()` — FR-76's single rule, stated once", add "; `trim()` — FR-76's trim, also the display trim (D-61)".
 - **§3, the `src/model.rs` row:** replace "column validation (FR-5–FR-29); the declared header order and each row's unrecognised cells (FR-27, FR-78)" with "column validation, quadrant grouping and ring matching (FR-5–FR-29); the named columns in header order and every row's cells (FR-27, FR-78); unnamed columns dropped, with a warning when they hold a value (FR-93)".
 - **§5:** after the paragraph's sentence "**No node carries a hex value.** … and the *emitter* binds it.", add: "A quadrant's series entry is indexed by its FR-10 rank from `order.rs` (FR-67), never by `Item::quadrant`, which is first-appearance order."
-- **§7:** change the signature to `pub fn build_catalogue(table: &Table, rings: &RingSet, w: &mut Warnings) -> Result<Catalogue, Vec<Fatal>>;`. After the paragraph beginning "`csv::parse` returns", add: "`build_catalogue` takes the ring set because matching a row's ring is part of what the row means (FR-16), and FR-17's warning names the set's source. It checks every row before building any, so its `Err` comes with no warning of its own; what a failed run prints is `main.rs`'s rule." In the `Config` paragraph, change "the ring list and its source (FR-17)" to "the `RingSet` (the ring list and its source, FR-17)", and after that paragraph's first sentence add: "Only `build_catalogue` reads the `RingSet`; stages below read `Catalogue::rings`."
+- **§7:** change the signature to `pub fn build_catalogue(table: &Table, rings: &RingSet, w: &mut Warnings) -> Result<Catalogue, Vec<Fatal>>;`. After the paragraph beginning "`csv::parse` returns", add: "`build_catalogue` takes the ring set because matching a row's ring is part of what the row means (FR-16), and FR-17's warning names the set's source. It checks every row before building any, so its `Err` comes with no warning of its own; warnings other stages already pushed still print, before the errors (NFR-11)." In the `Config` paragraph, change "the ring list and its source (FR-17)" to "the `RingSet` (the ring list and its source, FR-17)", and after that paragraph's first sentence add: "Only `build_catalogue` reads the `RingSet`; stages below read `Catalogue::rings`."
 - **§8, the OQ-9 *(b)* row:** keep `order::compare_names` as the home, and add to its "Shape when closed" cell: "FR-9's label choice in `model.rs` applies the same rule — a plain `<` on `&str` — without being a second home: it cannot call `order.rs` (a cycle) and cites D-53."
 - **§10, the testing levels table:** add `tests/model.rs` to the Contract row's "Where". The fixture table already lists `three-quadrant.csv` and `row-errors.csv`.
 - **§12, the last row:** change "identity as `data-item`" to "identity as `data-row`", as §5 has it.
@@ -2611,3 +2612,4 @@ Follow the house workflow in `~/.claude/CLAUDE.md`. For this PR:
 | 1.2 | 2026-10-10 | Re-review: `accessible_name` reads an unplotted ring with `.get`, so a hand-built catalogue without a `ring` column gives an empty ring instead of panicking, and it says it serves table rows too until `rg-6ny` settles them. Task 6's architecture edits: the §2 `model` line keeps the diagram's alignment, the §7 `Config` edit no longer runs into the rest of the list, and §8 names `model.rs` as a second site of one rule, not a second home. Review Focus 5 and the rustqual figures (500 lines; 67.2%) corrected. `just ci` passes with 218 tests |
 | 1.3 | 2026-10-10 | Reviewed by architecture, Rust, QA, UI and UX agents. **Fixed:** Task 1's duplicate-header test could not fail before the change (two different format characters never collided); `Item::cells` is built from the header, not zipped with the record, so a short record keeps one cell per column; `accessible_name`'s `# Panics` describes what actually panics; a `Column` heading stays as written, since FR-76 allows only two display trims; `main.rs` is PR 14's, not PR 13's. **Changed:** the accessible name names its roles (`"3. Kafka, Conditional, Moved In; Tool quadrant, Adopt ring"`), and a catalogue without a `ring` column omits the ring; the table and panel show the quadrant and a plotted ring through their labels; FR-5's message says what to do in `NoHeader`'s words, FR-6's names only its column, and FR-93's grouped line offers deleting the values. **Added tests:** model warnings keyed by header index past two unnamed columns, `last_affirmed` validation, the half of the no-warnings rule where `parse` fails and the model succeeds, Task 1's grouped and FR-89 display trims, FR-15's trim moved to Task 1 where it can fail first (with a duplicate case), headings as written, a flag before a zero-width space, VS16/keycap/combining marks kept, a row of only format characters, an unnamed cell of only a format character, a short record, a catalogue without a ring column, the FR-18 `debug_assert`, and stronger header-only, FR-22, FR-25 and no-model-warnings assertions. **Architecture:** FR-19 keeps a stage in §2; §2 notes the labels and where FR-18's numbers come from; §12 says `data-row`. Five findings outside this PR are crumbs (`rg-fp5`, `rg-3z2`, `rg-lag`, `rg-o6r`, `rg-ei7`), with notes on `rg-pcd` and `rg-40l`; the PR stays one (Decisions). Re-applied in the scratch worktree: 226 tests pass, 40 in `model::tests`; clippy `-D warnings` is clean and `just lint`'s set reports nothing new |
 | 1.4 | 2026-10-10 | Aligned with PRD v0.44 (D-62): the spec is v0.44; a decision records that PR 06 does not group errors, since `rg-pcd` does that at print time, and that its per-error messages are D-62's single-occurrence forms; the `rg-f27` note now follows NFR-11's new error order (FR-5 before FR-4's duplicates on the header line, errors after warnings) instead of the RG-005 tie rule; Task 6 updates the architecture header to v0.44 |
+| 1.5 | 2026-10-10 | Focused review of revs 1.3–1.4 (code-reviewer; accessibility-tester on the accessible name, which it keeps as is). Text left stale by PRD v0.44 now says NFR-11 decides what a failed run prints, not `main.rs` (Decisions, `build_catalogue`'s rustdoc, a test's doc comment, Task 6's §7 edit); FR-6's message rationale and the `rg-pcd` crumb note cite D-62; the display-text constraint names the unplotted ring's trim too; one doc comment rewrapped. Panel state for FR-50's controls is filed as `rg-1uw` |
