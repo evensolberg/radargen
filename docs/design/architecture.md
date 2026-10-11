@@ -297,7 +297,7 @@ pub struct Point { pub x: f64, pub y: f64 }
 pub enum Anchor { Start, Middle }
 pub enum Semantics {
     None, Decorative, Heading(NonZeroU8),
-    Control(Control),     // an interactive item (FR-50)
+    Marker(Control),      // a radar marker as an interactive control (FR-50)
     Indicator(ItemKey),   // an item's focus ring and backing (FR-48)
 }
 
@@ -435,7 +435,7 @@ centring group, in this order:
    always takes its own pointer events and a hit area only fills empty space
    (FR-94); a hit area in the same layer as the markers would paint over an
    earlier neighbour's disc;
-3. the **controls**, one `Semantics::Control` group per plotted item holding the
+3. the **controls**, one `Semantics::Marker` group per plotted item holding the
    status ring, disc and number;
 4. the **indicator layer**, a `Semantics::None` group of one
    `Semantics::Indicator(key)` group per plotted item: a Surface1 backing disc, a
@@ -451,8 +451,9 @@ rows (FR-17) have no key in any of them.
 which layer a node came from. A static image has no pointer or focus, so the
 SVG and PNG emitters skip every interactive-only node (the two layer groups drop
 whole) and write a `Control` as `<g aria-label><title>` without `role` or
-`tabindex`. The HTML emitter keeps them: a control carries `data-row` and
-`data-marker`, a hit area `data-hit`, an indicator `data-indicator`, all keyed
+`tabindex`. The HTML emitter keeps them: a marker control carries `data-row` and
+`data-marker` (a legend-row control, PR 11, `data-row` only), a hit area
+`data-hit`, an indicator `data-indicator`, all keyed
 on the item's CSV line. Indicators are hidden by presentation attributes
 (`visibility="hidden" aria-hidden="true" pointer-events="none"`) and hit areas
 are `fill="none" pointer-events="all"`, so neither needs a CSS colour keyword. One

@@ -389,6 +389,20 @@ mod tests {
         }
     }
 
+    /// SC-20: the focus indicator's ring is `Focus` on its `Surface1` backing,
+    /// at least 3:1 (WCAG 1.4.11), in both themes.
+    #[test]
+    fn focus_clears_3_to_1_on_surface1() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let p = Palette::built_in(theme);
+            let ratio = contrast(
+                p.value(Role::Neutral(Neutral::Focus)),
+                p.value(Role::Neutral(Neutral::Surface1)),
+            );
+            assert!(ratio >= 3.0, "{theme:?}: {ratio:.2}");
+        }
+    }
+
     /// The radar's ring names are `TextMuted` over a `Surface1` halo, so
     /// that pair is what WCAG 1.4.3 measures them against, in both themes.
     #[test]

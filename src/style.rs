@@ -222,8 +222,16 @@ pub const MIN_PX_PER_UNIT: f64 = ((NARROW_MIN_VIEWPORT_PX - NARROW_HORIZONTAL_IN
     / NARROW_WIDTH)
     .min(MIN_LEGIBLE_PX / LEGEND_NAME.size);
 /// FR-94's hit-area radius at scale 1, in user units: 16 renders at least
-/// `MIN_TARGET_PX` across at `MIN_PX_PER_UNIT` (asserted in the tests).
+/// `MIN_TARGET_PX` across at `MIN_PX_PER_UNIT` (asserted below, in every
+/// build).
 pub const HIT_RADIUS: f64 = 16.0;
+// FR-94: the hit area is at least `MIN_TARGET_PX` across wherever the
+// document renders smallest. A compile-time check, so changing a premise
+// (the viewport, the inset, the legend size) cannot silently break it.
+const _: () = assert!(
+    2.0 * HIT_RADIUS * MIN_PX_PER_UNIT >= MIN_TARGET_PX,
+    "FR-94: the hit area must be at least MIN_TARGET_PX across"
+);
 /// How far an indicator reaches from its marker's centre at scale 1: the
 /// marker, the focus ring's gap and half the ring's stroke (D-66).
 pub const INDICATOR_REACH: f64 = MARKER_RADIUS + FOCUS_RING_GAP + FOCUS_RING_STROKE / 2.0;
@@ -372,13 +380,6 @@ mod tests {
             (MIN_PX_PER_UNIT - 320.0 / 420.0).abs() < 1e-12,
             "{MIN_PX_PER_UNIT}"
         );
-    }
-
-    /// FR-94: the hit area is at least `MIN_TARGET_PX` across wherever the
-    /// document renders smallest.
-    #[test]
-    fn hit_radius_meets_fr94() {
-        const { assert!(2.0 * HIT_RADIUS * MIN_PX_PER_UNIT >= MIN_TARGET_PX) };
     }
 
     #[test]

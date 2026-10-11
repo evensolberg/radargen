@@ -71,7 +71,8 @@ pub struct Control {
     pub tooltip: Option<String>,
 }
 
-/// A fill or stroke: a palette role, or nothing (architecture §5).
+/// A fill or stroke: a palette role, a number's ink on a series entry, or
+/// nothing (architecture §5).
 ///
 /// `None` is SVG's `none`, for stroked-but-unfilled shapes. It is not FR-20's
 /// hollow marker, which fills with `Role::Neutral(Neutral::MarkerHollow)`.
@@ -125,7 +126,7 @@ pub enum Semantics {
     Heading(NonZeroU8),
     /// An interactive item; static formats keep its label and tooltip but
     /// not its role or focusability.
-    Control(Control),
+    Marker(Control),
     /// The raised copy of an item's marker, shown while the control has
     /// focus. Interactive-only: static formats omit it.
     Indicator(ItemKey),
@@ -262,9 +263,11 @@ impl Node {
                     !group.children.is_empty()
                         && group.children.iter().all(Self::is_interactive_only)
                 }
-                Semantics::Decorative | Semantics::Heading(_) | Semantics::Control(_) => false,
+                Semantics::Decorative | Semantics::Heading(_) | Semantics::Marker(_) => false,
             },
-            _ => false,
+            Self::Circle { .. } | Self::Line { .. } | Self::Path { .. } | Self::Text { .. } => {
+                false
+            }
         }
     }
 }
@@ -492,7 +495,7 @@ mod tests {
             label: "1".to_owned(),
             tooltip: None,
         };
-        let control = group(vec![disc()]).with(Semantics::Control(control));
+        let control = group(vec![disc()]).with(Semantics::Marker(control));
         assert!(!Node::Group(control).is_interactive_only());
         let control = |children| {
             let control = Control {
@@ -500,7 +503,7 @@ mod tests {
                 label: "1".to_owned(),
                 tooltip: None,
             };
-            Node::Group(group(children).with(Semantics::Control(control)))
+            Node::Group(group(children).with(Semantics::Marker(control)))
         };
         assert!(!control(vec![hit(1)]).is_interactive_only());
         let indicator = Node::Group(group(vec![disc()]).with(Semantics::Indicator(ItemKey(1))));

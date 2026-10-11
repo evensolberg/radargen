@@ -22,8 +22,8 @@ use crate::model::{Catalogue, Qualifier, Status};
 use crate::order::Plotted;
 use crate::palette::{Neutral, Role};
 use crate::style::{
-    DIVIDER_RADIUS, FOCUS_RING_GAP, FOCUS_RING_STROKE, GRID_STROKE, HIT_RADIUS, INDICATOR_REACH,
-    LABEL_HALO, MARKER_NUMBER, MARKER_RADIUS, MIN_RADAR_WIDTH, QUADRANT_LABEL,
+    BAND_OUTER_RADIUS, DIVIDER_RADIUS, FOCUS_RING_GAP, FOCUS_RING_STROKE, GRID_STROKE, HIT_RADIUS,
+    INDICATOR_REACH, LABEL_HALO, MARKER_NUMBER, MARKER_RADIUS, MIN_RADAR_WIDTH, QUADRANT_LABEL,
     QUADRANT_LABEL_RADIUS, RADAR_FLOOR, RADAR_LABEL_PAD, RING_LABEL, TextStyle,
 };
 use crate::svg::{
@@ -37,8 +37,9 @@ const MIN_RADAR_HALF: f64 = MIN_RADAR_WIDTH / 2.0;
 /// How far a ring name's halo reaches past its glyphs.
 const HALO_REACH: f64 = LABEL_HALO / 2.0;
 /// How far below a marker's centre its number's baseline sits, per unit of
-/// font size: half Inter's cap height, so lining digits sit centred on the
-/// marker, as the mockup's `dominant-baseline: central` puts them.
+/// font size: the em box's centre (CSS `dominant-baseline: central`, as the
+/// mockup has it). For Inter that is also half the cap height, because
+/// 1984 - 494 = 1490 = capHeight, so lining digits sit centred on the marker.
 const NUMBER_CENTRING: f64 = f64::midpoint(TEXT_ASCENT, -TEXT_DESCENT);
 
 /// FR-70's three scales for one radar scale `s`.
@@ -309,8 +310,7 @@ impl Block for RadarBlock {
         let hits = layer(self.markers.iter().map(|m| hit_node(m, r)).collect());
         let controls = self.markers.iter().zip(&drawn).map(|(m, nodes)| {
             Node::Group(
-                Group::new(Point::ORIGIN, nodes.clone())
-                    .with(Semantics::Control(m.control.clone())),
+                Group::new(Point::ORIGIN, nodes.clone()).with(Semantics::Marker(m.control.clone())),
             )
         });
         let indicators = layer(
@@ -336,10 +336,17 @@ impl Block for RadarBlock {
 /// # Panics
 ///
 /// If `plotted` was not built from `catalogue`, so an item or its quadrant
-/// is out of range for it.
+/// is out of range for it, or `place` returns a different number of points
+/// than there are plotted items.
 // qual:allow(complexity, error_handling) reason: "the documented # Panics: a Plotted from another catalogue is a caller bug"
 fn markers(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Marker> {
-    place(catalogue, plotted)
+    let placed = place(catalogue, plotted);
+    assert_eq!(
+        placed.len(),
+        plotted.items.len(),
+        "place yields one point per plotted item, or the zip below drops markers"
+    );
+    placed
         .into_iter()
         .zip(plotted.items.iter().enumerate())
         .map(|(at, (i, &index))| {
@@ -532,6 +539,18 @@ fn hit_reach(offset: f64, r: RadarScale) -> f64 {
 /// outgrows it from there. That relies on at least one ring, which
 /// `rings.rs` guarantees by rejecting an empty list. The hit term, `|p| s +
 /// 16 · max(s, 1)`, is increasing.
+// The proof above, as far as constants carry it, checked in every build:
+// below the floor scale an indicator reaches less far than a hit area, and
+// above it less far than the floor.
+const _: () = assert!(
+    INDICATOR_REACH * RADAR_FLOOR <= HIT_RADIUS,
+    "below the floor scale an indicator must stay inside the hit area"
+);
+const _: () = assert!(
+    BAND_OUTER_RADIUS + INDICATOR_REACH <= MIN_RADAR_HALF,
+    "above the floor scale an indicator must stay inside the floor"
+);
+
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
@@ -550,9 +569,7 @@ mod tests {
     use crate::layout::test_support::{assert_finite, bounds, fill, near, plotted};
     use crate::model::Item;
     use crate::palette::{Palette, Theme};
-    use crate::style::{
-        BAND_OUTER_RADIUS, MARKER_HOLLOW_STROKE, MARKER_STROKE, STATUS_RING_GAP, STATUS_RING_STROKE,
-    };
+    use crate::style::{MARKER_HOLLOW_STROKE, MARKER_STROKE, STATUS_RING_GAP, STATUS_RING_STROKE};
     use crate::svg::{PathCommand, TextPaint};
     use crate::text::Weight;
 
@@ -600,7 +617,7 @@ mod tests {
 
     const MARKED_HEADER: &str = "name,quadrant,ring,description,qualifier,status\n";
     const QUALIFIERS: [&str; 2] = ["", "conditional"];
-    const STATUSES: [&str; 4] = ["", "New", "Moved In", "Moved Out"];
+    const STATUSES: [&str; 5] = ["", "No Change", "New", "Moved In", "Moved Out"];
 
     /// N = 4, each quadrant holding every qualifier × status pair in Trial.
     fn marked_csv() -> String {
@@ -1151,7 +1168,7 @@ mod tests {
                 let floor = 330.0 * s;
                 // How far the rings and dividers can reach: below about
                 // s = 0.15 they can pass the labels without passing the floor.
-                let grid = DIVIDER_RADIUS * s + GRID_STROKE * r.marks / 2.0;
+                let grid = DIVIDER_RADIUS * s + f64::midpoint(0.0, GRID_STROKE * r.marks);
                 // Per axis: the labels' reach, the hit areas' and the
                 // indicators', and the drawing's nearest gap to the block's
                 // edge. Where the labels set the size and reach past the
@@ -1197,7 +1214,7 @@ mod tests {
             .enumerate()
             .filter_map(|(i, n)| match n {
                 Node::Group(Group {
-                    semantics: Semantics::Control(c),
+                    semantics: Semantics::Marker(c),
                     children,
                     ..
                 }) => Some((i, c, children.as_slice())),
@@ -1434,7 +1451,7 @@ mod tests {
             assert!(near(e, from(c, centreward + end, ring)), "{}", item.name);
         };
         match (item.status, children) {
-            (None, [Node::Circle { .. }, Node::Text { .. }]) => {}
+            (None | Some(Status::NoChange), [Node::Circle { .. }, Node::Text { .. }]) => {}
             (
                 Some(Status::New),
                 [
@@ -1472,7 +1489,7 @@ mod tests {
             let marks = s.max(RADAR_FLOOR);
             let nodes = frame_at(&b, s);
             let got = controls(&nodes);
-            assert_eq!(got.len(), 32);
+            assert_eq!(got.len(), 40);
             let mut positions = std::collections::BTreeSet::new();
             for (_, control, children) in got {
                 let item = item_of(&catalogue, control.key);
@@ -1757,15 +1774,6 @@ mod tests {
         let size = none.size(s);
         let width = 2.0 * (330.0 * s).max(none.label_half_width(r) + RADAR_LABEL_PAD);
         assert!(close(size.width, width), "{} vs {width}", size.width);
-    }
-
-    /// `half_extent`'s proof, as far as constants carry it: below the floor
-    /// scale an indicator reaches less far than a hit area, and above it
-    /// less far than the floor.
-    #[test]
-    fn indicators_never_set_the_size() {
-        const { assert!(INDICATOR_REACH * RADAR_FLOOR <= HIT_RADIUS) };
-        const { assert!(BAND_OUTER_RADIUS + INDICATOR_REACH <= MIN_RADAR_HALF) };
     }
 
     #[test]
