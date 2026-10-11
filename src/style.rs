@@ -21,6 +21,18 @@ pub struct TextStyle {
     pub letter_spacing: f64,
 }
 
+impl TextStyle {
+    /// Size and letter-spacing multiplied by `k`; the face is unchanged.
+    #[must_use]
+    pub fn scaled(self, k: f64) -> Self {
+        Self {
+            size: self.size * k,
+            letter_spacing: self.letter_spacing * k,
+            ..self
+        }
+    }
+}
+
 const fn style(weight: Weight, size: f64, letter_spacing: f64) -> TextStyle {
     TextStyle {
         weight,
@@ -65,8 +77,43 @@ pub const LEGEND_BADGE_NUMBER: TextStyle = MARKER_NUMBER;
 pub const KEY_HEADING: TextStyle = style(Weight::SemiBold, 13.0, 0.0);
 /// Ink: `TextMuted`.
 pub const KEY_LABEL: TextStyle = style(Weight::Regular, 11.0, 0.0);
+/// The key heading's baseline.
+pub const KEY_HEADING_BASELINE: f64 = 20.0;
+/// The first key row's sample centre.
+pub const KEY_FIRST_ROW: f64 = 40.0;
+/// Distance between key rows.
+pub const KEY_ROW: f64 = 24.0;
+/// The key samples' centre, from the key's left edge.
+pub const KEY_SAMPLE_X: f64 = 10.0;
+/// Where the key labels start.
+pub const KEY_LABEL_X: f64 = 28.0;
+/// A label's baseline sits this far below its sample's centre.
+pub const KEY_LABEL_DROP: f64 = 4.0;
+/// The key's qualifier samples.
+pub const KEY_MARKER_RADIUS: f64 = 7.0;
+/// The key's status samples.
+pub const KEY_STATUS_MARKER_RADIUS: f64 = 5.0;
+/// Below the last key row: the status ring's outer edge, so it cannot drift
+/// from the samples.
+pub const KEY_BOTTOM: f64 = KEY_STATUS_MARKER_RADIUS + STATUS_RING_GAP + STATUS_RING_STROKE / 2.0;
 /// Legend text line height.
 pub const LINE_HEIGHT: f64 = 15.0;
+
+// --- Title block (FR-65), from the mockup's `buildTitle` ---------------------------
+/// Space above the title's text box.
+pub const TITLE_TOP: f64 = 4.0;
+/// From `TITLE_TOP` to the title's first baseline.
+pub const TITLE_FIRST_BASELINE: f64 = 18.0;
+/// Baseline-to-baseline distance within a wrapped title.
+pub const TITLE_LEADING: f64 = 21.0;
+/// From the title's last baseline to the subtitle's first.
+pub const SUBTITLE_AFTER_TITLE: f64 = 17.0;
+/// From `TITLE_TOP` to the first baseline of a subtitle with no title.
+pub const SUBTITLE_ALONE: f64 = 15.0;
+/// Baseline-to-baseline distance within a wrapped subtitle.
+pub const SUBTITLE_LEADING: f64 = 15.0;
+/// Space below the last baseline.
+pub const TITLE_BOTTOM: f64 = 14.0;
 
 // --- Legend (FR-35, FR-74, FR-79) -----------------------------------------------
 /// Left indent, in user units, of a quadrant heading: the legend's top level.

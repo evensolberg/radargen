@@ -1,7 +1,7 @@
 # radargen — Design
 
 **Status:** draft, for review
-**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.48
+**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.49
 **Date:** 2026-08-29
 
 > **What this document is for.** The PRD says *what* radargen does and carries
@@ -218,18 +218,23 @@ load-bearing idea.
 /// Size is computed at construction — from measured text, never guessed —
 /// so an arrangement can place blocks without re-running layout.
 pub trait Block {
-    /// Size at `scale`. Linear in `scale` for every block but the radar,
-    /// whose counter-scaled labels (FR-70) do not shrink with it.
+    /// Size when drawn at `scale`.
     fn size(&self, scale: f64) -> Size;
+    /// The block drawn at `at.scale`, translated to `at.origin`. Scale is
+    /// applied to coordinates, never as an SVG transform (FR-70).
     fn render(&self, at: Placement) -> Node;
 }
 
-pub struct Size { pub w: f64, pub h: f64 }
-pub struct Point { pub x: f64, pub y: f64 }
+pub struct Size { pub width: f64, pub height: f64 }
 pub struct Placement { pub origin: Point, pub scale: f64 }
 ```
 
-`Point` is `layout::geometry::Point`: geometry produces points before any block exists.
+Scale is applied to coordinates, never as an SVG transform: a block draws at
+the scale it is asked for, so the radar can shrink positions while labels keep
+their size (FR-70); a `Group` only translates.
+
+`Point` is `svg::Point`, re-exported by `layout::geometry`, so `layout` depends
+on `svg` and not the reverse.
 
 **`Placement` carries a scale, and `size` takes one.** An earlier draft of this
 document had `render_at(origin: Point)` — translation only — which cannot
@@ -281,10 +286,29 @@ goes. Static dispatch throughout.
 ```rust
 pub struct Document { pub view_box: Rect, pub root: Node }
 
-pub enum Node { Group { .. }, Path { .. }, Text { .. }, Title(String), .. }
+pub struct Point { pub x: f64, pub y: f64 }
+pub enum Anchor { Start, Middle }
+pub enum Semantics { None, Decorative, Heading(u8) }
+pub enum PathCommand {
+    MoveTo(Point),
+    Arc { radius: f64, large_arc: bool, sweep: bool, end: Point },
+}
+pub struct Group { pub offset: Point, pub semantics: Semantics, pub children: Vec<Node> }
+
+pub enum Node {
+    Group(Group),
+    Text { origin: Point, style: TextStyle, ink: Paint, anchor: Anchor,
+           lines: Vec<String>, leading: f64 },
+    Circle { centre: Point, radius: f64, fill: Paint, stroke: Paint, stroke_width: f64 },
+    Path { commands: Vec<PathCommand>, fill: Paint, stroke: Paint, stroke_width: f64 },
+}
 
 pub enum Paint { Role(palette::Role), None }
 ```
+
+Variants and `Semantics` values are added by the PR that first needs them.
+A `Text` node's first baseline is at `origin`; each further line is `leading`
+below.
 
 `Paint::None` is the SVG `none` — the stroked-but-unfilled shapes: ring circles,
 quadrant dividers, FR-40's status rings and half-rings. It is **not** FR-20's

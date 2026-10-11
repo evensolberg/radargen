@@ -15,6 +15,7 @@ pub mod order;
 pub mod palette;
 pub mod rings;
 pub mod style;
+pub mod svg;
 pub mod text;
 
 use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
