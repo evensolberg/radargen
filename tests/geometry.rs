@@ -123,7 +123,16 @@ fn placement_does_not_depend_on_row_order() {
             .items
             .iter()
             .zip(points)
-            .map(|(&i, p)| (cat.items[i].name.clone(), p))
+            .map(|(&i, p)| {
+                (
+                    cat.items
+                        .get(i)
+                        .expect("a plotted index is an item")
+                        .name
+                        .clone(),
+                    p,
+                )
+            })
             .collect();
         named.sort_by(|a, b| a.0.cmp(&b.0));
         named
@@ -148,9 +157,21 @@ fn place_uses_fr34_order_within_a_band() {
         .iter()
         .position(|r| r == "Adopt")
         .expect("Adopt is a default ring");
-    assert_eq!(cat.items[plotted.items[0]].name, "Alpha");
-    assert_eq!(points[0], g.marker(0, adopt, 0, 2));
-    assert_eq!(points[1], g.marker(0, adopt, 1, 2));
+    assert_eq!(
+        cat.items
+            .get(*plotted.items.first().expect("items[0] exists"))
+            .expect("a plotted index is an item")
+            .name,
+        "Alpha"
+    );
+    assert_eq!(
+        *points.first().expect("points[0] exists"),
+        g.marker(0, adopt, 0, 2)
+    );
+    assert_eq!(
+        *points.get(1).expect("points[1] exists"),
+        g.marker(0, adopt, 1, 2)
+    );
 }
 
 /// FR-10, FR-8: a sector's position is the quadrant's FR-10 rank, not its
@@ -174,7 +195,11 @@ fn place_uses_the_fr10_position_not_the_catalogue_index() {
     );
     let points = place(&cat, &plotted);
     assert_eq!(points, [g.marker(1, 2, 0, 1)]);
-    assert!(points[0].x < -1.0, "{:?}", points[0]);
+    assert!(
+        points.first().expect("points[0] exists").x < -1.0,
+        "{:?}",
+        points.first().expect("points[0] exists")
+    );
 }
 
 /// FR-88 first, then FR-89 one per band in FR-34's order: FR-10's
@@ -217,8 +242,17 @@ fn geometry_warnings_precede_row_warnings() {
     warn_crowding(&cat, &resolve(&cat), &mut w);
     let lines = w.render();
     assert_eq!(lines.len(), 2, "{lines:?}");
-    assert!(lines[0].starts_with("warning: 7 quadrants"), "{lines:?}");
-    assert!(lines[1].contains("Rejected"), "{lines:?}");
+    assert!(
+        lines
+            .first()
+            .expect("lines[0] exists")
+            .starts_with("warning: 7 quadrants"),
+        "{lines:?}"
+    );
+    assert!(
+        lines.get(1).expect("lines[1] exists").contains("Rejected"),
+        "{lines:?}"
+    );
 }
 
 /// Nothing plotted: no markers, no bands, no geometry warning, and the

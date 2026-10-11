@@ -126,7 +126,7 @@ impl<'a> FontMetrics<'a> {
         let boundaries = output
             .glyph_infos()
             .windows(2)
-            .filter(|pair| pair[0].cluster != pair[1].cluster)
+            .filter(|pair| matches!(pair, [a, b] if a.cluster != b.cluster))
             .count();
         #[expect(
             clippy::cast_precision_loss,

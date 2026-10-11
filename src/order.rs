@@ -52,16 +52,28 @@ impl Plotted {
     /// each, and FR-89 checks each. Every item in [`Plotted::items`] has a
     /// ring ([`resolve`] plots only those), so the runs cover it exactly
     /// and `layout::geometry::place` stays aligned with it.
+    ///
+    /// # Panics
+    ///
+    /// If `self` was not built from `catalogue`, so an index in
+    /// [`Plotted::items`] is out of range for it.
     #[must_use]
     pub fn runs(&self, catalogue: &Catalogue) -> Vec<Run> {
-        let band = |i: usize| (catalogue.items[i].quadrant, catalogue.items[i].ring);
+        let band = |i: usize| {
+            let item = catalogue
+                .items
+                .get(i)
+                .expect("a plotted index is within the catalogue's items");
+            (item.quadrant, item.ring)
+        };
         let mut start = 0;
         self.items
             .chunk_by(|&a, &b| band(a) == band(b))
             .filter_map(|chunk| {
                 let items = start..start + chunk.len();
                 start = items.end;
-                let (quadrant, ring) = band(chunk[0]);
+                // `chunk_by` never yields an empty chunk.
+                let (quadrant, ring) = band(*chunk.first()?);
                 ring.map(|ring| Run {
                     quadrant,
                     ring,
@@ -124,10 +136,9 @@ pub fn compare_quadrants(a: &Quadrant, b: &Quadrant) -> Ordering {
 /// duplicates.
 #[must_use]
 pub fn quadrant_order(quadrants: &[Quadrant]) -> Vec<usize> {
-    let mut order: Vec<usize> = (0..quadrants.len()).collect();
-    order
-        .sort_unstable_by(|&a, &b| compare_quadrants(&quadrants[a], &quadrants[b]).then(a.cmp(&b)));
-    order
+    let mut order: Vec<(usize, &Quadrant)> = quadrants.iter().enumerate().collect();
+    order.sort_unstable_by(|(a, qa), (b, qb)| compare_quadrants(qa, qb).then(a.cmp(b)));
+    order.into_iter().map(|(i, _)| i).collect()
 }
 
 /// FR-34's name steps: FR-76's key, then the trimmed name ordinally, so
@@ -159,8 +170,13 @@ pub fn compare_names(a: &Item, b: &Item) -> Ordering {
 /// item from another catalogue.
 #[must_use]
 pub fn compare_items(rank: &[usize], a: &Item, b: &Item) -> Ordering {
-    rank[a.quadrant]
-        .cmp(&rank[b.quadrant])
+    let rank_of = |item: &Item| {
+        *rank
+            .get(item.quadrant)
+            .expect("an item's quadrant is within rank")
+    };
+    rank_of(a)
+        .cmp(&rank_of(b))
         .then_with(|| a.ring.cmp(&b.ring))
         .then_with(|| compare_names(a, b))
         .then_with(|| a.line.cmp(&b.line))
@@ -171,7 +187,7 @@ pub fn compare_items(rank: &[usize], a: &Item, b: &Item) -> Ordering {
 fn ranks(order: &[usize]) -> Vec<usize> {
     let mut rank = vec![0; order.len()];
     for (position, &q) in order.iter().enumerate() {
-        rank[q] = position;
+        *rank.get_mut(q).expect("order is a permutation of 0..len") = position;
     }
     rank
 }
@@ -183,17 +199,14 @@ fn ranks(order: &[usize]) -> Vec<usize> {
 /// The index ends the comparison, so the order is total even for
 /// hand-built items equal on every key including `line`.
 fn item_order(catalogue: &Catalogue, rank: &[usize]) -> Vec<usize> {
-    let mut order: Vec<usize> = catalogue
+    let mut order: Vec<(usize, &Item)> = catalogue
         .items
         .iter()
         .enumerate()
         .filter(|(_, item)| item.ring.is_some())
-        .map(|(i, _)| i)
         .collect();
-    order.sort_unstable_by(|&a, &b| {
-        compare_items(rank, &catalogue.items[a], &catalogue.items[b]).then(a.cmp(&b))
-    });
-    order
+    order.sort_unstable_by(|(a, ia), (b, ib)| compare_items(rank, ia, ib).then(a.cmp(b)));
+    order.into_iter().map(|(i, _)| i).collect()
 }
 
 /// FR-18: number `order`'s items from 1, in a list of `len` aligned with
@@ -201,7 +214,9 @@ fn item_order(catalogue: &Catalogue, rank: &[usize]) -> Vec<usize> {
 fn numbers(order: &[usize], len: usize) -> Vec<Option<usize>> {
     let mut numbers = vec![None; len];
     for (position, &i) in order.iter().enumerate() {
-        numbers[i] = Some(position + 1);
+        *numbers
+            .get_mut(i)
+            .expect("order holds indices into a list of len") = Some(position + 1);
     }
     numbers
 }
@@ -241,7 +256,13 @@ mod tests {
     fn labels<'a>(cat: &'a Catalogue, order: &[usize]) -> Vec<&'a str> {
         order
             .iter()
-            .map(|&q| cat.quadrants[q].label.as_str())
+            .map(|&q| {
+                cat.quadrants
+                    .get(q)
+                    .expect("q indexes the catalogue's quadrants")
+                    .label
+                    .as_str()
+            })
             .collect()
     }
 
@@ -336,7 +357,13 @@ mod tests {
         resolve(cat)
             .items
             .iter()
-            .map(|&i| cat.items[i].name.as_str())
+            .map(|&i| {
+                cat.items
+                    .get(i)
+                    .expect("a plotted index is an item")
+                    .name
+                    .as_str()
+            })
             .collect()
     }
 
@@ -437,7 +464,8 @@ mod tests {
             ("Airflow", "Platform", "Adopt"),
         ]));
         let rank = rank_of(&cat);
-        let cmp = |a: usize, b: usize| compare_items(&rank, &cat.items[a], &cat.items[b]);
+        let item = |i: usize| cat.items.get(i).expect("an item index");
+        let cmp = |a: usize, b: usize| compare_items(&rank, item(a), item(b));
         let n = cat.items.len();
         for a in 0..n {
             for b in 0..n {
@@ -531,8 +559,15 @@ mod tests {
             .iter()
             .map(|r| {
                 (
-                    cat.quadrants[r.quadrant].label.as_str(),
-                    cat.rings[r.ring].as_str(),
+                    cat.quadrants
+                        .get(r.quadrant)
+                        .expect("a run's quadrant is the catalogue's")
+                        .label
+                        .as_str(),
+                    cat.rings
+                        .get(r.ring)
+                        .expect("a run's ring is the catalogue's")
+                        .as_str(),
                     r.items.clone(),
                 )
             })

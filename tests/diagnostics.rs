@@ -165,7 +165,9 @@ fn grouped_values_are_shown_with_fr76s_trim() {
     w.push(ring(4, "\u{200b}Adpot"));
     w.push(ring(9, "Adpot\u{feff}"));
     assert!(
-        w.render()[0].contains("— Adpot (2, first line 4);"),
+        w.render()
+            .first()
+            .is_some_and(|line| line.contains("— Adpot (2, first line 4);")),
         "{:?}",
         w.render()
     );
@@ -183,7 +185,9 @@ fn grouped_values_are_shown_with_fr76s_trim() {
     w.push(date(4, "\u{200b}June"));
     w.push(date(9, "June"));
     assert!(
-        w.render()[0].contains("— June (2, first line 4);"),
+        w.render()
+            .first()
+            .is_some_and(|line| line.contains("— June (2, first line 4);")),
         "{:?}",
         w.render()
     );
@@ -384,9 +388,22 @@ fn classes_order_by_first_line_then_column() {
         },
     ));
     let out = w.render();
-    assert!(out[0].contains("line 5, qualifier"), "{out:#?}");
-    assert!(out[1].contains("line 5, status"), "{out:#?}");
-    assert!(out[2].contains("line 9, ring"), "{out:#?}");
+    assert!(
+        out.first()
+            .expect("out[0] exists")
+            .contains("line 5, qualifier"),
+        "{out:#?}"
+    );
+    assert!(
+        out.get(1)
+            .expect("out[1] exists")
+            .contains("line 5, status"),
+        "{out:#?}"
+    );
+    assert!(
+        out.get(2).expect("out[2] exists").contains("line 9, ring"),
+        "{out:#?}"
+    );
 }
 
 #[test]
@@ -402,7 +419,10 @@ fn out_of_order_pushes_are_sorted_by_position() {
         },
     ));
     let out = w.render();
-    assert!(out[0].contains("line 3, name"), "{out:#?}");
+    assert!(
+        out.first().expect("out[0] exists").contains("line 3, name"),
+        "{out:#?}"
+    );
 }
 
 #[test]
@@ -415,7 +435,9 @@ fn grouped_values_are_never_capped() {
     assert_eq!(out.len(), 1);
     for i in 0..30 {
         assert!(
-            out[0].contains(&format!("Ring{i:02} (1, line {})", i + 2)),
+            out.first()
+                .expect("out[0] exists")
+                .contains(&format!("Ring{i:02} (1, line {})", i + 2)),
             "missing Ring{i:02}"
         );
     }
@@ -526,8 +548,9 @@ fn control_characters_are_escaped_in_grouped_lines_too() {
     w.push(ring(5, "In\nUse"));
     let out = w.render();
     assert_eq!(out.len(), 1, "{out:#?}");
-    assert!(!out[0].contains('\n'), "{:?}", out[0]);
-    assert!(out[0].contains(r"In\nUse (2, first line 4)"), "{}", out[0]);
+    let line = out.first().expect("out[0] exists");
+    assert!(!line.contains('\n'), "{line:?}");
+    assert!(line.contains(r"In\nUse (2, first line 4)"), "{line}");
 }
 
 /// NFR-11: values within a grouped line order by the line they first occur
@@ -580,7 +603,9 @@ fn warnings_at_one_position_keep_push_order() {
         w.push(second);
         let out = w.render();
         assert!(
-            out[0].starts_with(&format!("warning: line 5, qualifier: {lead}")),
+            out.first()
+                .expect("out[0] exists")
+                .starts_with(&format!("warning: line 5, qualifier: {lead}")),
             "{out:#?}"
         );
     }
@@ -600,8 +625,18 @@ fn a_grouped_line_is_placed_by_its_first_member() {
         },
     ));
     let out = w.render();
-    assert!(out[0].contains("rows use a ring"), "{out:#?}");
-    assert!(out[1].contains("line 10, qualifier"), "{out:#?}");
+    assert!(
+        out.first()
+            .expect("out[0] exists")
+            .contains("rows use a ring"),
+        "{out:#?}"
+    );
+    assert!(
+        out.get(1)
+            .expect("out[1] exists")
+            .contains("line 10, qualifier"),
+        "{out:#?}"
+    );
 }
 
 /// FR-76 folds case only for the comparisons it lists, and dates are not one:
@@ -663,7 +698,7 @@ fn a_single_repeat_in_a_duplicate_group_names_its_line() {
 fn the_raw_warnings_are_readable() {
     let mut w = Warnings::default();
     w.push(ring(7, "X"));
-    let only = &w.as_slice()[0];
+    let only = w.as_slice().first().expect("one warning");
     assert_eq!(only.position(), Position::Cell { line: 7, column: 2 });
     assert!(matches!(
         only,

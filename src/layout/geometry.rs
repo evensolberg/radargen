@@ -158,8 +158,9 @@ impl Geometry {
     pub fn fits(self, ring: usize, n: usize) -> bool {
         let points: Vec<Point> = (0..n).map(|j| self.marker(0, ring, j, n)).collect();
         points.iter().enumerate().all(|(i, a)| {
-            points[i + 1..]
+            points
                 .iter()
+                .skip(i + 1)
                 .all(|b| far_enough((a.x - b.x).hypot(a.y - b.y)))
         })
     }
@@ -188,6 +189,11 @@ pub fn polar(angle: f64, radius: f64) -> Point {
 /// FR-33: every plotted item's marker centre, aligned with
 /// [`Plotted::items`] for a `Plotted` that `resolve` built. Item `j` of a
 /// band is its `j`th in FR-34's order.
+///
+/// # Panics
+///
+/// If `plotted` was not built from `catalogue`, so a run's quadrant is
+/// missing from `plotted.rank`.
 #[must_use]
 pub fn place(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Point> {
     let geometry = Geometry::of(catalogue);
@@ -196,7 +202,10 @@ pub fn place(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Point> {
         .iter()
         .flat_map(|run| {
             let n = run.items.len();
-            let position = plotted.rank[run.quadrant];
+            let position = *plotted
+                .rank
+                .get(run.quadrant)
+                .expect("rank covers every quadrant of the catalogue");
             (0..n).map(move |j| geometry.marker(position, run.ring, j, n))
         })
         .collect();
@@ -215,6 +224,11 @@ pub fn place(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Point> {
 /// Capacity stops at the first failure, so a band of any size costs at
 /// most its capacity's checks; this relies on the monotonicity that
 /// `fitting_is_monotone_in_n` verifies.
+///
+/// # Panics
+///
+/// If `plotted` was not built from `catalogue`, so a run names a quadrant
+/// or ring the catalogue lacks.
 pub fn warn_crowding(catalogue: &Catalogue, plotted: &Plotted, warnings: &mut Warnings) {
     let geometry = Geometry::of(catalogue);
     if geometry.quadrants > COMFORTABLE_QUADRANTS {
@@ -227,8 +241,17 @@ pub fn warn_crowding(catalogue: &Catalogue, plotted: &Plotted, warnings: &mut Wa
         let fits = geometry.capacity(run.ring, count);
         if fits < count {
             warnings.push(Warning::Render(RenderKind::OverfullBand {
-                quadrant: catalogue.quadrants[run.quadrant].label.clone(),
-                ring: catalogue.rings[run.ring].clone(),
+                quadrant: catalogue
+                    .quadrants
+                    .get(run.quadrant)
+                    .expect("a run's quadrant is one of the catalogue's")
+                    .label
+                    .clone(),
+                ring: catalogue
+                    .rings
+                    .get(run.ring)
+                    .expect("a run's ring is one of the catalogue's")
+                    .clone(),
                 count,
                 fits,
             }));

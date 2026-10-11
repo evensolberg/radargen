@@ -357,18 +357,24 @@ fn duplicate_headers(header: &[String], line: usize) -> Vec<Fatal> {
     // Normalised once, not once per pair.
     let keys: Vec<String> = header.iter().map(|n| normalise(n)).collect();
     let mut errors = Vec::new();
-    for (i, key) in keys.iter().enumerate() {
+    for (i, (key, name)) in keys.iter().zip(header).enumerate() {
         if key.is_empty() {
             continue;
         }
         // The first earlier match is the name's first occurrence.
-        if let Some(first) = keys[..i].iter().position(|k| k == key) {
+        let first = keys
+            .iter()
+            .zip(header)
+            .enumerate()
+            .take(i)
+            .find(|(_, (k, _))| *k == key);
+        if let Some((first, (_, first_name))) = first {
             errors.push(Fatal::DuplicateHeader {
                 line,
                 index: i + 1,
-                name: trim(&header[i]).to_string(),
+                name: trim(name).to_string(),
                 first_index: first + 1,
-                first_name: trim(&header[first]).to_string(),
+                first_name: trim(first_name).to_string(),
             });
         }
     }
@@ -575,7 +581,9 @@ mod tests {
             (0..alphabet.len().pow(len)).map(move |mut i| {
                 (0..len)
                     .map(|_| {
-                        let c = alphabet[i % alphabet.len()];
+                        let c = *alphabet
+                            .get(i % alphabet.len())
+                            .expect("the remainder is below the length");
                         i /= alphabet.len();
                         c
                     })
@@ -593,7 +601,9 @@ mod tests {
             match scan(&text) {
                 Ok(records) => {
                     assert!(
-                        records.windows(2).all(|p| p[0].line < p[1].line),
+                        records
+                            .windows(2)
+                            .all(|p| matches!(p, [a, b] if a.line < b.line)),
                         "{text:?}"
                     );
                     if !text.contains('"') {
@@ -628,7 +638,7 @@ mod tests {
             let records = scan(&written).expect("scans");
             assert_eq!(records.len(), 1, "{written:?}");
             assert_eq!(
-                records[0].fields,
+                records.first().expect("one record asserted above").fields,
                 [field.clone(), "x".to_string()],
                 "{written:?}"
             );
@@ -712,7 +722,14 @@ mod tests {
         assert_eq!(table.header, ["name", "ring"]);
         assert_eq!(table.header_line, 1);
         assert_eq!(table.records.len(), 2);
-        assert_eq!(table.records[1].line, 3);
+        assert_eq!(
+            table
+                .records
+                .get(1)
+                .expect("two records asserted above")
+                .line,
+            3
+        );
         assert!(
             errs.is_empty() && warnings.is_empty(),
             "{errs:?} {warnings:?}"
@@ -728,7 +745,10 @@ mod tests {
     #[test]
     fn leading_blank_lines_move_the_header_line() {
         let t = table("\n,,\nname,ring\nKafka,Adopt\n");
-        assert_eq!((t.header_line, t.records[0].line), (3, 4));
+        assert_eq!(
+            (t.header_line, t.records.first().expect("a record").line),
+            (3, 4)
+        );
         assert_eq!(errors("\n\na,a\n"), [repeats(3, 2, "a", 1, "a")]);
     }
 
@@ -929,7 +949,14 @@ mod tests {
         assert_eq!(errs, [count(2, 1)]);
         let table = table.expect("structural");
         assert_eq!(table.records.len(), 1);
-        assert_eq!(table.records[0].line, 3);
+        assert_eq!(
+            table
+                .records
+                .first()
+                .expect("one record asserted above")
+                .line,
+            3
+        );
     }
 
     #[test]
@@ -951,14 +978,30 @@ mod tests {
     #[test]
     fn undisplayable_characters_are_removed_and_warned() {
         let (table, _, warnings) = parsed("name,description\nKaf\u{1}ka,ok\n");
-        assert_eq!(table.expect("parses").records[0].fields, ["Kafka", "ok"]);
+        assert_eq!(
+            table
+                .expect("parses")
+                .records
+                .first()
+                .expect("one record")
+                .fields,
+            ["Kafka", "ok"]
+        );
         assert_eq!(
             warnings,
             ["warning: line 2, name: removed U+0001, which the output cannot display"]
         );
         // Several fields group into one line (NFR-20), each naming its column.
         let (table, _, warnings) = parsed("name,description\nKaf\u{1}ka,a\u{7f}b\u{85}c\n");
-        assert_eq!(table.expect("parses").records[0].fields, ["Kafka", "abc"]);
+        assert_eq!(
+            table
+                .expect("parses")
+                .records
+                .first()
+                .expect("one record")
+                .fields,
+            ["Kafka", "abc"]
+        );
         assert_eq!(
             warnings,
             [
@@ -982,7 +1025,15 @@ mod tests {
     #[test]
     fn nul_and_noncharacters_are_removed() {
         let (table, _, warnings) = parsed("a\n\u{0}x\u{fffe}\u{ffff}y\n");
-        assert_eq!(table.expect("parses").records[0].fields, ["xy"]);
+        assert_eq!(
+            table
+                .expect("parses")
+                .records
+                .first()
+                .expect("one record")
+                .fields,
+            ["xy"]
+        );
         assert_eq!(
             warnings,
             [
@@ -1015,7 +1066,15 @@ mod tests {
     #[test]
     fn a_cell_of_only_undisplayable_characters_becomes_empty() {
         let (table, _, _) = parsed("name,ring\n\u{1}\u{2},Adopt\n");
-        assert_eq!(table.expect("parses").records[0].fields, ["", "Adopt"]);
+        assert_eq!(
+            table
+                .expect("parses")
+                .records
+                .first()
+                .expect("one record")
+                .fields,
+            ["", "Adopt"]
+        );
     }
 
     /// Review focus 5: removal comes first, so the duplicate is the one the
@@ -1034,7 +1093,15 @@ mod tests {
     #[test]
     fn tab_and_line_breaks_survive_removal() {
         let (table, _, warnings) = parsed("a\n\"x\ty\r\nz\"\n");
-        assert_eq!(table.expect("parses").records[0].fields, ["x\ty\r\nz"]);
+        assert_eq!(
+            table
+                .expect("parses")
+                .records
+                .first()
+                .expect("one record")
+                .fields,
+            ["x\ty\r\nz"]
+        );
         assert!(warnings.is_empty(), "{warnings:?}");
     }
 

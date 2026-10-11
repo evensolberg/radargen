@@ -25,7 +25,12 @@ fn both_faces_register_as_family_inter_with_their_weights() {
     db.load_font_data(SEMIBOLD.to_vec());
     let mut seen: Vec<(String, u16)> = db
         .faces()
-        .map(|f| (f.families[0].0.clone(), f.weight.0))
+        .map(|f| {
+            (
+                f.families.first().expect("families[0] exists").0.clone(),
+                f.weight.0,
+            )
+        })
         .collect();
     seen.sort();
     assert_eq!(

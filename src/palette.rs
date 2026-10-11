@@ -199,11 +199,22 @@ impl Palette {
 
     /// The literal value — SVG and PNG, whose consumers do not resolve custom
     /// properties (`resvg` renders an unresolved `var()` black).
+    ///
+    /// # Panics
+    ///
+    /// If the palette has no series entries, which FR-87 rules out and no
+    /// constructor produces.
     #[must_use]
     pub fn value(&self, role: Role) -> &str {
         match self.bind(role) {
-            Role::Neutral(n) => &self.neutrals[n as usize],
-            Role::Series(i) => &self.series[i],
+            Role::Neutral(n) => self
+                .neutrals
+                .get(n as usize)
+                .expect("`neutrals` holds one value per `Neutral`"),
+            Role::Series(i) => self
+                .series
+                .get(i)
+                .expect("`bind` reduced the index modulo the series length"),
         }
     }
 
@@ -339,8 +350,8 @@ mod tests {
                 "#FFFFFF"
             ]
         );
-        for (i, ink) in inks.iter().enumerate() {
-            let ratio = contrast(SERIES[i], ink);
+        for (i, (ink, series)) in inks.iter().zip(SERIES).enumerate() {
+            let ratio = contrast(series, ink);
             assert!(ratio >= 4.5, "series-{} {ratio:.2}", i + 1);
         }
         assert_eq!(p.number_ink(13), p.number_ink(5), "cycles with FR-67");

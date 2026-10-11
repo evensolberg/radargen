@@ -269,7 +269,12 @@ impl Catalogue {
                     .and_then(|c| item.cell(c))
                     .map_or("", trim)
             },
-            |r| self.rings[r].as_str(),
+            |r| {
+                self.rings
+                    .get(r)
+                    .expect("item.ring is within this catalogue's rings")
+                    .as_str()
+            },
         );
         let row = [
             Some(trim(&item.name)),
@@ -280,7 +285,11 @@ impl Catalogue {
         .flatten()
         .collect::<Vec<_>>()
         .join(", ");
-        let quadrant = &self.quadrants[item.quadrant].label;
+        let quadrant = &self
+            .quadrants
+            .get(item.quadrant)
+            .expect("item.quadrant is within this catalogue's quadrants")
+            .label;
         let position = if ring.is_empty() {
             format!("{quadrant} quadrant")
         } else {
@@ -383,9 +392,15 @@ impl Header {
     /// The header position of the first column of `kind`. A repeat is
     /// already FR-4's error, so the first is the one that counts.
     fn position(&self, kind: ColumnKind) -> Option<usize> {
-        self.slots
-            .iter()
-            .position(|s| s.is_some_and(|c| self.columns[c].kind == kind))
+        self.slots.iter().position(|s| {
+            s.is_some_and(|c| {
+                self.columns
+                    .get(c)
+                    .expect("a slot holds an index into columns")
+                    .kind
+                    == kind
+            })
+        })
     }
 
     /// FR-5: every required column the header lacks.
@@ -569,12 +584,17 @@ impl Builder {
     fn quadrant(&mut self, value: &str) -> usize {
         let key = normalise(value);
         let label = trim(value);
-        if let Some(i) = self.quadrants.iter().position(|q| q.key == key) {
+        if let Some((i, q)) = self
+            .quadrants
+            .iter_mut()
+            .enumerate()
+            .find(|(_, q)| q.key == key)
+        {
             // D-53: "ordinally" is code-point order, which is `str`'s `<`.
             // `order::compare_names` is the same rule; this site
             // cannot call it, since `order.rs` depends on this module.
-            if label < self.quadrants[i].label.as_str() {
-                self.quadrants[i].label = label.to_string();
+            if label < q.label.as_str() {
+                q.label = label.to_string();
             }
             return i;
         }
@@ -788,8 +808,14 @@ mod tests {
             headings,
             ["name", "quadrant", "ring", "description", " Notes "]
         );
-        assert_eq!(cat.columns[4].kind, ColumnKind::Other);
-        assert_eq!(cat.items[0].cells, ["K", "T", "Adopt", "d", "n"]);
+        assert_eq!(
+            cat.columns.get(4).expect("columns[4] exists").kind,
+            ColumnKind::Other
+        );
+        assert_eq!(
+            cat.items.first().expect("items[0] exists").cells,
+            ["K", "T", "Adopt", "d", "n"]
+        );
     }
 
     /// FR-76 (D-61): case, spaces and invisible format characters do not
@@ -843,7 +869,16 @@ mod tests {
         let csv = "name,quadrant,ring,description,ticket\nK,T,Adopt,d,OPS-1\n";
         let quiet = warnings(csv);
         assert!(quiet.is_empty(), "{quiet:?}");
-        assert_eq!(catalogue(csv).items[0].cells[4], "OPS-1");
+        assert_eq!(
+            catalogue(csv)
+                .items
+                .first()
+                .expect("items[0] exists")
+                .cells
+                .get(4)
+                .expect("cells[4] exists"),
+            "OPS-1"
+        );
     }
 
     // --- FR-6 ---
@@ -983,7 +1018,10 @@ mod tests {
         let cat = catalogue(&format!(
             "{HEAD}a, tool,Adopt,d\nb,Tool,Adopt,d\nc,\u{200b}Tool,Adopt,d\n"
         ));
-        assert_eq!(cat.quadrants[0].label, "Tool");
+        assert_eq!(
+            cat.quadrants.first().expect("quadrants[0] exists").label,
+            "Tool"
+        );
     }
 
     /// FR-8: quadrants in order of first appearance; FR-10 orders them later.
@@ -1021,7 +1059,15 @@ mod tests {
     fn an_undeclared_ring_is_unplotted_and_names_the_ring_source() {
         let csv = format!("{HEAD}a,T,In Use,d\n");
         let (result, warnings) = build(&csv);
-        assert_eq!(result.expect("builds").items[0].ring, None);
+        assert_eq!(
+            result
+                .expect("builds")
+                .items
+                .first()
+                .expect("items[0] exists")
+                .ring,
+            None
+        );
         assert_eq!(
             warnings,
             [
@@ -1081,7 +1127,8 @@ mod tests {
     /// The name is kept as written; its key is FR-76's, computed once.
     #[test]
     fn names_keep_their_text_and_carry_a_key() {
-        let item = &catalogue(&format!("{HEAD} Kafka ,T,Adopt,d\n")).items[0];
+        let cat = catalogue(&format!("{HEAD} Kafka ,T,Adopt,d\n"));
+        let item = cat.items.first().expect("items[0] exists");
         assert_eq!(
             (item.name.as_str(), item.name_key.as_str()),
             (" Kafka ", "kafka")
@@ -1178,8 +1225,14 @@ mod tests {
         );
         let (result, warnings) = build(&csv);
         let items = result.expect("builds").items;
-        assert_eq!(items[0].cell(5), Some(" 2026-06-01 "));
-        assert_eq!(items[1].cell(5), Some("\u{200b}2026-06-01\u{feff}"));
+        assert_eq!(
+            items.first().expect("items[0] exists").cell(5),
+            Some(" 2026-06-01 ")
+        );
+        assert_eq!(
+            items.get(1).expect("items[1] exists").cell(5),
+            Some("\u{200b}2026-06-01\u{feff}")
+        );
         assert_eq!(
             warnings,
             [
@@ -1227,7 +1280,8 @@ mod tests {
     fn absent_optional_columns_claim_nothing() {
         let csv = format!("{HEAD}K,T,Adopt,d\n");
         let (result, warnings) = build(&csv);
-        let item = &result.expect("builds").items[0];
+        let cat = result.expect("builds");
+        let item = cat.items.first().expect("items[0] exists");
         assert_eq!((item.qualifier, item.status), (None, None));
         assert!(warnings.is_empty(), "{warnings:?}");
     }
@@ -1235,7 +1289,8 @@ mod tests {
     /// FR-29: an empty cell is omitted, not shown as an empty label.
     #[test]
     fn an_empty_cell_is_omitted() {
-        let item = &catalogue(&format!("{FULL}K,T,Adopt,d,,  ,,\n")).items[0];
+        let cat = catalogue(&format!("{FULL}K,T,Adopt,d,,  ,,\n"));
+        let item = cat.items.first().expect("items[0] exists");
         assert_eq!(
             (item.cell(4), item.cell(5), item.cell(99)),
             (None, None, None)
@@ -1250,7 +1305,10 @@ mod tests {
         let cat = catalogue(
             "name,,quadrant,ring,description,exit_date\nOld,,Tool,Rejected,d,2027-01-01\n",
         );
-        assert_eq!(cat.items[0].cell(4), Some("2027-01-01"));
+        assert_eq!(
+            cat.items.first().expect("items[0] exists").cell(4),
+            Some("2027-01-01")
+        );
     }
 
     /// FR-93: Excel's trailing padding passes silently, and so does a cell
@@ -1331,11 +1389,11 @@ mod tests {
             "{FULL} Kafka ,tool,adopt,d,conditional,,,moved in\nOld,Tool,Rejected,d,,,,\n"
         ));
         assert_eq!(
-            cat.accessible_name(&cat.items[0], Some(3)),
+            cat.accessible_name(cat.items.first().expect("items[0] exists"), Some(3)),
             "3. Kafka, Conditional, Moved In; Tool quadrant, Adopt ring"
         );
         assert_eq!(
-            cat.accessible_name(&cat.items[1], None),
+            cat.accessible_name(cat.items.get(1).expect("items[1] exists"), None),
             "Old; Tool quadrant, Rejected ring; not on the radar"
         );
     }
@@ -1346,7 +1404,7 @@ mod tests {
     fn an_unplotted_ring_is_found_past_an_unnamed_column() {
         let cat = catalogue("name,,quadrant,ring,description\nOld,,Tool,Rejected,d\n");
         assert_eq!(
-            cat.accessible_name(&cat.items[0], None),
+            cat.accessible_name(cat.items.first().expect("items[0] exists"), None),
             "Old; Tool quadrant, Rejected ring; not on the radar"
         );
         assert_eq!(cat.column(ColumnKind::Ring), Some(2));
@@ -1378,7 +1436,7 @@ mod tests {
             }],
         };
         assert_eq!(
-            cat.accessible_name(&cat.items[0], None),
+            cat.accessible_name(cat.items.first().expect("items[0] exists"), None),
             "Old; Tool quadrant; not on the radar"
         );
     }
@@ -1390,6 +1448,6 @@ mod tests {
     #[should_panic(expected = "FR-18")]
     fn a_number_for_an_unplotted_item_is_a_bug() {
         let cat = catalogue(&format!("{HEAD}Old,Tool,Rejected,d\n"));
-        let _ = cat.accessible_name(&cat.items[0], Some(1));
+        let _ = cat.accessible_name(cat.items.first().expect("items[0] exists"), Some(1));
     }
 }

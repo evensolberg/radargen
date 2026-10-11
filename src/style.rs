@@ -196,7 +196,7 @@ mod tests {
         const { assert!(LEGEND_QUADRANT.size - LEGEND_RING.size >= 2.0) };
         let levels = [LEGEND_QUADRANT, LEGEND_RING, LEGEND_NAME];
         for (i, a) in levels.iter().enumerate() {
-            for b in &levels[i + 1..] {
+            for b in levels.iter().skip(i + 1) {
                 // FR-35: letter-spacing alone reads as a flat list, so a level
                 // must differ in weight or by a visible size step.
                 assert!(

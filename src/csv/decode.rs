@@ -36,7 +36,7 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<String, NotUtf8> {
 fn line_at(bytes: &[u8], offset: usize) -> usize {
     let mut line = 1;
     let mut after_cr = false;
-    for &b in &bytes[..offset] {
+    for &b in bytes.iter().take(offset) {
         // A CR is a break; an LF is one unless it completes a CRLF.
         if b == b'\r' || (b == b'\n' && !after_cr) {
             line += 1;
