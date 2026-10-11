@@ -3,9 +3,19 @@ use radargen::text::{FontMetrics, REGULAR_TTF as FONT};
 /// Latin text whose widths must not move: kerning pairs, Latin Extended
 /// letters, and the extremes of advance width.
 const LATIN_CORPUS: [&str; 13] = [
-    "Terraform", "AVATAR", "Today", "WAVE", "Tycho", "Yoga", "office",
-    "Dvořák", "Łukasiewicz", "İstanbul", "Trunk-Based Development",
-    "WWWWWWWW", "illlliii",
+    "Terraform",
+    "AVATAR",
+    "Today",
+    "WAVE",
+    "Tycho",
+    "Yoga",
+    "office",
+    "Dvořák",
+    "Łukasiewicz",
+    "İstanbul",
+    "Trunk-Based Development",
+    "WWWWWWWW",
+    "illlliii",
 ];
 
 fn metrics() -> FontMetrics<'static> {

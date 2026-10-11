@@ -1,5 +1,7 @@
 # Text-metrics spike — findings
 
+> **Since PRD v0.46 (D-67):** measurement uses `harfrust`, the shaper `resvg` 0.48 uses; this spike's `rustybuzz` findings carry over unchanged, because the oracle test still agrees to the pixel.
+
 **Retires PRD R-1.** §14.2 lists this as the first task of the project, before any
 layout work, because R-1 is the largest single source of estimate variance and it
 gates both release slices.

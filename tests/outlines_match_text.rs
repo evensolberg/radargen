@@ -10,7 +10,7 @@
 use std::fmt::Write as _;
 use std::sync::Arc;
 
-use rustybuzz::{Face as ShaperFace, UnicodeBuffer};
+use harfrust::{Direction, FontRef, ShapeOptions, ShaperData, UnicodeBuffer};
 use ttf_parser::{Face as ParseFace, GlyphId, OutlineBuilder};
 
 use radargen::num::fmt_coord;
@@ -143,7 +143,9 @@ struct Built {
 }
 
 fn build() -> Built {
-    let shaping_face = ShaperFace::from_slice(TTF, 0).expect("shaping face");
+    let font = FontRef::from_index(TTF, 0).expect("shaping face");
+    let data = ShaperData::new(&font);
+    let shaper = data.shaper(&font).build();
     let parse = ParseFace::parse(TTF, 0).expect("parse face");
     let upem = f64::from(parse.units_per_em());
     let scale = SIZE / upem;
@@ -164,10 +166,12 @@ fn build() -> Built {
 
         let mut buf = UnicodeBuffer::new();
         buf.push_str(s);
-        let shaped = rustybuzz::shape(&shaping_face, &[], buf);
+        buf.set_direction(Direction::LeftToRight);
+        buf.guess_segment_properties();
+        let output = shaper.shape(buf, ShapeOptions::new());
         let mut run = String::new();
         let mut pen = 20.0_f64;
-        for (info, pos) in shaped.glyph_infos().iter().zip(shaped.glyph_positions()) {
+        for (info, pos) in output.glyph_infos().iter().zip(output.glyph_positions()) {
             let gid = u16::try_from(info.glyph_id).expect("glyph id fits u16");
             let gx = pen + f64::from(pos.x_offset) * scale;
             let gy = y - f64::from(pos.y_offset) * scale;

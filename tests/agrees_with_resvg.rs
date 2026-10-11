@@ -58,10 +58,23 @@ fn our_advance_matches_usvg_layout_for_both_weights() {
             "Internationalisation",
             "WWWWWWWW",
             "illlliii",
-            // R-7 / SC-7: outside the subset these render as tofu in the PNG
-            // (A-4), but their wrap points still come from our measurement.
-            "日本語",
+            // D-68: scripts the subset now draws, measured as resvg lays them out.
+            "Ελληνικά",
+            "Ελληνικός",
+            "Кириллица",
+            "Москва 2026",
+            "Tiếng Việt",
+            // The same text typed as base letters plus combining marks, some
+            // outside the subset's ranges: the shaper must compose or position
+            // them exactly as resvg does.
+            "Tie\u{0302}\u{0301}ng Vie\u{0323}\u{0302}t",
+            "α\u{0313}\u{0301}",
+            "За\u{0301}мок",
+            // Mixed scripts on one line.
             "Kubernetes Ж",
+            // A-4: outside the subset this renders as tofu in the PNG, but its
+            // wrap points still come from our measurement.
+            "日本語",
         ] {
             let ours = fonts.face(weight).measure(word, SIZE, 0.0);
             let theirs = usvg_advance(word, weight, &opt);

@@ -564,7 +564,9 @@ rasterises. A test that only checks our measurement against itself would pass
 while the two diverged, which is exactly what the spike found the naive
 implementation doing — silently, and only on strings carrying kerning pairs.
 These tests already exist and predate the layout engine, which is the right
-order.
+order. Since D-67 that shaper is `harfrust`, at the version `usvg` resolves, so
+a `resvg` upgrade that changes it moves both together; the oracle test is what
+notices if it ever does not.
 
 **Determinism is tested across processes, not across calls.** Rendering twice in
 one process shares an allocator and a hash state, so it is the weaker assertion
@@ -642,7 +644,8 @@ Three consequences the design carries:
 
 - **`emit/svg.rs` is a converter, not a serialiser.** It needs glyph outlines
   from `ttf-parser` and a shaping pass it shares with `text.rs`. No new
-  dependency — both are already direct — but §14.2's "SVG export … effectively
+  crate — `harfrust` is direct, and `ttf-parser` returns from dev-dependency
+  to direct when `emit/svg.rs` lands — but §14.2's "SVG export … effectively
   free once rasterisation works" no longer holds, and the file is worth half a
   day to a day of its own.
 - **Outlines are deduplicated through `<use>`.** One `<path>` per distinct glyph
