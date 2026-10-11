@@ -1,16 +1,16 @@
 {
   "version": 2,
-  "quality_score": 0.690581728473659,
+  "quality_score": 0.6957224228952481,
   "iosp_score": 0.9959016393442623,
   "violations": 1,
-  "total": 412,
+  "total": 413,
   "complexity_warnings": 1,
   "magic_number_warnings": 22,
   "nesting_depth_warnings": 0,
   "function_length_warnings": 4,
   "unsafe_warnings": 0,
   "error_handling_warnings": 2,
-  "duplicate_groups": 6,
+  "duplicate_groups": 4,
   "dead_code_warnings": 22,
   "dead_type_warnings": 50,
   "fragment_groups": 2,
@@ -28,7 +28,7 @@
   "tq_untested_logic_warnings": 0,
   "structural_srp_warnings": 0,
   "structural_coupling_warnings": 1,
-  "total_findings": 127,
+  "total_findings": 125,
   "violation_details": [
     {
       "name": "main",

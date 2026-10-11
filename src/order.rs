@@ -47,6 +47,11 @@ impl Plotted {
 
 /// FR-10, FR-18, FR-34: order the quadrants and the plotted items, and
 /// number the items from 1.
+///
+/// # Panics
+///
+/// If an item's `quadrant` is out of range for the catalogue's
+/// quadrants, as for an item from another catalogue.
 #[must_use]
 pub fn resolve(catalogue: &Catalogue) -> Plotted {
     let quadrants = quadrant_order(&catalogue.quadrants);
@@ -108,6 +113,11 @@ pub fn compare_names(a: &Item, b: &Item) -> Ordering {
 /// An unplotted item (`ring` is `None`) sorts before its quadrant's
 /// plotted ones; [`resolve`] sorts only plotted items, so that only keeps
 /// this total.
+///
+/// # Panics
+///
+/// If either item's `quadrant` is out of range for `rank`, as for an
+/// item from another catalogue.
 #[must_use]
 pub fn compare_items(rank: &[usize], a: &Item, b: &Item) -> Ordering {
     rank[a.quadrant]
@@ -130,6 +140,9 @@ fn ranks(order: &[usize]) -> Vec<usize> {
 /// The plotted items in FR-34's order, as indices into
 /// `catalogue.items`. Unplotted items get no number (FR-18), so they are
 /// not here.
+///
+/// The index ends the comparison, so the order is total even for
+/// hand-built items equal on every key including `line`.
 fn item_order(catalogue: &Catalogue, rank: &[usize]) -> Vec<usize> {
     let mut order: Vec<usize> = catalogue
         .items
@@ -138,7 +151,9 @@ fn item_order(catalogue: &Catalogue, rank: &[usize]) -> Vec<usize> {
         .filter(|(_, item)| item.ring.is_some())
         .map(|(i, _)| i)
         .collect();
-    order.sort_unstable_by(|&a, &b| compare_items(rank, &catalogue.items[a], &catalogue.items[b]));
+    order.sort_unstable_by(|&a, &b| {
+        compare_items(rank, &catalogue.items[a], &catalogue.items[b]).then(a.cmp(&b))
+    });
     order
 }
 

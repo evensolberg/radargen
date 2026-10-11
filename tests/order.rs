@@ -28,18 +28,22 @@ fn numbered(cat: &Catalogue, plotted: &Plotted) -> Vec<(String, Option<usize>)> 
         .collect()
 }
 
+/// Each quadrant's label, in FR-10's order.
+fn labels(cat: &Catalogue, plotted: &Plotted) -> Vec<String> {
+    plotted
+        .quadrants
+        .iter()
+        .map(|&q| cat.quadrants[q].label.clone())
+        .collect()
+}
+
 /// PRD §6.1.6's example (SC-2) under the default rings, Assess, Trial,
 /// Adopt, Retire: Platform, Practice, Tool (FR-10), and within Tool,
 /// Trial before Adopt before Retire (FR-34, D-33).
 #[test]
 fn the_prd_example_numbers_in_legend_order() {
     let (cat, plotted) = resolved(EXAMPLE);
-    let quadrants: Vec<_> = plotted
-        .quadrants
-        .iter()
-        .map(|&q| cat.quadrants[q].label.as_str())
-        .collect();
-    assert_eq!(quadrants, ["Platform", "Practice", "Tool"]);
+    assert_eq!(labels(&cat, &plotted), ["Platform", "Practice", "Tool"]);
     assert_eq!(plotted.rank, [2, 0, 1]);
     assert_eq!(
         plotted.numbers,
@@ -76,11 +80,5 @@ fn numbering_does_not_depend_on_row_order() {
     backward.sort();
     assert_eq!(forward, backward);
 
-    let labels = |c: &Catalogue, p: &Plotted| -> Vec<String> {
-        p.quadrants
-            .iter()
-            .map(|&q| c.quadrants[q].label.clone())
-            .collect()
-    };
     assert_eq!(labels(&cat, &plotted), labels(&rcat, &rplotted));
 }
