@@ -7,6 +7,7 @@
 
 // qual:allow(coupling, sdp) reason: "the pipeline runs csv → model → order → layout (architecture §2); depending on the previous stage is the design"
 
+pub use crate::columns::ColumnKind;
 use crate::csv::parse::{Record, Table};
 use crate::diagnostics::{DateColumn, Fatal, RowKind, Warning, Warnings};
 use crate::rings::{RingSet, RingSource};
@@ -23,77 +24,6 @@ const REQUIRED: [ColumnKind; 4] = [
 /// FR-6's columns: required, and never empty. `description` may be empty
 /// (FR-7).
 const NON_EMPTY: [ColumnKind; 3] = [ColumnKind::Name, ColumnKind::Quadrant, ColumnKind::Ring];
-
-/// What a named column means. A header name is matched under FR-76, so
-/// `Name ` is `name`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ColumnKind {
-    /// The item's name (FR-5); required and never empty (FR-6).
-    Name,
-    /// The quadrant the item belongs to (FR-5, FR-8).
-    Quadrant,
-    /// The ring the item sits in (FR-5, FR-16).
-    Ring,
-    /// Free text about the item (FR-5); may be empty (FR-7).
-    Description,
-    /// Whether the item is a default or conditional choice (FR-20).
-    Qualifier,
-    /// Free text for the detail panel, shown verbatim (FR-22).
-    Domain,
-    /// Free text for the detail panel, shown verbatim (FR-23).
-    Rationale,
-    /// An ISO-8601 date for the detail panel (FR-24).
-    LastAffirmed,
-    /// A date for the detail panel, whatever the ring (FR-25).
-    ExitDate,
-    /// Author-supplied movement since the last edition (FR-26, D-9).
-    Status,
-    /// FR-27: a column the tool does not know. Kept for the table (FR-78).
-    Other,
-}
-
-impl ColumnKind {
-    /// Every known kind, so the header names are written once, in
-    /// [`ColumnKind::as_str`].
-    const KNOWN: [Self; 10] = [
-        Self::Name,
-        Self::Quadrant,
-        Self::Ring,
-        Self::Description,
-        Self::Qualifier,
-        Self::Domain,
-        Self::Rationale,
-        Self::LastAffirmed,
-        Self::ExitDate,
-        Self::Status,
-    ];
-
-    /// The kind a header name under FR-76 names.
-    fn of(key: &str) -> Self {
-        Self::KNOWN
-            .into_iter()
-            .find(|k| k.as_str() == key)
-            .unwrap_or(Self::Other)
-    }
-
-    /// The canonical header name; empty for [`ColumnKind::Other`].
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Name => "name",
-            Self::Quadrant => "quadrant",
-            Self::Ring => "ring",
-            Self::Description => "description",
-            Self::Qualifier => "qualifier",
-            Self::Domain => "domain",
-            Self::Rationale => "rationale",
-            Self::LastAffirmed => "last_affirmed",
-            Self::ExitDate => "exit_date",
-            Self::Status => "status",
-            Self::Other => "",
-        }
-    }
-}
 
 /// One named column, in header order (FR-27, FR-78).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -409,10 +339,7 @@ impl Header {
         REQUIRED
             .into_iter()
             .filter(|&kind| self.position(kind).is_none())
-            .map(|kind| Fatal::MissingColumn {
-                line,
-                column: kind.as_str(),
-            })
+            .map(|kind| Fatal::MissingColumn { line, column: kind })
             .collect()
     }
 }
@@ -433,7 +360,7 @@ fn empty_required(header: &Header, records: &[Record]) -> Vec<Fatal> {
                 .filter(|&&(p, _)| trim(field(record, p)).is_empty())
                 .map(|&(_, kind)| Fatal::EmptyRequired {
                     line: record.line,
-                    column: kind.as_str(),
+                    column: kind,
                 })
         })
         .collect()
@@ -790,11 +717,11 @@ mod tests {
         )
     }
 
-    fn missing(column: &'static str) -> String {
+    fn missing(column: ColumnKind) -> String {
         Fatal::MissingColumn { line: 1, column }.render()
     }
 
-    fn empty(line: usize, column: &'static str) -> String {
+    fn empty(line: usize, column: ColumnKind) -> String {
         Fatal::EmptyRequired { line, column }.render()
     }
 
@@ -850,7 +777,10 @@ mod tests {
     fn every_missing_required_column_is_reported() {
         assert_eq!(
             errors("ring,name\nAdopt,K\n"),
-            [missing("quadrant"), missing("description")]
+            [
+                missing(ColumnKind::Quadrant),
+                missing(ColumnKind::Description)
+            ]
         );
     }
 
@@ -861,7 +791,7 @@ mod tests {
             errors("\n,,\nname,quadrant,ring\n"),
             [Fatal::MissingColumn {
                 line: 3,
-                column: "description"
+                column: ColumnKind::Description
             }
             .render()]
         );
@@ -889,7 +819,11 @@ mod tests {
         let csv = format!("{HEAD} ,T,Adopt,d\nK,\u{200b},  ,d\nK,T,Adopt,d\n");
         assert_eq!(
             errors(&csv),
-            [empty(2, "name"), empty(3, "quadrant"), empty(3, "ring")]
+            [
+                empty(2, ColumnKind::Name),
+                empty(3, ColumnKind::Quadrant),
+                empty(3, ColumnKind::Ring)
+            ]
         );
     }
 
@@ -899,7 +833,7 @@ mod tests {
     fn empty_required_values_follow_header_column_order() {
         assert_eq!(
             errors("ring,name,quadrant,description\n ,,T,d\n"),
-            [empty(2, "ring"), empty(2, "name")]
+            [empty(2, ColumnKind::Ring), empty(2, ColumnKind::Name)]
         );
     }
 
@@ -909,7 +843,7 @@ mod tests {
     fn a_name_of_only_undisplayable_characters_is_empty() {
         assert_eq!(
             errors(&format!("{HEAD}\u{1},T,Adopt,d\n")),
-            [empty(2, "name")]
+            [empty(2, ColumnKind::Name)]
         );
     }
 
@@ -919,7 +853,7 @@ mod tests {
     fn missing_columns_and_empty_values_arrive_together() {
         assert_eq!(
             errors("name,quadrant,ring\n,T,Adopt\n"),
-            [missing("description"), empty(2, "name")]
+            [missing(ColumnKind::Description), empty(2, ColumnKind::Name)]
         );
     }
 
@@ -928,7 +862,7 @@ mod tests {
     #[test]
     fn a_cleared_row_does_not_shift_line_numbers() {
         let csv = format!("{HEAD}K,T,Adopt,d\n,,,\n,T,Adopt,d\n");
-        assert_eq!(errors(&csv), [empty(4, "name")]);
+        assert_eq!(errors(&csv), [empty(4, ColumnKind::Name)]);
     }
 
     /// FR-3's blank test counts only spaces and tabs (D-59), so a row
@@ -937,7 +871,11 @@ mod tests {
     fn a_row_of_only_format_characters_is_not_blank() {
         assert_eq!(
             errors(&format!("{HEAD}\u{200b},,,\n")),
-            [empty(2, "name"), empty(2, "quadrant"), empty(2, "ring")]
+            [
+                empty(2, ColumnKind::Name),
+                empty(2, ColumnKind::Quadrant),
+                empty(2, ColumnKind::Ring)
+            ]
         );
     }
 
@@ -959,7 +897,7 @@ mod tests {
         let errs = build_catalogue(&table, &rings, &mut Warnings::default()).expect_err("fails");
         assert_eq!(
             errs.iter().map(Fatal::render).collect::<Vec<_>>(),
-            [empty(2, "quadrant"), empty(2, "ring")]
+            [empty(2, ColumnKind::Quadrant), empty(2, ColumnKind::Ring)]
         );
     }
 

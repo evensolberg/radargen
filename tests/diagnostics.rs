@@ -1,6 +1,7 @@
 //! The diagnostic contract (architecture §10): exact messages, NFR-11 order,
 //! NFR-20 grouping. SC-10's golden tests later pin the same text end to end.
 
+use radargen::columns::ColumnKind;
 use radargen::diagnostics::{
     DateColumn, Fatal, Position, RenderKind, RowKind, Separator, Warning, Warnings,
 };
@@ -841,14 +842,14 @@ fn model_messages() {
         (
             Fatal::MissingColumn {
                 line: 1,
-                column: "ring",
+                column: ColumnKind::Ring,
             },
             "error: line 1: the header has no 'ring' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description",
         ),
         (
             Fatal::EmptyRequired {
                 line: 7,
-                column: "quadrant",
+                column: ColumnKind::Quadrant,
             },
             "error: line 7, quadrant: empty; every row needs a quadrant, so fill it in or delete the row",
         ),

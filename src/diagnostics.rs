@@ -3,6 +3,7 @@
 
 use std::fmt;
 
+use crate::columns::ColumnKind;
 use crate::rings::{RingSource, RingsError};
 use crate::{normalise, trim};
 
@@ -202,12 +203,12 @@ impl RowKind {
     /// The column this warning concerns, as NFR-10 names it.
     fn column_name(&self) -> &str {
         match self {
-            Self::UndeclaredRing { .. } => "ring",
-            Self::UnrecognisedQualifier { .. } => "qualifier",
-            Self::UnrecognisedStatus { .. } => "status",
+            Self::UndeclaredRing { .. } => ColumnKind::Ring.as_str(),
+            Self::UnrecognisedQualifier { .. } => ColumnKind::Qualifier.as_str(),
+            Self::UnrecognisedStatus { .. } => ColumnKind::Status.as_str(),
             Self::UnparsableDate { column, .. } => column.as_str(),
-            Self::EmptyDescription => "description",
-            Self::DuplicateName { .. } => "name",
+            Self::EmptyDescription => ColumnKind::Description.as_str(),
+            Self::DuplicateName { .. } => ColumnKind::Name.as_str(),
             // A header name is CSV text (FR-18's extra columns); it is escaped
             // with the rest of the line.
             Self::Undisplayable { column, .. } | Self::UnnamedValue { column } => column,
@@ -655,24 +656,26 @@ pub enum Fatal {
     /// FR-5: the header lacks a required column. Every missing one is
     /// reported (NFR-16 tier two). `line` is the header's.
     #[error(
-        "line {line}: the header has no '{column}' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description"
+        "line {line}: the header has no '{}' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description",
+        column.as_str()
     )]
     MissingColumn {
         /// The header's line.
         line: usize,
-        /// The canonical name of the missing column.
-        column: &'static str,
+        /// The missing column.
+        column: ColumnKind,
     },
     /// FR-6: an empty `name`, `quadrant` or `ring`, empty under FR-76's
     /// trim, so a cell of spaces or a lone zero-width space counts.
     #[error(
-        "line {line}, {column}: empty; every row needs a {column}, so fill it in or delete the row"
+        "line {line}, {0}: empty; every row needs a {0}, so fill it in or delete the row",
+        column.as_str()
     )]
     EmptyRequired {
         /// The row's line.
         line: usize,
-        /// The canonical name of the empty column.
-        column: &'static str,
+        /// The empty column.
+        column: ColumnKind,
     },
 }
 
