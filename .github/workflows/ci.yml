@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
 
+# Actions are pinned to full commit SHAs, with the release as a comment, so a
+# moved tag cannot change what runs; Dependabot keeps them current.
 permissions:
   contents: read
 
@@ -20,7 +22,7 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       # Installs the toolchain rust-toolchain.toml pins, with its components.
@@ -30,12 +32,12 @@ jobs:
   clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       # Installs the toolchain rust-toolchain.toml pins, with its components.
       - run: rustup toolchain install
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       # Cargo.toml's [lints] denies clippy::pedantic and forbids unsafe_code,
       # so -D warnings is the whole gate (architecture §1).
       - run: cargo clippy --locked --all-targets -- -D warnings
@@ -45,10 +47,10 @@ jobs:
     # rather than remembered (architecture §1).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
         with:
           command: check licenses
 
@@ -60,11 +62,11 @@ jobs:
         os: [macos-latest, windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       # Installs the toolchain rust-toolchain.toml pins, with its components.
       - run: rustup toolchain install
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       # Plain `cargo test` also builds the examples and runs doctests.
       - run: cargo test --locked
