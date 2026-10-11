@@ -1,7 +1,7 @@
 ---
 id: rg-6w7
 title: Marker numbers shrink below legibility in the narrow arrangement
-status: open
+status: closed
 type: task
 priority: 2
 tags:

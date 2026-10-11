@@ -10,17 +10,17 @@ crumb_id: rg-svr
 document_title: "PR 10a — the radar block's frame: rings, dividers, labels, and FR-70's three scales: Implementation Plan"
 created_date: 2026-10-11
 synopsis: "The radar block without markers: ring circles, quadrant dividers, ring labels over a halo, quadrant labels, the empty and one-quadrant cases, and FR-70's narrow scaling made explicit — geometry by the radar's scale, labels never below natural size, marks and strokes never below 7/9 (PRD v0.50, rg-6w7)."
-status: draft
+status: done
 type: Plan
 revision: "1.1"
 review_date: 2026-10-11
 reviewed_by: [rust-engineer, architect-reviewer, qa-expert, ui-designer, accessibility-tester]
-completed_date:
+completed_date: 2026-10-11
 comments: "1.1 folds in the five-seat plan review; see Review rulings."
 ---
 # PR 10a — the radar block's frame: Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Crumbs:** `rg-svr` (part 1 of 2; the maintainer split PR 10, 2026-10-11), `rg-6w7` (decided: the floor) · **Phase:** v1.0 · **Then:** PR 10b (markers)
 
@@ -94,12 +94,12 @@ Five seats reviewed revision 1.0; their reports are in the session scratchpad. R
 
 **Files:** `docs/product/radargen-prd.md`, `docs/design/architecture.md`
 
-- [ ] **Step 1: FR-70.** After "Radar-internal labels are counter-scaled so ring and quadrant names survive the reduction." add: "Markers, their numbers and the radar's strokes scale with the radar but **never below 7/9 of their natural size**, so a 9-unit marker number draws at no less than 7 units while the radar's geometry keeps shrinking (D-69). FR-94's hit area is not floored; it is counter-scaled like the labels."
-- [ ] **Step 2: FR-89.** Add: "Capacity is evaluated at the wide arrangement's scale; in the narrow arrangement markers are relatively larger (D-69), so a band can overlap there before it reaches capacity."
-- [ ] **Step 3: D-69** after D-68 — *The radar's marks floor* (FR-70, FR-89, FR-94; crumb `rg-6w7`). Text: the narrow arrangement scales the radar to about 0.58 (380 of 660 units), which shrank a 9-unit marker number to about 5.2 units, roughly 4 px on a 320 px screen, though the number is a marker's only link to its legend row. Three options were weighed: scale markers with the radar (numbers illegible); counter-scale them like the labels (legible, but markers grow 1.74× against the geometry and a band holds far fewer before overlapping); or a floor. The maintainer chose the floor at 7/9: numbers draw at 7 units (about 5.3 px at 320 px, 6.5 px at 390 px), and markers grow 1.35× against the geometry at `s` = 0.576 — about a quarter fewer per band before overlap — rising as `s` falls. Labels are unaffected: FR-70 already keeps them at natural size. FR-69's breakpoint is unchanged: it is set by the legend's 12.5 px (SC-6), and at the breakpoint markers are at scale 1. FR-89's capacity stays a wide-arrangement figure. OQ-16's output-pixel marker remains a v1.1 question.
-- [ ] **Step 4:** Annotate D-31: "*Amended by D-69:* marker numbers are held at 7/9 of their size, since scaling them with the radar left them illegible." Revision row 0.50; bump `Version:`.
-- [ ] **Step 5: Architecture.** `Implements:` v0.50. §3's `radar.rs` row: "FR-70's three scales". §4's radar paragraph: the radar is not `size(1)·k` because it has three scales — geometry by `s`, labels by `max(s, 1)`, marks by `max(s, 7/9)` (D-69). §5's `Node` listing: add `Line`, and `Text`'s paint as `TextPaint::{Fill, Halo}` (a halo: no fill, round join, hidden from assistive technology).
-- [ ] **Step 6:** Commit `docs(prd): v0.50 — the radar's marks floor (D-69, rg-6w7)`.
+- [x] **Step 1: FR-70.** After "Radar-internal labels are counter-scaled so ring and quadrant names survive the reduction." add: "Markers, their numbers and the radar's strokes scale with the radar but **never below 7/9 of their natural size**, so a 9-unit marker number draws at no less than 7 units while the radar's geometry keeps shrinking (D-69). FR-94's hit area is not floored; it is counter-scaled like the labels."
+- [x] **Step 2: FR-89.** Add: "Capacity is evaluated at the wide arrangement's scale; in the narrow arrangement markers are relatively larger (D-69), so a band can overlap there before it reaches capacity."
+- [x] **Step 3: D-69** after D-68 — *The radar's marks floor* (FR-70, FR-89, FR-94; crumb `rg-6w7`). Text: the narrow arrangement scales the radar to about 0.58 (380 of 660 units), which shrank a 9-unit marker number to about 5.2 units, roughly 4 px on a 320 px screen, though the number is a marker's only link to its legend row. Three options were weighed: scale markers with the radar (numbers illegible); counter-scale them like the labels (legible, but markers grow 1.74× against the geometry and a band holds far fewer before overlapping); or a floor. The maintainer chose the floor at 7/9: numbers draw at 7 units (about 5.3 px at 320 px, 6.5 px at 390 px), and markers grow 1.35× against the geometry at `s` = 0.576 — about a quarter fewer per band before overlap — rising as `s` falls. Labels are unaffected: FR-70 already keeps them at natural size. FR-69's breakpoint is unchanged: it is set by the legend's 12.5 px (SC-6), and at the breakpoint markers are at scale 1. FR-89's capacity stays a wide-arrangement figure. OQ-16's output-pixel marker remains a v1.1 question.
+- [x] **Step 4:** Annotate D-31: "*Amended by D-69:* marker numbers are held at 7/9 of their size, since scaling them with the radar left them illegible." Revision row 0.50; bump `Version:`.
+- [x] **Step 5: Architecture.** `Implements:` v0.50. §3's `radar.rs` row: "FR-70's three scales". §4's radar paragraph: the radar is not `size(1)·k` because it has three scales — geometry by `s`, labels by `max(s, 1)`, marks by `max(s, 7/9)` (D-69). §5's `Node` listing: add `Line`, and `Text`'s paint as `TextPaint::{Fill, Halo}` (a halo: no fill, round join, hidden from assistive technology).
+- [x] **Step 6:** Commit `docs(prd): v0.50 — the radar's marks floor (D-69, rg-6w7)`.
 
 ---
 
@@ -149,15 +149,15 @@ impl Geometry {
 
 Title and key build `TextRun { …, anchor: Anchor::Start, … }` and call `node(Scale::uniform(at.scale))`; their output is unchanged.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `scale_splits_position_from_size`: a `TextRun` at origin (10, 20), size 12, spacing 0.48, leading 15, anchor `Middle`, `node(Scale { position: 0.5, size: 1.0 })` → origin (5, 10), size 12, spacing 0.48, leading 15, anchor `Middle`; with `Scale::uniform(2.0)` everything doubles.
   - `halo_is_an_outline_of_the_same_text`: `halo(3.0, Scale { position: 0.5, size: 2.0 })` has the same origin, style, anchor, lines and leading as `node` with that scale, and `ink == TextPaint::Halo { stroke: Paint::Role(Role::Neutral(Neutral::Surface1)), width: 6.0 }` (width via `close`).
   - `ordinary_text_is_filled`: `node` gives `TextPaint::Fill(Paint::Role(Role::Neutral(ink)))`.
   - `middle_is_halfway_across_the_sector`: N = 1 → 90; N = 2 → 0, 180; N = 3 → −30, 90, 210; N = 4 → −45, 45, 135, 225; at N = 4 also `close(middle(p), angle(p, 0, 1))`; N = 0 → `is_nan()`.
   - `text_metrics_match_the_vendored_faces` (in `text.rs` tests): for both `assets/Inter-Regular.ttf` and `Inter-SemiBold.ttf` via `ttf_parser::Face`, the integers `units_per_em() == 2048`, `ascender() == 1984`, `descender() == -494`, `line_gap() == 0` (integers, so no `float_cmp`), and the constants are documented as those ratios.
   - Title and key tests pass unchanged. The svg module's own `TextRun` scale test moves to `Scale::uniform`, and `TextRun`'s "start-anchored" doc comment changes to describe `anchor`.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual.
-- [ ] **Step 5:** Commit `feat(svg): two-factor Scale, a text halo, Line, Geometry::middle`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual.
+- [x] **Step 5:** Commit `feat(svg): two-factor Scale, a text halo, Line, Geometry::middle`.
 
 ---
 
@@ -181,9 +181,9 @@ pub(crate) fn plotted(csv: &str, rings: Option<&str>) -> (Catalogue, Plotted)
 
 `bounds` per variant: `Group` → children's union, offset added; `Circle` → centre ± (radius + stroke_width/2); `Line` → both ends ± stroke_width/2; `Path` → as key.rs's arc walker does today (half-circle arcs; keep its assertion), ± stroke_width/2; `Text` → per line, width measured with the node's style (letter-spacing included); horizontal extent by anchor (`Start`: x..x+w; `Middle`: x−w/2..x+w/2); vertical baseline − `TEXT_ASCENT`·size to baseline + `TEXT_DESCENT`·size, baseline stepping by `leading`; a `Halo` widens all four sides by width/2. `plotted` is order.rs's `catalogue_with` (parse, `parse_rings`, `build_catalogue`, each `expect`ed) plus `order::resolve`.
 
-- [ ] **Step 1:** Move and extend; switch key and title tests to it. Add tests of the walker itself: a middle-anchored text of known width is centred; a halo widens by width/2; a `Line` from (0,0) to (10,0) of width 2 is (−1,−1,11,1); a `Group` offset shifts the box.
-- [ ] **Step 2:** All existing tests green (key's last label bottom 142.65 < 146 and title's first ascent 16.5 < 22 under hhea metrics); lints; rustqual.
-- [ ] **Step 3:** Commit `test(layout): one bounds walker and fixture builder for every block`.
+- [x] **Step 1:** Move and extend; switch key and title tests to it. Add tests of the walker itself: a middle-anchored text of known width is centred; a halo widens by width/2; a `Line` from (0,0) to (10,0) of width 2 is (−1,−1,11,1); a `Group` offset shifts the box.
+- [x] **Step 2:** All existing tests green (key's last label bottom 142.65 < 146 and title's first ascent 16.5 < 22 under hhea metrics); lints; rustqual.
+- [x] **Step 3:** Commit `test(layout): one bounds walker and fixture builder for every block`.
 
 ---
 
@@ -235,7 +235,7 @@ Write it as named pure operations (`label_half_width(&self, r)`, `label_half_hei
 3. Per quadrant position: `TextRun { origin: polar(middle(p), QUADRANT_LABEL_RADIUS), style: QUADRANT_LABEL, ink: TextPrimary, anchor: Middle, lines: [label], leading: 0 }.node(Scale { position: s, size: r.labels })`.
 4. Per declared ring: the `TextRun { origin: (0, −m), style: RING_LABEL, ink: TextMuted, anchor: Middle, … }` → `halo(LABEL_HALO, scale)` then `node(scale)`, `scale = Scale { position: s, size: r.labels }`.
 
-- [ ] **Step 1: Failing tests** (fixtures via `test_support::plotted`; all floats via `close`; `C` from `size(s)` halves, plus literal pins):
+- [x] **Step 1: Failing tests** (fixtures via `test_support::plotted`; all floats via `close`; `C` from `size(s)` halves, plus literal pins):
   - `radar_scale`: `of(1.0)` = (1, 1, 1); `of(0.9)` = (0.9, 1, 0.9); `of(RADAR_FLOOR)` = (7/9, 1, 7/9); `of(0.5)` = (0.5, 1, 7/9); `of(1.5)` = (1.5, 1.5, 1.5).
   - `zero_quadrants_draws_rings_only`: header-only CSV, default rings → `size(1.0)` is exactly 660 × 660; 4 circles, 0 lines, 8 texts (4 halos, 4 names), nothing else; `assert_finite`.
   - `one_quadrant_has_one_divider`: one `Line` to `polar(−90, 262)`; one quadrant label at `polar(90, 300)` (x via `close` — `cos 90°` is ~1e-14).
@@ -253,9 +253,9 @@ Write it as named pure operations (`label_half_width(&self, r)`, `label_half_hei
   - `ring_names_clear_4_5_on_their_halo` (in `src/palette.rs` tests, using its private `contrast`): `TextMuted` against `Surface1` is ≥ 4.5 in the light and dark palettes.
   - `names_are_carried_raw`: a quadrant named `A<&">B` and one in CJK appear in the node's `lines` unchanged (escaping is the serialiser's, NFR-6).
   - `block::assert_translates(&radar)`, and the same check at `s` = 0.5.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual (`size`, `render` integration-only; `RadarBlock::new` with `# Panics`).
-- [ ] **Step 5: Gate** `just ci`.
-- [ ] **Step 6:** Commit `feat(layout): the radar block's frame (FR-30–FR-32, FR-42, FR-43, FR-70)`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual (`size`, `render` integration-only; `RadarBlock::new` with `# Panics`).
+- [x] **Step 5: Gate** `just ci`.
+- [x] **Step 6:** Commit `feat(layout): the radar block's frame (FR-30–FR-32, FR-42, FR-43, FR-70)`.
 
 ---
 
