@@ -1,5 +1,5 @@
-//! FR-85: the vendored faces are Inter Regular and `SemiBold`, subset to Latin
-//! and Latin Extended, and each TTF/WOFF2 pair came out of one subsetting run.
+//! FR-85: the vendored faces are Inter Regular and `SemiBold`, subset to
+//! the scripts Inter draws (D-68), and each TTF/WOFF2 pair came out of one subsetting run.
 
 use radargen::text::{REGULAR_TTF as REGULAR, SEMIBOLD_TTF as SEMIBOLD};
 use ttf_parser::Face;
@@ -29,16 +29,19 @@ fn both_faces_register_as_family_inter_with_their_weights() {
     );
 }
 
-/// Printable ASCII, the punctuation the key and legend emit, and Latin
-/// Extended (FR-85): Latin-1 alone left Czech, Polish, Hungarian, Baltic and
-/// Turkish names drawing tofu in the PNG while the browser fell back to a
-/// system font, which breaks SC-7's parity.
+/// Printable ASCII, the punctuation the key and legend emit, Latin Extended
+/// (FR-85), and Vietnamese, Greek and Cyrillic (D-68): Latin-1 alone left
+/// Czech, Polish, Hungarian, Baltic and Turkish names drawing tofu in the PNG
+/// while the browser fell back to a system font, which breaks SC-7's parity.
 #[test]
 fn subset_covers_what_it_promises() {
     for (name, face) in faces() {
         let missing: Vec<char> = (' '..='~')
             .chain("—–·‘’“”…éøü".chars())
             .chain("ŁłŐőŘřČčŠšŽžĆćŃńŚśŹźŻżĞğŞşİıĀāĒēĪīŪūĄąĘęŲųŮůẞ".chars())
+            .chain("ạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹđĐơưƠƯẤỂỖỰ".chars())
+            .chain("ΑαΒβΓγΔδΛλΣσςΩωάέήίόύώἀἄῶ".chars())
+            .chain("АаБбЖжЩщЫыЭэЮюЯяЁёЇїҐґЄєЎў".chars())
             .filter(|c| face.glyph_index(*c).is_none())
             .collect();
         assert!(missing.is_empty(), "{name} lacks {missing:?}");
@@ -51,9 +54,10 @@ fn subset_covers_what_it_promises() {
 #[test]
 fn subset_leaves_out_what_the_prd_says_it_does() {
     let absent = [
-        ('Ж', "Cyrillic (R-7)"),
-        ('λ', "Greek (R-7)"),
-        ('ạ', "Vietnamese's stacked diacritics (A-4)"),
+        ('ب', "Arabic, right-to-left (A-4, D-68)"),
+        ('א', "Hebrew, right-to-left (A-4, D-68)"),
+        ('中', "CJK (A-4, D-68)"),
+        ('क', "Devanagari, an Indic script (A-4, D-68)"),
         ('\u{FFFD}', "U+FFFD, which D-55 relies on Inter lacking"),
     ];
     for (name, face) in faces() {

@@ -192,18 +192,18 @@ Six of these are corrections rather than additions, and each has a reason:
   text visibly off its column. Both files are subset from one source in one step
   and versioned together.
 
-**`assets/` holds Inter v4.1**, Regular and SemiBold, subset to Latin and Latin
-Extended by `scripts/subset-inter.sh` and vendored (FR-85). Measured sizes —
-TTF: Regular 165,328 bytes, SemiBold 168,856 bytes; WOFF2: Regular 57,456
-bytes, SemiBold 59,268 bytes. Latin-1 alone was half that, but left Czech,
-Polish, Hungarian, Baltic and Turkish names as tofu (PRD v0.40). The WOFF2 pair
-is what NFR-5 inlines into every HTML edition. The subset keeps `.notdef`'s
+**`assets/` holds Inter v4.1**, Regular and SemiBold, subset by
+`scripts/subset-inter.sh` to Latin, Latin Extended, Vietnamese, Greek and
+Cyrillic — every script Inter draws (FR-85, D-68) — and vendored. Measured
+sizes — TTF: Regular 226,748 bytes, SemiBold 231,696 bytes; WOFF2: Regular
+77,336 bytes, SemiBold 80,496 bytes. The WOFF2 pair is what NFR-5 inlines into
+every HTML edition: about 158 kB, against 117 kB for Latin and Latin Extended
+alone. The script checks the release zip's SHA-256 and pins Python, `fonttools`
+and `brotli`, so a rerun reproduces these bytes. The subset keeps `.notdef`'s
 outline, so a character outside it renders as the tofu box A-4 accepts rather
 than as blank space. R-7's licensing question was answered earlier — Inter
-declares no Reserved Font Name, so the subset keeps the name — and with the
-sizes measured, R-7 has nothing left open but the script-coverage limit A-4
-states. PRD v0.46 (D-68) widens the subset to Vietnamese, Greek and Cyrillic;
-the files and the sizes above change when crumb `rg-mgw` regenerates them.
+declares no Reserved Font Name, so the subset keeps the name — and R-7 has
+nothing left open but the script-coverage limit A-4 states.
 
 ## 4. The `Block` abstraction
 
