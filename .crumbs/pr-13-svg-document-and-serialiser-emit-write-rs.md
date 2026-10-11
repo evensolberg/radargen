@@ -32,3 +32,5 @@ Node, Document, late colour binding via Role, no ids, data-row identity. NFR-14 
 [2026-10-11] [2026-10-11] svg::Node now arrives with PR 09's first block and grows variants per block PR; PR 13 adds Document, the serialiser and emit/write.rs.
 
 [2026-10-11] [2026-10-11] From PR 09: serialise svg::Semantics (Heading(n) → role="heading" aria-level=n; Decorative → aria-hidden="true"), Text.lines as <tspan>s at Text.leading, PathCommand::Arc's large_arc/sweep flags, every coordinate through num::fmt_coord, text through escape::xml_text; decide whether an empty Group is emitted. The exported standalone SVG gets a root <title> (the edition title) and <desc>.
+
+[2026-10-11] From PR 10a: TextPaint::Halo serialises as fill="none" stroke=<role> stroke-width=<w> stroke-linejoin="round" aria-hidden="true". The radar's root must not be role="img" (markers are its controls). Node::Line -> <line>.

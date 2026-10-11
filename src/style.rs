@@ -180,6 +180,11 @@ pub const GRID_STROKE: f64 = 1.0;
 /// `paint-order: stroke`: an SVG consumer that ignores `paint-order` would
 /// paint the halo over the glyphs and erase them.
 pub const LABEL_HALO: f64 = 3.0;
+/// The fraction of their natural size below which markers, their numbers and
+/// the radar's strokes do not shrink (FR-70, D-69).
+pub const RADAR_FLOOR: f64 = 7.0 / 9.0;
+/// Clear space between the radar's outermost label and the block's edge.
+pub const RADAR_LABEL_PAD: f64 = 10.0;
 
 // --- Arrangements (FR-68–FR-71) -------------------------------------------------
 /// Blank border around the whole document.

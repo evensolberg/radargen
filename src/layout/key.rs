@@ -11,7 +11,7 @@ use crate::style::{
     KEY_BOTTOM, KEY_FIRST_ROW, KEY_HEADING, KEY_HEADING_BASELINE, KEY_LABEL, KEY_LABEL_DROP,
     KEY_LABEL_X, KEY_MARKER_RADIUS, KEY_ROW, KEY_SAMPLE_X, KEY_STATUS_MARKER_RADIUS, TextStyle,
 };
-use crate::svg::{Group, Node, Point, Semantics, TextRun};
+use crate::svg::{Anchor, Group, Node, Point, Scale, Semantics, TextRun};
 use crate::text::Fonts;
 
 /// The heading's text.
@@ -86,10 +86,11 @@ fn text(label: &str, origin: Point, style: TextStyle, ink: Neutral, scale: f64) 
         origin,
         style,
         ink,
+        anchor: Anchor::Start,
         lines: vec![label.to_owned()],
         leading: 0.0,
     }
-    .node(scale)
+    .node(Scale::uniform(scale))
 }
 
 /// One row: its decorative sample, then its label.
@@ -178,10 +179,11 @@ mod tests {
     use super::*;
     use crate::layout::block::{at, close, fonts};
     use crate::layout::geometry::polar;
-    use crate::layout::title::TitleBlock;
+    use crate::layout::test_support::{self, assert_inside, fill};
     use crate::style::{STATUS_RING_GAP, STATUS_RING_STROKE};
     use crate::svg::Paint;
     use crate::svg::PathCommand;
+    use crate::svg::TextPaint;
 
     fn rendered(scale: f64) -> Vec<Node> {
         let Node::Group(group) = KeyBlock::new(&fonts()).render(at(scale)) else {
@@ -210,7 +212,7 @@ mod tests {
         child(nodes, 2 + 2 * i)
     }
 
-    fn text_parts(node: &Node) -> (Point, &[String], &TextStyle, Paint) {
+    fn text_parts(node: &Node) -> (Point, &[String], &TextStyle, TextPaint) {
         let Node::Text {
             origin,
             lines,
@@ -249,7 +251,7 @@ mod tests {
     }
 
     fn near(p: Point, x: f64, y: f64) -> bool {
-        close(p.x, x) && close(p.y, y)
+        test_support::near(p, Point { x, y })
     }
 
     #[test]
@@ -393,12 +395,12 @@ mod tests {
         let (origin, _, style, ink) = text_parts(child(&group(child(&nodes, 0)).children, 0));
         assert!(close(origin.y, 20.0) && close(origin.x, 0.0));
         assert_eq!(*style, KEY_HEADING);
-        assert_eq!(ink, Paint::Role(Role::Neutral(Neutral::TextPrimary)));
+        assert_eq!(ink, fill(Neutral::TextPrimary));
         for (i, y) in [40.0, 64.0, 88.0, 112.0, 136.0].into_iter().enumerate() {
             let (origin, _, style, ink) = text_parts(label(&nodes, i));
             assert!(close(origin.x, 28.0) && close(origin.y, y + 4.0));
             assert_eq!(*style, KEY_LABEL);
-            assert_eq!(ink, Paint::Role(Role::Neutral(Neutral::TextMuted)));
+            assert_eq!(ink, fill(Neutral::TextMuted));
         }
         let size = KeyBlock::new(&fonts()).size(1.0);
         assert!(close(size.height, 146.0));
@@ -439,7 +441,7 @@ mod tests {
 
     #[test]
     fn a_placed_key_is_the_origin_key_translated() {
-        crate::layout::block::assert_translates(&KeyBlock::new(&fonts()));
+        crate::layout::block::assert_translates(&KeyBlock::new(&fonts()), 1.0);
     }
 
     #[test]
@@ -450,138 +452,12 @@ mod tests {
         assert!(close(half.height, one.height / 2.0));
     }
 
-    /// The block's size and where the node being checked sits within it.
-    #[derive(Clone, Copy)]
-    struct Frame {
-        offset: Point,
-        size: Size,
-    }
-
-    impl Frame {
-        fn contains(self, x: f64, y: f64, what: &str) {
-            let (x, y) = (x + self.offset.x, y + self.offset.y);
-            let Size { width, height } = self.size;
-            assert!(
-                x >= -1e-9 && y >= -1e-9 && x <= width + 1e-9 && y <= height + 1e-9,
-                "{what} at ({x}, {y}) lies outside {:?}",
-                self.size
-            );
-        }
-
-        /// The four extremes of a disc of `reach` about `centre`.
-        fn contains_disc(self, centre: Point, reach: f64, what: &str) {
-            for (dx, dy) in [(-reach, 0.0), (reach, 0.0), (0.0, -reach), (0.0, reach)] {
-                self.contains(centre.x + dx, centre.y + dy, what);
-            }
-        }
-
-        fn within(self, group: &Group) -> Self {
-            Self {
-                offset: Point {
-                    x: self.offset.x + group.offset.x,
-                    y: self.offset.y + group.offset.y,
-                },
-                ..self
-            }
-        }
-    }
-
-    /// Every arc here is a half-circle, so its chord is a diameter, its
-    /// midpoint is the circle's centre and the circle bounds the arc.
-    fn assert_arcs_inside(commands: &[PathCommand], stroke_width: f64, frame: Frame) {
-        let mut from = None;
-        for command in commands {
-            match command {
-                PathCommand::MoveTo(p) => from = Some(*p),
-                PathCommand::Arc { radius, end, .. } => {
-                    let start = from.expect("an arc follows a move");
-                    let chord = (end.x - start.x).hypot(end.y - start.y);
-                    assert!(
-                        close(chord, 2.0 * radius),
-                        "an arc of radius {radius} spans {chord}, so it is not a half-circle"
-                    );
-                    let centre = Point {
-                        x: f64::midpoint(start.x, end.x),
-                        y: f64::midpoint(start.y, end.y),
-                    };
-                    frame.contains_disc(centre, radius + stroke_width / 2.0, "arc");
-                    from = Some(*end);
-                }
-            }
-        }
-    }
-
-    /// Text is bounded by a 0.8 em ascent above the top of the block, a 0.3 em
-    /// descent below each baseline and its measured width.
-    fn assert_text_inside(node: &Node, frame: Frame, fonts: &Fonts) {
-        let Node::Text {
-            origin,
-            style,
-            lines,
-            leading,
-            ..
-        } = node
-        else {
-            panic!("expected text, got {node:?}");
-        };
-        for (i, line) in lines.iter().enumerate() {
-            #[expect(
-                clippy::cast_precision_loss,
-                clippy::as_conversions,
-                reason = "a line index is tiny, so the conversion is exact"
-            )]
-            let baseline = (i as f64).mul_add(*leading, origin.y);
-            frame.contains(origin.x, 0.8f64.mul_add(-style.size, baseline), "text top");
-            frame.contains(
-                origin.x,
-                0.3f64.mul_add(style.size, baseline),
-                "text bottom",
-            );
-            let face = fonts.face(style.weight);
-            let width = face.measure(line, style.size, style.letter_spacing);
-            frame.contains(origin.x + width, baseline, "text end");
-        }
-    }
-
-    /// Everything drawn under `node`, translated through groups, lies within
-    /// the frame's size.
-    fn assert_inside(node: &Node, frame: Frame, fonts: &Fonts) {
-        match node {
-            Node::Group(g) => {
-                for c in &g.children {
-                    assert_inside(c, frame.within(g), fonts);
-                }
-            }
-            Node::Circle {
-                centre,
-                radius,
-                stroke_width,
-                ..
-            } => frame.contains_disc(*centre, radius + stroke_width / 2.0, "circle"),
-            Node::Path {
-                commands,
-                stroke_width,
-                ..
-            } => assert_arcs_inside(commands, *stroke_width, frame),
-            Node::Text { .. } => assert_text_inside(node, frame, fonts),
-        }
-    }
-
     #[test]
     fn everything_drawn_lies_inside_the_size() {
         let fonts = fonts();
-        let origin = Point::ORIGIN;
         let key = KeyBlock::new(&fonts);
-        let title = TitleBlock::new(Some("A title"), Some("A subtitle"), &fonts);
         for scale in [1.0, 0.5] {
-            let frame = |size| Frame {
-                offset: origin,
-                size,
-            };
-            let rendered = key.render(at(scale));
-            assert_inside(&rendered, frame(key.size(scale)), &fonts);
-            let rendered = title.render(at(scale));
-            assert_inside(&rendered, frame(title.size(scale)), &fonts);
+            assert_inside(&key.render(at(scale)), key.size(scale), &fonts);
         }
     }
 

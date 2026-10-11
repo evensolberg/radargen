@@ -9,7 +9,7 @@ use crate::style::{
     LEGEND_WIDTH_MAX, SUBTITLE, SUBTITLE_AFTER_TITLE, SUBTITLE_ALONE, SUBTITLE_LEADING, TITLE,
     TITLE_BOTTOM, TITLE_FIRST_BASELINE, TITLE_LEADING, TITLE_TOP, TextStyle,
 };
-use crate::svg::{Group, Node, Point, Semantics, TextRun};
+use crate::svg::{Anchor, Group, Node, Point, Scale, Semantics, TextRun};
 use crate::text::{Fonts, wrap};
 
 /// The title's heading level: the document's top.
@@ -81,10 +81,11 @@ impl Run {
             origin,
             style: self.style,
             ink: self.ink,
+            anchor: Anchor::Start,
             lines: self.lines.clone(),
             leading: self.leading,
         }
-        .node(scale)
+        .node(Scale::uniform(scale))
     }
 }
 
@@ -165,6 +166,7 @@ impl Block for TitleBlock {
 mod tests {
     use super::*;
     use crate::layout::block::{at, close, fonts};
+    use crate::layout::test_support::assert_inside;
 
     fn block(title: Option<&str>, subtitle: Option<&str>) -> TitleBlock {
         TitleBlock::new(title, subtitle, &fonts())
@@ -263,7 +265,7 @@ mod tests {
 
     #[test]
     fn a_placed_title_is_the_origin_title_translated() {
-        crate::layout::block::assert_translates(&block(Some("Title"), Some("Sub")));
+        crate::layout::block::assert_translates(&block(Some("Title"), Some("Sub")), 1.0);
     }
 
     #[test]
@@ -411,5 +413,14 @@ mod tests {
         };
         assert!(close(style.size, TITLE.size / 2.0));
         assert!(close(b.size(0.5).height, 26.5));
+    }
+
+    #[test]
+    fn the_title_paints_inside_its_size() {
+        let fonts = fonts();
+        let b = block(Some(wide_title()), Some("A subtitle"));
+        for scale in [1.0, 0.5] {
+            assert_inside(&b.render(at(scale)), b.size(scale), &fonts);
+        }
     }
 }

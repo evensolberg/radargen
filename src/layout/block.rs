@@ -85,17 +85,18 @@ pub(crate) const fn at(scale: f64) -> Placement {
 #[cfg(test)]
 const TRANSLATED_TO: Point = Point { x: 5.0, y: 7.0 };
 
-/// Test helper: `block` rendered at (5, 7) is its origin rendering with only
-/// the root group's offset changed.
+/// Test helper: `block` rendered at (5, 7) at `scale` is its origin
+/// rendering with only the root group's offset changed. Blocks whose drawing
+/// changes shape with scale (FR-70) are checked at the scales that matter.
 ///
 /// # Panics
 ///
 /// If the block does not render a group, or the placement changes anything
 /// but the offset.
 #[cfg(test)]
-pub(crate) fn assert_translates(block: &impl Block) {
+pub(crate) fn assert_translates(block: &impl Block, scale: f64) {
     let rendered = |origin| {
-        let at = Placement { origin, scale: 1.0 };
+        let at = Placement { origin, scale };
         let Node::Group(group) = block.render(at) else {
             panic!("a block renders a group");
         };

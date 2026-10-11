@@ -145,6 +145,7 @@ fn half_ring(centre: Point, radius: f64, direction: f64, ink: Role, stroke_width
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::layout::test_support::near;
 
     const INK: Role = Role::Series(2);
     const CENTRE: Point = Point { x: 100.0, y: 50.0 };
@@ -187,10 +188,6 @@ mod tests {
             panic!("no nodes drawn");
         };
         node
-    }
-
-    fn near(a: Point, b: Point) -> bool {
-        (a.x - b.x).abs() < 1e-9 && (a.y - b.y).abs() < 1e-9
     }
 
     fn from_centre(angle: f64) -> Point {
