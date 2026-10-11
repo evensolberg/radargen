@@ -47,6 +47,7 @@ impl Marker {
         self.at.scaled(r.geometry)
     }
 }
+
 /// Every plotted item's marker, in FR-34's order: `place`'s points zipped
 /// with [`Plotted::items`], numbered from 1 (FR-34).
 ///
