@@ -8,7 +8,6 @@ use radargen::rings::parse_rings;
 /// Parse `csv` (asserting no row errors), read the `--rings` value, and
 /// build the catalogue. Warnings are dropped: a test that asserts on them
 /// builds its own.
-// qual:allow(dry, duplicate) reason: "src/order.rs unit tests cannot reach tests/common; the same helper by necessity"
 pub fn catalogue(csv: &str, rings: Option<&str>) -> Catalogue {
     let mut w = Warnings::default();
     let (table, errs) = parse(csv, &mut w).expect("parses");

@@ -279,10 +279,7 @@ const fn real(n: usize) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn close(a: f64, b: f64) -> bool {
-        (a - b).abs() < 1e-9
-    }
+    use crate::layout::block::close;
 
     fn geometry(quadrants: usize, rings: usize) -> Geometry {
         Geometry { quadrants, rings }
@@ -290,9 +287,8 @@ mod tests {
 
     #[test]
     fn middle_is_halfway_across_the_sector() {
-        let middles = |n: usize| -> Vec<f64> { (0..n).map(|i| geometry(n, 4).middle(i)).collect() };
         let expect = |n: usize, want: &[f64]| {
-            let got = middles(n);
+            let got: Vec<f64> = (0..n).map(|i| geometry(n, 4).middle(i)).collect();
             assert!(
                 got.len() == want.len() && got.iter().zip(want).all(|(a, b)| close(*a, *b)),
                 "{n}: {got:?} vs {want:?}"
@@ -302,11 +298,9 @@ mod tests {
         expect(2, &[0.0, 180.0]);
         expect(3, &[-30.0, 90.0, 210.0]);
         expect(4, &[-45.0, 45.0, 135.0, 225.0]);
+        let four = geometry(4, 4);
         for p in 0..4 {
-            assert!(close(
-                geometry(4, 4).middle(p),
-                geometry(4, 4).angle(p, 0, 1)
-            ));
+            assert!(close(four.middle(p), four.angle(p, 0, 1)));
         }
         assert!(geometry(0, 4).middle(0).is_nan());
     }

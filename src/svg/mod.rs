@@ -346,40 +346,28 @@ mod tests {
             size: 2.0,
         };
         let text = run(Anchor::Middle);
+        let halo = text.halo(3.0, scale);
+        let Node::Text { ink, .. } = &halo else {
+            panic!("expected text");
+        };
+        assert_eq!(
+            *ink,
+            TextPaint::Halo {
+                stroke: Paint::Role(Role::Neutral(Neutral::Surface1)),
+                width: 6.0
+            }
+        );
+        // Both come from the same arithmetic, so with the halo's ink the
+        // filled text is the halo exactly.
+        let mut filled = text.node(scale);
         let Node::Text {
-            origin,
-            style,
-            anchor,
-            lines,
-            leading,
-            ..
-        } = text.node(scale)
+            ink: filled_ink, ..
+        } = &mut filled
         else {
             panic!("expected text");
         };
-        let Node::Text {
-            origin: h_origin,
-            style: h_style,
-            ink,
-            anchor: h_anchor,
-            lines: h_lines,
-            leading: h_leading,
-        } = text.halo(3.0, scale)
-        else {
-            panic!("expected text");
-        };
-        assert!(close(h_origin.x, origin.x) && close(h_origin.y, origin.y));
-        assert!(close(h_style.size, style.size));
-        assert!(close(h_style.letter_spacing, style.letter_spacing));
-        assert_eq!(h_style.weight, style.weight);
-        assert_eq!(h_anchor, anchor);
-        assert_eq!(h_lines, lines);
-        assert!(close(h_leading, leading));
-        let TextPaint::Halo { stroke, width } = ink else {
-            panic!("expected a halo, got {ink:?}");
-        };
-        assert_eq!(stroke, Paint::Role(Role::Neutral(Neutral::Surface1)));
-        assert!(close(width, 6.0));
+        *filled_ink = *ink;
+        assert_eq!(filled, halo);
     }
 
     #[test]

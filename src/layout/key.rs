@@ -179,7 +179,7 @@ mod tests {
     use super::*;
     use crate::layout::block::{at, close, fonts};
     use crate::layout::geometry::polar;
-    use crate::layout::test_support::assert_inside;
+    use crate::layout::test_support::{self, assert_inside, fill};
     use crate::style::{STATUS_RING_GAP, STATUS_RING_STROKE};
     use crate::svg::Paint;
     use crate::svg::PathCommand;
@@ -251,7 +251,7 @@ mod tests {
     }
 
     fn near(p: Point, x: f64, y: f64) -> bool {
-        close(p.x, x) && close(p.y, y)
+        test_support::near(p, Point { x, y })
     }
 
     #[test]
@@ -395,18 +395,12 @@ mod tests {
         let (origin, _, style, ink) = text_parts(child(&group(child(&nodes, 0)).children, 0));
         assert!(close(origin.y, 20.0) && close(origin.x, 0.0));
         assert_eq!(*style, KEY_HEADING);
-        assert_eq!(
-            ink,
-            TextPaint::Fill(Paint::Role(Role::Neutral(Neutral::TextPrimary)))
-        );
+        assert_eq!(ink, fill(Neutral::TextPrimary));
         for (i, y) in [40.0, 64.0, 88.0, 112.0, 136.0].into_iter().enumerate() {
             let (origin, _, style, ink) = text_parts(label(&nodes, i));
             assert!(close(origin.x, 28.0) && close(origin.y, y + 4.0));
             assert_eq!(*style, KEY_LABEL);
-            assert_eq!(
-                ink,
-                TextPaint::Fill(Paint::Role(Role::Neutral(Neutral::TextMuted)))
-            );
+            assert_eq!(ink, fill(Neutral::TextMuted));
         }
         let size = KeyBlock::new(&fonts()).size(1.0);
         assert!(close(size.height, 146.0));
@@ -447,7 +441,7 @@ mod tests {
 
     #[test]
     fn a_placed_key_is_the_origin_key_translated() {
-        crate::layout::block::assert_translates(&KeyBlock::new(&fonts()));
+        crate::layout::block::assert_translates(&KeyBlock::new(&fonts()), 1.0);
     }
 
     #[test]

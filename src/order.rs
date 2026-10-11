@@ -224,10 +224,7 @@ fn numbers(order: &[usize], len: usize) -> Vec<Option<usize>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::csv::parse::parse;
-    use crate::diagnostics::Warnings;
-    use crate::model::build_catalogue;
-    use crate::rings::parse_rings;
+    use crate::layout::test_support::plotted;
 
     /// A `name,quadrant,ring,description` CSV, one row per
     /// `(name, quadrant, ring)`. Data rows start on line 2.
@@ -240,17 +237,9 @@ mod tests {
         text
     }
 
-    fn catalogue_with(csv: &str, rings: Option<&str>) -> Catalogue {
-        let mut w = Warnings::default();
-        let (table, errs) = parse(csv, &mut w).expect("parses");
-        assert!(errs.is_empty(), "{errs:?}");
-        let rings = parse_rings(rings).expect("valid rings");
-        build_catalogue(&table, &rings, &mut w).expect("builds")
-    }
-
     /// Under the default rings: Assess, Trial, Adopt, Retire.
     fn catalogue(csv: &str) -> Catalogue {
-        catalogue_with(csv, None)
+        plotted(csv, None).0
     }
 
     fn labels<'a>(cat: &'a Catalogue, order: &[usize]) -> Vec<&'a str> {
@@ -375,7 +364,7 @@ mod tests {
     /// order where the rank belongs would fail here.
     #[test]
     fn items_order_by_quadrant_then_declared_ring_then_name() {
-        let cat = catalogue_with(
+        let (cat, _) = plotted(
             &csv(&[
                 ("Zed", "Tool", "Hold"),
                 ("Ops", "Delivery", "Adopt"),

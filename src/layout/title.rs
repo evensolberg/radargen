@@ -265,7 +265,7 @@ mod tests {
 
     #[test]
     fn a_placed_title_is_the_origin_title_translated() {
-        crate::layout::block::assert_translates(&block(Some("Title"), Some("Sub")));
+        crate::layout::block::assert_translates(&block(Some("Title"), Some("Sub")), 1.0);
     }
 
     #[test]
