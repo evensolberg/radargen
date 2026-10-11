@@ -12,9 +12,13 @@ created_date: 2026-10-10
 synopsis: "Records to meaning: FR-76's trim widened to invisible format characters, the ring set's source carried into FR-17's warning, and model.rs turning a parsed Table into a Catalogue — required columns, empty values, quadrants, ring matching, optional columns, unnamed columns and accessible names."
 status: draft
 type: Plan
-revision: "1.0"
-review_date:
-reviewed_by: []
+revision: "1.1"
+review_date: 2026-10-10
+reviewed_by:
+  - architect-reviewer
+  - rust-engineer
+  - qa-expert
+  - accessibility-tester
 completed_date:
 comments:
 ---
@@ -41,9 +45,9 @@ Ordering (FR-10, FR-34) and numbering (FR-18) are PR 07's. A `Catalogue` keeps q
 
 - **One trim, one fold** (FR-76, D-61). Every comparison goes through `normalise`, and every display trim goes through `trim`. Never call `str::trim` on CSV or `--rings` text, and never restate the trimmable set.
 - **Displayed text is never edited** beyond FR-90's removal and the two label trims, FR-9's quadrant label and FR-15's ring name. An `Item` keeps `name` and `cells` exactly as `parse` left them.
-- **NFR-16 tier two:** `build_catalogue` returns **every** FR-5 and FR-6 error together, in line order and then column order. It pushes **no warning** when it returns `Err`.
-- **Warning positions are header indices** (`Position::Cell { column }`, 0-based), the same index space `parse` uses for FR-90. That keeps NFR-11's within-line order total across both stages.
-- **No `HashMap`** in anything that orders or groups output (architecture §6). Look-ups are over `Vec`s, in first-occurrence order.
+- **NFR-16 tier two:** `build_catalogue` returns **every** FR-5 and FR-6 error together, in line order and then **header** column order. It checks every row before building any, so an `Err` comes with no warning from this stage.
+- **Two index spaces, never mixed.** Warning positions are **header** indices (`Position::Cell { column }`, 0-based), the space `parse` uses for FR-90, which keeps NFR-11's within-line order total across both stages. `Item::cells`, `Item::cell` and `Catalogue::column` index the **named** columns (`Catalogue::columns`), which skip FR-93's unnamed ones.
+- **No `HashMap` iteration** in output-affecting code (architecture §6). Look-ups here are `Vec` scans in first-occurrence order; FR-28's is O(rows²), which is fine at A-2's tens of rows and took 1.4 s for 20,000 rows in a debug build.
 - **Normalised keys are computed once**, when the `Item` or `Quadrant` is built (architecture §6). PR 07's comparators read `name_key` and `Quadrant::key`; they never fold.
 - **One taxonomy:** new errors and warnings are `diagnostics` variants (architecture §1). Every new message is pinned in `tests/diagnostics.rs`.
 - **Messages say what to do** and say "column", never "field" (PR 05's rule).
@@ -58,8 +62,10 @@ Ordering (FR-10, FR-34) and numbering (FR-18) are PR 07's. A `Catalogue` keeps q
 2. **An undeclared ring when the author never passed `--rings`.** The warning must say `the default ring set`, not send them to a flag they never used (`rg-dy8`). *Tests: Task 2, `the_ring_warning_names_the_default_ring_set_when_no_flag_declared_one`; Task 4, `an_undeclared_ring_is_unplotted_and_names_the_ring_source`; Task 6, `the_prd_example_builds_with_one_warning`.*
 3. **A 200-row export with several kinds of error.** FR-4's errors from `parse` and FR-5's and FR-6's from the model must all arrive in one run, and a cleared `,,,` row must not shift a line number (`rg-rnc`). *Tests: Task 4, `every_empty_required_value_is_reported`, `missing_columns_and_empty_values_arrive_together` and `a_cleared_row_does_not_shift_line_numbers`; Task 6, `row_errors_from_both_stages_arrive_in_one_run`.*
 4. **Excel's padded used range, and a value typed under no heading.** Padding must pass silently. A real value must warn, naming its column by position, and so must FR-90's removal in that column (`rg-rnc`). *Tests: Task 5, `unnamed_columns_warn_only_when_they_hold_a_value` and `a_dropped_column_still_gets_fr90s_warning`.*
-5. **Dates that look right but are not:** `2026-6-1`, `2026-02-30`, `2023-02-29`, or full-width digits. Each must warn and render as written, and none may panic on a non-ASCII byte boundary. *Test: Task 5, `iso_dates_are_exactly_the_shape_and_real`.*
-6. **Subdivision-flag emoji in a name or quadrant.** England's and Scotland's flags must stay distinct after trimming (D-61). *Test: Task 1, `keeps_the_tag_characters_that_end_a_flag`.*
+5. **Dates that look right but are not:** `2026-6-1`, `2026-04-31`, `2023-02-29`, full-width digits, or `202é06-01` (ten bytes, a multi-byte character across a boundary). Each must warn and render as written, and none may panic. *Tests: Task 5, `iso_dates_are_exactly_the_shape_and_real` and `unparsable_dates_warn_and_keep_their_text`.*
+6. **Subdivision-flag emoji in a name or quadrant.** England's and Scotland's flags must stay distinct after trimming, and every tag character must survive, not only CANCEL TAG (D-61). *Test: Task 1, `keeps_the_tag_characters_that_end_a_flag`.*
+7. **An invisible control character in a name** (SC-10). `Kafka` + U+0001 repeats `Kafka`, and a `name` of only U+0001 is the empty-`name` error. *Tests: Task 4, `invisible_characters_do_not_hide_a_repeated_name` and `a_name_of_only_undisplayable_characters_is_empty`.*
+8. **A header whose columns are in an unusual order, or with an unnamed column in the middle.** Errors and warnings on one line must follow the header's column order across both stages (NFR-11), and cell look-ups must not shift. *Tests: Task 4, `empty_required_values_follow_header_column_order`; Task 5, `warnings_from_both_stages_sort_by_header_column` and `cells_index_named_columns_not_header_positions`; Task 6, `an_unplotted_ring_is_found_past_an_unnamed_column`.*
 
 ## Crumbs this plan incorporates
 
@@ -77,33 +83,39 @@ Ordering (FR-10, FR-34) and numbering (FR-18) are PR 07's. A `Catalogue` keeps q
 | `rg-u6u` (PR 19) | `--config` | Not here. `RingSource` gains its config variant then (Finishing step 4) |
 | `rg-efx` (PR 07) | Comparators | Not here. It reads `Item::name_key`, `Quadrant::key` and `Item::line` (Finishing step 4) |
 | `rg-akv`, `rg-s71` | FR-90 on flag values; one provenance rule | Out of scope: both concern flags, not the CSV model |
+| `rg-6ny`, `rg-owp`, `rg-bvl`, `rg-fju`, `rg-85c`, `rg-40l`, `rg-q2b` *(new, from this plan's review)* | Table rows' role; one phrase for unplotted rows; the default-ring message; column letters; 'field' in old messages; FR-9 vs FR-76 'raw'; visible Cf marks | Each needs a PRD change or belongs to a later PR, so each is a crumb |
 
 ## Decisions taken in this plan (flag on review)
 
 - **FR-76's trim is `lib::trim`, and every trim goes through it.** It removes any leading or trailing run of `char::is_whitespace` (the White_Space property `str::trim` uses) and general category Cf, except the tag characters U+E0001 and U+E0020–U+E007F. `normalise` is `trim` then `to_lowercase`. The display sites switch from `str::trim` to it too: `parse`'s duplicate-header names, the values diagnostics quote, the FR-89 labels, and FR-15's ring entries. Otherwise a ring declared as `Adopt` plus U+200B would match `Adopt` and still draw the zero-width space in its band label.
 - **`unicode-properties` supplies the category**, not a hand-copied table. It is already compiled into the binary through `rustybuzz`, it tracks Unicode 17, and D-61 accepts that Cf membership follows the pinned crate's Unicode version. The `general-category` feature alone is enabled.
-- **The ring set carries its source.** `parse_rings` returns `RingSet { rings, source }` with `RingSource::{Flag, Default}`. `RingSource` is `Copy` and rides in `RowKind::UndeclaredRing`, so a 40-row warning clones no string. The grouping class becomes `Class::Ring(RingSource)`, so the grouped line names the source without a fallback. One run has one ring set, so the source never splits a class. `--config`'s variant arrives with PR 19, and naming a file will stop it being `Copy`.
-- **`build_catalogue` takes the ring set:** `build_catalogue(&Table, &RingSet, &mut Warnings)`. Matching a row's ring (FR-16, FR-17) and grouping its quadrant (FR-9) are per-row column meaning, and FR-17's warning needs the source. Ordering (FR-10, FR-34) and numbering (FR-18) stay with PR 07, which shrinks the pipeline's `resolve` stage to "order, number". Architecture §2 and §7 are updated to match (Task 6).
+- **The ring set carries its source.** `parse_rings` returns `RingSet { rings, source }` with `RingSource::{Flag, Default}`. `RingSource` is `Copy` and rides in `RowKind::UndeclaredRing`, so a 40-row warning clones no string. The grouping class becomes `Class::Ring(RingSource)`, so the grouped line names the source without a fallback; one run has one ring set, so the source never splits a class. `--config`'s variant arrives with PR 19. Naming a file stops `RingSource`, and with it `Class`, being `Copy`, and `RowKind::class` stops being `const fn`; holding the path as `Arc<str>` keeps every clone O(1) (noted on `rg-u6u`).
+- **`build_catalogue` takes the ring set:** `build_catalogue(&Table, &RingSet, &mut Warnings)`. Matching a row's ring (FR-16, FR-17) and grouping its quadrant (FR-9) are per-row column meaning, and FR-17's warning needs the source. Ordering (FR-10, FR-34) and numbering (FR-18) stay with PR 07, which shrinks the pipeline's `resolve` stage to "order, number". `Config` holds the `RingSet`, and only `build_catalogue` reads it: everything downstream reads `Catalogue::rings`, which `Item::ring` indexes. Architecture §2 and §7 are updated to match (Task 6).
 - **FR-93 lives in `model.rs`, not `csv::parse`** — `rg-rnc`'s open ownership question. Both stages name a warning's column by its **header index** (NFR-11's within-line order). Dropping the column in `parse` would renumber every later column, so FR-90's warnings (parse) and FR-17's (model) on one line could sort out of column order. The model already sees the header and every record's line. `parse` is unchanged, so FR-90 still warns for a cell in a dropped column, and FR-93 warns beside it.
-- **A `Catalogue` keeps the CSV's shape** (architecture §2). `columns` is the named columns in header order, and each `Item::cells` holds exactly those cells, as written. Typed fields exist only where behaviour depends on them: `quadrant`, `ring`, `hollow`, `status` and `name_key`. The table view (FR-78) and detail panel (FR-38) read `cells` through `Item::cell`, which returns `None` for an empty cell (FR-29). Dates, `domain` and `rationale` therefore render verbatim by construction (FR-22–FR-24).
+- **A `Catalogue` keeps the CSV's shape** (architecture §2). `columns` is the named columns in header order, and each `Item::cells` holds exactly those cells, as written. Typed fields exist only where behaviour depends on them: `quadrant`, `ring`, `qualifier`, `status` and `name_key`. The table view (FR-78) and detail panel (FR-38) read `cells` through `Item::cell`, which returns `None` for an empty cell (FR-29), and find a column with `Catalogue::column(kind)`. Dates, `domain` and `rationale` therefore render verbatim by construction (FR-22–FR-24). For `status`, the panel shows `Status::label()`, not the cell: an unrecognised value is `No Change` (FR-26). Architecture §2 and §3 are rewritten to describe this shape (Task 6).
+- **`Item::quadrant` indexes first-appearance order**, not FR-10's, and is never a palette index (architecture §5). PR 07 returns FR-10's order as a list of indices into `Catalogue::quadrants`, plus a rank, and does not reorder the `Catalogue` (noted on `rg-efx`).
+- **A short record reads as empty, not as a panic.** `parse` keeps only records as long as the header, but `Table` and `Record` are public, so `field(record, p)` uses `.get` and FR-6 reports a missing cell instead of indexing past the end.
 - **FR-6 still runs when FR-5 fails**, for the required columns that are present. NFR-16 asks for every row-level error in one run, and a missing `description` should not hide an empty `name`.
-- **No warning when there are errors.** Nothing renders, so warnings about rendering would be noise, and a run that fails prints only what blocks it. `parse`'s FR-90 warnings are already pushed by then. How `main.rs` orders the two stages' errors and those warnings is PR 13's call (NFR-11), as RG-005 recorded.
-- **FR-9's label is the minimum of the trimmed variants by `str::cmp`**, computed as each row arrives, so it does not depend on row order (D-29). That is FR-76's code-point order (D-53), which is a plain `<` on `&str`. It does not need PR 07's `compare_names`.
+- **No warning from the model when there are errors.** It checks every row before building any, so warnings about rendering are never produced for a run that cannot render. This is a property of the stage, not a run-wide rule: `parse`'s FR-90 warnings are already pushed, and when `parse` returns FR-4 errors but the model succeeds, the model warns for the valid rows. What a failed run prints is `main.rs`'s rule (PR 13), as RG-005 recorded. `errors_push_no_model_warnings` pins both halves.
+- **FR-9's label is the minimum of the trimmed variants by `str::cmp`**, computed as each row arrives, so it does not depend on row order (D-29). That is FR-76's code-point order (D-53), which is a plain `<` on `&str`; the site cites D-53, and architecture §8 lists it beside `order::compare_names` (it cannot call it: `order.rs` depends on `model.rs`). FR-76 elsewhere says the FR-9 tiebreak compares 'raw' values; the two readings differ for ` tool` against `Tool`. This plan follows FR-9's own text, and `rg-40l` asks the PRD to settle it.
 - **FR-28 warns at every later occurrence, naming the first.** The grouped line then reads `kafka (line 2; repeated on 2 rows, first line 3)` (PR 02's format).
-- **FR-24's check is hand-written, about 20 lines.** `chrono`, `jiff` and `time` were considered. FR-24 wants exactly `YYYY-MM-DD`: zero-padded, no week dates or times, and a real Gregorian date. A library would need a format description plus a separate padding check, or would accept forms FR-24 rejects. The check matches a `YYYY-MM-DD` template byte by byte before splitting, so a multi-byte character can never land on a slice boundary. Rustqual's magic-number rule is why the month lengths and leap rule are named constants.
-- **`accessible_name(item, number)`** returns `"{n}. {name}, {quadrant}, {ring}"`, with the name trimmed and the quadrant's FR-9 label. An unplotted row has no number (FR-18) and reads `"{name}, {quadrant}, {ring}, not on the radar"`, its ring as written. `mockup.html` also appends qualifier and status to the label. FR-50 asks for number, name and position only, so they are left out. **Flag for the UI review:** adding them later is a one-line change here.
-- **Fixtures start now.** `tests/fixtures/example.csv` is PRD §6.1.6's example, and `tests/fixtures/row-errors.csv` is architecture §10's tier-two fixture. PR 14 adds their golden output.
-- **rustqual.** `build_catalogue` stays an integration function (calls only): the error check is `none_or_all`, and the row loop is `Builder::build`. `model.rs` reports `SRP_MODULE` at about 440 lines, as `diagnostics.rs` already does. Splitting it would separate the column checks from the builder that calls them, so it stays one file, as architecture §3 lists it. Its public functions show as test-only `DEAD_CODE` until `main.rs` calls them in PR 13, as `parse` does today. With all of this, the score rises from 59.0% to 66.4% in a trial run.
+- **FR-24's check is hand-written, about 25 lines.** `chrono`, `jiff` and `time` were considered. FR-24 wants exactly `YYYY-MM-DD`: zero-padded, no week dates or times, and a real Gregorian date. A library would need a format description plus a separate padding check, or would accept forms FR-24 rejects. The check matches a `YYYY-MM-DD` template byte by byte and returns early if it fails, so what is split is only ASCII digits and hyphens and nothing is sliced. Rustqual's magic-number rule is why the month lengths and leap rule are named constants.
+- **`accessible_name(item, number)` starts with the legend row's visible text** (WCAG 2.5.3). FR-74's row shows number, name, and whichever of qualifier and status are present, so the name is `"3. Kafka, Conditional, Moved In, Tool, Adopt"`: the row's text, then the quadrant's FR-9 label and the ring, which a screen reader reaching one row by Tab cannot get from the grouping (FR-75). Qualifier and status use the canonical labels the legend shows (`Qualifier::label`, `Status::label`); a blank or unrecognised qualifier claims nothing and shows nothing. An unplotted row has no number (FR-18) and ends `, not on the radar`. `number` must be `Some` exactly for plotted items (a `debug_assert`). This serves markers and legend rows. Table rows should keep native table semantics with a button in the name cell, which is a PRD change to FR-50 (`rg-6ny`).
+- **`Qualifier` is an enum, not a `hollow` flag.** FR-74 needs the label, and FR-20's fill is `Item::hollow()`.
+- **Fixtures start now.** `tests/fixtures/three-quadrant.csv` is PRD §6.1.6's example, which architecture §10 already lists under that name (SC-2). `tests/fixtures/row-errors.csv` is §10's tier-two fixture. PR 14 adds their golden output.
+- **rustqual.** `build_catalogue` stays an integration function (calls only): the error check is `none_or_all`, and the row loop is `Builder::build`. `model.rs` reports `SRP_MODULE` at about 470 lines, as `diagnostics.rs` already does. Splitting it would separate the column checks from the builder that calls them, so it stays one file, as architecture §3 lists it. Its public functions show as test-only `DEAD_CODE` until `main.rs` calls them in PR 13, as `parse` does today. With all of this, the score rises from 59.0% to 66.8% in a trial run.
 - **New messages.** SC-10's golden tests (PR 13 onward) will pin these, so this is the cheap moment to change them:
 
 | Source | Message (after `error: ` or `warning: `) |
 | --- | --- |
-| `Fatal::MissingColumn` (FR-5) | `line {line}: the header has no '{column}' column; it must name name, quadrant, ring and description` |
-| `Fatal::EmptyRequired` (FR-6) | `line {line}, {column}: empty; every row needs a name, a quadrant and a ring` |
-| `RowKind::UnnamedValue` (FR-93), one | `line {line}, column {n}: a value under no heading; it is not shown` |
-| `RowKind::UnnamedValue`, grouped | `{n} values sit under a column with no heading — column 6 (2, first line 4), column 7 (1, line 9); none is shown` |
+| `Fatal::MissingColumn` (FR-5) | `line {line}: the header has no '{column}' column; the header must include at least the columns 'name', 'quadrant', 'ring' and 'description'` |
+| `Fatal::EmptyRequired` (FR-6) | `line {line}, {column}: empty; every row needs a name, a quadrant and a ring, so fill it in or delete the row` |
+| `RowKind::UnnamedValue` (FR-93), one | `line {line}, column {n}: this column has no name in the header row, so its value is not shown; add a header name, or delete the value` |
+| `RowKind::UnnamedValue`, grouped | `{n} values are in columns with no name in the header row — column 6 (2, first line 4), column 7 (1, line 9); none is shown, so add a header name to show them` |
 | `RowKind::UndeclaredRing` (FR-17), one | `line {line}, ring: '{value}' is not declared by {--rings \| the default ring set}; the row is in the table view, not on the radar` |
 | `RowKind::UndeclaredRing`, grouped | `{n} rows use a ring not declared by {source} — {values}; all appear in the table view` |
+
+The FR-17 wording is the PRD's (D-61). A clearer default-set message that lists the rings is `rg-bvl`; column letters (`column 6 (F)`) are `rg-fju`.
 
 - **No version bump.** The binary still exits 1 without reading a file.
 
@@ -168,6 +180,11 @@ mod tests {
         let scotland = format!("Team {SCOTLAND}");
         assert_eq!(trim(&england), england);
         assert_ne!(normalise(&england), normalise(&scotland));
+        // The whole tag range, not only CANCEL TAG (D-61).
+        for tag in ['\u{e0001}', '\u{e0020}', '\u{e0067}', '\u{e007f}'] {
+            let value = format!("x{tag}");
+            assert_eq!(trim(&value), value);
+        }
     }
 
     #[test]
@@ -557,7 +574,7 @@ In `tests/diagnostics.rs`, add a case at the end of the `cases` array in `each_r
                     column: "column 6".into(),
                 },
             ),
-            "line 16, column 6: a value under no heading; it is not shown",
+            "line 16, column 6: this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
         ),
 ```
 
@@ -573,14 +590,14 @@ fn model_messages() {
                 line: 1,
                 column: "ring",
             },
-            "error: line 1: the header has no 'ring' column; it must name name, quadrant, ring and description",
+            "error: line 1: the header has no 'ring' column; the header must include at least the columns 'name', 'quadrant', 'ring' and 'description'",
         ),
         (
             Fatal::EmptyRequired {
                 line: 7,
                 column: "quadrant",
             },
-            "error: line 7, quadrant: empty; every row needs a name, a quadrant and a ring",
+            "error: line 7, quadrant: empty; every row needs a name, a quadrant and a ring, so fill it in or delete the row",
         ),
     ];
     for (fatal, expected) in cases {
@@ -608,7 +625,7 @@ fn unnamed_column_values_group_by_column() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 3 values sit under a column with no heading — column 6 (2, first line 4), column 7 (1, line 9); none is shown"
+            "warning: 3 values are in columns with no name in the header row — column 6 (2, first line 4), column 7 (1, line 9); none is shown, so add a header name to show them"
         ]
     );
 }
@@ -655,7 +672,9 @@ Replace `RowKind::value`'s doc comment and its first arm with:
 Add a last arm to `RowKind::message`:
 
 ```rust
-            Self::UnnamedValue { .. } => "a value under no heading; it is not shown".into(),
+            Self::UnnamedValue { .. } => {
+                "this column has no name in the header row, so its value is not shown; add a header name, or delete the value".into()
+            }
 ```
 
 Add a last arm to `grouped`:
@@ -663,7 +682,7 @@ Add a last arm to `grouped`:
 ```rust
         // FR-93 counts values, each column with its count and first line.
         Class::Unnamed => format!(
-            "{n} values sit under a column with no heading — {}; none is shown",
+            "{n} values are in columns with no name in the header row — {}; none is shown, so add a header name to show them",
             tallied(members, str::to_string)
         ),
 ```
@@ -674,12 +693,14 @@ Add to `Fatal`, after `FieldCount`:
     /// FR-5: the header lacks a required column. Every missing one is
     /// reported (NFR-16 tier two). `line` is the header's.
     #[error(
-        "line {line}: the header has no '{column}' column; it must name name, quadrant, ring and description"
+        "line {line}: the header has no '{column}' column; the header must include at least the columns 'name', 'quadrant', 'ring' and 'description'"
     )]
     MissingColumn { line: usize, column: &'static str },
     /// FR-6: an empty `name`, `quadrant` or `ring`, empty under FR-76's
     /// trim, so a cell of spaces or a lone zero-width space counts.
-    #[error("line {line}, {column}: empty; every row needs a name, a quadrant and a ring")]
+    #[error(
+        "line {line}, {column}: empty; every row needs a name, a quadrant and a ring, so fill it in or delete the row"
+    )]
     EmptyRequired { line: usize, column: &'static str },
 ```
 
@@ -709,11 +730,11 @@ git commit -m "feat(diagnostics): FR-5, FR-6 and FR-93 messages"
   - `ColumnKind` (`Name`, `Quadrant`, `Ring`, `Description`, `Qualifier`, `Domain`, `Rationale`, `LastAffirmed`, `ExitDate`, `Status`, `Other`), with `as_str()`.
   - `Column { heading: String, kind: ColumnKind }`.
   - `Quadrant { key: String, label: String }`.
-  - `Item { line, name, name_key, quadrant: usize, ring: Option<usize>, cells: Vec<String> }`. Task 5 adds `hollow` and `status`.
-  - `Catalogue { columns, quadrants, rings: Vec<String>, items }`.
+  - `Item { line, name, name_key, quadrant: usize, ring: Option<usize>, cells: Vec<String> }`. Task 5 adds `qualifier` and `status`.
+  - `Catalogue { columns, quadrants, rings: Vec<String>, items }`, all fields public.
   - `build_catalogue(&Table, &RingSet, &mut Warnings) -> Result<Catalogue, Vec<Fatal>>`.
 
-The whole file at the end of this task follows. Its tests come first in the steps below, but they live in the same file, at the bottom.
+The listing in Step 3 is the whole file at the end of this task, with its tests at the bottom.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -747,6 +768,10 @@ const REQUIRED: [ColumnKind; 4] = [
     ColumnKind::Ring,
     ColumnKind::Description,
 ];
+
+/// FR-6's columns: required, and never empty. `description` may be empty
+/// (FR-7).
+const NON_EMPTY: [ColumnKind; 3] = [ColumnKind::Name, ColumnKind::Quadrant, ColumnKind::Ring];
 
 /// What a named column means. A header name is matched under FR-76, so
 /// `Name ` is `name`.
@@ -830,13 +855,16 @@ pub struct Item {
     pub name: String,
     /// FR-76's key, computed once so no comparator folds (architecture §6).
     pub name_key: String,
-    /// Index into [`Catalogue::quadrants`].
+    /// Index into [`Catalogue::quadrants`], which is in first-appearance
+    /// order — **not** FR-10's, and never a palette index (architecture
+    /// §5). `order.rs` (PR 07) gives the FR-10 rank.
     pub quadrant: usize,
     /// Index into [`Catalogue::rings`]; `None` when the ring is not
     /// declared (FR-17), which leaves the row unplotted.
     pub ring: Option<usize>,
-    /// Every named column's cell, aligned with [`Catalogue::columns`], as
-    /// written after FR-90's removal (FR-78).
+    /// Every named column's cell, aligned with [`Catalogue::columns`] (not
+    /// with the header, which may hold unnamed columns), as written after
+    /// FR-90's removal (FR-78).
     pub cells: Vec<String>,
 }
 
@@ -848,7 +876,8 @@ pub struct Catalogue {
     pub columns: Vec<Column>,
     /// In order of first appearance; FR-10 orders them (PR 07).
     pub quadrants: Vec<Quadrant>,
-    /// The declared rings, edge-to-centre (FR-12).
+    /// The declared rings, edge-to-centre (FR-12). [`Item::ring`] indexes
+    /// this copy; nothing below the model reads the `RingSet`.
     pub rings: Vec<String>,
     pub items: Vec<Item>,
 }
@@ -856,10 +885,11 @@ pub struct Catalogue {
 /// FR-5–FR-29 and FR-93: the catalogue, or every row-level error.
 ///
 /// NFR-16 tier two: every missing required column (FR-5) and every empty
-/// `name`, `quadrant` or `ring` (FR-6) is returned together, in line order.
-/// No warning is pushed when there are errors, since nothing renders.
-/// Rows `csv::parse` rejected never arrive here; their errors travel beside
-/// the table, and `main.rs` merges the two (PR 13).
+/// `name`, `quadrant` or `ring` (FR-6) is returned together, in line order
+/// then column order. Rows are checked before any is built, so an `Err`
+/// comes with no warning from this stage. `csv::parse`'s FR-4 errors and
+/// FR-90 warnings are separate: `main.rs` decides what a failed run prints
+/// (PR 13).
 ///
 /// # Errors
 ///
@@ -879,7 +909,7 @@ pub fn build_catalogue(
         .flatten()
         .collect(),
     )?;
-    Ok(Builder::new(&header, rings).build(&table.records, w))
+    Ok(Builder::new(header, rings).build(&table.records, w))
 }
 
 /// `Ok` when there are no errors, else every one of them.
@@ -889,6 +919,13 @@ fn none_or_all(errors: Vec<Fatal>) -> Result<(), Vec<Fatal>> {
     } else {
         Err(errors)
     }
+}
+
+/// The cell at header position `p`. `parse` keeps only records as long as
+/// the header, so a missing cell reads as empty rather than panicking on a
+/// hand-built `Table`.
+fn field(record: &Record, p: usize) -> &str {
+    record.fields.get(p).map_or("", String::as_str)
 }
 
 /// The header, read once: which position holds which column.
@@ -940,18 +977,19 @@ impl Header {
 }
 
 /// FR-6: every empty `name`, `quadrant` or `ring` the header has, in line
-/// order, then column order.
+/// order, then header column order (NFR-11).
 fn empty_required(header: &Header, records: &[Record]) -> Vec<Fatal> {
-    let present: Vec<(usize, ColumnKind)> = REQUIRED[..3]
-        .iter()
-        .filter_map(|&kind| header.position(kind).map(|p| (p, kind)))
+    let mut present: Vec<(usize, ColumnKind)> = NON_EMPTY
+        .into_iter()
+        .filter_map(|kind| header.position(kind).map(|p| (p, kind)))
         .collect();
+    present.sort_by_key(|&(p, _)| p);
     records
         .iter()
         .flat_map(|record| {
             present
                 .iter()
-                .filter(|&&(p, _)| trim(&record.fields[p]).is_empty())
+                .filter(|&&(p, _)| trim(field(record, p)).is_empty())
                 .map(|&(_, kind)| Fatal::EmptyRequired {
                     line: record.line,
                     column: kind.as_str(),
@@ -960,8 +998,7 @@ fn empty_required(header: &Header, records: &[Record]) -> Vec<Fatal> {
         .collect()
 }
 
-/// Where each column FR-5–FR-28 reads sits in the header. FR-5 has
-/// already passed, so the required ones are present.
+/// Where each column the rows are read from sits in the header.
 struct Positions {
     name: usize,
     quadrant: usize,
@@ -971,6 +1008,8 @@ struct Positions {
 
 impl Positions {
     fn of(header: &Header) -> Self {
+        // FR-5 has passed before a `Positions` is built, so the default is
+        // never taken.
         let required = |kind| header.position(kind).unwrap_or_default();
         Self {
             name: required(ColumnKind::Name),
@@ -982,8 +1021,8 @@ impl Positions {
 }
 
 /// Builds the catalogue a row at a time.
-struct Builder<'a> {
-    header: &'a Header,
+struct Builder {
+    header: Header,
     at: Positions,
     /// The declared rings under FR-76, for FR-16's match.
     ring_keys: Vec<String>,
@@ -995,11 +1034,11 @@ struct Builder<'a> {
     items: Vec<Item>,
 }
 
-impl<'a> Builder<'a> {
-    fn new(header: &'a Header, rings: &RingSet) -> Self {
+impl Builder {
+    fn new(header: Header, rings: &RingSet) -> Self {
         Self {
+            at: Positions::of(&header),
             header,
-            at: Positions::of(header),
             ring_keys: rings.rings.iter().map(|r| normalise(r)).collect(),
             source: rings.source,
             rings: rings.rings.clone(),
@@ -1009,8 +1048,20 @@ impl<'a> Builder<'a> {
         }
     }
 
+    fn build(mut self, records: &[Record], w: &mut Warnings) -> Catalogue {
+        for record in records {
+            self.add(record, w);
+        }
+        Catalogue {
+            columns: self.header.columns,
+            quadrants: self.quadrants,
+            rings: self.rings,
+            items: self.items,
+        }
+    }
+
     fn add(&mut self, record: &Record, w: &mut Warnings) {
-        let field = |p: usize| record.fields[p].as_str();
+        let at = |p: usize| field(record, p);
         let mut warn = |column: usize, kind: RowKind| {
             w.push(Warning::Row {
                 line: record.line,
@@ -1018,11 +1069,11 @@ impl<'a> Builder<'a> {
                 kind,
             });
         };
-        let name = field(self.at.name);
+        let name = at(self.at.name);
         let name_key = self.name(name, record.line, &mut warn);
-        let quadrant = self.quadrant(field(self.at.quadrant));
-        let ring = self.ring(field(self.at.ring), &mut warn);
-        if trim(field(self.at.description)).is_empty() {
+        let quadrant = self.quadrant(at(self.at.quadrant));
+        let ring = self.ring(at(self.at.ring), &mut warn);
+        if trim(at(self.at.description)).is_empty() {
             warn(self.at.description, RowKind::EmptyDescription);
         }
         let cells = record
@@ -1042,7 +1093,7 @@ impl<'a> Builder<'a> {
         });
     }
 
-    /// FR-28: a repeated name warns at the later line, naming the first.
+    /// FR-28: every later occurrence of a name warns, naming the first.
     fn name(&mut self, name: &str, line: usize, warn: &mut impl FnMut(usize, RowKind)) -> String {
         let key = normalise(name);
         match self.names.iter().find(|(k, _)| *k == key) {
@@ -1064,6 +1115,9 @@ impl<'a> Builder<'a> {
         let key = normalise(value);
         let label = trim(value);
         if let Some(i) = self.quadrants.iter().position(|q| q.key == key) {
+            // D-53: "ordinally" is code-point order, which is `str`'s `<`.
+            // `order::compare_names` (PR 07) is the same rule; this site
+            // cannot call it, since `order.rs` depends on this module.
             if label < self.quadrants[i].label.as_str() {
                 self.quadrants[i].label = label.to_string();
             }
@@ -1091,22 +1145,6 @@ impl<'a> Builder<'a> {
             );
         }
         found
-    }
-
-    fn build(mut self, records: &[Record], w: &mut Warnings) -> Catalogue {
-        for record in records {
-            self.add(record, w);
-        }
-        self.finish()
-    }
-
-    fn finish(self) -> Catalogue {
-        Catalogue {
-            columns: self.header.columns.clone(),
-            quadrants: self.quadrants,
-            rings: self.rings,
-            items: self.items,
-        }
     }
 }
 
@@ -1165,7 +1203,7 @@ mod tests {
     /// FR-78's columns in header order; FR-93 drops the unnamed one.
     #[test]
     fn columns_keep_header_order_and_drop_unnamed_ones() {
-        let cat = catalogue("name,quadrant,,ring,description, Notes ,\nK,T,x,Adopt,d,n,\n");
+        let cat = catalogue("name,quadrant,,ring,description, Notes ,\nK,T,,Adopt,d,n,\n");
         let headings: Vec<_> = cat.columns.iter().map(|c| c.heading.as_str()).collect();
         assert_eq!(
             headings,
@@ -1236,6 +1274,26 @@ mod tests {
         );
     }
 
+    /// NFR-11: within a line, errors follow the header's column order, not
+    /// FR-6's list.
+    #[test]
+    fn empty_required_values_follow_header_column_order() {
+        assert_eq!(
+            errors("ring,name,quadrant,description\n ,,T,d\n"),
+            [empty(2, "ring"), empty(2, "name")]
+        );
+    }
+
+    /// SC-10: FR-90's removal runs first, so a `name` of only U+0001 is
+    /// the empty-`name` hard error.
+    #[test]
+    fn a_name_of_only_undisplayable_characters_is_empty() {
+        assert_eq!(
+            errors(&format!("{HEAD}\u{1},T,Adopt,d\n")),
+            [empty(2, "name")]
+        );
+    }
+
     /// NFR-16: FR-5 and FR-6 arrive in one run. The present required
     /// columns are still checked.
     #[test]
@@ -1254,16 +1312,28 @@ mod tests {
         assert_eq!(errors(&csv), [empty(4, "name")]);
     }
 
-    /// Nothing renders when there are errors, so nothing warns.
+    /// No warning from the model when it fails; `parse`'s FR-90 warnings
+    /// are already pushed and stay.
     #[test]
-    fn errors_push_no_warnings() {
-        let csv = format!("{HEAD},T,Nope,\n");
+    fn errors_push_no_model_warnings() {
+        let csv = format!("{HEAD},T,Nope,\nK\u{1},T,Adopt,d\n");
         let (result, warnings) = build(&csv);
         assert!(result.is_err());
-        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(
+            warnings,
+            ["warning: line 3, name: removed U+0001, which the output cannot display"]
+        );
     }
 
-    // --- Quadrants, rings and names: FR-8, FR-9, FR-16, FR-17, FR-28 ---
+    /// A header-only file is FR-42's empty state, not an error.
+    #[test]
+    fn a_header_only_file_builds_an_empty_catalogue() {
+        let cat = catalogue(HEAD);
+        assert!(cat.items.is_empty() && cat.quadrants.is_empty());
+        assert_eq!(cat.rings.len(), 4);
+    }
+
+    // --- Quadrants, rings and names: FR-8, FR-9, FR-11, FR-16, FR-17, FR-28 ---
 
     /// FR-9: one quadrant per normalised value, labelled by the ordinally
     /// first variant, trimmed — the same label whatever the row order.
@@ -1285,6 +1355,17 @@ mod tests {
         }
     }
 
+    /// FR-9 compares the variants **trimmed**: untrimmed, ` tool` would
+    /// sort first (a space is below `T`). A boundary format character goes
+    /// too (D-61).
+    #[test]
+    fn quadrant_labels_compare_trimmed_variants() {
+        let cat = catalogue(&format!(
+            "{HEAD}a, tool,Adopt,d\nb,Tool,Adopt,d\nc,\u{200b}Tool,Adopt,d\n"
+        ));
+        assert_eq!(cat.quadrants[0].label, "Tool");
+    }
+
     /// FR-8: quadrants in order of first appearance; FR-10 orders them later.
     #[test]
     fn quadrants_keep_first_appearance_order() {
@@ -1295,6 +1376,15 @@ mod tests {
         assert_eq!(labels, ["Tool", "Platform"]);
         let indices: Vec<_> = cat.items.iter().map(|i| i.quadrant).collect();
         assert_eq!(indices, [0, 1, 0]);
+    }
+
+    /// FR-11: near-duplicates are neither merged nor flagged.
+    #[test]
+    fn near_duplicates_stay_apart_silently() {
+        let csv = format!("{HEAD}Kafka,Tool,Adopt,d\nKafkas,Tools,Adopt,d\n");
+        let (result, warnings) = build(&csv);
+        assert_eq!(result.expect("builds").quadrants.len(), 2);
+        assert!(warnings.is_empty(), "{warnings:?}");
     }
 
     /// FR-16: matched under FR-76, both sides normalised.
@@ -1327,17 +1417,44 @@ mod tests {
         );
     }
 
-    /// FR-28: both rows are kept; the later one warns, naming the first.
+    /// FR-28: every row is kept, and each later occurrence names the
+    /// **first** line, not the previous one.
     #[test]
-    fn a_repeated_name_warns_at_the_later_line() {
+    fn a_repeated_name_names_its_first_line() {
         let csv = format!("{HEAD}Kafka,T,Adopt,d\nkafka ,T,Trial,d\nKAFKA,T,Assess,d\n");
-        let (result, warnings) = build(&csv);
-        assert_eq!(result.expect("builds").items.len(), 3);
+        let mut w = Warnings::default();
+        let (table, _) = parse(&csv, &mut w).expect("parses");
+        let rings = parse_rings(None).expect("default");
+        let cat = build_catalogue(&table, &rings, &mut w).expect("builds");
+        assert_eq!(cat.items.len(), 3);
+        let firsts: Vec<_> = w
+            .as_slice()
+            .iter()
+            .filter_map(|warning| match warning {
+                Warning::Row {
+                    kind: RowKind::DuplicateName { first_line, .. },
+                    ..
+                } => Some(*first_line),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(firsts, [2, 2]);
+    }
+
+    /// SC-10: FR-90's removal runs first, so `Kafka` + U+0001 repeats
+    /// `Kafka`; so does `Kafka` behind a zero-width space (FR-76, D-61).
+    #[test]
+    fn invisible_characters_do_not_hide_a_repeated_name() {
         assert_eq!(
-            warnings,
+            warnings(&format!("{HEAD}Kafka,T,Adopt,d\nKafka\u{1},T,Adopt,d\n")),
             [
-                "warning: 2 rows repeat an earlier name — kafka (line 2; repeated on 2 rows, first line 3); every row is drawn"
+                "warning: line 3, name: removed U+0001, which the output cannot display",
+                "warning: line 3, name: 'Kafka' repeats line 2; both are drawn",
             ]
+        );
+        assert_eq!(
+            warnings(&format!("{HEAD}Kafka,T,Adopt,d\n\u{200b}Kafka,T,Adopt,d\n")),
+            ["warning: line 3, name: 'Kafka' repeats line 2; both are drawn"]
         );
     }
 
@@ -1351,12 +1468,13 @@ mod tests {
         );
     }
 
-    /// FR-7: an empty description renders, with a warning.
+    /// FR-7: an empty description renders, with a warning. Spaces or a
+    /// lone zero-width space are empty.
     #[test]
     fn an_empty_description_warns() {
         assert_eq!(
-            warnings(&format!("{HEAD}K,T,Adopt, \n")),
-            ["warning: line 2, description: empty; the detail panel omits it"]
+            warnings(&format!("{HEAD}K,T,Adopt, \nL,T,Adopt,\u{200b}\n")),
+            ["warning: 2 rows have an empty description — lines 2, 3; each detail panel omits it"]
         );
     }
 }
@@ -1365,7 +1483,7 @@ mod tests {
 - [ ] **Step 4: Run everything**
 
 Run: `cargo fmt && cargo test -q && cargo clippy --all-targets -- -D warnings && just lint`
-Expected: all pass, including 16 tests in `model::tests`.
+Expected: all pass, with 22 tests in `model::tests`.
 
 - [ ] **Step 5: Commit**
 
@@ -1384,13 +1502,20 @@ git commit -m "feat(model): header, FR-5/FR-6, quadrants, rings and names"
 **Interfaces:**
 - Consumes: Task 4's `model.rs`; `DateColumn` and the Task 3 variants.
 - Produces:
-  - `Status { New, MovedIn, MovedOut, NoChange }`.
-  - `Item::hollow: bool` (FR-20) and `Item::status: Option<Status>` (FR-26).
+  - `Qualifier { Default, Conditional }` and `Status { New, MovedIn, MovedOut, NoChange }`, each with `label() -> &'static str`: the canonical text a legend row and the detail panel show.
+  - `Item::qualifier: Option<Qualifier>` (FR-20; `None` when blank or unrecognised) and `Item::status: Option<Status>` (FR-26).
+  - `Item::hollow(&self) -> bool` (FR-20).
   - `Item::cell(&self, column: usize) -> Option<&str>` (FR-29: `None` when empty under FR-76's trim). `column` indexes `Catalogue::columns`.
 
 - [ ] **Step 1: Write the failing tests**
 
-In `model::tests`, add after the `warnings` helper:
+In `model::tests`, add after `const HEAD`:
+
+```rust
+    const FULL: &str = "name,quadrant,ring,description,qualifier,last_affirmed,exit_date,status\n";
+```
+
+Add after the `warnings` helper:
 
 ```rust
     /// Each item's `f`, in CSV order, with the rendered warnings.
@@ -1403,36 +1528,58 @@ In `model::tests`, add after the `warnings` helper:
     }
 ```
 
-Add after `const HEAD`:
-
-```rust
-    const FULL: &str = "name,quadrant,ring,description,qualifier,last_affirmed,exit_date,status\n";
-```
-
 Append to the test module:
 
 ```rust
-    /// FR-20: `conditional` is hollow; blank and `default` are silent and
-    /// solid; anything else is solid with a warning.
+    // --- Optional columns: FR-20, FR-21, FR-24–FR-26, FR-29, FR-93 ---
+
+    /// FR-20: `conditional` is hollow and `default` is recognised; blank —
+    /// spaces and format characters included (FR-76) — claims nothing,
+    /// silently; anything else claims nothing, with a warning.
     #[test]
-    fn qualifiers_set_the_fill() {
+    fn qualifiers_are_read_under_fr76() {
         let csv = format!(
-            "{FULL}a,T,Adopt,d, Conditional,,,\nb,T,Adopt,d,default,,,\nc,T,Adopt,d,,,,\nd,T,Adopt,d,maybe,,,\n"
+            "{FULL}a,T,Adopt,d, Conditional,,,\nb,T,Adopt,d,default,,,\nc,T,Adopt,d,,,,\nd,T,Adopt,d,  ,,,\ne,T,Adopt,d,\u{200b},,,\nf,T,Adopt,d,\u{200b}conditional,,,\ng,T,Adopt,d,maybe,,,\n"
         );
-        let (hollow, warnings) = per_item(&csv, |i| i.hollow);
-        assert_eq!(hollow, [true, false, false, false]);
+        let (qualifiers, warnings) = per_item(&csv, |i| (i.qualifier, i.hollow()));
+        assert_eq!(
+            qualifiers,
+            [
+                (Some(Qualifier::Conditional), true),
+                (Some(Qualifier::Default), false),
+                (None, false),
+                (None, false),
+                (None, false),
+                (Some(Qualifier::Conditional), true),
+                (None, false),
+            ]
+        );
         assert_eq!(
             warnings,
-            ["warning: line 5, qualifier: unrecognised qualifier value 'maybe'; drawn solid"]
+            ["warning: line 8, qualifier: unrecognised qualifier value 'maybe'; drawn solid"]
         );
     }
 
-    /// FR-26: four values under FR-76; blank is absent; anything else is
-    /// `No Change` with a warning.
+    /// FR-21: the qualifier ignores the ring, under any ring set.
+    #[test]
+    fn the_qualifier_ignores_the_ring() {
+        let csv = format!("{FULL}a,T,Use,d,conditional,,,\nb,T,Gone,d,conditional,,,\n");
+        let (result, _) = build_with(&csv, Some("Use,Approved"));
+        let hollow: Vec<_> = result
+            .expect("builds")
+            .items
+            .iter()
+            .map(Item::hollow)
+            .collect();
+        assert_eq!(hollow, [true, true]);
+    }
+
+    /// FR-26: four values under FR-76; blank (spaces and format characters
+    /// included) is absent; anything else is `No Change` with a warning.
     #[test]
     fn statuses_are_read_under_fr76() {
         let csv = format!(
-            "{FULL}a,T,Adopt,d,,,,new\nb,T,Adopt,d,,,,Moved In\nc,T,Adopt,d,,,,MOVED OUT\nd,T,Adopt,d,,,,no change\ne,T,Adopt,d,,,,\nf,T,Adopt,d,,,,Gone\n"
+            "{FULL}a,T,Adopt,d,,,,new\nb,T,Adopt,d,,,,Moved In\nc,T,Adopt,d,,,,MOVED OUT\nd,T,Adopt,d,,,,\u{feff}no change\ne,T,Adopt,d,,,,\nf,T,Adopt,d,,,,  \ng,T,Adopt,d,,,,\u{200b}\nh,T,Adopt,d,,,,Gone\n"
         );
         let (statuses, warnings) = per_item(&csv, |i| i.status);
         assert_eq!(
@@ -1443,39 +1590,51 @@ Append to the test module:
                 Some(Status::MovedOut),
                 Some(Status::NoChange),
                 None,
+                None,
+                None,
                 Some(Status::NoChange)
             ]
         );
         assert_eq!(
             warnings,
-            ["warning: line 7, status: unrecognised status value 'Gone'; drawn as No Change"]
+            ["warning: line 9, status: unrecognised status value 'Gone'; drawn as No Change"]
         );
     }
 
     /// FR-24, FR-25: an unparsable date warns, naming its column; a blank
-    /// one does not. Either way the cell is kept as written.
+    /// one does not, and nor does one inside spaces or format characters.
+    /// Either way the cell is kept as written.
     #[test]
     fn unparsable_dates_warn_and_keep_their_text() {
-        let csv = format!("{FULL}a,T,Adopt,d,, 2026-06-01 ,June 2027,\nb,T,Adopt,d,,,,\n");
-        let (result, warnings) = build(&csv);
-        assert_eq!(
-            result.expect("builds").items[0].cell(5),
-            Some(" 2026-06-01 ")
+        let csv = format!(
+            "{FULL}a,T,Adopt,d,, 2026-06-01 ,June 2027,\nb,T,Adopt,d,,\u{200b}2026-06-01\u{feff},,\nc,T,Adopt,d,,,,\n"
         );
+        let (result, warnings) = build(&csv);
+        let items = result.expect("builds").items;
+        assert_eq!(items[0].cell(5), Some(" 2026-06-01 "));
+        assert_eq!(items[1].cell(5), Some("\u{200b}2026-06-01\u{feff}"));
         assert_eq!(
             warnings,
             ["warning: line 2, exit_date: 'June 2027' is not a YYYY-MM-DD date; shown as written"]
         );
     }
 
-    /// FR-24's shape exactly, and a real calendar date.
+    /// FR-24's shape exactly, and a real calendar date. A multi-byte
+    /// character at a field boundary is rejected, not sliced.
     #[test]
     fn iso_dates_are_exactly_the_shape_and_real() {
-        for ok in ["2026-06-01", "2024-02-29", "2000-02-29", "1999-12-31"] {
+        for ok in [
+            "2026-06-01",
+            "2026-04-30",
+            "2024-02-29",
+            "2000-02-29",
+            "1999-12-31",
+        ] {
             assert!(is_iso_date(ok), "{ok}");
         }
         for bad in [
             "2026-6-1",
+            "2026-04-31",
             "2026-02-30",
             "2023-02-29",
             "1900-02-29",
@@ -1486,6 +1645,7 @@ Append to the test module:
             "20260601",
             "2026-06-01T00:00",
             "２０２６-06-01",
+            "202é06-01",
             "",
         ] {
             assert!(!is_iso_date(bad), "{bad}");
@@ -1498,7 +1658,7 @@ Append to the test module:
         let csv = format!("{HEAD}K,T,Adopt,d\n");
         let (result, warnings) = build(&csv);
         let item = &result.expect("builds").items[0];
-        assert_eq!((item.hollow, item.status), (false, None));
+        assert_eq!((item.qualifier, item.status), (None, None));
         assert!(warnings.is_empty(), "{warnings:?}");
     }
 
@@ -1513,15 +1673,34 @@ Append to the test module:
         assert_eq!(item.cell(0), Some("K"));
     }
 
+    /// `Item::cell` indexes the named columns, not the header: an unnamed
+    /// column before `exit_date` does not shift it.
+    #[test]
+    fn cells_index_named_columns_not_header_positions() {
+        let cat = catalogue(
+            "name,,quadrant,ring,description,exit_date\nOld,,Tool,Rejected,d,2027-01-01\n",
+        );
+        assert_eq!(cat.items[0].cell(4), Some("2027-01-01"));
+    }
+
     /// FR-93: Excel's trailing padding passes silently; a value under no
-    /// heading warns, naming the column's position.
+    /// name warns, naming the column's position — wherever the column is,
+    /// and whether the header cell is empty or only a format character.
     #[test]
     fn unnamed_columns_warn_only_when_they_hold_a_value() {
         let padding = warnings("name,quadrant,ring,description,,\nK,T,Adopt,d,,\n");
         assert!(padding.is_empty(), "{padding:?}");
         assert_eq!(
             warnings("name,quadrant,ring,description,,\nK,T,Adopt,d,, \nL,T,Adopt,d,,x\n"),
-            ["warning: line 3, column 6: a value under no heading; it is not shown"]
+            [
+                "warning: line 3, column 6: this column has no name in the header row, so its value is not shown; add a header name, or delete the value"
+            ]
+        );
+        assert_eq!(
+            warnings("name,\u{200b},quadrant,ring,description\nK,x,T,Adopt,d\n"),
+            [
+                "warning: line 2, column 2: this column has no name in the header row, so its value is not shown; add a header name, or delete the value"
+            ]
         );
     }
 
@@ -1533,7 +1712,23 @@ Append to the test module:
             warnings("name,quadrant,ring,description,\nK,T,Adopt,d,a\u{1}\n"),
             [
                 "warning: line 2, column 5: removed U+0001, which the output cannot display",
-                "warning: line 2, column 5: a value under no heading; it is not shown",
+                "warning: line 2, column 5: this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
+            ]
+        );
+    }
+
+    /// NFR-11 across the two stages: parse's and the model's warnings on
+    /// one line sort by header column, whichever stage pushed first.
+    #[test]
+    fn warnings_from_both_stages_sort_by_header_column() {
+        let csv = "name,,quadrant,ring,description,\nK,x,T,Adpot,d\u{1},\nL,,T,Adopt,,\n";
+        assert_eq!(
+            warnings(csv),
+            [
+                "warning: line 2, column 2: this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
+                "warning: line 2, ring: 'Adpot' is not declared by the default ring set; the row is in the table view, not on the radar",
+                "warning: line 2, description: removed U+0001, which the output cannot display",
+                "warning: line 3, description: empty; the detail panel omits it",
             ]
         );
     }
@@ -1542,15 +1737,40 @@ Append to the test module:
 - [ ] **Step 2: Run the tests to see them fail**
 
 Run: `cargo test -q --lib model`
-Expected: compile errors: no field `hollow` or `status`, no method `cell`, and no `Status` or `is_iso_date`.
+Expected: compile errors: no field `qualifier` or `status`, no methods `hollow` or `cell`, and no `Qualifier`, `Status` or `is_iso_date`.
 
 - [ ] **Step 3: Implement**
 
-Change the diagnostics import to `use crate::diagnostics::{DateColumn, Fatal, RowKind, Warning, Warnings};`.
+Change the diagnostics import to:
+
+```rust
+use crate::diagnostics::{DateColumn, Fatal, RowKind, Warning, Warnings};
+```
 
 After `Column`, add:
 
 ```rust
+/// FR-20's recognised values. Blank and unrecognised values claim nothing,
+/// so they have no variant: the marker is solid and the legend row shows
+/// no qualifier (FR-74).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Qualifier {
+    Default,
+    Conditional,
+}
+
+impl Qualifier {
+    /// What a legend row shows (FR-74), so an accessible name can contain
+    /// it (WCAG 2.5.3).
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Default => "Default",
+            Self::Conditional => "Conditional",
+        }
+    }
+}
+
 /// FR-26's values. An unrecognised one is `NoChange`, with a warning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
@@ -1559,23 +1779,69 @@ pub enum Status {
     MovedOut,
     NoChange,
 }
+
+impl Status {
+    /// Every value, so the vocabulary is written once, in [`Status::label`].
+    const ALL: [Self; 4] = [Self::New, Self::MovedIn, Self::MovedOut, Self::NoChange];
+
+    /// The canonical spelling: what a legend row and the detail panel show
+    /// (FR-26, FR-74), and what a cell matches under FR-76.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::New => "New",
+            Self::MovedIn => "Moved In",
+            Self::MovedOut => "Moved Out",
+            Self::NoChange => "No Change",
+        }
+    }
+}
 ```
 
-In `Item`, after `ring`, add:
+Replace `Item` with:
 
 ```rust
-    /// FR-20: drawn hollow.
-    pub hollow: bool,
+/// One CSV data row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Item {
+    /// The physical line the record begins on (NFR-10). Lines ascend with
+    /// CSV order, so this is also FR-34's last tiebreak.
+    pub line: usize,
+    /// As written, after FR-90's removal.
+    pub name: String,
+    /// FR-76's key, computed once so no comparator folds (architecture §6).
+    pub name_key: String,
+    /// Index into [`Catalogue::quadrants`], which is in first-appearance
+    /// order — **not** FR-10's, and never a palette index (architecture
+    /// §5). `order.rs` (PR 07) gives the FR-10 rank.
+    pub quadrant: usize,
+    /// Index into [`Catalogue::rings`]; `None` when the ring is not
+    /// declared (FR-17), which leaves the row unplotted.
+    pub ring: Option<usize>,
+    /// FR-20; `None` when blank or unrecognised.
+    pub qualifier: Option<Qualifier>,
     /// FR-26: `None` when blank or absent.
     pub status: Option<Status>,
+    /// Every named column's cell, aligned with [`Catalogue::columns`] (not
+    /// with the header, which may hold unnamed columns), as written after
+    /// FR-90's removal (FR-78).
+    pub cells: Vec<String>,
+}
 ```
 
 After `Item`, add:
 
 ```rust
 impl Item {
-    /// The cell under `column`, or `None` when it is empty under FR-76's
-    /// trim, which FR-29 omits rather than showing an empty label.
+    /// FR-20: drawn hollow.
+    #[must_use]
+    pub fn hollow(&self) -> bool {
+        self.qualifier == Some(Qualifier::Conditional)
+    }
+
+    /// The cell under `column`, an index into [`Catalogue::columns`], or
+    /// `None` when it is empty under FR-76's trim, which FR-29 omits rather
+    /// than showing an empty label.
     #[must_use]
     pub fn cell(&self, column: usize) -> Option<&str> {
         self.cells
@@ -1589,8 +1855,7 @@ impl Item {
 Replace `Positions` and its `impl` with:
 
 ```rust
-/// Where each column FR-5–FR-26 reads sits in the header. FR-5 has
-/// already passed, so the required ones are present.
+/// Where each column the rows are read from sits in the header.
 struct Positions {
     name: usize,
     quadrant: usize,
@@ -1606,6 +1871,8 @@ struct Positions {
 
 impl Positions {
     fn of(header: &Header) -> Self {
+        // FR-5 has passed before a `Positions` is built, so the default is
+        // never taken.
         let required = |kind| header.position(kind).unwrap_or_default();
         Self {
             name: required(ColumnKind::Name),
@@ -1628,7 +1895,7 @@ Replace `Builder::add` with:
 
 ```rust
     fn add(&mut self, record: &Record, w: &mut Warnings) {
-        let field = |p: usize| record.fields[p].as_str();
+        let at = |p: usize| field(record, p);
         let mut warn = |column: usize, kind: RowKind| {
             w.push(Warning::Row {
                 line: record.line,
@@ -1636,28 +1903,31 @@ Replace `Builder::add` with:
                 kind,
             });
         };
-        let name = field(self.at.name);
+        let name = at(self.at.name);
         let name_key = self.name(name, record.line, &mut warn);
-        let quadrant = self.quadrant(field(self.at.quadrant));
-        let ring = self.ring(field(self.at.ring), &mut warn);
-        if trim(field(self.at.description)).is_empty() {
+        let quadrant = self.quadrant(at(self.at.quadrant));
+        let ring = self.ring(at(self.at.ring), &mut warn);
+        if trim(at(self.at.description)).is_empty() {
             warn(self.at.description, RowKind::EmptyDescription);
         }
-        let hollow = self
+        let qualifier = self
             .at
             .qualifier
-            .is_some_and(|p| qualifier(field(p), p, &mut warn));
-        let status = self.at.status.and_then(|p| status(field(p), p, &mut warn));
-        for (column, at) in [
+            .and_then(|p| read_qualifier(at(p), p, &mut warn));
+        let status = self
+            .at
+            .status
+            .and_then(|p| read_status(at(p), p, &mut warn));
+        for (column, position) in [
             (DateColumn::LastAffirmed, self.at.last_affirmed),
             (DateColumn::ExitDate, self.at.exit_date),
         ] {
-            if let Some(p) = at {
-                date(field(p), p, column, &mut warn);
+            if let Some(p) = position {
+                check_date(at(p), p, column, &mut warn);
             }
         }
         for &p in &self.at.unnamed {
-            unnamed(field(p), p, &mut warn);
+            check_unnamed(at(p), p, &mut warn);
         }
         let cells = record
             .fields
@@ -1672,7 +1942,7 @@ Replace `Builder::add` with:
             name_key,
             quadrant,
             ring,
-            hollow,
+            qualifier,
             status,
             cells,
         });
@@ -1682,12 +1952,17 @@ Replace `Builder::add` with:
 Add before `#[cfg(test)]`:
 
 ```rust
-/// FR-20: `conditional` is hollow. Blank and `default` are solid and claim
-/// nothing; anything else is solid with a warning (D-6, D-35).
-fn qualifier(value: &str, column: usize, warn: &mut impl FnMut(usize, RowKind)) -> bool {
+/// FR-20: `conditional` and `default` are recognised; blank claims nothing;
+/// anything else claims nothing too, with a warning (D-6, D-35).
+fn read_qualifier(
+    value: &str,
+    column: usize,
+    warn: &mut impl FnMut(usize, RowKind),
+) -> Option<Qualifier> {
     match normalise(value).as_str() {
-        "conditional" => true,
-        "" | "default" => false,
+        "conditional" => Some(Qualifier::Conditional),
+        "default" => Some(Qualifier::Default),
+        "" => None,
         _ => {
             warn(
                 column,
@@ -1695,35 +1970,39 @@ fn qualifier(value: &str, column: usize, warn: &mut impl FnMut(usize, RowKind)) 
                     value: value.to_string(),
                 },
             );
-            false
+            None
         }
     }
 }
 
 /// FR-26: blank is absent; an unrecognised value is `NoChange`, with a
 /// warning (D-35).
-fn status(value: &str, column: usize, warn: &mut impl FnMut(usize, RowKind)) -> Option<Status> {
-    match normalise(value).as_str() {
-        "" => None,
-        "new" => Some(Status::New),
-        "moved in" => Some(Status::MovedIn),
-        "moved out" => Some(Status::MovedOut),
-        "no change" => Some(Status::NoChange),
-        _ => {
-            warn(
-                column,
-                RowKind::UnrecognisedStatus {
-                    value: value.to_string(),
-                },
-            );
-            Some(Status::NoChange)
-        }
+fn read_status(
+    value: &str,
+    column: usize,
+    warn: &mut impl FnMut(usize, RowKind),
+) -> Option<Status> {
+    let key = normalise(value);
+    if key.is_empty() {
+        return None;
     }
+    let known = Status::ALL
+        .into_iter()
+        .find(|s| normalise(s.label()) == key);
+    if known.is_none() {
+        warn(
+            column,
+            RowKind::UnrecognisedStatus {
+                value: value.to_string(),
+            },
+        );
+    }
+    Some(known.unwrap_or(Status::NoChange))
 }
 
 /// FR-24, FR-25: a non-blank value that is not `YYYY-MM-DD` warns. Either
 /// way it renders as written (FR-24), so nothing is returned.
-fn date(value: &str, at: usize, column: DateColumn, warn: &mut impl FnMut(usize, RowKind)) {
+fn check_date(value: &str, at: usize, column: DateColumn, warn: &mut impl FnMut(usize, RowKind)) {
     let t = trim(value);
     if !t.is_empty() && !is_iso_date(t) {
         warn(
@@ -1736,8 +2015,8 @@ fn date(value: &str, at: usize, column: DateColumn, warn: &mut impl FnMut(usize,
     }
 }
 
-/// FR-93: a value under a column with no heading is not shown, so say so.
-fn unnamed(value: &str, at: usize, warn: &mut impl FnMut(usize, RowKind)) {
+/// FR-93: a value under a column with no name is not shown, so say so.
+fn check_unnamed(value: &str, at: usize, warn: &mut impl FnMut(usize, RowKind)) {
     if !trim(value).is_empty() {
         warn(
             at,
@@ -1760,7 +2039,8 @@ const CENTURY: usize = 100;
 const LEAP_CENTURY: usize = 400;
 
 /// `YYYY-MM-DD`, a real calendar date. Exactly that shape: no week dates,
-/// no times, no unpadded fields (FR-24).
+/// no times, no unpadded fields (FR-24). The shape is checked first, so
+/// what is split is ASCII digits and hyphens only.
 fn is_iso_date(s: &str) -> bool {
     let shaped = s.len() == ISO_DATE.len()
         && s.bytes().zip(ISO_DATE.bytes()).all(|(c, p)| {
@@ -1770,24 +2050,27 @@ fn is_iso_date(s: &str) -> bool {
                 c.is_ascii_digit()
             }
         });
+    if !shaped {
+        return false;
+    }
     let mut fields = s.split('-').filter_map(|f| f.parse::<usize>().ok());
     let (Some(year), Some(month), Some(day)) = (fields.next(), fields.next(), fields.next()) else {
         return false;
     };
     let leap = year.is_multiple_of(LEAP_YEAR)
         && (!year.is_multiple_of(CENTURY) || year.is_multiple_of(LEAP_CENTURY));
-    let days = month
+    month
         .checked_sub(1)
         .and_then(|m| MONTH_DAYS.get(m))
-        .map(|&d| d + usize::from(leap && month == FEBRUARY));
-    shaped && days.is_some_and(|d| (1..=d).contains(&day))
+        .map(|&d| d + usize::from(leap && month == FEBRUARY))
+        .is_some_and(|d| (1..=d).contains(&day))
 }
 ```
 
 - [ ] **Step 4: Run everything**
 
 Run: `cargo fmt && cargo test -q && cargo clippy --all-targets -- -D warnings && just lint`
-Expected: all pass, with 24 tests in `model::tests`.
+Expected: all pass, with 33 tests in `model::tests`.
 
 - [ ] **Step 5: Commit**
 
@@ -1801,13 +2084,15 @@ git commit -m "feat(model): optional columns, dates and unnamed columns"
 ### Task 6: Accessible names, end-to-end tests, architecture
 
 **Files:**
-- Modify: `src/model.rs` (`Catalogue::ring_column`, `Catalogue::accessible_name`)
-- Create: `tests/fixtures/example.csv`, `tests/fixtures/row-errors.csv`, `tests/model.rs`
-- Modify: `docs/design/architecture.md` (§2, §3, §7)
+- Modify: `src/model.rs` (`Catalogue::column`, `Catalogue::accessible_name`)
+- Create: `tests/fixtures/three-quadrant.csv`, `tests/fixtures/row-errors.csv`, `tests/model.rs`
+- Modify: `docs/design/architecture.md` (header, §2, §3, §5, §7, §8, §10)
 
 **Interfaces:**
 - Consumes: Tasks 1–5.
-- Produces: `Catalogue::accessible_name(&self, item: &Item, number: Option<usize>) -> String` (FR-50, FR-75). PR 14 calls it for markers, legend rows and table rows; PR 07 supplies `number`.
+- Produces:
+  - `Catalogue::column(&self, kind: ColumnKind) -> Option<usize>`: an index into `Catalogue::columns`, for `Item::cell`.
+  - `Catalogue::accessible_name(&self, item: &Item, number: Option<usize>) -> String` (FR-50, FR-75), for markers and legend rows. PR 07 supplies `number`; PR 14 calls it.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1816,25 +2101,38 @@ Append to `model::tests`:
 ```rust
     // --- FR-50, FR-75 ---
 
-    /// Number, name, quadrant and ring; unplotted rows say so instead of a
+    /// The legend row's text first — number, name, qualifier, status —
+    /// then the quadrant and ring; an unplotted row says so instead of a
     /// number (FR-18).
     #[test]
-    fn accessible_names_carry_number_name_quadrant_and_ring() {
+    fn accessible_names_carry_the_row_text_and_its_position() {
         let cat = catalogue(&format!(
-            "{HEAD} Kafka ,tool,adopt,d\nOld,Tool,Rejected,d\n"
+            "{FULL} Kafka ,tool,adopt,d,conditional,,,moved in\nOld,Tool,Rejected,d,,,,\n"
         ));
         assert_eq!(
             cat.accessible_name(&cat.items[0], Some(3)),
-            "3. Kafka, Tool, Adopt"
+            "3. Kafka, Conditional, Moved In, Tool, Adopt"
         );
         assert_eq!(
             cat.accessible_name(&cat.items[1], None),
             "Old, Tool, Rejected, not on the radar"
         );
     }
+
+    /// The unplotted ring is read from the named columns, so an unnamed
+    /// column before it does not shift it onto another cell.
+    #[test]
+    fn an_unplotted_ring_is_found_past_an_unnamed_column() {
+        let cat = catalogue("name,,quadrant,ring,description\nOld,,Tool,Rejected,d\n");
+        assert_eq!(
+            cat.accessible_name(&cat.items[0], None),
+            "Old, Tool, Rejected, not on the radar"
+        );
+        assert_eq!(cat.column(ColumnKind::Ring), Some(2));
+    }
 ```
 
-Create `tests/fixtures/example.csv` with PRD §6.1.6's example, verbatim:
+Create `tests/fixtures/three-quadrant.csv` with PRD §6.1.6's example, verbatim:
 
 ```csv
 name,quadrant,ring,description,qualifier,domain,rationale,last_affirmed,exit_date,status
@@ -1868,15 +2166,16 @@ Create `tests/model.rs`:
 
 use radargen::csv::parse::parse;
 use radargen::diagnostics::{Fatal, Warnings};
-use radargen::model::build_catalogue;
+use radargen::model::{ColumnKind, Qualifier, Status, build_catalogue};
 use radargen::rings::parse_rings;
 
-/// PRD §6.1.6's example: three quadrants, every optional column empty at
-/// least once, and one row whose ring the default set does not declare.
+/// PRD §6.1.6's example, architecture §10's `three-quadrant.csv` (SC-2):
+/// three quadrants, every optional column empty at least once, and one row
+/// whose ring the default set does not declare.
 #[test]
 fn the_prd_example_builds_with_one_warning() {
     let mut w = Warnings::default();
-    let (table, errs) = parse(include_str!("fixtures/example.csv"), &mut w).expect("parses");
+    let (table, errs) = parse(include_str!("fixtures/three-quadrant.csv"), &mut w).expect("parses");
     assert!(errs.is_empty(), "{errs:?}");
     let rings = parse_rings(None).expect("default");
     let cat = build_catalogue(&table, &rings, &mut w).expect("builds");
@@ -1891,6 +2190,31 @@ fn the_prd_example_builds_with_one_warning() {
         .map(|i| i.name.as_str())
         .collect();
     assert_eq!(unplotted, ["Legacy Ticketing-Driven Change"]);
+
+    // FR-20 and FR-26 on real rows.
+    let qualifiers: Vec<_> = cat.items.iter().map(|i| i.qualifier).collect();
+    let (d, c) = (Some(Qualifier::Default), Some(Qualifier::Conditional));
+    assert_eq!(qualifiers, [d, c, None, None, d, d, None]);
+    let statuses: Vec<_> = cat.items.iter().map(|i| i.status).collect();
+    assert_eq!(
+        statuses,
+        [
+            Some(Status::NoChange),
+            Some(Status::New),
+            Some(Status::MovedIn),
+            None,
+            None,
+            None,
+            None
+        ]
+    );
+    // FR-23: free text is kept verbatim.
+    let rationale = cat.column(ColumnKind::Rationale).expect("rationale");
+    assert_eq!(
+        cat.items[6].cell(rationale),
+        Some("Declined during the 2026 review — see the domain ADR.")
+    );
+
     assert_eq!(
         w.render(),
         [
@@ -1920,10 +2244,31 @@ fn row_errors_from_both_stages_arrive_in_one_run() {
     assert_eq!(
         rendered(&model_errors),
         [
-            "error: line 1: the header has no 'description' column; it must name name, quadrant, ring and description",
-            "error: line 3, name: empty; every row needs a name, a quadrant and a ring",
-            "error: line 5, ring: empty; every row needs a name, a quadrant and a ring",
-            "error: line 8, quadrant: empty; every row needs a name, a quadrant and a ring",
+            "error: line 1: the header has no 'description' column; the header must include at least the columns 'name', 'quadrant', 'ring' and 'description'",
+            "error: line 3, name: empty; every row needs a name, a quadrant and a ring, so fill it in or delete the row",
+            "error: line 5, ring: empty; every row needs a name, a quadrant and a ring, so fill it in or delete the row",
+            "error: line 8, quadrant: empty; every row needs a name, a quadrant and a ring, so fill it in or delete the row",
+        ]
+    );
+}
+
+/// A repeated required header is FR-4's error in `parse`, which still
+/// returns the table. The model reads the first `name` and does not panic.
+#[test]
+fn a_repeated_required_header_reads_the_first() {
+    let mut w = Warnings::default();
+    let (table, parse_errors) = parse(
+        "name,quadrant,ring,description,Name\n,T,Adopt,d,K\n",
+        &mut w,
+    )
+    .expect("parses");
+    assert_eq!(parse_errors.len(), 1);
+    let rings = parse_rings(None).expect("default");
+    let errs = build_catalogue(&table, &rings, &mut w).expect_err("fails");
+    assert_eq!(
+        errs.iter().map(Fatal::render).collect::<Vec<_>>(),
+        [
+            "error: line 2, name: empty; every row needs a name, a quadrant and a ring, so fill it in or delete the row"
         ]
     );
 }
@@ -1932,79 +2277,78 @@ fn row_errors_from_both_stages_arrive_in_one_run() {
 - [ ] **Step 2: Run the tests to see them fail**
 
 Run: `cargo test -q`
-Expected: compile error, no method `accessible_name` on `Catalogue`. `tests/model.rs` exercises Tasks 1–5 end to end, so it passes as soon as the crate compiles.
+Expected: compile errors: no methods `accessible_name` or `column` on `Catalogue`.
 
 - [ ] **Step 3: Implement**
 
-Replace `Catalogue` with:
-
-```rust
-/// The rows and what they mean, in CSV order.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Catalogue {
-    /// The named columns in header order. An unnamed column is not here:
-    /// FR-93 drops it.
-    pub columns: Vec<Column>,
-    /// In order of first appearance; FR-10 orders them (PR 07).
-    pub quadrants: Vec<Quadrant>,
-    /// The declared rings, edge-to-centre (FR-12).
-    pub rings: Vec<String>,
-    pub items: Vec<Item>,
-    /// The `ring` column's index in `columns`, for an unplotted row's ring.
-    ring_column: usize,
-}
-```
-
-Add after it:
+After `Catalogue`, add:
 
 ```rust
 impl Catalogue {
-    /// FR-50, FR-75: the number, name, quadrant and ring — the ring even
-    /// where the legend's grouping shows it, since a screen reader reaching
-    /// one row by Tab sees no grouping. An unplotted row has no number
-    /// (FR-18), so it says it is not on the radar instead.
+    /// The index in [`Catalogue::columns`] of the first column of `kind`.
+    #[must_use]
+    pub fn column(&self, kind: ColumnKind) -> Option<usize> {
+        self.columns.iter().position(|c| c.kind == kind)
+    }
+
+    /// FR-50, FR-75: an accessible name for a marker or legend row.
+    ///
+    /// It starts with what the legend row shows — number, name, qualifier,
+    /// status (FR-74) — so the visible text is in the name (WCAG 2.5.3).
+    /// The quadrant and ring follow even where the legend's grouping shows
+    /// them, since a screen reader reaching one row by Tab sees no grouping.
+    /// An unplotted row has no number (FR-18) and says it is not on the
+    /// radar. The result is plain text; the emitter escapes it (NFR-6).
+    ///
+    /// `number` is FR-34's, for a plotted item, and `None` for an unplotted
+    /// one.
+    ///
+    /// # Panics
+    ///
+    /// If `item` is not one of `self.items`.
     #[must_use]
     pub fn accessible_name(&self, item: &Item, number: Option<usize>) -> String {
-        let name = trim(&item.name);
-        let quadrant = &self.quadrants[item.quadrant].label;
+        debug_assert_eq!(number.is_some(), item.ring.is_some(), "FR-18");
         let ring = item.ring.map_or_else(
-            || trim(&item.cells[self.ring_column]),
+            || {
+                let column = self.column(ColumnKind::Ring).expect("FR-5 passed");
+                trim(&item.cells[column])
+            },
             |r| self.rings[r].as_str(),
         );
+        let parts = [
+            Some(trim(&item.name)),
+            item.qualifier.map(Qualifier::label),
+            item.status.map(Status::label),
+            Some(self.quadrants[item.quadrant].label.as_str()),
+            Some(ring),
+        ];
+        let text = parts.into_iter().flatten().collect::<Vec<_>>().join(", ");
         number.map_or_else(
-            || format!("{name}, {quadrant}, {ring}, not on the radar"),
-            |n| format!("{n}. {name}, {quadrant}, {ring}"),
+            || format!("{text}, not on the radar"),
+            |n| format!("{n}. {text}"),
         )
     }
 }
 ```
 
-Replace `Builder::finish` with:
-
-```rust
-    fn finish(self) -> Catalogue {
-        let ring_column = self.header.slots[self.at.ring].unwrap_or_default();
-        Catalogue {
-            columns: self.header.columns.clone(),
-            quadrants: self.quadrants,
-            rings: self.rings,
-            items: self.items,
-            ring_column,
-        }
-    }
-```
-
 - [ ] **Step 4: Update the architecture**
 
 In `docs/design/architecture.md`:
-- **§2 diagram:** change the `model` line to `    │  model        map columns, check values, match rings     FR-5–FR-29, FR-93`, keeping the column alignment. Change the `resolve` line to `    │  resolve      order, number                  │          FR-10, FR-18, FR-34`.
-- **§3, the `src/model.rs` row:** change "column validation (FR-5–FR-29)" to "column validation, quadrant grouping and ring matching (FR-5–FR-29); unnamed columns dropped, with a warning when they hold a value (FR-93)".
-- **§7:** change the signature to `pub fn build_catalogue(table: &Table, rings: &RingSet, w: &mut Warnings) -> Result<Catalogue, Vec<Fatal>>;`. After the paragraph beginning "`csv::parse` returns", add: "`build_catalogue` takes the ring set because matching a row's ring is part of what the row means (FR-16), and FR-17's warning names the set's source. It pushes no warning when it returns errors."
+- **Header:** where it names the PRD version it implements, change v0.42 to v0.43.
+- **§2 diagram:** change the `model` line to `    │  model        map columns, check values, match rings        FR-5, FR-6`, keeping the column alignment; the `Catalogue` line keeps `FR-5–FR-29`. Change the `resolve` line to `    │  resolve      order, number                  │          FR-10, FR-18, FR-34`.
+- **§2, the paragraph beginning "`Catalogue` therefore keeps the CSV's shape":** replace its sentence beginning "`Catalogue` carries the declared header as an ordered list" with: "`Catalogue` carries the named columns in header order and, per row, every named cell as written (`Item::cells`, read through `Item::cell`, which applies FR-29). Typed fields exist only where behaviour depends on them: quadrant, ring, qualifier, status and `name_key`. That makes FR-78's \"every optional column the header declared\" a lookup rather than a re-parse." Keep the sentence about unnamed columns that follows.
+- **§3, the `src/lib.rs` row:** after "`normalise()` — FR-76's single rule, stated once", add "; `trim()` — FR-76's trim, also the display trim (D-61)".
+- **§3, the `src/model.rs` row:** replace "column validation (FR-5–FR-29); the declared header order and each row's unrecognised cells (FR-27, FR-78)" with "column validation, quadrant grouping and ring matching (FR-5–FR-29); the named columns in header order and every row's cells (FR-27, FR-78); unnamed columns dropped, with a warning when they hold a value (FR-93)".
+- **§5:** after the paragraph's sentence "**No node carries a hex value.** … and the *emitter* binds it.", add: "A quadrant's series entry is indexed by its FR-10 rank from `order.rs` (FR-67), never by `Item::quadrant`, which is first-appearance order."
+- **§7:** change the signature to `pub fn build_catalogue(table: &Table, rings: &RingSet, w: &mut Warnings) -> Result<Catalogue, Vec<Fatal>>;`. After the paragraph beginning "`csv::parse` returns", add: "`build_catalogue` takes the ring set because matching a row's ring is part of what the row means (FR-16), and FR-17's warning names the set's source. It checks every row before building any, so its `Err` comes with no warning of its own; what a failed run prints is `main.rs`'s rule." In the `Config` paragraph, change "the ring list and its source (FR-17)" to "the `RingSet` — the ring list and its source (FR-17), read only by `build_catalogue`; stages below read `Catalogue::rings`".
+- **§8, the OQ-9 *(b)* row:** add the model as a second site: "`order::compare_names`; also FR-9's label choice in `model.rs`, which cannot call `order.rs` (a cycle) and cites D-53".
+- **§10, the testing levels table:** add `tests/model.rs` to the Contract row's "Where". The fixture table already lists `three-quadrant.csv` and `row-errors.csv`.
 
 - [ ] **Step 5: Run everything**
 
 Run: `cargo fmt && just ci`
-Expected: all pass, with 207 tests in total. rustqual reports no regression against `rustqual-baseline.json`; the trial run went from 59.0% to 66.4%.
+Expected: all pass, with 218 tests in total and 35 in `model::tests`. rustqual reports no regression against `rustqual-baseline.json`; the trial run went from 59.0% to 66.8%.
 
 - [ ] **Step 6: Commit**
 
@@ -2024,8 +2368,9 @@ Follow the house workflow in `~/.claude/CLAUDE.md`. For this PR:
 3. Run the code-reviewer skill until clean. Copilot is out of credits until November 2026, so a local multi-agent review substitutes, and the PR body says so. Then run simplify, then code-reviewer once more.
 4. Update the crumbs:
    - `crumbs append rg-dsa` noting that FR-24's leading-space question is settled: FR-76 trims for parsing only, and the cell renders as written, pinned by `unparsable_dates_warn_and_keep_their_text`.
-   - `crumbs append rg-u6u`: `RingSource` needs a variant for `--config`'s `rings` key, naming the file as given (FR-17, FR-91). That variant stops it being `Copy`.
-   - `crumbs append rg-efx`: PR 07 reads `Item::name_key`, `Quadrant::key` and `Item::line` (FR-34's last tiebreak), and orders `Catalogue::quadrants` (FR-10). `Item::quadrant` and `Item::ring` are indices.
+   - `crumbs append rg-u6u`: `RingSource` needs a variant for `--config`'s `rings` key, naming the file as given (FR-17, FR-91). Hold the path as `Arc<str>`. `RingSource` and `diagnostics::Class` then become `Clone` rather than `Copy`, and `RowKind::class` stops being `const fn`.
+   - `crumbs append rg-efx`: PR 07 reads `Item::name_key`, `Quadrant::key` and `Item::line` (FR-34's last tiebreak). It returns FR-10's order as a list of indices into `Catalogue::quadrants`, plus a rank, and does not reorder or mutate the `Catalogue`. `Item::quadrant` is first-appearance order and never a palette index. Settle whether FR-34's ordinal name tiebreak compares raw or trimmed names (`rg-40l`).
+   - `crumbs append rg-f27`: the detail panel's status line reads `Item::status` through `Status::label()`, not the raw cell. Legend rows show `Qualifier::label()` and `Status::label()`, which `accessible_name` contains (WCAG 2.5.3). Table rows: see `rg-6ny`.
    - Close `rg-rnc` with `crumbs close rg-rnc`, which also stops the timer `crumbs start` began. Do not hand-edit the file.
 5. **No version bump:** nothing a user runs changes. Run `just quality-baseline` to lock in rustqual's higher score, and commit `rustqual-baseline.json`.
 6. Move this file to `docs/plans/done/` in the same PR. Merge; there's no tag.
@@ -2035,3 +2380,4 @@ Follow the house workflow in `~/.claude/CLAUDE.md`. For this PR:
 | Revision | Date | Notes |
 | --- | --- | --- |
 | 1.0 | 2026-10-10 | Initial version, from crumb `rg-rnc` and PRD v0.43 (D-61). Every task was applied to `main` in a scratch worktree before review, and each task's end state compiled and passed on its own: 207 tests pass, and `cargo fmt --check`, clippy, `just lint` and `just ci` (cargo-deny and rustqual) are clean |
+| 1.1 | 2026-10-10 | Reviewed by architecture, Rust, QA and accessibility agents. **Fixed:** FR-6 errors now follow header column order, not FR-6's list (NFR-11). **Accessible name** now starts with the legend row's visible text (number, name, qualifier, status; WCAG 2.5.3), so `Qualifier` is an enum with `label()`, `Status` gains `label()`, and `Item::hollow()` replaces the flag. `Catalogue::column(kind)` replaces a private field, so `Catalogue` is fully public. Short records read as empty, not a panic. `Builder` owns its `Header`. Free functions are `read_*`/`check_*`. `is_iso_date` returns early on a bad shape. The FR-5, FR-6 and FR-93 messages now say what to do. The fixture is `three-quadrant.csv`, as architecture §10 names it. **Added tests:** SC-10 through the model, the blank/unrecognised split with spaces and format characters, FR-9's trimmed comparison, FR-11, FR-21, FR-23, the two index spaces, cross-stage NFR-11 order, FR-28 naming the first line, the full tag range, a header-only file, a repeated required header, and more date shapes. Architecture edits now cover §2's `Catalogue` description, §3, §5, §7's `Config`, §8 and §10. Seven findings needing a PRD change or a later PR are crumbs (`rg-6ny`, `rg-owp`, `rg-bvl`, `rg-fju`, `rg-85c`, `rg-40l`, `rg-q2b`). Re-applied in the scratch worktree: Task 4 and Task 5 end states pass alone (22 and 33 model tests); the final state passes `just ci` with 218 tests, and rustqual goes from 59.0% to 66.8% |
