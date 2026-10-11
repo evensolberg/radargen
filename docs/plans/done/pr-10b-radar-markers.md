@@ -10,17 +10,17 @@ crumb_id: rg-svr
 document_title: "PR 10b — the radar block's markers: glyphs, numbers, controls, hit areas and indicators: Implementation Plan"
 created_date: 2026-10-11
 synopsis: "Every plotted item drawn on the radar as FR-20/FR-40's glyph with its FR-34 number in per-entry ink (D-54), exposed as a control keyed by its CSV row with FR-50's accessible name and FR-36's tooltip; an FR-94 hit layer below the markers and an FR-48 indicator layer above them; markers obey D-69's 7/9 floor."
-status: draft
+status: done
 type: Plan
 revision: "1.2"
 review_date: 2026-10-11
 reviewed_by: [rust-engineer, architect-reviewer, qa-expert, ui-designer, accessibility-tester]
-completed_date:
+completed_date: 2026-10-11
 comments: "1.1 folds in the five-seat plan review; 1.2 the scoped re-review. See Review rulings."
 ---
 # PR 10b — the radar block's markers: Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Crumbs:** `rg-svr` (part 2 of 2; closes it) · **Phase:** v1.0 · **After:** PR 10a (#44) · **Then:** PR 11 (legend)
 
@@ -92,11 +92,11 @@ Five seats reviewed revision 1.0 (reports in the session scratchpad). Rulings:
 
 **Files:** `docs/product/radargen-prd.md`, `docs/design/architecture.md`
 
-- [ ] **Step 1: FR-94.** Replace "In a band over FR-89's capacity, where markers overlap, their hit areas overlap too;" with "Hit areas overlap wherever two markers' centres are closer than twice the hit radius — in most bands below FR-89's capacity, and in the narrow arrangement nearly always. They are drawn below every marker, so a visible marker always takes its own pointer events, and a hit area only fills empty space; where hit areas overlap each other," (keep the rest: "a marker there relies on 2.5.8's *equivalent* exception…").
-- [ ] **Step 2: D-66**: the cost note "each marker carries one more element" → "each marker carries a hit area and an indicator beside its control"; the Focus sentence "drawing focus in a top layer makes SC-20's surface contrast the contrast that is actually seen" → "drawing focus in a top layer, on its own Surface1 backing, makes SC-20's surface contrast the contrast that is actually seen". **SC-20**: "the indicator against the surfaces only, since FR-48 draws it above every marker" → "the indicator against Surface1, since FR-48 draws it above every marker on its own Surface1 backing".
-- [ ] **Step 3:** Revision row 0.51; bump `Version:`.
-- [ ] **Step 4: Architecture.** `Implements:` v0.51. §4: one sentence — px per unit is the narrow SVG's rendered width, which `NARROW_HORIZONTAL_INSET_PX` (0) ties to the viewport; FR-94's hit radius and PR 11's row height depend on it. §5 listing: `ItemKey`, `Control`, `Semantics::{Marker, Indicator}`, `Node::HitArea`, `Paint::NumberOn(usize)`; the radar's four layers (frame → hit → controls → indicators) and why; the binding table's number-ink row (a literal in every format); the per-format rule (static emitters skip `is_interactive_only` nodes and drop `role`/`tabindex`; HTML hides indicators by presentation attribute and shows one by a generated per-key `:has()` rule on `data-marker`). Amend l.~347 ("the one place a single `Document` legitimately serialises differently per format" → one of two, colour binding and interactive-only omission, with the reason: a static image has no pointer or focus) and the §12 risk row that rejects a second per-format difference (now admits exactly two, the second being this omission).
-- [ ] **Step 5:** Commit `docs(prd): v0.51 — the radar's marker contracts`.
+- [x] **Step 1: FR-94.** Replace "In a band over FR-89's capacity, where markers overlap, their hit areas overlap too;" with "Hit areas overlap wherever two markers' centres are closer than twice the hit radius — in most bands below FR-89's capacity, and in the narrow arrangement nearly always. They are drawn below every marker, so a visible marker always takes its own pointer events, and a hit area only fills empty space; where hit areas overlap each other," (keep the rest: "a marker there relies on 2.5.8's *equivalent* exception…").
+- [x] **Step 2: D-66**: the cost note "each marker carries one more element" → "each marker carries a hit area and an indicator beside its control"; the Focus sentence "drawing focus in a top layer makes SC-20's surface contrast the contrast that is actually seen" → "drawing focus in a top layer, on its own Surface1 backing, makes SC-20's surface contrast the contrast that is actually seen". **SC-20**: "the indicator against the surfaces only, since FR-48 draws it above every marker" → "the indicator against Surface1, since FR-48 draws it above every marker on its own Surface1 backing".
+- [x] **Step 3:** Revision row 0.51; bump `Version:`.
+- [x] **Step 4: Architecture.** `Implements:` v0.51. §4: one sentence — px per unit is the narrow SVG's rendered width, which `NARROW_HORIZONTAL_INSET_PX` (0) ties to the viewport; FR-94's hit radius and PR 11's row height depend on it. §5 listing: `ItemKey`, `Control`, `Semantics::{Marker, Indicator}`, `Node::HitArea`, `Paint::NumberOn(usize)`; the radar's four layers (frame → hit → controls → indicators) and why; the binding table's number-ink row (a literal in every format); the per-format rule (static emitters skip `is_interactive_only` nodes and drop `role`/`tabindex`; HTML hides indicators by presentation attribute and shows one by a generated per-key `:has()` rule on `data-marker`). Amend l.~347 ("the one place a single `Document` legitimately serialises differently per format" → one of two, colour binding and interactive-only omission, with the reason: a static image has no pointer or focus) and the §12 risk row that rejects a second per-format difference (now admits exactly two, the second being this omission).
+- [x] **Step 5:** Commit `docs(prd): v0.51 — the radar's marker contracts`.
 
 ---
 
@@ -133,7 +133,7 @@ pub const INDICATOR_REACH: f64 = MARKER_RADIUS + FOCUS_RING_GAP + FOCUS_RING_STR
 impl Glyph { pub fn draw(&self, scale: Scale) -> Vec<Node> }
 ```
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `glyph_scales_position_and_size_apart`: `Scale { position: 0.5, size: 7/9 }` → centre × 0.5; radius 7.7778, status ring radius 10.8889, strokes × 7/9; `Scale::uniform(1.0)` values equal today's (existing marker tests, call sites moved to `Scale::uniform`).
   - `interactive_only_nodes_say_so`: `HitArea` → true; `Group` with `Indicator` → true; a plain group of two hit areas → true; an empty group → false; a plain group of a hit area and a circle → false; `Control` group, text, circle → false.
   - `hit_radius_meets_fr94`: the `const` assert in style.rs, plus a test that `MIN_PX_PER_UNIT` is `320/420` within 1e-12.
@@ -141,8 +141,8 @@ impl Glyph { pub fn draw(&self, scale: Scale) -> Vec<Node> }
   - `primary_text_clears_4_5_on_marker_hollow` (palette.rs tests): light and dark.
   - `number_ink_clears_4_5_on_every_built_in_entry` extended to the dark palette.
   - test_support: `bounds` of a `HitArea` is its circle; `assert_finite` covers it.
-- [ ] **Step 2–4:** red, implement (Semantics drops `Copy`; call sites), green; lints; rustqual.
-- [ ] **Step 5:** Commit `feat(svg): item keys, controls, indicators, hit areas, number ink`.
+- [x] **Step 2–4:** red, implement (Semantics drops `Copy`; call sites), green; lints; rustqual.
+- [x] **Step 5:** Commit `feat(svg): item keys, controls, indicators, hit areas, number ink`.
 
 ---
 
@@ -152,7 +152,7 @@ impl Glyph { pub fn draw(&self, scale: Scale) -> Vec<Node> }
 
 **Interfaces:** a private `fn markers(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Marker>` (operation), `Marker { at: Point /* scale-1, centre-relative */, qualifier: Option<Qualifier>, status: Option<Status>, series: usize, number: usize, control: Control }`, built by zipping `place(..)` with `plotted.items.iter().enumerate()` (number = index + 1, FR-34). `render` appends, after the frame: the hit layer (if any markers), one control group per marker, the indicator layer (if any markers); helpers `glyph_nodes`, `number_node`, `hit_node`, `indicator_node` are operations and `render` integrates. `half_extent` gains the two per-axis reach terms (no pad). Update the module doc, `RadarScale::marks`' doc and the `half_extent` proof comment.
 
-- [ ] **Step 1: Failing tests** (fixtures via `test_support::plotted`, all floats via `close`/`near`):
+- [x] **Step 1: Failing tests** (fixtures via `test_support::plotted`, all floats via `close`/`near`):
   - `every_plotted_item_is_a_control`: PRD example → one `Control` group per plotted item, in `Plotted::items` order; `key == ItemKey(item.line)`; `label == catalogue.accessible_name(item, Some(n))`; `tooltip == Some("{n}. {trimmed name}")`; a row named `"  Kafka  "` gives tooltip `"k. Kafka"`.
   - `markers_sit_where_fr33_puts_them`: independent anchor — compute `geometry.marker(position, ring, j, n)` from `Geometry::of` for named items, and compare with each control's disc centre ÷ `s`.
   - `controls_carry_names_raw`: a row named `A<&">B` → its label and tooltip contain it unchanged (escaping is the serialiser's, NFR-6).
@@ -170,9 +170,9 @@ impl Glyph { pub fn draw(&self, scale: Scale) -> Vec<Node> }
   - `everything_drawn_lies_inside_the_size_and_touches_it` (extended): marker fixtures added and `s` = 0.1 added; "touches" asserted as `gap == pad` only where the label term strictly beats the floor and both marker terms, and as `gap == 0` (to the hit area's edge) where the hit term strictly wins; a non-vacuity count for each of the two kinds (label, hit).
   - `size_is_non_decreasing` over the marker fixtures, adding a low sweep 0.02–0.30 in steps of 0.02 (the hit term overtakes the floor near 0.135 for the Assess fixture).
   - `assert_translates` at 1 and 0.5 with markers.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual.
-- [ ] **Step 5: Gate** `just ci`.
-- [ ] **Step 6:** Commit `feat(layout): the radar's markers (FR-20, FR-33–FR-36, FR-40, FR-48, FR-50, FR-94)`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual.
+- [x] **Step 5: Gate** `just ci`.
+- [x] **Step 6:** Commit `feat(layout): the radar's markers (FR-20, FR-33–FR-36, FR-40, FR-48, FR-50, FR-94)`.
 
 ---
 

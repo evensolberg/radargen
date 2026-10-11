@@ -1,7 +1,7 @@
 ---
 id: rg-svr
 title: 'PR 10: Radar block'
-status: blocked
+status: closed
 type: task
 priority: 1
 tags:
@@ -33,3 +33,5 @@ Sectors, bands, markers, labels, FR-40 status rings, FR-70 counter-scaled labels
 [2026-10-11] PR 10a (frame) done on feat/pr-10a-radar-frame. PR 10b: markers via Glyph::draw(Scale { position: s, size: r.marks }) — move Glyph::draw to svg::Scale, key passes Scale::uniform; numbers in MARKER_NUMBER at r.marks; markers draw after ring labels; FR-36 <title>; FR-94 hit areas at r.labels (>= 24 CSS px); number ink per series entry at bind time (D-54); add marker and hit-area reach as explicit terms in RadarBlock::extent (the 330*s floor only covers rings/dividers); re-check the size stays non-decreasing in s if a new term can decrease.
 
 [2026-10-11] PR 10a simplify folded RadarBlock::extent into Block::size: add marker and hit-area reach as terms there. Considered and deferred (simplify altitude review): derive the radar's size from the union of its own drawn bounds (promote test_support::bounds into svg) so size and render cannot disagree — worth weighing when markers add their reach terms; TextRun::halo hard-codes Surface1 — take a Paint if a second halo use appears; strokes take r.marks as a raw f64 while text takes svg::Scale — decide one route when Glyph::draw moves to Scale.
+
+[2026-10-11] PR 10b done on feat/pr-10b-radar-markers; closing.
