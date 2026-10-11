@@ -84,8 +84,8 @@ fn row_errors_from_both_stages_arrive_in_one_run() {
     assert_eq!(
         rendered(&parse_errors),
         [
-            "error: line 4: the row has 3 values but the header has 4 columns; a value is missing, or an unquoted line break split the row",
-            "error: line 7: the row has 5 values but the header has 4 columns; a comma inside a value needs the value in double quotes",
+            "error: line 4: the row has 3 values but the header has 4 columns; a row with fewer values is usually missing one, or an unquoted line break split it",
+            "error: line 7: the row has 5 values but the header has 4 columns; a row with more values usually has a comma that needs the value in double quotes",
         ]
     );
     assert_eq!(

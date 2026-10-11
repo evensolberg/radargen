@@ -6,6 +6,7 @@ pub mod cli;
 pub mod columns;
 pub mod csv;
 pub mod diagnostics;
+pub mod errors;
 pub mod escape;
 pub mod layout;
 pub mod model;

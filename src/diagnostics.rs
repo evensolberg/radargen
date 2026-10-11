@@ -333,7 +333,6 @@ fn column_letters(number: usize) -> String {
 
 /// `one` when `n` is 1, otherwise `many`: the count-agreeing noun in a message.
 #[must_use]
-// qual:api — called from the Fatal::FieldCount #[error] attribute, which the analyser cannot see
 pub const fn plural<'a>(n: usize, one: &'a str, many: &'a str) -> &'a str {
     if n == 1 { one } else { many }
 }
@@ -730,16 +729,21 @@ pub enum Fatal {
         first_name: String,
     },
     /// FR-4: a record whose field count is not the header's, with the usual
-    /// cause for each direction (FR-61's precedent: say what to do).
+    /// cause for each direction (FR-61's precedent: say what to do). This is
+    /// the one-row message; [`crate::errors::render_errors`] groups several
+    /// rows (D-62) and adds the header-first cause, which needs the whole table.
     #[error(
-        "line {line}: the row has {found} {} but the header has {expected} {}; {}",
-        plural(*found, "value", "values"),
-        plural(*expected, "column", "columns"),
-        if found > expected {
-            "a comma inside a value needs the value in double quotes"
-        } else {
-            "a value is missing, or an unquoted line break split the row"
-        }
+        "{}",
+        crate::errors::one_row(
+            &crate::errors::Mismatch {
+                line: *line,
+                found: *found,
+                expected: *expected,
+                unnamed: *unnamed,
+                padded: *padded,
+            },
+            false
+        )
     )]
     FieldCount {
         /// The record's first line.
@@ -748,6 +752,11 @@ pub enum Fatal {
         found: usize,
         /// How many columns the header has.
         expected: usize,
+        /// How many of the header's cells are empty under FR-76 (FR-93).
+        unnamed: usize,
+        /// Whether the record has more values than the header and every one
+        /// past the header's last column is empty under FR-76's trim.
+        padded: bool,
     },
     /// FR-5: the header lacks a required column. Every missing one is
     /// reported (NFR-16 tier two). `line` is the header's.
@@ -781,6 +790,12 @@ impl Fatal {
     pub fn render(&self) -> String {
         // Escaped as a whole, so no variant can forget to: `-o` and `--rings`
         // values come from argv, and later variants carry CSV text (NFR-10).
-        format!("error: {}", escape_controls(&self.to_string()))
+        error_line(&self.to_string())
     }
+}
+
+/// A stderr line for `message`: `error: ` and the message, escaped whole.
+#[must_use]
+pub(crate) fn error_line(message: &str) -> String {
+    format!("error: {}", escape_controls(message))
 }
