@@ -10,14 +10,14 @@ crumb_id: rg-mbv
 document_title: "PR 08a — the text stack before the first block: harfrust, a wider Inter subset, a reproducible script: Implementation Plan"
 created_date: 2026-10-11
 synopsis: "Before PR 09 measures any text: measure with harfrust, the shaper resvg 0.48 uses (D-67); widen Inter's subset to Vietnamese, Greek and Cyrillic (D-68); make the subset script verify its source and pin its tools; and check SemiBold's ink stays inside its measured advance."
-status: draft
+status: done
 type: Plan
 revision: "1.1"
 review_date: 2026-10-11
 reviewed_by:
   - rust-engineer
   - qa-expert
-completed_date:
+completed_date: 2026-10-11
 comments:
 ---
 # PR 08a — the text stack before the first block: Implementation Plan
@@ -92,7 +92,7 @@ comments:
 **Interfaces:**
 - Consumes: `text::{Fonts, Weight}` as they are on `main` (the `rustybuzz` shaper and today's subset).
 
-- [ ] **Step 1: Capture the values**
+- [x] **Step 1: Capture the values**
 
 Add this temporary test to `tests/measure.rs` and run it with `cargo test --test measure capture -- --nocapture`:
 
@@ -121,7 +121,7 @@ const LATIN_CORPUS: [&str; 13] = [
 ];
 ```
 
-- [ ] **Step 2: Pin them**
+- [x] **Step 2: Pin them**
 
 Replace `capture` with the permanent test, pasting the 26 printed lines into `PINNED`:
 
@@ -159,7 +159,7 @@ fn latin_measurements_are_pinned() {
 
 The comment line inside `PINNED` is where the 26 captured tuples go, in the order printed. The first loop checks every corpus string is pinned in both weights.
 
-- [ ] **Step 3: Run and commit**
+- [x] **Step 3: Run and commit**
 
 Run: `cargo test --test measure && cargo clippy --all-targets -- -D warnings && /opt/homebrew/bin/just lint`
 Expected: pass and clean.
@@ -193,7 +193,7 @@ git log -1 --format=%B
 - Consumes: the Inter 4.1 release zip. Download it to a scratch directory outside the repository (never into it): `curl -sSL -o "$SCRATCH/Inter-4.1.zip" https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip`.
 - Produces: the four font files every later task and PR measures with.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `tests/font_assets.rs`, change the module doc's first line to two lines: `//! FR-85: the vendored faces are Inter Regular and `SemiBold`, subset to` and `//! the scripts Inter draws (D-68),` (keep the line that follows).
 
@@ -217,12 +217,12 @@ In `subset_leaves_out_what_the_prd_says_it_does`, replace the `absent` array wit
     ];
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --test font_assets`
 Expected: FAIL — `subset_covers_what_it_promises` reports the Vietnamese, Greek and Cyrillic characters missing from both faces. (`subset_leaves_out…` passes already; it pins the new boundary.)
 
-- [ ] **Step 3: Update the script**
+- [x] **Step 3: Update the script**
 
 Replace `scripts/subset-inter.sh` with:
 
@@ -323,7 +323,7 @@ ls -l "$OUT"/Inter-*
 
 (`fonttools[woff]` is replaced by `fonttools` plus an explicit `brotli`: the `woff` extra's only job was to pull `brotli` in unpinned.)
 
-- [ ] **Step 4: Prove the pins, then regenerate twice**
+- [x] **Step 4: Prove the pins, then regenerate twice**
 
 All runs use `PATH=/opt/homebrew/bin:$PATH`, and `$SCRATCH` is a directory outside the repository holding the downloaded zip. Never download into the repository.
 
@@ -359,12 +359,12 @@ shasum -a 256 assets/* | diff "$SCRATCH/before.sha256" - && echo "assets untouch
 
 Expected: the SHA-256 error and `exit 1`, then a usage error and a non-zero exit, then `assets untouched`.
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `cargo test --test font_assets && cargo test`
 Expected: all pass, `latin_measurements_are_pinned` included; if it or any wrap test fails, stop and report — the Global Constraints say Latin measurements must not move.
 
-- [ ] **Step 6: Record the sizes**
+- [x] **Step 6: Record the sizes**
 
 In `docs/design/architecture.md` §3, replace the paragraph that begins "**`assets/` holds Inter v4.1**" up to and including the sentence "the files and the sizes above change when crumb `rg-mgw` regenerates them." with:
 
@@ -387,7 +387,7 @@ nothing left open but the script-coverage limit A-4 states.
 
 In `README.md`, change "The bundled font (Inter, Latin and Latin Extended subset)" to "The bundled font (Inter, subset to Latin, Greek, Cyrillic and Vietnamese)".
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 /opt/homebrew/bin/git-mit es
@@ -420,7 +420,7 @@ git log -1 --format=%B
 - Consumes: Task 1's faces.
 - Produces: `text::FontError` (`Debug`, `thiserror::Error`); `FontMetrics::load(data: &'a [u8]) -> Result<FontMetrics<'a>, FontError>`; `Fonts::embedded() -> Result<Fonts, FontError>`. `FontMetrics::measure` keeps its signature.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 In `tests/agrees_with_resvg.rs`, in `our_advance_matches_usvg_layout_for_both_weights`, replace the two words after the comment `// R-7 / SC-7: …` (`"日本語"` and `"Kubernetes Ж"`) and the comment itself with:
 
@@ -448,12 +448,12 @@ Change `Cargo.toml`:
 - `[dependencies]`: replace `rustybuzz = "0.20"` with `harfrust = "0.12"`, and remove `ttf-parser = "0.25"`.
 - `[dev-dependencies]`: add `ttf-parser = "0.25"`.
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `cargo test --test agrees_with_resvg`
 Expected: FAIL to compile — `src/text.rs` still uses `rustybuzz` and `ttf_parser`, which are no longer library dependencies.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/text.rs`, replace `use rustybuzz::{Face as ShaperFace, UnicodeBuffer};` with:
 
@@ -563,7 +563,7 @@ and rename the later uses of `shaped` to `output` (`shaped` beside `shaper` fail
 
 Then: `cargo tree -i rustybuzz` must report that nothing depends on it (an error such as "package ID specification `rustybuzz` did not match any packages" is the expected result).
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cargo test --test agrees_with_resvg -- --nocapture 2>&1 | tail -30`
 Expected: PASS for both weights and every word, the new scripts included, with the worst delta still under 0.01 px; record it in the report (it was 0.000000 with `rustybuzz`).
@@ -574,13 +574,13 @@ Expected: all pass, `latin_measurements_are_pinned` included (the plan review fo
 Run: `cargo fmt && cargo clippy --all-targets -- -D warnings && /opt/homebrew/bin/just lint && cargo deny check licenses`
 Expected: clean.
 
-- [ ] **Step 5: Update the "same shaper" wording**
+- [x] **Step 5: Update the "same shaper" wording**
 
 - `docs/design/architecture.md` §10: the sentence "FR-84 makes that true by measuring through the shaper that rasterises." (it spans a line break, after "FR-84 makes that true by measuring through the shaper that") stays; append to its paragraph: "Since D-67 that shaper is `harfrust`, at the version `usvg` resolves, so a `resvg` upgrade that changes it moves both together; the oracle test is what notices if it ever does not."
 - `docs/design/architecture.md`, under "Three consequences the design carries": change "No new dependency — both are already direct —" to "No new crate — `harfrust` is direct, and `ttf-parser` returns from dev-dependency to direct when `emit/svg.rs` lands —".
 - `docs/spikes/text-metrics.md` and `docs/spikes/svg-font.md`: add at the top, under the title, one line each: "> **Since PRD v0.46 (D-67):** measurement uses `harfrust`, the shaper `resvg` 0.48 uses; this spike's `rustybuzz` findings carry over unchanged, because the oracle test still agrees to the pixel."
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 /opt/homebrew/bin/git-mit es
@@ -608,7 +608,7 @@ git log -1 --format=%B
 **Interfaces:**
 - Consumes: `text::{Fonts, Weight, FAMILY, REGULAR_TTF, SEMIBOLD_TTF}`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Rewrite `tests/rasterises_within_measurement.rs` so both faces are checked:
 
@@ -681,14 +681,14 @@ fn rendered_ink_fits_inside_the_measured_advance() {
 }
 ```
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 Run: `cargo test --test rasterises_within_measurement`
 Expected: PASS. This test guards a property rather than driving new code, so it may pass at once; the TDD evidence is that it would fail if SemiBold were measured with the Regular face. Try it: temporarily measure with `Weight::Regular` for both and confirm a SemiBold row fails (the plan review saw "Trunk-Based Development" fail first, ink 256 against 251.46), then restore. (A leading polytonic capital such as "Ἄθήνα" puts its breathing mark left of the origin, which a right-edge check cannot see; it is deliberately not in the corpus.)
 
 If a SemiBold string's ink genuinely reaches past its measured advance (a right side bearing below zero), stop and report the string and both numbers: it is the finding `rg-w1v` exists for, and PR 11's wrap would need a margin.
 
-- [ ] **Step 3: Gate and commit**
+- [x] **Step 3: Gate and commit**
 
 Run: `cargo fmt && cargo clippy --all-targets -- -D warnings && /opt/homebrew/bin/just lint && /opt/homebrew/bin/just ci`
 Expected: pass. If rustqual's score rose, run `/opt/homebrew/bin/just quality-baseline` and include `rustqual-baseline.json`.

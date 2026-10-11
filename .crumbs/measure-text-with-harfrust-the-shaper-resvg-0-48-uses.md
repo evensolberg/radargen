@@ -1,7 +1,7 @@
 ---
 id: rg-mbv
 title: Measure text with harfrust, the shaper resvg 0.48 uses
-status: in_progress
+status: closed
 type: task
 priority: 2
 tags:
@@ -20,3 +20,5 @@ From PR #16 review (2026-10-10). usvg 0.48 replaced rustybuzz/ttf-parser with ha
 [2026-10-11] PRD side done in v0.46 (FR-84, D-67, D-42 annotated). Remaining: src/text.rs and tests/outlines_match_text.rs to harfrust, drop rustybuzz from Cargo.toml.
 
 [start] 2026-10-11 10:58:36
+
+[stop]  2026-10-11 11:21:36  23m 0s
