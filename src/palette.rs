@@ -10,19 +10,27 @@ use std::fmt;
 /// FR-82's eight neutral roles, in the PRD's order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Neutral {
+    /// The radar ground (FR-82).
     Surface1,
+    /// The legend, detail panel and table background (FR-82).
     Surface2,
+    /// Primary text (FR-82).
     TextPrimary,
+    /// Secondary text (FR-82).
     TextMuted,
+    /// Ring circles (FR-82).
     StrokeRing,
+    /// Quadrant dividers (FR-82).
     StrokeDivider,
     /// FR-20's conditional fill. Not `Paint::None`: FR-66's key draws it on a
     /// different background, where the two differ (architecture §5).
     MarkerHollow,
+    /// The keyboard focus indicator (FR-48, FR-82).
     Focus,
 }
 
 impl Neutral {
+    /// All eight roles, in FR-82's order.
     pub const ALL: [Self; 8] = [
         Self::Surface1,
         Self::Surface2,
@@ -61,6 +69,7 @@ impl fmt::Display for Neutral {
 /// A colour a node asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
+    /// One of FR-82's eight neutral roles.
     Neutral(Neutral),
     /// The quadrant's 0-based index in FR-10's order — **not** reduced modulo
     /// the palette's length. FR-87 makes that length a property of a file the
@@ -81,7 +90,9 @@ impl fmt::Display for Role {
 /// FR-56. Picks the palette a static snapshot is bound to; HTML carries both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum Theme {
+    /// The light palette.
     Light,
+    /// The dark palette.
     Dark,
 }
 
@@ -149,6 +160,7 @@ pub struct Palette {
 }
 
 impl Palette {
+    /// The built-in palette for `theme` (FR-81, FR-82).
     #[must_use]
     pub fn built_in(theme: Theme) -> Self {
         let neutrals = match theme {
@@ -161,6 +173,7 @@ impl Palette {
         }
     }
 
+    /// How many series colours the palette holds (FR-87).
     #[must_use]
     pub const fn series_len(&self) -> usize {
         self.series.len()

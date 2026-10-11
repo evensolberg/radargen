@@ -28,15 +28,25 @@ const NON_EMPTY: [ColumnKind; 3] = [ColumnKind::Name, ColumnKind::Quadrant, Colu
 /// `Name ` is `name`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColumnKind {
+    /// The item's name (FR-5); required and never empty (FR-6).
     Name,
+    /// The quadrant the item belongs to (FR-5, FR-8).
     Quadrant,
+    /// The ring the item sits in (FR-5, FR-16).
     Ring,
+    /// Free text about the item (FR-5); may be empty (FR-7).
     Description,
+    /// Whether the item is a default or conditional choice (FR-20).
     Qualifier,
+    /// Free text for the detail panel, shown verbatim (FR-22).
     Domain,
+    /// Free text for the detail panel, shown verbatim (FR-23).
     Rationale,
+    /// An ISO-8601 date for the detail panel (FR-24).
     LastAffirmed,
+    /// A date for the detail panel, whatever the ring (FR-25).
     ExitDate,
+    /// Author-supplied movement since the last edition (FR-26, D-9).
     Status,
     /// FR-27: a column the tool does not know. Kept for the table (FR-78).
     Other,
@@ -92,6 +102,7 @@ pub struct Column {
     /// `Other` column (FR-27) is headed with this; a renderer may give a
     /// known kind its own heading.
     pub heading: String,
+    /// What the column means, matched from the header under FR-76.
     pub kind: ColumnKind,
 }
 
@@ -100,7 +111,9 @@ pub struct Column {
 /// no qualifier (FR-74).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Qualifier {
+    /// Written `default`: a solid marker, as for any other value (FR-20).
     Default,
+    /// Written `conditional`: a hollow marker (FR-20).
     Conditional,
 }
 
@@ -119,9 +132,13 @@ impl Qualifier {
 /// FR-26's values. An unrecognised one is `NoChange`, with a warning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
+    /// New this edition (FR-26).
     New,
+    /// Moved in since the last edition (FR-26).
     MovedIn,
+    /// Moved out since the last edition (FR-26).
     MovedOut,
+    /// Unchanged; also the fallback for an unrecognised value (FR-26).
     NoChange,
 }
 
@@ -210,6 +227,7 @@ pub struct Catalogue {
     /// The declared rings, edge-to-centre (FR-12). [`Item::ring`] indexes
     /// this copy; nothing below the model reads the `RingSet`.
     pub rings: Vec<String>,
+    /// Every row as an item, in CSV order (FR-8).
     pub items: Vec<Item>,
 }
 

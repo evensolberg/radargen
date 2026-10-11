@@ -12,8 +12,11 @@ use crate::text::Weight;
 /// FR-85: a measurement is (face, size, letter-spacing), never fewer.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TextStyle {
+    /// The face: one of FR-85's two weights.
     pub weight: Weight,
+    /// The font size in user units.
     pub size: f64,
+    /// Extra advance after each glyph, in user units; zero for none.
     pub letter_spacing: f64,
 }
 
@@ -65,8 +68,11 @@ pub const KEY_LABEL: TextStyle = style(Weight::Regular, 11.0, 0.0);
 pub const LINE_HEIGHT: f64 = 15.0;
 
 // --- Legend (FR-35, FR-74, FR-79) -----------------------------------------------
+/// Indent of a quadrant heading in the legend.
 pub const INDENT_QUADRANT: f64 = 16.0;
+/// Indent of a ring subheading in the legend.
 pub const INDENT_RING: f64 = 24.0;
+/// Indent of an item row in the legend.
 pub const INDENT_ITEM: f64 = 44.0;
 /// Between an item name and its trailing meta (FR-74).
 pub const META_GAP: f64 = 8.0;
@@ -87,6 +93,7 @@ pub const MARKER_HOLLOW_STROKE: f64 = 3.0;
 /// not the mockup's 7: Inter `SemiBold` 9px "44" is ~12px, which a hollow r=7
 /// badge (12px clear interior) cannot hold.
 pub const BADGE_RADIUS: f64 = 8.0;
+/// Outline of a solid legend badge.
 pub const BADGE_STROKE: f64 = 1.5;
 /// Thinner than the marker's, so the hollow fill gap survives the smaller size.
 pub const BADGE_HOLLOW_STROKE: f64 = 2.0;
@@ -94,6 +101,7 @@ pub const BADGE_HOLLOW_STROKE: f64 = 2.0;
 pub const SWATCH_RADIUS: f64 = 5.0;
 /// FR-40's status ring sits this far outside the marker.
 pub const STATUS_RING_GAP: f64 = 4.0;
+/// Stroke width of the status ring (FR-40).
 pub const STATUS_RING_STROKE: f64 = 2.0;
 /// The keyboard focus ring (`Focus`), from the marker's edge to the ring's
 /// centre line.
@@ -104,12 +112,15 @@ pub const STATUS_RING_STROKE: f64 = 2.0;
 /// drawn under the ring: markers overlap (`MARKER_STROKE`), so the layout must
 /// raise the focused marker over a Surface1 backing.
 pub const FOCUS_RING_GAP: f64 = 8.0;
+/// Stroke width of the keyboard focus ring.
 pub const FOCUS_RING_STROKE: f64 = 2.0;
 
 // --- Radar (FR-32, FR-33) -------------------------------------------------------
 /// Outer edge of the outermost band; bands divide it equally (FR-32).
 pub const BAND_OUTER_RADIUS: f64 = 260.0;
+/// Reach of the quadrant dividers, just past the outermost band (FR-31).
 pub const DIVIDER_RADIUS: f64 = 262.0;
+/// Distance from the centre at which quadrant labels are anchored.
 pub const QUADRANT_LABEL_RADIUS: f64 = 300.0;
 /// Ring circles and quadrant dividers (`StrokeRing` / `StrokeDivider`).
 pub const GRID_STROKE: f64 = 1.0;
@@ -122,6 +133,7 @@ pub const GRID_STROKE: f64 = 1.0;
 pub const LABEL_HALO: f64 = 3.0;
 
 // --- Arrangements (FR-68–FR-71) -------------------------------------------------
+/// Blank border around the whole document.
 pub const MARGIN: f64 = 20.0;
 /// Between radar and legend, wide arrangement only.
 pub const COLUMN_GAP: f64 = 28.0;

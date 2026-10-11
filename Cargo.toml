@@ -34,6 +34,7 @@ ttf-parser = "0.25"
 # of it, as does a plain `cargo clippy --all-targets` locally.
 [lints.rust]
 unsafe_code = "forbid"
+missing_docs = "deny"
 
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }

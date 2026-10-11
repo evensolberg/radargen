@@ -20,7 +20,9 @@ pub const SEMIBOLD_TTF: &[u8] = include_bytes!("../assets/Inter-SemiBold.ttf");
 /// them plus size, letter-spacing and indentation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Weight {
+    /// Inter Regular, 400.
     Regular,
+    /// Inter `SemiBold`, 600.
     SemiBold,
 }
 

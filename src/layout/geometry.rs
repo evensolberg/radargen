@@ -37,14 +37,18 @@ const CLEARANCE: f64 = 2.0 * MARKER_RADIUS - CAPACITY_TOLERANCE;
 /// A point relative to the radar's centre, in SVG user units.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Point {
+    /// Distance right of the centre; negative is left.
     pub x: f64,
+    /// Distance below the centre (SVG's y-axis); negative is above.
     pub y: f64,
 }
 
 /// One ring's band: the radii it spans (FR-32).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Band {
+    /// The radius of the band's edge nearer the centre.
     pub inner: f64,
+    /// The radius of the band's edge nearer the rim.
     pub outer: f64,
 }
 
@@ -52,7 +56,9 @@ pub struct Band {
 /// (FR-32).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Geometry {
+    /// How many distinct quadrants the catalogue has (FR-30).
     pub quadrants: usize,
+    /// How many rings are declared (FR-32).
     pub rings: usize,
 }
 

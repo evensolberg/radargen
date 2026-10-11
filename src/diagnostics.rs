@@ -14,12 +14,15 @@ use crate::{normalise, trim};
 /// a sort key, not a special case.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Position {
+    /// The render as a whole; sorts before every cell.
     Render,
     /// `line` is the 1-based physical line the record begins on, counting the
     /// header as line 1 (NFR-10, D-37). `column` is the header index, which
     /// orders warnings within a line (NFR-11).
     Cell {
+        /// The record's first physical line.
         line: usize,
+        /// The header index of the cell.
         column: usize,
     },
 }
@@ -28,7 +31,9 @@ pub enum Position {
 /// requires the message to name the column — so they are separate classes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DateColumn {
+    /// The `last_affirmed` column (FR-24).
     LastAffirmed,
+    /// The `exit_date` column (FR-25).
     ExitDate,
 }
 
@@ -54,27 +59,54 @@ impl fmt::Display for DateColumn {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RowKind {
     /// FR-17. `source` is what the message says to edit (D-61).
-    UndeclaredRing { value: String, source: RingSource },
+    UndeclaredRing {
+        /// The ring cell as the CSV had it.
+        value: String,
+        /// Whether the ring list came from `--rings` or the default (D-61).
+        source: RingSource,
+    },
     /// FR-20 — non-blank only; a blank qualifier claims nothing (D-35).
-    UnrecognisedQualifier { value: String },
+    UnrecognisedQualifier {
+        /// The qualifier cell as the CSV had it.
+        value: String,
+    },
     /// FR-26 — non-blank only, as FR-20.
-    UnrecognisedStatus { value: String },
+    UnrecognisedStatus {
+        /// The status cell as the CSV had it.
+        value: String,
+    },
     /// FR-24, FR-25.
-    UnparsableDate { column: DateColumn, value: String },
+    UnparsableDate {
+        /// Which of the two date columns the cell was under.
+        column: DateColumn,
+        /// The date cell as the CSV had it.
+        value: String,
+    },
     /// FR-7.
     EmptyDescription,
     /// FR-28, reported at the later line naming the earlier (NFR-10).
-    DuplicateName { value: String, first_line: usize },
+    DuplicateName {
+        /// The repeated name as the CSV had it.
+        value: String,
+        /// The 1-based physical line of the earlier occurrence (D-37).
+        first_line: usize,
+    },
     /// FR-90: one per field, however many characters it lost. `column` is the
     /// canonical header name, since any column can carry one.
     Undisplayable {
+        /// The canonical header name of the affected column.
         column: String,
+        /// The first character the field lost.
         first: char,
+        /// How many characters the field lost in all.
         count: usize,
     },
     /// FR-93: a value under a column whose header cell is empty. `column`
     /// is `column N`, the 1-based position, since there is no name.
-    UnnamedValue { column: String },
+    UnnamedValue {
+        /// `column N`, the 1-based position of the nameless column.
+        column: String,
+    },
 }
 
 /// The warnings that concern the render as a whole. They never group: FR-88
@@ -82,12 +114,19 @@ pub enum RowKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RenderKind {
     /// FR-88.
-    QuadrantCount { count: usize },
+    QuadrantCount {
+        /// How many distinct quadrants the CSV used.
+        count: usize,
+    },
     /// FR-89, one per overfull band.
     OverfullBand {
+        /// The quadrant name the band belongs to.
         quadrant: String,
+        /// The ring name the band belongs to.
         ring: String,
+        /// How many items the band holds.
         count: usize,
+        /// How many of them the band has room for.
         fits: usize,
     },
 }
@@ -96,16 +135,21 @@ pub enum RenderKind {
 /// render-level one never claims one (NFR-10) — by type, not by a check.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Warning {
+    /// A warning about the render as a whole (FR-88, FR-89).
     Render(RenderKind),
-    /// `line` and `column` as in [`Position::Cell`].
+    /// A warning about one CSV cell.
     Row {
+        /// As in [`Position::Cell`].
         line: usize,
+        /// As in [`Position::Cell`].
         column: usize,
+        /// What was wrong with the cell.
         kind: RowKind,
     },
 }
 
 impl Warning {
+    /// Where the warning sorts (NFR-11).
     #[must_use]
     pub const fn position(&self) -> Position {
         match *self {
@@ -283,6 +327,7 @@ fn escape_controls(s: &str) -> String {
 pub struct Warnings(Vec<Warning>);
 
 impl Warnings {
+    /// Records a warning; order is kept until printing (NFR-11).
     pub fn push(&mut self, w: Warning) {
         self.0.push(w);
     }
@@ -294,6 +339,7 @@ impl Warnings {
         &self.0
     }
 
+    /// Whether the run raised no warnings.
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.0.is_empty()
@@ -447,7 +493,9 @@ fn tallied(members: &[Member], key: fn(&str) -> String) -> String {
 /// FR-1: a separator radargen refuses, found where a comma belongs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Separator {
+    /// `;`, which Excel writes where a comma is the decimal mark.
     Semicolon,
+    /// A tab character.
     Tab,
 }
 
@@ -486,14 +534,20 @@ impl fmt::Display for Separator {
 pub enum Fatal {
     /// FR-52: the `-o` extension is absent or names a format we do not write.
     #[error("-o {path}: the output file name must end in .html")]
-    UnrecognisedExtension { path: String },
+    UnrecognisedExtension {
+        /// The `-o` argument as given.
+        path: String,
+    },
     /// §14.1: the extension is one v1.1 adds, so say that rather than
     /// "unrecognised", which sends the caller hunting for a typo in a path
     /// that is correct.
     #[error("-o {path}: .{ext} output arrives in radargen {arrives_in}; this version writes .html")]
     FormatNotInThisVersion {
+        /// The `-o` argument as given.
         path: String,
+        /// The extension, without its dot.
         ext: String,
+        /// The release that adds the format (§14.1).
         arrives_in: &'static str,
     },
     /// FR-63, NFR-16 tier one.
@@ -502,7 +556,9 @@ pub enum Fatal {
     /// FR-61: the input does not exist, cannot be read, or is a directory.
     #[error("{path}: cannot be read: {source}")]
     Unreadable {
+        /// The input path as given.
         path: String,
+        /// The underlying I/O failure.
         #[source]
         source: std::io::Error,
     },
@@ -512,21 +568,36 @@ pub enum Fatal {
     #[error(
         "{path}, line {line}: not UTF-8 text; re-save the file as UTF-8 (in Excel, Save As \"CSV UTF-8\")"
     )]
-    NotUtf8 { path: String, line: usize },
+    NotUtf8 {
+        /// The input path as given.
+        path: String,
+        /// The physical line holding the first bad byte.
+        line: usize,
+    },
     /// NFR-15: an unterminated quote swallows the rest of the file into one
     /// field, so nothing after it parses. `line` is where the quote opened,
     /// which may be after the record's first line (plan RG-005, Decisions).
     #[error(
         "line {line}, column {column}: a quote opens this value and never closes; add the closing quote, and write any quote inside the value as \"\""
     )]
-    UnterminatedQuote { line: usize, column: usize },
+    UnterminatedQuote {
+        /// The 1-based line where the quote opened.
+        line: usize,
+        /// The 1-based column of the field it opened in.
+        column: usize,
+    },
     /// NFR-15: text after a closing quote. RFC 4180 doubles a quote inside a
     /// quoted field; keeping or dropping the stray text would both guess.
     /// `line` is the closing quote's.
     #[error(
         "line {line}, column {column}: text follows a closing quote; inside quotes, write a quote as \"\""
     )]
-    TextAfterQuote { line: usize, column: usize },
+    TextAfterQuote {
+        /// The 1-based line of the closing quote.
+        line: usize,
+        /// The 1-based column of the field it closed.
+        column: usize,
+    },
     /// FR-3: the file has no non-blank records, so no header names a column.
     /// The required columns are FR-5's, named so the message is actionable.
     #[error(
@@ -539,7 +610,12 @@ pub enum Fatal {
     #[error(
         "line {line}: the header is one column holding {separator}; radargen reads comma-separated files only, so export the file with commas as the separator"
     )]
-    NotCommaSeparated { line: usize, separator: Separator },
+    NotCommaSeparated {
+        /// The header's line.
+        line: usize,
+        /// The separator found where a comma belongs.
+        separator: Separator,
+    },
     /// FR-4: a header name repeated under FR-76's normalisation, so
     /// `Name` and `name ` collide. Indices are 1-based; names are as
     /// written, trimmed, so the author can find both cells.
@@ -547,10 +623,15 @@ pub enum Fatal {
         "line {line}: column {index} '{name}' repeats column {first_index} '{first_name}'; header names match ignoring case and surrounding spaces, so rename or remove one"
     )]
     DuplicateHeader {
+        /// The header's line.
         line: usize,
+        /// The 1-based index of the repeating column.
         index: usize,
+        /// Its name, as written and trimmed.
         name: String,
+        /// The 1-based index of the earlier column it collides with.
         first_index: usize,
+        /// The earlier column's name, as written and trimmed.
         first_name: String,
     },
     /// FR-4: a record whose field count is not the header's, with the usual
@@ -564,8 +645,11 @@ pub enum Fatal {
         }
     )]
     FieldCount {
+        /// The record's first line.
         line: usize,
+        /// How many fields the record has.
         found: usize,
+        /// How many columns the header has.
         expected: usize,
     },
     /// FR-5: the header lacks a required column. Every missing one is
@@ -573,13 +657,23 @@ pub enum Fatal {
     #[error(
         "line {line}: the header has no '{column}' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description"
     )]
-    MissingColumn { line: usize, column: &'static str },
+    MissingColumn {
+        /// The header's line.
+        line: usize,
+        /// The canonical name of the missing column.
+        column: &'static str,
+    },
     /// FR-6: an empty `name`, `quadrant` or `ring`, empty under FR-76's
     /// trim, so a cell of spaces or a lone zero-width space counts.
     #[error(
         "line {line}, {column}: empty; every row needs a {column}, so fill it in or delete the row"
     )]
-    EmptyRequired { line: usize, column: &'static str },
+    EmptyRequired {
+        /// The row's line.
+        line: usize,
+        /// The canonical name of the empty column.
+        column: &'static str,
+    },
 }
 
 impl Fatal {
