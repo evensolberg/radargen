@@ -1,7 +1,7 @@
 # radargen — Design
 
 **Status:** draft, for review
-**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.50
+**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.51
 **Date:** 2026-08-29
 
 > **What this document is for.** The PRD says *what* radargen does and carries
@@ -247,6 +247,12 @@ and — because it has three scales, not one — its box is not `size(1.0) * k`:
 geometry scales by `s`, labels by `max(s, 1)`, and marks by `max(s, 7/9)`
 (D-69). Both facts are in the signature rather than in a comment somebody has to find.
 
+**Units become pixels at the SVG's rendered width.** The narrow arrangement's
+px per unit is the rendered width of its SVG over its `viewBox` width, and
+`NARROW_HORIZONTAL_INSET_PX` (0) ties that width to the viewport. FR-94's hit
+radius and PR 11's legend row height are derived from it, so PR 14 must keep the
+SVG spanning the viewport or change the constant.
+
 An arrangement is then a choice of placements:
 
 ```rust
@@ -289,7 +295,15 @@ pub struct Document { pub view_box: Rect, pub root: Node }
 
 pub struct Point { pub x: f64, pub y: f64 }
 pub enum Anchor { Start, Middle }
-pub enum Semantics { None, Decorative, Heading(u8) }
+pub enum Semantics {
+    None, Decorative, Heading(NonZeroU8),
+    Control(Control),     // an interactive item (FR-50)
+    Indicator(ItemKey),   // an item's focus ring and backing (FR-48)
+}
+
+/// An item's identity in the output: its CSV line (`data-row`, below).
+pub struct ItemKey(pub usize);
+pub struct Control { pub key: ItemKey, pub label: String, pub tooltip: Option<String> }
 pub enum PathCommand {
     MoveTo(Point),
     Arc { radius: f64, large_arc: bool, sweep: bool, end: Point },
@@ -303,9 +317,17 @@ pub enum Node {
     Circle { centre: Point, radius: f64, fill: Paint, stroke: Paint, stroke_width: f64 },
     Line { from: Point, to: Point, stroke: Paint, stroke_width: f64 },
     Path { commands: Vec<PathCommand>, fill: Paint, stroke: Paint, stroke_width: f64 },
+    // An invisible pointer target for the item with this key (FR-94).
+    HitArea { centre: Point, radius: f64, key: ItemKey },
 }
 
-pub enum Paint { Role(palette::Role), None }
+impl Node {
+    /// True for a `HitArea`, an `Indicator` group, and a non-empty group of only
+    /// those: nodes that mean nothing without a pointer or focus.
+    pub fn is_interactive_only(&self) -> bool;
+}
+
+pub enum Paint { Role(palette::Role), NumberOn(usize), None }
 
 // A halo is text with no fill, a round join, and hidden from assistive technology.
 pub enum TextPaint { Fill(Paint), Halo { stroke: Paint, width: f64 } }
@@ -335,6 +357,7 @@ role:
 | Emitter | Binding | Why |
 | --- | --- | --- |
 | HTML | `var(--series-1)`, with both palettes in one inline `<style>`: a default block, a `prefers-color-scheme` override, and a `[data-theme]` override the in-page toggle sets | FR-56: `--theme` is ignored on HTML because the viewer chooses; both palettes must be present at once, and §14.1 puts the toggle in v1.0 |
+| every format, HTML included | a number's ink, `Paint::NumberOn(i)`: `#FFFFFF` or `#16191F`, whichever contrasts more with series entry `i` | series values do not change with theme, so the pick is the same in both palettes and needs no variable; `i` is unreduced, like `Role::Series`, and wraps at bind time |
 | SVG, PNG | the literal value resolved for `--theme` at generation time | FR-56: a static snapshot has no viewer-side choice — and `resvg` does not resolve CSS custom properties, so a `var()` in a rasterised document silently renders **black** — verified, not assumed |
 
 **Three declarations rather than two, because FR-56 gives the viewer two ways to
@@ -344,8 +367,8 @@ attribute on the root — and not JavaScript rewriting values. A toggle that
 rewrote values would have to enumerate every role by name, in a second place,
 which is the duplication `Role` exists to prevent.
 
-This is the one place a single `Document` legitimately serialises differently per
-format, and it is what makes FR-56's "ignored, not an error, on HTML output" a
+This is one of two places a single `Document` legitimately serialises differently
+per format (the other is interactive-only omission, below), and it is what makes FR-56's "ignored, not an error, on HTML output" a
 structural fact rather than a branch somebody has to remember. It also gives
 FR-86 its error for free — a `--palette` file missing a role fails to bind a
 `Role` the enum enumerates, so "naming the missing role" is `Role`'s own
@@ -400,6 +423,45 @@ knows there are two of anything:
   selection and focus-return on the *item* makes that a lookup in whichever
   arrangement is displayed rather than a reference into one that is not. The same
   attribute is what makes FR-72's indication symmetric.
+
+**The radar draws in four layers, so one marker never covers another's target
+or focus.** SVG paints in document order, and a marker is small enough to be
+covered by a later one. The radar block therefore emits, as children of its
+centring group, in this order:
+
+1. the **frame**: rings, dividers, labels;
+2. the **hit layer**, a `Semantics::None` group of `Node::HitArea { centre,
+   radius, key }`, one per plotted item. Below every marker, so a visible marker
+   always takes its own pointer events and a hit area only fills empty space
+   (FR-94); a hit area in the same layer as the markers would paint over an
+   earlier neighbour's disc;
+3. the **controls**, one `Semantics::Control` group per plotted item holding the
+   status ring, disc and number;
+4. the **indicator layer**, a `Semantics::None` group of one
+   `Semantics::Indicator(key)` group per plotted item: a Surface1 backing disc, a
+   copy of the marker, then the focus ring. After every marker, so a focused
+   marker is never covered, and on its own Surface1 backing so SC-20 measures the
+   ring against Surface1 whatever it crosses.
+
+A radar with no markers emits neither the hit nor the indicator layer. Unplotted
+rows (FR-17) have no key in any of them.
+
+**Per-format rules.** A hit area and an indicator are *interactive-only*:
+`Node::is_interactive_only` says so structurally, so an emitter need not know
+which layer a node came from. A static image has no pointer or focus, so the
+SVG and PNG emitters skip every interactive-only node (the two layer groups drop
+whole) and write a `Control` as `<g aria-label><title>` without `role` or
+`tabindex`. The HTML emitter keeps them: a control carries `data-row` and
+`data-marker`, a hit area `data-hit`, an indicator `data-indicator`, all keyed
+on the item's CSV line. Indicators are hidden by presentation attributes
+(`visibility="hidden" aria-hidden="true" pointer-events="none"`) and hit areas
+are `fill="none" pointer-events="all"`, so neither needs a CSS colour keyword. One
+indicator is shown by a generated per-key rule,
+`svg:has([data-marker="L"]:focus-visible) [data-indicator="L"] { visibility:
+visible }`, which needs no JavaScript. It is qualified to `data-marker`, not
+`data-row`, so a legend row for the same item (PR 11) does not light the
+marker's ring. Pointer events on a hit area are forwarded to the control with the
+same key by the delegated handler FR-37 needs.
 
 ## 6. Determinism, enforced structurally
 
@@ -702,7 +764,7 @@ that outlives the measurement behind it.
 | Risk | Response |
 | --- | --- |
 | `Block` sizes are computed from measured text, so a text-metrics bug moves every arrangement (**R-1**, retired) | The spike retired it and its tests came with it; `text.rs` is covered before anything depends on it, and §10's oracle level keeps it covered |
-| One `Document` type shared by three emitters could grow format-specific special cases | §5 admits exactly one — colour binding — and gives the reason. If an emitter needs a *second*, that is the signal the waist is leaking: reject it at review |
+| One `Document` type shared by three emitters could grow format-specific special cases | §5 admits exactly two — colour binding, and the omission of interactive-only nodes from static formats, because a static image has no pointer or focus — and gives the reason for each. If an emitter needs a *third*, that is the signal the waist is leaking: reject it at review |
 | Golden files are brittle against innocent refactors | That is what they are *for* (NFR-4), and `UPDATE_GOLDEN=1` makes accepting a change deliberate |
 | The `Catalogue` side-channel could become a second data path that drifts from the graphic (**§2**) | It is read-only and additive — the HTML emitter reads prose and unplotted rows from it, never geometry or numbering. Anything the two could disagree about comes from `Document` |
 | Legend height sets the document height past ~25 items (**R-3**) | Accepted for this version, per the PRD. The `Block` shape is what makes the likely answer — a multi-column legend in the wide arrangement — a change inside `layout/legend.rs` and nowhere else |
