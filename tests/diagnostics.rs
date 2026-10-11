@@ -1,13 +1,26 @@
 //! The diagnostic contract (architecture §10): exact messages, NFR-11 order,
 //! NFR-20 grouping. SC-10's golden tests later pin the same text end to end.
 
+use std::sync::Arc;
+
+use radargen::columns::ColumnKind;
 use radargen::diagnostics::{
-    DateColumn, Fatal, Position, RenderKind, RowKind, Separator, Warning, Warnings,
+    DateColumn, Fatal, Position, RenderKind, RowKind, Separator, Warning, Warnings, column_label,
 };
 use radargen::rings::{RingSource, RingsError};
 
 const fn at(line: usize, column: usize, kind: RowKind) -> Warning {
     Warning::Row { line, column, kind }
+}
+
+/// The rings a `--rings` run declared, as the messages list them.
+fn declared() -> Arc<[String]> {
+    Arc::from(["Adopt".to_string(), "Trial".to_string()])
+}
+
+/// The default ring set, as the messages list it.
+fn defaults() -> Arc<[String]> {
+    Arc::from(["Assess", "Trial", "Adopt", "Retire"].map(String::from))
 }
 
 fn ring(line: usize, value: &str) -> Warning {
@@ -17,6 +30,7 @@ fn ring(line: usize, value: &str) -> Warning {
         RowKind::UndeclaredRing {
             value: value.into(),
             source: RingSource::Flag,
+            rings: declared(),
         },
     )
 }
@@ -26,7 +40,7 @@ fn each_row_kind_has_its_per_row_message() {
     let cases = [
         (
             ring(37, "Adpot"),
-            "line 37, ring: 'Adpot' is not declared by --rings; the row is in the table view, not on the radar",
+            "line 37, ring: 'Adpot' is not one of the rings --rings declares (Adopt, Trial); the row is in the table view, not on the radar; to plot it, add it to --rings",
         ),
         (
             at(
@@ -81,10 +95,21 @@ fn each_row_kind_has_its_per_row_message() {
                 RowKind::DuplicateName {
                     value: "Terraform".into(),
                     first_line: 4,
+                    first_value: " terraform ".into(),
                 },
             ),
-            "line 12, name: 'Terraform' repeats line 4; both are drawn",
+            "line 12, name: 'Terraform' repeats line 4's name 'terraform' (names match ignoring case and surrounding spaces); both are drawn, so rename or delete one if they are the same item",
         ),
+    ];
+    for (warning, expected) in cases {
+        assert_eq!(warning.to_string(), expected);
+    }
+}
+
+/// FR-90 and FR-93: the cells whose own content is the problem.
+#[test]
+fn undisplayable_and_unnamed_values_have_their_per_row_message() {
+    let cases = [
         (
             at(
                 14,
@@ -114,10 +139,10 @@ fn each_row_kind_has_its_per_row_message() {
                 16,
                 5,
                 RowKind::UnnamedValue {
-                    column: "column 6".into(),
+                    column: "column 6 (F)".into(),
                 },
             ),
-            "line 16, column 6: this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
+            "line 16, column 6 (F): this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
         ),
     ];
     for (warning, expected) in cases {
@@ -226,6 +251,7 @@ fn control_characters_in_values_are_shown_escaped() {
             RowKind::UndeclaredRing {
                 value: format!("a{c}b"),
                 source: RingSource::Flag,
+                rings: declared(),
             },
         )
         .to_string();
@@ -275,13 +301,14 @@ fn forty_rows_and_a_typo_make_one_ring_line_and_a_duplicate_keeps_its_own() {
         RowKind::DuplicateName {
             value: "Kafka".into(),
             first_line: 9,
+            first_value: "Kafka".into(),
         },
     ));
     assert_eq!(
         w.render(),
         vec![
-            "warning: 41 rows use a ring not declared by --rings — In Use (40, first line 4), Adpot (1, line 37); all appear in the table view",
-            "warning: line 50, name: 'Kafka' repeats line 9; both are drawn",
+            "warning: 41 rows use a ring --rings does not declare (Adopt, Trial) — In Use (40, first line 4), Adpot (1, line 37); all appear in the table view; to plot one, add it to --rings",
+            "warning: line 50, name: 'Kafka' repeats line 9's name 'Kafka' (names match ignoring case and surrounding spaces); both are drawn, so rename or delete one if they are the same item",
         ]
     );
 }
@@ -297,12 +324,13 @@ fn the_ring_warning_names_the_default_ring_set_when_no_flag_declared_one() {
             RowKind::UndeclaredRing {
                 value: "Adpot".into(),
                 source: RingSource::Default,
+                rings: defaults(),
             },
         )
     };
     assert_eq!(
         default(37).to_string(),
-        "line 37, ring: 'Adpot' is not declared by the default ring set; the row is in the table view, not on the radar"
+        "line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, declare it in --rings"
     );
     let mut w = Warnings::default();
     w.push(default(4));
@@ -310,7 +338,7 @@ fn the_ring_warning_names_the_default_ring_set_when_no_flag_declared_one() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 2 rows use a ring not declared by the default ring set — Adpot (2, first line 4); all appear in the table view"
+            "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); all appear in the table view; to plot one, declare it in --rings"
         ]
     );
 }
@@ -322,7 +350,7 @@ fn a_class_with_one_occurrence_prints_the_per_row_message() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: line 37, ring: 'Adpot' is not declared by --rings; the row is in the table view, not on the radar",
+            "warning: line 37, ring: 'Adpot' is not one of the rings --rings declares (Adopt, Trial); the row is in the table view, not on the radar; to plot it, add it to --rings",
         ]
     );
 }
@@ -336,7 +364,7 @@ fn values_group_under_fr_76_normalisation() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 3 rows use a ring not declared by --rings — In Use (3, first line 4); all appear in the table view",
+            "warning: 3 rows use a ring --rings does not declare (Adopt, Trial) — In Use (3, first line 4); all appear in the table view; to plot one, add it to --rings",
         ]
     );
 }
@@ -364,7 +392,7 @@ fn render_level_warnings_come_first_and_never_group() {
             "warning: 9 quadrants; the radar reads best with 3 to 6, so sectors narrow and labels may crowd",
             "warning: quadrant 'A', ring 'Adopt': 12 items; about 10 fit comfortably, so some markers overlap",
             "warning: quadrant 'B', ring 'Adopt': 11 items; about 10 fit comfortably, so some markers overlap",
-            "warning: line 2, ring: 'X' is not declared by --rings; the row is in the table view, not on the radar",
+            "warning: line 2, ring: 'X' is not one of the rings --rings declares (Adopt, Trial); the row is in the table view, not on the radar; to plot it, add it to --rings",
         ]
     );
 }
@@ -406,6 +434,7 @@ fn out_of_order_pushes_are_sorted_by_position() {
         RowKind::DuplicateName {
             value: "Kafka".into(),
             first_line: 2,
+            first_value: "Kafka".into(),
         },
     ));
     let out = w.render();
@@ -463,8 +492,9 @@ fn every_row_class_has_a_grouped_line() {
             RowKind::DuplicateName {
                 value: "Kafka".into(),
                 first_line: 2,
+                first_value: "Kafka".into(),
             },
-            "warning: 2 rows repeat an earlier name — Kafka (line 2; repeated on 2 rows, first line 4); every row is drawn",
+            "warning: 2 rows repeat an earlier name — Kafka (line 2; repeated on 2 rows, first line 4); every row is drawn, so rename or delete the repeats that are the same item",
         ),
     ];
     for (kind, expected) in cases {
@@ -496,7 +526,7 @@ fn every_row_class_has_a_grouped_line() {
     assert_eq!(
         mixed.render(),
         vec![
-            "warning: 2 fields had characters the output cannot display — description on line 4 (U+0001), name on line 6 (2, first U+007F); each was removed",
+            "warning: 2 values had characters the output cannot display — description on line 4 (U+0001), name on line 6 (2, first U+007F); each was removed",
         ]
     );
 }
@@ -556,7 +586,7 @@ fn grouped_values_order_by_first_line_not_push_order() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 3 rows use a ring not declared by --rings — In Use (2, first line 4), Adpot (1, line 37); all appear in the table view",
+            "warning: 3 rows use a ring --rings does not declare (Adopt, Trial) — In Use (2, first line 4), Adpot (1, line 37); all appear in the table view; to plot one, add it to --rings",
         ]
     );
 }
@@ -658,8 +688,9 @@ fn a_single_repeat_in_a_duplicate_group_names_its_line() {
         12,
         0,
         RowKind::DuplicateName {
-            value: "Kafka".into(),
+            value: "kafka".into(),
             first_line: 2,
+            first_value: "Kafka".into(),
         },
     ));
     w.push(at(
@@ -668,12 +699,13 @@ fn a_single_repeat_in_a_duplicate_group_names_its_line() {
         RowKind::DuplicateName {
             value: "Redis".into(),
             first_line: 3,
+            first_value: "Redis".into(),
         },
     ));
     assert_eq!(
         w.render(),
         vec![
-            "warning: 2 rows repeat an earlier name — Kafka (line 2; repeated on line 12), Redis (line 3; repeated on line 14); every row is drawn",
+            "warning: 2 rows repeat an earlier name — Kafka (line 2; repeated on line 12), Redis (line 3; repeated on line 14); every row is drawn, so rename or delete the repeats that are the same item",
         ]
     );
 }
@@ -743,6 +775,14 @@ fn fatal_messages() {
             }),
             r"error: --rings: entry 2 'a\nerror: forged' repeats entry 1",
         ),
+        (
+            Fatal::FieldCount {
+                line: 4,
+                found: 2,
+                expected: 1,
+            },
+            "error: line 4: the row has 2 values but the header has 1 column; a comma inside a value needs the value in double quotes",
+        ),
     ];
     for (fatal, expected) in cases {
         assert_eq!(fatal.render(), expected);
@@ -783,11 +823,11 @@ fn csv_file_messages() {
         ),
         (
             Fatal::UnterminatedQuote { line: 3, column: 2 },
-            "error: line 3, column 2: a quote opens this value and never closes; add the closing quote, and write any quote inside the value as \"\"",
+            "error: line 3, column 3 (C): a quote opens this value and never closes; add the closing quote, and write any quote inside the value as \"\"",
         ),
         (
             Fatal::TextAfterQuote { line: 2, column: 2 },
-            "error: line 2, column 2: text follows a closing quote; inside quotes, write a quote as \"\"",
+            "error: line 2, column 3 (C): text follows a closing quote; inside quotes, write a quote as \"\"",
         ),
     ];
     for (fatal, expected) in cases {
@@ -802,7 +842,7 @@ fn csv_header_and_row_messages() {
         line: 1,
         index,
         name: name.into(),
-        first_index: 1,
+        first_index: 0,
         first_name: first_name.into(),
     };
     let count = |found| Fatal::FieldCount {
@@ -812,21 +852,21 @@ fn csv_header_and_row_messages() {
     };
     let cases = [
         (
-            repeats(3, "Name", "name"),
-            "error: line 1: column 3 'Name' repeats column 1 'name'; header names match ignoring case and surrounding spaces, so rename or remove one",
+            repeats(2, "Name", "name"),
+            "error: line 1: column 3 (C) 'Name' repeats column 1 (A) 'name'; header names match ignoring case and surrounding spaces, so rename or remove one",
         ),
         // A header is CSV text: a quoted newline in it must not forge a line.
         (
-            repeats(2, "a\nerror: forged", "a"),
-            r"error: line 1: column 2 'a\nerror: forged' repeats column 1 'a'; header names match ignoring case and surrounding spaces, so rename or remove one",
+            repeats(1, "a\nerror: forged", "a"),
+            r"error: line 1: column 2 (B) 'a\nerror: forged' repeats column 1 (A) 'a'; header names match ignoring case and surrounding spaces, so rename or remove one",
         ),
         (
             count(3),
-            "error: line 4: the row's field count is 3 but the header's is 2; a comma inside a value needs the value in double quotes",
+            "error: line 4: the row has 3 values but the header has 2 columns; a comma inside a value needs the value in double quotes",
         ),
         (
             count(1),
-            "error: line 4: the row's field count is 1 but the header's is 2; a value is missing, or an unquoted line break split the row",
+            "error: line 4: the row has 1 value but the header has 2 columns; a value is missing, or an unquoted line break split the row",
         ),
     ];
     for (fatal, expected) in cases {
@@ -841,14 +881,14 @@ fn model_messages() {
         (
             Fatal::MissingColumn {
                 line: 1,
-                column: "ring",
+                column: ColumnKind::Ring,
             },
             "error: line 1: the header has no 'ring' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description",
         ),
         (
             Fatal::EmptyRequired {
                 line: 7,
-                column: "quadrant",
+                column: ColumnKind::Quadrant,
             },
             "error: line 7, quadrant: empty; every row needs a quadrant, so fill it in or delete the row",
         ),
@@ -867,7 +907,7 @@ fn unnamed_column_values_group_by_column() {
             line,
             column,
             RowKind::UnnamedValue {
-                column: format!("column {}", column + 1),
+                column: column_label(column),
             },
         )
     };
@@ -878,7 +918,42 @@ fn unnamed_column_values_group_by_column() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 3 values are under columns with no name in the header row — column 6 (2, first line 4), column 7 (1, line 9); none is shown, so add a header name, or delete the values"
+            "warning: 3 values are under columns with no name in the header row — column 6 (F) (2, first line 4), column 7 (G) (1, line 9); none is shown, so add a header name, or delete the values"
         ]
     );
+}
+
+/// NFR-10: a column is its 1-based number and its spreadsheet letters.
+#[test]
+fn column_labels_count_like_a_spreadsheet() {
+    for (index, expected) in [
+        (0, "column 1 (A)"),
+        (25, "column 26 (Z)"),
+        (26, "column 27 (AA)"),
+        (51, "column 52 (AZ)"),
+        (52, "column 53 (BA)"),
+        (701, "column 702 (ZZ)"),
+        (702, "column 703 (AAA)"),
+        (18277, "column 18278 (ZZZ)"),
+        (18278, "column 18279 (AAAA)"),
+    ] {
+        assert_eq!(column_label(index), expected);
+    }
+}
+
+/// D-64: an invisible format character inside a value is escaped, so the
+/// author can see it; ZWJ, ZWNJ and tag characters build emoji and flags,
+/// so they pass through.
+#[test]
+fn interior_format_characters_are_escaped_except_joiners_and_tags() {
+    let shown = ring(3, "Ad\u{200B}opt").to_string();
+    assert!(shown.contains("'Ad\\u{200b}opt'"), "{shown}");
+    let family = "\u{1F468}\u{200D}\u{1F469}";
+    let england = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}";
+    let word_joiner = ring(3, "Ad\u{2060}opt").to_string();
+    assert!(word_joiner.contains("'Ad\\u{2060}opt'"), "{word_joiner}");
+    for kept in [family, england, "a\u{200C}b", "a\u{E0001}b"] {
+        let shown = ring(3, kept).to_string();
+        assert!(shown.contains(&format!("'{kept}'")), "{shown}");
+    }
 }

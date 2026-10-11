@@ -3,6 +3,7 @@
 //! See `docs/product/radargen-prd.md`. Requirement IDs in comments refer to it.
 
 pub mod cli;
+pub mod columns;
 pub mod csv;
 pub mod diagnostics;
 pub mod escape;
@@ -36,9 +37,14 @@ pub fn trim(value: &str) -> &str {
 
 /// Whitespace, or a format character that is not a tag character.
 fn trimmable(c: char) -> bool {
-    c.is_whitespace()
-        || (c.general_category() == GeneralCategory::Format
-            && !matches!(c, '\u{e0001}' | '\u{e0020}'..='\u{e007f}'))
+    c.is_whitespace() || is_untagged_format(c)
+}
+
+/// A format character (Cf) that is not a tag character: the one rule that
+/// trimming and escaping share.
+pub(crate) fn is_untagged_format(c: char) -> bool {
+    c.general_category() == GeneralCategory::Format
+        && !matches!(c, '\u{e0001}' | '\u{e0020}'..='\u{e007f}')
 }
 
 /// FR-76: **one normalisation rule**, applied to every value read from the CSV

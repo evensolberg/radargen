@@ -7,7 +7,7 @@
 use std::iter::{FusedIterator, Peekable};
 use std::str::Chars;
 
-use crate::diagnostics::{Fatal, RowKind, Separator, Warning, Warnings};
+use crate::diagnostics::{Fatal, RowKind, Separator, Warning, Warnings, column_label};
 use crate::escape::displayable;
 use crate::{normalise, trim};
 
@@ -84,7 +84,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    /// One field and what ended it. `column` is its 1-based position, for
+    /// One field and what ended it. `column` is its 0-based position, for
     /// the error message.
     fn field(&mut self, column: usize) -> Result<(String, End), Fatal> {
         if self.chars.next_if_eq(&'"').is_some() {
@@ -161,7 +161,7 @@ impl Iterator for Scanner<'_> {
             let line = self.line;
             let mut fields = Vec::new();
             loop {
-                let (field, end) = match self.field(fields.len() + 1) {
+                let (field, end) = match self.field(fields.len()) {
                     Ok(field) => field,
                     Err(fault) => {
                         // A text-after-quote fault leaves its text unread.
@@ -247,7 +247,7 @@ fn header(first: Option<Result<Record, Malformed>>) -> Result<Record, Fatal> {
         None => Err(Fatal::NoHeader),
         Some(Ok(head)) => Ok(head),
         Some(Err(Malformed {
-            fault: Fatal::TextAfterQuote { column: 1, .. },
+            fault: Fatal::TextAfterQuote { column: 0, .. },
             record_line,
             after: Some(separator),
         })) => Err(Fatal::NotCommaSeparated {
@@ -337,7 +337,7 @@ fn warn(w: &mut Warnings, line: usize, removed: &[Removed], header: &[String]) {
             .map(String::as_str)
             .map(normalise)
             .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| format!("column {}", column + 1));
+            .unwrap_or_else(|| column_label(column));
         w.push(Warning::Row {
             line,
             column,
@@ -371,9 +371,9 @@ fn duplicate_headers(header: &[String], line: usize) -> Vec<Fatal> {
         if let Some((first, (_, first_name))) = first {
             errors.push(Fatal::DuplicateHeader {
                 line,
-                index: i + 1,
+                index: i,
                 name: trim(name).to_string(),
-                first_index: first + 1,
+                first_index: first,
                 first_name: trim(first_name).to_string(),
             });
         }
@@ -505,7 +505,7 @@ mod tests {
         );
         let err = scan("\"").expect_err("a lone quote");
         assert!(
-            matches!(err, Fatal::UnterminatedQuote { line: 1, column: 1 }),
+            matches!(err, Fatal::UnterminatedQuote { line: 1, column: 0 }),
             "{err:?}"
         );
         assert_eq!(lines("a,b"), [rec(1, &["a", "b"])], "no final newline");
@@ -536,7 +536,7 @@ mod tests {
         assert_eq!(lines("x, \"y\"\n"), [rec(1, &["x", " \"y\""])]);
         let err = scan("a,b\n\"x\" ,y\n").expect_err("text after quote");
         assert!(
-            matches!(err, Fatal::TextAfterQuote { line: 2, column: 1 }),
+            matches!(err, Fatal::TextAfterQuote { line: 2, column: 0 }),
             "{err:?}"
         );
     }
@@ -546,14 +546,14 @@ mod tests {
     fn an_unterminated_quote_names_the_line_it_opened_on() {
         let err = scan("a,b\nx,y\n\"open,2\n3,4\n").expect_err("unterminated");
         assert!(
-            matches!(err, Fatal::UnterminatedQuote { line: 3, column: 1 }),
+            matches!(err, Fatal::UnterminatedQuote { line: 3, column: 0 }),
             "{err:?}"
         );
-        assert_eq!(err.render(), unterminated(3, 1));
+        assert_eq!(err.render(), unterminated(3, 0));
         // The opening quote's line, even when its record began earlier.
         let err = scan("a,b,c\n1,\"two\nlines\",\"open\n").expect_err("unterminated");
         assert!(
-            matches!(err, Fatal::UnterminatedQuote { line: 3, column: 3 }),
+            matches!(err, Fatal::UnterminatedQuote { line: 3, column: 2 }),
             "{err:?}"
         );
     }
@@ -562,14 +562,14 @@ mod tests {
     fn text_after_a_closing_quote_is_an_error() {
         let err = scan("a,b\n1,\"x\"y\n").expect_err("text after quote");
         assert!(
-            matches!(err, Fatal::TextAfterQuote { line: 2, column: 2 }),
+            matches!(err, Fatal::TextAfterQuote { line: 2, column: 1 }),
             "{err:?}"
         );
-        assert_eq!(err.render(), after_quote(2, 2));
+        assert_eq!(err.render(), after_quote(2, 1));
         // The closing quote's line, not the record's (Global Constraints).
         let err = scan("a,b\n\"x\ny\"z,1\n").expect_err("text after quote");
         assert!(
-            matches!(err, Fatal::TextAfterQuote { line: 3, column: 1 }),
+            matches!(err, Fatal::TextAfterQuote { line: 3, column: 0 }),
             "{err:?}"
         );
     }
@@ -749,7 +749,7 @@ mod tests {
             (t.header_line, t.records.first().expect("a record").line),
             (3, 4)
         );
-        assert_eq!(errors("\n\na,a\n"), [repeats(3, 2, "a", 1, "a")]);
+        assert_eq!(errors("\n\na,a\n"), [repeats(3, 1, "a", 0, "a")]);
     }
 
     #[test]
@@ -791,9 +791,9 @@ mod tests {
         }
         // A header that already split on a comma is not one column, so a
         // `;` after a later quoted cell is a quoting error.
-        assert_eq!(errors("name,\"Notes\";x\nKafka,y\n"), [after_quote(1, 2)]);
+        assert_eq!(errors("name,\"Notes\";x\nKafka,y\n"), [after_quote(1, 1)]);
         // A quoting error in a comma-separated header is still one.
-        assert_eq!(errors("\"name\"x,ring\n"), [after_quote(1, 1)]);
+        assert_eq!(errors("\"name\"x,ring\n"), [after_quote(1, 0)]);
         assert!(
             errors("name\nKafka\n").is_empty(),
             "one plain column is PR 06's FR-5 to judge"
@@ -806,8 +806,8 @@ mod tests {
         assert_eq!(
             errors("name,ring,Name ,RING,x\n"),
             [
-                repeats(1, 3, "Name", 1, "name"),
-                repeats(1, 4, "RING", 2, "ring"),
+                repeats(1, 2, "Name", 0, "name"),
+                repeats(1, 3, "RING", 1, "ring"),
             ]
         );
     }
@@ -819,7 +819,7 @@ mod tests {
     fn invisible_format_characters_do_not_hide_a_duplicate_header() {
         assert_eq!(
             errors("name,\u{200b}Name\u{feff},ring\n"),
-            [repeats(1, 2, "Name", 1, "name")]
+            [repeats(1, 1, "Name", 0, "name")]
         );
     }
 
@@ -847,7 +847,7 @@ mod tests {
         assert_eq!(
             warnings,
             [
-                "warning: 2 fields had characters the output cannot display — column 1 on line 1 (U+0001), column 2 on line 1 (U+0001); each was removed"
+                "warning: 2 values had characters the output cannot display — column 1 (A) on line 1 (U+0001), column 2 (B) on line 1 (U+0001); each was removed"
             ]
         );
     }
@@ -963,7 +963,7 @@ mod tests {
     fn duplicate_headers_and_bad_rows_are_reported_together() {
         assert_eq!(
             errors("a,A\n1\n"),
-            [repeats(1, 2, "A", 1, "a"), count(2, 1),],
+            [repeats(1, 1, "A", 0, "a"), count(2, 1),],
             "a duplicate header does not hide a bad row, and comes first"
         );
     }
@@ -971,7 +971,7 @@ mod tests {
     /// Malformed quoting stops the run: nothing after it can be trusted.
     #[test]
     fn malformed_quoting_is_the_only_error_reported() {
-        assert_eq!(errors("a,a\n1\n\"open\n"), [unterminated(3, 1)]);
+        assert_eq!(errors("a,a\n1\n\"open\n"), [unterminated(3, 0)]);
     }
 
     /// FR-90, D-55: removed, with one warning per field naming line and column.
@@ -1005,7 +1005,7 @@ mod tests {
         assert_eq!(
             warnings,
             [
-                "warning: 2 fields had characters the output cannot display — name on line 2 (U+0001), description on line 2 (2, first U+007F); each was removed"
+                "warning: 2 values had characters the output cannot display — name on line 2 (U+0001), description on line 2 (2, first U+007F); each was removed"
             ]
         );
     }
@@ -1082,7 +1082,7 @@ mod tests {
     #[test]
     fn removal_runs_before_the_duplicate_header_check() {
         let (_, errs, warnings) = parsed("name,name\u{1}\nx,y\n");
-        assert_eq!(errs, [repeats(1, 2, "name", 1, "name")]);
+        assert_eq!(errs, [repeats(1, 1, "name", 0, "name")]);
         assert_eq!(
             warnings,
             ["warning: line 1, name: removed U+0001, which the output cannot display"]
@@ -1112,7 +1112,7 @@ mod tests {
         let (_, _, warnings) = parsed("name,\nx,\u{1}\n");
         assert_eq!(
             warnings,
-            ["warning: line 2, column 2: removed U+0001, which the output cannot display"]
+            ["warning: line 2, column 2 (B): removed U+0001, which the output cannot display"]
         );
     }
 
@@ -1125,7 +1125,7 @@ mod tests {
         assert_eq!(
             warnings,
             [
-                "warning: 3 fields had characters the output cannot display — a on line 2 (U+0001), b on line 3 (U+0002), column 3 on line 3 (U+0003); each was removed"
+                "warning: 3 values had characters the output cannot display — a on line 2 (U+0001), b on line 3 (U+0002), column 3 (C) on line 3 (U+0003); each was removed"
             ]
         );
     }
