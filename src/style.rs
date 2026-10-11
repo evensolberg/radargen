@@ -207,6 +207,27 @@ pub const MIN_RADAR_WIDTH: f64 = 660.0;
 /// Smaller legend styles go proportionally lower; this is not a floor for them.
 pub const MIN_LEGIBLE_PX: f64 = 10.0;
 
+/// WCAG 2.5.8's minimum target, in CSS pixels (FR-94).
+pub const MIN_TARGET_PX: f64 = 24.0;
+/// The narrowest viewport the narrow arrangement is held to (D-66).
+pub const NARROW_MIN_VIEWPORT_PX: f64 = 320.0;
+/// Horizontal space between the viewport and the narrow SVG. Zero because the
+/// narrow SVG spans the viewport; PR 14 must keep that or change this
+/// constant, since `MIN_PX_PER_UNIT` and `HIT_RADIUS` rest on it.
+pub const NARROW_HORIZONTAL_INSET_PX: f64 = 0.0;
+/// The fewest rendered pixels per user unit any arrangement reaches: the
+/// narrow SVG at `NARROW_MIN_VIEWPORT_PX`, or the wide one at its
+/// breakpoint, where `LEGEND_NAME` renders at `MIN_LEGIBLE_PX`.
+pub const MIN_PX_PER_UNIT: f64 = ((NARROW_MIN_VIEWPORT_PX - NARROW_HORIZONTAL_INSET_PX)
+    / NARROW_WIDTH)
+    .min(MIN_LEGIBLE_PX / LEGEND_NAME.size);
+/// FR-94's hit-area radius at scale 1, in user units: 16 renders at least
+/// `MIN_TARGET_PX` across at `MIN_PX_PER_UNIT` (asserted in the tests).
+pub const HIT_RADIUS: f64 = 16.0;
+/// How far an indicator reaches from its marker's centre at scale 1: the
+/// marker, the focus ring's gap and half the ring's stroke (D-66).
+pub const INDICATOR_REACH: f64 = MARKER_RADIUS + FOCUS_RING_GAP + FOCUS_RING_STROKE / 2.0;
+
 /// FR-64's widest output, as a bound on any document width layout produces.
 const MAX_WIDTH: f64 = 10_000.0;
 
@@ -343,5 +364,25 @@ mod tests {
         let w = 1400.0;
         let rendered = LEGEND_NAME.size * f64::from(breakpoint_px(w)) / w;
         assert!((rendered - MIN_LEGIBLE_PX).abs() < 0.01, "{rendered}");
+    }
+
+    #[test]
+    fn min_px_per_unit_is_the_narrow_viewport_over_its_width() {
+        assert!(
+            (MIN_PX_PER_UNIT - 320.0 / 420.0).abs() < 1e-12,
+            "{MIN_PX_PER_UNIT}"
+        );
+    }
+
+    /// FR-94: the hit area is at least `MIN_TARGET_PX` across wherever the
+    /// document renders smallest.
+    #[test]
+    fn hit_radius_meets_fr94() {
+        const { assert!(2.0 * HIT_RADIUS * MIN_PX_PER_UNIT >= MIN_TARGET_PX) };
+    }
+
+    #[test]
+    fn indicator_reach_is_19() {
+        assert!((INDICATOR_REACH - 19.0).abs() < 1e-12, "{INDICATOR_REACH}");
     }
 }

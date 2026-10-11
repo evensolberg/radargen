@@ -99,6 +99,7 @@ pub(crate) fn bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
             *centre,
             radius + f64::midpoint(0.0, *stroke_width),
         )),
+        Node::HitArea { centre, radius, .. } => Some(Rect::disc(*centre, *radius)),
         Node::Line {
             from,
             to,
@@ -268,6 +269,7 @@ pub(crate) fn assert_finite(node: &Node) {
             stroke_width,
             ..
         } => vec![centre.x, centre.y, *radius, *stroke_width],
+        Node::HitArea { centre, radius, .. } => vec![centre.x, centre.y, *radius],
         Node::Line {
             from,
             to,
@@ -315,7 +317,7 @@ mod tests {
     use super::*;
     use crate::layout::block::fonts;
     use crate::style::KEY_LABEL;
-    use crate::svg::Group;
+    use crate::svg::{Group, ItemKey};
 
     const INK: Paint = Paint::Role(Role::Neutral(Neutral::TextMuted));
 
@@ -453,6 +455,20 @@ mod tests {
     }
 
     #[test]
+    fn a_hit_area_is_its_circle() {
+        let fonts = fonts();
+        let node = Node::HitArea {
+            centre: Point { x: 10.0, y: 20.0 },
+            radius: 16.0,
+            key: ItemKey(3),
+        };
+        same(
+            bounds(&node, &fonts).expect("paints"),
+            [-6.0, 4.0, 26.0, 36.0],
+        );
+    }
+
+    #[test]
     fn a_half_circle_arc_is_bounded_by_its_circle() {
         let fonts = fonts();
         let node = Node::Path {
@@ -529,6 +545,14 @@ mod tests {
     fn assert_finite_refuses_nan_and_infinity() {
         let ok = line(Point::ORIGIN, Point { x: 1.0, y: 1.0 }, 1.0);
         assert_finite(&ok);
+        let hit = |x| Node::HitArea {
+            centre: Point { x, y: 0.0 },
+            radius: 16.0,
+            key: ItemKey(0),
+        };
+        assert_finite(&hit(1.0));
+        let message = panic_message(std::panic::catch_unwind(|| assert_finite(&hit(f64::NAN))));
+        assert!(message.contains("NaN"), "{message}");
         for bad in [f64::NAN, f64::INFINITY] {
             let node = Node::Group(Group::new(
                 Point::ORIGIN,

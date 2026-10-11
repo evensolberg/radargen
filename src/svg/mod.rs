@@ -55,6 +55,22 @@ impl Scale {
     }
 }
 
+/// An item's identity in the output: its CSV line (architecture §5,
+/// `data-row`). Not its number, which an unplotted row does not have.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ItemKey(pub usize);
+
+/// An interactive item (FR-50).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Control {
+    /// Which item this is.
+    pub key: ItemKey,
+    /// The accessible name.
+    pub label: String,
+    /// The text of the `<title>` tooltip; legend rows (PR 11) have none.
+    pub tooltip: Option<String>,
+}
+
 /// A fill or stroke: a palette role, or nothing (architecture §5).
 ///
 /// `None` is SVG's `none`, for stroked-but-unfilled shapes. It is not FR-20's
@@ -63,6 +79,10 @@ impl Scale {
 pub enum Paint {
     /// Painted with this role; the emitter binds it to a value (FR-82).
     Role(Role),
+    /// A marker's number ink on the series entry at this index: white or the
+    /// dark ink, whichever contrasts more (FR-82). The index is unreduced,
+    /// like [`Role::Series`]; the palette cycles it (FR-67).
+    NumberOn(usize),
     /// Not painted: SVG's `none`.
     None,
 }
@@ -92,8 +112,9 @@ pub enum Anchor {
     Middle,
 }
 
-/// What a group means to assistive technology (NFR-1, FR-50).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// What a group is for: its accessibility role, or its part in the
+/// interactive layer (NFR-1, FR-50).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Semantics {
     /// Nothing to announce.
     #[default]
@@ -102,6 +123,12 @@ pub enum Semantics {
     Decorative,
     /// A heading of this level; level zero does not exist.
     Heading(NonZeroU8),
+    /// An interactive item; static formats keep its label and tooltip but
+    /// not its role or focusability.
+    Control(Control),
+    /// The raised copy of an item's marker, shown while the control has
+    /// focus. Interactive-only: static formats omit it.
+    Indicator(ItemKey),
 }
 
 /// One step of a path outline.
@@ -185,6 +212,16 @@ pub enum Node {
         /// The outline's width.
         stroke_width: f64,
     },
+    /// An invisible pointer target (FR-94). Interactive-only: static formats
+    /// omit it.
+    HitArea {
+        /// The target's centre.
+        centre: Point,
+        /// The target's radius.
+        radius: f64,
+        /// The item whose control receives the pointer events.
+        key: ItemKey,
+    },
     /// A straight line.
     Line {
         /// Where the line starts.
@@ -207,6 +244,24 @@ pub enum Node {
         /// The outline's width.
         stroke_width: f64,
     },
+}
+
+impl Node {
+    /// Whether the node exists only for pointer and keyboard users: a hit
+    /// area, an indicator group, or a non-empty group of nothing else. A
+    /// static format (SVG, PNG) omits such nodes whole.
+    #[must_use]
+    pub fn is_interactive_only(&self) -> bool {
+        match self {
+            Self::HitArea { .. } => true,
+            Self::Group(group) => {
+                matches!(group.semantics, Semantics::Indicator(_))
+                    || (!group.children.is_empty()
+                        && group.children.iter().all(Self::is_interactive_only))
+            }
+            _ => false,
+        }
+    }
 }
 
 /// A block of text, described at scale 1.
@@ -398,5 +453,57 @@ mod tests {
         };
         let group = Group::new(Point { x: 0.0, y: 0.0 }, vec![circle(1.0), circle(2.0)]);
         assert_eq!(group.children, vec![circle(1.0), circle(2.0)]);
+    }
+
+    fn hit(key: usize) -> Node {
+        Node::HitArea {
+            centre: Point::ORIGIN,
+            radius: 16.0,
+            key: ItemKey(key),
+        }
+    }
+
+    fn disc() -> Node {
+        Node::Circle {
+            centre: Point::ORIGIN,
+            radius: 1.0,
+            fill: Paint::None,
+            stroke: Paint::None,
+            stroke_width: 1.0,
+        }
+    }
+
+    #[test]
+    fn interactive_only_nodes_say_so() {
+        let group = |children| Group::new(Point::ORIGIN, children);
+        assert!(hit(1).is_interactive_only());
+        let indicator = group(vec![disc()]).with(Semantics::Indicator(ItemKey(1)));
+        assert!(Node::Group(indicator).is_interactive_only());
+        assert!(Node::Group(group(vec![hit(1), hit(2)])).is_interactive_only());
+        assert!(!Node::Group(group(Vec::new())).is_interactive_only());
+        assert!(!Node::Group(group(vec![hit(1), disc()])).is_interactive_only());
+        let control = Control {
+            key: ItemKey(1),
+            label: "1".to_owned(),
+            tooltip: None,
+        };
+        let control = group(vec![disc()]).with(Semantics::Control(control));
+        assert!(!Node::Group(control).is_interactive_only());
+        assert!(!disc().is_interactive_only());
+        let text = Node::Text {
+            origin: Point::ORIGIN,
+            style: crate::style::KEY_LABEL,
+            ink: TextPaint::Fill(Paint::None),
+            anchor: Anchor::Start,
+            lines: vec!["a".to_owned()],
+            leading: 0.0,
+        };
+        assert!(!text.is_interactive_only());
+    }
+
+    #[test]
+    fn number_ink_is_a_paint_of_its_own() {
+        assert_ne!(Paint::NumberOn(0), Paint::None);
+        assert_ne!(Paint::NumberOn(0), Paint::Role(Role::Series(0)));
     }
 }

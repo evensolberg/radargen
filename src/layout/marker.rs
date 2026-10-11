@@ -5,7 +5,7 @@ use crate::layout::geometry::polar;
 use crate::model::{Qualifier, Status};
 use crate::palette::{Neutral, Role};
 use crate::style::{MARKER_HOLLOW_STROKE, MARKER_STROKE, STATUS_RING_GAP, STATUS_RING_STROKE};
-use crate::svg::{Node, Paint, PathCommand, Point};
+use crate::svg::{Node, Paint, PathCommand, Point, Scale};
 
 /// How a marker shows its status (FR-40); `NoChange` shows nothing.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -61,11 +61,14 @@ pub struct Glyph {
 impl Glyph {
     /// The glyph's nodes, status ring first, in paint order.
     ///
-    /// The whole glyph (centre, radii, ring gap and stroke widths) is
-    /// multiplied by `scale`, so it stays inside a block drawn at that
-    /// scale (FR-70).
+    /// The centre is multiplied by `scale.position`; the radii, ring gap and
+    /// stroke widths by `scale.size` (FR-70).
     #[must_use]
-    pub fn draw(&self, scale: f64) -> Vec<Node> {
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    pub fn draw(&self, scale: Scale) -> Vec<Node> {
         let Self {
             centre,
             radius,
@@ -73,10 +76,11 @@ impl Glyph {
             mark,
             ink,
         } = *self;
-        let centre = centre.scaled(scale);
-        let radius = radius * scale;
-        let ring_radius = STATUS_RING_GAP.mul_add(scale, radius);
-        let ring_stroke = STATUS_RING_STROKE * scale;
+        let Scale { position, size } = scale;
+        let centre = centre.scaled(position);
+        let radius = radius * size;
+        let ring_radius = radius + STATUS_RING_GAP * size;
+        let ring_stroke = STATUS_RING_STROKE * size;
         let ring = match mark {
             None => None,
             Some(StatusMark::New) => Some(Node::Circle {
@@ -103,14 +107,14 @@ impl Glyph {
                 radius,
                 fill: Paint::Role(Role::Neutral(Neutral::MarkerHollow)),
                 stroke: Paint::Role(ink),
-                stroke_width: MARKER_HOLLOW_STROKE * scale,
+                stroke_width: MARKER_HOLLOW_STROKE * size,
             },
             Some(Qualifier::Default) | None => Node::Circle {
                 centre,
                 radius,
                 fill: Paint::Role(ink),
                 stroke: Paint::Role(Role::Neutral(Neutral::Surface1)),
-                stroke_width: MARKER_STROKE * scale,
+                stroke_width: MARKER_STROKE * size,
             },
         };
         ring.into_iter().chain(Some(marker)).collect()
@@ -207,7 +211,7 @@ mod tests {
             mark: None,
             ink: INK,
         }
-        .draw(1.0);
+        .draw(Scale::uniform(1.0));
         assert_eq!(nodes.len(), 1);
         assert_eq!(
             circle_fill(first(&nodes)),
@@ -224,7 +228,7 @@ mod tests {
             mark: None,
             ink: INK,
         }
-        .draw(1.0);
+        .draw(Scale::uniform(1.0));
         assert_eq!(
             stroke_of(first(&hollow)),
             (Paint::Role(INK), MARKER_HOLLOW_STROKE)
@@ -236,7 +240,7 @@ mod tests {
             mark: None,
             ink: INK,
         }
-        .draw(1.0);
+        .draw(Scale::uniform(1.0));
         assert_eq!(
             stroke_of(first(&solid)),
             (Paint::Role(Role::Neutral(Neutral::Surface1)), MARKER_STROKE)
@@ -257,7 +261,7 @@ mod tests {
                 mark: Some(mark),
                 ink: INK,
             }
-            .draw(1.0);
+            .draw(Scale::uniform(1.0));
             assert_eq!(
                 stroke_of(first(&nodes)),
                 (Paint::Role(INK), STATUS_RING_STROKE)
@@ -274,7 +278,7 @@ mod tests {
             mark: Some(StatusMark::New),
             ink: INK,
         }
-        .draw(0.5);
+        .draw(Scale::uniform(0.5));
         let [ring, marker] = nodes.as_slice() else {
             panic!("a ring and a marker");
         };
@@ -294,6 +298,42 @@ mod tests {
     }
 
     #[test]
+    fn glyph_scales_position_and_size_apart() {
+        let scale = Scale {
+            position: 0.5,
+            size: 7.0 / 9.0,
+        };
+        let nodes = Glyph {
+            centre: CENTRE,
+            radius: 10.0,
+            qualifier: None,
+            mark: Some(StatusMark::New),
+            ink: INK,
+        }
+        .draw(scale);
+        let [ring, marker] = nodes.as_slice() else {
+            panic!("a ring and a marker");
+        };
+        let Node::Circle {
+            centre,
+            radius,
+            stroke_width,
+            ..
+        } = ring
+        else {
+            panic!("expected a ring");
+        };
+        assert_eq!(*centre, Point { x: 50.0, y: 25.0 });
+        assert!((radius - 10.8889).abs() < 1e-4, "{radius}");
+        assert!((stroke_width - STATUS_RING_STROKE * 7.0 / 9.0).abs() < 1e-9);
+        let Node::Circle { radius, .. } = marker else {
+            panic!("expected a disc");
+        };
+        assert!((radius - 7.7778).abs() < 1e-4, "{radius}");
+        assert!((stroke_of(marker).1 - MARKER_STROKE * 7.0 / 9.0).abs() < 1e-9);
+    }
+
+    #[test]
     fn a_solid_marker_fills_with_its_ink() {
         for q in [Some(Qualifier::Default), None] {
             let nodes = Glyph {
@@ -303,7 +343,7 @@ mod tests {
                 mark: None,
                 ink: INK,
             }
-            .draw(1.0);
+            .draw(Scale::uniform(1.0));
             assert_eq!(circle_fill(first(&nodes)), Paint::Role(INK));
         }
     }
@@ -317,7 +357,7 @@ mod tests {
             mark: Some(StatusMark::New),
             ink: INK,
         }
-        .draw(1.0);
+        .draw(Scale::uniform(1.0));
         assert_eq!(nodes.len(), 2);
         match first(&nodes) {
             Node::Circle { radius, fill, .. } => {
@@ -339,7 +379,7 @@ mod tests {
                 mark: Some(StatusMark::MovedIn { centreward: c }),
                 ink: INK,
             }
-            .draw(1.0);
+            .draw(Scale::uniform(1.0));
             let (s, e) = ends(first(&moved_in));
             assert!(near(s, from_centre(c - 90.0)) && near(e, from_centre(c + 90.0)));
             let moved_out = Glyph {
@@ -349,7 +389,7 @@ mod tests {
                 mark: Some(StatusMark::MovedOut { centreward: c }),
                 ink: INK,
             }
-            .draw(1.0);
+            .draw(Scale::uniform(1.0));
             let (s, e) = ends(first(&moved_out));
             assert!(near(s, from_centre(c + 90.0)) && near(e, from_centre(c + 270.0)));
         }
@@ -365,7 +405,7 @@ mod tests {
             mark: Some(StatusMark::MovedIn { centreward: c }),
             ink: INK,
         }
-        .draw(1.0);
+        .draw(Scale::uniform(1.0));
         let moved_out = Glyph {
             centre: CENTRE,
             radius: 7.0,
@@ -373,7 +413,7 @@ mod tests {
             mark: Some(StatusMark::MovedOut { centreward: c }),
             ink: INK,
         }
-        .draw(1.0);
+        .draw(Scale::uniform(1.0));
         let (in_s, in_e) = ends(first(&moved_in));
         let (out_s, out_e) = ends(first(&moved_out));
         assert!(near(in_s, out_e) && near(in_e, out_s));
@@ -388,7 +428,7 @@ mod tests {
             mark: Some(StatusMark::MovedIn { centreward: 30.0 }),
             ink: INK,
         }
-        .draw(1.0);
+        .draw(Scale::uniform(1.0));
         let Node::Path { commands, .. } = first(&nodes) else {
             panic!("expected a path");
         };
@@ -426,7 +466,7 @@ mod tests {
                 mark: None,
                 ink: INK
             }
-            .draw(1.0)
+            .draw(Scale::uniform(1.0))
             .len(),
             1
         );

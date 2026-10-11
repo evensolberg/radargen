@@ -103,7 +103,7 @@ fn row_nodes(index: usize, row: Row, scale: f64) -> [Node; 2] {
         mark: row.mark,
         ink: SAMPLE_INK,
     }
-    .draw(scale);
+    .draw(Scale::uniform(scale));
     let origin = Point {
         x: KEY_LABEL_X,
         y: centre.y + KEY_LABEL_DROP,
@@ -286,7 +286,7 @@ mod tests {
                 mark: None,
                 ink,
             }
-            .draw(1.0),
+            .draw(Scale::uniform(1.0)),
             Glyph {
                 centre: c(64.0),
                 radius: 7.0,
@@ -294,7 +294,7 @@ mod tests {
                 mark: None,
                 ink,
             }
-            .draw(1.0),
+            .draw(Scale::uniform(1.0)),
             Glyph {
                 centre: c(88.0),
                 radius: 5.0,
@@ -302,7 +302,7 @@ mod tests {
                 mark: Some(StatusMark::New),
                 ink,
             }
-            .draw(1.0),
+            .draw(Scale::uniform(1.0)),
             Glyph {
                 centre: c(112.0),
                 radius: 5.0,
@@ -310,7 +310,7 @@ mod tests {
                 mark: Some(StatusMark::MovedIn { centreward: 180.0 }),
                 ink,
             }
-            .draw(1.0),
+            .draw(Scale::uniform(1.0)),
             Glyph {
                 centre: c(136.0),
                 radius: 5.0,
@@ -318,7 +318,7 @@ mod tests {
                 mark: Some(StatusMark::MovedOut { centreward: 180.0 }),
                 ink,
             }
-            .draw(1.0),
+            .draw(Scale::uniform(1.0)),
         ];
         for (i, want) in expected.iter().enumerate() {
             assert_eq!(sample(&nodes, i), want.as_slice());
@@ -424,7 +424,7 @@ mod tests {
                 mark: row.mark,
                 ink,
             }
-            .draw(0.5);
+            .draw(Scale::uniform(0.5));
             assert_eq!(sample(&nodes, i), want.as_slice());
         }
         let Node::Circle {
