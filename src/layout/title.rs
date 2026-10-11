@@ -284,16 +284,7 @@ mod tests {
 
     #[test]
     fn a_placed_title_is_the_origin_title_translated() {
-        let b = block(Some("Title"), Some("Sub"));
-        let placed = Placement {
-            origin: Point { x: 5.0, y: 7.0 },
-            scale: 1.0,
-        };
-        let (Node::Group(placed), Node::Group(home)) = (b.render(placed), b.render(at(1.0))) else {
-            panic!("the title renders a group");
-        };
-        assert_eq!(placed.offset, Point { x: 5.0, y: 7.0 });
-        assert_eq!(placed.children, home.children);
+        crate::layout::block::assert_translates(&block(Some("Title"), Some("Sub")));
     }
 
     #[test]

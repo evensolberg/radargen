@@ -58,6 +58,31 @@ pub trait Block {
 }
 
 #[cfg(test)]
+const TRANSLATED_TO: Point = Point { x: 5.0, y: 7.0 };
+
+/// Test helper: `block` rendered at (5, 7) is its origin rendering with only
+/// the root group's offset changed.
+///
+/// # Panics
+///
+/// If the block does not render a group, or the placement changes anything
+/// but the offset.
+#[cfg(test)]
+pub(crate) fn assert_translates(block: &impl Block) {
+    let rendered = |origin| {
+        let at = Placement { origin, scale: 1.0 };
+        let Node::Group(group) = block.render(at) else {
+            panic!("a block renders a group");
+        };
+        group
+    };
+    let home = rendered(Point { x: 0.0, y: 0.0 });
+    let placed = rendered(TRANSLATED_TO);
+    assert_eq!(placed.offset, TRANSLATED_TO);
+    assert_eq!(placed.children, home.children);
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

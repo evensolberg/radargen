@@ -4,7 +4,7 @@
 use std::num::NonZeroU8;
 
 use crate::layout::block::{Block, Placement, Size};
-use crate::layout::marker::{StatusMark, draw};
+use crate::layout::marker::{Glyph, StatusMark};
 use crate::model::Qualifier;
 use crate::palette::{Neutral, Role};
 use crate::style::{
@@ -95,14 +95,14 @@ fn text(label: &str, origin: Point, style: TextStyle, ink: Neutral, scale: f64) 
 /// One row: its decorative sample, then its label.
 fn row_nodes(index: usize, row: Row, scale: f64) -> [Node; 2] {
     let centre = sample_centre(index);
-    let glyph = draw(
+    let glyph = Glyph {
         centre,
-        row.radius,
-        row.qualifier,
-        row.mark,
-        SAMPLE_INK,
-        scale,
-    );
+        radius: row.radius,
+        qualifier: row.qualifier,
+        mark: row.mark,
+        ink: SAMPLE_INK,
+    }
+    .draw(scale);
     let origin = Point {
         x: KEY_LABEL_X,
         y: centre.y + KEY_LABEL_DROP,
@@ -296,25 +296,46 @@ mod tests {
         let c = |y| Point { x: 10.0, y };
         let ink = Role::Neutral(Neutral::TextMuted);
         let expected = [
-            draw(c(40.0), 7.0, Some(Qualifier::Default), None, ink, 1.0),
-            draw(c(64.0), 7.0, Some(Qualifier::Conditional), None, ink, 1.0),
-            draw(c(88.0), 5.0, None, Some(StatusMark::New), ink, 1.0),
-            draw(
-                c(112.0),
-                5.0,
-                None,
-                Some(StatusMark::MovedIn { centreward: 180.0 }),
+            Glyph {
+                centre: c(40.0),
+                radius: 7.0,
+                qualifier: Some(Qualifier::Default),
+                mark: None,
                 ink,
-                1.0,
-            ),
-            draw(
-                c(136.0),
-                5.0,
-                None,
-                Some(StatusMark::MovedOut { centreward: 180.0 }),
+            }
+            .draw(1.0),
+            Glyph {
+                centre: c(64.0),
+                radius: 7.0,
+                qualifier: Some(Qualifier::Conditional),
+                mark: None,
                 ink,
-                1.0,
-            ),
+            }
+            .draw(1.0),
+            Glyph {
+                centre: c(88.0),
+                radius: 5.0,
+                qualifier: None,
+                mark: Some(StatusMark::New),
+                ink,
+            }
+            .draw(1.0),
+            Glyph {
+                centre: c(112.0),
+                radius: 5.0,
+                qualifier: None,
+                mark: Some(StatusMark::MovedIn { centreward: 180.0 }),
+                ink,
+            }
+            .draw(1.0),
+            Glyph {
+                centre: c(136.0),
+                radius: 5.0,
+                qualifier: None,
+                mark: Some(StatusMark::MovedOut { centreward: 180.0 }),
+                ink,
+            }
+            .draw(1.0),
         ];
         for (i, want) in expected.iter().enumerate() {
             assert_eq!(sample(&nodes, i), want.as_slice());
@@ -413,14 +434,14 @@ mod tests {
         let nodes = rendered(0.5);
         let ink = Role::Neutral(Neutral::TextMuted);
         for (i, row) in ROWS.iter().enumerate() {
-            let want = draw(
-                sample_centre(i),
-                row.radius,
-                row.qualifier,
-                row.mark,
+            let want = Glyph {
+                centre: sample_centre(i),
+                radius: row.radius,
+                qualifier: row.qualifier,
+                mark: row.mark,
                 ink,
-                0.5,
-            );
+            }
+            .draw(0.5);
             assert_eq!(sample(&nodes, i), want.as_slice());
         }
         let Node::Circle {
@@ -437,17 +458,7 @@ mod tests {
 
     #[test]
     fn a_placed_key_is_the_origin_key_translated() {
-        let key = KeyBlock::new(&fonts());
-        let placed = Placement {
-            origin: Point { x: 5.0, y: 7.0 },
-            scale: 1.0,
-        };
-        let (Node::Group(placed), Node::Group(home)) = (key.render(placed), key.render(at(1.0)))
-        else {
-            panic!("the key renders a group");
-        };
-        assert_eq!(placed.offset, Point { x: 5.0, y: 7.0 });
-        assert_eq!(placed.children, home.children);
+        crate::layout::block::assert_translates(&KeyBlock::new(&fonts()));
     }
 
     #[test]
