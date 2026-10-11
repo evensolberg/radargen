@@ -76,7 +76,7 @@ const fn sample_centre(index: usize) -> Point {
         clippy::as_conversions,
         reason = "a row index is at most four, so the conversion is exact"
     )]
-    let y = (index as f64).mul_add(KEY_ROW, KEY_FIRST_ROW);
+    let y = KEY_FIRST_ROW + (index as f64) * KEY_ROW;
     Point { x: KEY_SAMPLE_X, y }
 }
 
