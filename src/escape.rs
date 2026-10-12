@@ -10,16 +10,22 @@
 /// Why [`json`] refused: a float reached it.
 const RAW_FLOAT: &str = "a raw float reached json(); format coordinates with num::fmt_coord and pass the string (NFR-17)";
 
-/// FR-90's set: every control character (`char::is_control`, so C0, DEL and C1)
-/// except tab, LF and CR, plus U+FFFE/U+FFFF.
+/// Whether `c` survives FR-90.
 ///
+/// FR-90 removes every control character (`char::is_control`, so C0, DEL and
+/// C1) except tab, LF and CR; U+FFFE/U+FFFF; and the nine bidirectional
+/// embedding, override and isolate characters (U+202A–202E, U+2066–2069).
 /// XML forbids C0 and the two noncharacters; DEL and C1 are legal XML, but no
-/// font draws them. FR-90 removes these on input and calls this to decide
-/// which; the escaping functions only replace them as a backstop, so that they
-/// stay total.
+/// font draws them. The bidi characters draw nothing either, and reorder the
+/// text after them, so a name could display as something it is not (D-72);
+/// the directional marks, which only nudge neutral characters, are kept.
+/// FR-90 removes these on input and calls this to decide which; the escaping
+/// functions only replace them as a backstop, so that they stay total.
 #[must_use]
 pub const fn displayable(c: char) -> bool {
-    matches!(c, '\t' | '\n' | '\r') || !(c.is_control() || matches!(c, '\u{fffe}' | '\u{ffff}'))
+    matches!(c, '\t' | '\n' | '\r')
+        || !(c.is_control()
+            || matches!(c, '\u{fffe}' | '\u{ffff}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'))
 }
 
 /// FR-90's removal, in one pass: deletes every character [`displayable`]
@@ -350,6 +356,33 @@ pub fn css_value(s: &str) -> Result<&str, CssValueError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The nine bidirectional embedding, override and isolate characters:
+    /// they reorder the text that follows, so a name could display as
+    /// something other than what it is (FR-90, D-72).
+    const BIDI_FORMATTING: [char; 9] = [
+        '\u{202a}', '\u{202b}', '\u{202c}', '\u{202d}', '\u{202e}', '\u{2066}', '\u{2067}',
+        '\u{2068}', '\u{2069}',
+    ];
+
+    #[test]
+    fn bidi_formatting_characters_are_not_displayable() {
+        for c in BIDI_FORMATTING {
+            assert!(!displayable(c), "U+{:04X}", u32::from(c));
+        }
+        // The marks only nudge neutral characters, so they cannot reorder
+        // letters; they stay, as do the joiners emoji sequences need.
+        for c in ['\u{200e}', '\u{200f}', '\u{61c}', '\u{200d}', '\u{200c}'] {
+            assert!(displayable(c), "U+{:04X}", u32::from(c));
+        }
+    }
+
+    #[test]
+    fn a_bidi_override_is_removed_from_inside_a_name() {
+        let mut name = "Kafka\u{202e}gnp.exe".to_owned();
+        assert_eq!(remove_undisplayable(&mut name), Some(('\u{202e}', 1)));
+        assert_eq!(name, "Kafkagnp.exe");
+    }
 
     /// SC-9's hostile strings.
     const HOSTILE: &[&str] = &[

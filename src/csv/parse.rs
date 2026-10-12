@@ -1073,6 +1073,18 @@ mod tests {
 
     /// FR-90, D-55: removed, with one warning per field naming line and column.
     #[test]
+    fn a_bidi_override_is_removed_and_warned() {
+        let (table, _, warnings) = parsed("name,description\nKafka\u{202e}gnp,ok\n");
+        let table = table.expect("parses");
+        let record = table.records.first().expect("one record");
+        assert_eq!(record.fields, ["Kafkagnp", "ok"]);
+        assert_eq!(
+            warnings,
+            ["warning: line 2, name: removed U+202E, which the output cannot display"]
+        );
+    }
+
+    #[test]
     fn undisplayable_characters_are_removed_and_warned() {
         let (table, _, warnings) = parsed("name,description\nKaf\u{1}ka,ok\n");
         assert_eq!(
