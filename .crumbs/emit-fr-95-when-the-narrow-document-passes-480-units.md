@@ -1,14 +1,15 @@
 ---
 id: rg-pti
 title: Emit FR-95 when the narrow document passes 480 units
-status: open
+status: closed
 type: feature
 priority: 2
 tags:
 - diagnostics
 - layout
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-12
+closed_reason: 'PR 14a (#59): warn_narrow names the quadrant or ring that sets the width (D-73)'
 phase: ''
 ---
 

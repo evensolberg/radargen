@@ -1,7 +1,7 @@
 ---
 id: rg-eae
 title: Name the radar group for assistive technology
-status: open
+status: closed
 type: task
 priority: 2
 tags:
@@ -10,6 +10,7 @@ tags:
 - layout
 created: 2026-10-12
 updated: 2026-10-12
+closed_reason: 'PR 14a (#59): the radar is a named group; untitled pages get a hidden h1 (D-75)'
 phase: v1.0
 ---
 

@@ -10,9 +10,9 @@ crumb_id: rg-f27
 document_title: "PR 14a — the pipeline, end to end: Implementation Plan"
 created_date: 2026-10-12
 synopsis: "main.rs runs the whole pipeline: flags, CSV, catalogue, order, layout, arrange, serialise, a minimal HTML page, and the atomic write. Diagnostics print in NFR-16's three tiers and NFR-11's order, with warnings before errors and nothing on stdout. A failure leaves -o untouched. Adds FR-62's missing-directory check, the refusal to overwrite the input (D-74), a font-load error, FR-95's narrow-width warning naming the quadrant or ring that sets the width (rg-pti, D-73) and the radar group's accessible name (rg-eae). The full page (both arrangements, dual palette, inlined font) is PR 14b."
-status: draft
+status: complete
 type: Plan
-revision: "1.1"
+revision: "1.2"
 review_date: 2026-10-12
 reviewed_by:
   - Rust seat
@@ -20,12 +20,12 @@ reviewed_by:
   - architecture seat
   - accessibility seat
   - security seat
-completed_date:
+completed_date: 2026-10-12
 comments: "1.1 folds in the five-seat plan review and the maintainer's rulings D-73 and D-74. See Review rulings."
 ---
 # PR 14a — the pipeline, end to end: Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Crumbs:** `rg-f27` (part one), `rg-pti`, `rg-eae` · **Phase:** v1.0 · **After:** PR 13, PR 58 (D-72) · **Then:** PR 14b (the full page), PR 15 (interactivity, first release)
 
@@ -131,14 +131,14 @@ Five seats reviewed revision 1.0: Rust, QA, architecture, accessibility, and sec
 
 **Files:** `docs/product/radargen-prd.md` (v0.56), `docs/design/architecture.md`.
 
-- [ ] **Step 1:** In the PRD:
+- [x] **Step 1:** In the PRD:
   - **FR-95** names "the label, a quadrant's or a ring's, whose width sets the radar's width"; a ring is named with its `--rings` source.
   - **FR-62** adds: "`-o` naming the input CSV is a hard error (D-74)." NFR-9's list and NFR-16's tier one gain it.
   - **FR-65** adds: "With no title, the HTML page's tab title and a visually hidden level-1 heading read *Technology Radar* (D-75)."
   - **D-73** (ring-driven width), **D-74** (same file, canonicalised; hard links not caught), **D-75** (the title fallback and the radar group's name, with the reasons in this plan's Decisions).
   - Version 0.56, `date modified`, and the revision-history row.
-- [ ] **Step 2:** In architecture §3, add `src/pipeline.rs` ("the run: `Config`, the stages, `Report`") and narrow `main.rs` to "parse args, run, print, exit code". In §7, `Config` is built in `pipeline.rs`.
-- [ ] **Step 3: Commit** `docs(prd): D-73 to D-75, FR-95's ring, -o as the input, the title fallback`.
+- [x] **Step 2:** In architecture §3, add `src/pipeline.rs` ("the run: `Config`, the stages, `Report`") and narrow `main.rs` to "parse args, run, print, exit code". In §7, `Config` is built in `pipeline.rs`.
+- [x] **Step 3: Commit** `docs(prd): D-73 to D-75, FR-95's ring, -o as the input, the title fallback`.
 
 ---
 
@@ -152,14 +152,14 @@ Five seats reviewed revision 1.0: Rust, QA, architecture, accessibility, and sec
 - `src/emit/mod.rs`: `pub const OUTPUT_VERSION: &str = concat!("radargen ", env!("CARGO_PKG_VERSION_MAJOR"), ".", env!("CARGO_PKG_VERSION_MINOR"));`.
 - `tests/diagnostics.rs`.
 
-- [ ] **Step 1: Failing tests, exact messages:**
+- [x] **Step 1: Failing tests, exact messages:**
   - `MissingDirectory`: `error: -o out/radar.html: the directory out does not exist`.
   - `OutputIsInput`: `error: -o radar.csv: is the input CSV; choose another output path`.
   - `Font`: `Fatal::Font(FontMetrics::load(b"x", "Inter SemiBold").unwrap_err()).render()` starts `error: the embedded Inter SemiBold font cannot be read: `.
   - `NarrowWidened`, both bindings, the exact lines from Decisions, a padded label trimmed.
   - `output_version_has_no_patch`: `OUTPUT_VERSION` is `radargen ` followed by `CARGO_PKG_VERSION`'s first two dot-separated fields, and has exactly one `.`.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual.
-- [ ] **Step 5: Commit** `feat(diagnostics): FR-62's directory, D-74, the font failure, FR-95`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual.
+- [x] **Step 5: Commit** `feat(diagnostics): FR-62's directory, D-74, the font failure, FR-95`.
 
 ---
 
@@ -173,12 +173,12 @@ Five seats reviewed revision 1.0: Rust, QA, architecture, accessibility, and sec
 - `tests/serialise/vocabulary.rs`: `group` joins the static roles.
 - Re-bless `tests/golden/serialiser/*.svg` (`UPDATE_GOLDEN=1`), then read the diff: one changed line each.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `the_radar_is_a_named_group`: the PRD example's radar render has `Semantics::Group("Technology radar: 3 quadrants, 4 rings, 6 items")`. The example has a seventh, unplotted row, so this also proves plotted items are counted.
   - `label_counts_singular_and_plural`: (1, 1, 1) gives `Technology radar: 1 quadrant, 1 ring, 1 item`; (0, 4, 0) gives `Technology radar: 0 quadrants, 4 rings, 0 items`.
   - `a_named_group_in_both_targets`: a hand-built group at `Point::ORIGIN` serialises `<g role="group" aria-label="…">` exactly, in both targets. For the radar, assert the substring ` role="group" aria-label="Technology radar: 3 quadrants, 4 rings, 6 items"`, after its `transform`.
-- [ ] **Step 2–4:** red, implement, green; re-bless and read the diff; lints; rustqual.
-- [ ] **Step 5: Commit** `feat(svg): the radar is a named group for assistive technology (rg-eae)`.
+- [x] **Step 2–4:** red, implement, green; re-bless and read the diff; lints; rustqual.
+- [x] **Step 5: Commit** `feat(svg): the radar is a named group for assistive technology (rg-eae)`.
 
 ---
 
@@ -186,14 +186,14 @@ Five seats reviewed revision 1.0: Rust, QA, architecture, accessibility, and sec
 
 **Files:** `src/layout/radar/mod.rs` (`binding_label`), `src/layout/arrange.rs` (`warn_narrow`), tests in each.
 
-- [ ] **Step 1: Failing tests** (fixtures: `arrange.rs`'s `beyond()`, `widened()`, `thoughtworks()`, and the PRD example):
+- [x] **Step 1: Failing tests** (fixtures: `arrange.rs`'s `beyond()`, `widened()`, `thoughtworks()`, and the PRD example):
   - `fr95_names_the_binding_quadrant`: `beyond()` warns once, naming its long quadrant, with `width` the narrow width rounded up.
   - `fr95_names_a_diagonal_over_a_longer_six_oclock`: three quadrants, the one at FR-10 position 0 (6 o'clock) the longest name, a diagonal one shorter but reaching further; the diagonal one is named. Assert both names' lengths in the test, so the fixture cannot silently stop meaning this.
   - `fr95_names_a_binding_ring`: `--rings` with a 70-character entry and quadrant `Tools` names the ring.
   - `fr95_with_no_quadrants`: the same rings and a header-only CSV names the ring.
   - `fr95_is_quiet_within_the_headroom`: `widened()`, `thoughtworks()` and the PRD example push nothing.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual.
-- [ ] **Step 5: Commit** `feat(layout): FR-95 names the label past 480 (rg-pti, D-73)`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual.
+- [x] **Step 5: Commit** `feat(layout): FR-95 names the label past 480 (rg-pti, D-73)`.
 
 ---
 
@@ -203,7 +203,7 @@ Five seats reviewed revision 1.0: Rust, QA, architecture, accessibility, and sec
 
 **Interfaces:** `pub fn page(wide: &Document, title: Option<&str>) -> String`. `title` is `Config`'s resolved title. `page` serialises `wide` with `Target::Static(&Palette::built_in(Theme::Light))`.
 
-- [ ] **Step 1: Failing tests** (the tests build `wide` with `arrange(Wide, &prd().blocks)`):
+- [x] **Step 1: Failing tests** (the tests build `wide` with `arrange(Wide, &prd().blocks)`):
   - `the_page_is_minimal_and_valid`:
     - it starts `<!DOCTYPE html>\n<html lang="en">`, and ends `</html>\n`; LF only, no BOM;
     - it has the charset meta, the viewport meta exactly (no `maximum-scale`, `minimum-scale` or `user-scalable`), and `<meta name="generator" content="{OUTPUT_VERSION}">`;
@@ -212,8 +212,8 @@ Five seats reviewed revision 1.0: Rust, QA, architecture, accessibility, and sec
   - `the_page_requests_nothing` (NFR-5): a tag scan finds only `html head meta title style body main h1` outside the SVG, and the SVG's elements and attributes are `tests/serialise/vocabulary.rs`'s; no attribute is `src`, `srcset`, `href`, `xlink:href`, `action`, `data`, `poster` or `http-equiv`; `<style>` has no `url(`, `@import` or `src:`.
   - `the_title_falls_back`: for `None`, `<title>Technology Radar</title>` and `<h1 class="visually-hidden">Technology Radar</h1>` before the SVG; with `Some("Q3 Radar")`, `<title>Q3 Radar</title>` and no `<h1`.
   - `a_hostile_title_is_escaped`: `</title><script>&amp;"` arrives as `&lt;/title&gt;&lt;script&gt;&amp;amp;"` in `<title>`, and the tag scan finds no `script` element.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual.
-- [ ] **Step 5: Commit** `feat(emit): a minimal HTML page around the wide radar`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual.
+- [x] **Step 5: Commit** `feat(emit): a minimal HTML page around the wide radar`.
 
 ---
 
@@ -258,7 +258,7 @@ The run is split into integration and operation functions under IOSP:
 
 Warnings are rendered once at the end, so every exit prints those gathered so far. `main`: `let report = run(&Cli::parse());`, `eprintln!` each warning then each error, `ExitCode::from(u8::from(report.outcome.is_err()))`.
 
-- [ ] **Step 1: Failing tests** in `tests/run.rs`. Each runs the binary with `current_dir` a `tempfile::tempdir()` and relative paths, so messages carry no platform-specific prefix, and reads `status`, `stdout` and `stderr`. A `Writable` guard as in `src/emit/write.rs`'s tests restores permissions on Windows.
+- [x] **Step 1: Failing tests** in `tests/run.rs`. Each runs the binary with `current_dir` a `tempfile::tempdir()` and relative paths, so messages carry no platform-specific prefix, and reads `status`, `stdout` and `stderr`. A `Writable` guard as in `src/emit/write.rs`'s tests restores permissions on Windows.
   - `renders_the_prd_example`: `tests/fixtures/three-quadrant.csv` gives exit 0, empty stdout, stderr exactly the FR-17 line for `Rejected` (as `tests/model.rs:65`), and a file holding the generator meta and ` role="group" aria-label="Technology radar: 3 quadrants, 4 rings, 6 items"`.
   - `a_failed_run_leaves_the_old_file` (Review Focus 1). For each case, seed `-o`, run, and check exit ≠ 0, the bytes unchanged, the directory listing unchanged and stdout empty; then run the **control** with the fault removed and check exit 0 and changed bytes. Cases: `--rings ","`; a missing CSV; `tests/fixtures/row-errors.csv`; `-o` a read-only file; `-o` naming an existing directory (`out.html/`).
   - `warnings_then_errors_on_stderr_only` (Review Focus 2): `--title "T\u{1}"` and a CSV with an FR-90 character and row errors. stderr is the `FlagUndisplayable` line, then the row warning, then every `error:` line; stdout is empty.
@@ -279,9 +279,9 @@ Warnings are rendered once at the end, so every exit prints those gathered so fa
     - an empty file gives exit 1 and the no-header message exactly;
     - a BOM and CRLF export of the PRD example gives exit 0 and the same bytes as the LF one.
   - `the_binary_prints_usage`: no arguments gives exit ≠ 0 and `Usage:` on stderr (FR-60).
-- [ ] **Step 2–4:** red, implement, green; delete the five `qual:api` markers; lints; rustqual. Run the binary on `tests/fixtures/three-quadrant.csv` and look at the page in a browser.
-- [ ] **Step 5: Gate** `just ci`.
-- [ ] **Step 6: Commit** `feat: the pipeline, end to end (PR 14a)`.
+- [x] **Step 2–4:** red, implement, green; delete the five `qual:api` markers; lints; rustqual. Run the binary on `tests/fixtures/three-quadrant.csv` and look at the page in a browser.
+- [x] **Step 5: Gate** `just ci`.
+- [x] **Step 6: Commit** `feat: the pipeline, end to end (PR 14a)`.
 
 ---
 
@@ -317,3 +317,4 @@ A fresh Opus reviewer in Copilot's seat (out of credits until November 2026) fou
 | --- | --- | --- |
 | 1.0 | 2026-10-12 | Initial version, for the plan review. |
 | 1.1 | 2026-10-12 | The five-seat review and the maintainer's rulings: FR-95 names a quadrant or ring (D-73); `-o` naming the input refused (D-74); the title fallback and group name recorded (D-75); `Config`; `page` takes a `Document`; `warn_narrow` pushes; FR-62 on NotFound only; NFR-5 by allowlist; hostile text end to end; control runs in the failure matrix; `<main>`; the 14b `display:none` handoff. |
+| 1.2 | 2026-10-12 | Complete. The final review: D-74 by file identity (`same-file`), the Windows `escaped_paths` fix, deferred minors as crumbs; simplify (one label-reach iterator, `Blocks::new`). |
