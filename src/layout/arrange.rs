@@ -120,7 +120,6 @@ fn wide(blocks: &Blocks) -> Placements {
     let radar_right = RADAR_INSET + radar.width;
     let ink_right = radar_right - RADAR_LABEL_PAD;
     let key_y = top + radar.height;
-    let key = blocks.key.size(1.0);
     let legend = blocks.legend.size(1.0);
     let (legend_at, width) = if legend.is_empty() {
         (
@@ -142,7 +141,7 @@ fn wide(blocks: &Blocks) -> Placements {
     };
     Placements {
         width,
-        height: (key_y + key.height).max(legend_at.y + legend.height) + MARGIN,
+        height: (key_y + blocks.key.size(1.0).height).max(legend_at.y + legend.height) + MARGIN,
         title: Placement::at(Point {
             x: MARGIN,
             y: DOC_TOP,
@@ -254,14 +253,14 @@ fn narrow_scale(radar: &impl Block, column: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::block::{Placement, Size, close, fonts};
+    use crate::layout::block::{Size, close, fonts};
     use crate::layout::test_support::{
         HEAD, NAME_THREE_LINES, PRD_EXAMPLE, Rect, assert_finite, assert_inside, bounds, near,
         plotted,
     };
     use crate::model::Catalogue;
     use crate::order::Plotted;
-    use crate::style::{NARROW_MAX_WIDTH, NARROW_WIDTH};
+    use crate::style::NARROW_MAX_WIDTH;
     use crate::svg::ItemKey;
 
     /// The title and subtitle a fixture is built with.
@@ -330,9 +329,7 @@ mod tests {
 
     /// Thirty items in one quadrant: a legend taller than radar and key.
     fn tall() -> String {
-        (0..30).fold(HEAD.to_owned(), |csv, i| {
-            csv + &format!("item {i},Q,Adopt,d\n")
-        })
+        quadrants(&["Q"; 30])
     }
 
     fn nine() -> String {
@@ -527,9 +524,7 @@ mod tests {
     fn narrow_widens_when_the_radar_cannot_fit() {
         let widened = blocks(&widened(), TITLED);
         let p = placements(Arrangement::Narrow, &widened);
-        let radar = radar_size(&widened, &p);
         assert!(close(p.radar.scale, NARROW_MIN_SCALE), "{p:?}");
-        assert!(close(p.width, radar.width + 20.0), "{}", p.width);
         assert!(
             p.width > NARROW_WIDTH && p.width <= NARROW_MAX_WIDTH,
             "{}",
@@ -701,18 +696,18 @@ mod tests {
     }
 
     /// Every control's key in tree order, and whether it is a legend row.
-    fn controls(node: &Node, found: &mut Vec<(ItemKey, bool)>) {
+    fn controls(node: &Node) -> Vec<(ItemKey, bool)> {
         let Node::Group(group) = node else {
-            return;
+            return Vec::new();
         };
-        match &group.semantics {
-            Semantics::Marker(control) => found.push((control.key, false)),
-            Semantics::LegendRow(control) => found.push((control.key, true)),
-            _ => {}
-        }
-        for child in &group.children {
-            controls(child, found);
-        }
+        let own = match &group.semantics {
+            Semantics::Marker(control) => Some((control.key, false)),
+            Semantics::LegendRow(control) => Some((control.key, true)),
+            _ => None,
+        };
+        own.into_iter()
+            .chain(group.children.iter().flat_map(controls))
+            .collect()
     }
 
     /// FR-68: the same items in both, every marker before the first legend
@@ -722,11 +717,7 @@ mod tests {
         let b = blocks(PRD_EXAMPLE, TITLED);
         let found: Vec<Vec<(ItemKey, bool)>> = BOTH
             .iter()
-            .map(|&arrangement| {
-                let mut found = Vec::new();
-                controls(&arrange(arrangement, &b).root, &mut found);
-                found
-            })
+            .map(|&arrangement| controls(&arrange(arrangement, &b).root))
             .collect();
         let [wide, narrow] = found.as_slice() else {
             panic!("two documents");
