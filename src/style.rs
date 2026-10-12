@@ -423,26 +423,25 @@ pub fn breakpoint_px(wide_width: f64) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::block::{close, fonts};
-    use crate::text::Fonts;
 
     /// One measure for every block: the style's face, size and spacing.
     #[test]
     fn a_style_measures_with_its_face_size_and_spacing() {
-        let fonts = fonts();
+        let fonts = Fonts::embedded().expect("faces");
         for style in [LEGEND_NAME, QUADRANT_LABEL, RING_LABEL, TITLE] {
             let want =
                 fonts
                     .face(style.weight)
                     .measure("Kubernetes", style.size, style.letter_spacing);
-            assert!(close(style.measure("Kubernetes", fonts), want), "{style:?}");
+            let got = style.measure("Kubernetes", &fonts);
+            assert!((got - want).abs() < 1e-12, "{style:?}: {got} vs {want}");
         }
     }
 
     /// And one wrap (FR-79).
     #[test]
     fn a_style_wraps_with_its_face_size_and_spacing() {
-        let fonts = fonts();
+        let fonts = Fonts::embedded().expect("faces");
         let text = "Continuous delivery pipelines for managed infrastructure";
         let style = LEGEND_NAME;
         let want = crate::text::wrap(
@@ -452,7 +451,7 @@ mod tests {
             style.size,
             style.letter_spacing,
         );
-        assert_eq!(style.wrap(text, 200.0, fonts), want);
+        assert_eq!(style.wrap(text, 200.0, &fonts), want);
         assert!(want.len() > 1, "the fixture wraps: {want:?}");
     }
 
