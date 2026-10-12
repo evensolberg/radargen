@@ -12,11 +12,9 @@ use radargen::svg::{
     Anchor, Document, Group, ItemKey, Node, Paint, PathCommand, Point, Target, TextPaint, serialise,
 };
 
+use super::html::SVG_ELEMENTS;
 use super::{BOTH, parse, prd, targets};
 
-const ELEMENTS: [&str; 9] = [
-    "svg", "g", "circle", "rect", "line", "path", "text", "tspan", "title",
-];
 const EITHER: [&str; 29] = [
     "xmlns",
     "viewBox",
@@ -122,7 +120,7 @@ pub fn vocabulary(markup: &str, interactive: bool) {
     let doc = parse(markup);
     for node in doc.descendants().filter(roxmltree::Node::is_element) {
         let tag = node.tag_name().name();
-        assert!(ELEMENTS.contains(&tag), "<{tag}>");
+        assert!(SVG_ELEMENTS.contains(&tag), "<{tag}>");
         for a in node.attributes() {
             attribute(a.name(), a.value(), interactive);
         }

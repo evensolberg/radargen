@@ -1,16 +1,20 @@
 //! Whole documents through the serialiser (PR 13): the vocabulary, late
 //! binding as resvg sees it, identity by CSV line, hostile text, and a
-//! golden file per target (NFR-4, NFR-6, FR-54, architecture §5).
+//! golden file per target, and the minimal HTML page around it (NFR-4,
+//! NFR-5, NFR-6, FR-54, architecture §5).
 
 #[path = "../common/catalogue.rs"]
 mod catalogue;
 #[path = "../common/fonts.rs"]
 mod fonts;
+#[path = "../common/html.rs"]
+mod html;
 
 mod colours;
 mod golden;
 mod hostile;
 mod identity;
+mod page;
 mod vocabulary;
 
 use radargen::layout::arrange::{Arrangement, Blocks};
