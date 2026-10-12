@@ -10,12 +10,12 @@ crumb_id: rg-6ku
 document_title: "PR 13 — the SVG serialiser and the atomic write: Implementation Plan"
 created_date: 2026-10-12
 synopsis: "svg::serialise turns a Document into SVG markup for two targets: interactive (HTML: var() colours, controls with role, tabindex and data-row, hit areas and indicators kept) and static (SVG and PNG: literal colours, interactive-only nodes dropped, controls as role='img' with aria-label and title). emit::write_atomic writes bytes through a same-directory temp file and a rename, with fs::write's permissions, leaving any existing file byte-unchanged on failure (architecture §5, §6; NFR-4, NFR-6, NFR-14, NFR-17, SC-18)."
-status: draft
+status: complete
 type: Plan
-revision: "1.1"
+revision: "1.2"
 review_date: 2026-10-12
 reviewed_by: [rust-engineer, architect-reviewer, qa-expert, security-auditor, accessibility-tester]
-completed_date:
+completed_date: 2026-10-12
 comments: "1.1 folds in the five-seat plan review. See Review rulings."
 ---
 # PR 13 — the SVG serialiser and the atomic write: Implementation Plan
@@ -252,7 +252,7 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), Fatal> {
 
 The shape follows the IOSP rule: if rustqual flags the guard plus calls, split the read-only check into its own operation.
 
-- [ ] **Step 1: Failing tests.** Use `tempfile::tempdir()` (removed on drop, even after a panic), compare bytes with `fs::read`, and use no mocks.
+- [x] **Step 1: Failing tests.** Use `tempfile::tempdir()` (removed on drop, even after a panic), compare bytes with `fs::read`, and use no mocks.
   - **The plain cases:**
     - `writes_a_new_file`: exact bytes back (LF text, no BOM).
     - `replaces_an_existing_file`.
@@ -273,8 +273,8 @@ The shape follows the IOSP rule: if rustqual flags the guard plus calls, split t
     - `#[cfg(unix)] the_output_gets_the_mode_fs_write_gives`: compared with a sibling written by `fs::write`, so it is independent of the umask.
     - `#[cfg(unix)] a_symlink_at_the_path_is_replaced_not_followed`: the link's target is byte-unchanged, and `-o` is a regular file.
     - `concurrent_writes_leave_one_whole_file`: two threads, distinct 1 MiB payloads, 20 rounds each. The file equals one payload and the directory holds only it.
-- [ ] **Step 2–4:** red, implement, green. Run clippy, `cargo deny check licenses` and rustqual.
-- [ ] **Step 5: Commit** `feat(emit): write output atomically (NFR-14, SC-18)`.
+- [x] **Step 2–4:** red, implement, green. Run clippy, `cargo deny check licenses` and rustqual.
+- [x] **Step 5: Commit** `feat(emit): write output atomically (NFR-14, SC-18)`.
 
 ---
 
@@ -319,7 +319,7 @@ pub const DATA_ROW: &str = "data-row";
 
 The internal helpers are `attr(out: &mut String, name: &str, value: &str)`, which always calls `xml_attr`, and `coord(out: &mut String, name: &str, v: f64)`, which always calls `fmt_coord`.
 
-- [ ] **Step 1: Failing tests.** Hand-built nodes, with exact expected strings, since attribute order is part of NFR-4.
+- [x] **Step 1: Failing tests.** Hand-built nodes, with exact expected strings, since attribute order is part of NFR-4.
   - `the_root_carries_the_view_box`: an empty 420.5 × 100 document gives exactly `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420.5 100">\n</svg>`.
   - `shapes_write_their_attributes`:
     - each shape, with `stroke-width` absent for `Paint::None`;
@@ -347,8 +347,8 @@ The internal helpers are `attr(out: &mut String, name: &str, value: &str)`, whic
     - one node of every kind, with every float field 1.234_567: every number in every attribute matches `^-?\d+(\.\d{1,3})?$`;
     - an origin of (-0.0, -3.5) writes `0` and `-3.5`;
     - no `-0` anywhere.
-- [ ] **Step 2–4:** red, implement in the IOSP shape the Global Constraints give, green; lints; rustqual.
-- [ ] **Step 5: Commit** `feat(svg): serialise shapes, text and groups, colours bound late`.
+- [x] **Step 2–4:** red, implement in the IOSP shape the Global Constraints give, green; lints; rustqual.
+- [x] **Step 5: Commit** `feat(svg): serialise shapes, text and groups, colours bound late`.
 
 ---
 
@@ -361,7 +361,7 @@ The internal helpers are `attr(out: &mut String, name: &str, value: &str)`, whic
 - Consumes: Task 2.
 - `Context { target: Target, control: Option<ControlKind> }` (`Copy`), with `enum ControlKind { Marker, LegendRow }`.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `headings_and_decoration`: `Heading(2)` gives `role="heading" aria-level="2"` and `Decorative` gives `aria-hidden="true"`, exactly, in **both** targets.
   - `controls_differ_by_target`:
     - a tooltipped `Marker`, interactive: `<g role="button" tabindex="0" aria-label="…" data-row="12" data-marker="12">\n<title>…</title>`;
@@ -378,8 +378,8 @@ The internal helpers are `attr(out: &mut String, name: &str, value: &str)`, whic
     - in a `LegendRow`: `data-row-indicator="12"`, as a direct child of the `data-legend-row` `<g>`;
     - an indicator layer after the `LegendRow`, as a sibling: `data-marker-indicator`;
     - in static, both vanish, including the nested one, and so does a `Group[Group(Indicator), Group[HitArea]]` wrapper.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual.
-- [ ] **Step 5: Commit** `feat(svg): controls, indicators and hit areas per target (FR-50 role and name, FR-94)`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual.
+- [x] **Step 5: Commit** `feat(svg): controls, indicators and hit areas per target (FR-50 role and name, FR-94)`.
 
 ---
 
@@ -405,7 +405,7 @@ A shared helper, `vocabulary(doc: &roxmltree::Document, target)`, asserts:
 - no value contains `url(`;
 - every numeric attribute token matches `^-?\d+(\.\d{1,3})?$` and none is `-0`.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `output_uses_only_its_vocabulary` (Review Focus 5): the PRD example, both arrangements, both targets, both themes, plus the hostile document.
   - `colours_bind_late_across_the_document` (Review Focus 1):
     - walk the interactive and static trees in parallel, skipping interactive-only elements;
@@ -436,9 +436,9 @@ A shared helper, `vocabulary(doc: &roxmltree::Document, target)`, asserts:
     - `UPDATE_GOLDEN=1` writes and then panics, refused under `CI`;
     - missing goldens fail;
     - a mismatch shows the first differing byte with context.
-- [ ] **Step 2–4:** red, implement. Bless once and read the golden by eye: the colours resolve, the text reads right, and the headings and roles are as decided. Then green; lints; rustqual.
-- [ ] **Step 5: Gate** `just ci`.
-- [ ] **Step 6: Commit** `test(svg): whole documents, golden and resvg round trip (NFR-4, NFR-6)` and `docs(architecture): the serialiser as built`.
+- [x] **Step 2–4:** red, implement. Bless once and read the golden by eye: the colours resolve, the text reads right, and the headings and roles are as decided. Then green; lints; rustqual.
+- [x] **Step 5: Gate** `just ci`.
+- [x] **Step 6: Commit** `test(svg): whole documents, golden and resvg round trip (NFR-4, NFR-6)` and `docs(architecture): the serialiser as built`.
 
 ---
 
@@ -486,3 +486,4 @@ A shared helper, `vocabulary(doc: &roxmltree::Document, target)`, asserts:
 | --- | --- | --- |
 | 1.0 | 2026-10-12 | Initial version, for the plan review. |
 | 1.1 | 2026-10-12 | The five-seat review (security in place of UI): headings kept in static; static controls `role="img"`; output permissions as `fs::write`; symlinks replaced; read-only targets refused; clean error text; palette literals validated by construction; `svg::serialise` module, shared attribute constants; omit-when-zero on formatted values; one element per line; the golden workflow per architecture §10; the resvg and late-binding checks that actually test colour; catalogue-derived identity tests; hostile text across columns. |
+| 1.2 | 2026-10-12 | Shipped as built. The whole-branch review found Windows CI red (a rename race in the concurrency test, which under fail-fast hid every later test binary; the test now tolerates the refusal on Windows only and CI runs `--no-fail-fast`) and whitespace between tspans that a browser would render; both fixed. The interactive/static comparison covers every attribute bar paint, the interactive-only ones and a control's role. Task 3's semantics were written with Task 2 and their tests shown to fail under mutation. The goldens match byte for byte on all three CI OSes. |

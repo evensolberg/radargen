@@ -1,7 +1,7 @@
 ---
 id: rg-6ku
 title: 'PR 13: svg serialiser, emit/write.rs'
-status: in_progress
+status: closed
 type: task
 priority: 1
 tags:
@@ -10,6 +10,7 @@ tags:
 - output
 created: 2026-10-08
 updated: 2026-10-12
+closed_reason: 'PR 13 (#57): svg::serialise and emit::write_atomic.'
 blocks:
 - rg-f27
 - rg-42m
@@ -44,3 +45,5 @@ Node, Document, late colour binding via Role, no ids, data-row identity. NFR-14 
 [2026-10-11] Unblocked: rg-ozb (PR 12), rg-vgm (PR 03) and rg-f4o all closed.
 
 [start] 2026-10-12 10:29:31
+
+[stop]  2026-10-12 11:08:20  38m 49s

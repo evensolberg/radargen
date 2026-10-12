@@ -1,16 +1,18 @@
 ---
 id: rg-5uf
-title: 'PDF output: light (radar + legend) and full (with descriptions)'
-status: open
-type: idea
-priority: 3
+title: 'PR 20: PDF output, light (radar, key and legend)'
+status: blocked
+type: feature
+priority: 2
 tags: []
 created: 2026-10-09
 updated: 2026-10-12
-phase: ''
+blocked_by:
+- rg-m2l
+phase: v1.2
 ---
 
-# PDF output: light (radar + legend) and full (with descriptions)
+# PR 20: PDF output, light (radar, key and legend)
 
 Two PDF products (maintainer, 2026-10-12).
 
@@ -21,3 +23,5 @@ FULL: light plus every item description, likely as a table (FR-78 column and row
   Route 2 (fallback): our own table Blocks and page breaking, then a multi-page PDF from our SVG pages. Fully ours and deterministic, but several PRs.
 
 Open questions for the spec: CLI selection (--format pdf vs pdf-full, or a --pdf-detail flag); whether the full PDF is accessible (tagged PDF / PDF-UA, which neither route gives for free); page size (A4/Letter) and orientation (landscape radar page).
+
+[2026-10-12] Maintainer, 2026-10-12: the application stays self-contained, so the light PDF uses an in-process SVG-to-PDF crate (svg2pdf, on the same usvg tree as the PNG path; confirm version, licence, deps). PR 20 is the light version only; the full version is PR 21 (its own crumb). Phase v1.2 so v1.1 does not grow; needs an FR beside FR-71/FR-52 first. Sequence: if PR 21 runs first and Fullbleed draws inline SVG as vector deterministically, Fullbleed may serve both and svg2pdf is not needed; otherwise svg2pdf here.
