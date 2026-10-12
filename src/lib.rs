@@ -39,6 +39,24 @@ pub fn trim(value: &str) -> &str {
     value.trim_matches(trimmable)
 }
 
+/// `value` with its line breaks as plain newlines: CR LF and a lone CR each
+/// become LF (FR-97). A quoted CSV cell can hold Excel's Alt+Enter break.
+#[must_use]
+pub fn plain_newlines(value: &str) -> String {
+    value.replace("\r\n", "\n").replace('\r', "\n")
+}
+
+/// `value` as one line: every run of line breaks becomes one space (FR-97),
+/// for a field that is a label rather than prose.
+#[must_use]
+pub fn single_line(value: &str) -> String {
+    value
+        .split(['\r', '\n'])
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Whitespace, or a format character that is not a tag character.
 fn trimmable(c: char) -> bool {
     c.is_whitespace() || is_untagged_format(c)
@@ -68,6 +86,24 @@ pub fn normalise(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// FR-97: a run of line breaks is one space; breaks at either end go;
+    /// only breaks is empty; spaces beside a break are kept as written.
+    #[test]
+    fn single_line_collapses_runs_of_breaks() {
+        assert_eq!(single_line("Kafka\r\n\r\nStreams"), "Kafka Streams");
+        assert_eq!(single_line("\nKafka\r"), "Kafka");
+        assert_eq!(single_line("\r\n\n"), "");
+        assert_eq!(single_line("a \n b"), "a   b");
+        assert_eq!(single_line("plain"), "plain");
+    }
+
+    /// FR-97: CR LF and a lone CR each become one LF; LF stays.
+    #[test]
+    fn plain_newlines_makes_every_break_a_newline() {
+        assert_eq!(plain_newlines("a\r\nb\rc\nd"), "a\nb\nc\nd");
+        assert_eq!(plain_newlines("\r\r\n"), "\n\n");
+    }
 
     /// England's flag: U+1F3F4, the tags g b e n g, then CANCEL TAG.
     const ENGLAND: &str = "\u{1f3f4}\u{e0067}\u{e0062}\u{e0065}\u{e006e}\u{e0067}\u{e007f}";

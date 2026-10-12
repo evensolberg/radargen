@@ -9,7 +9,7 @@ use std::str::Chars;
 
 use crate::diagnostics::{Fatal, RowKind, Separator, Warning, Warnings, column_label};
 use crate::escape::{displayable, remove_undisplayable};
-use crate::{normalise, trim};
+use crate::{normalise, plain_newlines, single_line, trim};
 
 /// One record and where it begins.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -224,6 +224,7 @@ pub fn parse(text: &str, w: &mut Warnings) -> Result<(Table, Vec<Fatal>), Fatal>
     let mut scanner = Scanner::new(text);
     let mut head = header(scanner.next())?;
     let removed = cleaned(&mut head);
+    let head = one_line_names(head);
     // Judged before the rest is scanned: a quoted first-column cell in a
     // `;` export would otherwise surface as a quoting error.
     check_separator(&head)?;
@@ -242,6 +243,15 @@ pub fn parse(text: &str, w: &mut Warnings) -> Result<(Table, Vec<Fatal>), Fatal>
         records,
     };
     Ok((table, errors))
+}
+
+/// A header's names on one line each: a name is a label, so a line break in
+/// one is a space (FR-97).
+fn one_line_names(mut head: Record) -> Record {
+    for name in &mut head.fields {
+        *name = single_line(name);
+    }
+    head
 }
 
 /// The header record, from the scanner's first result. A quoting error in
@@ -318,10 +328,14 @@ struct Removed {
 }
 
 /// FR-90: remove every undisplayable character from `record`, returning
-/// what was removed from each field that lost any.
+/// what was removed from each field that lost any; and FR-97: its line
+/// breaks become plain newlines.
 fn cleaned(record: &mut Record) -> Vec<Removed> {
     let mut removed = Vec::new();
     for (column, field) in record.fields.iter_mut().enumerate() {
+        if field.contains('\r') {
+            *field = plain_newlines(field);
+        }
         if let Some((first, count)) = remove_undisplayable(field) {
             removed.push(Removed {
                 column,
@@ -1207,10 +1221,18 @@ mod tests {
         );
     }
 
-    /// Tab, LF and CR are displayable; they survive.
+    /// FR-97: a header name is a label, so a line break in one is a space.
+    #[test]
+    fn header_names_are_one_line() {
+        let (table, _, _) = parsed("\"last\r\naffirmed\",name\nx,y\n");
+        assert_eq!(table.expect("parses").header, ["last affirmed", "name"]);
+    }
+
+    /// Tab and line breaks are displayable; they survive FR-90, and FR-97
+    /// makes each line break a plain newline, without a warning.
     #[test]
     fn tab_and_line_breaks_survive_removal() {
-        let (table, _, warnings) = parsed("a\n\"x\ty\r\nz\"\n");
+        let (table, _, warnings) = parsed("a\n\"x\ty\r\nz\rw\"\n");
         assert_eq!(
             table
                 .expect("parses")
@@ -1218,7 +1240,7 @@ mod tests {
                 .first()
                 .expect("one record")
                 .fields,
-            ["x\ty\r\nz"]
+            ["x\ty\nz\nw"]
         );
         assert!(warnings.is_empty(), "{warnings:?}");
     }

@@ -11,7 +11,8 @@ pub use crate::columns::ColumnKind;
 use crate::csv::parse::{Record, Table};
 use crate::diagnostics::{DateColumn, Fatal, RowKind, Warning, Warnings, column_label};
 use crate::rings::{RingSet, RingSource};
-use crate::{normalise, trim};
+use crate::{normalise, single_line, trim};
+use std::borrow::Cow;
 use std::sync::Arc;
 
 /// FR-5's required columns, in the order its error lists them.
@@ -398,6 +399,22 @@ struct Positions {
 }
 
 impl Positions {
+    /// The columns that are labels, not prose: a line break in one becomes
+    /// a space (FR-97).
+    fn labels(&self) -> impl Iterator<Item = usize> {
+        [
+            Some(self.name),
+            Some(self.quadrant),
+            Some(self.ring),
+            self.qualifier,
+            self.status,
+            self.last_affirmed,
+            self.exit_date,
+        ]
+        .into_iter()
+        .flatten()
+    }
+
     fn of(header: &Header) -> Self {
         // FR-5 has passed before a `Positions` is built, so the default is
         // never taken.
@@ -464,6 +481,7 @@ impl Builder {
     }
 
     fn add(&mut self, record: &Record, w: &mut Warnings) {
+        let record = &single_lined(record, &self.at);
         let at = |p: usize| field(record, p);
         let mut warn = |column: usize, kind: RowKind| {
             w.push(Warning::Row {
@@ -578,6 +596,27 @@ impl Builder {
         }
         found
     }
+}
+
+/// `record` with its label columns on one line (FR-97); prose keeps its
+/// newlines, which parsing has already made plain. Borrowed unchanged in the
+/// usual case of no break in any label.
+fn single_lined<'r>(record: &'r Record, at: &Positions) -> Cow<'r, Record> {
+    if at
+        .labels()
+        .all(|p| !field(record, p).contains(['\r', '\n']))
+    {
+        return Cow::Borrowed(record);
+    }
+    let mut record = record.clone();
+    for p in at.labels() {
+        if let Some(cell) = record.fields.get_mut(p)
+            && cell.contains(['\r', '\n'])
+        {
+            *cell = single_line(cell);
+        }
+    }
+    Cow::Owned(record)
 }
 
 /// FR-20: `conditional` and `default` are recognised; blank claims nothing;
@@ -720,6 +759,57 @@ mod tests {
 
     fn catalogue(csv: &str) -> Catalogue {
         build(csv).0.expect("builds")
+    }
+
+    /// rg-c4l: a line break in a cell (Excel's Alt+Enter) is one space in a
+    /// single-line column and a plain newline in prose, so labels never carry
+    /// a carriage return and the panel can still show paragraphs.
+    #[test]
+    fn line_breaks_are_spaces_in_names_and_newlines_in_prose() {
+        let csv = "name,quadrant,ring,description,qualifier,status,note\n\
+                   \"Kafka\r\n\r\nStreams\",\"Tool\rkit\",Adopt,\"first\r\nsecond\rthird\",\"default\r\n\",\"moved\nin\",\"a\r\nb\"\n";
+        let cat = catalogue(csv);
+        let item = cat.items.first().expect("one item");
+        assert_eq!(item.name, "Kafka Streams", "a run of breaks is one space");
+        assert_eq!(cat.quadrants.first().expect("a quadrant").label, "Tool kit");
+        assert_eq!(
+            item.qualifier,
+            Some(Qualifier::Default),
+            "a trailing break is trimmed away"
+        );
+        assert_eq!(
+            item.status,
+            Some(Status::MovedIn),
+            "matched after the break became a space"
+        );
+        let description = cat.column(ColumnKind::Description).expect("description");
+        assert_eq!(item.cell(description), Some("first\nsecond\nthird"));
+        let note = cat
+            .columns
+            .iter()
+            .position(|c| c.heading == "note")
+            .expect("note");
+        assert_eq!(item.cell(note), Some("a\nb"));
+        for cell in &item.cells {
+            assert!(!cell.contains('\r'), "{cell:?}");
+        }
+    }
+
+    /// FR-97 before FR-28 and FR-9: a name or quadrant with a break matches
+    /// its spaced twin.
+    #[test]
+    fn a_break_matches_its_spaced_twin() {
+        let csv = format!(
+            "{}\"Kafka\r\nStreams\",Tool,Adopt,d\nKafka Streams,\"Tool\nkit\",Adopt,d\nFlink,Tool kit,Adopt,d\n",
+            "name,quadrant,ring,description\n"
+        );
+        let (built, warnings) = build(&csv);
+        let cat = built.expect("builds");
+        assert_eq!(cat.quadrants.len(), 2, "Tool, and Tool kit grouped");
+        assert!(
+            warnings.iter().any(|w| w.contains("repeats line 2")),
+            "a duplicate across the break: {warnings:?}"
+        );
     }
 
     fn errors(csv: &str) -> Vec<String> {
