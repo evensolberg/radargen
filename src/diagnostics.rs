@@ -844,6 +844,16 @@ pub enum Fatal {
         /// The separator found where a comma belongs.
         separator: Separator,
     },
+}
+
+/// A row-level hard error (NFR-16 tier two).
+///
+/// Collected across the whole file and printed together through [`crate::errors::render_errors`], which groups
+/// them (D-62) and adds FR-4's header-first cause a single error cannot know.
+/// Kept apart from [`Fatal`], whose errors each stop the run on their own, so
+/// the grouping code lists only what it groups (rg-w39).
+#[derive(Debug, thiserror::Error)]
+pub enum RowError {
     /// FR-4: a header name repeated under FR-76's normalisation, so
     /// `Name` and `name ` collide. Indices are 0-based, as
     /// [`column_label`] takes them; names are as
@@ -921,13 +931,17 @@ pub enum Fatal {
     },
 }
 
+impl RowError {
+    /// The stderr line for this error alone; [`crate::errors::render_errors`]
+    /// uses it for an error that does not group.
+    #[must_use]
+    pub fn render(&self) -> String {
+        error_line(&self.to_string())
+    }
+}
+
 impl Fatal {
     /// The stderr line.
-    ///
-    /// Tier-two row errors (`FieldCount`, `DuplicateHeader`, `MissingColumn`,
-    /// `EmptyRequired`) must be printed through [`crate::errors::render_errors`],
-    /// which groups them (D-62) and adds FR-4's header-first cause that a
-    /// single error cannot know.
     #[must_use]
     pub fn render(&self) -> String {
         // Escaped as a whole, so no variant can forget to: `-o` and `--rings`

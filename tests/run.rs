@@ -196,6 +196,21 @@ fn a_failed_run_leaves_the_old_file() {
             fault.name,
             ran.stderr
         );
+        // NFR-11 end to end: the warnings, then the errors; no warning
+        // follows an error, even when the write fails after the render.
+        let lines = ran.lines();
+        let first_error = lines
+            .iter()
+            .position(|line| line.starts_with("error: "))
+            .expect("an error line");
+        assert!(
+            lines
+                .iter()
+                .skip(first_error)
+                .all(|line| line.starts_with("error: ")),
+            "{}: {lines:?}",
+            fault.name
+        );
         assert_eq!(before, after, "{}", fault.name);
 
         let control = run_in(dir.path(), &RENDER);

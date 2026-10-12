@@ -132,7 +132,7 @@ declarations only and are not listed.
 | `src/main.rs` | Parse args, call `pipeline::run`, print its report to stderr, map the outcome to the exit code (NFR-8) | v1.0 |
 | `src/pipeline.rs` | The run: `Config` built once from `Cli`, the stages in §2's order, the three failure points (§7), and the rendered `Report` | v1.0 |
 | `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52). In v1.1, also the `--config` merge under the command-line flags and `{edition}` expansion, both before any other validation (FR-91, FR-92) | *exists* |
-| `src/diagnostics.rs` | `Fatal`, `Warning`, `Warnings` — the taxonomy and NFR-20 grouping | v1.0 |
+| `src/diagnostics.rs` | `Fatal`, `RowError`, `Warning`, `Warnings` — the taxonomy and NFR-20 grouping | v1.0 |
 | `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17) | *exists* |
 | `src/csv/decode.rs` | Bytes → `String`: BOM, UTF-8, line numbering (FR-1, FR-2, FR-61); `read` is the stage's one file read | v1.0 |
 | `src/csv/parse.rs` | String → `Table` (header and records); header, field counts (FR-3, FR-4); removal of undisplayable characters, with a warning, before any other check except the blank-record test (FR-90, FR-3), using `escape::displayable` so both modules share one set | v1.0 |
@@ -558,16 +558,18 @@ signature says whether a stage is capable of warning, which is worth more than
 uniformity.
 
 ```rust
-pub fn build_catalogue(table: &Table, rings: &RingSet, w: &mut Warnings) -> Result<Catalogue, Vec<Fatal>>;
+pub fn build_catalogue(table: &Table, rings: &RingSet, w: &mut Warnings) -> Result<Catalogue, Vec<RowError>>;
 pub fn layout(cat: &Catalogue, cfg: &Config, w: &mut Warnings) -> Blocks;
 ```
 
-`Result<_, Vec<Fatal>>` rather than `Result<_, Fatal>` is NFR-16's tier two:
-row-level errors are **collected across the whole file** and reported together,
-so a 200-row export is not fixed one error per run. Tier one — flag and file
-errors — returns a single `Fatal` and aborts, because nothing parsed.
+`Result<_, Vec<RowError>>` rather than `Result<_, Fatal>` is NFR-16's tier
+two: row-level errors are **collected across the whole file** and reported
+together, so a 200-row export is not fixed one error per run. Tier one — flag
+and file errors — returns a single `Fatal` and aborts, because nothing parsed.
+The two tiers are separate types, so the grouping code below matches only the
+errors it groups, and a tier-one error cannot reach it.
 
-`csv::parse` returns `Result<(Table, Vec<Fatal>), Fatal>`. Tier one is the
+`csv::parse` returns `Result<(Table, Vec<RowError>), Fatal>`. Tier one is the
 `Err`. Its tier-two FR-4 errors travel beside the table rather than instead of
 it, so they join `build_catalogue`'s in the same run. The two lists are merged,
 then sorted (NFR-11) and grouped (NFR-20, D-62) once, at print time, by
@@ -733,7 +735,7 @@ a final job compares them across the three.
 | `one-quadrant.csv` | FR-43 — N=1, where the single divider is both edges and FR-33's 8% inset applies to each side of a full circle. The geometry says this is not a special case; this is what checks that it isn't |
 | `twelve-quadrant.csv` | SC-22's twelve case *and* FR-67's cycling — the ninth quadrant repeats the first's colour, and one FR-88 warning covers the lot |
 | `treatments.csv` | SC-14 — every `qualifier` × `status` combination, so FR-20's two fills and FR-40's three ring treatments are each drawn at least once. Nothing else in this table draws a half-ring |
-| `row-errors.csv` | NFR-16 **tier two** — several rows each failing FR-4, FR-5 or FR-6, reported in one run. §7's `Vec<Fatal>` exists for this and no other fixture reaches it |
+| `row-errors.csv` | NFR-16 **tier two** — several rows each failing FR-4, FR-5 or FR-6, reported in one run. §7's `Vec<RowError>` exists for this and no other fixture reaches it |
 | `quoted-newline.csv` | NFR-10 — a quoted field containing a newline, after which the physical line and the record ordinal diverge permanently. D-37 chose the physical line; every other fixture agrees with both |
 
 Four success criteria are not fixture-shaped and get their own tests rather than

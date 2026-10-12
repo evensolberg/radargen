@@ -9,7 +9,7 @@
 
 pub use crate::columns::ColumnKind;
 use crate::csv::parse::{Record, Table};
-use crate::diagnostics::{DateColumn, Fatal, RowKind, Warning, Warnings, column_label};
+use crate::diagnostics::{DateColumn, RowError, RowKind, Warning, Warnings, column_label};
 use crate::rings::{RingSet, RingSource};
 use crate::{normalise, single_line, trim};
 use std::borrow::Cow;
@@ -264,12 +264,12 @@ impl Catalogue {
 ///
 /// # Errors
 ///
-/// [`Fatal::MissingColumn`] and [`Fatal::EmptyRequired`].
+/// [`RowError::MissingColumn`] and [`RowError::EmptyRequired`].
 pub fn build_catalogue(
     table: &Table,
     rings: &RingSet,
     w: &mut Warnings,
-) -> Result<Catalogue, Vec<Fatal>> {
+) -> Result<Catalogue, Vec<RowError>> {
     let header = Header::of(&table.header);
     none_or_all(
         [
@@ -284,7 +284,7 @@ pub fn build_catalogue(
 }
 
 /// `Ok` when there are no errors, else every one of them.
-fn none_or_all(errors: Vec<Fatal>) -> Result<(), Vec<Fatal>> {
+fn none_or_all(errors: Vec<RowError>) -> Result<(), Vec<RowError>> {
     if errors.is_empty() {
         Ok(())
     } else {
@@ -355,18 +355,18 @@ impl Header {
     }
 
     /// FR-5: every required column the header lacks.
-    fn missing(&self, line: usize) -> Vec<Fatal> {
+    fn missing(&self, line: usize) -> Vec<RowError> {
         REQUIRED
             .into_iter()
             .filter(|&kind| self.position(kind).is_none())
-            .map(|kind| Fatal::MissingColumn { line, column: kind })
+            .map(|kind| RowError::MissingColumn { line, column: kind })
             .collect()
     }
 }
 
 /// FR-6: every empty `name`, `quadrant` or `ring` the header has, in line
 /// order, then header column order (NFR-11).
-fn empty_required(header: &Header, records: &[Record]) -> Vec<Fatal> {
+fn empty_required(header: &Header, records: &[Record]) -> Vec<RowError> {
     let mut present: Vec<(usize, ColumnKind)> = NON_EMPTY
         .into_iter()
         .filter_map(|kind| header.position(kind).map(|p| (p, kind)))
@@ -378,7 +378,7 @@ fn empty_required(header: &Header, records: &[Record]) -> Vec<Fatal> {
             present
                 .iter()
                 .filter(|&&(p, _)| trim(field(record, p)).is_empty())
-                .map(|&(_, kind)| Fatal::EmptyRequired {
+                .map(|&(_, kind)| RowError::EmptyRequired {
                     line: record.line,
                     column: kind,
                 })
@@ -744,11 +744,14 @@ mod tests {
 
     /// `csv` through `parse` and `build_catalogue` under the default rings,
     /// with the rendered warnings. Parse must succeed with no error.
-    fn build(csv: &str) -> (Result<Catalogue, Vec<Fatal>>, Vec<String>) {
+    fn build(csv: &str) -> (Result<Catalogue, Vec<RowError>>, Vec<String>) {
         build_with(csv, None)
     }
 
-    fn build_with(csv: &str, rings: Option<&str>) -> (Result<Catalogue, Vec<Fatal>>, Vec<String>) {
+    fn build_with(
+        csv: &str,
+        rings: Option<&str>,
+    ) -> (Result<Catalogue, Vec<RowError>>, Vec<String>) {
         let mut w = Warnings::default();
         let (table, errs) = parse(csv, &mut w).expect("parses");
         assert!(errs.is_empty(), "{errs:?}");
@@ -817,7 +820,7 @@ mod tests {
             .0
             .expect_err("fails")
             .iter()
-            .map(Fatal::render)
+            .map(RowError::render)
             .collect()
     }
 
@@ -837,11 +840,11 @@ mod tests {
     }
 
     fn missing(column: ColumnKind) -> String {
-        Fatal::MissingColumn { line: 1, column }.render()
+        RowError::MissingColumn { line: 1, column }.render()
     }
 
     fn empty(line: usize, column: ColumnKind) -> String {
-        Fatal::EmptyRequired { line, column }.render()
+        RowError::EmptyRequired { line, column }.render()
     }
 
     // --- The header: FR-5, FR-27, FR-78, FR-93 ---
@@ -908,7 +911,7 @@ mod tests {
     fn a_missing_column_names_the_header_line() {
         assert_eq!(
             errors("\n,,\nname,quadrant,ring\n"),
-            [Fatal::MissingColumn {
+            [RowError::MissingColumn {
                 line: 3,
                 column: ColumnKind::Description
             }
@@ -1016,7 +1019,7 @@ mod tests {
         let rings = parse_rings(None).expect("default");
         let errs = build_catalogue(&table, &rings, &mut Warnings::default()).expect_err("fails");
         assert_eq!(
-            errs.iter().map(Fatal::render).collect::<Vec<_>>(),
+            errs.iter().map(RowError::render).collect::<Vec<_>>(),
             [empty(2, ColumnKind::Quadrant), empty(2, ColumnKind::Ring)]
         );
     }

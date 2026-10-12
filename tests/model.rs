@@ -2,7 +2,7 @@
 //! `model::build_catalogue` together, on whole files.
 
 use radargen::csv::parse::parse;
-use radargen::diagnostics::{Fatal, Warnings};
+use radargen::diagnostics::{RowError, Warnings};
 use radargen::model::{ColumnKind, Qualifier, Status, build_catalogue};
 use radargen::rings::parse_rings;
 
@@ -80,7 +80,7 @@ fn row_errors_from_both_stages_arrive_in_one_run() {
     let rings = parse_rings(None).expect("default");
     let model_errors = build_catalogue(&table, &rings, &mut w).expect_err("fails");
     assert!(w.render().is_empty(), "{:?}", w.render());
-    let rendered = |errs: &[Fatal]| errs.iter().map(Fatal::render).collect::<Vec<_>>();
+    let rendered = |errs: &[RowError]| errs.iter().map(RowError::render).collect::<Vec<_>>();
     assert_eq!(
         rendered(&parse_errors),
         [
@@ -113,7 +113,7 @@ fn a_repeated_required_header_reads_the_first() {
     let rings = parse_rings(None).expect("default");
     let errs = build_catalogue(&table, &rings, &mut w).expect_err("fails");
     assert_eq!(
-        errs.iter().map(Fatal::render).collect::<Vec<_>>(),
+        errs.iter().map(RowError::render).collect::<Vec<_>>(),
         ["error: line 2, name: empty; every row needs a name, so fill it in or delete the row"]
     );
 }

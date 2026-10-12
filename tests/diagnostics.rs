@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use radargen::columns::ColumnKind;
 use radargen::diagnostics::{
-    Binding, DateColumn, Fatal, Position, RenderKind, RowKind, Separator, Warning, Warnings,
-    column_label,
+    Binding, DateColumn, Fatal, Position, RenderKind, RowError, RowKind, Separator, Warning,
+    Warnings, column_label,
 };
 use radargen::rings::{RingSource, RingsError};
 
@@ -776,20 +776,21 @@ fn fatal_messages() {
             }),
             r"error: --rings: entry 2 'a\nerror: forged' repeats entry 1",
         ),
-        (
-            Fatal::FieldCount {
-                line: 4,
-                found: 2,
-                expected: 1,
-                unnamed: 0,
-                padded: false,
-            },
-            "error: line 4: the row has 2 values but the header has 1 column; a row with more values usually has a comma that needs the value in double quotes",
-        ),
     ];
     for (fatal, expected) in cases {
         assert_eq!(fatal.render(), expected);
     }
+    let row = RowError::FieldCount {
+        line: 4,
+        found: 2,
+        expected: 1,
+        unnamed: 0,
+        padded: false,
+    };
+    assert_eq!(
+        row.render(),
+        "error: line 4: the row has 2 values but the header has 1 column; a row with more values usually has a comma that needs the value in double quotes"
+    );
 }
 
 /// The CSV stage's file-level (tier-one) messages (plan RG-005), apart
@@ -851,28 +852,28 @@ fn csv_file_messages() {
 /// The CSV stage's FR-4 messages (tier two).
 #[test]
 fn csv_header_and_row_messages() {
-    let repeats = |index, name: &str, first_name: &str| Fatal::DuplicateHeader {
+    let repeats = |index, name: &str, first_name: &str| RowError::DuplicateHeader {
         line: 1,
         index,
         name: name.into(),
         first_index: 0,
         first_name: first_name.into(),
     };
-    let count = |found| Fatal::FieldCount {
+    let count = |found| RowError::FieldCount {
         line: 4,
         found,
         expected: 2,
         unnamed: 0,
         padded: false,
     };
-    let padded = Fatal::FieldCount {
+    let padded = RowError::FieldCount {
         line: 4,
         found: 3,
         expected: 2,
         unnamed: 0,
         padded: true,
     };
-    let unnamed = Fatal::FieldCount {
+    let unnamed = RowError::FieldCount {
         line: 4,
         found: 1,
         expected: 2,
@@ -916,14 +917,14 @@ fn csv_header_and_row_messages() {
 fn model_messages() {
     let cases = [
         (
-            Fatal::MissingColumn {
+            RowError::MissingColumn {
                 line: 1,
                 column: ColumnKind::Ring,
             },
             "error: line 1: the header has no 'ring' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description",
         ),
         (
-            Fatal::EmptyRequired {
+            RowError::EmptyRequired {
                 line: 7,
                 column: ColumnKind::Quadrant,
             },
