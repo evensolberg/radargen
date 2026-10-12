@@ -30,7 +30,7 @@ A starter file with every column filled in is at `radargen-data/radar-template.c
 - **Comma-separated, UTF-8.** Fields that contain a comma, a quote or a line break go in double quotes, and a quote inside a quoted field is written twice (`"He said ""hi"""`), as RFC 4180 defines.
 - **Excel's "CSV UTF-8" works as is.** A byte-order mark at the start and Windows line endings are both accepted.
 - **Refused files:**
-  - a semicolon- or tab-separated file, which Excel writes where a comma is the decimal mark. Export with commas instead;
+  - a semicolon- or tab-separated file, which Excel writes where a comma is the decimal mark. Export with commas instead. Only the header row is checked for this, so a semicolon or tab inside a data field is ordinary text (`Kafka; Flink` is a fine name);
   - a file in a legacy code page that is not UTF-8. The error names the line; re-save as "CSV UTF-8".
 - **The first non-blank line is the header.** Blank lines and rows of empty cells (Excel's `,,,`) are skipped wherever they are, but they still count towards the line numbers in messages.
 - **A header with no rows** is valid. It draws the empty rings.
@@ -56,7 +56,7 @@ Columns are found by **name, not position**, so their order in the file does not
 
 An optional column that is missing, or empty on a row, is simply left out for that item. Nothing is shown as blank or as a dash.
 
-The detail panel and the table view arrive in the next release step (PR 15). Until then, the page shows each item's name, quadrant, ring, qualifier and status.
+The detail panel and the table view arrive in the next release step (PR 15). Until then, the page shows each plotted item's name, quadrant, ring and qualifier, and any status other than `No Change`. Rows on an undeclared ring are not shown anywhere until then, though their warning already mentions the table view.
 
 ### `name`
 
@@ -142,18 +142,19 @@ Values are matched ignoring case and surrounding spaces, so `moved in` works.
 
 ## Text in any field
 
-- **Leading and trailing spaces are ignored** for matching, and trimmed when shown.
+- **Leading and trailing spaces are ignored** for matching. Names, quadrants and rings are also shown trimmed; other fields are shown exactly as written.
 - **Characters that cannot be displayed are removed, with a warning naming the line and column.** These are control characters other than tab and line break, and the invisible characters that reverse the direction of text. The same applies to `--title`, `--subtitle` and `--rings`.
 - **Anything else is shown as written.** Characters such as `<`, `&` and `"` are safe and appear literally. Names in Latin, Greek and Cyrillic scripts, including Vietnamese, draw with the built-in font.
 
 ## Errors and warnings
 
-**An error stops the run and writes nothing**; an existing output file is left as it was. All row errors are reported together, so a large export can be fixed in one pass. These are errors:
+**An error stops the run and writes nothing**; an existing output file is left as it was. Errors about rows are all reported together, so a large export can be fixed in one pass. A problem with the file as a whole (its encoding, its separator, its quoting) stops at the first one found, since nothing after it can be read reliably. These are errors:
 
 - a missing required column (`name`, `quadrant`, `ring` or `description`);
 - an empty `name`, `quadrant` or `ring` on a row;
 - a row with more or fewer values than the header has columns. The message gives the usual cause, often an unquoted comma;
 - two header columns with the same name;
+- a quote that opens a value and never closes, or text straight after a closing quote. Write a quote inside a quoted value as `""`;
 - a file that is empty, not UTF-8, or not comma-separated.
 
 **A warning is printed and the radar is still written.** These are warnings:
@@ -169,7 +170,7 @@ Values are matched ignoring case and surrounding spaces, so `moved in` works.
 - a band with more items than fit without overlapping;
 - a quadrant or ring name long enough to make the phone layout too wide.
 
-Every message names the CSV line, and the column where there is one. Messages go to the terminal's error output and are grouped, so forty rows with the same typo make one line.
+Every message about a row names its CSV line, and the column where there is one. Messages about the radar as a whole (too many quadrants, an overfull band, a too-wide phone layout) name what they count instead and print first. Problems with `--title`, `--subtitle` or `--rings` name the flag. Messages go to the terminal's error output and are grouped, so forty rows with the same typo make one line.
 
 ## Example
 
