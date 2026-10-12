@@ -6,6 +6,10 @@
 
 use std::num::NonZeroU8;
 
+pub mod serialise;
+
+pub use serialise::{Target, serialise};
+
 use crate::palette::{Neutral, Role};
 use crate::style::TextStyle;
 use crate::text::TEXT_DESCENT;

@@ -137,6 +137,7 @@ const fn classify(order: usize, fatal: &Fatal) -> Classified<'_> {
         | Fatal::FormatNotInThisVersion { .. }
         | Fatal::Rings(_)
         | Fatal::Unreadable { .. }
+        | Fatal::Unwritable { .. }
         | Fatal::NotUtf8 { .. }
         | Fatal::UnterminatedQuote { .. }
         | Fatal::TextAfterQuote { .. }
@@ -206,6 +207,7 @@ const fn line_of(fatal: &Fatal) -> usize {
         | Fatal::FormatNotInThisVersion { .. }
         | Fatal::Rings(_)
         | Fatal::Unreadable { .. }
+        | Fatal::Unwritable { .. }
         | Fatal::NoHeader => 0,
     }
 }
@@ -222,6 +224,7 @@ const fn rank_of(fatal: &Fatal) -> u8 {
         | Fatal::FormatNotInThisVersion { .. }
         | Fatal::Rings(_)
         | Fatal::Unreadable { .. }
+        | Fatal::Unwritable { .. }
         | Fatal::NotUtf8 { .. }
         | Fatal::UnterminatedQuote { .. }
         | Fatal::TextAfterQuote { .. }

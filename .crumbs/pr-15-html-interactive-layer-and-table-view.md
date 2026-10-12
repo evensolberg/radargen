@@ -9,7 +9,9 @@ tags:
 - html
 - a11y
 created: 2026-10-08
-updated: 2026-10-11
+updated: 2026-10-12
+blocks:
+- rg-l4h
 blocked_by:
 - rg-f27
 phase: v1.0
@@ -24,3 +26,5 @@ FR-38 detail panel, FR-72 cross-highlight, FR-49 keyboard and focus return keyed
 [2026-10-11] From PR 10b: forward hit-area pointer events (data-hit) to the marker control with the same key (data-marker) — same delegated handler FR-37 needs; selection (FR-72/73) is one more child of the indicator group; aria-expanded/aria-controls on controls; cursor: pointer on hit areas; verify the <title> description (repeats the name) with NVDA, JAWS and VoiceOver; the raised copy in an indicator is pointer-events: none, so a click on it reaches what lies beneath — route it to the focused control if that confuses.
 
 [2026-10-11] Final review (PR 11): the row indicator sits under the row text (first ascent box starts about top+0.4), so draw focus inside the inset band; const-assert the focus stroke <= 2 * LEGEND_ROW_INDICATOR_INSET when the stroke width is defined, else the next row cuts it off.
+
+[2026-10-12] From PR 13: aria-expanded/aria-controls go in svg::serialise group.rs control_attrs (one place, fixed order); the panel's single id lives outside both arrangements. The headless a11y test asserts each marker's computed name and description (the <title> beside aria-label is announced as a description; maintainer decides then). FR-34 tab order through the markers.

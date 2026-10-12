@@ -805,6 +805,16 @@ fn csv_file_messages() {
             "error: in.csv: cannot be read: not found",
         ),
         (
+            Fatal::Unwritable {
+                path: "out/radar.html".into(),
+                source: std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "permission denied",
+                ),
+            },
+            "error: -o out/radar.html: cannot be written: permission denied",
+        ),
+        (
             Fatal::NotUtf8 {
                 path: "in.csv".into(),
                 line: 2,

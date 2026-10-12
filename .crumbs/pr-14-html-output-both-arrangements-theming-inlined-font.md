@@ -9,7 +9,7 @@ tags:
 - html
 - output
 created: 2026-10-08
-updated: 2026-10-11
+updated: 2026-10-12
 blocks:
 - rg-6zu
 blocked_by:
@@ -47,3 +47,5 @@ Wire the pipeline end to end in main.rs. FR-69 media-query switch, FR-56 dual pa
 [2026-10-11] From PR 10b: keep the narrow SVG edge to edge at 320 px (style::NARROW_HORIZONTAL_INSET_PX = 0); if the page adds horizontal chrome, change that constant (HIT_RADIUS's const assert re-checks FR-94) and subtract the same inset in breakpoint_px. Generate one :has() rule per marker key: svg:has([data-marker="L"]:focus-visible) [data-indicator="L"] { visibility: visible }.
 
 [2026-10-11] From PR 12 (arrange): main.rs builds ONE Blocks (titles after FR-92 expansion; radar, key, legend from the same Catalogue/Plotted/Fonts) and calls arrange twice; a constructor would bundle the titles into one parameter. Media query = style::breakpoint_px(wide.width); both documents emitted, display:none hides one (FR-69). Keep the narrow SVG spanning the viewport (NARROW_HORIZONTAL_INSET_PX), sized relative to it, never fixed px. Viewport meta must not disable zoom (no user-scalable=no / maximum-scale=1): pinch zoom is how 1.4.4 is met on a phone. On a media-query change move focus to the control with the same ItemKey in the newly visible document and carry aria-expanded (2.4.3, 2.4.7). Consider a skip-to-legend link; supply an H1 when the title is omitted; check the 1-unit key rule at 320 px (~0.67 px).
+
+[2026-10-12] From PR 13 (serialiser): inline svg::serialise(&arrange(Wide, ..), Target::Interactive(&palette)) and the narrow one; the generator <meta> and the output-version constant from CARGO_PKG_VERSION_MAJOR/_MINOR; emit::write_atomic for -o (an FR-62 pre-check is only a fail-fast courtesy; write_atomic decides). Indicator CSS generated from svg::serialise::DATA_* by walking the Document (not Plotted): svg:has([data-marker="L"]:focus-visible) [data-marker-indicator="L"] per key inside @supports selector(:has(*)), plus [data-legend-row]:focus-visible > [data-row-indicator]; this supersedes the PR 10b [data-indicator] note. @font-face family = text::FAMILY. Check the indicator in forced-colors. No extra <h1>: the SVG carries Heading(1). Hide the other arrangement with display:none on its container. Tests: an HTML5-parser round trip of the hostile document inlined (html5ever/scraper dev-dep); the cross-process tests/determinism.rs.
