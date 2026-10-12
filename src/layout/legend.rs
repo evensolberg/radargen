@@ -611,10 +611,7 @@ mod tests {
     }
 
     fn name_width(line: &str) -> f64 {
-        let style = crate::style::LEGEND_NAME;
-        fonts()
-            .face(style.weight)
-            .measure(line, style.size, style.letter_spacing)
+        measure(line, LEGEND_NAME, fonts())
     }
 
     /// mockup.html l.688–700 with the plan's rhythm: heading at 14, group
@@ -686,7 +683,14 @@ mod tests {
         // Assess and Trial are declared but hold nothing: no heading.
         let csv = format!("{HEAD}a,Q,Adopt,d\nb,Q,Hold,d\n");
         let l = lay(&csv, Some("Hold,Assess,Trial,Adopt"));
-        assert_eq!(texts(&headings(&l, 4)), ["Hold", "Adopt"]);
+        let rings = headings(&l, 4);
+        assert_eq!(texts(&rings), ["Hold", "Adopt"]);
+        // Hold's one row spans 58–90, so Adopt's baseline is 90 + 12.
+        let [hold, adopt] = rings.as_slice() else {
+            panic!("two ring headings: {rings:?}");
+        };
+        assert!(close(hold.origin.y, 54.0), "{hold:?}");
+        assert!(close(adopt.origin.y, 102.0), "{adopt:?}");
     }
 
     /// FR-34's numbers, and the CSV line as the key: B's quoted description
@@ -773,6 +777,13 @@ mod tests {
         };
         assert!(near(meta.origin, at), "{meta:?}");
         assert!(close(row.height, 32.0));
+        assert!(!row.hollow, "Default is solid (FR-20)");
+
+        let l = lay(&format!("{HEAD_META}A,Q,Adopt,d,conditional,\n"), None);
+        let row = only(&rows(&l));
+        assert!(row.hollow, "Conditional is hollow (FR-20)");
+        let meta = row.meta.as_ref().expect("meta");
+        assert_eq!(meta.lines, ["Conditional"]);
     }
 
     /// FR-74: 270.07 + 8 + 67.02 > 312, so the meta takes its own line:
@@ -825,11 +836,8 @@ mod tests {
         assert_eq!(heading.lines.len(), 2, "{heading:?}");
         assert!(near(heading.origin, Point { x: 16.0, y: 36.0 }));
         assert!(close(heading.leading, 15.0));
-        let style = crate::style::LEGEND_QUADRANT;
         for line in &heading.lines {
-            let w = fonts()
-                .face(style.weight)
-                .measure(line, style.size, style.letter_spacing);
+            let w = measure(line, LEGEND_QUADRANT, fonts());
             assert!(w <= 364.0, "{line}: {w}");
         }
         assert!(near(only(&swatches(&l)).0, Point { x: 5.0, y: 32.0 }));
