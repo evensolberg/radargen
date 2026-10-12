@@ -183,3 +183,25 @@ fn the_stylesheet_requests_nothing_but_fonts() {
         assert!(!css.contains(banned), "{banned}");
     }
 }
+
+/// rg-min: in forced colours a ring's palette blue need not show against the
+/// system background, so both rings take the system's Highlight colour. The
+/// marker's ring is found by the paint the serialiser gives it.
+#[test]
+fn forced_colours_paint_the_rings_highlight() {
+    use crate::svg::ItemKey;
+    let css = indicators(&[ItemKey(6)]);
+    assert!(
+        css.contains(concat!(
+            "@media (forced-colors: active){",
+            "[data-legend-row]:focus-visible>[data-row-indicator]>rect{stroke:Highlight}",
+            "[data-marker-indicator]>circle[stroke=\"var(--focus)\"]{stroke:Highlight}",
+            "}\n"
+        )),
+        "{css}"
+    );
+    assert!(
+        indicators(&[]).contains("@media (forced-colors: active){"),
+        "rows need it with no markers"
+    );
+}

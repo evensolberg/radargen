@@ -20,6 +20,7 @@ svg{display:block;width:100%;height:auto}
 [data-legend-row]:focus-visible{outline:2px solid transparent}
 [data-legend-row]:focus-visible>[data-row-indicator]{visibility:visible}
 [data-legend-row]:focus-visible>[data-row-indicator]>rect{stroke:var(--focus);stroke-width:2px}
+@media (forced-colors: active){[data-legend-row]:focus-visible>[data-row-indicator]>rect{stroke:Highlight}[data-marker-indicator]>circle[stroke="var(--focus)"]{stroke:Highlight}}
 @supports selector(:has(*)){
 [data-marker]:focus-visible{outline:2px solid transparent}
 svg:has([data-marker="6"]:focus-visible) [data-marker-indicator="6"]{visibility:visible}

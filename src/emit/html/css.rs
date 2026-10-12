@@ -55,6 +55,10 @@ const VISIBLE: &str = "]{visibility:visible}\n[";
 const ROW_RING: &str = "]>rect{stroke:var(";
 const ROW_RING_WIDTH: &str = ");stroke-width:";
 const PX_CLOSE: &str = "px}\n";
+const FORCED_OPEN: &str = "@media (forced-colors: active){[";
+const FORCED_ROW_RING: &str = "]>rect{stroke:Highlight}[";
+const FORCED_MARKER_RING: &str = "]>circle[stroke=\"var(";
+const FORCED_CLOSE: &str = ")\"]{stroke:Highlight}}\n";
 const SUPPORTS_HAS: &str = "@supports selector(:has(*)){\n[";
 const HAS_OPEN: &str = "svg:has([";
 const KEY_OPEN: &str = "=\"";
@@ -170,7 +174,26 @@ pub(super) fn narrow_query(wide_width: f64) -> String {
 /// that hides the outline shares its replacement's selector, so the two
 /// stand or fall together (WCAG 2.4.7).
 pub(super) fn indicators(markers: &[ItemKey]) -> String {
-    [legend_focus(), marker_focus(markers)].concat()
+    [legend_focus(), forced_focus(), marker_focus(markers)].concat()
+}
+
+/// Forced colours (Windows high contrast): SVG paint is not remapped, so a
+/// ring's palette blue need not show against the system background; both
+/// rings take the system's `Highlight` (rg-min). The marker's ring is the
+/// indicator's circle the serialiser strokes with the focus colour.
+fn forced_focus() -> String {
+    [
+        FORCED_OPEN,
+        DATA_LEGEND_ROW,
+        ROW_SHOWN,
+        DATA_ROW_INDICATOR,
+        FORCED_ROW_RING,
+        DATA_MARKER_INDICATOR,
+        FORCED_MARKER_RING,
+        Neutral::Focus.as_str(),
+        FORCED_CLOSE,
+    ]
+    .concat()
 }
 
 fn legend_focus() -> String {
