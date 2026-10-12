@@ -73,8 +73,11 @@ fn ink(out: &mut String, ink: TextPaint, context: Context<'_>) {
 fn content(run: &Run<'_>) -> String {
     match run.lines {
         [line] => xml_text(line),
-        lines => std::iter::once("\n".to_owned())
-            .chain((0_u32..).zip(lines).map(|(i, line)| tspan(run, i, line)))
+        // No whitespace between tspans: a browser renders it as a space at
+        // the end of each chunk, shifting a middle-anchored line left.
+        lines => (0_u32..)
+            .zip(lines)
+            .map(|(i, line)| tspan(run, i, line))
             .collect(),
     }
 }
@@ -89,6 +92,6 @@ fn tspan(run: &Run<'_>, index: u32, line: &str) -> String {
     coord(&mut out, "y", run.origin.y + f64::from(index) * run.leading);
     out.push('>');
     out.push_str(&xml_text(line));
-    out.push_str("</tspan>\n");
+    out.push_str("</tspan>");
     out
 }

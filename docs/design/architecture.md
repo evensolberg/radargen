@@ -146,7 +146,7 @@ declarations only and are not listed.
 | `src/layout/legend/` (`mod.rs`, `layout.rs`) | Legend block (FR-35, FR-74, FR-75) | v1.0 |
 | `src/layout/key.rs` | Encoding key (FR-66) | v1.0 |
 | `src/layout/arrange.rs` | Wide and narrow placement (FR-68–FR-71) | v1.0 |
-| `src/svg/mod.rs` | `Node`, `Document` — the SVG tree and its serialiser. `Node` arrives with the first block that renders (PR 09) and gains variants with each block; `Document` arrives with `arrange` (PR 12) | v1.0 |
+| `src/svg/mod.rs` | `Node`, `Document` — the SVG tree. `Node` arrives with the first block that renders (PR 09) and gains variants with each block; `Document` arrives with `arrange` (PR 12) | v1.0 |
 | `src/svg/serialise/` | `serialise(&Document, Target)`: one `<svg>` element, colours bound late for an interactive or static `Target`, interactive-only nodes dropped for static; every attribute through `escape::xml_attr`, every float through `num::fmt_coord` (PR 13) | v1.0 |
 | `src/escape.rs` | NFR-6's five output contexts, one function each | v1.0 |
 | `src/num.rs` | `fmt_coord()` — NFR-17's rounding, used by every emitter | v1.0 |
@@ -471,8 +471,9 @@ which layer a node came from. A static image has no pointer or focus, so the
 SVG and PNG emitters skip every interactive-only node (the two layer groups drop
 whole) and write a `Control` as `<g role="img" aria-label><title>`, without
 `tabindex`: `img` makes the control's drawn text presentational, so its
-name, which already holds that text (FR-50), is read once. The HTML emitter keeps them: a marker control carries `data-row`
-and `data-marker`, a legend-row control (PR 11) `data-row` and
+name, which already holds that text (FR-50), is read once. The HTML emitter
+keeps them: a marker control carries `data-row` and `data-marker`, a
+legend-row control (PR 11) `data-row` and
 `data-legend-row`, a hit area `data-hit`, all keyed on the item's CSV line. An
 indicator is written by where it sits: inside a legend-row control it is that
 row's inset focus and selection rect, `data-row-indicator`; anywhere else (the
@@ -732,8 +733,9 @@ half a release-checklist item nothing in `cargo test` can reach. §1's
 
 A golden file is regenerated only by a deliberate `UPDATE_GOLDEN=1` run, never
 silently: a blessing run writes the file and then fails, so it is never green,
-and it refuses to run under `CI` — NFR-12 makes a changed output a version-bumping event, so a diff that
-appears without one is the signal, not the noise.
+and it refuses to run under `CI` — NFR-12 makes a changed output a
+version-bumping event, so a diff that appears without one is the signal, not
+the noise.
 
 ## 11. What is deliberately not designed yet
 

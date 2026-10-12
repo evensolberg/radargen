@@ -19,7 +19,9 @@ fn one_line_is_the_content() {
     );
 }
 
-/// Absolute baselines, so no rounding accumulates down the lines.
+/// Absolute baselines, so no rounding accumulates down the lines; and no
+/// whitespace between the tspans, which a browser would render as a space
+/// at the end of each chunk, shifting a middle-anchored line left.
 #[test]
 fn several_lines_are_tspans() {
     let palette = light();
@@ -28,7 +30,7 @@ fn several_lines_are_tspans() {
             &text(&["one", "two"], Anchor::Middle, fill()),
             Target::Static(&palette)
         ),
-        "<text x=\"10\" y=\"20\" font-family=\"Inter\" font-size=\"11\" font-weight=\"400\" text-anchor=\"middle\" fill=\"#585F6B\">\n<tspan x=\"10\" y=\"20\">one</tspan>\n<tspan x=\"10\" y=\"35\">two</tspan>\n</text>\n"
+        "<text x=\"10\" y=\"20\" font-family=\"Inter\" font-size=\"11\" font-weight=\"400\" text-anchor=\"middle\" fill=\"#585F6B\"><tspan x=\"10\" y=\"20\">one</tspan><tspan x=\"10\" y=\"35\">two</tspan></text>\n"
     );
 }
 

@@ -181,6 +181,10 @@ fn indicators_follow_their_enclosing_control() {
     assert_eq!(marker.attribute("pointer-events"), Some("none"));
     let fixed = one(&both, Target::Static(&palette));
     assert!(!fixed.contains("indicator"), "{fixed}");
+    assert!(
+        fixed.starts_with("<g>\n<g role=\"img\" aria-label=\"1. Kafka, Adopt\">\n<circle "),
+        "the row and its dot survive: {fixed}"
+    );
     let wrapper = group(
         Point::ORIGIN,
         vec![

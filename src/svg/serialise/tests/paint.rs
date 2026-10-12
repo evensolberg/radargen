@@ -26,7 +26,11 @@ fn paint_binds_late() {
 #[test]
 fn static_paint_is_a_hex_literal() {
     let hex = |v: &str| {
-        v.len() == 7 && v.starts_with('#') && v.chars().skip(1).all(|c| c.is_ascii_hexdigit())
+        v.len() == 7
+            && v.starts_with('#')
+            && v.chars()
+                .skip(1)
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_lowercase())
     };
     for theme in [Theme::Light, Theme::Dark] {
         let palette = Palette::built_in(theme);

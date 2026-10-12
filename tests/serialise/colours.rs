@@ -21,20 +21,43 @@ fn dropped(node: roxmltree::Node<'_, '_>) -> bool {
     own || only_dropped
 }
 
-type Painted<'a> = (&'a str, Option<&'a str>, Option<&'a str>);
+/// One element as both targets must agree on it: its paint apart, and
+/// everything else that is not interactive-only.
+#[derive(Debug, PartialEq, Eq)]
+struct Element<'a> {
+    tag: &'a str,
+    fill: Option<&'a str>,
+    stroke: Option<&'a str>,
+    /// Every other attribute, bar the target-dependent ones.
+    rest: Vec<(&'a str, &'a str)>,
+    /// The element's own text.
+    text: Option<&'a str>,
+}
 
-/// (tag, fill, stroke) of every element, in document order, skipping what
-/// static output drops when `skip` is set.
-fn painted<'a>(doc: &'a roxmltree::Document<'a>, skip: bool) -> Vec<Painted<'a>> {
+/// Attributes that differ by target on purpose (architecture §5).
+fn by_target(name: &str) -> bool {
+    matches!(
+        name,
+        "fill" | "stroke" | "role" | "tabindex" | "pointer-events"
+    ) || name.starts_with("data-")
+}
+
+/// Every element in document order, skipping what static output drops when
+/// `skip` is set.
+fn elements<'a>(doc: &'a roxmltree::Document<'a>, skip: bool) -> Vec<Element<'a>> {
     doc.descendants()
         .filter(roxmltree::Node::is_element)
         .filter(|n| !skip || !n.ancestors().any(dropped))
-        .map(|n| {
-            (
-                n.tag_name().name(),
-                n.attribute("fill"),
-                n.attribute("stroke"),
-            )
+        .map(|n| Element {
+            tag: n.tag_name().name(),
+            fill: n.attribute("fill"),
+            stroke: n.attribute("stroke"),
+            rest: n
+                .attributes()
+                .filter(|a| !by_target(a.name()))
+                .map(|a| (a.name(), a.value()))
+                .collect(),
+            text: n.text(),
         })
         .collect()
 }
@@ -65,8 +88,9 @@ fn same_paint(interactive: Option<&str>, fixed: Option<&str>, palette: &Palette)
     }
 }
 
-/// Review Focus 1: every interactive `var()` is the static literal, in both
-/// themes.
+/// Review Focus 1: interactive and static output differ only in paint and in
+/// interactive-only nodes and attributes, and every interactive `var()` is
+/// the static literal, in both themes.
 #[test]
 fn colours_bind_late_across_the_document() {
     let built = prd();
@@ -77,12 +101,12 @@ fn colours_bind_late_across_the_document() {
             let inter = serialise(&document, Target::Interactive(&palette));
             let fixed = serialise(&document, Target::Static(&palette));
             let (inter, fixed) = (parse(&inter), parse(&fixed));
-            let (a, b) = (painted(&inter, true), painted(&fixed, false));
+            let (a, b) = (elements(&inter, true), elements(&fixed, false));
             assert_eq!(a.len(), b.len());
-            for ((tag, i_fill, i_stroke), (s_tag, s_fill, s_stroke)) in a.into_iter().zip(b) {
-                assert_eq!(tag, s_tag);
-                same_paint(i_fill, s_fill, &palette);
-                same_paint(i_stroke, s_stroke, &palette);
+            for (i, s) in a.into_iter().zip(b) {
+                assert_eq!((i.tag, &i.rest, i.text), (s.tag, &s.rest, s.text));
+                same_paint(i.fill, s.fill, &palette);
+                same_paint(i.stroke, s.stroke, &palette);
             }
         }
     }
@@ -96,9 +120,9 @@ fn the_themes_differ_only_in_paint() {
         let palette = Palette::built_in(theme);
         let markup = serialise(&document, Target::Static(&palette));
         let doc = parse(&markup);
-        painted(&doc, false)
+        elements(&doc, false)
             .into_iter()
-            .map(|(tag, ..)| tag.to_owned())
+            .map(|e| format!("{} {:?} {:?}", e.tag, e.rest, e.text))
             .collect::<Vec<_>>()
     };
     assert_eq!(shape(Theme::Light), shape(Theme::Dark));

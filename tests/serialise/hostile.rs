@@ -31,13 +31,18 @@ struct Strings {
 }
 
 impl Strings {
-    fn of(node: &Node) -> Self {
+    /// The document's strings; without its interactive-only nodes when
+    /// `interactive` is false, as static output drops them.
+    fn of(node: &Node, interactive: bool) -> Self {
         let mut strings = Self::default();
-        strings.walk(node);
+        strings.walk(node, interactive);
         strings
     }
 
-    fn walk(&mut self, node: &Node) {
+    fn walk(&mut self, node: &Node, interactive: bool) {
+        if !interactive && node.is_interactive_only() {
+            return;
+        }
         match node {
             Node::Group(group) => {
                 if let Semantics::Marker(c) | Semantics::LegendRow(c) = &group.semantics {
@@ -45,7 +50,10 @@ impl Strings {
                     self.tooltips
                         .extend(c.tooltip.iter().filter(|t| !t.is_empty()).cloned());
                 }
-                group.children.iter().for_each(|child| self.walk(child));
+                group
+                    .children
+                    .iter()
+                    .for_each(|child| self.walk(child, interactive));
             }
             Node::Text { lines, .. } if !lines.is_empty() => self.texts.push(lines.join("\n")),
             _ => {}
@@ -106,23 +114,35 @@ fn hostile_text_round_trips() {
         Some("</title><svg onload=x>"),
     );
     let document = arrange(Arrangement::Wide, &built.blocks);
-    let want = Strings::of(&document.root);
     let palette = Palette::built_in(Theme::Light);
     for (target, interactive) in targets(&palette) {
+        let want = Strings::of(&document.root, interactive);
         let markup = serialise(&document, target);
         vocabulary(&markup, interactive);
         let got = Strings::parsed(&markup);
         assert_eq!(got.labels, want.labels);
         assert_eq!(got.tooltips, want.tooltips);
-        if interactive {
-            // Static output drops the indicators' raised copies, so only
-            // interactive output holds every text the document does.
-            assert_eq!(got.texts, want.texts);
-        }
+        assert_eq!(got.texts, want.texts);
     }
+    // The hostile inputs reached the document, so the test above tested
+    // them: layout could have dropped or rewritten any of them.
+    let want = Strings::of(&document.root, true);
+    for reached in [QUADRANT, RING, "</title><svg onload=x>"] {
+        assert!(
+            want.texts.iter().any(|t| t.contains(reached)),
+            "{reached} is drawn"
+        );
+    }
+    assert!(
+        want.texts.iter().any(|t| t.contains('\n')),
+        "a wrapped name exercises the tspans"
+    );
     for name in HOSTILE.iter().take(8) {
         assert!(
-            want.labels.iter().any(|l| l.contains(name)),
+            Strings::of(&document.root, true)
+                .labels
+                .iter()
+                .any(|l| l.contains(name)),
             "{name} in a label"
         );
     }

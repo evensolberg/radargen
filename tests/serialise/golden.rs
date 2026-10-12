@@ -39,10 +39,12 @@ fn golden(name: &str, got: &str) {
             .zip(got.bytes())
             .take_while(|(a, b)| a == b)
             .count();
+        // Bytes, not str ranges: a non-ASCII character near the difference
+        // must not blank the context.
         let around = |s: &str| {
-            s.get(at.saturating_sub(40)..(at + 40).min(s.len()))
-                .unwrap_or("")
-                .to_owned()
+            let bytes = s.as_bytes();
+            let window = bytes.get(at.saturating_sub(40)..(at + 40).min(bytes.len()));
+            String::from_utf8_lossy(window.unwrap_or_default()).into_owned()
         };
         panic!(
             "{name} differs at byte {at}:\n want …{}…\n  got …{}…",

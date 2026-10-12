@@ -27,7 +27,9 @@ const OUTPUT_MODE: u32 = 0o666;
 /// temporary file is gone; a process killed mid-write can leave a
 /// `.radargen-*.tmp` behind. A symlink at `path` is replaced, not followed,
 /// and a replaced file takes the new file's mode and owner: rename
-/// semantics.
+/// semantics. On Windows, replacing a file another process holds open, or
+/// one being replaced at the same moment, fails with `Unwritable` and
+/// leaves the existing file whole.
 ///
 /// # Errors
 ///
@@ -188,6 +190,9 @@ mod tests {
         assert!(!message(&error).contains(".radargen-"), "{error}");
     }
 
+    /// Last writer wins, never an interleaving. On Windows a rename onto a
+    /// file another rename is replacing is refused (`Unwritable`); the file
+    /// is whole either way, which is the guarantee.
     #[test]
     fn concurrent_writes_leave_one_whole_file() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -198,7 +203,10 @@ mod tests {
                 let path = &path;
                 scope.spawn(move || {
                     for _ in 0..20 {
-                        write_atomic(path, payload).expect("writes");
+                        match write_atomic(path, payload) {
+                            Ok(()) | Err(Fatal::Unwritable { .. }) => {}
+                            Err(other) => panic!("{other}"),
+                        }
                     }
                 });
             }
