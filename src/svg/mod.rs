@@ -324,6 +324,7 @@ impl Node {
     /// The one place it is computed, so bounds, the oracle and an outliner
     /// agree. `None` for anything without a tail.
     #[must_use]
+    // qual:api — read by test bounds and the oracle now, and by PR 17's outliner
     pub fn tail_x(&self, fonts: &Fonts) -> Option<f64> {
         let Self::Text {
             origin,

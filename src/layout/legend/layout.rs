@@ -304,14 +304,18 @@ impl Entry {
         }
     }
 
-    /// The entry's text.
-    fn runs(&self) -> impl Iterator<Item = &TextRun> {
-        let (first, second) = match self {
-            Self::Heading { run, .. } => (Some(run), None),
-            Self::Swatch { .. } => (None, None),
-            Self::Row(row) => (Some(&row.name), row.meta.as_ref()),
-        };
-        first.into_iter().chain(second)
+    /// The furthest right the entry's text reaches at its layout width
+    /// (D-78); zero for a swatch.
+    fn right_edge(&self, fonts: &Fonts) -> f64 {
+        match self {
+            Self::Heading { run, .. } => run
+                .lines
+                .iter()
+                .map(|line| run.origin.x + run.style.measure(line, fonts))
+                .fold(0.0, f64::max),
+            Self::Swatch { .. } => 0.0,
+            Self::Row(row) => row.right_edge(fonts),
+        }
     }
 }
 
@@ -320,16 +324,12 @@ fn height(entries: &[Entry]) -> f64 {
     entries.last().map_or(0.0, Entry::bottom)
 }
 
-/// The content width: the widest laid-out line's right edge.
+/// The content width: the widest laid-out line's right edge, an inline
+/// meta included where it ends under a reader's text spacing (D-78).
 fn width(entries: &[Entry], fonts: &Fonts) -> f64 {
     entries
         .iter()
-        .flat_map(Entry::runs)
-        .flat_map(|run| {
-            run.lines
-                .iter()
-                .map(move |line| run.origin.x + run.style.measure(line, fonts))
-        })
+        .map(|entry| entry.right_edge(fonts))
         .fold(0.0, f64::max)
 }
 

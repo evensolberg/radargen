@@ -4,17 +4,20 @@
 
 use crate::model::{Item, Qualifier, Status};
 use crate::palette::Neutral;
+use crate::palette::Role;
 use crate::style::{
     LEGEND_BADGE_X, LEGEND_FIRST_BASELINE, LEGEND_META, LEGEND_NAME, LEGEND_NAME_COLUMN,
     LEGEND_NAME_X, LEGEND_ROW_MIN_HEIGHT, LEGEND_ROW_PAD, LEGEND_TEXT_MIN_HEIGHT, LINE_HEIGHT,
     META_GAP,
 };
-use crate::svg::{Anchor, Control, ItemKey, Point, TextRun};
+use crate::svg::{Anchor, Control, ItemKey, Paint, Point, Tail, TextRun};
 use crate::text::Fonts;
 use crate::trim;
 
 /// Between a row's qualifier and status (FR-74).
 const META_SEPARATOR: &str = " \u{b7} ";
+/// Between a row's name and its inline meta: a no-break space (see `tail`).
+const SEPARATOR: &str = "\u{a0}";
 
 /// A plotted item and its FR-34 number, as the walk finds them.
 #[derive(Debug, Clone, Copy)]
@@ -22,6 +25,17 @@ pub(super) struct Numbered<'a> {
     pub(super) item: &'a Item,
     /// FR-34's number: 1-based, in legend order.
     pub(super) number: usize,
+}
+
+/// FR-74's meta as a row draws it.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) enum MetaLine {
+    /// Continuing the name's last line, inside the name's own text, so a
+    /// reader's text spacing pushes it along rather than into the name
+    /// (D-78).
+    Inline(Tail),
+    /// On its own line below the name.
+    OwnLine(TextRun),
 }
 
 /// One plotted item's row: badge, wrapped name and meta (FR-74).
@@ -43,7 +57,7 @@ pub(super) struct Row {
     pub(super) name: TextRun,
     /// The qualifier and status, inline after the name or on their own
     /// line; `None` when the row shows neither.
-    pub(super) meta: Option<TextRun>,
+    pub(super) meta: Option<MetaLine>,
     /// The row's key (its CSV line), FR-75's accessible name, no tooltip.
     pub(super) control: Control,
 }
@@ -60,7 +74,7 @@ impl Row {
     ) -> Self {
         let Numbered { item, number } = numbered;
         let name = LEGEND_NAME.wrap(trim(&item.name), LEGEND_NAME_COLUMN, fonts);
-        let meta = meta_text(item.qualifier, item.status).map(|text| measured(text, &name, fonts));
+        let meta = meta_text(item.qualifier, item.status).map(|text| fitted(text, &name, fonts));
         let frame = frame(top, line_count(&name, meta.as_ref()));
         let name = name_run(name, frame.first_baseline);
         let last = name.last_baseline();
@@ -71,7 +85,7 @@ impl Row {
             series,
             hollow: item.hollow(),
             number,
-            meta: meta.map(|meta| meta_run(meta, last)),
+            meta: meta.map(|meta| meta.line(last)),
             name,
             control: Control {
                 key: ItemKey(item.line),
@@ -85,13 +99,54 @@ impl Row {
     pub(super) fn bottom(&self) -> f64 {
         self.top + self.height
     }
+
+    /// The furthest right the row's text reaches at its layout width, an
+    /// inline meta included after the name's layout width (D-78).
+    pub(super) fn right_edge(&self, fonts: &Fonts) -> f64 {
+        let x = self.name.origin.x;
+        let name = self
+            .name
+            .lines
+            .iter()
+            .map(|line| x + LEGEND_NAME.measure(line, fonts));
+        let meta = self.meta.as_ref().map(|meta| match meta {
+            MetaLine::Inline(tail) => x + inline_end(&self.name.lines, tail, fonts),
+            MetaLine::OwnLine(run) => {
+                run.origin.x + LEGEND_META.measure(&run.lines.concat(), fonts)
+            }
+        });
+        name.chain(meta).fold(0.0, f64::max)
+    }
 }
 
-/// FR-74: whether the meta fits after the name's last line, `META_GAP`
-/// after it, within `column`. Inclusive: exactly filling the column fits.
+/// FR-74: whether an inline meta ending at `end` fits within `column`.
+/// Inclusive: exactly filling the column fits.
 #[must_use]
-fn fits_inline(last_end: f64, meta_width: f64, column: f64) -> bool {
-    last_end + META_GAP + meta_width <= column
+fn fits_inline(end: f64, column: f64) -> bool {
+    end <= column
+}
+
+/// Where an inline meta ends, from the name's origin, at the layout width:
+/// the last line's layout width, the gap, and the tail's (D-78).
+fn inline_end(name: &[String], tail: &Tail, fonts: &Fonts) -> f64 {
+    let last = name.last().map_or("", String::as_str);
+    LEGEND_NAME.measure(last, fonts) + tail.gap + LEGEND_META.measure(&tail.text, fonts)
+}
+
+/// The meta as a tail: a no-break space, so copied text reads two words,
+/// then the meta, its gap set so the meta's first glyph lands `META_GAP`
+/// after the name's drawn end. No-break, because `resvg` drops a leading
+/// U+0020 in a tspan, glyph and advance, where a browser keeps it; both
+/// keep U+00A0, so the PNG and the page agree (SC-7).
+fn tail(text: &str, fonts: &Fonts) -> Tail {
+    let gap = META_GAP - LEGEND_META.advance(SEPARATOR, fonts);
+    debug_assert!(gap >= 0.0, "the space fits in the meta gap");
+    Tail {
+        gap,
+        style: LEGEND_META,
+        ink: Paint::Role(Role::Neutral(Neutral::TextMuted)),
+        text: [SEPARATOR, text].concat(),
+    }
 }
 
 /// FR-74's meta: the qualifier and status as the row shows them, omitting
@@ -107,29 +162,48 @@ fn meta_text(qualifier: Option<Qualifier>, status: Option<Status>) -> Option<Str
     (!parts.is_empty()).then(|| parts.join(META_SEPARATOR))
 }
 
-/// A row's meta, measured against its name's last line.
-struct Meta {
+/// A row's meta, fitted against its name's last line.
+struct Fitted {
     text: String,
-    /// Where the name's last line's drawn text ends: its advance.
-    last_end: f64,
+    tail: Tail,
     /// Whether it rides on that line (FR-74), judged at the layout width
     /// so a reader's text spacing still fits (D-78).
     inline: bool,
 }
 
-/// `text` measured against the last of `name`'s lines.
-fn measured(text: String, name: &[String], fonts: &Fonts) -> Meta {
-    let last = name.last().map_or("", String::as_str);
-    let width = LEGEND_META.measure(&text, fonts);
-    Meta {
-        inline: fits_inline(LEGEND_NAME.measure(last, fonts), width, LEGEND_NAME_COLUMN),
-        last_end: LEGEND_NAME.advance(last, fonts),
+impl Fitted {
+    /// The meta as drawn: the name's tail, or its own line below the name's
+    /// last baseline `last`.
+    fn line(self, last: f64) -> MetaLine {
+        if self.inline {
+            return MetaLine::Inline(self.tail);
+        }
+        MetaLine::OwnLine(TextRun {
+            origin: Point {
+                x: LEGEND_NAME_X,
+                y: last + LINE_HEIGHT,
+            },
+            style: LEGEND_META,
+            ink: Neutral::TextMuted,
+            anchor: Anchor::Start,
+            lines: vec![self.text],
+            leading: LINE_HEIGHT,
+        })
+    }
+}
+
+/// `text` fitted against the last of `name`'s lines.
+fn fitted(text: String, name: &[String], fonts: &Fonts) -> Fitted {
+    let tail = tail(&text, fonts);
+    Fitted {
+        inline: fits_inline(inline_end(name, &tail, fonts), LEGEND_NAME_COLUMN),
+        tail,
         text,
     }
 }
 
 /// The row's text lines: the name's, and the meta's own line if it has one.
-fn line_count(name: &[String], meta: Option<&Meta>) -> usize {
+fn line_count(name: &[String], meta: Option<&Fitted>) -> usize {
     name.len() + usize::from(meta.is_some_and(|meta| !meta.inline))
 }
 
@@ -177,30 +251,6 @@ const fn name_run(lines: Vec<String>, baseline: f64) -> TextRun {
     }
 }
 
-/// A row's meta: after the name's last line, on its baseline `last`, or on
-/// its own line below it.
-fn meta_run(meta: Meta, last: f64) -> TextRun {
-    let origin = if meta.inline {
-        Point {
-            x: LEGEND_NAME_X + meta.last_end + META_GAP,
-            y: last,
-        }
-    } else {
-        Point {
-            x: LEGEND_NAME_X,
-            y: last + LINE_HEIGHT,
-        }
-    };
-    TextRun {
-        origin,
-        style: LEGEND_META,
-        ink: Neutral::TextMuted,
-        anchor: Anchor::Start,
-        lines: vec![meta.text],
-        leading: LINE_HEIGHT,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,6 +258,8 @@ mod tests {
     use crate::layout::test_support::{
         HEAD, HEAD_META, NAME_FULL_LINE, NAME_THREE_LINES, NAME_TWO_LINES, near, plotted,
     };
+    use crate::palette::Role;
+    use crate::svg::{Paint, Scale, Tail};
 
     /// Each of `csv`'s items as a row from the top, so positions read
     /// relative to the row; the walk's placement is the layout's test.
@@ -280,12 +332,20 @@ mod tests {
     /// FR-74: inclusive — exactly filling the column still fits.
     #[test]
     fn fits_inline_is_inclusive() {
-        assert!(fits_inline(300.0, 4.0, 312.0));
-        assert!(!fits_inline(300.0, 4.0 + 1e-9, 312.0));
-        assert!(fits_inline(0.0, 0.0, 8.0));
-        assert!(!fits_inline(0.0, 0.0, 7.999));
-        assert!(fits_inline(100.0, 50.0, 312.0));
-        assert!(!fits_inline(250.0, 60.0, 312.0));
+        assert!(fits_inline(312.0, 312.0));
+        assert!(!fits_inline(312.0 + 1e-9, 312.0));
+        assert!(fits_inline(0.0, 0.0));
+    }
+
+    /// The inline meta's tail: a space, then the meta, `dx` such that the
+    /// meta's first glyph lands `META_GAP` after the name's drawn end.
+    fn expected_tail(text: &str) -> Tail {
+        Tail {
+            gap: META_GAP - LEGEND_META.advance(SEPARATOR, fonts()),
+            style: LEGEND_META,
+            ink: Paint::Role(Role::Neutral(Neutral::TextMuted)),
+            text: [SEPARATOR, text].concat(),
+        }
     }
 
     /// mockup.html l.725–729, l.749–751: meta on the name's last baseline,
@@ -294,20 +354,47 @@ mod tests {
     #[test]
     fn meta_rides_inline_when_it_fits() {
         let row = only(&format!("{HEAD_META}A,Q,Adopt,d,default,new\n"));
-        let meta = row.meta.as_ref().expect("meta");
-        assert_eq!(meta.lines, ["Default \u{b7} New"]);
-        let at = Point {
-            x: 84.624_267_578_125,
-            y: 18.5,
+        let Some(MetaLine::Inline(tail)) = &row.meta else {
+            panic!("an inline meta: {row:?}");
         };
-        assert!(near(meta.origin, at), "{meta:?}");
+        assert_eq!(*tail, expected_tail("Default \u{b7} New"));
+        // Drawn where it always was: the space's advance after the tail's
+        // start, which is the name's drawn end plus the gap.
+        let node = row.name.node_with_tail(tail, Scale::uniform(1.0));
+        let first_glyph =
+            node.tail_x(fonts()).expect("a tail") + LEGEND_META.advance(SEPARATOR, fonts());
+        assert!(close(first_glyph, 84.624_267_578_125), "{first_glyph}");
         assert!(close(row.height, 36.0));
         assert!(!row.hollow, "Default is solid (FR-20)");
 
         let row = only(&format!("{HEAD_META}A,Q,Adopt,d,conditional,\n"));
         assert!(row.hollow, "Conditional is hollow (FR-20)");
-        let meta = row.meta.as_ref().expect("meta");
-        assert_eq!(meta.lines, ["Conditional"]);
+        assert_eq!(
+            row.meta,
+            Some(MetaLine::Inline(expected_tail("Conditional")))
+        );
+    }
+
+    /// The row's right edge holds the inline meta at its layout width,
+    /// after the name's layout width: where it ends under 1.4.12 (D-78).
+    #[test]
+    fn the_right_edge_holds_an_inline_meta() {
+        let row = only(&format!("{HEAD_META}A,Q,Adopt,d,default,new\n"));
+        let tail = expected_tail("Default \u{b7} New");
+        let want = 68.0
+            + LEGEND_NAME.measure("A", fonts())
+            + tail.gap
+            + LEGEND_META.measure(&tail.text, fonts());
+        assert!(
+            close(row.right_edge(fonts()), want),
+            "{} vs {want}",
+            row.right_edge(fonts())
+        );
+        let plain = only(&format!("{HEAD}Kafka,Q,Adopt,d\n"));
+        assert!(close(
+            plain.right_edge(fonts()),
+            68.0 + LEGEND_NAME.measure("Kafka", fonts())
+        ));
     }
 
     /// FR-74: the name's layout width, 8, and the meta's layout width pass
@@ -318,7 +405,14 @@ mod tests {
         let name = NAME_FULL_LINE;
         let row = only(&format!("{HEAD_META}{name},Q,Adopt,d,default,new\n"));
         assert_eq!(row.name.lines, [name]);
-        let meta = row.meta.as_ref().expect("meta");
+        let Some(MetaLine::OwnLine(meta)) = &row.meta else {
+            panic!("a meta on its own line: {row:?}");
+        };
+        assert_eq!(
+            meta.lines,
+            ["Default \u{b7} New"],
+            "no leading space on its own line"
+        );
         assert!(near(row.name.origin, Point { x: 68.0, y: 12.5 }), "{row:?}");
         assert!(near(meta.origin, Point { x: 68.0, y: 27.5 }), "{meta:?}");
         assert!(
