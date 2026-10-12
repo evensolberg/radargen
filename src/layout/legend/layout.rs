@@ -17,9 +17,10 @@ use crate::style::{
     SWATCH_RADIUS, SWATCH_RAISE, TextStyle,
 };
 use crate::svg::{Anchor, Point, TextRun};
-use crate::text::{Fonts, wrap};
+use crate::text::Fonts;
 
 use super::row::Row;
+use super::{measure, wrapped};
 
 /// The legend's heading text.
 const LEGEND_TITLE: &str = "Legend";
@@ -246,24 +247,6 @@ fn heading(tier: Tier, text: &str, baseline: f64, fonts: &Fonts) -> TextRun {
         lines: wrapped(text, tier.style, LEGEND_WIDTH_MAX - tier.indent, fonts),
         leading: LINE_HEIGHT,
     }
-}
-
-/// `text` wrapped at `column` in `style` (FR-79).
-pub(super) fn wrapped(text: &str, style: TextStyle, column: f64, fonts: &Fonts) -> Vec<String> {
-    wrap(
-        text,
-        column,
-        fonts.face(style.weight),
-        style.size,
-        style.letter_spacing,
-    )
-}
-
-/// `text`'s advance in `style`.
-pub(super) fn measure(text: &str, style: TextStyle, fonts: &Fonts) -> f64 {
-    fonts
-        .face(style.weight)
-        .measure(text, style.size, style.letter_spacing)
 }
 
 /// The legend's heading before its groups, or nothing with no groups:
@@ -497,29 +480,6 @@ mod tests {
         }
     }
 
-    /// FR-46, FR-79. 312 = 380 − 68 (D-56; mockup.html l.711).
-    #[test]
-    fn long_names_wrap_and_long_tokens_break() {
-        let fits = "Continuous delivery pipelines for managed";
-        let wraps = "Continuous delivery pipelines for managed infrastructure";
-        let word = "Unbreakable".repeat(5);
-        let l = lay(
-            &format!("{HEAD}{fits},Q,Adopt,d\n{wraps},Q,Trial,d\n{word},Q,Assess,d\n"),
-            None,
-        );
-        let names: Vec<&[String]> = rows(&l).iter().map(|r| r.name.lines.as_slice()).collect();
-        let [broken, wrapped, whole] = names.as_slice() else {
-            panic!("three rows: {names:?}");
-        };
-        assert_eq!(broken.len(), 2, "{broken:?}");
-        assert_eq!(broken.concat(), word, "nothing dropped");
-        assert_eq!(*wrapped, [fits, "infrastructure"]);
-        assert_eq!(*whole, [fits]);
-        for line in names.iter().flat_map(|lines| lines.iter()) {
-            assert!(name_width(line) <= 312.0, "{line}");
-        }
-    }
-
     /// PRD v0.53 FR-79: a heading wraps at its own column (380 − 16) with a
     /// hanging indent; the swatch stays on the first line; the ring heading
     /// moves down by the extra line (54 + 15).
@@ -610,7 +570,7 @@ mod tests {
     }
 
     /// The width is the widest line's right edge: here the name "A" at 68
-    /// (see `meta_rides_inline_when_it_fits`).
+    /// (see `row`'s `meta_rides_inline_when_it_fits`).
     #[test]
     fn widths() {
         let l = lay(&format!("{HEAD}A,Q,Adopt,d\n"), None);

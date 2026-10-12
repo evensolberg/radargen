@@ -17,10 +17,10 @@ use crate::palette::{Neutral, Role};
 use crate::style::{
     BADGE_HOLLOW_STROKE, BADGE_RADIUS, BADGE_STROKE, INDENT_ITEM, LEGEND_BADGE_NUMBER,
     LEGEND_PANEL_INSET_X, LEGEND_PANEL_INSET_Y, LEGEND_PANEL_RADIUS, LEGEND_ROW_INDICATOR_INSET,
-    LEGEND_ROW_LEFT_OUTSET, LEGEND_ROW_RADIUS, LEGEND_ROW_RIGHT_OUTSET, SWATCH_RADIUS,
+    LEGEND_ROW_LEFT_OUTSET, LEGEND_ROW_RADIUS, LEGEND_ROW_RIGHT_OUTSET, SWATCH_RADIUS, TextStyle,
 };
 use crate::svg::{Group, ItemKey, Node, Paint, Point, Scale, Semantics, TextRun};
-use crate::text::Fonts;
+use crate::text::{Fonts, wrap};
 
 use layout::{Entry, Layout, layout};
 use row::Row;
@@ -278,6 +278,24 @@ fn number_node(row: &Row, s: f64) -> Node {
         row.number,
         s,
     )
+}
+
+/// `text` wrapped at `column` in `style` (FR-79).
+fn wrapped(text: &str, style: TextStyle, column: f64, fonts: &Fonts) -> Vec<String> {
+    wrap(
+        text,
+        column,
+        fonts.face(style.weight),
+        style.size,
+        style.letter_spacing,
+    )
+}
+
+/// `text`'s advance in `style`.
+fn measure(text: &str, style: TextStyle, fonts: &Fonts) -> f64 {
+    fonts
+        .face(style.weight)
+        .measure(text, style.size, style.letter_spacing)
 }
 
 #[cfg(test)]

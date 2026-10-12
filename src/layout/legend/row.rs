@@ -13,7 +13,7 @@ use crate::svg::{Anchor, Control, ItemKey, Point, TextRun};
 use crate::text::Fonts;
 use crate::trim;
 
-use super::layout::{measure, wrapped};
+use super::{measure, wrapped};
 
 /// Between a row's qualifier and status (FR-74).
 const META_SEPARATOR: &str = " \u{b7} ";
@@ -257,6 +257,28 @@ mod tests {
         }
         for row in &rows {
             assert!(close(row.name.leading, 15.0));
+        }
+    }
+
+    /// FR-46, FR-79. 312 = 380 − 68 (D-56; mockup.html l.711).
+    #[test]
+    fn long_names_wrap_and_long_tokens_break() {
+        let fits = "Continuous delivery pipelines for managed";
+        let wraps = "Continuous delivery pipelines for managed infrastructure";
+        let word = "Unbreakable".repeat(5);
+        let rows = rows(&format!(
+            "{HEAD}{fits},Q,Adopt,d\n{wraps},Q,Trial,d\n{word},Q,Assess,d\n"
+        ));
+        let names: Vec<&[String]> = rows.iter().map(|r| r.name.lines.as_slice()).collect();
+        let [whole, wrapped, broken] = names.as_slice() else {
+            panic!("three rows: {names:?}");
+        };
+        assert_eq!(broken.len(), 2, "{broken:?}");
+        assert_eq!(broken.concat(), word, "nothing dropped");
+        assert_eq!(*wrapped, [fits, "infrastructure"]);
+        assert_eq!(*whole, [fits]);
+        for line in names.iter().flat_map(|lines| lines.iter()) {
+            assert!(measure(line, LEGEND_NAME, fonts()) <= 312.0, "{line}");
         }
     }
 
