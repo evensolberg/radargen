@@ -13,6 +13,7 @@ use radargen::svg::{Document, marker_keys};
 
 use super::golden::golden;
 use super::html::{assert_requests_nothing, outside, style, svgs, tags};
+use super::identity::interactive;
 use super::vocabulary::vocabulary;
 use super::{parse, prd};
 
@@ -64,12 +65,12 @@ fn the_page_is_minimal_and_valid() {
         "<meta name=\"generator\" content=\"{OUTPUT_VERSION}\">"
     )));
     assert!(style(&html).contains(VISUALLY_HIDDEN));
+    let around = outside(&html);
     assert!(
-        outside(&html).ends_with(&format!(
+        around.ends_with(&format!(
             "<body>\n<main>\n{WIDE_OPEN}\n</div>\n{NARROW_OPEN}\n</div>\n</main>\n</body>\n</html>\n"
         )),
-        "{}",
-        outside(&html)
+        "{around}"
     );
 }
 
@@ -86,12 +87,12 @@ fn the_page_requests_nothing() {
 fn the_title_falls_back() {
     let untitled = prd_page(None);
     assert!(untitled.contains("<title>Technology Radar</title>"));
+    let around = outside(&untitled);
     assert!(
-        outside(&untitled).contains(&format!(
+        around.contains(&format!(
             "<main>\n<h1 class=\"visually-hidden\">Technology Radar</h1>\n{WIDE_OPEN}"
         )),
-        "{}",
-        outside(&untitled)
+        "{around}"
     );
     let titled = prd_page(Some("Q3 Radar"));
     assert!(titled.contains("<title>Q3 Radar</title>"));
@@ -174,12 +175,7 @@ fn both_are_interactive() {
 #[test]
 fn marker_keys_walk_controls_only() {
     let (wide, _) = documents();
-    let svg = radargen::svg::serialise(
-        &wide,
-        radargen::svg::Target::Interactive(&radargen::palette::Palette::built_in(
-            radargen::palette::Theme::Light,
-        )),
-    );
+    let svg = interactive(&prd(), Arrangement::Wide);
     let walked: Vec<String> = marker_keys(&wide)
         .into_iter()
         .map(|key| key.0.to_string())

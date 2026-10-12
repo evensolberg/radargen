@@ -49,14 +49,13 @@ const SWAP: &str = "{.wide{display:none}.narrow{display:block}}\n";
 
 /// The outline an indicator replaces: transparent rather than removed, so
 /// forced-colours mode paints it in a system colour.
-const OUTLINE: &str = "]:focus-visible{outline:2px solid transparent}\n[";
+const OUTLINE: &str = "]:focus-visible{outline:2px solid transparent}\n";
 const ROW_SHOWN: &str = "]:focus-visible>[";
 const VISIBLE: &str = "]{visibility:visible}\n[";
 const ROW_RING: &str = "]>rect{stroke:var(";
 const ROW_RING_WIDTH: &str = ");stroke-width:";
 const PX_CLOSE: &str = "px}\n";
 const SUPPORTS_HAS: &str = "@supports selector(:has(*)){\n[";
-const MARKER_OUTLINE: &str = "]:focus-visible{outline:2px solid transparent}\n";
 const HAS_OPEN: &str = "svg:has([";
 const KEY_OPEN: &str = "=\"";
 const HAS_FOCUS: &str = "\"]:focus-visible) [";
@@ -179,6 +178,7 @@ fn legend_focus() -> String {
         "[",
         DATA_LEGEND_ROW,
         OUTLINE,
+        "[",
         DATA_LEGEND_ROW,
         ROW_SHOWN,
         DATA_ROW_INDICATOR,
@@ -200,7 +200,7 @@ fn marker_focus(markers: &[ItemKey]) -> String {
         return String::new();
     }
     let rules: String = markers.iter().copied().map(marker_rule).collect();
-    [SUPPORTS_HAS, DATA_MARKER, MARKER_OUTLINE, &rules, CLOSE].concat()
+    [SUPPORTS_HAS, DATA_MARKER, OUTLINE, &rules, CLOSE].concat()
 }
 
 /// `svg:has([data-marker="L"]:focus-visible) [data-marker-indicator="L"]`:

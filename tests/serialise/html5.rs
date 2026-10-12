@@ -6,8 +6,6 @@
 //! that parses cleanly here, with only the page's and the serialiser's
 //! elements and the document's own strings, holds no injected markup.
 
-use std::cell::RefCell;
-
 use html5ever::tendril::TendrilSink;
 use html5ever::{LocalName, Namespace, ParseOpts, ns, parse_document};
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
@@ -16,12 +14,7 @@ use radargen::layout::arrange::{Arrangement, arrange};
 
 use super::build;
 use super::hostile::{RING, Strings, TITLE, csv};
-use super::html::SVG_ELEMENTS;
-
-/// Every element the page writes outside its SVGs.
-const PAGE_ELEMENTS: [&str; 10] = [
-    "html", "head", "meta", "title", "style", "body", "main", "h1", "div", "svg",
-];
+use super::html::{PAGE_ELEMENTS, SVG_ELEMENTS};
 
 /// Every element under `node`, itself included, in document order.
 fn elements(node: &Handle) -> Vec<Handle> {
@@ -109,8 +102,7 @@ fn hostile_text_survives_an_html5_parser() {
         .from_utf8()
         .read_from(&mut html.as_bytes())
         .expect("reading from memory cannot fail");
-    let errors: &RefCell<Vec<_>> = &dom.errors;
-    assert!(errors.borrow().is_empty(), "{:?}", errors.borrow());
+    assert!(dom.errors.borrow().is_empty(), "{:?}", dom.errors.borrow());
 
     let all = elements(&dom.document);
     for node in &all {
@@ -119,6 +111,8 @@ fn hostile_text_survives_an_html5_parser() {
             assert!(SVG_ELEMENTS.contains(&&*local), "<svg:{local}>");
         } else {
             assert_eq!(namespace, ns!(html), "<{local}>");
+            // html5ever puts the `<svg>` start tag itself in the SVG namespace,
+            // so an HTML-namespace element is always one the page wrote.
             assert!(PAGE_ELEMENTS.contains(&&*local), "<{local}>");
         }
     }

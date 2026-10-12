@@ -8,7 +8,7 @@ pub const SVG_ELEMENTS: [&str; 9] = [
 ];
 
 /// Every element the page itself writes around the SVG.
-const PAGE_ELEMENTS: [&str; 9] = [
+pub const PAGE_ELEMENTS: [&str; 9] = [
     "html", "head", "meta", "title", "style", "body", "main", "h1", "div",
 ];
 
