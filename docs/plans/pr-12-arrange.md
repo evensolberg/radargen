@@ -12,7 +12,7 @@ created_date: 2026-10-11
 synopsis: "arrange.rs places the four blocks two ways from one set: wide, with the legend beside the radar at scale 1, and narrow, with the legend below and the radar scaled to fit a 400-unit column (never below 0.3; the document widens when even that does not fit, with FR-94 headroom to 480 and a warning beyond). Ships as PR 12a (FR-94 headroom, PRD v0.54) and PR 12b (arrange) (FR-68, FR-70, FR-71, FR-94, D-31, D-56, D-70, D-71)."
 status: draft
 type: Plan
-revision: "1.2"
+revision: "1.3"
 review_date: 2026-10-11
 reviewed_by: [rust-engineer, architect-reviewer, qa-expert, ui-designer, accessibility-tester]
 completed_date:
@@ -206,7 +206,6 @@ All of these are named constants in `style.rs`, at scale 1. With T = the title b
 
 - Produces in `style`, all `f64`:
   - `NARROW_MAX_WIDTH = 480.0`
-  - `NARROW_MIN_SCALE = 0.3`
   - `DOC_TOP = 10.0`
   - `RADAR_INSET = MARGIN - RADAR_LABEL_PAD`
   - `NARROW_RADAR_COLUMN = NARROW_WIDTH - 2.0 * RADAR_INSET`
@@ -219,7 +218,7 @@ All of these are named constants in `style.rs`, at scale 1. With T = the title b
   - `HIT_RADIUS = 18.0`.
 - Produces in `svg`: `Document { pub width: f64, pub height: f64, pub root: Node }` (`Debug, Clone, PartialEq`).
 
-- [ ] **Step 1: PRD v0.54.**
+- [x] **Step 1: PRD v0.54.**
   - **D-71: the narrow fit.**
     - The rule: the largest `s` in [0.3, 1] fitting the 400-unit radar column. The radar sits at `MARGIN − RADAR_LABEL_PAD`, so its ink lands on the margin.
     - Widening: the document grows to the radar plus both insets.
@@ -238,24 +237,21 @@ All of these are named constants in `style.rs`, at scale 1. With T = the title b
   - **D-66:** 24 → 36, half again.
   - **D-69:** the narrow scale is typically 0.3–0.6.
   - Add a revision row and bump `Version:`.
-- [ ] **Step 2: Architecture.**
+- [x] **Step 2: Architecture.**
   - `Implements:` v0.54.
   - §3 l.149 and §9 l.633: `Document` arrives in PR 12; PR 13 is the serialiser.
   - §4: the narrow scale rule; that the title, key and legend stay at scale 1; "always has room" means the legend; "Units become pixels" names D-71; and the breakpoint-survives argument.
   - §5: `Document { width, height, root }`.
   - Retitle crumb `rg-6ku` to "PR 13: svg serialiser, emit/write.rs" with `crumbs update rg-6ku --title`.
-- [ ] **Step 3: Failing tests and asserts.**
+- [x] **Step 3: Failing tests and asserts.**
   - Update `style.rs`'s `MIN_PX_PER_UNIT` test from `320/420` to `320/480`. It fails, and so do the FR-94 const asserts once `MIN_PX_PER_UNIT` changes, until the row height and hit radius rise.
-  - New const asserts:
-    - `NARROW_MIN_SCALE > 0.0034 && NARROW_MIN_SCALE <= 1.0`, so the radar's size is non-decreasing over the whole search;
-    - `NARROW_MAX_WIDTH >= NARROW_WIDTH`;
-    - `RADAR_INSET >= 0.0`.
-- [ ] **Step 4: Implement.**
+  - The FR-94 const asserts also check that the row height and hit radius are the least whole values that work, so oversizing fails the build as well (12a simplify).
+- [x] **Step 4: Implement.**
   - Write the constants, each with a doc comment giving its derivation (for `DOC_TOP`, the cap-height arithmetic above).
   - Replace `MIN_PX_PER_UNIT`'s doc: it is the fewest px per unit at any narrow width up to `NARROW_MAX_WIDTH` or at the wide breakpoint. A D-71 document wider than that renders smaller, and FR-95 warns.
-  - Name D-71 in the docs of `HIT_RADIUS` and `LEGEND_ROW_MIN_HEIGHT`.
+  - Name D-71 once, on `MIN_PX_PER_UNIT` (12a simplify).
   - Add `svg::Document`.
-- [ ] **Step 5: The ripple.** Rerun the legend and radar tests and update every literal that moves:
+- [x] **Step 5: The ripple.** Rerun the legend and radar tests and update every literal that moves:
   - **One-line legend rows** are 36 tall: badge at the row's top + 18, first baseline at top + 18.5. Two-line rows stay 37.
   - **Pins in `legend/layout.rs`:**
     - `pins_for_the_prd_example`: row 58 / 36, badge y 76, name y 76.5.
@@ -265,8 +261,8 @@ All of these are named constants in `style.rs`, at scale 1. With T = the title b
   - **Pins in `legend/row.rs`:** (36, 18.5), and the inline meta at y 18.5.
   - **Radar:** pins that mention 16 or a hit-limited size. `size_is_non_decreasing`'s comment ("near 0.135") moves.
   - Derive each new literal by hand in the test's comment, as before. Do not copy what the run prints.
-- [ ] **Step 6:** `cargo fmt`, clippy, `just lint`, `just ci`; `yq --front-matter=extract '.' docs/plans/pr-12-arrange.md`.
-- [ ] **Step 7: Commits:**
+- [x] **Step 6:** `cargo fmt`, clippy, `just lint`, `just ci`; `yq --front-matter=extract '.' docs/plans/pr-12-arrange.md`.
+- [x] **Step 7: Commits:**
   - `docs(prd): v0.54 — the narrow fit (D-71, FR-95)`
   - `feat(layout): FR-94 headroom for a narrow document up to 480 (D-71)`
   - `feat(svg): Document; the arrangement constants`
@@ -280,7 +276,8 @@ All of these are named constants in `style.rs`, at scale 1. With T = the title b
 
 **Interfaces:**
 
-- Consumes: `layout::block::{Block, Placement, Size}`; the four block types; Task 1's constants.
+- Consumes: `layout::block::{Block, Placement, Size}`; the four block types; Task 1's `NARROW_MAX_WIDTH`.
+- Adds to `style` (deferred from Task 1 by ledger ruling: unused until here): `NARROW_MIN_SCALE = 0.3`, with a named constant for the radar's monotone bound (0.0034, from `half_extent`'s doc) and a const assert that `NARROW_MIN_SCALE` lies above it and at most 1, linked from `QuadrantLabel::push`'s doc; `RADAR_INSET`, `NARROW_RADAR_COLUMN`, `DOC_TOP`, `LEGEND_WIDE_DROP`, `KEY_TO_LEGEND`, `KEY_RULE_STROKE` as Task 1's Interfaces describe them. `svg::Document` comes with Task 4.
 - Produces (docs abbreviated here; every item and field gets one in the code):
 
 ```rust
@@ -479,3 +476,4 @@ fn narrow_scale(radar: &impl Block, column: f64) -> f64 {
 | 1.0 | 2026-10-11 | Initial version, for the plan review. D-71 ruled by the maintainer on a wrong premise (widening only past ~360 units). |
 | 1.1 | 2026-10-11 | The five-seat review: measured widening thresholds; the maintainer re-ruled (FR-94 headroom to 480, FR-95 warns beyond); radar at `RADAR_INSET` with a 400 column; `DOC_TOP`; derived spacings; centring dropped; IOSP split; corrected pins and fuller tests; the PRD carries D-71 through FR-94, NFR-1, SC-6, SC-17, D-31, D-66, D-69; split into PR 12a and PR 12b. |
 | 1.2 | 2026-10-11 | PR 12a review: SC-6 is not scoped to 480 (its claim holds at any width; it states the px); FR-95 names the quadrant whose label sets the radar's width; `svg::Document` and the arrangement-only constants move to PR 12b. |
+| 1.3 | 2026-10-11 | PR 12a shipped: Task 1 ticked; `NARROW_MIN_SCALE` and the arrangement constants listed under Task 2, where they first have a user; Task 1's asserts and D-71 doc placement as shipped. |
