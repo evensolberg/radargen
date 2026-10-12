@@ -17,10 +17,10 @@ use crate::style::{
     LEGEND_PANEL_INSET_X, LEGEND_PANEL_INSET_Y, LEGEND_PANEL_RADIUS, LEGEND_ROW_INDICATOR_INSET,
     LEGEND_ROW_LEFT_OUTSET, LEGEND_ROW_RADIUS, LEGEND_ROW_RIGHT_OUTSET, SWATCH_RADIUS,
 };
-use crate::svg::{
-    Anchor, Group, ItemKey, Node, Paint, Point, Scale, Semantics, TextPaint, TextRun,
-};
-use crate::text::{Fonts, NUMBER_CENTRING};
+use crate::svg::{Group, ItemKey, Node, Paint, Point, Scale, Semantics, TextRun};
+use crate::text::Fonts;
+
+use crate::layout::marker::{number_paint, number_text};
 
 use layout::{Entry, Layout, Row, layout};
 
@@ -268,30 +268,15 @@ fn badge_node(row: &Row, s: f64) -> Node {
     }
 }
 
-/// The row's FR-34 number, centred on its badge: primary text on a hollow
-/// badge, else the ink its series entry calls for (D-54).
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
-)]
+/// The row's FR-34 number, centred on its badge.
 fn number_node(row: &Row, s: f64) -> Node {
-    let paint = if row.hollow {
-        Paint::Role(Role::Neutral(Neutral::TextPrimary))
-    } else {
-        Paint::NumberOn(row.series)
-    };
-    let centre = row.badge.scaled(s);
-    Node::Text {
-        origin: Point {
-            x: centre.x,
-            y: centre.y + NUMBER_CENTRING * LEGEND_BADGE_NUMBER.size * s,
-        },
-        style: LEGEND_BADGE_NUMBER.scaled(s),
-        ink: TextPaint::Fill(paint),
-        anchor: Anchor::Middle,
-        lines: vec![row.number.to_string()],
-        leading: 0.0,
-    }
+    number_text(
+        row.badge.scaled(s),
+        LEGEND_BADGE_NUMBER,
+        number_paint(row.hollow, row.series),
+        row.number,
+        s,
+    )
 }
 
 #[cfg(test)]
@@ -299,10 +284,12 @@ mod tests {
     use super::*;
     use crate::layout::block::{assert_translates, at, close, fonts};
     use crate::layout::test_support::{
-        PRD_EXAMPLE, Rect, assert_finite, assert_inside, bounds, fill, near, plotted,
+        NAME_FULL_LINE, NAME_THREE_LINES, NAME_TWO_LINES, PRD_EXAMPLE, Rect, assert_finite,
+        assert_inside, bounds, empty_catalogue, fill, near, plotted,
     };
     use crate::style::{MIN_PX_PER_UNIT, MIN_TARGET_PX};
-    use crate::svg::Control;
+    use crate::svg::{Anchor, Control, TextPaint};
+    use crate::text::NUMBER_CENTRING;
 
     /// With FR-20's qualifier and FR-26's status.
     const HEAD_META: &str = "name,quadrant,ring,description,qualifier,status\n";
@@ -312,6 +299,21 @@ mod tests {
         let block = LegendBlock::new(&catalogue, &order, fonts());
         (catalogue, order, block)
     }
+
+    /// The legend for `csv`, drawn at scale 1.
+    fn rendered(csv: &str) -> Node {
+        let (_, _, block) = legend(csv);
+        block.render(at(1.0))
+    }
+
+    /// A row's children, in order: its target, focus indicator, badge,
+    /// number, name, and meta when it shows one.
+    const TARGET: usize = 0;
+    const INDICATOR: usize = 1;
+    const BADGE: usize = 2;
+    const NUMBER: usize = 3;
+    const NAME: usize = 4;
+    const META: usize = 5;
 
     fn group(node: &Node) -> &Group {
         let Node::Group(group) = node else {
@@ -412,11 +414,10 @@ mod tests {
         let csv = format!(
             "{HEAD_META}A,Q,Adopt,d,default,new\nB,Q,Adopt,d,conditional,\nC,Q,Adopt,d,,no change\nD,Q,Adopt,d,,\n"
         );
-        let (_, _, block) = legend(&csv);
-        let root = block.render(at(1.0));
+        let root = rendered(&csv);
         let mut shown = 0;
         for (control, children) in rows(&root) {
-            let Some(meta) = children.get(5) else {
+            let Some(meta) = children.get(META) else {
                 continue;
             };
             shown += 1;
@@ -456,11 +457,10 @@ mod tests {
 
     #[test]
     fn row_indicators_are_inset_and_interactive_only() {
-        let (_, _, block) = legend(PRD_EXAMPLE);
-        let root = block.render(at(1.0));
+        let root = rendered(PRD_EXAMPLE);
         for (control, children) in rows(&root) {
-            let (origin, width, height, _, _, _) = rect(child(children, 0));
-            let indicator = child(children, 1);
+            let (origin, width, height, _, _, _) = rect(child(children, TARGET));
+            let indicator = child(children, INDICATOR);
             let g = group(indicator);
             assert_eq!(g.semantics, Semantics::Indicator(control.key));
             assert!(near(g.offset, Point::ORIGIN));
@@ -489,30 +489,27 @@ mod tests {
     /// meta on its own line, in one ring so the rows abut.
     #[test]
     fn row_targets_meet_fr94_and_tile() {
-        let two = "Bounded trial of continuous delivery pipelines across managed estates and environments";
-        let three = "Bounded trial of continuous delivery pipelines across managed estates and environments with a shared policy layer";
-        let own = "Bounded trial of continuous delivery pipelines";
+        let (two, three, own) = (NAME_TWO_LINES, NAME_THREE_LINES, NAME_FULL_LINE);
         let csv = format!(
             "{HEAD_META}A,Q,Adopt,d,,\n{two},Q,Adopt,d,,\n{three},Q,Adopt,d,,\n{own},Q,Adopt,d,default,new\n"
         );
-        let (_, _, block) = legend(&csv);
-        let root = block.render(at(1.0));
+        let root = rendered(&csv);
         let rows = rows(&root);
         // FR-34 orders the rows by name, so the cases are found, not indexed.
         let mut lines: Vec<usize> = rows
             .iter()
-            .map(|(_, c)| text(child(c, 4)).4.len())
+            .map(|(_, c)| text(child(c, NAME)).4.len())
             .collect();
         lines.sort_unstable();
         assert_eq!(lines, [1, 1, 2, 3], "the cases are the ones meant");
         let own_line = rows
             .iter()
-            .filter(|(_, c)| c.get(5).is_some_and(|meta| close(text(meta).0.x, 68.0)))
+            .filter(|(_, c)| c.get(META).is_some_and(|meta| close(text(meta).0.x, 68.0)))
             .count();
         assert_eq!(own_line, 1, "one row's meta has its own line");
         let mut bottom = None;
         for (_, children) in &rows {
-            let (origin, width, height, _, fill, _) = rect(child(children, 0));
+            let (origin, width, height, _, fill, _) = rect(child(children, TARGET));
             assert!(height * MIN_PX_PER_UNIT >= MIN_TARGET_PX, "{height}");
             assert!(width * MIN_PX_PER_UNIT >= MIN_TARGET_PX, "{width}");
             assert_eq!(fill, SURFACE2);
@@ -520,8 +517,8 @@ mod tests {
                 assert!(close(origin.y, previous), "{origin:?} after {previous}");
             }
             bottom = Some(origin.y + height);
-            let target = bounds(child(children, 0), fonts()).expect("a target");
-            for part in children.iter().skip(2) {
+            let target = bounds(child(children, TARGET), fonts()).expect("a target");
+            for part in children.iter().skip(BADGE) {
                 let found = bounds(part, fonts()).expect("drawn");
                 assert!(encloses(target, found), "{found:?} outside {target:?}");
             }
@@ -579,18 +576,17 @@ mod tests {
     #[test]
     fn badges_match_the_markers() {
         let csv = format!("{HEAD_META}A,Q,Adopt,d,default,\nB,Q,Adopt,d,conditional,\n");
-        let (_, _, block) = legend(&csv);
-        let root = block.render(at(1.0));
+        let root = rendered(&csv);
         let rows = rows(&root);
         let [(_, solid), (_, hollow)] = rows.as_slice() else {
             panic!("two rows: {rows:?}");
         };
         let series = Paint::Role(Role::Series(0));
-        let (centre, radius, disc, stroke, width) = circle(child(solid, 2));
+        let (centre, radius, disc, stroke, width) = circle(child(solid, BADGE));
         assert!(close(radius, BADGE_RADIUS));
         assert_eq!((disc, stroke), (series, series));
         assert!(close(width, BADGE_STROKE));
-        let (origin, size, ink, anchor, lines) = text(child(solid, 3));
+        let (origin, size, ink, anchor, lines) = text(child(solid, NUMBER));
         assert_eq!(
             (ink, anchor, lines),
             (
@@ -602,13 +598,13 @@ mod tests {
         assert!(close(size, LEGEND_BADGE_NUMBER.size));
         assert!(near(origin, number_at(centre)), "{origin:?}");
 
-        let (centre, _, disc, stroke, width) = circle(child(hollow, 2));
+        let (centre, _, disc, stroke, width) = circle(child(hollow, BADGE));
         assert_eq!(
             (disc, stroke),
             (Paint::Role(Role::Neutral(Neutral::MarkerHollow)), series)
         );
         assert!(close(width, BADGE_HOLLOW_STROKE));
-        let (origin, _, ink, _, lines) = text(child(hollow, 3));
+        let (origin, _, ink, _, lines) = text(child(hollow, NUMBER));
         assert_eq!(
             (ink, lines),
             (fill(Neutral::TextPrimary), ["2".to_owned()].as_slice())
@@ -629,8 +625,9 @@ mod tests {
         }
     }
 
+    /// The headings' text inks: "Legend" and quadrants primary, rings muted.
     #[test]
-    fn headings_and_inks() {
+    fn heading_inks() {
         let (_, order, block) = legend(PRD_EXAMPLE);
         let root = block.render(at(1.0));
         let headings: Vec<(u8, TextPaint)> = groups(&root)
@@ -650,7 +647,12 @@ mod tests {
         assert_ne!(rings.len(), 0, "the example has ring headings");
         assert!(rings.iter().all(|h| h.1 == muted));
         assert_eq!(headings.len(), 1 + quadrants.len() + rings.len());
+    }
 
+    #[test]
+    fn swatches_are_series_circles() {
+        let (_, order, block) = legend(PRD_EXAMPLE);
+        let root = block.render(at(1.0));
         let swatches: Vec<(Point, f64, Paint, Paint, f64)> = groups(&root)
             .iter()
             .filter(|g| g.semantics == Semantics::Decorative)
@@ -671,11 +673,19 @@ mod tests {
                 .iter()
                 .all(|s| close(s.1, SWATCH_RADIUS) && s.3 == Paint::None)
         );
+    }
 
+    #[test]
+    fn row_text_inks() {
+        let root = rendered(PRD_EXAMPLE);
         for (_, children) in rows(&root) {
-            assert_eq!(text(child(children, 4)).2, primary, "the name");
-            if let Some(meta) = children.get(5) {
-                assert_eq!(text(meta).2, muted, "the meta");
+            assert_eq!(
+                text(child(children, NAME)).2,
+                fill(Neutral::TextPrimary),
+                "the name"
+            );
+            if let Some(meta) = children.get(META) {
+                assert_eq!(text(meta).2, fill(Neutral::TextMuted), "the meta");
             }
         }
     }
@@ -719,12 +729,7 @@ mod tests {
 
     #[test]
     fn an_empty_legend_takes_no_space() {
-        let catalogue = Catalogue {
-            columns: Vec::new(),
-            quadrants: Vec::new(),
-            rings: Vec::new(),
-            items: Vec::new(),
-        };
+        let catalogue = empty_catalogue();
         let block = LegendBlock::new(&catalogue, &Plotted::default(), fonts());
         assert!(block.size(1.0).is_empty());
         assert_eq!(group(&block.render(at(1.0))).children, Vec::new());

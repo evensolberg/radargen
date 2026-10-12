@@ -11,39 +11,30 @@ use crate::model::{Catalogue, Item, Qualifier, Status};
 use crate::order::{Plotted, Run};
 use crate::palette::Neutral;
 use crate::style::{
-    BADGE_RADIUS, INDENT_ITEM, INDENT_QUADRANT, INDENT_RING, LEGEND_EMPTY_GROUP_GAP,
-    LEGEND_FIRST_BASELINE, LEGEND_HEADING, LEGEND_HEADING_BASELINE, LEGEND_HEADING_TO_GROUP,
-    LEGEND_META, LEGEND_NAME, LEGEND_NAME_X, LEGEND_QUADRANT, LEGEND_QUADRANT_TO_RING, LEGEND_RING,
+    INDENT_QUADRANT, INDENT_RING, LEGEND_BADGE_X, LEGEND_EMPTY_GROUP_GAP, LEGEND_FIRST_BASELINE,
+    LEGEND_FIRST_GROUP, LEGEND_HEADING, LEGEND_HEADING_BASELINE, LEGEND_META, LEGEND_NAME,
+    LEGEND_NAME_COLUMN, LEGEND_NAME_X, LEGEND_QUADRANT, LEGEND_QUADRANT_TO_RING, LEGEND_RING,
     LEGEND_RING_TO_ROW, LEGEND_ROW_MIN_HEIGHT, LEGEND_ROW_PAD, LEGEND_ROW_TO_QUADRANT,
     LEGEND_ROW_TO_RING, LEGEND_TEXT_MIN_HEIGHT, LEGEND_WIDTH_MAX, LINE_HEIGHT, META_GAP,
     SWATCH_RADIUS, SWATCH_RAISE, TextStyle,
 };
 use crate::svg::{Anchor, Control, ItemKey, Point, TextRun};
-use crate::text::{Fonts, TEXT_DESCENT, wrap};
+use crate::text::{Fonts, wrap};
 use crate::trim;
 
 /// The legend's heading text.
 const LEGEND_TITLE: &str = "Legend";
 /// Between a row's qualifier and status (FR-74).
 const META_SEPARATOR: &str = " \u{b7} ";
-/// The column a row's name and meta wrap in: D-56's 380 less the name's
-/// indent.
-const NAME_COLUMN: f64 = LEGEND_WIDTH_MAX - LEGEND_NAME_X;
-/// The first quadrant heading's baseline.
-const FIRST_GROUP: f64 = LEGEND_HEADING_BASELINE + LEGEND_HEADING_TO_GROUP;
-/// A badge's centre, from the content's left edge.
-const BADGE_X: f64 = INDENT_ITEM + BADGE_RADIUS;
 
-/// One tier of the legend's headings: where it starts, how it looks, and
-/// the column it wraps in (its indent less than D-56's 380, so a hanging
-/// indent).
+/// One tier of the legend's headings: where it starts and how it looks. It
+/// wraps at D-56's 380 less its indent, so later lines hang.
 #[derive(Debug, Clone, Copy)]
 struct Tier {
     indent: f64,
     style: TextStyle,
     ink: Neutral,
     level: NonZeroU8,
-    column: f64,
 }
 
 /// "Legend": a peer of the key's heading, below the document title.
@@ -52,7 +43,6 @@ const TITLE_TIER: Tier = Tier {
     style: LEGEND_HEADING,
     ink: Neutral::TextPrimary,
     level: NonZeroU8::new(2).expect("2 is not zero"),
-    column: LEGEND_WIDTH_MAX,
 };
 
 /// FR-35's first level: a quadrant.
@@ -61,7 +51,6 @@ const QUADRANT_TIER: Tier = Tier {
     style: LEGEND_QUADRANT,
     ink: Neutral::TextPrimary,
     level: NonZeroU8::new(3).expect("3 is not zero"),
-    column: LEGEND_WIDTH_MAX - INDENT_QUADRANT,
 };
 
 /// FR-35's second level: a ring within its quadrant.
@@ -70,7 +59,6 @@ const RING_TIER: Tier = Tier {
     style: LEGEND_RING,
     ink: Neutral::TextMuted,
     level: NonZeroU8::new(4).expect("4 is not zero"),
-    column: LEGEND_WIDTH_MAX - INDENT_RING,
 };
 
 /// The legend laid out at scale 1, relative to its content's top-left (the
@@ -180,7 +168,7 @@ impl Context<'_> {
     /// height is the last entry's bottom.
     fn groups(&self) -> Vec<Entry> {
         let mut entries = Vec::new();
-        let mut baseline = FIRST_GROUP;
+        let mut baseline = LEGEND_FIRST_GROUP;
         for &q in &self.plotted.quadrants {
             baseline = self.quadrant(q, baseline, &mut entries);
         }
@@ -191,7 +179,7 @@ impl Context<'_> {
     /// returns the next quadrant's baseline.
     fn quadrant(&self, q: usize, baseline: f64, entries: &mut Vec<Entry>) -> f64 {
         let run = heading(QUADRANT_TIER, self.quadrant_label(q), baseline, self.fonts);
-        let last = last_baseline(&run);
+        let last = run.last_baseline();
         entries.push(swatch(self.series(q), baseline));
         entries.push(Entry::Heading {
             run,
@@ -214,7 +202,7 @@ impl Context<'_> {
     /// row's bottom.
     fn ring(&self, run: &Run, baseline: f64, entries: &mut Vec<Entry>) -> f64 {
         let heading = heading(RING_TIER, self.ring_label(run.ring), baseline, self.fonts);
-        let top = first_row_top(last_baseline(&heading));
+        let top = first_row_top(heading.last_baseline());
         entries.push(Entry::Heading {
             run: heading,
             level: RING_TIER.level,
@@ -231,12 +219,17 @@ impl Context<'_> {
     /// The item at `position` in FR-34's order, as a row from `top`.
     fn row(&self, position: usize, top: f64) -> Row {
         let (item, number) = self.item(position);
-        let name = wrapped(trim(&item.name), LEGEND_NAME, NAME_COLUMN, self.fonts);
+        let name = wrapped(
+            trim(&item.name),
+            LEGEND_NAME,
+            LEGEND_NAME_COLUMN,
+            self.fonts,
+        );
         let meta =
             meta_text(item.qualifier, item.status).map(|text| measured(text, &name, self.fonts));
         let frame = frame(top, line_count(&name, meta.as_ref()));
         let name = name_run(name, frame.first_baseline);
-        let last = last_baseline(&name);
+        let last = name.last_baseline();
         Row {
             top,
             height: frame.height,
@@ -303,7 +296,7 @@ fn heading(tier: Tier, text: &str, baseline: f64, fonts: &Fonts) -> TextRun {
         style: tier.style,
         ink: tier.ink,
         anchor: Anchor::Start,
-        lines: wrapped(text, tier.style, tier.column, fonts),
+        lines: wrapped(text, tier.style, LEGEND_WIDTH_MAX - tier.indent, fonts),
         leading: LINE_HEIGHT,
     }
 }
@@ -367,28 +360,12 @@ fn first_row_top(heading_last: f64) -> f64 {
     heading_last + LEGEND_RING_TO_ROW
 }
 
-/// The baseline of `run`'s last line.
-fn last_baseline(run: &TextRun) -> f64 {
-    #[expect(
-        clippy::cast_precision_loss,
-        clippy::as_conversions,
-        reason = "a line count is far below 2^53, so the conversion is exact"
-    )]
-    let gaps = run.lines.len().saturating_sub(1) as f64;
-    #[expect(
-        clippy::suboptimal_flops,
-        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
-    )]
-    let last = run.origin.y + gaps * run.leading;
-    last
-}
-
 /// FR-74's meta: the qualifier and status as the row shows them, omitting
 /// an absent value and `NoChange`, which is the plain marker (FR-40).
 fn meta_text(qualifier: Option<Qualifier>, status: Option<Status>) -> Option<String> {
     let parts: Vec<&str> = [
         qualifier.map(Qualifier::label),
-        status.filter(|s| *s != Status::NoChange).map(Status::label),
+        status.and_then(Status::shown).map(Status::label),
     ]
     .into_iter()
     .flatten()
@@ -410,7 +387,7 @@ fn measured(text: String, name: &[String], fonts: &Fonts) -> Meta {
     let last_end = measure(name.last().map_or("", String::as_str), LEGEND_NAME, fonts);
     let width = measure(&text, LEGEND_META, fonts);
     Meta {
-        inline: fits_inline(last_end, width, NAME_COLUMN),
+        inline: fits_inline(last_end, width, LEGEND_NAME_COLUMN),
         last_end,
         text,
     }
@@ -444,7 +421,7 @@ fn frame(top: f64, lines: usize) -> Frame {
         height,
         first_baseline: block_top + LEGEND_FIRST_BASELINE,
         badge: Point {
-            x: BADGE_X,
+            x: LEGEND_BADGE_X,
             y: f64::midpoint(top, top + height),
         },
     }
@@ -501,26 +478,20 @@ impl Entry {
     /// descent, a swatch's lowest point.
     fn bottom(&self) -> f64 {
         match self {
-            Self::Heading { run, .. } => {
-                #[expect(
-                    clippy::suboptimal_flops,
-                    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
-                )]
-                let descent = last_baseline(run) + TEXT_DESCENT * run.style.size;
-                descent
-            }
+            Self::Heading { run, .. } => run.bottom(),
             Self::Swatch { centre, .. } => centre.y + SWATCH_RADIUS,
             Self::Row(row) => row.bottom(),
         }
     }
 
     /// The entry's text.
-    fn runs(&self) -> Vec<&TextRun> {
-        match self {
-            Self::Heading { run, .. } => vec![run],
-            Self::Swatch { .. } => Vec::new(),
-            Self::Row(row) => std::iter::once(&row.name).chain(&row.meta).collect(),
-        }
+    fn runs(&self) -> impl Iterator<Item = &TextRun> {
+        let (first, second) = match self {
+            Self::Heading { run, .. } => (Some(run), None),
+            Self::Swatch { .. } => (None, None),
+            Self::Row(row) => (Some(&row.name), row.meta.as_ref()),
+        };
+        first.into_iter().chain(second)
     }
 }
 
@@ -546,7 +517,10 @@ fn width(entries: &[Entry], fonts: &Fonts) -> f64 {
 mod tests {
     use super::*;
     use crate::layout::block::{close, fonts};
-    use crate::layout::test_support::{PRD_EXAMPLE, near, plotted};
+    use crate::layout::test_support::{
+        NAME_FULL_LINE, NAME_THREE_LINES, NAME_TWO_LINES, PRD_EXAMPLE, empty_catalogue, near,
+        plotted,
+    };
     use crate::model::{Qualifier, Status};
     use crate::svg::{ItemKey, Point, TextRun};
 
@@ -640,8 +614,7 @@ mod tests {
     /// floored at 32 (FR-94); rows abut.
     #[test]
     fn rows_of_one_two_and_three_lines() {
-        let two = "Bounded trial of continuous delivery pipelines across managed estates and environments";
-        let three = "Bounded trial of continuous delivery pipelines across managed estates and environments with a shared policy layer";
+        let (two, three) = (NAME_TWO_LINES, NAME_THREE_LINES);
         let l = lay(
             &format!("{HEAD}A,Q,Adopt,d\n{two},Q,Adopt,d\n{three},Q,Adopt,d\n"),
             None,
@@ -786,7 +759,7 @@ mod tests {
     /// two lines, a 37-unit row, a 30-unit block from 61.5.
     #[test]
     fn meta_moves_to_its_own_line_when_it_does_not_fit() {
-        let name = "Bounded trial of continuous delivery pipelines";
+        let name = NAME_FULL_LINE;
         let l = lay(&format!("{HEAD_META}{name},Q,Adopt,d,default,new\n"), None);
         let row = only(&rows(&l));
         assert_eq!(row.name.lines, [name]);
@@ -851,19 +824,9 @@ mod tests {
     fn a_heading_exactly_filling_its_column_does_not_wrap() {
         let text = "Infrastructure platforms";
         let style = QUADRANT_TIER.style;
-        let exact = fonts()
-            .face(style.weight)
-            .measure(text, style.size, style.letter_spacing);
-        let tier = Tier {
-            column: exact,
-            ..QUADRANT_TIER
-        };
-        assert_eq!(heading(tier, text, 36.0, fonts()).lines, [text]);
-        let narrower = Tier {
-            column: exact - 1e-9,
-            ..QUADRANT_TIER
-        };
-        assert_eq!(heading(narrower, text, 36.0, fonts()).lines.len(), 2);
+        let exact = measure(text, style, fonts());
+        assert_eq!(wrapped(text, style, exact, fonts()), [text]);
+        assert_eq!(wrapped(text, style, exact - 1e-9, fonts()).len(), 2);
     }
 
     /// FR-17, FR-18, FR-35: a quadrant whose rows are all unplotted keeps
@@ -908,7 +871,7 @@ mod tests {
         let l = lay(&format!("{HEAD}A,Q,Adopt,d\n"), None);
         assert!(close(l.width, 76.624_267_578_125), "{}", l.width);
 
-        let long = "Bounded trial of continuous delivery pipelines across managed estates and environments with a shared policy layer";
+        let long = NAME_THREE_LINES;
         let l = lay(&format!("{HEAD}{long},Q,Adopt,d\n"), None);
         let widest = only(&rows(&l))
             .name
@@ -922,12 +885,7 @@ mod tests {
 
     #[test]
     fn zero_quadrants_lays_out_nothing() {
-        let catalogue = crate::model::Catalogue {
-            columns: Vec::new(),
-            quadrants: Vec::new(),
-            rings: Vec::new(),
-            items: Vec::new(),
-        };
+        let catalogue = empty_catalogue();
         let l = layout(&catalogue, &crate::order::Plotted::default(), fonts());
         assert!(l.entries.is_empty(), "{l:?}");
         assert!(close(l.width, 0.0) && close(l.height, 0.0), "{l:?}");

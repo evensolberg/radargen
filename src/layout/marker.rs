@@ -4,8 +4,11 @@
 use crate::layout::geometry::polar;
 use crate::model::{Qualifier, Status};
 use crate::palette::{Neutral, Role};
-use crate::style::{MARKER_HOLLOW_STROKE, MARKER_STROKE, STATUS_RING_GAP, STATUS_RING_STROKE};
-use crate::svg::{Node, Paint, PathCommand, Point, Scale};
+use crate::style::{
+    MARKER_HOLLOW_STROKE, MARKER_STROKE, STATUS_RING_GAP, STATUS_RING_STROKE, TextStyle,
+};
+use crate::svg::{Anchor, Node, Paint, PathCommand, Point, Scale, TextPaint};
+use crate::text::NUMBER_CENTRING;
 
 /// How a marker shows its status (FR-40); `NoChange` shows nothing.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -119,6 +122,45 @@ impl Glyph {
             }
         };
         ring.into_iter().chain(Some(marker)).collect()
+    }
+}
+
+/// The paint of a number centred on a marker or badge of series `series`:
+/// primary text on a hollow one, else the ink its series entry calls for
+/// (D-54).
+#[must_use]
+pub const fn number_paint(hollow: bool, series: usize) -> Paint {
+    if hollow {
+        Paint::Role(Role::Neutral(Neutral::TextPrimary))
+    } else {
+        Paint::NumberOn(series)
+    }
+}
+
+/// `number` centred on `centre` (already scaled), `style` (scale 1)
+/// multiplied by `scale`.
+#[must_use]
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+)]
+pub fn number_text(
+    centre: Point,
+    style: TextStyle,
+    paint: Paint,
+    number: usize,
+    scale: f64,
+) -> Node {
+    Node::Text {
+        origin: Point {
+            x: centre.x,
+            y: centre.y + NUMBER_CENTRING * style.size * scale,
+        },
+        style: style.scaled(scale),
+        ink: TextPaint::Fill(paint),
+        anchor: Anchor::Middle,
+        lines: vec![number.to_string()],
+        leading: 0.0,
     }
 }
 

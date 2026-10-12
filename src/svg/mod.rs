@@ -8,6 +8,7 @@ use std::num::NonZeroU8;
 
 use crate::palette::{Neutral, Role};
 use crate::style::TextStyle;
+use crate::text::TEXT_DESCENT;
 
 /// A point in SVG user units; the origin depends on the frame it is used in.
 /// Geometry produces points before any block exists, so it lives here and
@@ -338,6 +339,24 @@ impl TextRun {
             },
             scale,
         )
+    }
+
+    /// The baseline of the last line, at scale 1.
+    #[must_use]
+    pub const fn last_baseline(&self) -> f64 {
+        #[expect(
+            clippy::cast_precision_loss,
+            clippy::as_conversions,
+            reason = "a line count is far below 2^53, so the conversion is exact"
+        )]
+        let gaps = self.lines.len().saturating_sub(1) as f64;
+        self.origin.y + gaps * self.leading
+    }
+
+    /// The lowest extent of the last line's descenders, at scale 1.
+    #[must_use]
+    pub const fn bottom(&self) -> f64 {
+        self.last_baseline() + TEXT_DESCENT * self.style.size
     }
 
     fn painted(&self, ink: TextPaint, scale: Scale) -> Node {

@@ -129,6 +129,8 @@ pub const META_GAP: f64 = 8.0;
 pub const LEGEND_HEADING_BASELINE: f64 = 14.0;
 /// From the "Legend" heading's baseline to the first quadrant's.
 pub const LEGEND_HEADING_TO_GROUP: f64 = 22.0;
+/// The first quadrant heading's baseline, from the content's top.
+pub const LEGEND_FIRST_GROUP: f64 = LEGEND_HEADING_BASELINE + LEGEND_HEADING_TO_GROUP;
 /// From a quadrant heading's last baseline to its first ring heading's.
 pub const LEGEND_QUADRANT_TO_RING: f64 = 18.0;
 /// From a ring heading's last baseline to the top of its first row.
@@ -154,8 +156,12 @@ pub const LEGEND_ROW_PAD: f64 = 7.0;
 pub const LEGEND_TEXT_MIN_HEIGHT: f64 = 17.0;
 /// From a row's text block's top to its first name baseline.
 pub const LEGEND_FIRST_BASELINE: f64 = 9.0;
+/// Between a row's badge and its name.
+pub const LEGEND_BADGE_TO_NAME: f64 = 8.0;
+/// A badge's centre, from the content's left edge.
+pub const LEGEND_BADGE_X: f64 = INDENT_ITEM + BADGE_RADIUS;
 /// Where a row's name starts: after the item indent, the badge and a gap.
-pub const LEGEND_NAME_X: f64 = INDENT_ITEM + 2.0 * BADGE_RADIUS + 8.0;
+pub const LEGEND_NAME_X: f64 = INDENT_ITEM + 2.0 * BADGE_RADIUS + LEGEND_BADGE_TO_NAME;
 /// A row's target starts this far left of `INDENT_ITEM`.
 pub const LEGEND_ROW_LEFT_OUTSET: f64 = 6.0;
 /// A row's target ends this far right of the content width.
@@ -175,6 +181,9 @@ pub const LEGEND_PANEL_RADIUS: f64 = 8.0;
 /// of this and the longest measured line. One value for both arrangements, so
 /// the narrow document always holds it (D-56).
 pub const LEGEND_WIDTH_MAX: f64 = NARROW_WIDTH - 2.0 * MARGIN;
+/// The column a row's name and meta wrap in: `LEGEND_WIDTH_MAX` less the
+/// name's indent.
+pub const LEGEND_NAME_COLUMN: f64 = LEGEND_WIDTH_MAX - LEGEND_NAME_X;
 
 // FR-94: a legend row is at least `MIN_TARGET_PX` tall wherever the document
 // renders smallest.

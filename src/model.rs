@@ -94,6 +94,13 @@ impl Status {
             Self::NoChange => "No Change",
         }
     }
+
+    /// `self` if a legend row or accessible name shows it: every value but
+    /// `NoChange`, which is FR-40's plain marker (FR-50, FR-74).
+    #[must_use]
+    pub fn shown(self) -> Option<Self> {
+        (self != Self::NoChange).then_some(self)
+    }
 }
 
 /// One quadrant (FR-8, FR-9).
@@ -219,9 +226,7 @@ impl Catalogue {
         let row = [
             Some(trim(&item.name)),
             item.qualifier.map(Qualifier::label),
-            item.status
-                .filter(|s| *s != Status::NoChange)
-                .map(Status::label),
+            item.status.and_then(Status::shown).map(Status::label),
         ]
         .into_iter()
         .flatten()

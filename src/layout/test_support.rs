@@ -17,6 +17,17 @@ use crate::text::{Fonts, TEXT_ASCENT, TEXT_DESCENT};
 /// The PRD's three-quadrant example (§12), shared by every block's tests.
 pub(crate) const PRD_EXAMPLE: &str = include_str!("../../tests/fixtures/three-quadrant.csv");
 
+/// A name that wraps to two lines in a legend row's 312-unit name column.
+pub(crate) const NAME_TWO_LINES: &str =
+    "Bounded trial of continuous delivery pipelines across managed estates and environments";
+
+/// A name that wraps to three lines in a legend row's name column.
+pub(crate) const NAME_THREE_LINES: &str = "Bounded trial of continuous delivery pipelines across managed estates and environments with a shared policy layer";
+
+/// A one-line name too wide for "Default \u{b7} New" to ride after it, so a
+/// legend row's meta takes its own line.
+pub(crate) const NAME_FULL_LINE: &str = "Bounded trial of continuous delivery pipelines";
+
 /// How far outside its size a node may reach before it counts as outside:
 /// float noise from scaling, not drawing room.
 const SLACK: f64 = 1e-9;
@@ -334,6 +345,16 @@ pub(crate) fn plotted(csv: &str, rings: Option<&str>) -> (Catalogue, Plotted) {
     let catalogue = build_catalogue(&table, &rings, &mut warnings).expect("builds");
     let order = resolve(&catalogue);
     (catalogue, order)
+}
+
+/// A catalogue with no columns, quadrants, rings or items (FR-42).
+pub(crate) const fn empty_catalogue() -> Catalogue {
+    Catalogue {
+        columns: Vec::new(),
+        quadrants: Vec::new(),
+        rings: Vec::new(),
+        items: Vec::new(),
+    }
 }
 
 // Redundant for the compiler (the module is already test-only), but it is
