@@ -108,7 +108,7 @@ Design: `docs/design/architecture.md`:
   - `@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark;…dark}}`;
   - `:root[data-theme="dark"]{color-scheme:dark;…dark}`.
 
-  `data-theme` sits on `<html>`. Each value passes through `escape::css_value` (NFR-6 context 5), so v1.1's `--palette` reaches this code unchanged. The built-in values pass through untouched.
+  `data-theme` sits on `<html>`. Values are written as `Palette` holds them: PR 13 ruled palette literals validated by construction (crumb `rg-cdo`, PR 18: every new constructor checks FR-86's `#RRGGBB`). That one check guards attributes and the stylesheet alike.
 - **The page background:** `body{margin:0;background:var(--surface-1);color:var(--text-primary)}`.
 - **The fonts:**
   - two `@font-face` rules, family `text::FAMILY`, weights `Weight::Regular.css()` and `Weight::SemiBold.css()`;
@@ -151,7 +151,8 @@ Five seats reviewed revision 1.0: Rust, QA (with injection), architecture, acces
 - **Narrow cap** (UI, architecture, accessibility): the narrow arrangement filled tablets at almost 2x. Both containers are now capped at their own width.
 - **Print** (UI): declined. FR-58 makes printing the HTML unsupported, and PNG and SVG are the print path.
 - **Range syntax** (QA, Rust): declined, for Safari before 16.4. Kept `max-width` with no gap, because the wide arrangement is the default.
-- **`css_value` on palette values** (architecture), **`narrow_query`** (architecture), and the **stroke-in-inset guard** (architecture, from a PR 11 note) are adopted.
+- **`narrow_query`** (architecture) and the **stroke-in-inset guard** (architecture, from a PR 11 note) are adopted.
+- **`css_value` on palette values** (architecture): declined at implementation. PR 13 already ruled palette literals validated at construction (`rg-cdo`), which guards every consumer. A second check here would be an error path no input can reach. `rg-cdo` gains a note that the stylesheet is the second consumer.
 - **The row stroke is scoped to focus** (accessibility), so selection can differ (FR-73).
 - **`html5ever` pinned to 0.39** (Rust, QA): 0.40 does not compile against `markup5ever_rcdom` 0.39. Counts are per namespace, since SVG tooltips are `title` elements too, and `dom.errors` must be empty.
 - **Hostile strings are compared** with `hostile.rs`'s document-against-parsed `Strings`, not by substring (Rust).
@@ -204,7 +205,6 @@ Five seats reviewed revision 1.0: Rust, QA (with injection), architecture, acces
     - no keys gives no `@supports` and no empty `{}`.
   - `outlines_go_only_with_their_indicator`: every `outline` declaration's selector ends in `:focus-visible`, and the `data-marker` one is inside the `@supports` block.
   - `the_stylesheet_requests_nothing_but_fonts`: `url(` exactly twice, each `url(data:font/woff2;base64,`; `src:` exactly twice; no `@import`, no `http`, no `<`.
-  - `palette_values_pass_css_value`: a test palette value containing `;` is refused (through `escape::css_value`'s error), not written.
 - [ ] **Step 2–4:** red, implement, green; lints; rustqual.
 - [ ] **Step 5: Commit** `feat(emit): the page's stylesheet: fonts, palettes, breakpoint, focus`.
 

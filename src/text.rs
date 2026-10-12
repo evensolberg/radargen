@@ -15,6 +15,11 @@ pub const FAMILY: &str = "Inter";
 pub const REGULAR_TTF: &[u8] = include_bytes!("../assets/Inter-Regular.ttf");
 /// Inter `SemiBold`, same subset, from the same run as [`REGULAR_TTF`].
 pub const SEMIBOLD_TTF: &[u8] = include_bytes!("../assets/Inter-SemiBold.ttf");
+/// Inter Regular as WOFF2, from the same subset run: what the HTML inlines
+/// (NFR-5), so the page draws with the face the layout measured.
+pub const REGULAR_WOFF2: &[u8] = include_bytes!("../assets/Inter-Regular.woff2");
+/// Inter `SemiBold` as WOFF2, beside [`REGULAR_WOFF2`].
+pub const SEMIBOLD_WOFF2: &[u8] = include_bytes!("../assets/Inter-SemiBold.woff2");
 
 /// Inter's ascent as a fraction of the em: the `hhea` ascender, 1984, over
 /// 2048 units per em. Both vendored faces agree.

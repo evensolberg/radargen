@@ -290,6 +290,31 @@ pub enum Node {
     },
 }
 
+/// Every marker control's key in `document`, in document order.
+///
+/// The radar's `Semantics::Marker` groups, never their hit areas or
+/// indicators. The page's per-key focus rules come from this walk, so the
+/// CSS agrees with the markup emitted (architecture §5).
+#[must_use]
+pub fn marker_keys(document: &Document) -> Vec<ItemKey> {
+    keys_in(&document.root)
+}
+
+fn keys_in(node: &Node) -> Vec<ItemKey> {
+    match node {
+        Node::Group(group) => {
+            let own = match &group.semantics {
+                Semantics::Marker(control) => Some(control.key),
+                _ => None,
+            };
+            own.into_iter()
+                .chain(group.children.iter().flat_map(keys_in))
+                .collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
 impl Node {
     /// Whether the node exists only for pointer and keyboard users: a hit
     /// area, an indicator group, or a non-empty plain (`Semantics::None`)

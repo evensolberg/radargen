@@ -169,7 +169,7 @@ fn catalogue(
 }
 
 /// The order, the render warnings (FR-88, FR-89, FR-95), the blocks built
-/// once, and the page around the wide arrangement.
+/// once, and the page around both arrangements of them (FR-68).
 fn render(
     catalogue: &Catalogue,
     config: &Config,
@@ -188,6 +188,7 @@ fn render(
     warn_narrow(&blocks, warnings);
     page(
         &arrange(Arrangement::Wide, &blocks),
+        &arrange(Arrangement::Narrow, &blocks),
         config.title.as_deref(),
     )
 }

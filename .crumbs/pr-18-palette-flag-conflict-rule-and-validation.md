@@ -30,3 +30,5 @@ FR-59 conflicts_with, FR-86/FR-87 file validation; tier-one failure while buildi
 [2026-10-10] From PR 13 (PR 04) review: palette::luminance slices hex[1..7] and parses with u8::from_str_radix, which panics on a non-ASCII boundary and accepts a leading '+' ('#+F+F+F'). The --palette validator must check len == 7, a leading '#', and that every remaining byte is_ascii_hexdigit — not merely that parsing succeeds.
 
 [2026-10-12] From PR 13 (security): every Palette constructor validates FR-86 #RRGGBB before storing a value (consider a HexColour newtype), so a --palette value can never reach an SVG attribute unchecked; a url(...) in fill would be an external paint server. The serialiser's static_paint_is_a_hex_literal test pins the built-in case.
+
+[2026-10-12] From PR 14b: the HTML stylesheet (emit/html/css.rs palettes()) writes Palette values verbatim as custom-property declarations, relying on construction-time validation. A --palette constructor must check FR-86 #RRGGBB before storing, or a value with ; } < reaches the <style> block (NFR-6 context 5).
