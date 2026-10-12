@@ -8,16 +8,17 @@ use radargen::svg::{Target, serialise};
 
 use super::prd;
 
-/// Byte-compares `got` with `tests/golden/serialiser/{name}`. With
+/// Byte-compares `got` with `tests/golden/{dir}/{name}`. With
 /// `UPDATE_GOLDEN=1` (refused under CI) it writes the file and fails, so a
 /// blessing run is never green.
-fn golden(name: &str, got: &str) {
+pub fn golden(dir: &str, name: &str, got: &str) {
     assert!(
         !got.contains('\r') && !got.starts_with('\u{feff}'),
         "NFR-17: LF, no BOM"
     );
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/golden/serialiser")
+        .join("tests/golden")
+        .join(dir)
         .join(name);
     if std::env::var_os("UPDATE_GOLDEN").is_some() {
         assert!(
@@ -68,11 +69,11 @@ fn wide(interactive: bool) -> String {
 /// The PRD example, wide, light: the static SVG and PNG source.
 #[test]
 fn prd_example_matches_its_static_golden() {
-    golden("prd-wide-light.svg", &wide(false));
+    golden("serialiser", "prd-wide-light.svg", &wide(false));
 }
 
 /// The same, as HTML inlines it: the widest attribute surface.
 #[test]
 fn prd_example_matches_its_interactive_golden() {
-    golden("prd-wide-interactive.svg", &wide(true));
+    golden("serialiser", "prd-wide-interactive.svg", &wide(true));
 }

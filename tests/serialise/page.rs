@@ -11,6 +11,7 @@ use radargen::num::fmt_coord;
 use radargen::style::breakpoint_px;
 use radargen::svg::{Document, marker_keys};
 
+use super::golden::golden;
 use super::html::{assert_requests_nothing, outside, style, svgs, tags};
 use super::vocabulary::vocabulary;
 use super::{parse, prd};
@@ -233,4 +234,24 @@ fn the_indicator_selectors_match_the_tree() {
             "no rule for a key the page lacks"
         );
     }
+}
+
+/// `html` with each inlined font's base64 replaced by `…`, and how many were
+/// replaced: the golden would otherwise diff 220 kB on any font change, and
+/// the payloads are checked byte for byte elsewhere (Task 1).
+fn elided(html: &str) -> (String, usize) {
+    let mut parts = html.split("base64,");
+    let head = parts.next().unwrap_or_default().to_owned();
+    parts.fold((head, 0), |(text, count), part| {
+        let (_, after) = part.split_once(')').expect("a payload closes");
+        ([text.as_str(), "base64,…)", after].concat(), count + 1)
+    })
+}
+
+/// NFR-4: the PRD example's page, byte for byte (architecture §10).
+#[test]
+fn prd_page_matches_its_golden() {
+    let (html, count) = elided(&prd_page(Some("Technology Radar")));
+    assert_eq!(count, 2, "both font faces were inlined");
+    golden("html", "prd.html", &html);
 }

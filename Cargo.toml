@@ -28,6 +28,8 @@ fontdb = "0.24"
 sha2 = "0.11.0"
 roxmltree = "0.21"
 ttf-parser = "0.25"
+html5ever = "0.39"
+markup5ever_rcdom = "0.39"
 
 # Architecture §1: no unsafe anywhere, and clippy's pedantic, nursery and
 # cargo groups are errors rather than advice. The lints are declared here,

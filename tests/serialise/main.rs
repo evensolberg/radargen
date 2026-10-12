@@ -13,6 +13,7 @@ mod html;
 mod colours;
 mod golden;
 mod hostile;
+mod html5;
 mod identity;
 mod page;
 mod vocabulary;
