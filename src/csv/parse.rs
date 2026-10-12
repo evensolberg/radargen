@@ -144,7 +144,8 @@ impl<'a> Scanner<'a> {
 /// FR-3: a record whose every field FR-76 trims to nothing looks blank to
 /// the author — an empty line, Excel's `,,,` for a cleared row, or a line
 /// holding only a byte-order mark. Read before FR-90's removal, so a field
-/// holding a character FR-90 removes (U+0001, U+000B, U+0085) is not blank:
+/// holding a character FR-90 removes (U+0001, U+000B, U+0085, U+202E) is
+/// not blank:
 /// it becomes a row and FR-90 warns of it (D-59).
 fn is_blank(fields: &[String]) -> bool {
     fields
@@ -888,7 +889,14 @@ mod tests {
     /// it, so it is a row.
     #[test]
     fn other_whitespace_is_not_blank() {
-        for text in ["a,b\n\u{c}\n", "a,b\n\u{b}\n", "a,b\n\u{85}\n"] {
+        // A line of only bidi formatting characters is not blank either:
+        // FR-90 removes them, so it is reported, never skipped (D-72).
+        for text in [
+            "a,b\n\u{c}\n",
+            "a,b\n\u{b}\n",
+            "a,b\n\u{85}\n",
+            "a,b\n\u{202c}\n",
+        ] {
             assert_eq!(errors(text), [count(2, 1)], "{text:?}");
         }
     }
@@ -1069,6 +1077,19 @@ mod tests {
     #[test]
     fn malformed_quoting_is_the_only_error_reported() {
         assert_eq!(errors("a,a\n1\n\"open\n"), [unterminated(3, 0)]);
+    }
+
+    /// D-72: a bidi override inside a name is removed and warned.
+    #[test]
+    fn a_bidi_override_is_removed_and_warned() {
+        let (table, _, warnings) = parsed("name,description\nKafka\u{202e}gnp,ok\n");
+        let table = table.expect("parses");
+        let record = table.records.first().expect("one record");
+        assert_eq!(record.fields, ["Kafkagnp", "ok"]);
+        assert_eq!(
+            warnings,
+            ["warning: line 2, name: removed U+202E, which the output cannot display"]
+        );
     }
 
     /// FR-90, D-55: removed, with one warning per field naming line and column.

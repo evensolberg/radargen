@@ -1,7 +1,7 @@
 # radargen — Design
 
 **Status:** draft, for review
-**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.54
+**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.55
 **Date:** 2026-08-29
 
 > **What this document is for.** The PRD says *what* radargen does and carries
