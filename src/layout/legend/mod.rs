@@ -2,9 +2,10 @@
 //!
 //! A `Surface2` panel holding the laid-out headings, swatches and rows,
 //! each row a control. Its layout, as data, lives in the `layout`
-//! submodule.
+//! submodule, and one row's composition in `row`.
 
 mod layout;
+mod row;
 
 use std::num::NonZeroU8;
 
@@ -21,7 +22,8 @@ use crate::style::{
 use crate::svg::{Group, ItemKey, Node, Paint, Point, Scale, Semantics, TextRun};
 use crate::text::Fonts;
 
-use layout::{Entry, Layout, Row, layout};
+use layout::{Entry, Layout, layout};
+use row::Row;
 
 /// The panel's colour, and the row targets': invisible on it, yet they
 /// receive the pointer in every format (a `none` fill would not).
