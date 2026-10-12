@@ -145,10 +145,12 @@ pub const LEGEND_ROW_TO_QUADRANT: f64 = LEGEND_ROW_TO_RING + LEGEND_GROUP_GAP;
 /// From a quadrant with no rows to the next one: the heading-to-ring step plus
 /// the gap between groups.
 pub const LEGEND_EMPTY_GROUP_GAP: f64 = LEGEND_QUADRANT_TO_RING + LEGEND_GROUP_GAP;
-/// A row's least height, at scale 1. FR-94: it renders at least `MIN_TARGET_PX`
-/// tall at `MIN_PX_PER_UNIT` (asserted below, in every build). One line of
-/// name needs less; the rest is the target.
-pub const LEGEND_ROW_MIN_HEIGHT: f64 = 32.0;
+/// A row's least height, at scale 1.
+///
+/// FR-94: it renders at least `MIN_TARGET_PX` tall at `MIN_PX_PER_UNIT`
+/// (asserted below, in every build). One line of name needs less; the rest
+/// is the target.
+pub const LEGEND_ROW_MIN_HEIGHT: f64 = 36.0;
 /// A row's height beyond its text lines: `n · LINE_HEIGHT + LEGEND_ROW_PAD`.
 pub const LEGEND_ROW_PAD: f64 = 7.0;
 /// The least height of a row's text block, so a one-line row's text is centred
@@ -186,10 +188,12 @@ pub const LEGEND_WIDTH_MAX: f64 = NARROW_WIDTH - 2.0 * MARGIN;
 pub const LEGEND_NAME_COLUMN: f64 = LEGEND_WIDTH_MAX - LEGEND_NAME_X;
 
 // FR-94: a legend row is at least `MIN_TARGET_PX` tall wherever the document
-// renders smallest.
+// renders smallest, and no taller than it needs to be (D-66 counts every unit
+// against the legend's length).
 const _: () = assert!(
-    LEGEND_ROW_MIN_HEIGHT * MIN_PX_PER_UNIT >= MIN_TARGET_PX,
-    "FR-94: a legend row must be at least MIN_TARGET_PX tall"
+    LEGEND_ROW_MIN_HEIGHT * MIN_PX_PER_UNIT >= MIN_TARGET_PX
+        && (LEGEND_ROW_MIN_HEIGHT - 1.0) * MIN_PX_PER_UNIT < MIN_TARGET_PX,
+    "FR-94: a legend row must be the least whole height at least MIN_TARGET_PX tall"
 );
 // D-56: the content wraps at `LEGEND_WIDTH_MAX` and the panel reaches
 // `LEGEND_PANEL_INSET_X` past it each side, so the block is placed at
@@ -269,8 +273,12 @@ pub const MARGIN: f64 = 20.0;
 /// Between radar and legend, wide arrangement only.
 pub const COLUMN_GAP: f64 = 28.0;
 /// The narrow document is authored at this width and the radar scaled to fit
-/// inside it, so text keeps its natural size (FR-70, D-31).
+/// its column, so text keeps its natural size (FR-70, D-31). D-71 widens it
+/// when the radar cannot fit at its least scale.
 pub const NARROW_WIDTH: f64 = 420.0;
+/// The widest narrow document FR-94's targets are sized for (D-71); a wider
+/// one renders them below `MIN_TARGET_PX`, and FR-95 warns.
+pub const NARROW_MAX_WIDTH: f64 = 480.0;
 /// A floor on the radar block's width at scale 1, not its width.
 ///
 /// The block's size is measured (architecture §4): quadrant labels never wrap
@@ -292,22 +300,28 @@ pub const NARROW_MIN_VIEWPORT_PX: f64 = 320.0;
 /// narrow SVG spans the viewport; PR 14 must keep that or change this
 /// constant, since `MIN_PX_PER_UNIT` and `HIT_RADIUS` rest on it.
 pub const NARROW_HORIZONTAL_INSET_PX: f64 = 0.0;
-/// The fewest rendered pixels per user unit any arrangement reaches: the
-/// narrow SVG at `NARROW_MIN_VIEWPORT_PX`, or the wide one at its
-/// breakpoint, where `LEGEND_NAME` renders at `MIN_LEGIBLE_PX`.
+/// The fewest rendered pixels per user unit FR-94 is held to.
+///
+/// A narrow document `NARROW_MAX_WIDTH` wide at `NARROW_MIN_VIEWPORT_PX`, or
+/// the wide one at its breakpoint, where `LEGEND_NAME` renders at
+/// `MIN_LEGIBLE_PX`; the narrow term binds, at 2/3.
 pub const MIN_PX_PER_UNIT: f64 = ((NARROW_MIN_VIEWPORT_PX - NARROW_HORIZONTAL_INSET_PX)
-    / NARROW_WIDTH)
+    / NARROW_MAX_WIDTH)
     .min(MIN_LEGIBLE_PX / LEGEND_NAME.size);
-/// FR-94's hit-area radius at scale 1, in user units: 16 renders at least
-/// `MIN_TARGET_PX` across at `MIN_PX_PER_UNIT` (asserted below, in every
-/// build).
-pub const HIT_RADIUS: f64 = 16.0;
+/// FR-94's hit-area radius at scale 1, in user units.
+///
+/// 18 renders at least `MIN_TARGET_PX` across at `MIN_PX_PER_UNIT` (asserted
+/// below, in every build).
+pub const HIT_RADIUS: f64 = 18.0;
 // FR-94: the hit area is at least `MIN_TARGET_PX` across wherever the
 // document renders smallest. A compile-time check, so changing a premise
-// (the viewport, the inset, the legend size) cannot silently break it.
+// (the viewport, the inset, the legend size) cannot silently break it. The
+// radius is the least whole one that works, so hit areas overlap no more
+// than they must.
 const _: () = assert!(
-    2.0 * HIT_RADIUS * MIN_PX_PER_UNIT >= MIN_TARGET_PX,
-    "FR-94: the hit area must be at least MIN_TARGET_PX across"
+    2.0 * HIT_RADIUS * MIN_PX_PER_UNIT >= MIN_TARGET_PX
+        && 2.0 * (HIT_RADIUS - 1.0) * MIN_PX_PER_UNIT < MIN_TARGET_PX,
+    "FR-94: the hit radius must be the least whole one at least MIN_TARGET_PX across"
 );
 /// How far an indicator reaches from its marker's centre at scale 1: the
 /// marker, the focus ring's gap and half the ring's stroke (D-66).
@@ -474,9 +488,9 @@ mod tests {
     }
 
     #[test]
-    fn min_px_per_unit_is_the_narrow_viewport_over_its_width() {
+    fn min_px_per_unit_is_the_narrow_viewport_over_its_widest() {
         assert!(
-            (MIN_PX_PER_UNIT - 320.0 / 420.0).abs() < 1e-12,
+            (MIN_PX_PER_UNIT - 320.0 / 480.0).abs() < 1e-12,
             "{MIN_PX_PER_UNIT}"
         );
     }

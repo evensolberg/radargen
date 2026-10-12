@@ -1,7 +1,7 @@
 ---
 id: rg-ozb
 title: 'PR 12: arrange.rs — wide and narrow arrangements'
-status: open
+status: in_progress
 type: task
 priority: 2
 tags:
@@ -31,3 +31,5 @@ FR-68–FR-71. One Blocks, two placements. FR-69 breakpoint computed per documen
 [2026-10-11] From PR 11: place the legend block at MARGIN − LEGEND_PANEL_INSET_X in both arrangements (content at the margin; in narrow the 404-unit panel spans 8..412 of 420 exactly); the wide document's legend content width is size.width − 2·LEGEND_PANEL_INSET_X; an empty legend (zero quadrants, size zero) takes no space and no gap; the legend is drawn at scale 1 in both arrangements (FR-94's row height assumes it — assert it); DOM order is radar markers, then legend rows.
 
 [2026-10-11] Unblocked: rg-y1t (PR 09), rg-svr (PR 10), rg-67j (PR 11) all closed and merged (#43-#49).
+
+[start] 2026-10-11 22:07:17
