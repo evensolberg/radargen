@@ -76,7 +76,8 @@ fn palettes_override_in_order() {
         format!(":root[data-theme=\"dark\"]{{color-scheme:dark;{dark}}}\n"),
     ]
     .concat();
-    assert_eq!(palettes(), want);
+    // The forced-colours block follows (forced_colours_map_the_neutrals_…).
+    assert!(palettes().starts_with(&want), "{}", palettes());
     // The number inks are literals because the series agree (§5).
     let series = |theme| {
         Palette::built_in(theme)
@@ -184,24 +185,18 @@ fn the_stylesheet_requests_nothing_but_fonts() {
     }
 }
 
-/// rg-min: in forced colours a ring's palette blue need not show against the
-/// system background, so both rings take the system's Highlight colour. The
-/// marker's ring is found by the paint the serialiser gives it.
+/// rg-min: forced colours (Windows high contrast) remap neither SVG paint
+/// nor the palette, so every neutral role takes its system colour there:
+/// surfaces Canvas, ink and strokes CanvasText, focus Highlight. One block,
+/// after the themes, at their specificity, so it wins in every theme.
 #[test]
-fn forced_colours_paint_the_rings_highlight() {
-    use crate::svg::ItemKey;
-    let css = indicators(&[ItemKey(6)]);
-    assert!(
-        css.contains(concat!(
-            "@media (forced-colors: active){",
-            "[data-legend-row]:focus-visible>[data-row-indicator]>rect{stroke:Highlight}",
-            "[data-marker-indicator]>circle[stroke=\"var(--focus)\"]{stroke:Highlight}",
-            "}\n"
-        )),
-        "{css}"
+fn forced_colours_map_the_neutrals_to_system_colours() {
+    let css = palettes();
+    let forced = concat!(
+        "@media (forced-colors: active){:root,:root[data-theme]{",
+        "--surface-1:Canvas;--surface-2:Canvas;--text-primary:CanvasText;",
+        "--text-muted:CanvasText;--stroke-ring:CanvasText;--stroke-divider:CanvasText;",
+        "--marker-hollow:Canvas;--focus:Highlight;}}\n"
     );
-    assert!(
-        indicators(&[]).contains("@media (forced-colors: active){"),
-        "rows need it with no markers"
-    );
+    assert!(css.ends_with(forced), "{css}");
 }

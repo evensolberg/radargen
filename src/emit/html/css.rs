@@ -34,6 +34,7 @@ const DARK_PREFERRED_OPEN: &str =
     "@media (prefers-color-scheme: dark){:root:not([data-theme=\"light\"]){color-scheme:dark;";
 const DARK_CHOSEN_OPEN: &str = ":root[data-theme=\"dark\"]{color-scheme:dark;";
 const CLOSE: &str = "}\n";
+const FORCED_OPEN: &str = "@media (forced-colors: active){:root,:root[data-theme]{";
 const CLOSE_TWICE: &str = "}}\n";
 
 const BODY_OPEN: &str = "body{margin:0;background:var(";
@@ -55,10 +56,6 @@ const VISIBLE: &str = "]{visibility:visible}\n[";
 const ROW_RING: &str = "]>rect{stroke:var(";
 const ROW_RING_WIDTH: &str = ");stroke-width:";
 const PX_CLOSE: &str = "px}\n";
-const FORCED_OPEN: &str = "@media (forced-colors: active){[";
-const FORCED_ROW_RING: &str = "]>rect{stroke:Highlight}[";
-const FORCED_MARKER_RING: &str = "]>circle[stroke=\"var(";
-const FORCED_CLOSE: &str = ")\"]{stroke:Highlight}}\n";
 const SUPPORTS_HAS: &str = "@supports selector(:has(*)){\n[";
 const HAS_OPEN: &str = "svg:has([";
 const KEY_OPEN: &str = "=\"";
@@ -109,8 +106,36 @@ pub(super) fn palettes() -> String {
         DARK_CHOSEN_OPEN,
         &dark,
         CLOSE,
+        FORCED_OPEN,
+        &forced(),
+        CLOSE_TWICE,
     ]
     .concat()
+}
+
+/// Forced colours (Windows high contrast) remap neither SVG paint nor these
+/// properties, so a ring could keep the palette's blue against a system
+/// background the palette never saw (rg-min). There, every neutral role
+/// takes its system colour; the series keep theirs, since colour is never
+/// the only cue (FR-39). After the themes, at their specificity, so it wins
+/// in every theme.
+fn forced() -> String {
+    Neutral::ALL
+        .into_iter()
+        .map(|role| [role.as_str(), ":", system_colour(role), ";"].concat())
+        .collect()
+}
+
+/// The CSS system colour standing for `role` in forced colours.
+const fn system_colour(role: Neutral) -> &'static str {
+    match role {
+        Neutral::Surface1 | Neutral::Surface2 | Neutral::MarkerHollow => "Canvas",
+        Neutral::TextPrimary
+        | Neutral::TextMuted
+        | Neutral::StrokeRing
+        | Neutral::StrokeDivider => "CanvasText",
+        Neutral::Focus => "Highlight",
+    }
 }
 
 /// `palette`'s custom properties, `--name:value;` each.
@@ -174,26 +199,7 @@ pub(super) fn narrow_query(wide_width: f64) -> String {
 /// that hides the outline shares its replacement's selector, so the two
 /// stand or fall together (WCAG 2.4.7).
 pub(super) fn indicators(markers: &[ItemKey]) -> String {
-    [legend_focus(), forced_focus(), marker_focus(markers)].concat()
-}
-
-/// Forced colours (Windows high contrast): SVG paint is not remapped, so a
-/// ring's palette blue need not show against the system background; both
-/// rings take the system's `Highlight` (rg-min). The marker's ring is the
-/// indicator's circle the serialiser strokes with the focus colour.
-fn forced_focus() -> String {
-    [
-        FORCED_OPEN,
-        DATA_LEGEND_ROW,
-        ROW_SHOWN,
-        DATA_ROW_INDICATOR,
-        FORCED_ROW_RING,
-        DATA_MARKER_INDICATOR,
-        FORCED_MARKER_RING,
-        Neutral::Focus.as_str(),
-        FORCED_CLOSE,
-    ]
-    .concat()
+    [legend_focus(), marker_focus(markers)].concat()
 }
 
 fn legend_focus() -> String {
