@@ -24,7 +24,7 @@ mod tests;
 use crate::escape::xml_attr;
 use crate::num::fmt_coord;
 use crate::palette::Palette;
-use crate::svg::{Document, Node, Paint};
+use crate::svg::{Document, Node, Paint, Point};
 
 /// The CSV line of the item an element belongs to (architecture §5).
 pub const DATA_ROW: &str = "data-row";
@@ -82,14 +82,21 @@ struct Context<'a> {
     control: Option<ControlKind>,
 }
 
+impl<'a> Context<'a> {
+    /// The document's top: inside no control.
+    const fn top(target: Target<'a>) -> Self {
+        Self {
+            target,
+            control: None,
+        }
+    }
+}
+
 /// `document` as one `<svg>` element, one element per line.
 #[must_use]
 // qual:api — PR 14's main.rs is its first production caller
 pub fn serialise(document: &Document, target: Target<'_>) -> String {
-    let context = Context {
-        target,
-        control: None,
-    };
+    let context = Context::top(target);
     let mut out = String::from("<svg");
     attr(&mut out, "xmlns", "http://www.w3.org/2000/svg");
     attr(&mut out, "viewBox", &view_box(document));
@@ -220,6 +227,11 @@ fn attr(out: &mut String, name: &str, value: &str) {
     out.push_str(name);
     out.push('=');
     out.push_str(&xml_attr(value));
+}
+
+/// `x y`: a point's two numbers, as `d` and `translate()` both write it.
+fn point(p: Point) -> String {
+    [fmt_coord(p.x), fmt_coord(p.y)].join(" ")
 }
 
 /// ` name="v"`, the number formatted by NFR-17's one formatter.

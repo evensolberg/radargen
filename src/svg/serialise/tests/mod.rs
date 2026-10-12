@@ -18,13 +18,7 @@ fn light() -> Palette {
 
 /// `node` written at the top level for `target`.
 fn one(node: &Node, target: Target<'_>) -> String {
-    super::node(
-        node,
-        Context {
-            target,
-            control: None,
-        },
-    )
+    super::node(node, Context::top(target))
 }
 
 const MUTED: Paint = Paint::Role(Role::Neutral(Neutral::TextMuted));

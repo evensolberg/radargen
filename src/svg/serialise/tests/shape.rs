@@ -3,10 +3,6 @@
 use super::*;
 use crate::svg::PathCommand;
 
-fn static_target(palette: &Palette) -> Target<'_> {
-    Target::Static(palette)
-}
-
 #[test]
 fn a_circle() {
     let palette = light();
@@ -18,7 +14,7 @@ fn a_circle() {
         stroke_width: 1.5,
     };
     assert_eq!(
-        one(&circle, static_target(&palette)),
+        one(&circle, Target::Static(&palette)),
         "<circle cx=\"1\" cy=\"2\" r=\"3\" fill=\"none\" stroke=\"#7E858F\" stroke-width=\"1.5\"/>\n"
     );
 }
@@ -39,7 +35,7 @@ fn square(radius: f64) -> Node {
 #[test]
 fn a_rect() {
     let palette = light();
-    let target = static_target(&palette);
+    let target = Target::Static(&palette);
     let plain =
         "<rect x=\"0\" y=\"0\" width=\"10\" height=\"5\" fill=\"#585F6B\" stroke=\"none\"/>\n";
     assert_eq!(one(&square(0.0), target), plain);
@@ -60,7 +56,7 @@ fn a_line() {
         stroke_width: 1.0,
     };
     assert_eq!(
-        one(&line, static_target(&palette)),
+        one(&line, Target::Static(&palette)),
         "<line x1=\"20\" y1=\"7\" x2=\"400\" y2=\"7\" stroke=\"#7E858F\" stroke-width=\"1\"/>\n"
     );
 }
@@ -86,7 +82,7 @@ fn arc(large_arc: bool, sweep: bool) -> Node {
 #[test]
 fn a_path_with_an_arc() {
     let palette = light();
-    let target = static_target(&palette);
+    let target = Target::Static(&palette);
     assert_eq!(
         one(&arc(true, false), target),
         "<path d=\"M 0 9 A 9 9 0 1 0 0 -9\" fill=\"none\" stroke=\"#7E858F\" stroke-width=\"2\"/>\n"

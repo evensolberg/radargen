@@ -101,10 +101,6 @@ mod tests {
         names
     }
 
-    fn message(error: &Fatal) -> String {
-        error.to_string()
-    }
-
     #[test]
     fn writes_a_new_file() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -142,7 +138,7 @@ mod tests {
         let error = write_atomic(&path, b"new").expect_err("refuses");
         assert_eq!(listing(dir.path()), before, "no temp file left");
         assert!(std::error::Error::source(&error).is_some());
-        let text = message(&error);
+        let text = error.to_string();
         let want = format!("-o {}: cannot be written: ", path.display());
         assert!(text.starts_with(&want), "{text}");
         assert!(!text.contains(".radargen-"), "{text}");
@@ -187,7 +183,7 @@ mod tests {
         let error = write_atomic(&path, b"new").expect_err("refuses");
         assert!(matches!(error, Fatal::Unwritable { .. }), "{error}");
         assert!(!dir.path().join("nope").exists());
-        assert!(!message(&error).contains(".radargen-"), "{error}");
+        assert!(!error.to_string().contains(".radargen-"), "{error}");
     }
 
     /// Last writer wins, never an interleaving. On Windows a rename onto a

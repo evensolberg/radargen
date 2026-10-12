@@ -1,6 +1,7 @@
 //! Circles, rectangles, lines, paths and hit areas.
 
-use super::{Context, DATA_HIT, Paints, attr, coord, paint, shows, stroke};
+use super::{Context, DATA_HIT, Paints, attr, coord, paint, point, shows, stroke};
+use crate::num::fmt_coord;
 use crate::svg::{ItemKey, PathCommand, Point};
 
 /// A rectangle's geometry.
@@ -73,17 +74,13 @@ fn outline(commands: &[PathCommand]) -> String {
                 sweep,
                 end,
             } => {
-                let r = crate::num::fmt_coord(radius);
+                let r = fmt_coord(radius);
                 let flag = |on: bool| if on { "1" } else { "0" };
                 ["A", &r, &r, "0", flag(large_arc), flag(sweep), &point(end)].join(" ")
             }
         })
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-fn point(p: Point) -> String {
-    [crate::num::fmt_coord(p.x), crate::num::fmt_coord(p.y)].join(" ")
 }
 
 /// An invisible pointer target (FR-94); only interactive output reaches here.

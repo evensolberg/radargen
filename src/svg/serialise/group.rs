@@ -2,7 +2,7 @@
 
 use super::{
     Context, ControlKind, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW,
-    DATA_ROW_INDICATOR, Target, attr, node, shows,
+    DATA_ROW_INDICATOR, Target, attr, node, point, shows,
 };
 use crate::escape::xml_text;
 use crate::svg::{Control, Group, Semantics};
@@ -35,10 +35,7 @@ const fn within<'a>(semantics: &Semantics, context: Context<'a>) -> Context<'a> 
         Semantics::LegendRow(_) => Some(ControlKind::LegendRow),
         _ => context.control,
     };
-    Context {
-        target: context.target,
-        control,
-    }
+    Context { control, ..context }
 }
 
 fn enclose(open: &str, children: &str) -> String {
@@ -53,12 +50,11 @@ fn enclose(open: &str, children: &str) -> String {
 fn open(group: &Group, context: Context<'_>) -> String {
     let mut out = String::from("<g");
     if shows(group.offset.x) || shows(group.offset.y) {
-        let at = [
-            crate::num::fmt_coord(group.offset.x),
-            crate::num::fmt_coord(group.offset.y),
-        ]
-        .join(" ");
-        attr(&mut out, "transform", &["translate(", &at, ")"].concat());
+        attr(
+            &mut out,
+            "transform",
+            &["translate(", &point(group.offset), ")"].concat(),
+        );
     }
     semantics(&mut out, &group.semantics, context);
     out.push_str(">\n");
