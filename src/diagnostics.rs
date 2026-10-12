@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::columns::ColumnKind;
 use crate::rings::{RingSource, RingsError};
-use crate::style::NARROW_MAX_WIDTH;
+use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX};
 use crate::text::FontError;
 use crate::{is_untagged_format, normalise, trim};
 
@@ -165,8 +165,13 @@ pub enum RenderKind {
 pub enum Binding {
     /// A quadrant label, as written.
     Quadrant(String),
-    /// A ring name, as declared.
-    Ring(String),
+    /// A ring name, as declared, and where it was declared.
+    Ring {
+        /// The ring's name.
+        name: String,
+        /// `--rings`, or the default set.
+        source: RingSource,
+    },
 }
 
 /// A command-line flag whose value FR-90 cleans. `--config` keys arrive with
@@ -356,10 +361,17 @@ impl RenderKind {
             Self::NarrowWidened { binding, width } => {
                 let fix = match binding {
                     Binding::Quadrant(name) => format!("quadrant '{}'", trim(name)),
-                    Binding::Ring(name) => format!("ring '{}' in --rings", trim(name)),
+                    Binding::Ring {
+                        name,
+                        source: RingSource::Flag,
+                    } => format!("ring '{}' in --rings", trim(name)),
+                    Binding::Ring {
+                        name,
+                        source: RingSource::Default,
+                    } => format!("ring '{}', one of the default rings,", trim(name)),
                 };
                 format!(
-                    "the narrow arrangement is {width} units wide, past the {NARROW_MAX_WIDTH} its legend rows and marker targets are sized for, so on a 320-pixel screen they fall below 24 pixels; a shorter name for {fix} would fix it"
+                    "the narrow arrangement is {width} units wide, past the {NARROW_MAX_WIDTH} its legend rows and marker targets are sized for, so on a {NARROW_MIN_VIEWPORT_PX}-pixel screen they fall below {MIN_TARGET_PX} pixels; a shorter name for {fix} would fix it"
                 )
             }
             Self::FlagUndisplayable {
@@ -376,6 +388,21 @@ impl RenderKind {
             ),
         }
     }
+}
+
+/// An I/O failure's reason as a message shows it: the OS's own words, without
+/// the "(os error N)" suffix or a trailing full stop, starting lowercase, so
+/// every path that fails to read or write reads the same way (rg-bsb).
+fn io_reason(error: &std::io::Error) -> String {
+    let text = error.to_string();
+    let words = text
+        .split_once(" (os error ")
+        .map_or(text.as_str(), |(words, _)| words)
+        .trim_end_matches('.');
+    let mut chars = words.chars();
+    chars.next().map_or_else(String::new, |first| {
+        first.to_lowercase().chain(chars).collect()
+    })
 }
 
 /// A column as NFR-10 names it: `column 6 (F)`.
@@ -732,7 +759,7 @@ pub enum Fatal {
     #[error(transparent)]
     Font(#[from] FontError),
     /// FR-61: the input does not exist, cannot be read, or is a directory.
-    #[error("{path}: cannot be read: {source}")]
+    #[error("{path}: cannot be read: {}", io_reason(source))]
     Unreadable {
         /// The input path as given.
         path: String,
@@ -743,7 +770,7 @@ pub enum Fatal {
     /// NFR-15: the output cannot be written: its directory is missing or
     /// unwritable, the path names a directory or a read-only file, or the
     /// disk is full. Nothing at `-o` has changed (NFR-14).
-    #[error("-o {path}: cannot be written: {source}")]
+    #[error("-o {path}: cannot be written: {}", io_reason(source))]
     Unwritable {
         /// The `-o` argument as given.
         path: String,

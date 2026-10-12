@@ -48,7 +48,8 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), Fatal> {
     #[cfg(unix)]
     builder.permissions(std::os::unix::fs::PermissionsExt::from_mode(OUTPUT_MODE));
     // tempfile's own errors name the random temporary path, which the user
-    // never gave and which changes every run; keep only the OS's reason.
+    // never gave and which changes every run, and expose the OS error only
+    // inside that message; keep its kind.
     let mut file = builder
         .tempfile_in(parent_dir(path))
         .map_err(|e| unwritable(io::Error::from(e.kind())))?;

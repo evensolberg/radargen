@@ -55,6 +55,7 @@ pub const fn empty_catalogue() -> Catalogue {
         columns: Vec::new(),
         quadrants: Vec::new(),
         rings: Vec::new(),
+        ring_source: crate::rings::RingSource::Default,
         items: Vec::new(),
     }
 }

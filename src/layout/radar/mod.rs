@@ -24,6 +24,7 @@ use crate::layout::geometry::{Geometry, polar};
 use crate::model::Catalogue;
 use crate::order::Plotted;
 use crate::palette::{Neutral, Role};
+use crate::rings::RingSource;
 use crate::style::{
     DIVIDER_RADIUS, GRID_STROKE, LABEL_HALO, MIN_RADAR_WIDTH, QUADRANT_LABEL,
     QUADRANT_LABEL_RADIUS, RADAR_FLOOR, RING_LABEL, TextStyle,
@@ -155,6 +156,8 @@ pub struct RadarBlock {
     quadrants: Vec<QuadrantLabel>,
     /// In declared order, outermost first (D-60).
     rings: Vec<Label>,
+    /// Where the rings were declared, for FR-95 (D-73).
+    ring_source: RingSource,
     /// In FR-34's order.
     markers: Vec<Marker>,
 }
@@ -205,6 +208,7 @@ impl RadarBlock {
             geometry,
             quadrants,
             rings,
+            ring_source: catalogue.ring_source,
             markers: markers(catalogue, plotted),
         }
     }
@@ -212,18 +216,15 @@ impl RadarBlock {
     /// How far each label reaches left or right of the centre, with what
     /// FR-95 would name it: quadrants in FR-10 order, then rings. The one
     /// source for both the radar's width and the label that sets it.
-    fn reaches_x(
-        &self,
-        r: RadarScale,
-    ) -> impl Iterator<Item = (f64, fn(String) -> Binding, &str)> + '_ {
-        let quadrants = self.quadrants.iter().map(move |q| {
-            let name: fn(String) -> Binding = Binding::Quadrant;
-            (quadrant_reach_x(q, r), name, q.label.text.as_str())
-        });
-        let rings = self.rings.iter().map(move |l| {
-            let name: fn(String) -> Binding = Binding::Ring;
-            (ring_reach_x(l.width, r), name, l.text.as_str())
-        });
+    fn reaches_x(&self, r: RadarScale) -> impl Iterator<Item = (f64, bool, &str)> + '_ {
+        let quadrants = self
+            .quadrants
+            .iter()
+            .map(move |q| (quadrant_reach_x(q, r), false, q.label.text.as_str()));
+        let rings = self
+            .rings
+            .iter()
+            .map(move |l| (ring_reach_x(l.width, r), true, l.text.as_str()));
         quadrants.chain(rings)
     }
 
@@ -242,7 +243,17 @@ impl RadarBlock {
     pub fn binding_label(&self, scale: f64) -> Option<Binding> {
         self.reaches_x(RadarScale::of(scale))
             .reduce(|best, next| if next.0 > best.0 { next } else { best })
-            .map(|(_, name, text)| name(text.to_owned()))
+            .map(|(_, ring, text)| {
+                let name = text.to_owned();
+                if ring {
+                    Binding::Ring {
+                        name,
+                        source: self.ring_source,
+                    }
+                } else {
+                    Binding::Quadrant(name)
+                }
+            })
     }
 
     /// The furthest any label reaches above or below the centre.
@@ -1275,7 +1286,13 @@ mod tests {
     fn a_long_ring_binds() {
         let ring = "W".repeat(70);
         let b = block(fonts(), HEAD, Some(&format!("{ring},Adopt")));
-        assert_eq!(b.binding_label(NARROW_MIN_SCALE), Some(Binding::Ring(ring)));
+        assert_eq!(
+            b.binding_label(NARROW_MIN_SCALE),
+            Some(Binding::Ring {
+                name: ring,
+                source: crate::rings::RingSource::Flag,
+            })
+        );
     }
 
     #[test]

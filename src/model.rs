@@ -171,6 +171,9 @@ pub struct Catalogue {
     /// The declared rings, edge-to-centre (FR-12). [`Item::ring`] indexes
     /// this copy; nothing below the model reads the `RingSet`.
     pub rings: Vec<String>,
+    /// Where the rings were declared, so a warning about one names it
+    /// (FR-17, FR-95, D-73).
+    pub ring_source: RingSource,
     /// Every row as an item, in CSV order.
     pub items: Vec<Item>,
 }
@@ -455,6 +458,7 @@ impl Builder {
             columns: self.header.columns,
             quadrants: self.quadrants,
             rings: self.rings,
+            ring_source: self.source,
             items: self.items,
         }
     }
@@ -1423,6 +1427,7 @@ Plain,Tool,adopt,d,,,,no change\n"
                 label: "Tool".into(),
             }],
             rings: Vec::new(),
+            ring_source: RingSource::Default,
             items: vec![Item {
                 line: 2,
                 name: "Old".into(),

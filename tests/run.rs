@@ -518,3 +518,22 @@ fn the_binary_prints_usage() {
     assert!(!ran.ok());
     assert!(ran.stderr.contains("Usage:"), "{}", ran.stderr);
 }
+
+/// rg-bsb: a write that fails before the rename (a parent that is a file)
+/// and one that fails at it (a directory in the way) give their reasons the
+/// same way: the OS's words, lowercase, without "(os error N)".
+#[test]
+fn unwritable_reasons_read_one_way() {
+    let dir = seeded(&[("radar.csv", &format!("{HEAD}Kafka,Tool,Adopt,d\n"))]);
+    fs::create_dir(dir.path().join("taken.html")).expect("creates");
+    for output in ["radar.csv/radar.html", "taken.html"] {
+        let ran = run_in(dir.path(), &["radar.csv", "-o", output]);
+        let last = ran.lines().last().copied().unwrap_or_default();
+        let Some((_, reason)) = last.split_once(": cannot be written: ") else {
+            panic!("{output}: {last}");
+        };
+        assert!(!reason.contains("(os error"), "{output}: {reason}");
+        assert!(reason.starts_with(char::is_lowercase), "{output}: {reason}");
+        assert!(!reason.ends_with('.'), "{output}: {reason}");
+    }
+}
