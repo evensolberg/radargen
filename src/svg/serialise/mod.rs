@@ -9,7 +9,8 @@
 //! Every attribute is written by [`attr`] (always through
 //! [`escape::xml_attr`]) or [`coord`] (always through [`num::fmt_coord`]),
 //! so no value is quoted by hand and no float is formatted any other way.
-//! Output is one element per line, so a golden file diffs by element.
+//! Output is one element per line (a text keeps its tspans on its own
+//! line), so a golden file diffs by element.
 //!
 //! [`escape::xml_attr`]: crate::escape::xml_attr
 //! [`num::fmt_coord`]: crate::num::fmt_coord
@@ -93,6 +94,9 @@ impl<'a> Context<'a> {
 }
 
 /// `document` as one `<svg>` element, one element per line.
+///
+/// A text keeps its tspans on its own line: whitespace between them would
+/// render as a space in a browser.
 #[must_use]
 // qual:api — PR 14's main.rs is its first production caller
 pub fn serialise(document: &Document, target: Target<'_>) -> String {

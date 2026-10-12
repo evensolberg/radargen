@@ -139,10 +139,7 @@ fn hostile_text_round_trips() {
     );
     for name in HOSTILE.iter().take(8) {
         assert!(
-            Strings::of(&document.root, true)
-                .labels
-                .iter()
-                .any(|l| l.contains(name)),
+            want.labels.iter().any(|l| l.contains(name)),
             "{name} in a label"
         );
     }

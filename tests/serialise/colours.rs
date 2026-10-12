@@ -34,12 +34,13 @@ struct Element<'a> {
     text: Option<&'a str>,
 }
 
-/// Attributes that differ by target on purpose (architecture §5).
-fn by_target(name: &str) -> bool {
-    matches!(
-        name,
-        "fill" | "stroke" | "role" | "tabindex" | "pointer-events"
-    ) || name.starts_with("data-")
+/// Attributes that differ by target on purpose (architecture §5): paint,
+/// the interactive-only ones, and a control's role (`button` or `img`).
+/// A heading's role is the same in both and is compared.
+fn by_target(name: &str, value: &str) -> bool {
+    matches!(name, "fill" | "stroke" | "tabindex" | "pointer-events")
+        || name.starts_with("data-")
+        || (name == "role" && matches!(value, "button" | "img"))
 }
 
 /// Every element in document order, skipping what static output drops when
@@ -54,7 +55,7 @@ fn elements<'a>(doc: &'a roxmltree::Document<'a>, skip: bool) -> Vec<Element<'a>
             stroke: n.attribute("stroke"),
             rest: n
                 .attributes()
-                .filter(|a| !by_target(a.name()))
+                .filter(|a| !by_target(a.name(), a.value()))
                 .map(|a| (a.name(), a.value()))
                 .collect(),
             text: n.text(),

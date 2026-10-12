@@ -198,12 +198,19 @@ mod tests {
             for payload in &payloads {
                 let path = &path;
                 scope.spawn(move || {
-                    for _ in 0..20 {
-                        match write_atomic(path, payload) {
-                            Ok(()) | Err(Fatal::Unwritable { .. }) => {}
-                            Err(other) => panic!("{other}"),
-                        }
-                    }
+                    let wrote = (0..20)
+                        .filter(|_| match write_atomic(path, payload) {
+                            Ok(()) => true,
+                            // Only Windows refuses a rename onto a file another
+                            // rename is replacing; anywhere else it is a bug.
+                            Err(error) if cfg!(windows) => {
+                                assert!(matches!(error, Fatal::Unwritable { .. }), "{error}");
+                                false
+                            }
+                            Err(error) => panic!("{error}"),
+                        })
+                        .count();
+                    assert!(wrote > 0, "every write was refused");
                 });
             }
         });
