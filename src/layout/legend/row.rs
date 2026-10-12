@@ -18,6 +18,14 @@ use super::{measure, wrapped};
 /// Between a row's qualifier and status (FR-74).
 const META_SEPARATOR: &str = " \u{b7} ";
 
+/// A plotted item and its FR-34 number, as the walk finds them.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct Numbered<'a> {
+    pub(super) item: &'a Item,
+    /// FR-34's number: 1-based, in legend order.
+    pub(super) number: usize,
+}
+
 /// One plotted item's row: badge, wrapped name and meta (FR-74).
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct Row {
@@ -43,15 +51,16 @@ pub(super) struct Row {
 }
 
 impl Row {
-    /// An item and its FR-34 number as a row from `top`, with its
-    /// quadrant's `series` and FR-75's accessible name `label`.
+    /// A numbered item as a row from `top`, with its quadrant's `series`
+    /// and FR-75's accessible name `label`.
     pub(super) fn new(
-        (item, number): (&Item, usize),
+        numbered: Numbered<'_>,
         series: usize,
         label: String,
         top: f64,
         fonts: &Fonts,
     ) -> Self {
+        let Numbered { item, number } = numbered;
         let name = wrapped(trim(&item.name), LEGEND_NAME, LEGEND_NAME_COLUMN, fonts);
         let meta = meta_text(item.qualifier, item.status).map(|text| measured(text, &name, fonts));
         let frame = frame(top, line_count(&name, meta.as_ref()));
@@ -198,65 +207,50 @@ mod tests {
     use super::*;
     use crate::layout::block::{close, fonts};
     use crate::layout::test_support::{
-        NAME_FULL_LINE, NAME_THREE_LINES, NAME_TWO_LINES, near, plotted,
+        HEAD, HEAD_META, NAME_FULL_LINE, NAME_THREE_LINES, NAME_TWO_LINES, near, plotted,
     };
 
-    /// The four required columns.
-    const HEAD: &str = "name,quadrant,ring,description\n";
-    /// With FR-20's qualifier and FR-26's status.
-    const HEAD_META: &str = "name,quadrant,ring,description,qualifier,status\n";
-    /// The first row's top in a legend whose first ring heading is at 54
-    /// (see the layout's `pins_for_the_prd_example`).
-    const FIRST_TOP: f64 = 58.0;
-
-    /// Each of `csv`'s items as a row, each starting where the last ended,
-    /// as the walk places a ring's rows.
+    /// Each of `csv`'s items as a row from the top, so positions read
+    /// relative to the row; the walk's placement is the layout's test.
     fn rows(csv: &str) -> Vec<Row> {
         let (catalogue, _) = plotted(csv, None);
-        let mut top = FIRST_TOP;
-        let mut rows = Vec::new();
-        for (number, item) in (1..).zip(&catalogue.items) {
-            let row = Row::new((item, number), 0, String::new(), top, fonts());
-            top = row.bottom();
-            rows.push(row);
-        }
-        rows
+        (1..)
+            .zip(&catalogue.items)
+            .map(|(number, item)| {
+                Row::new(Numbered { item, number }, 0, String::new(), 0.0, fonts())
+            })
+            .collect()
     }
 
     fn only(csv: &str) -> Row {
         let rows = rows(csv);
-        let [row] = rows.as_slice() else {
-            panic!("expected one row, got {}", rows.len());
+        let count = rows.len();
+        let Ok([row]) = <[Row; 1]>::try_from(rows) else {
+            panic!("expected one row, got {count}");
         };
-        row.clone()
+        row
     }
 
-    /// mockup.html l.733–735: block = max(17, n · 15), row = block + 7, here
-    /// floored at 32 (FR-94); rows abut.
+    /// mockup.html l.733–735: block = max(17, n · 15), row = block + 7,
+    /// floored at 32 (FR-94); the first baseline 9 below the block's top.
     #[test]
     fn rows_of_one_two_and_three_lines() {
         let (two, three) = (NAME_TWO_LINES, NAME_THREE_LINES);
         let rows = rows(&format!(
             "{HEAD}A,Q,Adopt,d\n{two},Q,Adopt,d\n{three},Q,Adopt,d\n"
         ));
-        let got: Vec<(usize, f64, f64, f64)> = rows
+        let got: Vec<(usize, f64, f64)> = rows
             .iter()
-            .map(|r| (r.name.lines.len(), r.top, r.height, r.name.origin.y))
+            .map(|r| (r.name.lines.len(), r.height, r.name.origin.y))
             .collect();
-        let want = [
-            (1, 58.0, 32.0, 74.5),
-            (2, 90.0, 37.0, 102.5),
-            (3, 127.0, 52.0, 139.5),
-        ];
+        let want = [(1, 32.0, 16.5), (2, 37.0, 12.5), (3, 52.0, 12.5)];
         assert_eq!(got.len(), want.len(), "{got:?}");
         for (g, w) in got.iter().zip(want) {
-            assert!(
-                g.0 == w.0 && close(g.1, w.1) && close(g.2, w.2) && close(g.3, w.3),
-                "{got:?}"
-            );
+            assert!(g.0 == w.0 && close(g.1, w.1) && close(g.2, w.2), "{got:?}");
         }
         for row in &rows {
             assert!(close(row.name.leading, 15.0));
+            assert!(close(row.bottom(), row.height));
         }
     }
 
@@ -303,7 +297,7 @@ mod tests {
         assert_eq!(meta.lines, ["Default \u{b7} New"]);
         let at = Point {
             x: 84.624_267_578_125,
-            y: 74.5,
+            y: 16.5,
         };
         assert!(near(meta.origin, at), "{meta:?}");
         assert!(close(row.height, 32.0));
@@ -316,17 +310,17 @@ mod tests {
     }
 
     /// FR-74: 270.07 + 8 + 67.02 > 312, so the meta takes its own line:
-    /// two lines, a 37-unit row, a 30-unit block from 61.5.
+    /// two lines, a 37-unit row, a 30-unit block from 3.5.
     #[test]
     fn meta_moves_to_its_own_line_when_it_does_not_fit() {
         let name = NAME_FULL_LINE;
         let row = only(&format!("{HEAD_META}{name},Q,Adopt,d,default,new\n"));
         assert_eq!(row.name.lines, [name]);
         let meta = row.meta.as_ref().expect("meta");
-        assert!(near(row.name.origin, Point { x: 68.0, y: 70.5 }), "{row:?}");
-        assert!(near(meta.origin, Point { x: 68.0, y: 85.5 }), "{meta:?}");
+        assert!(near(row.name.origin, Point { x: 68.0, y: 12.5 }), "{row:?}");
+        assert!(near(meta.origin, Point { x: 68.0, y: 27.5 }), "{meta:?}");
         assert!(
-            close(row.height, 37.0) && close(row.badge.y, 76.5),
+            close(row.height, 37.0) && close(row.badge.y, 18.5),
             "{row:?}"
         );
     }

@@ -7,7 +7,7 @@
 
 use std::num::NonZeroU8;
 
-use crate::model::{Catalogue, Item};
+use crate::model::Catalogue;
 use crate::order::{Plotted, Run};
 use crate::palette::Neutral;
 use crate::style::{
@@ -19,7 +19,7 @@ use crate::style::{
 use crate::svg::{Anchor, Point, TextRun};
 use crate::text::Fonts;
 
-use super::row::Row;
+use super::row::{Numbered, Row};
 use super::{measure, wrapped};
 
 /// The legend's heading text.
@@ -185,9 +185,10 @@ impl Context<'_> {
 
     /// The item at `position` in FR-34's order, as a row from `top`.
     fn row(&self, position: usize, top: f64) -> Row {
-        let (item, number) = self.item(position);
+        let numbered = self.item(position);
+        let Numbered { item, number } = numbered;
         Row::new(
-            (item, number),
+            numbered,
             self.series(item.quadrant),
             self.catalogue.accessible_name(item, Some(number)),
             top,
@@ -197,14 +198,17 @@ impl Context<'_> {
 
     /// The item at `position` in FR-34's order, and its number.
     // qual:allow(complexity, error_handling) reason: "the documented # Panics of `layout`: a Plotted from another catalogue is a caller bug"
-    fn item(&self, position: usize) -> (&Item, usize) {
+    fn item(&self, position: usize) -> Numbered<'_> {
         let item = self
             .plotted
             .items
             .get(position)
             .and_then(|&index| self.catalogue.items.get(index))
             .expect("FR-34's order indexes the catalogue's items");
-        (item, position + 1)
+        Numbered {
+            item,
+            number: position + 1,
+        }
     }
 
     /// Quadrant `q`'s FR-10 rank: its series index (FR-67).
@@ -335,13 +339,10 @@ mod tests {
     use super::*;
     use crate::layout::block::{close, fonts};
     use crate::layout::test_support::{
-        NAME_THREE_LINES, PRD_EXAMPLE, empty_catalogue, near, plotted,
+        HEAD, NAME_THREE_LINES, NAME_TWO_LINES, PRD_EXAMPLE, empty_catalogue, near, plotted,
     };
     use crate::style::LEGEND_NAME;
     use crate::svg::{ItemKey, Point, TextRun};
-
-    /// The four required columns.
-    const HEAD: &str = "name,quadrant,ring,description\n";
 
     fn lay(csv: &str, rings: Option<&str>) -> Layout {
         let (catalogue, order) = plotted(csv, rings);
@@ -394,10 +395,6 @@ mod tests {
         row.name.lines.first().map_or("", String::as_str)
     }
 
-    fn name_width(line: &str) -> f64 {
-        measure(line, LEGEND_NAME, fonts())
-    }
-
     /// mockup.html l.688–700 with the plan's rhythm: heading at 14, group
     /// at 14 + 22, swatch at its baseline − 4, ring at + 18; the row from
     /// its top (ring + 4), 32 tall, its badge at the middle and a one-line
@@ -422,6 +419,37 @@ mod tests {
         assert!(near(row.badge, Point { x: 52.0, y: 74.0 }), "{row:?}");
         assert!(near(row.name.origin, Point { x: 68.0, y: 74.5 }), "{row:?}");
         assert_eq!(row.name.lines, ["Kubernetes"]);
+    }
+
+    /// mockup.html l.733–735: block = max(17, n · 15), row = block + 7, here
+    /// floored at 32 (FR-94); the walk abuts a ring's rows.
+    #[test]
+    fn rows_of_one_two_and_three_lines() {
+        let (two, three) = (NAME_TWO_LINES, NAME_THREE_LINES);
+        let l = lay(
+            &format!("{HEAD}A,Q,Adopt,d\n{two},Q,Adopt,d\n{three},Q,Adopt,d\n"),
+            None,
+        );
+        let rows = rows(&l);
+        let got: Vec<(usize, f64, f64, f64)> = rows
+            .iter()
+            .map(|r| (r.name.lines.len(), r.top, r.height, r.name.origin.y))
+            .collect();
+        let want = [
+            (1, 58.0, 32.0, 74.5),
+            (2, 90.0, 37.0, 102.5),
+            (3, 127.0, 52.0, 139.5),
+        ];
+        assert_eq!(got.len(), want.len(), "{got:?}");
+        for (g, w) in got.iter().zip(want) {
+            assert!(
+                g.0 == w.0 && close(g.1, w.1) && close(g.2, w.2) && close(g.3, w.3),
+                "{got:?}"
+            );
+        }
+        for row in &rows {
+            assert!(close(row.name.leading, 15.0));
+        }
     }
 
     #[test]
@@ -582,7 +610,7 @@ mod tests {
             .name
             .lines
             .iter()
-            .map(|line| 68.0 + name_width(line))
+            .map(|line| 68.0 + measure(line, LEGEND_NAME, fonts()))
             .fold(0.0, f64::max);
         assert!(l.width <= 380.0, "{}", l.width);
         assert!(close(l.width, widest), "{} vs {widest}", l.width);

@@ -303,15 +303,12 @@ mod tests {
     use super::*;
     use crate::layout::block::{assert_translates, at, close, fonts};
     use crate::layout::test_support::{
-        NAME_FULL_LINE, NAME_THREE_LINES, NAME_TWO_LINES, PRD_EXAMPLE, Rect, assert_finite,
-        assert_inside, bounds, empty_catalogue, fill, near, plotted,
+        HEAD_META, NAME_FULL_LINE, NAME_THREE_LINES, NAME_TWO_LINES, PRD_EXAMPLE, Rect,
+        assert_finite, assert_inside, bounds, empty_catalogue, fill, near, plotted,
     };
     use crate::style::{MIN_PX_PER_UNIT, MIN_TARGET_PX};
     use crate::svg::{Anchor, Control, TextPaint};
     use crate::text::NUMBER_CENTRING;
-
-    /// With FR-20's qualifier and FR-26's status.
-    const HEAD_META: &str = "name,quadrant,ring,description,qualifier,status\n";
 
     fn legend(csv: &str) -> (Catalogue, Plotted, LegendBlock) {
         let (catalogue, order) = plotted(csv, None);
