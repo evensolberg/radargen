@@ -135,11 +135,14 @@ pub const LEGEND_QUADRANT_TO_RING: f64 = 18.0;
 pub const LEGEND_RING_TO_ROW: f64 = 4.0;
 /// From a ring's last row's bottom to the next ring heading's baseline.
 pub const LEGEND_ROW_TO_RING: f64 = 12.0;
+/// The extra space between one quadrant's group and the next, beyond the
+/// step that would separate two rings.
+pub const LEGEND_GROUP_GAP: f64 = 8.0;
 /// From a quadrant's last row's bottom to the next quadrant's baseline.
-pub const LEGEND_ROW_TO_QUADRANT: f64 = 20.0;
+pub const LEGEND_ROW_TO_QUADRANT: f64 = LEGEND_ROW_TO_RING + LEGEND_GROUP_GAP;
 /// From a quadrant with no rows to the next one: the heading-to-ring step plus
-/// the 8 between groups.
-pub const LEGEND_EMPTY_GROUP_GAP: f64 = 26.0;
+/// the gap between groups.
+pub const LEGEND_EMPTY_GROUP_GAP: f64 = LEGEND_QUADRANT_TO_RING + LEGEND_GROUP_GAP;
 /// A row's least height, at scale 1. FR-94: it renders at least `MIN_TARGET_PX`
 /// tall at `MIN_PX_PER_UNIT` (asserted below, in every build). One line of
 /// name needs less; the rest is the target.

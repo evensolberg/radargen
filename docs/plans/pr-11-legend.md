@@ -26,7 +26,7 @@ comments: "1.1 folds in the five-seat plan review; 1.2 the scoped re-review. See
 
 **Goal:** A `LegendBlock` implementing `Block`: a `Surface2` panel holding the "Legend" heading, then per quadrant in FR-10 order a swatch in its FR-67 colour and its heading, then per declared ring that has plotted items a subheading, then one row per plotted item in FR-34 order — a numbered badge, the name wrapped greedily to the column (FR-46, FR-79), the qualifier and status inline after it or on their own line when they don't fit (FR-74). Each row is a control keyed by the item's CSV line, carrying FR-75's accessible name (ring included), and its target is at least 24 CSS px square at every rendered width down to 320 px (FR-94).
 
-**Architecture:** `src/layout/legend.rs`. `LegendBlock::new(&Catalogue, &Plotted, &Fonts)` measures and wraps everything once into **one ordered list of laid-out entries** — headings, swatches and rows interleaved in reading order — at scale 1, content-relative; `size(s)` is that layout's panel box × `s` (the legend scales linearly; it is drawn at scale 1 in both arrangements, D-31); `render(at)` emits nodes in the list's order, so document order is reading and Tab order. `svg` gains `Node::Rect { origin, width, height, radius, fill, stroke, stroke_width }` (no dependency on `layout`) and `Semantics::LegendRow(Control)` — architecture §5's legend-row control: `data-row`, no `data-marker`.
+**Architecture:** `src/layout/legend/` (`mod.rs` and `layout.rs`). `LegendBlock::new(&Catalogue, &Plotted, &Fonts)` measures and wraps everything once into **one ordered list of laid-out entries** — headings, swatches and rows interleaved in reading order — at scale 1, content-relative; `size(s)` is that layout's panel box × `s` (the legend scales linearly; it is drawn at scale 1 in both arrangements, D-31); `render(at)` emits nodes in the list's order, so document order is reading and Tab order. `svg` gains `Node::Rect { origin, width, height, radius, fill, stroke, stroke_width }` (no dependency on `layout`) and `Semantics::LegendRow(Control)` — architecture §5's legend-row control: `data-row`, no `data-marker`.
 
 **Tech Stack:** Rust 2024, `std` only. No new dependency.
 
@@ -102,7 +102,7 @@ All in `style.rs`, as named constants, scale 1, content-relative (the panel inse
 
 ### Task 2: the legend's layout (pure data)
 
-**Files:** Create `src/layout/legend.rs`; `src/layout/mod.rs`.
+**Files:** Create `src/layout/legend/` (`mod.rs` and `layout.rs`); `src/layout/mod.rs`.
 
 `Layout { width, height, entries: Vec<Entry> }`, `Entry::{Heading { run: TextRun, level: NonZeroU8 }, Swatch { centre: Point, series: usize }, Row(Row)}`, `Row { top, height, badge: Point, series, hollow, number: usize, name: TextRun, meta: Option<TextRun>, control: Control }`. The inline test is a pure operation `fits_inline(last_end: f64, meta_width: f64, column: f64) -> bool` (`last_end + META_GAP + meta_width <= column`). Built by an operation `layout(catalogue, plotted, fonts) -> Layout` walking `Plotted::quadrants` and `Plotted::runs` together with a y cursor.
 
@@ -126,7 +126,7 @@ All in `style.rs`, as named constants, scale 1, content-relative (the panel inse
 
 ### Task 3: `LegendBlock` — `Block`, controls, rendering
 
-**Files:** `src/layout/legend.rs`.
+**Files:** `src/layout/legend/` (`mod.rs` and `layout.rs`).
 
 `size(s)` = (width + 2·`LEGEND_PANEL_INSET_X`, height + 2·`LEGEND_PANEL_INSET_Y`) × `s` (zero for an empty layout); `render(at)` = `Group::new(at.origin, [panel Rect, Group::new(insets · s, entries…)])`, each entry × `s` (`Scale::uniform(s)`): headings as `Text` in `Heading(n)` groups, swatches as `Decorative` circles, rows as `Group(ORIGIN, [target Rect, indicator Group(Indicator(key), [inset Rect]), badge Circle, badge number Text, name Text, meta Text?]).with(Semantics::LegendRow(control))`.
 

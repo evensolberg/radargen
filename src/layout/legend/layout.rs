@@ -23,7 +23,7 @@ use crate::text::{Fonts, TEXT_DESCENT, wrap};
 use crate::trim;
 
 /// The legend's heading text.
-const TITLE: &str = "Legend";
+const LEGEND_TITLE: &str = "Legend";
 /// Between a row's qualifier and status (FR-74).
 const META_SEPARATOR: &str = " \u{b7} ";
 /// The column a row's name and meta wrap in: D-56's 380 less the name's
@@ -154,7 +154,7 @@ pub(super) fn layout(catalogue: &Catalogue, plotted: &Plotted, fonts: &Fonts) ->
         fonts,
     };
     let title = Entry::Heading {
-        run: heading(TITLE_TIER, TITLE, LEGEND_HEADING_BASELINE, fonts),
+        run: heading(TITLE_TIER, LEGEND_TITLE, LEGEND_HEADING_BASELINE, fonts),
         level: TITLE_TIER.level,
     };
     let entries = titled(title, context.groups());
@@ -180,12 +180,10 @@ impl Context<'_> {
     /// height is the last entry's bottom.
     fn groups(&self) -> Vec<Entry> {
         let mut entries = Vec::new();
-        self.plotted
-            .quadrants
-            .iter()
-            .fold(FIRST_GROUP, |baseline, &q| {
-                self.quadrant(q, baseline, &mut entries)
-            });
+        let mut baseline = FIRST_GROUP;
+        for &q in &self.plotted.quadrants {
+            baseline = self.quadrant(q, baseline, &mut entries);
+        }
         entries
     }
 
@@ -205,13 +203,10 @@ impl Context<'_> {
     /// Quadrant `q`'s rings below its heading's last baseline `last`;
     /// returns the next quadrant's baseline.
     fn rings(&self, q: usize, last: f64, entries: &mut Vec<Entry>) -> f64 {
-        let bottom = self
-            .runs
-            .iter()
-            .filter(|run| run.quadrant == q)
-            .fold(None, |bottom, run| {
-                Some(self.ring(run, ring_baseline(last, bottom), entries))
-            });
+        let mut bottom = None;
+        for run in self.runs.iter().filter(|run| run.quadrant == q) {
+            bottom = Some(self.ring(run, ring_baseline(last, bottom), entries));
+        }
         next_quadrant(last, bottom)
     }
 
@@ -224,12 +219,13 @@ impl Context<'_> {
             run: heading,
             level: RING_TIER.level,
         });
-        run.items.clone().fold(top, |top, position| {
-            let row = self.row(position, top);
-            let bottom = row.bottom();
+        let mut bottom = top;
+        for position in run.items.clone() {
+            let row = self.row(position, bottom);
+            bottom = row.bottom();
             entries.push(Entry::Row(row));
-            bottom
-        })
+        }
+        bottom
     }
 
     /// The item at `position` in FR-34's order, as a row from `top`.

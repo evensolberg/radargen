@@ -131,8 +131,10 @@ pub enum Semantics {
     /// `data-marker`, which marks a radar marker. Static formats keep its
     /// label but not its role or focusability.
     LegendRow(Control),
-    /// The raised copy of an item's marker, shown while the control has
-    /// focus. Interactive-only: static formats omit it.
+    /// A focus and selection indicator. Two uses: the raised copy of an
+    /// item's marker, and a legend row's inset rect. The emitter tells them
+    /// apart by the enclosing control (`data-marker-indicator` or
+    /// `data-row-indicator`). Interactive-only: static formats omit it.
     Indicator(ItemKey),
 }
 

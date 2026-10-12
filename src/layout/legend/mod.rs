@@ -400,11 +400,32 @@ mod tests {
         (*origin, style.size, *ink, *anchor, lines.as_slice())
     }
 
-    fn contains(outer: Rect, inner: Rect) -> bool {
+    fn encloses(outer: Rect, inner: Rect) -> bool {
         inner.left >= outer.left
             && inner.top >= outer.top
             && inner.right <= outer.right
             && inner.bottom <= outer.bottom
+    }
+
+    #[test]
+    fn a_rows_visible_meta_is_in_its_label() {
+        let csv = format!(
+            "{HEAD_META}A,Q,Adopt,d,default,new\nB,Q,Adopt,d,conditional,\nC,Q,Adopt,d,,no change\nD,Q,Adopt,d,,\n"
+        );
+        let (_, _, block) = legend(&csv);
+        let root = block.render(at(1.0));
+        let mut shown = 0;
+        for (control, children) in rows(&root) {
+            let Some(meta) = children.get(5) else {
+                continue;
+            };
+            shown += 1;
+            let visible = text(meta).4.join(" ");
+            for part in visible.split(" \u{b7} ") {
+                assert!(control.label.contains(part), "{part:?} not in {control:?}");
+            }
+        }
+        assert_eq!(shown, 2, "the two rows with something to show");
     }
 
     #[test]
@@ -502,7 +523,7 @@ mod tests {
             let target = bounds(child(children, 0), fonts()).expect("a target");
             for part in children.iter().skip(2) {
                 let found = bounds(part, fonts()).expect("drawn");
-                assert!(contains(target, found), "{found:?} outside {target:?}");
+                assert!(encloses(target, found), "{found:?} outside {target:?}");
             }
         }
     }
