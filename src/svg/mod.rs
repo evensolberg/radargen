@@ -437,27 +437,21 @@ impl TextRun {
             Anchor::Start,
             "a tail follows start-anchored text"
         );
-        let node = self.node(scale);
-        match node {
-            Node::Text {
-                origin,
-                style,
-                ink,
-                anchor,
-                lines,
-                leading,
-                ..
-            } => Node::Text {
-                origin,
-                style,
-                ink,
-                anchor,
-                lines,
-                leading,
-                tail: Some(tail.scaled(scale.size)),
-            },
-            other => other,
+        let mut node = self.node(scale);
+        if let Node::Text { tail: slot, .. } = &mut node {
+            *slot = Some(tail.scaled(scale.size));
         }
+        node
+    }
+
+    /// The furthest right any line reaches at its layout width (D-78), at
+    /// scale 1.
+    #[must_use]
+    pub fn right_edge(&self, fonts: &Fonts) -> f64 {
+        self.lines
+            .iter()
+            .map(|line| self.origin.x + self.style.measure(line, fonts))
+            .fold(0.0, f64::max)
     }
 
     fn painted(&self, ink: TextPaint, scale: Scale) -> Node {

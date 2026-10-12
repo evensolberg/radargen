@@ -103,19 +103,13 @@ impl Row {
     /// The furthest right the row's text reaches at its layout width, an
     /// inline meta included after the name's layout width (D-78).
     pub(super) fn right_edge(&self, fonts: &Fonts) -> f64 {
-        let x = self.name.origin.x;
-        let name = self
-            .name
-            .lines
-            .iter()
-            .map(|line| x + LEGEND_NAME.measure(line, fonts));
-        let meta = self.meta.as_ref().map(|meta| match meta {
-            MetaLine::Inline(tail) => x + inline_end(&self.name.lines, tail, fonts),
-            MetaLine::OwnLine(run) => {
-                run.origin.x + LEGEND_META.measure(&run.lines.concat(), fonts)
+        let meta = self.meta.as_ref().map_or(0.0, |meta| match meta {
+            MetaLine::Inline(tail) => {
+                self.name.origin.x + inline_end(&self.name.lines, tail, fonts)
             }
+            MetaLine::OwnLine(run) => run.right_edge(fonts),
         });
-        name.chain(meta).fold(0.0, f64::max)
+        self.name.right_edge(fonts).max(meta)
     }
 }
 
@@ -130,7 +124,7 @@ fn fits_inline(end: f64, column: f64) -> bool {
 /// the last line's layout width, the gap, and the tail's (D-78).
 fn inline_end(name: &[String], tail: &Tail, fonts: &Fonts) -> f64 {
     let last = name.last().map_or("", String::as_str);
-    LEGEND_NAME.measure(last, fonts) + tail.gap + LEGEND_META.measure(&tail.text, fonts)
+    LEGEND_NAME.measure(last, fonts) + tail.layout_width(fonts)
 }
 
 /// The meta as a tail: a no-break space, so copied text reads two words,
@@ -162,49 +156,48 @@ fn meta_text(qualifier: Option<Qualifier>, status: Option<Status>) -> Option<Str
     (!parts.is_empty()).then(|| parts.join(META_SEPARATOR))
 }
 
-/// A row's meta, fitted against its name's last line.
-struct Fitted {
-    text: String,
-    tail: Tail,
-    /// Whether it rides on that line (FR-74), judged at the layout width
-    /// so a reader's text spacing still fits (D-78).
-    inline: bool,
+/// A row's meta, fitted against its name's last line: inline when it fits
+/// there at the layout width, so a reader's text spacing still fits (FR-74,
+/// D-78); otherwise on its own line.
+enum Fitted {
+    Inline(Tail),
+    OwnLine(String),
 }
 
 impl Fitted {
     /// The meta as drawn: the name's tail, or its own line below the name's
     /// last baseline `last`.
     fn line(self, last: f64) -> MetaLine {
-        if self.inline {
-            return MetaLine::Inline(self.tail);
+        match self {
+            Self::Inline(tail) => MetaLine::Inline(tail),
+            Self::OwnLine(text) => MetaLine::OwnLine(TextRun {
+                origin: Point {
+                    x: LEGEND_NAME_X,
+                    y: last + LINE_HEIGHT,
+                },
+                style: LEGEND_META,
+                ink: Neutral::TextMuted,
+                anchor: Anchor::Start,
+                lines: vec![text],
+                leading: LINE_HEIGHT,
+            }),
         }
-        MetaLine::OwnLine(TextRun {
-            origin: Point {
-                x: LEGEND_NAME_X,
-                y: last + LINE_HEIGHT,
-            },
-            style: LEGEND_META,
-            ink: Neutral::TextMuted,
-            anchor: Anchor::Start,
-            lines: vec![self.text],
-            leading: LINE_HEIGHT,
-        })
     }
 }
 
 /// `text` fitted against the last of `name`'s lines.
 fn fitted(text: String, name: &[String], fonts: &Fonts) -> Fitted {
     let tail = tail(&text, fonts);
-    Fitted {
-        inline: fits_inline(inline_end(name, &tail, fonts), LEGEND_NAME_COLUMN),
-        tail,
-        text,
+    if fits_inline(inline_end(name, &tail, fonts), LEGEND_NAME_COLUMN) {
+        Fitted::Inline(tail)
+    } else {
+        Fitted::OwnLine(text)
     }
 }
 
 /// The row's text lines: the name's, and the meta's own line if it has one.
 fn line_count(name: &[String], meta: Option<&Fitted>) -> usize {
-    name.len() + usize::from(meta.is_some_and(|meta| !meta.inline))
+    name.len() + usize::from(matches!(meta, Some(Fitted::OwnLine(_))))
 }
 
 /// Where a row's parts sit.

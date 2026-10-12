@@ -24,7 +24,7 @@ pub(super) fn text_bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
         TextPaint::Halo { width, .. } => f64::midpoint(0.0, *width),
     };
     let (ascent, descent) = (TEXT_ASCENT * style.size, TEXT_DESCENT * style.size);
-    lines
+    let rects: Vec<Rect> = lines
         .iter()
         .scan(origin.y, |baseline, line| {
             let at = *baseline;
@@ -45,44 +45,28 @@ pub(super) fn text_bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
             }
             .grown(halo)
         })
-        .chain(tail_bounds(node, tail.as_ref(), fonts))
-        .reduce(Rect::union)
+        .collect();
+    let tail = tail
+        .as_ref()
+        .zip(rects.last())
+        .map(|(tail, last)| tail_bounds(tail, *last, last.bottom - descent, fonts));
+    rects.into_iter().chain(tail).reduce(Rect::union)
 }
 
-/// A text's tail, on its last line's baseline.
+/// A text's tail after its last line's box `last`, on that line's
+/// `baseline`. It starts at the line's layout end, where a reader's text
+/// spacing puts it (D-78), as `Row::right_edge` holds it; the drawn start,
+/// `Node::tail_x`, is further left. Only filled text has a tail, so the box
+/// carries no halo.
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
 )]
-fn tail_bounds(node: &Node, tail: Option<&Tail>, fonts: &Fonts) -> Option<Rect> {
-    let (
-        Node::Text {
-            origin,
-            style,
-            lines,
-            leading,
-            ..
-        },
-        Some(tail),
-    ) = (node, tail)
-    else {
-        return None;
-    };
-    // From the last line's layout end, where a reader's text spacing puts
-    // it (D-78), so bounds hold the tail as `Row::right_edge` does; the drawn
-    // start, `Node::tail_x`, is further left.
-    let last = lines.last().map_or("", String::as_str);
-    let left = origin.x + style.measure(last, fonts) + tail.gap;
-    #[expect(
-        clippy::cast_precision_loss,
-        clippy::as_conversions,
-        reason = "a line count is far below 2^53, so the conversion is exact"
-    )]
-    let baseline = origin.y + lines.len().saturating_sub(1) as f64 * leading;
-    Some(Rect {
-        left,
+fn tail_bounds(tail: &Tail, last: Rect, baseline: f64, fonts: &Fonts) -> Rect {
+    Rect {
+        left: last.right + tail.gap,
         top: baseline - TEXT_ASCENT * tail.style.size,
-        right: left + tail.style.measure(&tail.text, fonts),
+        right: last.right + tail.layout_width(fonts),
         bottom: baseline + TEXT_DESCENT * tail.style.size,
-    })
+    }
 }

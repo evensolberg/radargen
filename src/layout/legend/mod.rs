@@ -435,22 +435,12 @@ mod tests {
         let root = rendered(&csv);
         let mut tails = 0;
         for (_, children) in rows(&root) {
-            let Node::Text {
-                origin,
-                style,
-                lines,
-                tail: Some(tail),
-                ..
-            } = child(children, NAME)
-            else {
+            let name = child(children, NAME);
+            if !matches!(name, Node::Text { tail: Some(_), .. }) {
                 continue;
-            };
+            }
             tails += 1;
-            let last = lines.last().map_or("", String::as_str);
-            let end = origin.x
-                + style.measure(last, fonts)
-                + tail.gap
-                + tail.style.measure(&tail.text, fonts);
+            let end = bounds(name, fonts).expect("bounds").right;
             let (target, width, ..) = rect(child(children, TARGET));
             assert!(target.x + width >= end, "{end} past {}", target.x + width);
         }

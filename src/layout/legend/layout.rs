@@ -308,11 +308,7 @@ impl Entry {
     /// (D-78); zero for a swatch.
     fn right_edge(&self, fonts: &Fonts) -> f64 {
         match self {
-            Self::Heading { run, .. } => run
-                .lines
-                .iter()
-                .map(|line| run.origin.x + run.style.measure(line, fonts))
-                .fold(0.0, f64::max),
+            Self::Heading { run, .. } => run.right_edge(fonts),
             Self::Swatch { .. } => 0.0,
             Self::Row(row) => row.right_edge(fonts),
         }

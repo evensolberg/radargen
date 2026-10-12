@@ -2,6 +2,7 @@
 
 use super::Paint;
 use crate::style::TextStyle;
+use crate::text::Fonts;
 
 /// Text that continues a text node's last line in its own style: the
 /// legend's inline qualifier and status (FR-74).
@@ -24,6 +25,13 @@ pub struct Tail {
 }
 
 impl Tail {
+    /// How far the tail reaches past its line's end at the layout width:
+    /// the gap and its own layout width (D-78).
+    #[must_use]
+    pub fn layout_width(&self, fonts: &Fonts) -> f64 {
+        self.gap + self.style.measure(&self.text, fonts)
+    }
+
     /// The tail with its gap and sizes multiplied by `size` (FR-70).
     #[must_use]
     pub fn scaled(&self, size: f64) -> Self {
