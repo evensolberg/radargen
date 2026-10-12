@@ -462,19 +462,9 @@ mod tests {
     use crate::svg::TextPaint;
     use crate::text::Weight;
 
-    pub(super) const HEADER: &str = "name,quadrant,ring,description\n";
+    pub(super) use crate::layout::test_support::{HEAD as HEADER, csv_of};
     /// How near the block's edge the drawn labels must come: float noise.
     const TIGHT: f64 = 1e-6;
-
-    /// One row per quadrant name, all in `ring`.
-    pub(super) fn csv_of(quadrants: &[&str], ring: &str) -> String {
-        quadrants
-            .iter()
-            .enumerate()
-            .fold(HEADER.to_owned(), |text, (i, q)| {
-                format!("{text}item {i},{q},{ring},d\n")
-            })
-    }
 
     pub(super) fn block(fonts: &Fonts, csv: &str, rings: Option<&str>) -> RadarBlock {
         let (catalogue, order) = plotted(csv, rings);

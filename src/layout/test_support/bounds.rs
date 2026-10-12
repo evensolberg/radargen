@@ -1,38 +1,11 @@
-//! Test-only helpers every block's tests share.
-//!
-//! One walker finds the box a node paints in, and one builder makes a
-//! catalogue with its FR-10 order. Having one walker means no block's bounds
-//! test can quietly measure less than another's.
+//! The one walker that finds the box a node paints in, and the assertions
+//! built on it. Having one walker means no block's bounds test can quietly
+//! measure less than another's.
 
-use crate::csv::parse::parse;
-use crate::diagnostics::Warnings;
 use crate::layout::block::{Size, close};
-use crate::model::{Catalogue, build_catalogue};
-use crate::order::{Plotted, resolve};
 use crate::palette::{Neutral, Role};
-use crate::rings::parse_rings;
-use crate::svg::{Anchor, Node, Paint, PathCommand, Point, TextPaint};
+use crate::svg::{Anchor, Group, Node, Paint, PathCommand, Point, TextPaint};
 use crate::text::{Fonts, TEXT_ASCENT, TEXT_DESCENT};
-
-/// The PRD's three-quadrant example (§12), shared by every block's tests.
-pub(crate) const PRD_EXAMPLE: &str = include_str!("../../tests/fixtures/three-quadrant.csv");
-
-/// The four required columns.
-pub(crate) const HEAD: &str = "name,quadrant,ring,description\n";
-
-/// The required columns with FR-20's qualifier and FR-26's status.
-pub(crate) const HEAD_META: &str = "name,quadrant,ring,description,qualifier,status\n";
-
-/// A name that wraps to two lines in a legend row's 312-unit name column.
-pub(crate) const NAME_TWO_LINES: &str =
-    "Bounded trial of continuous delivery pipelines across managed estates and environments";
-
-/// A name that wraps to three lines in a legend row's name column.
-pub(crate) const NAME_THREE_LINES: &str = "Bounded trial of continuous delivery pipelines across managed estates and environments with a shared policy layer";
-
-/// A one-line name too wide for "Default \u{b7} New" to ride after it, so a
-/// legend row's meta takes its own line.
-pub(crate) const NAME_FULL_LINE: &str = "Bounded trial of continuous delivery pipelines";
 
 /// How far outside its size a node may reach before it counts as outside:
 /// float noise from scaling, not drawing room.
@@ -40,7 +13,7 @@ const SLACK: f64 = 1e-9;
 
 /// An axis-aligned box in user units.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct Rect {
+pub struct Rect {
     pub left: f64,
     pub top: f64,
     pub right: f64,
@@ -102,7 +75,7 @@ impl Rect {
 
 /// The smallest box holding everything `node` paints, in its parent's
 /// coordinates; `None` when it paints nothing.
-pub(crate) fn bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
+pub fn bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
     match node {
         Node::Group(group) => group
             .children
@@ -230,7 +203,7 @@ fn text_bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
 }
 
 /// `a` moved by `b`.
-pub(crate) fn plus(a: Point, b: Point) -> Point {
+pub fn plus(a: Point, b: Point) -> Point {
     Point {
         x: a.x + b.x,
         y: a.y + b.y,
@@ -238,17 +211,17 @@ pub(crate) fn plus(a: Point, b: Point) -> Point {
 }
 
 /// Whether two points coincide to within the tests' tolerance.
-pub(crate) fn near(a: Point, b: Point) -> bool {
+pub fn near(a: Point, b: Point) -> bool {
     close(a.x, b.x) && close(a.y, b.y)
 }
 
 /// Plain `ink` text paint, as the blocks' tests expect it.
-pub(crate) const fn fill(ink: Neutral) -> TextPaint {
+pub const fn fill(ink: Neutral) -> TextPaint {
     TextPaint::Fill(Paint::Role(Role::Neutral(ink)))
 }
 
 /// Panics naming the first node whose painted box leaves `size`.
-pub(crate) fn assert_inside(node: &Node, size: Size, fonts: &Fonts) {
+pub fn assert_inside(node: &Node, size: Size, fonts: &Fonts) {
     inside(node, Point::ORIGIN, size, fonts);
 }
 
@@ -271,7 +244,7 @@ fn inside(node: &Node, offset: Point, size: Size, fonts: &Fonts) {
 }
 
 /// Panics on the first non-finite number in the tree.
-pub(crate) fn assert_finite(node: &Node) {
+pub fn assert_finite(node: &Node) {
     let numbers: Vec<f64> = match node {
         Node::Group(group) => {
             group.children.iter().for_each(assert_finite);
@@ -340,25 +313,13 @@ fn path_numbers(commands: &[PathCommand], stroke_width: f64) -> Vec<f64> {
     numbers
 }
 
-/// A catalogue and its FR-10 order from CSV text and an optional `--rings`
-/// value.
-pub(crate) fn plotted(csv: &str, rings: Option<&str>) -> (Catalogue, Plotted) {
-    let mut warnings = Warnings::default();
-    let (table, errors) = parse(csv, &mut warnings).expect("parses");
-    assert!(errors.is_empty(), "{errors:?}");
-    let rings = parse_rings(rings).expect("valid rings");
-    let catalogue = build_catalogue(&table, &rings, &mut warnings).expect("builds");
-    let order = resolve(&catalogue);
-    (catalogue, order)
-}
-
-/// A catalogue with no columns, quadrants, rings or items (FR-42).
-pub(crate) const fn empty_catalogue() -> Catalogue {
-    Catalogue {
-        columns: Vec::new(),
-        quadrants: Vec::new(),
-        rings: Vec::new(),
-        items: Vec::new(),
+/// Every group in `node`'s tree, depth first, in document order.
+pub fn groups(node: &Node) -> Vec<&Group> {
+    match node {
+        Node::Group(g) => std::iter::once(g)
+            .chain(g.children.iter().flat_map(groups))
+            .collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -643,14 +604,5 @@ mod tests {
                 "the failure must name {bad}: {message}"
             );
         }
-    }
-
-    #[test]
-    fn plotted_builds_the_catalogue_and_its_order() {
-        let csv = "name,quadrant,ring,description\nA,Tools,Adopt,d\nB,Tools,Trial,d\n";
-        let (catalogue, order) = plotted(csv, None);
-        assert_eq!(catalogue.items.len(), 2);
-        assert_eq!(order.items.len(), 2);
-        assert_eq!(order.quadrants, [0]);
     }
 }

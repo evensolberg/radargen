@@ -255,8 +255,8 @@ mod tests {
     use super::*;
     use crate::layout::block::{Size, close, fonts};
     use crate::layout::test_support::{
-        HEAD, NAME_THREE_LINES, PRD_EXAMPLE, Rect, assert_finite, assert_inside, bounds, near,
-        plotted,
+        HEAD, NAME_THREE_LINES, PRD_EXAMPLE, Rect, assert_finite, assert_inside, bounds, csv_of,
+        groups, near, plotted,
     };
     use crate::model::Catalogue;
     use crate::order::Plotted;
@@ -299,12 +299,7 @@ mod tests {
 
     /// One item per quadrant, all in Adopt.
     fn quadrants(names: &[&str]) -> String {
-        names
-            .iter()
-            .enumerate()
-            .fold(HEAD.to_owned(), |csv, (i, q)| {
-                csv + &format!("item {i},{q},Adopt,d\n")
-            })
+        csv_of(names, "Adopt")
     }
 
     /// Thoughtworks' four quadrants: 386.75 wide at 0.3, inside the column.
@@ -696,17 +691,14 @@ mod tests {
     }
 
     /// Every control's key in tree order, and whether it is a legend row.
-    fn controls(node: &Node) -> Vec<(ItemKey, bool)> {
-        let Node::Group(group) = node else {
-            return Vec::new();
-        };
-        let own = match &group.semantics {
-            Semantics::Marker(control) => Some((control.key, false)),
-            Semantics::LegendRow(control) => Some((control.key, true)),
-            _ => None,
-        };
-        own.into_iter()
-            .chain(group.children.iter().flat_map(controls))
+    fn controls(root: &Node) -> Vec<(ItemKey, bool)> {
+        groups(root)
+            .into_iter()
+            .filter_map(|group| match &group.semantics {
+                Semantics::Marker(control) => Some((control.key, false)),
+                Semantics::LegendRow(control) => Some((control.key, true)),
+                _ => None,
+            })
             .collect()
     }
 

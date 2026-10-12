@@ -286,7 +286,7 @@ mod tests {
     use crate::layout::block::{assert_translates, at, close, fonts};
     use crate::layout::test_support::{
         HEAD_META, NAME_FULL_LINE, NAME_THREE_LINES, NAME_TWO_LINES, PRD_EXAMPLE, Rect,
-        assert_finite, assert_inside, bounds, empty_catalogue, fill, near, plotted,
+        assert_finite, assert_inside, bounds, empty_catalogue, fill, groups, near, plotted,
     };
     use crate::style::{MIN_PX_PER_UNIT, MIN_TARGET_PX};
     use crate::svg::{Anchor, Control, TextPaint};
@@ -329,16 +329,6 @@ mod tests {
     /// The content group: the root's second child.
     fn content(root: &Node) -> &Group {
         group(child(&group(root).children, 1))
-    }
-
-    /// Every group in document order, depth first.
-    fn groups(node: &Node) -> Vec<&Group> {
-        match node {
-            Node::Group(g) => std::iter::once(g)
-                .chain(g.children.iter().flat_map(groups))
-                .collect(),
-            _ => Vec::new(),
-        }
     }
 
     /// Every legend row's control and children, in document order.
