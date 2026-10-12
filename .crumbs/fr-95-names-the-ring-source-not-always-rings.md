@@ -1,7 +1,7 @@
 ---
 id: rg-iqm
 title: FR-95 names the ring source, not always --rings
-status: open
+status: closed
 type: task
 priority: 3
 tags:
@@ -9,6 +9,7 @@ tags:
 - config
 created: 2026-10-12
 updated: 2026-10-12
+closed_reason: 'PR A: Binding::Ring carries RingSource; Catalogue keeps ring_source'
 phase: v1.1
 ---
 

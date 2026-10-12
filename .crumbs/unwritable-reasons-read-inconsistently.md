@@ -1,7 +1,7 @@
 ---
 id: rg-bsb
 title: Unwritable reasons read inconsistently
-status: open
+status: closed
 type: bug
 priority: 3
 tags:
@@ -9,6 +9,7 @@ tags:
 - output
 created: 2026-10-12
 updated: 2026-10-12
+closed_reason: 'PR A: every read/write reason renders the OS text without (os error N), lowercase'
 phase: ''
 ---
 
