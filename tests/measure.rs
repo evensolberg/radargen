@@ -22,7 +22,7 @@ const LATIN_CORPUS: [&str; 13] = [
 ];
 
 fn metrics() -> FontMetrics<'static> {
-    FontMetrics::load(FONT).expect("font parses")
+    FontMetrics::load(FONT, "Inter Regular").expect("font parses")
 }
 
 #[test]

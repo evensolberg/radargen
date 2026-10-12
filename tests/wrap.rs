@@ -6,7 +6,7 @@ use radargen::text::{FontMetrics, REGULAR_TTF as FONT, wrap};
 const SIZE: f64 = 12.5;
 
 fn metrics() -> FontMetrics<'static> {
-    FontMetrics::load(FONT).expect("font parses")
+    FontMetrics::load(FONT, "Inter Regular").expect("font parses")
 }
 
 #[test]

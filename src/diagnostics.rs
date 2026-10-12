@@ -6,6 +6,8 @@ use std::sync::Arc;
 
 use crate::columns::ColumnKind;
 use crate::rings::{RingSource, RingsError};
+use crate::style::NARROW_MAX_WIDTH;
+use crate::text::FontError;
 use crate::{is_untagged_format, normalise, trim};
 
 /// Where a warning points: its sort key.
@@ -138,6 +140,14 @@ pub enum RenderKind {
         /// How many of them the band has room for.
         fits: usize,
     },
+    /// FR-95: the narrow arrangement is wider than FR-94's targets are
+    /// sized for (D-71), and `binding` sets its width (D-73).
+    NarrowWidened {
+        /// The label whose reach sets the radar's width.
+        binding: Binding,
+        /// The narrow document's width, rounded up to a whole unit.
+        width: u32,
+    },
     /// FR-90 on a flag value: one per flag, however many characters it lost.
     FlagUndisplayable {
         /// The flag whose value lost characters.
@@ -147,6 +157,16 @@ pub enum RenderKind {
         /// How many characters the value lost in all.
         count: usize,
     },
+}
+
+/// The label whose reach sets the radar's width (FR-95, D-73): a quadrant
+/// name from the CSV, or a ring name from `--rings`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Binding {
+    /// A quadrant label, as written.
+    Quadrant(String),
+    /// A ring name, as declared.
+    Ring(String),
 }
 
 /// A command-line flag whose value FR-90 cleans. `--config` keys arrive with
@@ -333,6 +353,15 @@ impl RenderKind {
                 trim(quadrant),
                 trim(ring)
             ),
+            Self::NarrowWidened { binding, width } => {
+                let fix = match binding {
+                    Binding::Quadrant(name) => format!("quadrant '{}'", trim(name)),
+                    Binding::Ring(name) => format!("ring '{}' in --rings", trim(name)),
+                };
+                format!(
+                    "the narrow arrangement is {width} units wide, past the {NARROW_MAX_WIDTH} its legend rows and marker targets are sized for, so on a 320-pixel screen they fall below 24 pixels; a shorter name for {fix} would fix it"
+                )
+            }
             Self::FlagUndisplayable {
                 flag,
                 first,
@@ -685,6 +714,23 @@ pub enum Fatal {
     /// FR-63, NFR-16 tier one.
     #[error("--rings: {0}")]
     Rings(#[from] RingsError),
+    /// FR-62: `-o`'s directory does not exist; the tool does not create it.
+    #[error("-o {path}: the directory {dir} does not exist")]
+    MissingDirectory {
+        /// The `-o` argument as given.
+        path: String,
+        /// The directory part of it.
+        dir: String,
+    },
+    /// FR-62, D-74: `-o` is the input CSV, which the page would replace.
+    #[error("-o {path}: is the input CSV; choose another output path")]
+    OutputIsInput {
+        /// The `-o` argument as given.
+        path: String,
+    },
+    /// NFR-15: an embedded font face does not parse.
+    #[error(transparent)]
+    Font(#[from] FontError),
     /// FR-61: the input does not exist, cannot be read, or is a directory.
     #[error("{path}: cannot be read: {source}")]
     Unreadable {

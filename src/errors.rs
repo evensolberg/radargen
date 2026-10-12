@@ -138,6 +138,9 @@ const fn classify(order: usize, fatal: &Fatal) -> Classified<'_> {
         | Fatal::Rings(_)
         | Fatal::Unreadable { .. }
         | Fatal::Unwritable { .. }
+        | Fatal::MissingDirectory { .. }
+        | Fatal::OutputIsInput { .. }
+        | Fatal::Font(_)
         | Fatal::NotUtf8 { .. }
         | Fatal::UnterminatedQuote { .. }
         | Fatal::TextAfterQuote { .. }
@@ -208,6 +211,9 @@ const fn line_of(fatal: &Fatal) -> usize {
         | Fatal::Rings(_)
         | Fatal::Unreadable { .. }
         | Fatal::Unwritable { .. }
+        | Fatal::MissingDirectory { .. }
+        | Fatal::OutputIsInput { .. }
+        | Fatal::Font(_)
         | Fatal::NoHeader => 0,
     }
 }
@@ -225,6 +231,9 @@ const fn rank_of(fatal: &Fatal) -> u8 {
         | Fatal::Rings(_)
         | Fatal::Unreadable { .. }
         | Fatal::Unwritable { .. }
+        | Fatal::MissingDirectory { .. }
+        | Fatal::OutputIsInput { .. }
+        | Fatal::Font(_)
         | Fatal::NotUtf8 { .. }
         | Fatal::UnterminatedQuote { .. }
         | Fatal::TextAfterQuote { .. }
