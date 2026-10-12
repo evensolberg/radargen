@@ -161,6 +161,7 @@ pub fn number_text(
         anchor: Anchor::Middle,
         lines: vec![number.to_string()],
         leading: 0.0,
+        tail: None,
     }
 }
 

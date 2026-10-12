@@ -17,14 +17,15 @@ pub const HEAD_META: &str = "name,quadrant,ring,description,qualifier,status\n";
 
 /// A name that wraps to two lines in a legend row's 312-unit name column.
 pub const NAME_TWO_LINES: &str =
-    "Bounded trial of continuous delivery pipelines across managed estates and environments";
+    "Bounded trial of continuous delivery pipelines across managed estates";
 
 /// A name that wraps to three lines in a legend row's name column.
-pub const NAME_THREE_LINES: &str = "Bounded trial of continuous delivery pipelines across managed estates and environments with a shared policy layer";
+pub const NAME_THREE_LINES: &str =
+    "Bounded trial of continuous delivery pipelines across managed estates and environments";
 
 /// A one-line name too wide for "Default \u{b7} New" to ride after it, so a
 /// legend row's meta takes its own line.
-pub const NAME_FULL_LINE: &str = "Bounded trial of continuous delivery pipelines";
+pub const NAME_FULL_LINE: &str = "Bounded trial of continuous delivery";
 
 /// One item per quadrant name, all in `ring`.
 pub fn csv_of(quadrants: &[&str], ring: &str) -> String {

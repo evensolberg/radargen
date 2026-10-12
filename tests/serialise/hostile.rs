@@ -59,7 +59,10 @@ impl Strings {
                     .iter()
                     .for_each(|child| self.walk(child, interactive));
             }
-            Node::Text { lines, .. } if !lines.is_empty() => self.texts.push(lines.join("\n")),
+            Node::Text { lines, tail, .. } if !lines.is_empty() => {
+                let tail = tail.as_ref().map_or("", |t| t.text.as_str());
+                self.texts.push([lines.join("\n").as_str(), tail].concat());
+            }
             _ => {}
         }
     }

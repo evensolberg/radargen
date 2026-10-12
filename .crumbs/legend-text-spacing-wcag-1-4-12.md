@@ -1,7 +1,7 @@
 ---
 id: rg-mru
 title: Legend text spacing (WCAG 1.4.12)
-status: open
+status: closed
 type: bug
 priority: 1
 tags:
@@ -10,6 +10,7 @@ tags:
 - legend
 created: 2026-10-12
 updated: 2026-10-12
+closed_reason: 'PR 14c (#63): headroom for WCAG 1.4.12 (D-78) and the legend meta as the name''s tail'
 phase: v1.0
 ---
 

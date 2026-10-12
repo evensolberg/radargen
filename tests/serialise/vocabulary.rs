@@ -9,14 +9,16 @@ use radargen::svg::serialise::{
     DATA_HIT, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW, DATA_ROW_INDICATOR,
 };
 use radargen::svg::{
-    Anchor, Document, Group, ItemKey, Node, Paint, PathCommand, Point, Target, TextPaint, serialise,
+    Anchor, Document, Group, ItemKey, Node, Paint, PathCommand, Point, Tail, Target, TextPaint,
+    serialise,
 };
 
 use super::html::SVG_ELEMENTS;
 use super::{BOTH, parse, prd, targets};
 
-const EITHER: [&str; 29] = [
+const EITHER: [&str; 30] = [
     "xmlns",
+    "dx",
     "viewBox",
     "transform",
     "role",
@@ -57,7 +59,8 @@ const INTERACTIVE_ONLY: [&str; 9] = [
     DATA_MARKER_INDICATOR,
     DATA_ROW_INDICATOR,
 ];
-const NUMERIC: [&str; 16] = [
+const NUMERIC: [&str; 17] = [
+    "dx",
     "cx",
     "cy",
     "r",
@@ -196,6 +199,26 @@ fn every_kind(v: f64) -> Vec<Node> {
             anchor: Anchor::Start,
             lines: vec!["a".to_owned(), "b".to_owned()],
             leading: v,
+            tail: None,
+        },
+        // A filled text with a tail, so `dx` is checked too.
+        Node::Text {
+            origin: at,
+            style: TextStyle { size: v, ..TITLE },
+            ink: TextPaint::Fill(paint),
+            anchor: Anchor::Start,
+            lines: vec!["a".to_owned()],
+            leading: v,
+            tail: Some(Tail {
+                gap: v,
+                style: TextStyle {
+                    size: v,
+                    letter_spacing: v,
+                    ..TITLE
+                },
+                ink: paint,
+                text: " c".to_owned(),
+            }),
         },
         Node::HitArea {
             centre: at,

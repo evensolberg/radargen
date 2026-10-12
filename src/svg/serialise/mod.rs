@@ -17,6 +17,7 @@
 
 mod group;
 mod shape;
+mod tail;
 mod text;
 
 #[cfg(test)]
@@ -135,6 +136,7 @@ fn node(node: &Node, context: Context<'_>) -> String {
             anchor,
             lines,
             leading,
+            tail,
         } => text::text(
             &text::Run {
                 origin: *origin,
@@ -143,6 +145,7 @@ fn node(node: &Node, context: Context<'_>) -> String {
                 anchor: *anchor,
                 lines,
                 leading: *leading,
+                tail: tail.as_ref(),
             },
             context,
         ),

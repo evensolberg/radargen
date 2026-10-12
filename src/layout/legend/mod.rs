@@ -23,7 +23,7 @@ use crate::svg::{Group, ItemKey, Node, Paint, Point, Scale, Semantics, TextRun};
 use crate::text::Fonts;
 
 use layout::{Entry, Layout, layout};
-use row::Row;
+use row::{MetaLine, Row};
 
 /// The panel's colour, and the row targets': invisible on it, yet they
 /// receive the pointer in every format (a `none` fill would not).
@@ -208,12 +208,21 @@ fn row_node(row: &Row, width: f64, s: f64) -> Node {
         indicator_node(target, row.control.key, s),
         badge_node(row, s),
         number_node(row, s),
-        row.name.node(scale),
     ]
     .into_iter()
-    .chain(row.meta.as_ref().map(|meta| meta.node(scale)))
+    .chain(text_nodes(row, scale))
     .collect();
     Node::Group(Group::new(Point::ORIGIN, children).with(Semantics::LegendRow(row.control.clone())))
+}
+
+/// A row's name and meta: one text when the meta continues the name, two
+/// when it has its own line (FR-74, D-78).
+fn text_nodes(row: &Row, scale: Scale) -> Vec<Node> {
+    match &row.meta {
+        Some(MetaLine::Inline(tail)) => vec![row.name.node_with_tail(tail, scale)],
+        Some(MetaLine::OwnLine(run)) => vec![row.name.node(scale), run.node(scale)],
+        None => vec![row.name.node(scale)],
+    }
 }
 
 /// A row's target at scale 1 (FR-94): from just left of the badge to just
@@ -390,11 +399,52 @@ mod tests {
         (*origin, style.size, *ink, *anchor, lines.as_slice())
     }
 
+    /// A row's meta as drawn, and its paint: the name's tail, or its own line.
+    fn meta_of(children: &[Node]) -> Option<(String, Paint)> {
+        if let Some(own) = children.get(META) {
+            let (_, _, ink, _, lines) = text(own);
+            let TextPaint::Fill(paint) = ink else {
+                panic!("a filled meta");
+            };
+            return Some((lines.concat(), paint));
+        }
+        match child(children, NAME) {
+            Node::Text {
+                tail: Some(tail), ..
+            } => Some((tail.text.clone(), tail.ink)),
+            _ => None,
+        }
+    }
+
     fn encloses(outer: Rect, inner: Rect) -> bool {
         inner.left >= outer.left
             && inner.top >= outer.top
             && inner.right <= outer.right
             && inner.bottom <= outer.bottom
+    }
+
+    /// The target, and so the focus ring, covers an inline meta where it
+    /// ends under a reader's text spacing: after the name's layout width
+    /// (D-78; the crumb's "Default reaches the ring" note).
+    #[test]
+    fn the_row_target_covers_the_meta() {
+        let fonts = fonts();
+        let csv = format!(
+            "{HEAD_META}Trunk-Based Development,Q,Adopt,d,default,\nA,Q,Adopt,d,conditional,new\n"
+        );
+        let root = rendered(&csv);
+        let mut tails = 0;
+        for (_, children) in rows(&root) {
+            let name = child(children, NAME);
+            if !matches!(name, Node::Text { tail: Some(_), .. }) {
+                continue;
+            }
+            tails += 1;
+            let end = bounds(name, fonts).expect("bounds").right;
+            let (target, width, ..) = rect(child(children, TARGET));
+            assert!(target.x + width >= end, "{end} past {}", target.x + width);
+        }
+        assert_eq!(tails, 2, "both rows' metas ride inline");
     }
 
     #[test]
@@ -405,12 +455,11 @@ mod tests {
         let root = rendered(&csv);
         let mut shown = 0;
         for (control, children) in rows(&root) {
-            let Some(meta) = children.get(META) else {
+            let Some((visible, _)) = meta_of(children) else {
                 continue;
             };
             shown += 1;
-            let visible = text(meta).4.join(" ");
-            for part in visible.split(" \u{b7} ") {
+            for part in visible.trim_start_matches('\u{a0}').split(" \u{b7} ") {
                 assert!(control.label.contains(part), "{part:?} not in {control:?}");
             }
         }
@@ -672,8 +721,12 @@ mod tests {
                 fill(Neutral::TextPrimary),
                 "the name"
             );
-            if let Some(meta) = children.get(META) {
-                assert_eq!(text(meta).2, fill(Neutral::TextMuted), "the meta");
+            if let Some((_, paint)) = meta_of(children) {
+                assert_eq!(
+                    paint,
+                    Paint::Role(Role::Neutral(Neutral::TextMuted)),
+                    "the meta"
+                );
             }
         }
     }

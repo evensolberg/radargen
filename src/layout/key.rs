@@ -48,13 +48,13 @@ const ROWS: [Row; 5] = [
         mark: Some(StatusMark::New),
     },
     Row {
-        label: "Moved in \u{2014} half-ring on the side toward the radar's centre",
+        label: "Moved in \u{2014} half-ring facing the centre",
         radius: KEY_STATUS_MARKER_RADIUS,
         qualifier: None,
         mark: Some(StatusMark::MovedIn { centreward: 180.0 }),
     },
     Row {
-        label: "Moved out \u{2014} half-ring on the side toward the radar's outer edge",
+        label: "Moved out \u{2014} half-ring facing the outer edge",
         radius: KEY_STATUS_MARKER_RADIUS,
         qualifier: None,
         mark: Some(StatusMark::MovedOut { centreward: 180.0 }),
@@ -262,8 +262,8 @@ mod tests {
             "Default, or no qualifier \u{2014} solid marker",
             "Conditional \u{2014} hollow marker",
             "New this edition \u{2014} full ring",
-            "Moved in \u{2014} half-ring on the side toward the radar's centre",
-            "Moved out \u{2014} half-ring on the side toward the radar's outer edge",
+            "Moved in \u{2014} half-ring facing the centre",
+            "Moved out \u{2014} half-ring facing the outer edge",
         ];
         for (i, want) in expected.iter().enumerate() {
             let (_, lines, _, _) = text_parts(label(&nodes, i));
@@ -403,11 +403,15 @@ mod tests {
         let size = KeyBlock::new(fonts()).size(1.0);
         assert!(close(size.height, 146.0));
         // Measured at a literal 11 and no spacing, not through KEY_LABEL, so
-        // the test pins the label size independently of the constant.
+        // the test pins the label size independently of the constant; plus
+        // D-78's allowance for a reader's text spacing.
         let fonts = fonts();
         let widest = ROWS
             .iter()
-            .map(|row| fonts.face(KEY_LABEL.weight).measure(row.label, 11.0, 0.0))
+            .map(|row| {
+                fonts.face(KEY_LABEL.weight).measure(row.label, 11.0, 0.0)
+                    + crate::style::spacing_allowance(row.label, 11.0)
+            })
             .fold(0.0, f64::max);
         assert!(close(size.width, 28.0 + widest));
     }

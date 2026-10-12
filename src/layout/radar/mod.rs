@@ -912,7 +912,9 @@ mod tests {
         let want = 2.0 * (TEXT_ASCENT * 12.0 + above + 10.0);
         let got = quadrants(fonts, 8).size(s).height;
         assert!(close(got, want), "{got} vs {want}");
-        assert!(want > 660.0 * s && (want - 215.80).abs() < 0.01, "{want}");
+        // 215.80 before D-78: the wider name's layout width now carries the
+        // spacing allowance, so its push is larger.
+        assert!(want > 660.0 * s && (want - 216.81).abs() < 0.01, "{want}");
 
         // N = 1: the label hangs below 6 o'clock, so its descent counts.
         let s = 0.4_f64;

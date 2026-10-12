@@ -7,7 +7,7 @@
 //! invisible to our measurement and to `resvg`, and doing it for real would
 //! edit a label, which FR-76 rules out.
 
-use crate::text::{Fonts, Weight, wrap};
+use crate::text::{Fonts, Weight, wrap_by};
 
 /// FR-85: a measurement is (face, size, letter-spacing), never fewer.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -32,25 +32,59 @@ impl TextStyle {
         }
     }
 
-    /// `text`'s advance in this style, measured with `fonts` (FR-84).
+    /// `text`'s advance in this style as the shaper lays it out (FR-84):
+    /// where drawn text ends, for text that continues it.
     #[must_use]
-    pub fn measure(self, text: &str, fonts: &Fonts) -> f64 {
+    pub fn advance(self, text: &str, fonts: &Fonts) -> f64 {
         fonts
             .face(self.weight)
             .measure(text, self.size, self.letter_spacing)
     }
 
-    /// `text` wrapped at `column` in this style (FR-79).
+    /// `text`'s layout width in this style: its advance (FR-84) plus the
+    /// room a reader's text spacing needs (D-78). Every block sizes and
+    /// wraps by this, so spaced text fits where the layout put it.
+    #[must_use]
+    pub fn measure(self, text: &str, fonts: &Fonts) -> f64 {
+        self.advance(text, fonts) + spacing_allowance(text, self.size)
+    }
+
+    /// `text` wrapped at `column` in this style, each line's layout width
+    /// within it (FR-79, D-78).
     #[must_use]
     pub fn wrap(self, text: &str, column: f64, fonts: &Fonts) -> Vec<String> {
-        wrap(
-            text,
-            column,
-            fonts.face(self.weight),
-            self.size,
-            self.letter_spacing,
-        )
+        wrap_by(text, column, &|line| self.measure(line, fonts))
     }
+}
+
+/// WCAG 1.4.12's letter spacing, in ems, that layout leaves room for.
+const SPACED_LETTERS_EM: f64 = 0.12;
+/// WCAG 1.4.12's word spacing, in ems.
+const SPACED_WORDS_EM: f64 = 0.16;
+
+/// The room `text` at `size` needs beyond its advance under WCAG 1.4.12.
+///
+/// A reader may set letter spacing to 0.12em and word spacing to 0.16em
+/// (D-78): one allowance per `char`, a slight over-estimate for a combining
+/// mark, and one per word separator (U+0020, U+00A0). Line height and
+/// paragraph spacing have no effect on SVG text placed at absolute
+/// baselines.
+#[must_use]
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+)]
+pub fn spacing_allowance(text: &str, size: f64) -> f64 {
+    #[expect(
+        clippy::cast_precision_loss,
+        clippy::as_conversions,
+        reason = "a character count is far below 2^53, so the conversion is exact"
+    )]
+    let (chars, separators) = (
+        text.chars().count() as f64,
+        text.chars().filter(|c| matches!(c, ' ' | '\u{a0}')).count() as f64,
+    );
+    SPACED_LETTERS_EM * size * chars + SPACED_WORDS_EM * size * separators
 }
 
 const fn style(weight: Weight, size: f64, letter_spacing: f64) -> TextStyle {
@@ -432,6 +466,46 @@ pub fn breakpoint_px(wide_width: f64) -> u32 {
 mod tests {
     use super::*;
 
+    /// D-78: the layout width is the shaper's advance plus WCAG 1.4.12's
+    /// allowance, 0.12em per character and 0.16em per word separator.
+    #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    fn layout_width_is_advance_plus_allowance() {
+        let fonts = crate::text::Fonts::embedded().expect("the vendored fonts parse");
+        let text = "Kafka Streams";
+        let advance = LEGEND_NAME.advance(text, &fonts);
+        let want = advance + 0.12 * 12.5 * 13.0 + 0.16 * 12.5 * 1.0;
+        assert!((LEGEND_NAME.measure(text, &fonts) - want).abs() < 1e-9);
+        let nbsp = "a\u{a0}b";
+        let want = LEGEND_NAME.advance(nbsp, &fonts) + 0.12 * 12.5 * 3.0 + 0.16 * 12.5;
+        assert!(
+            (LEGEND_NAME.measure(nbsp, &fonts) - want).abs() < 1e-9,
+            "NBSP is a word separator"
+        );
+        assert!(LEGEND_NAME.measure("", &fonts).abs() < 1e-12);
+    }
+
+    /// Every wrapped line fits its column at the layout width, so spaced
+    /// text stays inside its block (D-78).
+    #[test]
+    fn wrap_holds_spaced_lines() {
+        let fonts = crate::text::Fonts::embedded().expect("the vendored fonts parse");
+        let text = "Infrastructure Platforms and Tooling for Managed Estates";
+        for column in [80.0, 150.0, 260.0] {
+            let lines = LEGEND_NAME.wrap(text, column, &fonts);
+            assert!(lines.len() > 1, "{column}: the fixture wraps");
+            for line in &lines {
+                assert!(
+                    LEGEND_NAME.measure(line, &fonts) <= column,
+                    "{column}: {line}"
+                );
+            }
+        }
+    }
+
     /// One measure for every block: the style's face, size and spacing.
     #[test]
     fn a_style_measures_with_its_face_size_and_spacing() {
@@ -441,7 +515,7 @@ mod tests {
                 fonts
                     .face(style.weight)
                     .measure("Kubernetes", style.size, style.letter_spacing);
-            let got = style.measure("Kubernetes", &fonts);
+            let got = style.advance("Kubernetes", &fonts);
             assert!((got - want).abs() < 1e-12, "{style:?}: {got} vs {want}");
         }
     }
@@ -452,13 +526,8 @@ mod tests {
         let fonts = Fonts::embedded().expect("faces");
         let text = "Continuous delivery pipelines for managed infrastructure";
         let style = LEGEND_NAME;
-        let want = crate::text::wrap(
-            text,
-            200.0,
-            fonts.face(style.weight),
-            style.size,
-            style.letter_spacing,
-        );
+        // At the layout width (D-78), not the bare advance.
+        let want = crate::text::wrap_by(text, 200.0, &|line| style.measure(line, &fonts));
         assert_eq!(style.wrap(text, 200.0, &fonts), want);
         assert!(want.len() > 1, "the fixture wraps: {want:?}");
     }

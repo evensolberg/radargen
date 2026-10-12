@@ -304,14 +304,14 @@ impl Entry {
         }
     }
 
-    /// The entry's text.
-    fn runs(&self) -> impl Iterator<Item = &TextRun> {
-        let (first, second) = match self {
-            Self::Heading { run, .. } => (Some(run), None),
-            Self::Swatch { .. } => (None, None),
-            Self::Row(row) => (Some(&row.name), row.meta.as_ref()),
-        };
-        first.into_iter().chain(second)
+    /// The furthest right the entry's text reaches at its layout width
+    /// (D-78); zero for a swatch.
+    fn right_edge(&self, fonts: &Fonts) -> f64 {
+        match self {
+            Self::Heading { run, .. } => run.right_edge(fonts),
+            Self::Swatch { .. } => 0.0,
+            Self::Row(row) => row.right_edge(fonts),
+        }
     }
 }
 
@@ -320,16 +320,12 @@ fn height(entries: &[Entry]) -> f64 {
     entries.last().map_or(0.0, Entry::bottom)
 }
 
-/// The content width: the widest laid-out line's right edge.
+/// The content width: the widest laid-out line's right edge, an inline
+/// meta included where it ends under a reader's text spacing (D-78).
 fn width(entries: &[Entry], fonts: &Fonts) -> f64 {
     entries
         .iter()
-        .flat_map(Entry::runs)
-        .flat_map(|run| {
-            run.lines
-                .iter()
-                .map(move |line| run.origin.x + run.style.measure(line, fonts))
-        })
+        .map(|entry| entry.right_edge(fonts))
         .fold(0.0, f64::max)
 }
 
@@ -600,12 +596,13 @@ mod tests {
         assert!(close(l.height, 130.0), "{}", l.height);
     }
 
-    /// The width is the widest line's right edge: here the name "A" at 68
-    /// (see `row`'s `meta_rides_inline_when_it_fits`).
+    /// The width is the widest line's right edge at its layout width: here
+    /// the name "A" at 68, its advance 8.624… and D-78's allowance of 1.5
+    /// for one character (see `row`'s `meta_rides_inline_when_it_fits`).
     #[test]
     fn widths() {
         let l = lay(&format!("{HEAD}A,Q,Adopt,d\n"), None);
-        assert!(close(l.width, 76.624_267_578_125), "{}", l.width);
+        assert!(close(l.width, 78.124_267_578_125), "{}", l.width);
 
         let long = NAME_THREE_LINES;
         let l = lay(&format!("{HEAD}{long},Q,Adopt,d\n"), None);

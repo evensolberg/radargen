@@ -7,12 +7,14 @@
 use std::num::NonZeroU8;
 
 pub mod serialise;
+mod tail;
 
 pub use serialise::{Target, serialise};
+pub use tail::Tail;
 
 use crate::palette::{Neutral, Role};
 use crate::style::TextStyle;
-use crate::text::TEXT_DESCENT;
+use crate::text::{Fonts, TEXT_DESCENT};
 
 /// A point in SVG user units; the origin depends on the frame it is used in.
 /// Geometry produces points before any block exists, so it lives here and
@@ -225,6 +227,8 @@ pub enum Node {
         lines: Vec<String>,
         /// Distance from one baseline to the next.
         leading: f64,
+        /// Text continuing the last line in its own style, or `None`.
+        tail: Option<Tail>,
     },
     /// A circle.
     Circle {
@@ -316,6 +320,27 @@ fn keys_in(node: &Node) -> Vec<ItemKey> {
 }
 
 impl Node {
+    /// Where a text's tail is drawn: the last line's drawn end plus the gap,
+    /// as a browser places the `dx` tspan at default spacing. PR 17's
+    /// outliner, which has no browser, places tails here. `None` for
+    /// anything without a tail.
+    #[must_use]
+    // qual:api — PR 17's outliner is its first production caller
+    pub fn tail_x(&self, fonts: &Fonts) -> Option<f64> {
+        let Self::Text {
+            origin,
+            style,
+            lines,
+            tail: Some(tail),
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let last = lines.last().map_or("", String::as_str);
+        Some(origin.x + style.advance(last, fonts) + tail.gap)
+    }
+
     /// Whether the node exists only for pointer and keyboard users: a hit
     /// area, an indicator group, or a non-empty plain (`Semantics::None`)
     /// group of nothing else. A group with any other semantics (a control, a
@@ -404,6 +429,31 @@ impl TextRun {
         self.last_baseline() + TEXT_DESCENT * self.style.size
     }
 
+    /// The text node at `scale`, its last line continued by `tail` (FR-74).
+    #[must_use]
+    pub fn node_with_tail(&self, tail: &Tail, scale: Scale) -> Node {
+        debug_assert_eq!(
+            self.anchor,
+            Anchor::Start,
+            "a tail follows start-anchored text"
+        );
+        let mut node = self.node(scale);
+        if let Node::Text { tail: slot, .. } = &mut node {
+            *slot = Some(tail.scaled(scale.size));
+        }
+        node
+    }
+
+    /// The furthest right any line reaches at its layout width (D-78), at
+    /// scale 1.
+    #[must_use]
+    pub fn right_edge(&self, fonts: &Fonts) -> f64 {
+        self.lines
+            .iter()
+            .map(|line| self.origin.x + self.style.measure(line, fonts))
+            .fold(0.0, f64::max)
+    }
+
     fn painted(&self, ink: TextPaint, scale: Scale) -> Node {
         Node::Text {
             origin: self.origin.scaled(scale.position),
@@ -412,6 +462,7 @@ impl TextRun {
             anchor: self.anchor,
             lines: self.lines.clone(),
             leading: self.leading * scale.size,
+            tail: None,
         }
     }
 }
@@ -624,6 +675,7 @@ mod tests {
             anchor: Anchor::Start,
             lines: vec!["a".to_owned()],
             leading: 0.0,
+            tail: None,
         };
         assert!(!text.is_interactive_only());
     }
@@ -632,5 +684,69 @@ mod tests {
     fn number_ink_is_a_paint_of_its_own() {
         assert_ne!(Paint::NumberOn(0), Paint::None);
         assert_ne!(Paint::NumberOn(0), Paint::Role(Role::Series(0)));
+    }
+
+    fn lines_run(lines: &[&str]) -> TextRun {
+        TextRun {
+            origin: Point { x: 10.0, y: 20.0 },
+            style: crate::style::LEGEND_NAME,
+            ink: Neutral::TextPrimary,
+            anchor: Anchor::Start,
+            lines: lines.iter().map(|&l| l.to_owned()).collect(),
+            leading: 15.0,
+        }
+    }
+
+    fn tail() -> Tail {
+        Tail {
+            gap: 5.0,
+            style: crate::style::LEGEND_META,
+            ink: Paint::Role(Role::Neutral(Neutral::TextMuted)),
+            text: " Default".to_owned(),
+        }
+    }
+
+    #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    fn a_tail_scales_with_its_run() {
+        let doubled = lines_run(&["Kafka"]).node_with_tail(
+            &tail(),
+            Scale {
+                position: 1.0,
+                size: 2.0,
+            },
+        );
+        let Node::Text {
+            tail: Some(scaled), ..
+        } = doubled
+        else {
+            panic!("a tailed text: {doubled:?}");
+        };
+        assert!((scaled.gap - 10.0).abs() < 1e-9, "the gap doubles");
+        assert!((scaled.style.size - 2.0 * crate::style::LEGEND_META.size).abs() < 1e-9);
+    }
+
+    /// The tail starts at the last line's drawn end, not the widest line's.
+    #[test]
+    fn tail_x_follows_the_last_line() {
+        let fonts = crate::text::Fonts::embedded().expect("the vendored fonts parse");
+        let node = lines_run(&["A much longer first line", "two"])
+            .node_with_tail(&tail(), Scale::uniform(1.0));
+        let end = crate::style::LEGEND_NAME.advance("two", &fonts);
+        let x = node.tail_x(&fonts).expect("a tail");
+        assert!((x - (10.0 + end + 5.0)).abs() < 1e-9, "{x}");
+        assert_eq!(
+            lines_run(&["two"]).node(Scale::uniform(1.0)).tail_x(&fonts),
+            None
+        );
+    }
+
+    #[test]
+    fn a_halo_has_no_tail() {
+        let halo = lines_run(&["Kafka"]).halo(3.0, Scale::uniform(1.0));
+        assert!(matches!(halo, Node::Text { tail: None, .. }), "{halo:?}");
     }
 }
