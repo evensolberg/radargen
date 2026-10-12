@@ -9,6 +9,7 @@ mod layout;
 use std::num::NonZeroU8;
 
 use crate::layout::block::{Block, Placement, Size};
+use crate::layout::marker::{number_paint, number_text};
 use crate::model::Catalogue;
 use crate::order::Plotted;
 use crate::palette::{Neutral, Role};
@@ -19,8 +20,6 @@ use crate::style::{
 };
 use crate::svg::{Group, ItemKey, Node, Paint, Point, Scale, Semantics, TextRun};
 use crate::text::Fonts;
-
-use crate::layout::marker::{number_paint, number_text};
 
 use layout::{Entry, Layout, Row, layout};
 

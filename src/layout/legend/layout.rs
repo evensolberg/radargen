@@ -829,6 +829,24 @@ mod tests {
         assert_eq!(wrapped(text, style, exact - 1e-9, fonts()).len(), 2);
     }
 
+    /// A heading wraps at its own column, `LEGEND_WIDTH_MAX` less its
+    /// indent: the longest run of words that fits that column stays on one
+    /// line, and one word more wraps.
+    #[test]
+    fn a_heading_wraps_at_the_column_its_indent_leaves() {
+        let tier = QUADRANT_TIER;
+        let column = LEGEND_WIDTH_MAX - tier.indent;
+        let words = |n: usize| vec!["Wide"; n].join(" ");
+        // The column holds at most ~30 four-letter words; 64 bounds the search.
+        let fit = (1..64)
+            .take_while(|&n| measure(&words(n), tier.style, fonts()) <= column)
+            .last()
+            .expect("one word fits the column");
+        let lines = |n: usize| heading(tier, &words(n), 36.0, fonts()).lines.len();
+        assert_eq!(lines(fit), 1, "{fit} words fit {column}");
+        assert_eq!(lines(fit + 1), 2, "{} words do not", fit + 1);
+    }
+
     /// FR-17, FR-18, FR-35: a quadrant whose rows are all unplotted keeps
     /// its heading and swatch; the next group is 26 below (18 + the
     /// mockup's 8, l.755); numbers stay contiguous.
