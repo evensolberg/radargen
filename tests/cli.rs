@@ -238,3 +238,15 @@ fn a_flag_warning_renders_before_row_warnings() {
         "{lines:?}"
     );
 }
+
+/// D-72: a flag value follows FR-90's rule for bidi formatting characters,
+/// as a CSV cell does.
+#[test]
+fn a_bidi_override_is_removed_from_a_title() {
+    let mut warnings = Warnings::default();
+    assert_eq!(
+        clean_flag(Flag::Title, "Radar\u{202e}2026", &mut warnings),
+        "Radar2026"
+    );
+    assert_eq!(warnings.as_slice().len(), 1);
+}
