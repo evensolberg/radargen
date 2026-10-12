@@ -796,7 +796,9 @@ Three consequences the design carries:
 - **A tail is placed through `Node::tail_x`.** A text's tail (the legend's
   inline meta, D-78) is written to HTML as a `dx` tspan the browser places; the
   outliner has no browser, so it places the tail at `tail_x`, the last line's
-  advance plus the gap, the same function the bounds and the oracle use.
+  advance plus the gap. (Bounds start the tail at the last line's *layout*
+  width instead, where a reader's spacing puts it; the oracle computes the
+  drawn position independently.)
 - **Nothing about the HTML changes.** It keeps `<text>` and an inlined WOFF2 —
   browsers do honour `@font-face`, and FR-46's explicit `<tspan>`s mean the
   browser never re-wraps. Outlining is the SVG emitter's business alone, which is

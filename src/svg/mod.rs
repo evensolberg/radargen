@@ -320,11 +320,12 @@ fn keys_in(node: &Node) -> Vec<ItemKey> {
 }
 
 impl Node {
-    /// Where a text's tail starts: the last line's drawn end plus the gap.
-    /// The one place it is computed, so bounds, the oracle and an outliner
-    /// agree. `None` for anything without a tail.
+    /// Where a text's tail is drawn: the last line's drawn end plus the gap,
+    /// as a browser places the `dx` tspan at default spacing. PR 17's
+    /// outliner, which has no browser, places tails here. `None` for
+    /// anything without a tail.
     #[must_use]
-    // qual:api — read by test bounds and the oracle now, and by PR 17's outliner
+    // qual:api — PR 17's outliner is its first production caller
     pub fn tail_x(&self, fonts: &Fonts) -> Option<f64> {
         let Self::Text {
             origin,

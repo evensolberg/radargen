@@ -49,7 +49,7 @@ pub(super) fn text_bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
         .reduce(Rect::union)
 }
 
-/// A text's tail, on its last line's baseline from where it starts.
+/// A text's tail, on its last line's baseline.
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
@@ -58,6 +58,7 @@ fn tail_bounds(node: &Node, tail: Option<&Tail>, fonts: &Fonts) -> Option<Rect> 
     let (
         Node::Text {
             origin,
+            style,
             lines,
             leading,
             ..
@@ -67,7 +68,11 @@ fn tail_bounds(node: &Node, tail: Option<&Tail>, fonts: &Fonts) -> Option<Rect> 
     else {
         return None;
     };
-    let left = node.tail_x(fonts)?;
+    // From the last line's layout end, where a reader's text spacing puts
+    // it (D-78), so bounds hold the tail as `Row::right_edge` does; the drawn
+    // start, `Node::tail_x`, is further left.
+    let last = lines.last().map_or("", String::as_str);
+    let left = origin.x + style.measure(last, fonts) + tail.gap;
     #[expect(
         clippy::cast_precision_loss,
         clippy::as_conversions,

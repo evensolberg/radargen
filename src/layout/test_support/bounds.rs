@@ -583,9 +583,9 @@ mod tests {
         }
     }
 
-    /// A tail extends its text's last line from where that line ends, not
-    /// from the widest line: here it reaches past the first line, and the
-    /// right edge is the tail's own.
+    /// A tail extends its text's last line from where that line ends at its
+    /// layout width, not from the widest line: here it reaches past the
+    /// first line, and the right edge is the tail's own.
     #[test]
     #[expect(
         clippy::suboptimal_flops,
@@ -609,7 +609,10 @@ mod tests {
             *slot = Some(tail.clone());
         }
         let rect = bounds(&node, fonts).expect("bounds");
-        let tail_end = node.tail_x(fonts).expect("a tail") + KEY_LABEL.measure(&tail.text, fonts);
+        // From the last line's layout end, where a reader's spacing puts it
+        // (D-78), not its drawn end.
+        let tail_end =
+            100.0 + KEY_LABEL.measure("b", fonts) + tail.gap + KEY_LABEL.measure(&tail.text, fonts);
         let first_end = 100.0 + KEY_LABEL.measure("a long first line", fonts);
         assert!(
             tail_end > first_end,
