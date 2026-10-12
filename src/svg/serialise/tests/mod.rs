@@ -4,6 +4,7 @@
 mod group;
 mod numbers;
 mod paint;
+mod semantics;
 mod shape;
 mod text;
 
