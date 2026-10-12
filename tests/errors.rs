@@ -3,14 +3,14 @@
 
 use radargen::columns::ColumnKind;
 use radargen::csv::parse::parse;
-use radargen::diagnostics::{Fatal, Warnings};
+use radargen::diagnostics::{RowError, Warnings};
 use radargen::errors::render_errors;
 use radargen::model::build_catalogue;
 use radargen::rings::parse_rings;
 
 /// A mismatched row against a two-column header with no unnamed column.
-const fn row(line: usize, found: usize) -> Fatal {
-    Fatal::FieldCount {
+const fn row(line: usize, found: usize) -> RowError {
+    RowError::FieldCount {
         line,
         found,
         expected: 2,
@@ -20,8 +20,8 @@ const fn row(line: usize, found: usize) -> Fatal {
 }
 
 /// A mismatched row with more values than the header, all of them padding.
-const fn padded(line: usize, found: usize) -> Fatal {
-    Fatal::FieldCount {
+const fn padded(line: usize, found: usize) -> RowError {
+    RowError::FieldCount {
         line,
         found,
         expected: 2,
@@ -30,16 +30,16 @@ const fn padded(line: usize, found: usize) -> Fatal {
     }
 }
 
-const fn empty(line: usize, column: ColumnKind) -> Fatal {
-    Fatal::EmptyRequired { line, column }
+const fn empty(line: usize, column: ColumnKind) -> RowError {
+    RowError::EmptyRequired { line, column }
 }
 
-const fn missing(line: usize, column: ColumnKind) -> Fatal {
-    Fatal::MissingColumn { line, column }
+const fn missing(line: usize, column: ColumnKind) -> RowError {
+    RowError::MissingColumn { line, column }
 }
 
-fn repeats(line: usize, index: usize) -> Fatal {
-    Fatal::DuplicateHeader {
+fn repeats(line: usize, index: usize) -> RowError {
+    RowError::DuplicateHeader {
         line,
         index,
         name: "a".into(),
@@ -49,7 +49,7 @@ fn repeats(line: usize, index: usize) -> Fatal {
 }
 
 /// The one line `errors` render to.
-fn sole(errors: &[Fatal], well_formed_rows: usize) -> String {
+fn sole(errors: &[RowError], well_formed_rows: usize) -> String {
     let mut lines = render_errors(errors, well_formed_rows);
     assert_eq!(lines.len(), 1, "{lines:?}");
     lines.pop().unwrap_or_default()
@@ -84,7 +84,7 @@ fn one_row_with_no_good_row_adds_the_header_first_cause() {
 
 #[test]
 fn one_row_names_the_unnamed_columns() {
-    let one = Fatal::FieldCount {
+    let one = RowError::FieldCount {
         line: 2,
         found: 1,
         expected: 5,
@@ -102,14 +102,14 @@ fn one_row_names_the_unnamed_columns() {
 /// NFR-20's example, verbatim up to its closing causes.
 #[test]
 fn nfr_20_field_count_example() {
-    let unnamed = |line, found| Fatal::FieldCount {
+    let unnamed = |line, found| RowError::FieldCount {
         line,
         found,
         expected: 5,
         unnamed: 1,
         padded: false,
     };
-    let mut errors: Vec<Fatal> = (2..=201).map(|line| unnamed(line, 4)).collect();
+    let mut errors: Vec<RowError> = (2..=201).map(|line| unnamed(line, 4)).collect();
     errors.push(unnamed(202, 6));
     assert_eq!(
         render_errors(&errors, 0),
@@ -195,7 +195,7 @@ fn missing_columns_share_one_line() {
         ),
     ];
     for (kinds, list) in cases {
-        let errors: Vec<Fatal> = kinds.into_iter().map(|k| missing(1, k)).collect();
+        let errors: Vec<RowError> = kinds.into_iter().map(|k| missing(1, k)).collect();
         assert_eq!(
             render_errors(&errors, 0),
             [format!("error: line 1: the header has no {list} {tail}")]
@@ -286,24 +286,11 @@ fn a_group_sits_at_its_first_members_line() {
 #[test]
 fn duplicate_headers_are_never_grouped() {
     let lines = render_errors(&[repeats(1, 1), repeats(1, 2)], 0);
-    assert_eq!(lines.len(), 2, "{lines:?}");
-}
-
-/// A fatal this module does not group renders as `Fatal::render` does, by line.
-#[test]
-fn other_errors_render_as_they_are() {
-    let quote = Fatal::TextAfterQuote { line: 2, column: 0 };
-    let expected = quote.render();
     assert_eq!(
-        render_errors(&[row(9, 1), quote], 1).first(),
-        Some(&expected)
+        lines,
+        [repeats(1, 1).render(), repeats(1, 2).render()],
+        "each duplicate renders alone, as it does by itself"
     );
-}
-
-#[test]
-fn an_error_with_no_line_comes_first() {
-    let lines = render_errors(&[row(2, 1), Fatal::NoHeader], 1);
-    assert_eq!(lines.first(), Some(&Fatal::NoHeader.render()));
 }
 
 /// Both stages on one file: parse's field counts and the model's empty

@@ -7,7 +7,7 @@
 use std::iter::{FusedIterator, Peekable};
 use std::str::Chars;
 
-use crate::diagnostics::{Fatal, RowKind, Separator, Warning, Warnings, column_label};
+use crate::diagnostics::{Fatal, RowError, RowKind, Separator, Warning, Warnings, column_label};
 use crate::escape::{displayable, remove_undisplayable};
 use crate::{normalise, plain_newlines, single_line, trim};
 
@@ -211,7 +211,7 @@ pub struct Table {
 /// FR-3, FR-4 and FR-90: the header and records, with undisplayable
 /// characters removed — and warned about — before anything reads a field.
 ///
-/// The `Vec<Fatal>` beside the table is NFR-16 tier two: every duplicate
+/// The `Vec<RowError>` beside the table is NFR-16 tier two: every duplicate
 /// header and every field-count mismatch, in line order. A row that fails
 /// its field count is left out of `records`; the rest still reach PR 06, so
 /// its row errors join these in the same run.
@@ -220,7 +220,7 @@ pub struct Table {
 ///
 /// Tier one, alone, since nothing after it parses: malformed quoting, an
 /// empty file, or a header that shows another separator was used.
-pub fn parse(text: &str, w: &mut Warnings) -> Result<(Table, Vec<Fatal>), Fatal> {
+pub fn parse(text: &str, w: &mut Warnings) -> Result<(Table, Vec<RowError>), Fatal> {
     let mut scanner = Scanner::new(text);
     let mut head = header(scanner.next())?;
     let removed = cleaned(&mut head);
@@ -275,7 +275,7 @@ fn header(first: Option<Result<Record, Malformed>>) -> Result<Record, Fatal> {
 
 /// FR-4's field counts and FR-90's removal for every data row: the
 /// well-formed rows, and an error for each of the rest.
-fn checked(rows: Vec<Record>, header: &[String], w: &mut Warnings) -> (Vec<Record>, Vec<Fatal>) {
+fn checked(rows: Vec<Record>, header: &[String], w: &mut Warnings) -> (Vec<Record>, Vec<RowError>) {
     let mut records = Vec::new();
     let mut errors = Vec::new();
     let unnamed = header.iter().filter(|name| trim(name).is_empty()).count();
@@ -285,7 +285,7 @@ fn checked(rows: Vec<Record>, header: &[String], w: &mut Warnings) -> (Vec<Recor
         if row.fields.len() == header.len() {
             records.push(row);
         } else {
-            errors.push(Fatal::FieldCount {
+            errors.push(RowError::FieldCount {
                 line: row.line,
                 found: row.fields.len(),
                 expected: header.len(),
@@ -378,7 +378,7 @@ fn warn(w: &mut Warnings, line: usize, removed: &[Removed], header: &[String]) {
 /// FR-4: every header name repeated under FR-76, naming the column it
 /// repeats. An empty cell names nothing, so it cannot repeat a name; Excel
 /// pads the header with these (Decisions).
-fn duplicate_headers(header: &[String], line: usize) -> Vec<Fatal> {
+fn duplicate_headers(header: &[String], line: usize) -> Vec<RowError> {
     // Normalised once, not once per pair.
     let keys: Vec<String> = header.iter().map(|n| normalise(n)).collect();
     let mut errors = Vec::new();
@@ -394,7 +394,7 @@ fn duplicate_headers(header: &[String], line: usize) -> Vec<Fatal> {
             .take(i)
             .find(|(_, (k, _))| *k == key);
         if let Some((first, (_, first_name))) = first {
-            errors.push(Fatal::DuplicateHeader {
+            errors.push(RowError::DuplicateHeader {
                 line,
                 index: i,
                 name: trim(name).to_string(),
@@ -677,7 +677,7 @@ mod tests {
         match parse(text, &mut w) {
             Ok((table, errs)) => (
                 Ok(table),
-                errs.iter().map(Fatal::render).collect(),
+                errs.iter().map(RowError::render).collect(),
                 w.render(),
             ),
             Err(e) => (Err(e), Vec::new(), w.render()),
@@ -703,7 +703,7 @@ mod tests {
     // once, in `tests/diagnostics.rs`, and these tests pin the values.
 
     fn count(line: usize, found: usize) -> String {
-        Fatal::FieldCount {
+        RowError::FieldCount {
             line,
             found,
             expected: 2,
@@ -720,7 +720,7 @@ mod tests {
         first_index: usize,
         first_name: &str,
     ) -> String {
-        Fatal::DuplicateHeader {
+        RowError::DuplicateHeader {
             line,
             index,
             name: name.into(),
@@ -963,7 +963,7 @@ mod tests {
         let (_, errs) = parse(text, &mut w).expect("parses");
         errs.iter()
             .filter_map(|e| match e {
-                Fatal::FieldCount {
+                RowError::FieldCount {
                     line,
                     found,
                     unnamed,
@@ -1262,7 +1262,7 @@ mod tests {
     fn a_short_or_long_row_still_warns_about_removal() {
         let (_, errs, warnings) = parsed("a,b\n\u{1}\nx,\u{2},\u{3}\n");
         // FR-90's removal comes first, so the third value is empty: padding.
-        let padded = Fatal::FieldCount {
+        let padded = RowError::FieldCount {
             line: 3,
             found: 3,
             expected: 2,

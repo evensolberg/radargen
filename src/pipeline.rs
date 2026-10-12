@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use crate::cli::{Cli, clean_flag};
 use crate::csv::decode;
 use crate::csv::parse::parse;
-use crate::diagnostics::{Fatal, Flag, Warnings};
+use crate::diagnostics::{Fatal, Flag, RowError, Warnings};
 use crate::emit::html::page;
 use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
@@ -39,6 +39,31 @@ pub struct Config {
     pub subtitle: Option<String>,
     /// The declared rings and their source (FR-12, FR-17).
     pub rings: RingSet,
+    /// The input CSV, as given (FR-60).
+    pub input: PathBuf,
+}
+
+/// Why a run stopped (NFR-16): file and flag errors, each on its own line
+/// (tier one), or row errors, grouped against the table's row count (tier
+/// two). Every stage returns it through `?`, and the run renders it once.
+enum Failure {
+    Alone(Vec<Fatal>),
+    Rows { errors: Vec<RowError>, rows: usize },
+}
+
+impl Failure {
+    fn render(self) -> Vec<String> {
+        match self {
+            Self::Alone(errors) => errors.iter().map(Fatal::render).collect(),
+            Self::Rows { errors, rows } => render_errors(&errors, rows),
+        }
+    }
+}
+
+impl From<Fatal> for Failure {
+    fn from(error: Fatal) -> Self {
+        Self::Alone(vec![error])
+    }
 }
 
 /// What a run printed (NFR-11).
@@ -71,7 +96,7 @@ impl Report {
 #[must_use]
 pub fn run(cli: &Cli) -> Report {
     let mut warnings = Warnings::default();
-    let outcome = steps(cli, &mut warnings);
+    let outcome = steps(cli, &mut warnings).map_err(Failure::render);
     Report {
         warnings: warnings.render(),
         outcome,
@@ -79,17 +104,12 @@ pub fn run(cli: &Cli) -> Report {
 }
 
 /// The stages in order, each stopping the run on failure.
-fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Vec<String>> {
-    let config = config(cli, warnings).map_err(|errors| alone(&errors))?;
-    let fonts = Fonts::embedded().map_err(|e| alone(&[Fatal::from(e)]))?;
-    let catalogue = catalogue(&cli.csv_path, &config.rings, warnings)?;
+fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
+    let config = config(cli, warnings).map_err(Failure::Alone)?;
+    let fonts = Fonts::embedded().map_err(Fatal::from)?;
+    let catalogue = catalogue(&config.input, &config.rings, warnings)?;
     let html = render(&catalogue, &config, &fonts, warnings);
-    write_atomic(&config.output, html.as_bytes()).map_err(|e| alone(&[e]))
-}
-
-/// Tier-one errors, each its own line.
-fn alone(errors: &[Fatal]) -> Vec<String> {
-    errors.iter().map(Fatal::render).collect()
+    Ok(write_atomic(&config.output, html.as_bytes())?)
 }
 
 /// NFR-16 tier one, in order: FR-52's extension, FR-62's directory, D-74's
@@ -113,6 +133,7 @@ fn config(cli: &Cli, warnings: &mut Warnings) -> Result<Config, Vec<Fatal>> {
         title,
         subtitle,
         rings,
+        input: cli.csv_path.clone(),
     })
 }
 
@@ -154,17 +175,16 @@ fn resolved(flag: Flag, value: Option<&str>, warnings: &mut Warnings) -> Option<
 /// Read, parse and build. A file-level failure is one line (tier one);
 /// row-level errors from both stages are merged and grouped (tier two),
 /// and `parse`'s alone fail the run, since it drops the rows it rejects.
-fn catalogue(
-    path: &Path,
-    rings: &RingSet,
-    warnings: &mut Warnings,
-) -> Result<Catalogue, Vec<String>> {
-    let text = decode::read(path).map_err(|e| alone(&[e]))?;
-    let (table, mut errors) = parse(&text, warnings).map_err(|e| alone(&[e]))?;
+fn catalogue(path: &Path, rings: &RingSet, warnings: &mut Warnings) -> Result<Catalogue, Failure> {
+    let text = decode::read(path)?;
+    let (table, mut errors) = parse(&text, warnings)?;
     let built = build_catalogue(&table, rings, warnings).map_err(|more| errors.extend(more));
     match built {
         Ok(catalogue) if errors.is_empty() => Ok(catalogue),
-        _ => Err(render_errors(&errors, table.records.len())),
+        _ => Err(Failure::Rows {
+            errors,
+            rows: table.records.len(),
+        }),
     }
 }
 
