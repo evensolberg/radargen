@@ -10,12 +10,13 @@ use crate::layout::key::KeyBlock;
 use crate::layout::legend::LegendBlock;
 use crate::layout::radar::RadarBlock;
 use crate::layout::title::TitleBlock;
+use crate::palette::{Neutral, Role};
 use crate::style::{
-    COLUMN_GAP, DOC_TOP, KEY_TO_LEGEND, LEGEND_PANEL_INSET_X, LEGEND_PANEL_INSETS_X,
-    LEGEND_WIDE_DROP, MARGIN, NARROW_MIN_SCALE, NARROW_RADAR_COLUMN, NARROW_WIDTH, RADAR_INSET,
-    RADAR_LABEL_PAD,
+    COLUMN_GAP, DOC_TOP, KEY_RULE_STROKE, KEY_TO_LEGEND, LEGEND_PANEL_INSET_X,
+    LEGEND_PANEL_INSETS_X, LEGEND_WIDE_DROP, MARGIN, NARROW_MIN_SCALE, NARROW_RADAR_COLUMN,
+    NARROW_WIDTH, RADAR_INSET, RADAR_LABEL_PAD,
 };
-use crate::svg::Point;
+use crate::svg::{Document, Group, Node, Paint, Point, Semantics};
 
 /// The four blocks, laid out once and placed by either arrangement
 /// (FR-68). The pipeline builds one and arranges it twice.
@@ -67,6 +68,38 @@ pub struct Placements {
     pub key: Placement,
     /// The legend panel, at scale 1.
     pub legend: Placement,
+}
+
+/// `blocks` drawn in `arrangement`, in document order: title, radar, the
+/// key's rule, key, legend. Reading order, and every radar marker comes
+/// before every legend row.
+#[must_use]
+// qual:api — PR 14's main.rs is its first production caller
+pub fn arrange(arrangement: Arrangement, blocks: &Blocks) -> Document {
+    let at = placements(arrangement, blocks);
+    let children = vec![
+        blocks.title.render(at.title),
+        blocks.radar.render(at.radar),
+        rule_node(at.rule),
+        blocks.key.render(at.key),
+        blocks.legend.render(at.legend),
+    ];
+    Document {
+        width: at.width,
+        height: at.height,
+        root: Node::Group(Group::new(Point::ORIGIN, children)),
+    }
+}
+
+/// The key's rule: decorative, since the key's heading marks the boundary.
+fn rule_node(rule: Rule) -> Node {
+    let line = Node::Line {
+        from: rule.from,
+        to: rule.to,
+        stroke: Paint::Role(Role::Neutral(Neutral::StrokeDivider)),
+        stroke_width: KEY_RULE_STROKE,
+    };
+    Node::Group(Group::new(Point::ORIGIN, vec![line]).with(Semantics::Decorative))
 }
 
 /// Where `blocks` go in `arrangement`.
@@ -223,11 +256,14 @@ fn narrow_scale(radar: &impl Block, column: f64) -> f64 {
 mod tests {
     use super::*;
     use crate::layout::block::{Placement, Size, close, fonts};
-    use crate::layout::test_support::{HEAD, NAME_THREE_LINES, PRD_EXAMPLE, bounds, near, plotted};
+    use crate::layout::test_support::{
+        HEAD, NAME_THREE_LINES, PRD_EXAMPLE, Rect, assert_finite, assert_inside, bounds, near,
+        plotted,
+    };
     use crate::model::Catalogue;
     use crate::order::Plotted;
-    use crate::style::{NARROW_MAX_WIDTH, NARROW_RADAR_COLUMN, NARROW_WIDTH};
-    use crate::svg::{Group, Node, Point};
+    use crate::style::{NARROW_MAX_WIDTH, NARROW_WIDTH};
+    use crate::svg::ItemKey;
 
     /// The title and subtitle a fixture is built with.
     #[derive(Clone, Copy)]
@@ -618,6 +654,154 @@ mod tests {
                 legend - 24.0 <= 380.0 && 8.0 + legend <= 412.0,
                 "{name}: {legend}"
             );
+        }
+    }
+
+    const BOTH: [Arrangement; 2] = [Arrangement::Wide, Arrangement::Narrow];
+
+    /// The root's five children, in document order.
+    fn children(doc: &Document) -> [&Node; 5] {
+        let Node::Group(root) = &doc.root else {
+            panic!("the root is a group");
+        };
+        let [title, radar, rule, key, legend] = root.children.as_slice() else {
+            panic!("five children: {:?}", root.children.len());
+        };
+        [title, radar, rule, key, legend]
+    }
+
+    #[test]
+    fn blocks_render_at_their_placements() {
+        let b = blocks(PRD_EXAMPLE, TITLED);
+        for arrangement in BOTH {
+            let doc = arrange(arrangement, &b);
+            let p = placements(arrangement, &b);
+            let [title, radar, rule, key, legend] = children(&doc);
+            assert_eq!(*title, b.title.render(p.title));
+            assert_eq!(*radar, b.radar.render(p.radar));
+            assert_eq!(*key, b.key.render(p.key));
+            assert_eq!(*legend, b.legend.render(p.legend));
+            let want = Node::Group(
+                Group::new(
+                    Point::ORIGIN,
+                    vec![Node::Line {
+                        from: p.rule.from,
+                        to: p.rule.to,
+                        stroke: Paint::Role(Role::Neutral(Neutral::StrokeDivider)),
+                        stroke_width: KEY_RULE_STROKE,
+                    }],
+                )
+                .with(Semantics::Decorative),
+            );
+            assert_eq!(*rule, want);
+        }
+    }
+
+    /// Every control's key in tree order, and whether it is a legend row.
+    fn controls(node: &Node, found: &mut Vec<(ItemKey, bool)>) {
+        let Node::Group(group) = node else {
+            return;
+        };
+        match &group.semantics {
+            Semantics::Marker(control) => found.push((control.key, false)),
+            Semantics::LegendRow(control) => found.push((control.key, true)),
+            _ => {}
+        }
+        for child in &group.children {
+            controls(child, found);
+        }
+    }
+
+    /// FR-68: the same items in both, every marker before the first legend
+    /// row; PR 14 hands focus across by this key.
+    #[test]
+    fn both_arrangements_hold_the_same_controls() {
+        let b = blocks(PRD_EXAMPLE, TITLED);
+        let found: Vec<Vec<(ItemKey, bool)>> = BOTH
+            .iter()
+            .map(|&arrangement| {
+                let mut found = Vec::new();
+                controls(&arrange(arrangement, &b).root, &mut found);
+                found
+            })
+            .collect();
+        let [wide, narrow] = found.as_slice() else {
+            panic!("two documents");
+        };
+        assert_eq!(wide, narrow);
+        let first_row = wide.iter().position(|c| c.1).expect("legend rows");
+        assert!(wide.iter().skip(first_row).all(|c| c.1), "{wide:?}");
+        assert!(wide.iter().take(first_row).all(|c| !c.1), "{wide:?}");
+    }
+
+    #[test]
+    fn the_document_is_the_placements_size() {
+        let b = blocks(PRD_EXAMPLE, TITLED);
+        for arrangement in BOTH {
+            let doc = arrange(arrangement, &b);
+            let p = placements(arrangement, &b);
+            assert!(
+                close(doc.width, p.width) && close(doc.height, p.height),
+                "{p:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_node_is_inside_the_document() {
+        for (name, b) in fixtures() {
+            for arrangement in BOTH {
+                let doc = arrange(arrangement, &b);
+                let size = Size {
+                    width: doc.width,
+                    height: doc.height,
+                };
+                assert_finite(&doc.root);
+                assert_inside(&doc.root, size, fonts());
+                assert!(
+                    doc.width > 0.0 && doc.height > 0.0,
+                    "{name} {arrangement:?}"
+                );
+            }
+        }
+    }
+
+    /// `a` ends at or before `b` begins, give or take float noise.
+    fn before(a: f64, b: f64) -> bool {
+        a <= b + 1e-9
+    }
+
+    #[test]
+    fn blocks_do_not_overlap() {
+        for (name, b) in fixtures() {
+            for arrangement in BOTH {
+                let doc = arrange(arrangement, &b);
+                let [title, radar, rule, key, legend] = children(&doc);
+                let at = |node: &Node| bounds(node, fonts());
+                let radar = at(radar).expect("the radar draws");
+                let key = at(key).expect("the key draws");
+                let rule: Rect = at(rule).expect("the rule draws");
+                if let Some(title) = at(title) {
+                    assert!(
+                        before(title.bottom, radar.top),
+                        "{name}: {title:?} {radar:?}"
+                    );
+                }
+                assert!(before(radar.bottom, key.top), "{name}: {radar:?} {key:?}");
+                let Some(legend) = at(legend) else {
+                    continue;
+                };
+                match arrangement {
+                    Arrangement::Wide => {
+                        for right in [radar.right, key.right, rule.right] {
+                            assert!(right < legend.left, "{name}: {right} vs {legend:?}");
+                        }
+                    }
+                    Arrangement::Narrow => {
+                        assert!(key.bottom < legend.top, "{name}: {key:?} {legend:?}");
+                    }
+                }
+            }
         }
     }
 }

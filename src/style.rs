@@ -319,6 +319,8 @@ pub const LEGEND_WIDE_DROP: f64 = 6.0;
 /// The same distance as from the radar's ink to the legend panel in the wide
 /// arrangement.
 pub const KEY_TO_LEGEND: f64 = COLUMN_GAP - LEGEND_PANEL_INSET_X;
+/// The rule above the key, the arrangement's (FR-66).
+pub const KEY_RULE_STROKE: f64 = 1.0;
 /// A floor on the radar block's width at scale 1, not its width.
 ///
 /// The block's size is measured (architecture §4): quadrant labels never wrap

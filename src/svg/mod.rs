@@ -157,6 +157,18 @@ pub enum PathCommand {
     },
 }
 
+/// One arranged document (architecture §5): its viewBox runs from (0, 0)
+/// to (`width`, `height`), both finite and positive.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Document {
+    /// The viewBox's width, in user units.
+    pub width: f64,
+    /// The viewBox's height, in user units.
+    pub height: f64,
+    /// Everything drawn, in document order.
+    pub root: Node,
+}
+
 /// Children translated together; a group never scales (FR-70).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Group {
