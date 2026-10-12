@@ -182,12 +182,16 @@ pub fn wrap(
     size_px: f64,
     letter_spacing_px: f64,
 ) -> Vec<String> {
-    let column = Column {
-        max_width,
-        metrics: m,
-        size_px,
-        letter_spacing_px,
-    };
+    wrap_by(text, max_width, &|line| {
+        m.measure(line, size_px, letter_spacing_px)
+    })
+}
+
+/// [`wrap`] against any width function: the layout width, which adds room
+/// for a reader's text spacing (D-78), wraps through this.
+#[must_use]
+pub fn wrap_by(text: &str, max_width: f64, width: &dyn Fn(&str) -> f64) -> Vec<String> {
+    let column = Column { max_width, width };
     let mut lines = Vec::new();
     let last = text.split_whitespace().fold(String::new(), |line, word| {
         column.place(word, line, &mut lines)
@@ -198,15 +202,13 @@ pub fn wrap(
     lines
 }
 
-/// FR-79's column: a maximum width, measured in one face at one size.
-struct Column<'m, 'f> {
+/// FR-79's column: a maximum width, and how a line's width is measured.
+struct Column<'w> {
     max_width: f64,
-    metrics: &'m FontMetrics<'f>,
-    size_px: f64,
-    letter_spacing_px: f64,
+    width: &'w dyn Fn(&str) -> f64,
 }
 
-impl Column<'_, '_> {
+impl Column<'_> {
     /// Whether `text` fits on a line, for greedy placement.
     fn fits(&self, text: &str) -> bool {
         self.width(text) <= self.max_width
@@ -220,8 +222,7 @@ impl Column<'_, '_> {
     }
 
     fn width(&self, text: &str) -> f64 {
-        self.metrics
-            .measure(text, self.size_px, self.letter_spacing_px)
+        (self.width)(text)
     }
 
     /// Greedy first-fit: `word` joins `line` if the two fit together;

@@ -600,12 +600,13 @@ mod tests {
         assert!(close(l.height, 130.0), "{}", l.height);
     }
 
-    /// The width is the widest line's right edge: here the name "A" at 68
-    /// (see `row`'s `meta_rides_inline_when_it_fits`).
+    /// The width is the widest line's right edge at its layout width: here
+    /// the name "A" at 68, its advance 8.624… and D-78's allowance of 1.5
+    /// for one character (see `row`'s `meta_rides_inline_when_it_fits`).
     #[test]
     fn widths() {
         let l = lay(&format!("{HEAD}A,Q,Adopt,d\n"), None);
-        assert!(close(l.width, 76.624_267_578_125), "{}", l.width);
+        assert!(close(l.width, 78.124_267_578_125), "{}", l.width);
 
         let long = NAME_THREE_LINES;
         let l = lay(&format!("{HEAD}{long},Q,Adopt,d\n"), None);

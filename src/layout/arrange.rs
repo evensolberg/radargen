@@ -346,12 +346,14 @@ mod tests {
         csv_of(names, "Adopt")
     }
 
-    /// Thoughtworks' four quadrants: 386.75 wide at 0.3, inside the column.
+    /// Thoughtworks' four quadrants: 460.0 wide at 0.3 with D-78's spacing
+    /// allowance, so the document widens within the headroom (386.75 before).
     fn thoughtworks() -> String {
         quadrants(&["Techniques", "Tools", "Platforms", "Languages & Frameworks"])
     }
 
-    /// 437.8 wide at 0.3: the document widens, within the headroom.
+    /// 521.6 wide at 0.3 with D-78's allowance: past 480, so FR-95 warns
+    /// (437.8, within the headroom, before).
     fn widened() -> String {
         quadrants(&["Infrastructure Platforms", "Tools", "Practice"])
     }
@@ -550,8 +552,9 @@ mod tests {
     #[test]
     fn ordinary_radars_keep_the_narrow_width() {
         for (name, b) in fixtures() {
-            // The fixtures with deliberately long quadrant names widen.
-            if matches!(name, "widened" | "beyond" | "wide radar") {
+            // The fixtures with long quadrant names widen; since D-78's
+            // spacing allowance, so do Thoughtworks' four.
+            if matches!(name, "thoughtworks" | "widened" | "beyond" | "wide radar") {
                 continue;
             }
             let p = placements(Arrangement::Narrow, &b);
@@ -561,8 +564,8 @@ mod tests {
 
     #[test]
     fn narrow_widens_when_the_radar_cannot_fit() {
-        let widened = blocks(&widened(), TITLED);
-        let p = placements(Arrangement::Narrow, &widened);
+        let within = blocks(&thoughtworks(), TITLED);
+        let p = placements(Arrangement::Narrow, &within);
         assert!(close(p.radar.scale, NARROW_MIN_SCALE), "{p:?}");
         assert!(
             p.width > NARROW_WIDTH && p.width <= NARROW_MAX_WIDTH,
@@ -574,6 +577,8 @@ mod tests {
         let beyond = blocks(&beyond(), TITLED);
         let q = placements(Arrangement::Narrow, &beyond);
         assert!(q.width > NARROW_MAX_WIDTH, "{}", q.width);
+        let past = placements(Arrangement::Narrow, &blocks(&widened(), TITLED));
+        assert!(past.width > NARROW_MAX_WIDTH, "{}", past.width);
 
         for p in [p, q] {
             assert!(near(p.title.origin, Point { x: 20.0, y: 10.0 }), "{p:?}");
@@ -631,7 +636,7 @@ mod tests {
 
     #[test]
     fn fr95_is_quiet_within_the_headroom() {
-        for csv in [widened(), thoughtworks(), PRD_EXAMPLE.to_owned()] {
+        for csv in [thoughtworks(), PRD_EXAMPLE.to_owned()] {
             assert_eq!(narrow_warnings(&blocks(&csv, TITLED)), [], "{csv}");
         }
     }

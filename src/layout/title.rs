@@ -230,7 +230,7 @@ mod tests {
     }
 
     fn wide_title() -> &'static str {
-        "A rather long title that must wrap onto a second line because it is wide"
+        "A rather long title that must wrap onto a second line"
     }
 
     #[test]
@@ -316,7 +316,7 @@ mod tests {
 
     #[test]
     fn subtitle_wraps_with_its_leading() {
-        let long = "words that go on and on until they wrap ".repeat(3);
+        let long = "words that go on and on until they wrap ".repeat(2);
         let b = block(None, Some(&long));
         let rendered = b.render(at(1.0));
         let marks = baselines(pick(&texts(&rendered), 0));

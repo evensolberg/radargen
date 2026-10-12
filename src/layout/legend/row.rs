@@ -110,19 +110,20 @@ fn meta_text(qualifier: Option<Qualifier>, status: Option<Status>) -> Option<Str
 /// A row's meta, measured against its name's last line.
 struct Meta {
     text: String,
-    /// The name's last line's advance.
+    /// Where the name's last line's drawn text ends: its advance.
     last_end: f64,
-    /// Whether it rides on that line (FR-74).
+    /// Whether it rides on that line (FR-74), judged at the layout width
+    /// so a reader's text spacing still fits (D-78).
     inline: bool,
 }
 
 /// `text` measured against the last of `name`'s lines.
 fn measured(text: String, name: &[String], fonts: &Fonts) -> Meta {
-    let last_end = LEGEND_NAME.measure(name.last().map_or("", String::as_str), fonts);
+    let last = name.last().map_or("", String::as_str);
     let width = LEGEND_META.measure(&text, fonts);
     Meta {
-        inline: fits_inline(last_end, width, LEGEND_NAME_COLUMN),
-        last_end,
+        inline: fits_inline(LEGEND_NAME.measure(last, fonts), width, LEGEND_NAME_COLUMN),
+        last_end: LEGEND_NAME.advance(last, fonts),
         text,
     }
 }
@@ -257,7 +258,7 @@ mod tests {
     /// FR-46, FR-79. 312 = 380 − 68 (D-56; mockup.html l.711).
     #[test]
     fn long_names_wrap_and_long_tokens_break() {
-        let fits = "Continuous delivery pipelines for managed";
+        let fits = "Continuous delivery pipelines for";
         let wraps = "Continuous delivery pipelines for managed infrastructure";
         let word = "Unbreakable".repeat(5);
         let rows = rows(&format!(
@@ -269,7 +270,7 @@ mod tests {
         };
         assert_eq!(broken.len(), 2, "{broken:?}");
         assert_eq!(broken.concat(), word, "nothing dropped");
-        assert_eq!(*wrapped, [fits, "infrastructure"]);
+        assert_eq!(*wrapped, [fits, "managed infrastructure"]);
         assert_eq!(*whole, [fits]);
         for line in names.iter().flat_map(|lines| lines.iter()) {
             assert!(LEGEND_NAME.measure(line, fonts()) <= 312.0, "{line}");
@@ -309,8 +310,9 @@ mod tests {
         assert_eq!(meta.lines, ["Conditional"]);
     }
 
-    /// FR-74: 270.07 + 8 + 67.02 > 312, so the meta takes its own line:
-    /// two lines, a 37-unit row, a 30-unit block from 3.5.
+    /// FR-74: the name's layout width, 8, and the meta's layout width pass
+    /// 312, so the meta takes its own line: two lines, a 37-unit row, a
+    /// 30-unit block from 3.5.
     #[test]
     fn meta_moves_to_its_own_line_when_it_does_not_fit() {
         let name = NAME_FULL_LINE;
