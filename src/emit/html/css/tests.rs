@@ -76,7 +76,8 @@ fn palettes_override_in_order() {
         format!(":root[data-theme=\"dark\"]{{color-scheme:dark;{dark}}}\n"),
     ]
     .concat();
-    assert_eq!(palettes(), want);
+    // The forced-colours block follows (forced_colours_map_the_neutrals_…).
+    assert!(palettes().starts_with(&want), "{}", palettes());
     // The number inks are literals because the series agree (§5).
     let series = |theme| {
         Palette::built_in(theme)
@@ -182,4 +183,20 @@ fn the_stylesheet_requests_nothing_but_fonts() {
     for banned in ["@import", "http", "<"] {
         assert!(!css.contains(banned), "{banned}");
     }
+}
+
+/// rg-min: forced colours (Windows high contrast) remap neither SVG paint
+/// nor the palette, so every neutral role takes its system colour there:
+/// surfaces `Canvas`, ink and strokes `CanvasText`, focus `Highlight`. One block,
+/// after the themes, at their specificity, so it wins in every theme.
+#[test]
+fn forced_colours_map_the_neutrals_to_system_colours() {
+    let css = palettes();
+    let forced = concat!(
+        "@media (forced-colors: active){:root,:root[data-theme]{",
+        "--surface-1:Canvas;--surface-2:Canvas;--text-primary:CanvasText;",
+        "--text-muted:CanvasText;--stroke-ring:CanvasText;--stroke-divider:CanvasText;",
+        "--marker-hollow:Canvas;--focus:Highlight;}}\n"
+    );
+    assert!(css.ends_with(forced), "{css}");
 }

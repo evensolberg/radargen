@@ -34,6 +34,7 @@ const DARK_PREFERRED_OPEN: &str =
     "@media (prefers-color-scheme: dark){:root:not([data-theme=\"light\"]){color-scheme:dark;";
 const DARK_CHOSEN_OPEN: &str = ":root[data-theme=\"dark\"]{color-scheme:dark;";
 const CLOSE: &str = "}\n";
+const FORCED_OPEN: &str = "@media (forced-colors: active){:root,:root[data-theme]{";
 const CLOSE_TWICE: &str = "}}\n";
 
 const BODY_OPEN: &str = "body{margin:0;background:var(";
@@ -105,8 +106,36 @@ pub(super) fn palettes() -> String {
         DARK_CHOSEN_OPEN,
         &dark,
         CLOSE,
+        FORCED_OPEN,
+        &forced(),
+        CLOSE_TWICE,
     ]
     .concat()
+}
+
+/// Forced colours (Windows high contrast) remap neither SVG paint nor these
+/// properties, so a ring could keep the palette's blue against a system
+/// background the palette never saw (rg-min). There, every neutral role
+/// takes its system colour; the series keep theirs, since colour is never
+/// the only cue (FR-39). After the themes, at their specificity, so it wins
+/// in every theme.
+fn forced() -> String {
+    Neutral::ALL
+        .into_iter()
+        .map(|role| [role.as_str(), ":", system_colour(role), ";"].concat())
+        .collect()
+}
+
+/// The CSS system colour standing for `role` in forced colours.
+const fn system_colour(role: Neutral) -> &'static str {
+    match role {
+        Neutral::Surface1 | Neutral::Surface2 | Neutral::MarkerHollow => "Canvas",
+        Neutral::TextPrimary
+        | Neutral::TextMuted
+        | Neutral::StrokeRing
+        | Neutral::StrokeDivider => "CanvasText",
+        Neutral::Focus => "Highlight",
+    }
 }
 
 /// `palette`'s custom properties, `--name:value;` each.

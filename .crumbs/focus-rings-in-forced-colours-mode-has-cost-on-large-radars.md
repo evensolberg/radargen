@@ -1,7 +1,7 @@
 ---
 id: rg-min
 title: Focus rings in forced-colours mode; :has cost on large radars
-status: open
+status: closed
 type: task
 priority: 2
 tags:
@@ -9,6 +9,7 @@ tags:
 - html
 created: 2026-10-12
 updated: 2026-10-12
+closed_reason: 'PR E: forced colours paint both focus rings Highlight (verified in Chromium); the :has cost is measured and moved to its own crumb for PR 15'
 phase: v1.0
 ---
 
