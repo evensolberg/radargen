@@ -10,9 +10,9 @@ crumb_id: rg-f27
 document_title: "PR 14b — the full page: Implementation Plan"
 created_date: 2026-10-12
 synopsis: "The HTML page carries both arrangements, drawn interactive, and a media query at the per-document breakpoint shows exactly one (FR-69). Both palettes are declared at once: light by default, dark under prefers-color-scheme, and a [data-theme] override for PR 15's toggle (FR-56). Inter is inlined as WOFF2 (NFR-5). Focus indicators are shown by generated CSS, with no JavaScript. Tests add an HTML golden, an HTML5-parser round trip of hostile input, and a cross-process determinism check (NFR-4)."
-status: draft
+status: complete
 type: Plan
-revision: "1.1"
+revision: "1.2"
 review_date: 2026-10-12
 reviewed_by:
   - Rust seat
@@ -20,12 +20,12 @@ reviewed_by:
   - architecture seat
   - accessibility seat
   - UI seat
-completed_date:
+completed_date: 2026-10-12
 comments: "1.1 folds in the five-seat plan review. See Review rulings. Part two of PR 14 (rg-f27)."
 ---
 # PR 14b — the full page: Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Crumb:** `rg-f27` (part two) · **Phase:** v1.0 · **After:** PR 14a (#59) · **Then:** PR 15 (the interactive layer, table view, theme toggle, first release)
 
@@ -191,7 +191,7 @@ Five seats reviewed revision 1.0: Rust, QA (with injection), architecture, acces
 - `indicators(markers: &[ItemKey]) -> String`;
 - `VISUALLY_HIDDEN: &str`.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `the_font_faces_are_the_vendored_fonts`: two `@font-face` rules, family `text::FAMILY`, weights `Weight::Regular.css()` and `Weight::SemiBold.css()`, each `base64,…)` payload decoding to `std::fs::read("assets/Inter-Regular.woff2")` and `…SemiBold.woff2`.
   - `palettes_override_in_order`:
     - the three blocks in order, each declaring exactly its palette's `declarations()` as `name:value;` with its `color-scheme`;
@@ -205,8 +205,8 @@ Five seats reviewed revision 1.0: Rust, QA (with injection), architecture, acces
     - no keys gives no `@supports` and no empty `{}`.
   - `outlines_go_only_with_their_indicator`: every `outline` declaration's selector ends in `:focus-visible`, and the `data-marker` one is inside the `@supports` block.
   - `the_stylesheet_requests_nothing_but_fonts`: `url(` exactly twice, each `url(data:font/woff2;base64,`; `src:` exactly twice; no `@import`, no `http`, no `<`.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual.
-- [ ] **Step 5: Commit** `feat(emit): the page's stylesheet: fonts, palettes, breakpoint, focus`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual.
+- [x] **Step 5: Commit** `feat(emit): the page's stylesheet: fonts, palettes, breakpoint, focus`.
 
 ---
 
@@ -224,7 +224,7 @@ Five seats reviewed revision 1.0: Rust, QA (with injection), architecture, acces
 - Consumes: Task 1.
 - Produces: `page(wide: &Document, narrow: &Document, title: Option<&str>) -> String`, and `svg::marker_keys(&Document) -> Vec<ItemKey>`.
 
-- [ ] **Step 1: Failing tests** (the PRD example's wide and narrow documents):
+- [x] **Step 1: Failing tests** (the PRD example's wide and narrow documents):
   - `marker_keys_walk_controls_only`: the PRD example's keys are its six `data-marker` lines in document order, with no hit areas or indicators among them.
   - `one_arrangement_at_a_time`: two SVGs, the wide first, in their containers, and the stylesheet contains `layout(W, N)` exactly.
   - `both_are_interactive`: in each SVG, every `fill` and `stroke` is `var(--…)`, `none` or one of the two number inks. Both SVGs carry the same `data-marker` keys.
@@ -233,8 +233,8 @@ Five seats reviewed revision 1.0: Rust, QA (with injection), architecture, acces
     - every `[data-marker-indicator]` key is a `[data-marker]` key in the same SVG;
     - every key in the `:has` rules is a wide `data-marker`, and every wide `data-marker` has a rule.
   - The 14a tests carry over through `svgs`.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual.
-- [ ] **Step 5: Commit** `feat(emit): both arrangements, interactive, one shown at a time`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual.
+- [x] **Step 5: Commit** `feat(emit): both arrangements, interactive, one shown at a time`.
 
 ---
 
@@ -242,12 +242,12 @@ Five seats reviewed revision 1.0: Rust, QA (with injection), architecture, acces
 
 **Files:** `src/pipeline.rs` (`render` arranges Narrow too); `tests/run.rs`.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `renders_the_prd_example` asserts two `<svg` elements and two `@font-face` rules;
   - `realistic_inputs` adds a zero-marker CSV, every ring unknown: a valid page with no `@supports`;
   - a generated 200-quadrant CSV renders with exit 0 and one `:has` rule per marker.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual.
-- [ ] **Step 5: Commit** `feat(pipeline): write both arrangements`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual.
+- [x] **Step 5: Commit** `feat(pipeline): write both arrangements`.
 
 ---
 
@@ -262,7 +262,7 @@ Five seats reviewed revision 1.0: Rust, QA (with injection), architecture, acces
 - create `tests/determinism.rs`;
 - `Cargo.toml` dev-dependencies `html5ever = "0.39"`, `markup5ever_rcdom = "0.39"`.
 
-- [ ] **Step 1: Tests:**
+- [x] **Step 1: Tests:**
   - `prd_page_matches_its_golden`: the page with its two payloads elided (asserting two were) equals `tests/golden/html/prd.html`.
   - `hostile_text_survives_an_html5_parser`: the hostile catalogue and a hostile title, rendered, then parsed by `html5ever` into an `RcDom`. Then:
     - `dom.errors` is empty;
@@ -273,10 +273,10 @@ Five seats reviewed revision 1.0: Rust, QA (with injection), architecture, acces
 
     The doc comment says why this is stronger than the XML check: SVG `<title>` is an HTML integration point, whose content an HTML parser reads as HTML.
   - `two_processes_write_the_same_bytes`: the built binary, two separate processes, on the PRD example and on a hostile CSV with a title; the bytes are equal for each.
-- [ ] **Step 2:** bless the golden and read it.
-- [ ] **Step 3:** `just ci`.
-- [ ] **Step 4: Look at it.** Render the PRD example and the template. In a browser, check viewport widths `B - 1`, `B` and `B + 1`, zoom 110% around `B`, light and dark, and Tab through both arrangements. Record what was checked in the PR body.
-- [ ] **Step 5: Commit** `test: the page's golden, an HTML5 round trip, determinism across processes`.
+- [x] **Step 2:** bless the golden and read it.
+- [x] **Step 3:** `just ci`.
+- [x] **Step 4: Look at it.** Render the PRD example and the template. In a browser, check viewport widths `B - 1`, `B` and `B + 1`, zoom 110% around `B`, light and dark, and Tab through both arrangements. Record what was checked in the PR body.
+- [x] **Step 5: Commit** `test: the page's golden, an HTML5 round trip, determinism across processes`.
 
 ---
 
@@ -300,9 +300,38 @@ Five seats reviewed revision 1.0: Rust, QA (with injection), architecture, acces
 3. Move this plan to `docs/plans/done/`, tick the steps, and set `status: complete` and `completed_date`.
 4. **No version bump.** Commit, push, open the PR, check CI on all three platforms, and merge when clean if the maintainer authorises it.
 
+## Final review
+
+A fresh Opus reviewer in Copilot's seat (out of credits until November 2026) found no Critical or Important findings, and checked each Review Focus item. Fractional widths were probed in iframes: 780.3 shows narrow; 780.5 and 780.99 show wide, the gap falling to wide as ruled. Its three minors are crumbed ("Harden the page tests"):
+
+- the narrow focus rules come from the wide document's keys, checked only by a `debug_assert`;
+- the HTML5 test does not walk attributes;
+- the parsed page title is not compared with the input.
+
+**Rulings at implementation:**
+
+- `css_value` on palette values: declined. Validation at construction (`rg-cdo`) already guards every consumer.
+- Tasks 1 and 2 landed as one commit, because `css.rs` is dead code until `page` calls it.
+- Task 3's code landed with Task 2, because `page`'s signature required it. Its tests were shown to fail under mutation.
+
+**The browser check** (headless Chromium over CDP):
+
+- one arrangement at each width;
+- both faces loaded;
+- six theme combinations;
+- focus rings on a marker and a legend row, in both themes.
+
+Not checked: Safari and Firefox.
+
+**Simplify** (four agents): one outline constant; a shared page allowlist and interactive helper. Skipped:
+
+- shared class-name constants, which would fragment the CSS further;
+- an html5ever-based page reader replacing the string reader, a test-only refactor (the "Harden the page tests" crumb covers the attribute gap).
+
 ## Revisions
 
 | Revision | Date | Notes |
 | --- | --- | --- |
 | 1.0 | 2026-10-12 | Initial version, for the plan review. |
 | 1.1 | 2026-10-12 | The five-seat review: both containers capped; outline removal paired with its indicator, and transparent; `css_value` on palette values; `narrow_query`; the stroke guard; `html5ever` 0.39; tests that check structure, not substrings; print and range syntax declined. |
+| 1.2 | 2026-10-12 | Complete. The final review (no Critical or Important), the browser check, the implementation rulings, the simplify pass; minors crumbed. |
