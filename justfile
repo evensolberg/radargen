@@ -127,6 +127,22 @@ publish:
 @test:
     cargo nextest run
 
+# WCAG 1.4.12 text spacing in a browser (plan RG-014C, D-78): renders the
+# fixtures and checks every text fits and none overlaps, at five widths,
+# with the four spacing properties applied. Needs Playwright's headless
+# Chromium (or CHROME set to a Chromium binary); not part of `ci`.
+text-spacing:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out="$(mktemp -d)"
+    cargo build --quiet --release
+    for f in text-spacing three-quadrant; do
+        ./target/release/radargen "tests/fixtures/$f.csv" -o "$out/$f.html" --title "Technology Radar" 2>/dev/null
+    done
+    ./target/release/radargen tests/fixtures/text-spacing-rtl.csv -o "$out/rtl.html" 2>/dev/null
+    node scripts/text-spacing.mjs "$out" "$out/text-spacing.html:6" "$out/three-quadrant.html:5"
+    echo "screenshots in $out (rtl.html is for a look, not checked)"
+
 # Tests the project with output
 @testp:
     cargo nextest run --no-capture

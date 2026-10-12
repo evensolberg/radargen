@@ -1,0 +1,10 @@
+name,quadrant,ring,description,qualifier,status
+Kafka,Tools,Adopt,qualifier only,conditional,
+Flink,Tools,Trial,status only,,new
+Pulumi,Tools,Trial,both,conditional,moved in
+Bounded trial of continuous delivery pipes,Platforms,Adopt,a wrapped name with an inline meta,default,new
+Bounded trial of continuous,Platforms,Trial,a name near the inline threshold,default,new
+Bounded trial of continuous delivery,Platforms,Assess,a meta on its own line,default,new
+Terraform,Techniques,Adopt,no meta,,
+"</text><script>x</script> & ""q""",Techniques,Trial,a hostile name with a tail,default,moved out
+Trunk-Based Development,Languages & Frameworks,Adopt,a long name at the column,default,
