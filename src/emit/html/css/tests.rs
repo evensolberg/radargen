@@ -187,7 +187,7 @@ fn the_stylesheet_requests_nothing_but_fonts() {
 
 /// rg-min: forced colours (Windows high contrast) remap neither SVG paint
 /// nor the palette, so every neutral role takes its system colour there:
-/// surfaces Canvas, ink and strokes CanvasText, focus Highlight. One block,
+/// surfaces `Canvas`, ink and strokes `CanvasText`, focus `Highlight`. One block,
 /// after the themes, at their specificity, so it wins in every theme.
 #[test]
 fn forced_colours_map_the_neutrals_to_system_colours() {
