@@ -1,5 +1,6 @@
 //! Geometry and, from PR 09, the blocks drawn from it (architecture §3, §4).
 
+pub mod arrange;
 pub mod block;
 pub mod geometry;
 pub mod key;

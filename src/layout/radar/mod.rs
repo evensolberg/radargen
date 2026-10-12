@@ -119,7 +119,8 @@ struct QuadrantLabel {
     /// So the name's box, which reaches its ascent (11.625) above the
     /// baseline, comes no closer to the centre than `300 s − 11.625` for
     /// `s <= 1`, which clears the outer ring (`260 s` plus half a stroke)
-    /// from `s` of about 0.3 up. Below that a 6 o'clock name touches the
+    /// from `s` of about 0.3 up (`NARROW_MIN_SCALE`, the least scale the
+    /// narrow arrangement draws). Below that a 6 o'clock name touches the
     /// ring's stroke whatever its length, unpushed.
     push: Point,
 }
@@ -423,10 +424,10 @@ fn ring_reach_y(mid: f64, r: RadarScale) -> f64 {
 /// asserted at compile time, below `half_extent`. The hit term itself binds only
 /// for `s < HIT_RADIUS / (330 - |p|)`, about 0.26 at most.
 ///
-/// The block's size is non-decreasing in `s` from 0.0034 up. A quadrant
-/// label's pushed centre is `300 s` plus a push at `max(s, 1)` along the
-/// same direction, so its distance from the centre on each axis never
-/// falls. The only decreasing term is a below-centre quadrant label's
+/// The block's size is non-decreasing in `s` from `RADAR_MONOTONE_FROM`
+/// (0.0034) up. A quadrant label's pushed centre is `300 s` plus a push at
+/// `max(s, 1)` along the same direction, so its distance from the centre on
+/// each axis never falls. The only decreasing term is a below-centre quadrant label's
 /// ascent, at most 11.625, since its push only lowers the baseline; the
 /// outermost ring name's reach, at least `130 * s + 11.19`,
 /// outgrows it from there. That relies on at least one ring, which

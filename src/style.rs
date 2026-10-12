@@ -177,6 +177,8 @@ pub const LEGEND_ROW_INDICATOR_INSET: f64 = 1.0;
 pub const LEGEND_PANEL_INSET_X: f64 = 12.0;
 /// The legend panel's padding above and below the content.
 pub const LEGEND_PANEL_INSET_Y: f64 = 8.0;
+/// The legend panel's width beyond its content: an inset each side.
+pub const LEGEND_PANEL_INSETS_X: f64 = 2.0 * LEGEND_PANEL_INSET_X;
 /// The legend panel's corner radius.
 pub const LEGEND_PANEL_RADIUS: f64 = 8.0;
 /// FR-79's fixed maximum for the legend block; its rendered width is the lesser
@@ -266,6 +268,9 @@ pub const LABEL_HALO: f64 = 3.0;
 pub const RADAR_FLOOR: f64 = 7.0 / 9.0;
 /// Clear space between the radar's outermost label and the block's edge.
 pub const RADAR_LABEL_PAD: f64 = 10.0;
+/// The least radar scale from which the radar block's size is proved
+/// non-decreasing in the scale (the proof is on the radar's `half_extent`).
+pub const RADAR_MONOTONE_FROM: f64 = 0.0034;
 
 // --- Arrangements (FR-68–FR-71) -------------------------------------------------
 /// Blank border around the whole document.
@@ -279,6 +284,45 @@ pub const NARROW_WIDTH: f64 = 420.0;
 /// The widest narrow document FR-94's targets are sized for (D-71); a wider
 /// one renders them below `MIN_TARGET_PX`, and FR-95 warns.
 pub const NARROW_MAX_WIDTH: f64 = 480.0;
+/// The least scale the narrow radar is drawn at: below about 0.3 a quadrant
+/// label at 6 o'clock touches the outer ring's stroke (D-70, D-71).
+pub const NARROW_MIN_SCALE: f64 = 0.3;
+// D-71: the narrow scale is searched where the radar's size is
+// non-decreasing, and never above natural size.
+const _: () = assert!(
+    NARROW_MIN_SCALE > RADAR_MONOTONE_FROM && NARROW_MIN_SCALE <= 1.0,
+    "D-71: the narrow scale's floor must lie in the radar's monotone range"
+);
+/// Where the radar block sits from the document's left edge.
+///
+/// Its widest label's ink then lands on the margin, as the legend's content
+/// does.
+pub const RADAR_INSET: f64 = MARGIN - RADAR_LABEL_PAD;
+/// The radar block's inset on both sides together.
+pub const RADAR_INSETS: f64 = 2.0 * RADAR_INSET;
+/// The width the narrow radar is scaled to fit: the document less the
+/// radar's insets (D-71).
+pub const NARROW_RADAR_COLUMN: f64 = NARROW_WIDTH - RADAR_INSETS;
+/// Blank space above the document's first block.
+///
+/// With `TITLE_TOP` and the title's first baseline it puts the title's
+/// capitals about `MARGIN` from the top edge: 20 − 4 − (18 − 0.727 · 17)
+/// ≈ 10.4, rounded (Inter's cap height is 0.727 em). The exports have no
+/// page frame to supply it.
+pub const DOC_TOP: f64 = 10.0;
+/// From the title block's bottom to the wide legend panel's top.
+///
+/// About 20 below the subtitle's baseline. Deliberately not aligned to the
+/// radar's ring, which would add height to every document with a tall
+/// legend.
+pub const LEGEND_WIDE_DROP: f64 = 6.0;
+/// From the key's bottom to the narrow legend panel's top.
+///
+/// The same distance as from the radar's ink to the legend panel in the wide
+/// arrangement.
+pub const KEY_TO_LEGEND: f64 = COLUMN_GAP - LEGEND_PANEL_INSET_X;
+/// The rule above the key, the arrangement's (FR-66).
+pub const KEY_RULE_STROKE: f64 = 1.0;
 /// A floor on the radar block's width at scale 1, not its width.
 ///
 /// The block's size is measured (architecture §4): quadrant labels never wrap
