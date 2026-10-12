@@ -238,6 +238,16 @@ their size (FR-70); a `Group` only translates.
 `Point` is `svg::Point`, re-exported by `layout::geometry`, so `layout` depends
 on `svg` and not the reverse.
 
+**Blocks size by the layout width, not the bare advance (D-78).**
+`TextStyle::measure` and `TextStyle::wrap`, the only ways a block measures or
+wraps text, add WCAG 1.4.12's allowance to the shaper's advance: 0.12em per
+character and 0.16em per word separator. Every size, wrap point, row target and
+document extent therefore holds text a reader has spaced out, so none passes its
+viewBox, where the browser would clip it with no way to scroll to it.
+`FontMetrics::measure` and `TextStyle::advance` stay the shaper's own width: the
+FR-84 oracle tests check that, and it is where drawn text ends for text that
+continues it.
+
 **`Placement` carries a scale, and `size` takes one.** An earlier draft of this
 document had `render_at(origin: Point)` — translation only — which cannot
 express FR-70. The narrow arrangement scales the *radar* down inside a
@@ -326,7 +336,7 @@ pub struct Group { pub offset: Point, pub semantics: Semantics, pub children: Ve
 pub enum Node {
     Group(Group),
     Text { origin: Point, style: TextStyle, ink: TextPaint, anchor: Anchor,
-           lines: Vec<String>, leading: f64 },
+           lines: Vec<String>, leading: f64, tail: Option<Tail> },
     Circle { centre: Point, radius: f64, fill: Paint, stroke: Paint, stroke_width: f64 },
     Rect { origin: Point, width: f64, height: f64, radius: f64, fill: Paint,
            stroke: Paint, stroke_width: f64 },
@@ -346,6 +356,11 @@ pub enum Paint { Role(palette::Role), NumberOn(usize), None }
 
 // A halo is text with no fill, a round join, and hidden from assistive technology.
 pub enum TextPaint { Fill(Paint), Halo { stroke: Paint, width: f64 } }
+
+// Text continuing a text's last line in its own style, after a gap: written
+// as a `dx` tspan inside the same `<text>`, so a reader's text spacing pushes
+// it along (D-78). Start-anchored, filled text only.
+pub struct Tail { pub gap: f64, pub style: TextStyle, pub ink: Paint, pub text: String }
 ```
 
 Variants and `Semantics` values are added by the PR that first needs them.
@@ -778,6 +793,10 @@ Three consequences the design carries:
   times as much with Inter — 371 kB against 54 kB, which in turn undercuts
   embedding the WOFF2 (80 kB). Ids are fine here: §5 bans them because
   the HTML holds two arrangements in one DOM, and this file holds one.
+- **A tail is placed through `Node::tail_x`.** A text's tail (the legend's
+  inline meta, D-78) is written to HTML as a `dx` tspan the browser places; the
+  outliner has no browser, so it places the tail at `tail_x`, the last line's
+  advance plus the gap, the same function the bounds and the oracle use.
 - **Nothing about the HTML changes.** It keeps `<text>` and an inlined WOFF2 —
   browsers do honour `@font-face`, and FR-46's explicit `<tspan>`s mean the
   browser never re-wraps. Outlining is the SVG emitter's business alone, which is
