@@ -28,13 +28,6 @@ use layout::{Entry, Layout, Row, layout};
 /// receive the pointer in every format (a `none` fill would not).
 const SURFACE2: Paint = Paint::Role(Role::Neutral(Neutral::Surface2));
 
-/// What the panel adds to the content's width: an inset each side.
-const PANEL_PAD_X: f64 = 2.0 * LEGEND_PANEL_INSET_X;
-/// What the panel adds to the content's height: an inset above and below.
-const PANEL_PAD_Y: f64 = 2.0 * LEGEND_PANEL_INSET_Y;
-/// An inset is taken from both sides of a frame.
-const SIDES: f64 = 2.0;
-
 /// The legend (FR-35): drawn linearly at any scale, and at scale 1 in both
 /// arrangements (D-31).
 #[derive(Debug, Clone, PartialEq)]
@@ -82,20 +75,22 @@ impl Block for LegendBlock {
     }
 }
 
-/// The panel at scale 1, or zero when there is no content (FR-42: with no
-/// quadrants the legend is omitted).
+/// The panel at scale 1: the content plus its insets, or zero when there
+/// is no content (FR-42: with no quadrants the legend is omitted).
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+)]
+// qual:allow(iosp) reason: "Size::default is the derived zero, not a step of ours; one FR-42 branch over arithmetic"
+// qual:allow(complexity, magic_numbers) reason: "the panel insets the content on both sides"
 fn panel_size(layout: &Layout) -> Size {
-    layout
-        .entries
-        .first()
-        .map_or_else(Size::default, |_| padded(layout))
-}
-
-/// The content plus the panel's insets.
-fn padded(layout: &Layout) -> Size {
-    Size {
-        width: layout.width + PANEL_PAD_X,
-        height: layout.height + PANEL_PAD_Y,
+    if layout.entries.is_empty() {
+        Size::default()
+    } else {
+        Size {
+            width: layout.width + 2.0 * LEGEND_PANEL_INSET_X,
+            height: layout.height + 2.0 * LEGEND_PANEL_INSET_Y,
+        }
     }
 }
 
@@ -122,14 +117,15 @@ impl Area {
         clippy::suboptimal_flops,
         reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
     )]
+    // qual:allow(complexity, magic_numbers) reason: "an inset is taken from both sides of a frame"
     fn inset(self, by: f64) -> Self {
         Self {
             origin: Point {
                 x: self.origin.x + by,
                 y: self.origin.y + by,
             },
-            width: self.width - SIDES * by,
-            height: self.height - SIDES * by,
+            width: self.width - 2.0 * by,
+            height: self.height - 2.0 * by,
         }
     }
 }
@@ -305,17 +301,11 @@ mod tests {
     use crate::layout::test_support::{
         PRD_EXAMPLE, Rect, assert_finite, assert_inside, bounds, fill, near, plotted,
     };
-    use crate::palette::{Neutral, Role};
-    use crate::style::{
-        BADGE_HOLLOW_STROKE, BADGE_RADIUS, BADGE_STROKE, LEGEND_BADGE_NUMBER, MIN_PX_PER_UNIT,
-        MIN_TARGET_PX, SWATCH_RADIUS,
-    };
-    use crate::svg::{Anchor, Control, ItemKey, Paint, Semantics, TextPaint};
-    use crate::text::NUMBER_CENTRING;
+    use crate::style::{MIN_PX_PER_UNIT, MIN_TARGET_PX};
+    use crate::svg::Control;
 
     /// With FR-20's qualifier and FR-26's status.
     const HEAD_META: &str = "name,quadrant,ring,description,qualifier,status\n";
-    const SURFACE2: Paint = Paint::Role(Role::Neutral(Neutral::Surface2));
 
     fn legend(csv: &str) -> (Catalogue, Plotted, LegendBlock) {
         let (catalogue, order) = plotted(csv, None);
@@ -456,7 +446,11 @@ mod tests {
             let [inset] = g.children.as_slice() else {
                 panic!("an indicator holds one rect: {g:?}");
             };
-            let (at, w, h, _, fill, stroke) = rect(inset);
+            let (at, w, h, radius, fill, stroke) = rect(inset);
+            assert!(
+                close(radius, 5.0),
+                "concentric with the target's 6: {radius}"
+            );
             assert!(near(
                 at,
                 Point {
@@ -599,26 +593,6 @@ mod tests {
             (fill(Neutral::TextPrimary), ["2".to_owned()].as_slice())
         );
         assert!(near(origin, number_at(centre)), "{origin:?}");
-
-        // OQ-16, as on the markers: two digits fit a hollow badge (style.rs),
-        // three do not. Recorded here so a change of face or size that makes
-        // them fit, or not, is noticed.
-        let widest = (100..=999_u32)
-            .map(|n| {
-                fonts().face(LEGEND_BADGE_NUMBER.weight).measure(
-                    &n.to_string(),
-                    LEGEND_BADGE_NUMBER.size,
-                    LEGEND_BADGE_NUMBER.letter_spacing,
-                )
-            })
-            .fold(0.0_f64, f64::max);
-        // A hollow stroke is centred on r, so the clear interior is 2r − stroke.
-        #[expect(
-            clippy::suboptimal_flops,
-            reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
-        )]
-        let clear = 2.0 * BADGE_RADIUS - BADGE_HOLLOW_STROKE;
-        assert!(widest > clear, "OQ-16: {widest} now fits in {clear}");
     }
 
     /// A badge number's origin: centred on the badge, its baseline

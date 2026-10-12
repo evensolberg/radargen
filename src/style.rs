@@ -186,6 +186,12 @@ const _: () = assert!(
     LEGEND_PANEL_INSET_X <= MARGIN,
     "D-56: the legend panel must not reach past the document's edge"
 );
+// The indicator's corners are concentric with the target's, radius
+// `LEGEND_ROW_RADIUS - LEGEND_ROW_INDICATOR_INSET`, which must stay positive.
+const _: () = assert!(
+    LEGEND_ROW_INDICATOR_INSET < LEGEND_ROW_RADIUS,
+    "a row's indicator must sit inside its target's rounded corners"
+);
 
 // --- Markers (FR-20, FR-40) -----------------------------------------------------
 /// OQ-16's home: whether this is user units or output pixels is a change to
@@ -376,6 +382,28 @@ mod tests {
             badge < clear(BADGE_RADIUS, BADGE_HOLLOW_STROKE),
             "{badge} does not fit the badge"
         );
+    }
+
+    /// OQ-16, as on the markers: three digits do not fit a hollow badge.
+    /// Recorded so a change of face or size that makes them fit is noticed.
+    #[test]
+    fn three_digit_numbers_overflow_the_badge() {
+        let fonts = Fonts::embedded().expect("faces");
+        let t = LEGEND_BADGE_NUMBER;
+        let widest = (100..=999_u32)
+            .map(|n| {
+                fonts
+                    .face(t.weight)
+                    .measure(&n.to_string(), t.size, t.letter_spacing)
+            })
+            .fold(0.0_f64, f64::max);
+        // A hollow stroke is centred on r, so the clear interior is 2r − stroke.
+        #[expect(
+            clippy::suboptimal_flops,
+            reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+        )]
+        let clear = 2.0 * BADGE_RADIUS - BADGE_HOLLOW_STROKE;
+        assert!(widest > clear, "OQ-16: {widest} now fits in {clear}");
     }
 
     #[test]
