@@ -13,8 +13,6 @@ use crate::svg::{Anchor, Control, ItemKey, Point, TextRun};
 use crate::text::Fonts;
 use crate::trim;
 
-use super::{measure, wrapped};
-
 /// Between a row's qualifier and status (FR-74).
 const META_SEPARATOR: &str = " \u{b7} ";
 
@@ -61,7 +59,7 @@ impl Row {
         fonts: &Fonts,
     ) -> Self {
         let Numbered { item, number } = numbered;
-        let name = wrapped(trim(&item.name), LEGEND_NAME, LEGEND_NAME_COLUMN, fonts);
+        let name = LEGEND_NAME.wrap(trim(&item.name), LEGEND_NAME_COLUMN, fonts);
         let meta = meta_text(item.qualifier, item.status).map(|text| measured(text, &name, fonts));
         let frame = frame(top, line_count(&name, meta.as_ref()));
         let name = name_run(name, frame.first_baseline);
@@ -120,8 +118,8 @@ struct Meta {
 
 /// `text` measured against the last of `name`'s lines.
 fn measured(text: String, name: &[String], fonts: &Fonts) -> Meta {
-    let last_end = measure(name.last().map_or("", String::as_str), LEGEND_NAME, fonts);
-    let width = measure(&text, LEGEND_META, fonts);
+    let last_end = LEGEND_NAME.measure(name.last().map_or("", String::as_str), fonts);
+    let width = LEGEND_META.measure(&text, fonts);
     Meta {
         inline: fits_inline(last_end, width, LEGEND_NAME_COLUMN),
         last_end,
@@ -274,7 +272,7 @@ mod tests {
         assert_eq!(*wrapped, [fits, "infrastructure"]);
         assert_eq!(*whole, [fits]);
         for line in names.iter().flat_map(|lines| lines.iter()) {
-            assert!(measure(line, LEGEND_NAME, fonts()) <= 312.0, "{line}");
+            assert!(LEGEND_NAME.measure(line, fonts()) <= 312.0, "{line}");
         }
     }
 

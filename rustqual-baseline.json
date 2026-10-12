@@ -1,9 +1,9 @@
 {
   "version": 2,
-  "quality_score": 0.910871290037,
-  "iosp_score": 0.9982578397212544,
+  "quality_score": 0.911053843797,
+  "iosp_score": 0.9982638888888888,
   "violations": 1,
-  "total": 996,
+  "total": 998,
   "complexity_warnings": 0,
   "magic_number_warnings": 22,
   "nesting_depth_warnings": 0,

@@ -204,7 +204,6 @@ fn text_bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
         TextPaint::Fill(_) => 0.0,
         TextPaint::Halo { width, .. } => f64::midpoint(0.0, *width),
     };
-    let face = fonts.face(style.weight);
     let (ascent, descent) = (TEXT_ASCENT * style.size, TEXT_DESCENT * style.size);
     lines
         .iter()
@@ -214,7 +213,7 @@ fn text_bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
             Some((at, line))
         })
         .map(|(baseline, line)| {
-            let width = face.measure(line, style.size, style.letter_spacing);
+            let width = style.measure(line, fonts);
             let left = match anchor {
                 Anchor::Start => origin.x,
                 Anchor::Middle => origin.x - f64::midpoint(0.0, width),
@@ -406,9 +405,7 @@ mod tests {
     }
 
     fn width_of(fonts: &Fonts, label: &str) -> f64 {
-        fonts
-            .face(KEY_LABEL.weight)
-            .measure(label, KEY_LABEL.size, KEY_LABEL.letter_spacing)
+        KEY_LABEL.measure(label, fonts)
     }
 
     #[test]

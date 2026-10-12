@@ -7,7 +7,7 @@
 //! invisible to our measurement and to `resvg`, and doing it for real would
 //! edit a label, which FR-76 rules out.
 
-use crate::text::Weight;
+use crate::text::{Fonts, Weight, wrap};
 
 /// FR-85: a measurement is (face, size, letter-spacing), never fewer.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -30,6 +30,26 @@ impl TextStyle {
             letter_spacing: self.letter_spacing * k,
             ..self
         }
+    }
+
+    /// `text`'s advance in this style, measured with `fonts` (FR-84).
+    #[must_use]
+    pub fn measure(self, text: &str, fonts: &Fonts) -> f64 {
+        fonts
+            .face(self.weight)
+            .measure(text, self.size, self.letter_spacing)
+    }
+
+    /// `text` wrapped at `column` in this style (FR-79).
+    #[must_use]
+    pub fn wrap(self, text: &str, column: f64, fonts: &Fonts) -> Vec<String> {
+        wrap(
+            text,
+            column,
+            fonts.face(self.weight),
+            self.size,
+            self.letter_spacing,
+        )
     }
 }
 
@@ -403,7 +423,37 @@ pub fn breakpoint_px(wide_width: f64) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::text::Fonts;
+
+    /// One measure for every block: the style's face, size and spacing.
+    #[test]
+    fn a_style_measures_with_its_face_size_and_spacing() {
+        let fonts = Fonts::embedded().expect("faces");
+        for style in [LEGEND_NAME, QUADRANT_LABEL, RING_LABEL, TITLE] {
+            let want =
+                fonts
+                    .face(style.weight)
+                    .measure("Kubernetes", style.size, style.letter_spacing);
+            let got = style.measure("Kubernetes", &fonts);
+            assert!((got - want).abs() < 1e-12, "{style:?}: {got} vs {want}");
+        }
+    }
+
+    /// And one wrap (FR-79).
+    #[test]
+    fn a_style_wraps_with_its_face_size_and_spacing() {
+        let fonts = Fonts::embedded().expect("faces");
+        let text = "Continuous delivery pipelines for managed infrastructure";
+        let style = LEGEND_NAME;
+        let want = crate::text::wrap(
+            text,
+            200.0,
+            fonts.face(style.weight),
+            style.size,
+            style.letter_spacing,
+        );
+        assert_eq!(style.wrap(text, 200.0, &fonts), want);
+        assert!(want.len() > 1, "the fixture wraps: {want:?}");
+    }
 
     /// FR-35: three levels, each stepped in under the one above, and each
     /// distinguished by type style as well.

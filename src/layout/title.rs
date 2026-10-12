@@ -10,7 +10,7 @@ use crate::style::{
     TITLE_BOTTOM, TITLE_FIRST_BASELINE, TITLE_LEADING, TITLE_TOP, TextStyle,
 };
 use crate::svg::{Anchor, Group, Node, Point, Scale, Semantics, TextRun};
-use crate::text::{Fonts, wrap};
+use crate::text::Fonts;
 
 /// The title's heading level: the document's top.
 const TITLE_LEVEL: NonZeroU8 = NonZeroU8::MIN;
@@ -48,10 +48,8 @@ struct Run {
 
 impl Run {
     fn wrap(text: &str, part: Part, first_baseline: f64, fonts: &Fonts) -> Self {
-        let face = fonts.face(part.style.weight);
-        let (size, spacing) = (part.style.size, part.style.letter_spacing);
-        let lines = wrap(text, LEGEND_WIDTH_MAX, face, size, spacing);
-        let width = widest(lines.iter().map(|line| face.measure(line, size, spacing)));
+        let lines = part.style.wrap(text, LEGEND_WIDTH_MAX, fonts);
+        let width = widest(lines.iter().map(|line| part.style.measure(line, fonts)));
         Self {
             lines,
             first_baseline,
@@ -343,9 +341,7 @@ mod tests {
     }
 
     fn measured(text: &str, style: TextStyle) -> f64 {
-        fonts()
-            .face(style.weight)
-            .measure(text, style.size, style.letter_spacing)
+        style.measure(text, fonts())
     }
 
     #[test]

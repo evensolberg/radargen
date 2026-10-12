@@ -126,11 +126,7 @@ fn heading_node(scale: f64) -> Node {
 
 /// The scale-1 size: the widest label (after its indent) or the heading.
 fn measure(fonts: &Fonts) -> Size {
-    let width_of = |style: TextStyle, label: &str| {
-        fonts
-            .face(style.weight)
-            .measure(label, style.size, style.letter_spacing)
-    };
+    let width_of = |style: TextStyle, label: &str| style.measure(label, fonts);
     let labels = ROWS
         .iter()
         .map(|row| KEY_LABEL_X + width_of(KEY_LABEL, row.label));
@@ -406,10 +402,12 @@ mod tests {
         }
         let size = KeyBlock::new(fonts()).size(1.0);
         assert!(close(size.height, 146.0));
-        let face = fonts();
+        // Measured at a literal 11 and no spacing, not through KEY_LABEL, so
+        // the test pins the label size independently of the constant.
+        let fonts = fonts();
         let widest = ROWS
             .iter()
-            .map(|row| face.face(KEY_LABEL.weight).measure(row.label, 11.0, 0.0))
+            .map(|row| fonts.face(KEY_LABEL.weight).measure(row.label, 11.0, 0.0))
             .fold(0.0, f64::max);
         assert!(close(size.width, 28.0 + widest));
     }
