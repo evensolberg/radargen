@@ -1,0 +1,269 @@
+//! NFR-14's atomic write: the bytes reach `-o` whole or not at all.
+//!
+//! The temporary file is `tempfile`'s: a random name opened with `O_EXCL`,
+//! so no other process can predict or pre-create it, and in a sticky
+//! world-writable directory a rename over another user's file fails closed.
+//! Checking for a read-only target and then renaming is a race, but a benign
+//! one: it can only let the write happen or refuse it, never send it
+//! elsewhere. The directory is not fsynced after the rename, so a power loss
+//! may undo the rename; atomicity holds either way (the old file or the new
+//! one), and durability across power loss is out of scope.
+
+use std::io::{self, Write};
+use std::path::Path;
+
+use crate::diagnostics::Fatal;
+
+/// The mode a new output file is created with on unix, before the umask:
+/// what `fs::write` uses, so 0644 under the usual umask of 022.
+#[cfg(unix)]
+const OUTPUT_MODE: u32 = 0o666;
+
+/// `bytes` at `path`, atomically (NFR-14): written to a temporary file
+/// beside it with the permissions `fs::write` would give, flushed to disk
+/// and renamed into place.
+///
+/// On an error return any file already at `path` is byte-unchanged and the
+/// temporary file is gone; a process killed mid-write can leave a
+/// `.radargen-*.tmp` behind. A symlink at `path` is replaced, not followed,
+/// and a replaced file takes the new file's mode and owner: rename
+/// semantics.
+///
+/// # Errors
+///
+/// [`Fatal::Unwritable`] when the directory is missing or unwritable, the
+/// path names a directory or a read-only file, or the disk is full.
+// qual:api — PR 14's main.rs is its first production caller
+pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), Fatal> {
+    let unwritable = |source| Fatal::Unwritable {
+        path: path.display().to_string(),
+        source,
+    };
+    refuse_read_only(path).map_err(unwritable)?;
+    let mut builder = tempfile::Builder::new();
+    builder.prefix(".radargen-").suffix(".tmp");
+    // tempfile creates 0600; give the output what fs::write would, 0666
+    // less the umask, so a published edition stays readable.
+    #[cfg(unix)]
+    builder.permissions(std::os::unix::fs::PermissionsExt::from_mode(OUTPUT_MODE));
+    // tempfile's own errors name the random temporary path, which the user
+    // never gave and which changes every run; keep only the OS's reason.
+    let mut file = builder
+        .tempfile_in(temp_dir_for(path))
+        .map_err(|e| unwritable(io::Error::from(e.kind())))?;
+    file.as_file_mut().write_all(bytes).map_err(unwritable)?;
+    file.as_file().sync_all().map_err(unwritable)?;
+    file.persist(path).map_err(|e| unwritable(e.error))?;
+    Ok(())
+}
+
+/// A read-only file at `path` is refused, as `fs::write` refuses it: a
+/// rename would replace it on unix but not on Windows. A symlink is judged
+/// as itself, since it is the link that is replaced.
+fn refuse_read_only(path: &Path) -> io::Result<()> {
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.is_file() && meta.permissions().readonly() => {
+            Err(io::Error::from(io::ErrorKind::PermissionDenied))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// The directory the temporary file goes in: the path's own, so the rename
+/// stays on one filesystem (NFR-14).
+fn temp_dir_for(path: &Path) -> &Path {
+    path.parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+
+    /// The names in `dir`, sorted.
+    fn listing(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(dir)
+            .expect("lists")
+            .map(|entry| {
+                entry
+                    .expect("entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        names.sort();
+        names
+    }
+
+    fn message(error: &Fatal) -> String {
+        error.to_string()
+    }
+
+    #[test]
+    fn writes_a_new_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("radar.html");
+        let bytes = b"<svg>\n</svg>\n";
+        write_atomic(&path, bytes).expect("writes");
+        assert_eq!(fs::read(&path).expect("reads"), bytes);
+        assert_eq!(listing(dir.path()), ["radar.html"]);
+    }
+
+    #[test]
+    fn replaces_an_existing_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("radar.html");
+        fs::write(&path, b"old").expect("seeds");
+        write_atomic(&path, b"new").expect("writes");
+        assert_eq!(fs::read(&path).expect("reads"), b"new");
+        assert_eq!(listing(dir.path()), ["radar.html"]);
+    }
+
+    #[test]
+    fn temp_dir_for_names_the_parent() {
+        assert_eq!(temp_dir_for(Path::new("out.html")), Path::new("."));
+        assert_eq!(temp_dir_for(Path::new("a/out.html")), Path::new("a"));
+        assert_eq!(temp_dir_for(Path::new("/out.html")), Path::new("/"));
+    }
+
+    /// A temp file is created and then `persist` fails: the drop guard's case.
+    #[test]
+    fn a_directory_at_the_path_is_unwritable() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("radar.html");
+        fs::create_dir(&path).expect("makes the directory");
+        let before = listing(dir.path());
+        let error = write_atomic(&path, b"new").expect_err("refuses");
+        assert_eq!(listing(dir.path()), before, "no temp file left");
+        assert!(std::error::Error::source(&error).is_some());
+        let text = message(&error);
+        let want = format!("-o {}: cannot be written: ", path.display());
+        assert!(text.starts_with(&want), "{text}");
+        assert!(!text.contains(".radargen-"), "{text}");
+    }
+
+    /// Clears a file's read-only flag when dropped, so the tempdir can go.
+    struct Writable(PathBuf);
+
+    impl Drop for Writable {
+        fn drop(&mut self) {
+            if let Ok(meta) = fs::metadata(&self.0) {
+                let mut permissions = meta.permissions();
+                #[expect(
+                    clippy::permissions_set_readonly_false,
+                    reason = "restoring a test file so its directory can be removed"
+                )]
+                permissions.set_readonly(false);
+                let _ = fs::set_permissions(&self.0, permissions);
+            }
+        }
+    }
+
+    #[test]
+    fn a_read_only_file_is_refused() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("radar.html");
+        fs::write(&path, b"old").expect("seeds");
+        let mut permissions = fs::metadata(&path).expect("meta").permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(&path, permissions).expect("read-only");
+        let _guard = Writable(path.clone());
+        let error = write_atomic(&path, b"new").expect_err("refuses");
+        assert!(matches!(error, Fatal::Unwritable { .. }), "{error}");
+        assert_eq!(fs::read(&path).expect("reads"), b"old");
+        assert_eq!(listing(dir.path()), ["radar.html"]);
+    }
+
+    #[test]
+    fn a_missing_directory_is_unwritable() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("nope").join("radar.html");
+        let error = write_atomic(&path, b"new").expect_err("refuses");
+        assert!(matches!(error, Fatal::Unwritable { .. }), "{error}");
+        assert!(!dir.path().join("nope").exists());
+        assert!(!message(&error).contains(".radargen-"), "{error}");
+    }
+
+    #[test]
+    fn concurrent_writes_leave_one_whole_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("radar.html");
+        let payloads = [vec![b'a'; 1 << 20], vec![b'b'; 1 << 20]];
+        std::thread::scope(|scope| {
+            for payload in &payloads {
+                let path = &path;
+                scope.spawn(move || {
+                    for _ in 0..20 {
+                        write_atomic(path, payload).expect("writes");
+                    }
+                });
+            }
+        });
+        let written = fs::read(&path).expect("reads");
+        assert!(payloads.contains(&written), "interleaved");
+        assert_eq!(listing(dir.path()), ["radar.html"]);
+    }
+
+    #[cfg(unix)]
+    mod unix {
+        use super::*;
+        use std::os::unix::fs::PermissionsExt;
+
+        fn mode(path: &Path) -> u32 {
+            fs::metadata(path).expect("meta").permissions().mode() & 0o777
+        }
+
+        #[test]
+        fn the_output_gets_the_mode_fs_write_gives() {
+            let dir = tempfile::tempdir().expect("tempdir");
+            let path = dir.path().join("radar.html");
+            write_atomic(&path, b"x").expect("writes");
+            let plain = dir.path().join("plain.html");
+            fs::write(&plain, b"x").expect("writes");
+            assert_eq!(mode(&path), mode(&plain));
+        }
+
+        #[test]
+        fn a_symlink_at_the_path_is_replaced_not_followed() {
+            let dir = tempfile::tempdir().expect("tempdir");
+            let target = dir.path().join("edition.html");
+            fs::write(&target, b"edition").expect("seeds");
+            let link = dir.path().join("latest.html");
+            std::os::unix::fs::symlink(&target, &link).expect("links");
+            write_atomic(&link, b"new").expect("writes");
+            assert_eq!(fs::read(&target).expect("reads"), b"edition");
+            assert!(fs::symlink_metadata(&link).expect("meta").is_file());
+            assert_eq!(fs::read(&link).expect("reads"), b"new");
+        }
+
+        /// Restores a directory's mode when dropped.
+        struct Restore(PathBuf, u32);
+
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                let _ = fs::set_permissions(&self.0, fs::Permissions::from_mode(self.1));
+            }
+        }
+
+        #[test]
+        fn a_read_only_directory_is_unwritable() {
+            let dir = tempfile::tempdir().expect("tempdir");
+            let path = dir.path().join("radar.html");
+            fs::write(&path, b"old").expect("seeds");
+            fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o555)).expect("locks");
+            let _restore = Restore(dir.path().to_path_buf(), 0o755);
+            assert!(
+                fs::write(dir.path().join("probe"), b"").is_err(),
+                "the directory is still writable: running as root?"
+            );
+            let error = write_atomic(&path, b"new").expect_err("refuses");
+            assert!(matches!(error, Fatal::Unwritable { .. }), "{error}");
+            assert_eq!(fs::read(&path).expect("reads"), b"old");
+            assert_eq!(listing(dir.path()), ["radar.html"]);
+        }
+    }
+}

@@ -694,6 +694,17 @@ pub enum Fatal {
         #[source]
         source: std::io::Error,
     },
+    /// NFR-15: the output cannot be written: its directory is missing or
+    /// unwritable, the path names a directory or a read-only file, or the
+    /// disk is full. Nothing at `-o` has changed (NFR-14).
+    #[error("-o {path}: cannot be written: {source}")]
+    Unwritable {
+        /// The `-o` argument as given.
+        path: String,
+        /// The underlying I/O failure.
+        #[source]
+        source: std::io::Error,
+    },
     /// FR-61, D-27: the input is not UTF-8, or holds a NUL byte (FR-61, D-65).
     /// Say what to do — the likely cause is an Excel export in a legacy code
     /// page, and "invalid utf-8" alone does not tell the author that. `line`
