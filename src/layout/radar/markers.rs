@@ -568,8 +568,8 @@ mod tests {
         let b = block(fonts(), PRD_EXAMPLE, None);
         // (s, disc, number, hit, indicator ring, number offset)
         let printed = [
-            (0.4, 7.7778, 7.0, 16.0, 14.0, 2.54639),
-            (1.0, 10.0, 9.0, 16.0, 18.0, 3.27393),
+            (0.4, 7.7778, 7.0, 18.0, 14.0, 2.54639),
+            (1.0, 10.0, 9.0, 18.0, 18.0, 3.27393),
         ];
         for (s, d, size, h, ring, offset) in printed {
             let nodes = frame_at(&b, s);

@@ -232,7 +232,9 @@ mod tests {
     }
 
     /// mockup.html l.733–735: block = max(17, n · 15), row = block + 7,
-    /// floored at 32 (FR-94); the first baseline 9 below the block's top.
+    /// floored at 36 (FR-94, D-71); the block centred in the row and the
+    /// first baseline 9 below its top: (36 − 17)/2 + 9, (37 − 30)/2 + 9,
+    /// (52 − 45)/2 + 9.
     #[test]
     fn rows_of_one_two_and_three_lines() {
         let (two, three) = (NAME_TWO_LINES, NAME_THREE_LINES);
@@ -243,7 +245,7 @@ mod tests {
             .iter()
             .map(|r| (r.name.lines.len(), r.height, r.name.origin.y))
             .collect();
-        let want = [(1, 32.0, 16.5), (2, 37.0, 12.5), (3, 52.0, 12.5)];
+        let want = [(1, 36.0, 18.5), (2, 37.0, 12.5), (3, 52.0, 12.5)];
         assert_eq!(got.len(), want.len(), "{got:?}");
         for (g, w) in got.iter().zip(want) {
             assert!(g.0 == w.0 && close(g.1, w.1) && close(g.2, w.2), "{got:?}");
@@ -297,10 +299,10 @@ mod tests {
         assert_eq!(meta.lines, ["Default \u{b7} New"]);
         let at = Point {
             x: 84.624_267_578_125,
-            y: 16.5,
+            y: 18.5,
         };
         assert!(near(meta.origin, at), "{meta:?}");
-        assert!(close(row.height, 32.0));
+        assert!(close(row.height, 36.0));
         assert!(!row.hollow, "Default is solid (FR-20)");
 
         let row = only(&format!("{HEAD_META}A,Q,Adopt,d,conditional,\n"));

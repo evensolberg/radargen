@@ -397,8 +397,9 @@ mod tests {
 
     /// mockup.html l.688–700 with the plan's rhythm: heading at 14, group
     /// at 14 + 22, swatch at its baseline − 4, ring at + 18; the row from
-    /// its top (ring + 4), 32 tall, its badge at the middle and a one-line
-    /// text block of 17 centred in it, first baseline 9 down.
+    /// its top (ring + 4), 36 tall (FR-94, D-71), its badge at the middle
+    /// and a one-line text block of 17 centred in it, 9.5 down, so the
+    /// first baseline is 9.5 + 9 down.
     #[test]
     fn pins_for_the_prd_example() {
         let l = lay(PRD_EXAMPLE, None);
@@ -415,14 +416,16 @@ mod tests {
         let ring = rings.first().expect("a ring heading");
         assert!(near(ring.origin, Point { x: 24.0, y: 54.0 }));
         let row = *rows(&l).first().expect("a row");
-        assert!(close(row.top, 58.0) && close(row.height, 32.0), "{row:?}");
-        assert!(near(row.badge, Point { x: 52.0, y: 74.0 }), "{row:?}");
-        assert!(near(row.name.origin, Point { x: 68.0, y: 74.5 }), "{row:?}");
+        assert!(close(row.top, 58.0) && close(row.height, 36.0), "{row:?}");
+        assert!(near(row.badge, Point { x: 52.0, y: 76.0 }), "{row:?}");
+        assert!(near(row.name.origin, Point { x: 68.0, y: 76.5 }), "{row:?}");
         assert_eq!(row.name.lines, ["Kubernetes"]);
     }
 
     /// mockup.html l.733–735: block = max(17, n · 15), row = block + 7, here
-    /// floored at 32 (FR-94); the walk abuts a ring's rows.
+    /// floored at 36 (FR-94, D-71); the walk abuts a ring's rows. Each
+    /// block is centred, so its first baseline is (h − b)/2 + 9 below the
+    /// row's top: 9.5 + 9, 3.5 + 9, 3.5 + 9.
     #[test]
     fn rows_of_one_two_and_three_lines() {
         let (two, three) = (NAME_TWO_LINES, NAME_THREE_LINES);
@@ -436,9 +439,9 @@ mod tests {
             .map(|r| (r.name.lines.len(), r.top, r.height, r.name.origin.y))
             .collect();
         let want = [
-            (1, 58.0, 32.0, 74.5),
-            (2, 90.0, 37.0, 102.5),
-            (3, 127.0, 52.0, 139.5),
+            (1, 58.0, 36.0, 76.5),
+            (2, 94.0, 37.0, 106.5),
+            (3, 131.0, 52.0, 143.5),
         ];
         assert_eq!(got.len(), want.len(), "{got:?}");
         for (g, w) in got.iter().zip(want) {
@@ -465,12 +468,12 @@ mod tests {
         let l = lay(&csv, Some("Hold,Assess,Trial,Adopt"));
         let rings = headings(&l, 4);
         assert_eq!(texts(&rings), ["Hold", "Adopt"]);
-        // Hold's one row spans 58–90, so Adopt's baseline is 90 + 12.
+        // Hold's one row spans 58–94, so Adopt's baseline is 94 + 12.
         let [hold, adopt] = rings.as_slice() else {
             panic!("two ring headings: {rings:?}");
         };
         assert!(close(hold.origin.y, 54.0), "{hold:?}");
-        assert!(close(adopt.origin.y, 102.0), "{adopt:?}");
+        assert!(close(adopt.origin.y, 106.0), "{adopt:?}");
     }
 
     /// FR-34's numbers, and the CSV line as the key: B's quoted description
@@ -578,23 +581,24 @@ mod tests {
         assert_eq!(texts(&headings(&l, 4)), ["Adopt"]);
         assert!(close(only(&rows(&l)).top, 84.0));
 
-        // Last in FR-10 order: the content reaches the heading's descent,
-        // 110 + 494/2048 × 12 (Inter's hhea descender).
+        // Last in FR-10 order: Beta's row spans 58–94, so Zeta's baseline
+        // is 94 + 20, and the content reaches its descent, 114 + 494/2048
+        // × 12 (Inter's hhea descender).
         let l = lay(&format!("{HEAD}A,Zeta,Nowhere,d\nB,Beta,Adopt,d\n"), None);
         let zeta = *headings(&l, 3).last().expect("Zeta");
         assert_eq!(zeta.lines, ["Zeta"]);
-        assert!(close(zeta.origin.y, 110.0), "{zeta:?}");
-        assert!(close(l.height, 112.894_531_25), "{}", l.height);
+        assert!(close(zeta.origin.y, 114.0), "{zeta:?}");
+        assert!(close(l.height, 116.894_531_25), "{}", l.height);
 
         // One unplotted row between two plotted ones; the content ends at
-        // the second row's bottom, 58 + 32 + 32.
+        // the second row's bottom, 58 + 36 + 36.
         let l = lay(
             &format!("{HEAD}A,Q,Adopt,d\nB,Q,Nowhere,d\nC,Q,Adopt,d\n"),
             None,
         );
         let got: Vec<(usize, &str)> = rows(&l).iter().map(|r| (r.number, first_line(r))).collect();
         assert_eq!(got, [(1, "A"), (2, "C")]);
-        assert!(close(l.height, 122.0), "{}", l.height);
+        assert!(close(l.height, 130.0), "{}", l.height);
     }
 
     /// The width is the widest line's right edge: here the name "A" at 68

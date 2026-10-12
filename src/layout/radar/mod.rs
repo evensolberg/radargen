@@ -416,12 +416,12 @@ fn ring_reach_y(mid: f64, r: RadarScale) -> f64 {
 /// `marks`, past the status ring's 15 and any number under six digits), and
 /// it never passes `max(floor, hit reach)`. For a marker `|p|` from the
 /// centre on an axis: below `RADAR_FLOOR` it reaches `|p| s + 19 · 7/9`,
-/// under the hit area's `|p| s + 16` because `INDICATOR_REACH * RADAR_FLOOR
+/// under the hit area's `|p| s + HIT_RADIUS` because `INDICATOR_REACH * RADAR_FLOOR
 /// <= HIT_RADIUS`; from `RADAR_FLOOR` up it reaches `(|p| + 19) s`, under
 /// the floor's `330 s` because `|p| < BAND_OUTER_RADIUS` and
 /// `BAND_OUTER_RADIUS + INDICATOR_REACH <= MIN_RADAR_HALF`. Both are
 /// asserted at compile time, below `half_extent`. The hit term itself binds only
-/// for `s < 16 / (330 - |p|)`, about 0.23 at most.
+/// for `s < HIT_RADIUS / (330 - |p|)`, about 0.26 at most.
 ///
 /// The block's size is non-decreasing in `s` from 0.0034 up. A quadrant
 /// label's pushed centre is `300 s` plus a push at `max(s, 1)` along the
@@ -1024,7 +1024,7 @@ mod tests {
     fn size_is_non_decreasing() {
         let fonts = fonts();
         // 0.02–0.30 in steps of 0.02, where the hit term overtakes the floor
-        // (near 0.135 for the Assess fixture), then 0.30–1.00 in 0.05.
+        // (near 0.154 for the Assess fixture), then 0.30–1.00 in 0.05.
         let low = (1..=15_u32).map(|k| 0.02 * f64::from(k));
         let high = (1..=14_u32).map(|k| 0.05 * f64::from(k) + 0.30);
         let steps: Vec<f64> = low.chain(high).collect();
@@ -1134,7 +1134,7 @@ mod tests {
         assert!(close(labelled, 66.0), "{labelled}");
         let width = 2.0 * (x * s + HIT_RADIUS);
         assert!(close(size.width, width), "{} vs {width}", size.width);
-        assert!((size.width - 74.5595).abs() < 1e-3, "{}", size.width);
+        assert!((size.width - 78.5595).abs() < 1e-3, "{}", size.width);
         let height = 2.0 * (MIN_RADAR_HALF * s).max(b.label_half_height(r) + RADAR_LABEL_PAD);
         assert!(close(size.height, height), "{} vs {height}", size.height);
         assert!((size.height - 87.875).abs() < 1e-3, "{}", size.height);

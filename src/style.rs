@@ -145,10 +145,12 @@ pub const LEGEND_ROW_TO_QUADRANT: f64 = LEGEND_ROW_TO_RING + LEGEND_GROUP_GAP;
 /// From a quadrant with no rows to the next one: the heading-to-ring step plus
 /// the gap between groups.
 pub const LEGEND_EMPTY_GROUP_GAP: f64 = LEGEND_QUADRANT_TO_RING + LEGEND_GROUP_GAP;
-/// A row's least height, at scale 1. FR-94: it renders at least `MIN_TARGET_PX`
-/// tall at `MIN_PX_PER_UNIT` (asserted below, in every build). One line of
-/// name needs less; the rest is the target.
-pub const LEGEND_ROW_MIN_HEIGHT: f64 = 32.0;
+/// A row's least height, at scale 1.
+///
+/// FR-94: it renders at least `MIN_TARGET_PX` tall at `MIN_PX_PER_UNIT`
+/// (asserted below, in every build), which holds up to D-71's
+/// `NARROW_MAX_WIDTH`. One line of name needs less; the rest is the target.
+pub const LEGEND_ROW_MIN_HEIGHT: f64 = 36.0;
 /// A row's height beyond its text lines: `n · LINE_HEIGHT + LEGEND_ROW_PAD`.
 pub const LEGEND_ROW_PAD: f64 = 7.0;
 /// The least height of a row's text block, so a one-line row's text is centred
@@ -271,6 +273,26 @@ pub const COLUMN_GAP: f64 = 28.0;
 /// The narrow document is authored at this width and the radar scaled to fit
 /// inside it, so text keeps its natural size (FR-70, D-31).
 pub const NARROW_WIDTH: f64 = 420.0;
+/// The widest narrow document FR-94's targets are sized for (D-71).
+///
+/// The narrow document widens past `NARROW_WIDTH` when the radar cannot fit its
+/// column at `NARROW_MIN_SCALE`; up to this width rows and hit areas still
+/// render at least `MIN_TARGET_PX` at 320 px. Measured in review, realistic
+/// quadrant sets widen to about 460 at most.
+pub const NARROW_MAX_WIDTH: f64 = 480.0;
+/// The least scale the narrow radar is drawn at: below about 0.3 a quadrant
+/// label at 6 o'clock touches the outer ring's stroke (D-70, D-71).
+pub const NARROW_MIN_SCALE: f64 = 0.3;
+// D-71: the bisection searches where the radar's size is non-decreasing
+// (proved for scales from 0.0034), and never enlarges the radar.
+const _: () = assert!(
+    NARROW_MIN_SCALE > 0.0034 && NARROW_MIN_SCALE <= 1.0,
+    "D-71: the narrow scale's floor must lie in the radar's monotone range"
+);
+const _: () = assert!(
+    NARROW_MAX_WIDTH >= NARROW_WIDTH,
+    "D-71: the headroom starts at the narrow width"
+);
 /// A floor on the radar block's width at scale 1, not its width.
 ///
 /// The block's size is measured (architecture §4): quadrant labels never wrap
@@ -292,16 +314,21 @@ pub const NARROW_MIN_VIEWPORT_PX: f64 = 320.0;
 /// narrow SVG spans the viewport; PR 14 must keep that or change this
 /// constant, since `MIN_PX_PER_UNIT` and `HIT_RADIUS` rest on it.
 pub const NARROW_HORIZONTAL_INSET_PX: f64 = 0.0;
-/// The fewest rendered pixels per user unit any arrangement reaches: the
-/// narrow SVG at `NARROW_MIN_VIEWPORT_PX`, or the wide one at its
-/// breakpoint, where `LEGEND_NAME` renders at `MIN_LEGIBLE_PX`.
+/// The fewest rendered pixels per user unit FR-94 is held to.
+///
+/// A narrow document `NARROW_MAX_WIDTH` wide at `NARROW_MIN_VIEWPORT_PX`, or the wide
+/// one at its breakpoint, where `LEGEND_NAME` renders at `MIN_LEGIBLE_PX`.
+/// A narrow document D-71 widens past `NARROW_MAX_WIDTH` renders smaller,
+/// and FR-95 warns.
 pub const MIN_PX_PER_UNIT: f64 = ((NARROW_MIN_VIEWPORT_PX - NARROW_HORIZONTAL_INSET_PX)
-    / NARROW_WIDTH)
+    / NARROW_MAX_WIDTH)
     .min(MIN_LEGIBLE_PX / LEGEND_NAME.size);
-/// FR-94's hit-area radius at scale 1, in user units: 16 renders at least
+/// FR-94's hit-area radius at scale 1, in user units.
+///
+/// 18 renders at least
 /// `MIN_TARGET_PX` across at `MIN_PX_PER_UNIT` (asserted below, in every
-/// build).
-pub const HIT_RADIUS: f64 = 16.0;
+/// build), which holds up to D-71's `NARROW_MAX_WIDTH`.
+pub const HIT_RADIUS: f64 = 18.0;
 // FR-94: the hit area is at least `MIN_TARGET_PX` across wherever the
 // document renders smallest. A compile-time check, so changing a premise
 // (the viewport, the inset, the legend size) cannot silently break it.
@@ -474,9 +501,9 @@ mod tests {
     }
 
     #[test]
-    fn min_px_per_unit_is_the_narrow_viewport_over_its_width() {
+    fn min_px_per_unit_is_the_narrow_viewport_over_its_widest() {
         assert!(
-            (MIN_PX_PER_UNIT - 320.0 / 420.0).abs() < 1e-12,
+            (MIN_PX_PER_UNIT - 320.0 / 480.0).abs() < 1e-12,
             "{MIN_PX_PER_UNIT}"
         );
     }
