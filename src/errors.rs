@@ -20,13 +20,12 @@ use crate::diagnostics::{
 /// applies when no data row matches the header. FR-4's mismatched rows, FR-5's
 /// missing columns and FR-6's empty values each group into one line per class
 /// (per column for FR-6) when there are two or more; duplicate headers never
-/// group, and any other [`RowError`] renders as [`RowError::render`] does.
+/// group, and each renders as [`RowError::render`] does.
 ///
 /// Each line sorts by `(first line, rank, input order)`. Rank 0 is an error
 /// naming no column position (FR-4's row, FR-5) and rank 1 one that does, so on
 /// the header line FR-5 precedes FR-4's duplicates. A grouped line sorts by its
-/// first member's line, and an error with no line sorts first. The sort is
-/// stable.
+/// first member's line. The sort is stable.
 #[must_use]
 pub fn render_errors(errors: &[RowError], well_formed_rows: usize) -> Vec<String> {
     let mut groups = groups(errors);
@@ -45,13 +44,9 @@ struct Member<T> {
 }
 
 impl<T> Member<T> {
-    /// `item` standing for `fatal`, the `order`th error, on the line it names.
-    const fn at(order: usize, fatal: &RowError, item: T) -> Self {
-        Self {
-            order,
-            line: line_of(fatal),
-            item,
-        }
+    /// `item` standing for the `order`th error, on `line`.
+    const fn at(order: usize, line: usize, item: T) -> Self {
+        Self { order, line, item }
     }
 }
 
@@ -105,10 +100,10 @@ enum Classified<'a> {
     Empty(ColumnKind, Member<&'a RowError>),
 }
 
-/// Which class `fatal` belongs to. Every variant is listed, so a new one must
+/// Which class `error` belongs to. Every variant is listed, so a new one must
 /// say whether its errors may share a line.
-const fn classify(order: usize, fatal: &RowError) -> Classified<'_> {
-    match *fatal {
+const fn classify(order: usize, error: &RowError) -> Classified<'_> {
+    match *error {
         RowError::FieldCount {
             line,
             found,
@@ -117,7 +112,7 @@ const fn classify(order: usize, fatal: &RowError) -> Classified<'_> {
             padded,
         } => Classified::Row(Member::at(
             order,
-            fatal,
+            line,
             Mismatch {
                 line,
                 found,
@@ -126,13 +121,13 @@ const fn classify(order: usize, fatal: &RowError) -> Classified<'_> {
                 padded,
             },
         )),
-        RowError::MissingColumn { column, .. } => {
-            Classified::Missing(Member::at(order, fatal, (column, fatal)))
+        RowError::MissingColumn { line, column } => {
+            Classified::Missing(Member::at(order, line, (column, error)))
         }
-        RowError::EmptyRequired { column, .. } => {
-            Classified::Empty(column, Member::at(order, fatal, fatal))
+        RowError::EmptyRequired { line, column } => {
+            Classified::Empty(column, Member::at(order, line, error))
         }
-        RowError::DuplicateHeader { .. } => Classified::Alone(Member::at(order, fatal, fatal)),
+        RowError::DuplicateHeader { line, .. } => Classified::Alone(Member::at(order, line, error)),
     }
 }
 
@@ -173,37 +168,18 @@ impl<'a> Buckets<'a> {
 /// The groups of `errors`, unsorted.
 fn groups(errors: &[RowError]) -> Vec<Group<'_>> {
     let mut buckets = Buckets::default();
-    for (order, fatal) in errors.iter().enumerate() {
-        buckets.add(classify(order, fatal));
+    for (order, error) in errors.iter().enumerate() {
+        buckets.add(classify(order, error));
     }
     buckets.into_groups()
-}
-
-/// The line a [`RowError`] names: every row error has one.
-const fn line_of(error: &RowError) -> usize {
-    match error {
-        RowError::FieldCount { line, .. }
-        | RowError::DuplicateHeader { line, .. }
-        | RowError::MissingColumn { line, .. }
-        | RowError::EmptyRequired { line, .. } => *line,
-    }
-}
-
-/// 0 for an error naming no column position, 1 for one that does.
-///
-/// Every variant is listed, so a new one must pick its rank here.
-const fn rank_of(fatal: &RowError) -> u8 {
-    match fatal {
-        RowError::DuplicateHeader { .. } | RowError::EmptyRequired { .. } => 1,
-        RowError::FieldCount { .. } | RowError::MissingColumn { .. } => 0,
-    }
 }
 
 impl Group<'_> {
     /// NFR-11's sort key: the first member's line, rank and input order.
     const fn position(&self) -> (usize, u8, usize) {
         match self {
-            Self::Alone(m) => (m.line, rank_of(m.item), m.order),
+            // Only duplicate headers stand alone, and they name a position.
+            Self::Alone(m) => (m.line, 1, m.order),
             Self::Rows(run) => (run.first.line, 0, run.first.order),
             Self::Missing(run) => (run.first.line, 0, run.first.order),
             Self::Empty(_, run) => (run.first.line, 1, run.first.order),

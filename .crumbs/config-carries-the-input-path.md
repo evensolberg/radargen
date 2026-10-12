@@ -1,13 +1,14 @@
 ---
 id: rg-o70
 title: Config carries the input path
-status: open
+status: closed
 type: task
 priority: 4
 tags:
 - pipeline
 created: 2026-10-12
 updated: 2026-10-12
+closed_reason: 'PR B: errors by tier (refactor/errors-by-tier)'
 phase: ''
 ---
 

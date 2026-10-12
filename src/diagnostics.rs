@@ -717,11 +717,11 @@ impl fmt::Display for Separator {
     }
 }
 
-/// Everything the tool refuses to run on: non-zero exit, nothing written
-/// (NFR-8, NFR-9).
+/// A flag, file or runtime error the tool stops on by itself (NFR-16 tier
+/// one, and NFR-15's): non-zero exit, nothing written (NFR-8, NFR-9).
 ///
-/// One taxonomy for the whole tool (architecture §1); each later stage adds its
-/// variants beside the code that raises them. An I/O variant should carry the
+/// Row-level errors are [`RowError`]s. Each stage adds its variants beside the
+/// code that raises them (architecture §1). An I/O variant should carry the
 /// path it failed on and mark the error `#[source]`, not `#[from]`: a bare
 /// `From<io::Error>` would let `?` build a `Fatal` that cannot name its path
 /// (NFR-10).
@@ -848,8 +848,9 @@ pub enum Fatal {
 
 /// A row-level hard error (NFR-16 tier two).
 ///
-/// Collected across the whole file and printed together through [`crate::errors::render_errors`], which groups
-/// them (D-62) and adds FR-4's header-first cause a single error cannot know.
+/// Collected across the whole file and printed together through
+/// [`crate::errors::render_errors`], which groups them (D-62) and adds FR-4's
+/// header-first cause a single error cannot know.
 /// Kept apart from [`Fatal`], whose errors each stop the run on their own, so
 /// the grouping code lists only what it groups (rg-w39).
 #[derive(Debug, thiserror::Error)]
@@ -936,6 +937,8 @@ impl RowError {
     /// uses it for an error that does not group.
     #[must_use]
     pub fn render(&self) -> String {
+        // Escaped as a whole, as `Fatal::render` is: header names and cells
+        // come from the CSV (NFR-10).
         error_line(&self.to_string())
     }
 }
@@ -945,7 +948,7 @@ impl Fatal {
     #[must_use]
     pub fn render(&self) -> String {
         // Escaped as a whole, so no variant can forget to: `-o` and `--rings`
-        // values come from argv, and later variants carry CSV text (NFR-10).
+        // values come from argv, and some variants carry CSV text (NFR-10).
         error_line(&self.to_string())
     }
 }

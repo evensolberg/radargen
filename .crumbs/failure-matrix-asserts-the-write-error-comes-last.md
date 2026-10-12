@@ -1,13 +1,14 @@
 ---
 id: rg-n88
 title: Failure matrix asserts the write error comes last
-status: open
+status: closed
 type: task
 priority: 4
 tags:
 - tests
 created: 2026-10-12
 updated: 2026-10-12
+closed_reason: 'PR B: errors by tier (refactor/errors-by-tier)'
 phase: ''
 ---
 

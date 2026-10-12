@@ -584,7 +584,7 @@ checks every row before building any, so its `Err` comes with no warning of its
 own; warnings other stages already pushed still print, before the errors
 (NFR-11).
 
-`Config` is the resolved run: the `RingSet` (the ring list and its source, FR-17), the
+`Config` is the resolved run: the input path, the `RingSet` (the ring list and its source, FR-17), the
 palette, the theme, the width, the title strings. Only `build_catalogue` reads the `RingSet`; stages below read `Catalogue::rings`. It is built once in
 `pipeline.rs` from `Cli` plus `rings.rs` plus `palette.rs` and is read-only
 thereafter, so no stage below can reinterpret a flag differently from another.

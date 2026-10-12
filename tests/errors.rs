@@ -286,7 +286,11 @@ fn a_group_sits_at_its_first_members_line() {
 #[test]
 fn duplicate_headers_are_never_grouped() {
     let lines = render_errors(&[repeats(1, 1), repeats(1, 2)], 0);
-    assert_eq!(lines.len(), 2, "{lines:?}");
+    assert_eq!(
+        lines,
+        [repeats(1, 1).render(), repeats(1, 2).render()],
+        "each duplicate renders alone, as it does by itself"
+    );
 }
 
 /// Both stages on one file: parse's field counts and the model's empty

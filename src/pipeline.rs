@@ -46,7 +46,6 @@ pub struct Config {
 /// Why a run stopped (NFR-16): file and flag errors, each on its own line
 /// (tier one), or row errors, grouped against the table's row count (tier
 /// two). Every stage returns it through `?`, and the run renders it once.
-#[derive(Debug)]
 enum Failure {
     Alone(Vec<Fatal>),
     Rows { errors: Vec<RowError>, rows: usize },
@@ -64,12 +63,6 @@ impl Failure {
 impl From<Fatal> for Failure {
     fn from(error: Fatal) -> Self {
         Self::Alone(vec![error])
-    }
-}
-
-impl From<Vec<Fatal>> for Failure {
-    fn from(errors: Vec<Fatal>) -> Self {
-        Self::Alone(errors)
     }
 }
 
@@ -112,7 +105,7 @@ pub fn run(cli: &Cli) -> Report {
 
 /// The stages in order, each stopping the run on failure.
 fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
-    let config = config(cli, warnings)?;
+    let config = config(cli, warnings).map_err(Failure::Alone)?;
     let fonts = Fonts::embedded().map_err(Fatal::from)?;
     let catalogue = catalogue(&config.input, &config.rings, warnings)?;
     let html = render(&catalogue, &config, &fonts, warnings);

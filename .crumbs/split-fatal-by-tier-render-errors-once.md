@@ -1,7 +1,7 @@
 ---
 id: rg-w39
 title: Split Fatal by tier; render errors once
-status: open
+status: closed
 type: task
 priority: 3
 tags:
@@ -9,6 +9,7 @@ tags:
 - pipeline
 created: 2026-10-12
 updated: 2026-10-12
+closed_reason: 'PR B: errors by tier (refactor/errors-by-tier)'
 phase: ''
 ---
 
