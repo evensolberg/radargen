@@ -457,24 +457,14 @@ mod tests {
     use crate::layout::block::{assert_translates, at, close, fonts};
     use crate::layout::geometry::place;
     use crate::layout::test_support::{
-        PRD_EXAMPLE, Rect, assert_finite, bounds, fill, near, plotted, plus,
+        HEAD, HEAD_META, PRD_EXAMPLE, Rect, assert_finite, bounds, csv_of, fill, near, plotted,
+        plus,
     };
     use crate::svg::TextPaint;
     use crate::text::Weight;
 
-    pub(super) const HEADER: &str = "name,quadrant,ring,description\n";
     /// How near the block's edge the drawn labels must come: float noise.
     const TIGHT: f64 = 1e-6;
-
-    /// One row per quadrant name, all in `ring`.
-    pub(super) fn csv_of(quadrants: &[&str], ring: &str) -> String {
-        quadrants
-            .iter()
-            .enumerate()
-            .fold(HEADER.to_owned(), |text, (i, q)| {
-                format!("{text}item {i},{q},{ring},d\n")
-            })
-    }
 
     pub(super) fn block(fonts: &Fonts, csv: &str, rings: Option<&str>) -> RadarBlock {
         let (catalogue, order) = plotted(csv, rings);
@@ -503,7 +493,6 @@ mod tests {
         block(fonts, &csv_of(&["Q0"; 30], "Adopt"), None)
     }
 
-    pub(super) const MARKED_HEADER: &str = "name,quadrant,ring,description,qualifier,status\n";
     const QUALIFIERS: [&str; 2] = ["", "conditional"];
     const STATUSES: [&str; 5] = ["", "No Change", "New", "Moved In", "Moved Out"];
 
@@ -516,9 +505,7 @@ mod tests {
                 })
             })
         });
-        std::iter::once(MARKED_HEADER.to_owned())
-            .chain(rows)
-            .collect()
+        std::iter::once(HEAD_META.to_owned()).chain(rows).collect()
     }
 
     fn fixtures(fonts: &Fonts) -> Vec<(&'static str, RadarBlock)> {
@@ -531,9 +518,9 @@ mod tests {
             ("n2", quadrants(fonts, 2)),
             ("n6", quadrants(fonts, 6)),
             ("n8", quadrants(fonts, 8)),
-            ("zero", block(fonts, HEADER, None)),
+            ("zero", block(fonts, HEAD, None)),
             ("long quadrant", block(fonts, &long_quadrant, None)),
-            ("long ring", block(fonts, HEADER, Some(&long(80)))),
+            ("long ring", block(fonts, HEAD, Some(&long(80)))),
             ("assess", assess(fonts)),
             ("crowded", crowded(fonts)),
             ("marked", block(fonts, &marked_csv(), None)),
@@ -713,7 +700,7 @@ mod tests {
 
     #[test]
     fn zero_quadrants_draws_rings_only() {
-        let b = block(fonts(), HEADER, None);
+        let b = block(fonts(), HEAD, None);
         let size = b.size(1.0);
         assert!(
             close(size.width, 660.0) && close(size.height, 660.0),
@@ -955,7 +942,7 @@ mod tests {
             close(prd.width, 660.0) && close(prd.height, 660.0),
             "{prd:?}"
         );
-        let zero = block(fonts, HEADER, None).size(0.5);
+        let zero = block(fonts, HEAD, None).size(0.5);
         assert!(
             close(zero.width, 330.0) && close(zero.height, 330.0),
             "{zero:?}"
@@ -1003,7 +990,7 @@ mod tests {
         let fonts = fonts();
         let w = RING_LABEL.measure(&long(80), fonts);
         let want = 2.0 * (w / 2.0 + 1.5 + 10.0);
-        let got = block(fonts, HEADER, Some(&long(80))).size(1.0).width;
+        let got = block(fonts, HEAD, Some(&long(80))).size(1.0).width;
         assert!(close(got, want) && got > 660.0, "{got} vs {want}");
     }
 
@@ -1131,7 +1118,7 @@ mod tests {
         assert!((size.height - 87.875).abs() < 1e-3, "{}", size.height);
 
         // No markers, no marker term.
-        let none = block(fonts, HEADER, None);
+        let none = block(fonts, HEAD, None);
         let s = 0.02;
         let r = RadarScale::of(s);
         assert!(close(none.hit_half_width(r), 0.0) && close(none.hit_half_height(r), 0.0));
@@ -1284,7 +1271,7 @@ mod tests {
 
     #[test]
     fn names_are_carried_raw() {
-        let csv = format!("{HEADER}x,\"A<&\"\">B\",Adopt,d\ny,技术,Adopt,d\n");
+        let csv = format!("{HEAD}x,\"A<&\"\">B\",Adopt,d\ny,技术,Adopt,d\n");
         let labels = label_texts(&frame_at(&block(fonts(), &csv, None), 1.0));
         assert!(labels.iter().any(|l| l == "A<&\">B"), "{labels:?}");
         assert!(labels.iter().any(|l| l == "技术"), "{labels:?}");

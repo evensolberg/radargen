@@ -358,15 +358,19 @@ mod tests {
     /// FR-33: one item sits mid-sector, on the inner track; the next
     /// alternates to the outer track (parity, never a PRNG).
     #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
     fn markers_follow_fr33() {
         let g = geometry(4, 4);
         // Position 1's sector opens at 0°; one item sits at its centre.
         assert!(close(g.angle(1, 0, 1), 45.0));
-        assert!(close(g.radius(0, 0), 65.0_f64.mul_add(0.38, 195.0)));
-        assert!(close(g.radius(0, 1), 65.0_f64.mul_add(0.68, 195.0)));
+        assert!(close(g.radius(0, 0), 65.0 * 0.38 + 195.0));
+        assert!(close(g.radius(0, 1), 65.0 * 0.68 + 195.0));
         assert!(close(g.radius(0, 2), g.radius(0, 0)));
         let p = g.marker(1, 0, 0, 1);
-        let r = 65.0_f64.mul_add(0.38, 195.0);
+        let r = 65.0 * 0.38 + 195.0;
         let h = r * std::f64::consts::FRAC_1_SQRT_2;
         assert!(close(p.x, h) && close(p.y, h), "{p:?}");
     }
@@ -385,6 +389,10 @@ mod tests {
     /// FR-33's 8% inset at both ends: every marker stays strictly inside
     /// its sector, clear of both dividers, for any count.
     #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
     fn markers_stay_inset_from_both_dividers() {
         for quadrants in 1..=8 {
             let g = geometry(quadrants, 4);
@@ -392,11 +400,11 @@ mod tests {
                 for j in 0..n {
                     let a = g.angle(0, j, n);
                     assert!(
-                        a > 0.08_f64.mul_add(g.sector(), g.divider(0)) - 1e-9,
+                        a > 0.08 * g.sector() + g.divider(0) - 1e-9,
                         "N={quadrants} n={n} j={j}"
                     );
                     assert!(
-                        a < 0.92_f64.mul_add(g.sector(), g.divider(0)) + 1e-9,
+                        a < 0.92 * g.sector() + g.divider(0) + 1e-9,
                         "N={quadrants} n={n} j={j}"
                     );
                 }
@@ -408,19 +416,17 @@ mod tests {
     /// 8% inset leaves a gap either side of 12 o'clock; one item sits at
     /// 6 o'clock.
     #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
     fn a_single_quadrant_leaves_a_gap_at_twelve() {
         let g = geometry(1, 4);
         assert!(close(g.angle(0, 0, 1), 90.0));
         let first = g.angle(0, 0, 3);
         let last = g.angle(0, 2, 3);
-        assert!(close(
-            first,
-            360.0_f64.mul_add(0.25_f64.mul_add(0.84, 0.08), -90.0)
-        ));
-        assert!(close(
-            last,
-            360.0_f64.mul_add(0.75_f64.mul_add(0.84, 0.08), -90.0)
-        ));
+        assert!(close(first, 360.0 * (0.25 * 0.84 + 0.08) - 90.0));
+        assert!(close(last, 360.0 * (0.75 * 0.84 + 0.08) - 90.0));
         assert!(first > -90.0 + 28.0 && last < 270.0 - 28.0);
     }
 

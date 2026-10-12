@@ -176,10 +176,11 @@ mod tests {
     use crate::layout::geometry::{Geometry, polar};
     use crate::layout::radar::RadarBlock;
     use crate::layout::radar::tests::{
-        HEADER, MARKED_HEADER, Text, block, crowded, csv_of, frame, frame_at, marked_csv,
-        quadrants, text,
+        Text, block, crowded, frame, frame_at, marked_csv, quadrants, text,
     };
-    use crate::layout::test_support::{PRD_EXAMPLE, fill, near, plotted, plus};
+    use crate::layout::test_support::{
+        HEAD, HEAD_META, PRD_EXAMPLE, csv_of, fill, near, plotted, plus,
+    };
     use crate::model::Item;
     use crate::palette::{Palette, Theme};
     use crate::style::{
@@ -287,9 +288,7 @@ mod tests {
             got.iter().map(|(_, c, _)| (*c).clone()).collect::<Vec<_>>()
         };
         assert_eq!(check(PRD_EXAMPLE).len(), 6);
-        let kafka = check(&format!(
-            "{HEADER}Zeta,Q,Adopt,d\n\"  Kafka  \",Q,Adopt,d\n"
-        ));
+        let kafka = check(&format!("{HEAD}Zeta,Q,Adopt,d\n\"  Kafka  \",Q,Adopt,d\n"));
         let tooltips: Vec<_> = kafka.iter().map(|c| c.tooltip.clone()).collect();
         assert_eq!(
             tooltips,
@@ -333,7 +332,7 @@ mod tests {
 
     #[test]
     fn controls_carry_names_raw() {
-        let csv = format!("{HEADER}\"A<&\"\">B\",Q,Adopt,d\n");
+        let csv = format!("{HEAD}\"A<&\"\">B\",Q,Adopt,d\n");
         let nodes = frame_at(&block(fonts(), &csv, None), 1.0);
         let got = controls(&nodes);
         let [(_, control, _)] = got.as_slice() else {
@@ -518,7 +517,7 @@ mod tests {
 
     #[test]
     fn hollow_markers_number_in_primary_text() {
-        let csv = format!("{MARKED_HEADER}a,Q,Adopt,d,conditional,\nb,Q,Adopt,d,default,\n");
+        let csv = format!("{HEAD_META}a,Q,Adopt,d,conditional,\nb,Q,Adopt,d,default,\n");
         let nodes = frame_at(&block(fonts(), &csv, None), 1.0);
         let inks: Vec<TextPaint> = controls(&nodes)
             .iter()
@@ -696,7 +695,7 @@ mod tests {
 
     #[test]
     fn unplotted_rows_draw_nothing() {
-        let csv = format!("{HEADER}Zed,Q,Adopt,d\nMid,Q,Nowhere,d\nAlpha,Q,Adopt,d\n");
+        let csv = format!("{HEAD}Zed,Q,Adopt,d\nMid,Q,Nowhere,d\nAlpha,Q,Adopt,d\n");
         let (catalogue, order) = plotted(&csv, None);
         let nodes = frame_at(&RadarBlock::new(&catalogue, &order, fonts()), 1.0);
         let got = controls(&nodes);
