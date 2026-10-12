@@ -459,25 +459,25 @@ rows (FR-17) have no key in any of them.
 which layer a node came from. A static image has no pointer or focus, so the
 SVG and PNG emitters skip every interactive-only node (the two layer groups drop
 whole) and write a `Control` as `<g aria-label><title>` without `role` or
-`tabindex`. The HTML emitter keeps them: a marker control carries `data-row` and
-`data-marker` (a legend-row control, PR 11, `data-row` only), a hit area
-`data-hit`, all keyed on the item's CSV line. An indicator is written by the
-control that encloses it: a marker's raised copy (in the radar's indicator
-layer) as `data-marker-indicator`, and a legend row's inset focus and selection
-rect (nested inside the row's control) as `data-row-indicator`. An emitter
-therefore drops interactive-only nodes at any depth, not only whole layers. Indicators are hidden by presentation attributes
-(`visibility="hidden" aria-hidden="true" pointer-events="none"`) and hit areas
-are `fill="none" pointer-events="all"`, so neither needs a CSS colour keyword. A
-marker's indicator is shown by a generated per-key rule,
-`svg:has([data-marker="L"]:focus-visible) [data-marker-indicator="L"] {
-visibility: visible }`, which needs no JavaScript. It is qualified to
-`data-marker` on both sides, so a legend row for the same item (PR 11) neither
-lights the marker's ring nor has its own indicator lit by the marker's focus. A
-legend row's indicator is shown by the row's own focus, with no `:has` and no
-per-key rule: `[data-legend-row]:focus-visible > [data-row-indicator] {
-visibility: visible }`, the emitter marking the row's control
-`data-legend-row`. Pointer events on a hit area are forwarded to the control with the
-same key by the delegated handler FR-37 needs.
+`tabindex`. The HTML emitter keeps them: a marker control carries `data-row`
+and `data-marker`, a legend-row control (PR 11) `data-row` and
+`data-legend-row`, a hit area `data-hit`, all keyed on the item's CSV line. An
+indicator is written by where it sits: inside a legend-row control it is that
+row's inset focus and selection rect, `data-row-indicator`; anywhere else (the
+radar's indicator layer) it is a marker's raised copy, `data-marker-indicator`.
+An emitter therefore drops interactive-only nodes at any depth, not only whole
+layers. Indicators are hidden by presentation attributes (`visibility="hidden"
+aria-hidden="true" pointer-events="none"`) and hit areas are `fill="none"
+pointer-events="all"`, so neither needs a CSS colour keyword. A marker's
+indicator is shown by a generated per-key rule, `svg:has([data-marker="L"]
+:focus-visible) [data-marker-indicator="L"] { visibility: visible }`, which
+needs no JavaScript. It is qualified to `data-marker` on both sides, so a legend
+row for the same item neither lights the marker's ring nor has its own indicator
+lit by the marker's focus. A legend row's indicator is shown by the row's own
+focus, with no `:has` and no per-key rule: `[data-legend-row]:focus-visible >
+[data-row-indicator] { visibility: visible }`. Pointer events on a hit area are
+forwarded to the control with the same key by the delegated handler FR-37
+needs.
 
 ## 6. Determinism, enforced structurally
 
