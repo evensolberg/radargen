@@ -213,18 +213,25 @@ impl RadarBlock {
         }
     }
 
-    /// How far each label reaches left or right of the centre, with what
-    /// FR-95 would name it: quadrants in FR-10 order, then rings. The one
+    /// How far each label reaches left or right of the centre, with its
+    /// text and, for a ring, where it was declared: quadrants in FR-10 order,
+    /// then rings. The one
     /// source for both the radar's width and the label that sets it.
-    fn reaches_x(&self, r: RadarScale) -> impl Iterator<Item = (f64, bool, &str)> + '_ {
+    fn reaches_x(
+        &self,
+        r: RadarScale,
+    ) -> impl Iterator<Item = (f64, Option<RingSource>, &str)> + '_ {
         let quadrants = self
             .quadrants
             .iter()
-            .map(move |q| (quadrant_reach_x(q, r), false, q.label.text.as_str()));
-        let rings = self
-            .rings
-            .iter()
-            .map(move |l| (ring_reach_x(l.width, r), true, l.text.as_str()));
+            .map(move |q| (quadrant_reach_x(q, r), None, q.label.text.as_str()));
+        let rings = self.rings.iter().map(move |l| {
+            (
+                ring_reach_x(l.width, r),
+                Some(self.ring_source),
+                l.text.as_str(),
+            )
+        });
         quadrants.chain(rings)
     }
 
@@ -245,13 +252,9 @@ impl RadarBlock {
             .reduce(|best, next| if next.0 > best.0 { next } else { best })
             .map(|(_, ring, text)| {
                 let name = text.to_owned();
-                if ring {
-                    Binding::Ring {
-                        name,
-                        source: self.ring_source,
-                    }
-                } else {
-                    Binding::Quadrant(name)
+                match ring {
+                    Some(source) => Binding::Ring { name, source },
+                    None => Binding::Quadrant(name),
                 }
             })
     }
@@ -1290,7 +1293,7 @@ mod tests {
             b.binding_label(NARROW_MIN_SCALE),
             Some(Binding::Ring {
                 name: ring,
-                source: crate::rings::RingSource::Flag,
+                source: RingSource::Flag,
             })
         );
     }

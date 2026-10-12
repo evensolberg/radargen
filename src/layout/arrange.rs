@@ -311,6 +311,7 @@ mod tests {
     };
     use crate::model::Catalogue;
     use crate::order::Plotted;
+    use crate::rings::RingSource;
     use crate::svg::ItemKey;
 
     /// The title and subtitle a fixture is built with.
@@ -634,7 +635,7 @@ mod tests {
                 binding,
                 Binding::Ring {
                     name: ring.clone(),
-                    source: crate::rings::RingSource::Flag,
+                    source: RingSource::Flag,
                 },
                 "{csv}"
             );

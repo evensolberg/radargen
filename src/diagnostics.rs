@@ -368,7 +368,10 @@ impl RenderKind {
                     Binding::Ring {
                         name,
                         source: RingSource::Default,
-                    } => format!("ring '{}', one of the default rings,", trim(name)),
+                    } => format!(
+                        "ring '{}' (a default ring, so pass --rings to rename it)",
+                        trim(name)
+                    ),
                 };
                 format!(
                     "the narrow arrangement is {width} units wide, past the {NARROW_MAX_WIDTH} its legend rows and marker targets are sized for, so on a {NARROW_MIN_VIEWPORT_PX}-pixel screen they fall below {MIN_TARGET_PX} pixels; a shorter name for {fix} would fix it"
@@ -392,13 +395,17 @@ impl RenderKind {
 
 /// An I/O failure's reason as a message shows it: the OS's own words, without
 /// the "(os error N)" suffix or a trailing full stop, starting lowercase, so
-/// every path that fails to read or write reads the same way (rg-bsb).
+/// every read and write failure takes the same form (rg-bsb). Lowercasing is
+/// deliberate even where a message opens with a proper noun ("windows
+/// cannot…"): it reads as a clause after the colon. One path differs in
+/// words, not form: tempfile hides the OS error, so a failure creating the
+/// temporary file gives Rust's name for its kind.
 fn io_reason(error: &std::io::Error) -> String {
     let text = error.to_string();
     let words = text
-        .split_once(" (os error ")
-        .map_or(text.as_str(), |(words, _)| words)
-        .trim_end_matches('.');
+        .rsplit_once(" (os error ")
+        .map_or(text.as_str(), |(words, _)| words);
+    let words = words.strip_suffix('.').unwrap_or(words);
     let mut chars = words.chars();
     chars.next().map_or_else(String::new, |first| {
         first.to_lowercase().chain(chars).collect()

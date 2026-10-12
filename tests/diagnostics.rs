@@ -1114,6 +1114,6 @@ fn fr95_names_where_a_ring_came_from() {
             .ends_with("a shorter name for ring 'Under evaluation' in --rings would fix it")
     );
     assert!(message(RingSource::Default).ends_with(
-        "a shorter name for ring 'Under evaluation', one of the default rings, would fix it"
+        "a shorter name for ring 'Under evaluation' (a default ring, so pass --rings to rename it) would fix it"
     ));
 }
