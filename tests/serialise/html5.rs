@@ -93,7 +93,14 @@ fn strings_in(svg: &Handle) -> Strings {
 
 #[test]
 fn hostile_text_survives_an_html5_parser() {
-    let built = build(&csv(), Some(&format!("{RING},Adopt")), Some(TITLE));
+    // A cell holding Excel's Alt+Enter line break, CR LF, in a name and in
+    // a description: no carriage return may reach the page (FR-97, rg-c4l).
+    let csv = [
+        csv().as_str(),
+        "\"Kafka\r\nStreams\",Plain,Adopt,\"one\r\ntwo\"\n",
+    ]
+    .concat();
+    let built = build(&csv, Some(&format!("{RING},Adopt")), Some(TITLE));
     let wide = arrange(Arrangement::Wide, &built.blocks);
     let narrow = arrange(Arrangement::Narrow, &built.blocks);
     let html = page(&wide, &narrow, Some(TITLE));

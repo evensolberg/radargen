@@ -39,6 +39,24 @@ pub fn trim(value: &str) -> &str {
     value.trim_matches(trimmable)
 }
 
+/// `value` with its line breaks as plain newlines: CR LF and a lone CR each
+/// become LF (FR-97). A quoted CSV cell can hold Excel's Alt+Enter break.
+#[must_use]
+pub fn plain_newlines(value: &str) -> String {
+    value.replace("\r\n", "\n").replace('\r', "\n")
+}
+
+/// `value` as one line: every run of line breaks becomes one space (FR-97),
+/// for a field that is a label rather than prose.
+#[must_use]
+pub fn single_line(value: &str) -> String {
+    value
+        .split(['\r', '\n'])
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Whitespace, or a format character that is not a tag character.
 fn trimmable(c: char) -> bool {
     c.is_whitespace() || is_untagged_format(c)

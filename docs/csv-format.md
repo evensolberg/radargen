@@ -13,7 +13,7 @@ created_date: 2026-10-12
 synopsis: "How to write the CSV radargen reads: the four required columns and seven optional ones, what each accepts, what is a hard error and what only warns, and how the file must be saved."
 status: active
 type: Guide
-revision: "1.1"
+revision: "1.2"
 review_date:
 reviewed_by: []
 completed_date:
@@ -151,6 +151,7 @@ A web address for the item, such as the product's home page: `https://www.terraf
 
 ## Text in any field
 
+- **A line break inside a cell** (Alt+Enter in Excel) becomes a space in a name, quadrant, ring, qualifier, status or date, and is kept as a line break in a description, domain, rationale or your own columns.
 - **Leading and trailing spaces are ignored** for matching. Names, quadrants and rings are also shown trimmed; other fields are shown exactly as written.
 - **Characters that cannot be displayed are removed, with a warning naming the line and column.** These are control characters other than tab and line break, and the invisible characters that reverse the direction of text. The same applies to `--title`, `--subtitle` and `--rings`.
 - **Anything else is shown as written.** Characters such as `<`, `&` and `"` are safe and appear literally. Names in Latin, Greek and Cyrillic scripts, including Vietnamese, draw with the built-in font.
@@ -198,3 +199,4 @@ Kubernetes,Platforms,Adopt,"Container orchestration.",default,Containers,"Defaul
 | --- | --- | --- |
 | 1.0 | 2026-10-12 | Initial version. |
 | 1.1 | 2026-10-12 | The `link` column (FR-96, D-77). |
+| 1.2 | 2026-10-12 | Line breaks in cells (FR-97). |
