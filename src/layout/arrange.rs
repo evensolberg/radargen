@@ -5,6 +5,7 @@
 //! never lays a block out again, so both arrangements hold the same items,
 //! numbers and treatments by construction (architecture §4).
 
+use crate::diagnostics::{RenderKind, Warning, Warnings};
 use crate::layout::block::{Block, Placement};
 use crate::layout::key::KeyBlock;
 use crate::layout::legend::LegendBlock;
@@ -13,8 +14,8 @@ use crate::layout::title::TitleBlock;
 use crate::palette::{Neutral, Role};
 use crate::style::{
     COLUMN_GAP, DOC_TOP, KEY_RULE_STROKE, KEY_TO_LEGEND, LEGEND_PANEL_INSET_X,
-    LEGEND_PANEL_INSETS_X, LEGEND_WIDE_DROP, MARGIN, NARROW_MIN_SCALE, NARROW_RADAR_COLUMN,
-    NARROW_WIDTH, RADAR_INSET, RADAR_INSETS, RADAR_LABEL_PAD,
+    LEGEND_PANEL_INSETS_X, LEGEND_WIDE_DROP, MARGIN, NARROW_MAX_WIDTH, NARROW_MIN_SCALE,
+    NARROW_RADAR_COLUMN, NARROW_WIDTH, RADAR_INSET, RADAR_INSETS, RADAR_LABEL_PAD,
 };
 use crate::svg::{Document, Group, Node, Paint, Point, Semantics};
 
@@ -89,6 +90,34 @@ pub fn arrange(arrangement: Arrangement, blocks: &Blocks) -> Document {
         height: at.height,
         root: Node::Group(Group::new(Point::ORIGIN, children)),
     }
+}
+
+/// FR-95: one warning when the narrow arrangement is wider than FR-94's
+/// targets are sized for (D-71), naming the label that sets the radar's
+/// width (D-73).
+pub fn warn_narrow(blocks: &Blocks, warnings: &mut Warnings) {
+    let at = placements(Arrangement::Narrow, blocks);
+    if at.width <= NARROW_MAX_WIDTH {
+        return;
+    }
+    if let Some(binding) = blocks.radar.binding_label(at.radar.scale) {
+        warnings.push(Warning::Render(RenderKind::NarrowWidened {
+            binding,
+            width: whole_units(at.width),
+        }));
+    }
+}
+
+/// `width` rounded up to a whole unit, as FR-95 reports it.
+const fn whole_units(width: f64) -> u32 {
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::as_conversions,
+        reason = "f64 has no TryFrom to an integer; a document width is positive, and `as` saturates at u32::MAX for any width past it"
+    )]
+    let units = width.ceil() as u32;
+    units
 }
 
 /// The key's rule: decorative, since the key's heading marks the boundary.
@@ -253,6 +282,7 @@ fn narrow_scale(radar: &impl Block, column: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::diagnostics::Binding;
     use crate::layout::block::{Size, close, fonts};
     use crate::layout::test_support::{
         HEAD, NAME_THREE_LINES, PRD_EXAMPLE, Rect, assert_finite, assert_inside, bounds, csv_of,
@@ -260,7 +290,6 @@ mod tests {
     };
     use crate::model::Catalogue;
     use crate::order::Plotted;
-    use crate::style::NARROW_MAX_WIDTH;
     use crate::svg::ItemKey;
 
     /// The title and subtitle a fixture is built with.
@@ -538,6 +567,57 @@ mod tests {
                 "{p:?}"
             );
             assert!(close(p.rule.to.x, p.width - 20.0), "{p:?}");
+        }
+    }
+
+    /// FR-95's warnings for `b`.
+    fn narrow_warnings(b: &Blocks) -> Vec<Warning> {
+        let mut warnings = Warnings::default();
+        warn_narrow(b, &mut warnings);
+        warnings.as_slice().to_vec()
+    }
+
+    /// The one FR-95 warning `b` raises.
+    fn narrowed(b: &Blocks) -> (Binding, u32) {
+        match narrow_warnings(b).as_slice() {
+            [Warning::Render(RenderKind::NarrowWidened { binding, width })] => {
+                (binding.clone(), *width)
+            }
+            other => panic!("one FR-95 warning, got {other:?}"),
+        }
+    }
+
+    /// `b` with `rings` declared.
+    fn with_rings(csv: &str, rings: &str) -> Blocks {
+        let (catalogue, order) = plotted(csv, Some(rings));
+        blocks_of(&catalogue, &order, TITLED)
+    }
+
+    #[test]
+    fn fr95_names_the_binding_quadrant() {
+        let b = blocks(&beyond(), TITLED);
+        let width = placements(Arrangement::Narrow, &b).width;
+        let (binding, warned) = narrowed(&b);
+        assert_eq!(binding, Binding::Quadrant("W".repeat(70)));
+        assert_eq!(f64::from(warned), width.ceil(), "{width}");
+    }
+
+    /// D-73: a long ring name sets the width with a short quadrant, or with
+    /// none at all.
+    #[test]
+    fn fr95_names_a_binding_ring() {
+        let ring = "W".repeat(70);
+        let rings = format!("{ring},Adopt");
+        for csv in [quadrants(&["Tools"]), HEAD.to_owned()] {
+            let (binding, _) = narrowed(&with_rings(&csv, &rings));
+            assert_eq!(binding, Binding::Ring(ring.clone()), "{csv}");
+        }
+    }
+
+    #[test]
+    fn fr95_is_quiet_within_the_headroom() {
+        for csv in [widened(), thoughtworks(), PRD_EXAMPLE.to_owned()] {
+            assert_eq!(narrow_warnings(&blocks(&csv, TITLED)), [], "{csv}");
         }
     }
 
