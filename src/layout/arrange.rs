@@ -311,6 +311,7 @@ mod tests {
     };
     use crate::model::Catalogue;
     use crate::order::Plotted;
+    use crate::rings::RingSource;
     use crate::svg::ItemKey;
 
     /// The title and subtitle a fixture is built with.
@@ -630,7 +631,14 @@ mod tests {
         let rings = format!("{ring},Adopt");
         for csv in [quadrants(&["Tools"]), HEAD.to_owned()] {
             let (binding, _) = narrowed(&with_rings(&csv, &rings));
-            assert_eq!(binding, Binding::Ring(ring.clone()), "{csv}");
+            assert_eq!(
+                binding,
+                Binding::Ring {
+                    name: ring.clone(),
+                    source: RingSource::Flag,
+                },
+                "{csv}"
+            );
         }
     }
 

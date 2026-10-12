@@ -531,6 +531,7 @@ mod tests {
             columns: vec![],
             quadrants: vec![],
             rings: vec!["A".into(), "B".into(), "C".into()],
+            ring_source: crate::rings::RingSource::Default,
             items: vec![],
         };
         assert_eq!(Geometry::of(&cat), geometry(0, 3));

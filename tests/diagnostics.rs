@@ -1045,7 +1045,10 @@ fn fr95_names_a_quadrant_or_a_ring() {
         ),
         (
             RenderKind::NarrowWidened {
-                binding: Binding::Ring("Under evaluation by the architecture board".into()),
+                binding: Binding::Ring {
+                    name: "Under evaluation by the architecture board".into(),
+                    source: RingSource::Flag,
+                },
                 width: 750,
             },
             "the narrow arrangement is 750 units wide, past the 480 its legend rows and marker targets are sized for, so on a 320-pixel screen they fall below 24 pixels; a shorter name for ring 'Under evaluation by the architecture board' in --rings would fix it",
@@ -1066,4 +1069,51 @@ fn output_version_has_no_patch() {
         radargen::emit::OUTPUT_VERSION,
         format!("radargen {major}.{minor}")
     );
+}
+
+/// rg-bsb: an I/O reason reads one way on every path: the OS's own words,
+/// without its "(os error N)" suffix or a trailing full stop, lowercase.
+#[test]
+fn io_reasons_read_one_way() {
+    let unix = std::io::Error::other("Is a directory (os error 21)");
+    let windows = std::io::Error::other("The system cannot find the path specified. (os error 3)");
+    assert_eq!(
+        Fatal::Unwritable {
+            path: "out.html".into(),
+            source: unix,
+        }
+        .render(),
+        "error: -o out.html: cannot be written: is a directory"
+    );
+    assert_eq!(
+        Fatal::Unreadable {
+            path: "in.csv".into(),
+            source: windows,
+        }
+        .render(),
+        "error: in.csv: cannot be read: the system cannot find the path specified"
+    );
+}
+
+/// rg-iqm: a ring that sets the narrow width is named with where it came
+/// from (D-73), so the fix points at the right place.
+#[test]
+fn fr95_names_where_a_ring_came_from() {
+    let message = |source| {
+        Warning::Render(RenderKind::NarrowWidened {
+            binding: Binding::Ring {
+                name: "Under evaluation".into(),
+                source,
+            },
+            width: 600,
+        })
+        .to_string()
+    };
+    assert!(
+        message(RingSource::Flag)
+            .ends_with("a shorter name for ring 'Under evaluation' in --rings would fix it")
+    );
+    assert!(message(RingSource::Default).ends_with(
+        "a shorter name for ring 'Under evaluation' (a default ring, so pass --rings to rename it) would fix it"
+    ));
 }

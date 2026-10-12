@@ -1,13 +1,14 @@
 ---
 id: rg-nyb
 title: FR-95 message interpolates its viewport and target constants
-status: open
+status: closed
 type: task
 priority: 4
 tags:
 - diagnostics
 created: 2026-10-12
 updated: 2026-10-12
+closed_reason: 'PR A: FR-95 interpolates NARROW_MIN_VIEWPORT_PX and MIN_TARGET_PX'
 phase: ''
 ---
 
