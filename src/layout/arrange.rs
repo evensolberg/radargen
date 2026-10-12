@@ -11,6 +11,8 @@ use crate::layout::key::KeyBlock;
 use crate::layout::legend::LegendBlock;
 use crate::layout::radar::RadarBlock;
 use crate::layout::title::TitleBlock;
+use crate::model::Catalogue;
+use crate::order::Plotted;
 use crate::palette::{Neutral, Role};
 use crate::style::{
     COLUMN_GAP, DOC_TOP, KEY_RULE_STROKE, KEY_TO_LEGEND, LEGEND_PANEL_INSET_X,
@@ -18,6 +20,7 @@ use crate::style::{
     NARROW_RADAR_COLUMN, NARROW_WIDTH, RADAR_INSET, RADAR_INSETS, RADAR_LABEL_PAD,
 };
 use crate::svg::{Document, Group, Node, Paint, Point, Semantics};
+use crate::text::Fonts;
 
 /// The four blocks, laid out once and placed by either arrangement
 /// (FR-68). The pipeline builds one and arranges it twice.
@@ -31,6 +34,26 @@ pub struct Blocks {
     pub key: KeyBlock,
     /// The legend (FR-35).
     pub legend: LegendBlock,
+}
+
+impl Blocks {
+    /// The four blocks for `catalogue` in `plotted`'s order, each laid out
+    /// once (architecture §4). `title` and `subtitle` are FR-65's values.
+    #[must_use]
+    pub fn new(
+        catalogue: &Catalogue,
+        plotted: &Plotted,
+        title: Option<&str>,
+        subtitle: Option<&str>,
+        fonts: &Fonts,
+    ) -> Self {
+        Self {
+            title: TitleBlock::new(title, subtitle, fonts),
+            radar: RadarBlock::new(catalogue, plotted, fonts),
+            key: KeyBlock::new(fonts),
+            legend: LegendBlock::new(catalogue, plotted, fonts),
+        }
+    }
 }
 
 /// Which way the blocks are placed (FR-68).
@@ -108,15 +131,14 @@ pub fn warn_narrow(blocks: &Blocks, warnings: &mut Warnings) {
 }
 
 /// `width` rounded up to a whole unit, as FR-95 reports it.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::as_conversions,
+    reason = "f64 has no TryFrom to an integer; a document width is positive, and `as` saturates at u32::MAX for any width past it"
+)]
 const fn whole_units(width: f64) -> u32 {
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::as_conversions,
-        reason = "f64 has no TryFrom to an integer; a document width is positive, and `as` saturates at u32::MAX for any width past it"
-    )]
-    let units = width.ceil() as u32;
-    units
+    width.ceil() as u32
 }
 
 /// The key's rule: decorative, since the key's heading marks the boundary.
@@ -311,13 +333,7 @@ mod tests {
     };
 
     fn blocks_of(catalogue: &Catalogue, plotted: &Plotted, titles: Titles) -> Blocks {
-        let fonts = fonts();
-        Blocks {
-            title: TitleBlock::new(titles.title, titles.subtitle, fonts),
-            radar: RadarBlock::new(catalogue, plotted, fonts),
-            key: KeyBlock::new(fonts),
-            legend: LegendBlock::new(catalogue, plotted, fonts),
-        }
+        Blocks::new(catalogue, plotted, titles.title, titles.subtitle, fonts())
     }
 
     fn blocks(csv: &str, titles: Titles) -> Blocks {

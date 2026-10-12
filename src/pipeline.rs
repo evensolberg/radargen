@@ -22,15 +22,11 @@ use crate::emit::write_atomic;
 use crate::errors::render_errors;
 use crate::layout::arrange::{Arrangement, Blocks, arrange, warn_narrow};
 use crate::layout::geometry::warn_crowding;
-use crate::layout::key::KeyBlock;
-use crate::layout::legend::LegendBlock;
-use crate::layout::radar::RadarBlock;
-use crate::layout::title::TitleBlock;
+use crate::layout::title::shown;
 use crate::model::{Catalogue, build_catalogue};
 use crate::order::resolve;
 use crate::rings::{RingSet, parse_rings};
 use crate::text::Fonts;
-use crate::trim;
 
 /// The resolved run (architecture §7), read-only once built.
 #[derive(Debug)]
@@ -100,9 +96,10 @@ fn alone(errors: &[Fatal]) -> Vec<String> {
 /// same-file check, then the flag values, cleaned (FR-90), and the rings
 /// (FR-63, every violation together).
 fn config(cli: &Cli, warnings: &mut Warnings) -> Result<Config, Vec<Fatal>> {
-    cli.format().map_err(|e| vec![e])?;
-    missing_directory(&cli.output).map_err(|e| vec![e])?;
-    output_is_input(&cli.output, &cli.csv_path).map_err(|e| vec![e])?;
+    cli.format()
+        .and_then(|_| missing_directory(&cli.output))
+        .and_then(|()| output_is_input(&cli.output, &cli.csv_path))
+        .map_err(|e| vec![e])?;
     let title = resolved(Flag::Title, cli.title.as_deref(), warnings);
     let subtitle = resolved(Flag::Subtitle, cli.subtitle.as_deref(), warnings);
     let declared = cli
@@ -151,7 +148,7 @@ fn output_is_input(output: &Path, input: &Path) -> Result<(), Fatal> {
 /// FR-65's resolved value: cleaned (FR-90), trimmed, `None` when empty.
 fn resolved(flag: Flag, value: Option<&str>, warnings: &mut Warnings) -> Option<String> {
     let cleaned = clean_flag(flag, value?, warnings);
-    Some(trim(&cleaned).to_owned()).filter(|v| !v.is_empty())
+    shown(Some(&cleaned)).map(str::to_owned)
 }
 
 /// Read, parse and build. A file-level failure is one line (tier one);
@@ -164,14 +161,10 @@ fn catalogue(
 ) -> Result<Catalogue, Vec<String>> {
     let text = decode::read(path).map_err(|e| alone(&[e]))?;
     let (table, mut errors) = parse(&text, warnings).map_err(|e| alone(&[e]))?;
-    let built = build_catalogue(&table, rings, warnings);
+    let built = build_catalogue(&table, rings, warnings).map_err(|more| errors.extend(more));
     match built {
         Ok(catalogue) if errors.is_empty() => Ok(catalogue),
-        Ok(_) => Err(render_errors(&errors, table.records.len())),
-        Err(more) => {
-            errors.extend(more);
-            Err(render_errors(&errors, table.records.len()))
-        }
+        _ => Err(render_errors(&errors, table.records.len())),
     }
 }
 
@@ -185,12 +178,13 @@ fn render(
 ) -> String {
     let plotted = resolve(catalogue);
     warn_crowding(catalogue, &plotted, warnings);
-    let blocks = Blocks {
-        title: TitleBlock::new(config.title.as_deref(), config.subtitle.as_deref(), fonts),
-        radar: RadarBlock::new(catalogue, &plotted, fonts),
-        key: KeyBlock::new(fonts),
-        legend: LegendBlock::new(catalogue, &plotted, fonts),
-    };
+    let blocks = Blocks::new(
+        catalogue,
+        &plotted,
+        config.title.as_deref(),
+        config.subtitle.as_deref(),
+        fonts,
+    );
     warn_narrow(&blocks, warnings);
     page(
         &arrange(Arrangement::Wide, &blocks),

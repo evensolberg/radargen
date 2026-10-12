@@ -18,10 +18,6 @@ mod page;
 mod vocabulary;
 
 use radargen::layout::arrange::{Arrangement, Blocks};
-use radargen::layout::key::KeyBlock;
-use radargen::layout::legend::LegendBlock;
-use radargen::layout::radar::RadarBlock;
-use radargen::layout::title::TitleBlock;
 use radargen::model::Catalogue;
 use radargen::order::{Plotted, resolve};
 use radargen::palette::Palette;
@@ -43,12 +39,7 @@ fn build(csv: &str, rings: Option<&str>, title: Option<&str>) -> Built {
     let catalogue = catalogue::catalogue(csv, rings);
     let plotted = resolve(&catalogue);
     let fonts = Fonts::embedded().expect("the vendored fonts parse");
-    let blocks = Blocks {
-        title: TitleBlock::new(title, None, &fonts),
-        radar: RadarBlock::new(&catalogue, &plotted, &fonts),
-        key: KeyBlock::new(&fonts),
-        legend: LegendBlock::new(&catalogue, &plotted, &fonts),
-    };
+    let blocks = Blocks::new(&catalogue, &plotted, title, None, &fonts);
     Built {
         catalogue,
         plotted,

@@ -93,7 +93,7 @@ fn widest(widths: impl Iterator<Item = f64>) -> f64 {
 }
 
 /// The value to show, trimmed (FR-76): `None` when absent or empty after.
-fn shown(value: Option<&str>) -> Option<&str> {
+pub(crate) fn shown(value: Option<&str>) -> Option<&str> {
     value.map(crate::trim).filter(|v| !v.is_empty())
 }
 

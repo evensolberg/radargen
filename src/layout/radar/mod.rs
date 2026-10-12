@@ -209,14 +209,29 @@ impl RadarBlock {
         }
     }
 
+    /// How far each label reaches left or right of the centre, with what
+    /// FR-95 would name it: quadrants in FR-10 order, then rings. The one
+    /// source for both the radar's width and the label that sets it.
+    fn reaches_x(
+        &self,
+        r: RadarScale,
+    ) -> impl Iterator<Item = (f64, fn(String) -> Binding, &str)> + '_ {
+        let quadrants = self.quadrants.iter().map(move |q| {
+            let name: fn(String) -> Binding = Binding::Quadrant;
+            (quadrant_reach_x(q, r), name, q.label.text.as_str())
+        });
+        let rings = self.rings.iter().map(move |l| {
+            let name: fn(String) -> Binding = Binding::Ring;
+            (ring_reach_x(l.width, r), name, l.text.as_str())
+        });
+        quadrants.chain(rings)
+    }
+
     /// The furthest any label reaches left or right of the centre.
     fn label_half_width(&self, r: RadarScale) -> f64 {
-        let quadrants = self
-            .quadrants
-            .iter()
-            .map(|label| quadrant_reach_x(label, r));
-        let rings = self.rings.iter().map(|label| ring_reach_x(label.width, r));
-        quadrants.chain(rings).fold(0.0, f64::max)
+        self.reaches_x(r)
+            .map(|(reach, ..)| reach)
+            .fold(0.0, f64::max)
     }
 
     /// The label whose reach left or right sets the radar's width at
@@ -225,27 +240,9 @@ impl RadarBlock {
     /// `rings.rs` rules out by refusing an empty ring list.
     #[must_use]
     pub fn binding_label(&self, scale: f64) -> Option<Binding> {
-        let r = RadarScale::of(scale);
-        let quadrants = self.quadrants.iter().map(|q| {
-            (
-                quadrant_reach_x(q, r),
-                Binding::Quadrant(q.label.text.clone()),
-            )
-        });
-        let rings = self
-            .rings
-            .iter()
-            .map(|l| (ring_reach_x(l.width, r), Binding::Ring(l.text.clone())));
-        quadrants
-            .chain(rings)
-            .fold(
-                None,
-                |best: Option<(f64, Binding)>, (reach, binding)| match best {
-                    Some((furthest, _)) if furthest >= reach => best,
-                    _ => Some((reach, binding)),
-                },
-            )
-            .map(|(_, binding)| binding)
+        self.reaches_x(RadarScale::of(scale))
+            .reduce(|best, next| if next.0 > best.0 { next } else { best })
+            .map(|(_, name, text)| name(text.to_owned()))
     }
 
     /// The furthest any label reaches above or below the centre.
@@ -418,8 +415,7 @@ mod tests {
         BAND_OUTER_RADIUS, HIT_RADIUS, INDICATOR_REACH, NARROW_MIN_SCALE, RADAR_LABEL_PAD,
     };
     use crate::svg::TextPaint;
-    use crate::text::Weight;
-    use crate::text::{TEXT_ASCENT, TEXT_DESCENT};
+    use crate::text::{TEXT_ASCENT, TEXT_DESCENT, Weight};
 
     /// How near the block's edge the drawn labels must come: float noise.
     const TIGHT: f64 = 1e-6;

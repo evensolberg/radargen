@@ -39,9 +39,9 @@ pub struct Tag {
 pub fn split(page: &str) -> (&str, &str, &str) {
     assert_eq!(page.matches("<svg").count(), 1, "one SVG:\n{page}");
     let (before, rest) = page.split_once("<svg").expect("the page holds an SVG");
-    let (inner, after) = rest.split_once("</svg>").expect("the SVG closes");
+    let (_, after) = rest.split_once("</svg>").expect("the SVG closes");
     let svg = page
-        .get(before.len()..before.len() + "<svg".len() + inner.len() + "</svg>".len())
+        .get(before.len()..page.len() - after.len())
         .expect("the SVG's span is in the page");
     (before, svg, after)
 }
