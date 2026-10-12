@@ -19,21 +19,21 @@ const HOSTILE: [&str; 9] = [
     "line\u{2028}separator",
     "Bounded trial </text> of continuous delivery pipelines across managed estates and environments",
 ];
-const QUADRANT: &str = "<Q & \"q\">";
-const RING: &str = "R&<'>";
+pub const QUADRANT: &str = "<Q & \"q\">";
+pub const RING: &str = "R&<'>";
 
 /// Each control's label and tooltip, and each text's lines, in order.
-#[derive(Default)]
-struct Strings {
-    labels: Vec<String>,
-    tooltips: Vec<String>,
-    texts: Vec<String>,
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Strings {
+    pub labels: Vec<String>,
+    pub tooltips: Vec<String>,
+    pub texts: Vec<String>,
 }
 
 impl Strings {
     /// The document's strings; without its interactive-only nodes when
     /// `interactive` is false, as static output drops them.
-    fn of(node: &Node, interactive: bool) -> Self {
+    pub fn of(node: &Node, interactive: bool) -> Self {
         let mut strings = Self::default();
         strings.walk(node, interactive);
         strings
@@ -99,7 +99,8 @@ impl Strings {
     }
 }
 
-fn csv() -> String {
+/// A CSV whose every name is hostile, in a hostile quadrant and ring.
+pub fn csv() -> String {
     let field = |s: &str| ["\"", &s.replace('"', "\"\""), "\""].concat();
     HOSTILE
         .iter()
@@ -110,13 +111,12 @@ fn csv() -> String {
         + "\"tab\there\",Plain,Adopt,d\n"
 }
 
+/// A title that would close `<title>` and open an SVG were it not escaped.
+pub const TITLE: &str = "</title><svg onload=x>";
+
 #[test]
 fn hostile_text_round_trips() {
-    let built = build(
-        &csv(),
-        Some(&format!("{RING},Adopt")),
-        Some("</title><svg onload=x>"),
-    );
+    let built = build(&csv(), Some(&format!("{RING},Adopt")), Some(TITLE));
     let document = arrange(Arrangement::Wide, &built.blocks);
     let palette = Palette::built_in(Theme::Light);
     for (target, interactive) in targets(&palette) {
@@ -131,7 +131,7 @@ fn hostile_text_round_trips() {
     // The hostile inputs reached the document, so the test above tested
     // them: layout could have dropped or rewritten any of them.
     let want = Strings::of(&document.root, true);
-    for reached in [QUADRANT, RING, "</title><svg onload=x>"] {
+    for reached in [QUADRANT, RING, TITLE] {
         assert!(
             want.texts.iter().any(|t| t.contains(reached)),
             "{reached} is drawn"

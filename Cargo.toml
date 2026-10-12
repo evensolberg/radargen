@@ -10,6 +10,7 @@ keywords = ["radar", "technology-radar", "svg", "visualisation", "cli"]
 categories = ["command-line-utilities", "visualization"]
 
 [dependencies]
+base64 = "0.23"
 clap = { version = "4", features = ["derive"] }
 harfrust = "0.12"
 same-file = "1"
@@ -24,10 +25,11 @@ resvg = "0.48"
 usvg = "0.48"
 tiny-skia = "0.12"
 fontdb = "0.24"
-base64 = "0.23"
 sha2 = "0.11.0"
 roxmltree = "0.21"
 ttf-parser = "0.25"
+html5ever = "0.39"
+markup5ever_rcdom = "0.39"
 
 # Architecture §1: no unsafe anywhere, and clippy's pedantic, nursery and
 # cargo groups are errors rather than advice. The lints are declared here,

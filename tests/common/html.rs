@@ -1,5 +1,6 @@
-//! The HTML page as tests read it: its one SVG, and every tag outside it,
-//! checked against an allowlist (NFR-5: the page requests nothing).
+//! The HTML page as tests read it: its SVGs, and every tag outside them,
+//! checked against an allowlist (NFR-5: the page requests nothing but its
+//! two inlined fonts).
 
 /// Every element the serialiser writes (NFR-6).
 pub const SVG_ELEMENTS: [&str; 9] = [
@@ -7,8 +8,8 @@ pub const SVG_ELEMENTS: [&str; 9] = [
 ];
 
 /// Every element the page itself writes around the SVG.
-const PAGE_ELEMENTS: [&str; 8] = [
-    "html", "head", "meta", "title", "style", "body", "main", "h1",
+pub const PAGE_ELEMENTS: [&str; 9] = [
+    "html", "head", "meta", "title", "style", "body", "main", "h1", "div",
 ];
 
 /// Every attribute the page itself writes around the SVG.
@@ -35,15 +36,34 @@ pub struct Tag {
     pub attributes: Vec<(String, String)>,
 }
 
-/// The page's one `<svg>…</svg>`, and the text before and after it.
-pub fn split(page: &str) -> (&str, &str, &str) {
-    assert_eq!(page.matches("<svg").count(), 1, "one SVG:\n{page}");
-    let (before, rest) = page.split_once("<svg").expect("the page holds an SVG");
-    let (_, after) = rest.split_once("</svg>").expect("the SVG closes");
-    let svg = page
-        .get(before.len()..page.len() - after.len())
-        .expect("the SVG's span is in the page");
-    (before, svg, after)
+/// The page's SVGs, `<svg>` to `</svg>`, in document order.
+pub fn svgs(page: &str) -> Vec<&str> {
+    let mut found = Vec::new();
+    let mut rest = page;
+    while let Some((_, from)) = rest.split_once("<svg") {
+        let (_, after) = from.split_once("</svg>").expect("every SVG closes");
+        let start = rest.len() - from.len() - "<svg".len();
+        let svg = rest
+            .get(start..rest.len() - after.len())
+            .expect("the SVG's span is in the page");
+        found.push(svg);
+        rest = after;
+    }
+    found
+}
+
+/// The page with its SVGs taken out: the HTML around them.
+pub fn outside(page: &str) -> String {
+    svgs(page)
+        .iter()
+        .fold(page.to_owned(), |text, svg| text.replacen(svg, "", 1))
+}
+
+/// The page's one stylesheet.
+pub fn style(page: &str) -> &str {
+    page.split_once("<style>")
+        .and_then(|(_, rest)| rest.split_once("</style>"))
+        .map_or("", |(css, _)| css)
 }
 
 /// Every start tag in `html`, in order. Values are the page's own escaped
@@ -70,11 +90,11 @@ pub fn tags(html: &str) -> Vec<Tag> {
 }
 
 /// NFR-5 by allowlist: the page's own tags and attributes are its
-/// vocabulary, the SVG's elements the serialiser's, no element anywhere
-/// carries an attribute that fetches, and the stylesheet imports nothing.
+/// vocabulary, the SVGs' elements the serialiser's, no element anywhere
+/// carries an attribute that fetches, and the stylesheet fetches nothing but
+/// the two inlined fonts.
 pub fn assert_requests_nothing(page: &str) {
-    let (before, svg, after) = split(page);
-    for tag in tags(before).into_iter().chain(tags(after)) {
+    for tag in tags(&outside(page)) {
         assert!(PAGE_ELEMENTS.contains(&tag.name.as_str()), "<{}>", tag.name);
         for (name, _) in &tag.attributes {
             assert!(
@@ -84,20 +104,26 @@ pub fn assert_requests_nothing(page: &str) {
             );
         }
     }
-    let doc = roxmltree::Document::parse(svg).unwrap_or_else(|e| panic!("{e}\n{svg}"));
-    for node in doc.descendants().filter(roxmltree::Node::is_element) {
-        let tag = node.tag_name().name();
-        assert!(SVG_ELEMENTS.contains(&tag), "<{tag}>");
-        for a in node.attributes() {
-            assert!(!FETCHING.contains(&a.name()), "{} on <{tag}>", a.name());
-            assert!(!a.value().contains("url("), "{}={}", a.name(), a.value());
+    for svg in svgs(page) {
+        let doc = roxmltree::Document::parse(svg).unwrap_or_else(|e| panic!("{e}\n{svg}"));
+        for node in doc.descendants().filter(roxmltree::Node::is_element) {
+            let tag = node.tag_name().name();
+            assert!(SVG_ELEMENTS.contains(&tag), "<{tag}>");
+            for a in node.attributes() {
+                assert!(!FETCHING.contains(&a.name()), "{} on <{tag}>", a.name());
+                assert!(!a.value().contains("url("), "{}={}", a.name(), a.value());
+            }
         }
     }
-    let style = before
-        .split_once("<style>")
-        .and_then(|(_, rest)| rest.split_once("</style>"))
-        .map_or("", |(css, _)| css);
-    for fetch in ["url(", "@import", "src:"] {
-        assert!(!style.contains(fetch), "{fetch} in the stylesheet");
+    let css = style(page);
+    assert_eq!(css.matches("url(").count(), 2, "only the two fonts");
+    assert_eq!(
+        css.matches("url(data:font/woff2;base64,").count(),
+        2,
+        "each is an inlined WOFF2"
+    );
+    assert_eq!(css.matches("src:").count(), 2, "only the two fonts");
+    for fetch in ["@import", "http", "<"] {
+        assert!(!css.contains(fetch), "{fetch} in the stylesheet");
     }
 }

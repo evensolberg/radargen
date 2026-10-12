@@ -29,7 +29,7 @@ fn lines(built: &Built) -> (Vec<String>, Vec<String>) {
     (plotted, unplotted)
 }
 
-fn interactive(built: &Built, arrangement: Arrangement) -> String {
+pub fn interactive(built: &Built, arrangement: Arrangement) -> String {
     let palette = Palette::built_in(Theme::Light);
     serialise(
         &arrange(arrangement, &built.blocks),

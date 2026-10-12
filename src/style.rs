@@ -266,6 +266,14 @@ pub const STATUS_RING_STROKE: f64 = 2.0;
 pub const FOCUS_RING_GAP: f64 = 8.0;
 /// Stroke width of the keyboard focus ring.
 pub const FOCUS_RING_STROKE: f64 = 2.0;
+// The page strokes a legend row's indicator rect with the focus ring's width
+// (PR 14b), centred on a rect inset `LEGEND_ROW_INDICATOR_INSET` from the
+// row, so half the stroke must fit inside the inset or the next row, painted
+// later, covers it.
+const _: () = assert!(
+    FOCUS_RING_STROKE <= 2.0 * LEGEND_ROW_INDICATOR_INSET,
+    "a legend row's focus ring must fit inside its inset"
+);
 
 // --- Radar (FR-32, FR-33) -------------------------------------------------------
 /// Outer edge of the outermost band; bands divide it equally (FR-32).

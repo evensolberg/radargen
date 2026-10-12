@@ -117,6 +117,13 @@ fn renders_the_prd_example() {
         " role=\"group\" aria-label=\"Technology radar: 3 quadrants, 4 rings, 6 items\""
     ));
     html::assert_requests_nothing(&page);
+    // PR 14b: both arrangements and the two inlined faces.
+    assert_eq!(html::svgs(&page).len(), 2, "wide and narrow");
+    assert_eq!(
+        page.matches("@font-face").count(),
+        2,
+        "Regular and SemiBold"
+    );
 }
 
 /// A fault, and how to set it up and take it away again.
@@ -472,6 +479,35 @@ fn realistic_inputs() {
         read(dir.path(), "radar.html"),
         read(dir.path(), "excel.html")
     );
+}
+
+/// Radars at the edges of the page's CSS: no marker at all, so no `:has`
+/// block; and 200 quadrants, so hundreds of rules and a wide document whose
+/// breakpoint must still be computed.
+#[test]
+fn the_page_at_its_extremes() {
+    let unplotted = format!("{HEAD}Kafka,Tool,Hold,d\nFlink,Tool,Hold,d\n");
+    let many: String = (0..200)
+        .map(|i| format!("Item {i},Quadrant {i},Adopt,d\n"))
+        .collect::<Vec<_>>()
+        .concat();
+    let dir = seeded(&[
+        ("none.csv", &unplotted),
+        ("many.csv", &[HEAD, &many].concat()),
+    ]);
+
+    let ran = run_in(dir.path(), &["none.csv", "-o", "none.html"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    let page = read(dir.path(), "none.html");
+    html::assert_requests_nothing(&page);
+    assert!(!page.contains("@supports"), "no markers, no :has rules");
+    assert!(!page.contains("{}"), "no empty rule");
+
+    let ran = run_in(dir.path(), &["many.csv", "-o", "many.html"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    let page = read(dir.path(), "many.html");
+    html::assert_requests_nothing(&page);
+    assert_eq!(page.matches("svg:has(").count(), 200, "one rule per marker");
 }
 
 /// FR-60, through the binary rather than clap's parser.

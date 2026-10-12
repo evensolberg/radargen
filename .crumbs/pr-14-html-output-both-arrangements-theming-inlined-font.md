@@ -1,7 +1,7 @@
 ---
 id: rg-f27
 title: 'PR 14: HTML output — both arrangements, theming, inlined font'
-status: open
+status: closed
 type: feature
 priority: 1
 tags:
@@ -10,6 +10,7 @@ tags:
 - output
 created: 2026-10-08
 updated: 2026-10-12
+closed_reason: 'PR 14a (#59) and PR 14b (#60): the pipeline end to end, both arrangements, both palettes, Inter inlined, focus rings without script'
 blocks:
 - rg-6zu
 blocked_by:
