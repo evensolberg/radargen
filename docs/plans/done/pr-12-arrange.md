@@ -10,12 +10,12 @@ crumb_id: rg-ozb
 document_title: "PR 12 — the wide and narrow arrangements: Implementation Plan"
 created_date: 2026-10-11
 synopsis: "arrange.rs places the four blocks two ways from one set: wide, with the legend beside the radar at scale 1, and narrow, with the legend below and the radar scaled to fit a 400-unit column (never below 0.3; the document widens when even that does not fit, with FR-94 headroom to 480 and a warning beyond). Ships as PR 12a (FR-94 headroom, PRD v0.54) and PR 12b (arrange) (FR-68, FR-70, FR-71, FR-94, D-31, D-56, D-70, D-71)."
-status: draft
+status: complete
 type: Plan
-revision: "1.3"
+revision: "1.4"
 review_date: 2026-10-11
 reviewed_by: [rust-engineer, architect-reviewer, qa-expert, ui-designer, accessibility-tester]
-completed_date:
+completed_date: 2026-10-11
 comments: "1.1 folds in the five-seat plan review and the maintainer's re-ruling on the narrow fit (headroom to 480, warn beyond). See Review rulings."
 ---
 # PR 12 — the wide and narrow arrangements: Implementation Plan
@@ -342,7 +342,7 @@ fn narrow_scale(radar: &impl Block, column: f64) -> f64 {
 }
 ```
 
-- [ ] **Step 1: Failing tests.** `Linear(f64)` is a test-only `Block` whose size is `w · s` square and which renders an empty group. Use `close` throughout.
+- [x] **Step 1: Failing tests.** `Linear(f64)` is a test-only `Block` whose size is `w · s` square and which renders an empty group. Use `close` throughout.
   - `narrow_scale_finds_the_largest_fit`: `close(narrow_scale(&Linear(1000.0), 400.0), 0.4)`. For each column in [300, 333.3, 399.999], `Linear(1000).size(s).width <= column` by the same comparison.
   - `narrow_scale_boundaries`:
     - `Linear(400)` against 400 gives 1, inclusively.
@@ -352,8 +352,8 @@ fn narrow_scale(radar: &impl Block, column: f64) -> f64 {
   - `narrow_scale_of_the_radar`:
     - `plotted(HEAD, None)` has zero quadrants, so the floor sets the width: `close(s, 400.0 / 660.0)`.
     - `PRD_EXAMPLE` is set by its labels: `close(radar.size(s).width, 400.0)` and `radar.size(s + 1e-6).width > 400.0`. The second assertion is valid only off a plateau; say so.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual.
-- [ ] **Step 5: Commit** `feat(layout): the arrangement types and the narrow scale (D-71)`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual.
+- [x] **Step 5: Commit** `feat(layout): the arrangement types and the narrow scale (D-71)`.
 
 ---
 
@@ -382,7 +382,7 @@ fn narrow_scale(radar: &impl Block, column: f64) -> f64 {
 
 `TITLED` is "Technology Radar" + "Managed estates, 2026", T = 53 (`TITLE_TOP` 4 + baseline 18 + `SUBTITLE_AFTER_TITLE` 17 + `TITLE_BOTTOM` 14).
 
-- [ ] **Step 1: Failing tests.** Pin literals where the arithmetic is independent of the code; read block sizes only where a block's own tests pin them.
+- [x] **Step 1: Failing tests.** Pin literals where the arithmetic is independent of the code; read block sizes only where a block's own tests pin them.
   - `wide_places_the_legend_beside_the_radar` (`PRD_EXAMPLE`, `TITLED`):
     - title (20, 10); radar (10, 63), scale 1; key (20, 723), because the radar is 660 at 1 (radar's `size_pins`);
     - rule (20, 723) → (660, 723);
@@ -413,8 +413,8 @@ fn narrow_scale(radar: &impl Block, column: f64) -> f64 {
   - `columns_hold_their_blocks`: over every fixture:
     - the title and key widths are ≤ 380 and ≤ the radar's ink width (`r.width − 2·RADAR_LABEL_PAD`);
     - the legend content (`l.width − 24`) is ≤ 380, so the narrow panel's right edge is ≤ 412 < 420.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual.
-- [ ] **Step 5: Commit** `feat(layout): place the blocks wide and narrow (FR-68, FR-70, D-71)`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual.
+- [x] **Step 5: Commit** `feat(layout): place the blocks wide and narrow (FR-68, FR-70, D-71)`.
 
 ---
 
@@ -429,7 +429,7 @@ fn narrow_scale(radar: &impl Block, column: f64) -> f64 {
   - `root` = `Node::Group(Group::new(Point::ORIGIN, vec![title, radar, rule, key, legend]))`.
   - The rule = `Node::Group(Group::new(Point::ORIGIN, vec![Node::Line { from, to, stroke: Paint::Role(Role::Neutral(Neutral::StrokeDivider)), stroke_width: KEY_RULE_STROKE }]).with(Semantics::Decorative))`.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `blocks_render_at_their_placements` (both arrangements): destructure `root`'s children as `[title, radar, rule, key, legend]`. Each block child equals `block.render(p.<block>)` exactly. The rule is a `Decorative` group with one `Line` from `p.rule.from` to `p.rule.to`.
   - `both_arrangements_hold_the_same_controls` (FR-68): collect the `Semantics::Marker` and `Semantics::LegendRow` controls in tree order from each document. The key sequences are equal, and every marker precedes the first legend row. PR 14's focus hand-over relies on this mapping.
   - `the_document_is_the_placements_size`.
@@ -438,9 +438,9 @@ fn narrow_scale(radar: &impl Block, column: f64) -> f64 {
     - the title is above the radar, and the radar above the key (edges may touch);
     - wide: the radar's and key's right edges, and the rule's end + half its stroke, are < the legend panel's left;
     - narrow: the key's bottom is < the legend panel's top.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual.
-- [ ] **Step 5: Gate** `just ci`.
-- [ ] **Step 6: Commit** `feat(layout): arrange the blocks into a document (FR-68, FR-71)`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual.
+- [x] **Step 5: Gate** `just ci`.
+- [x] **Step 6: Commit** `feat(layout): arrange the blocks into a document (FR-68, FR-71)`.
 
 ---
 
@@ -477,3 +477,4 @@ fn narrow_scale(radar: &impl Block, column: f64) -> f64 {
 | 1.1 | 2026-10-11 | The five-seat review: measured widening thresholds; the maintainer re-ruled (FR-94 headroom to 480, FR-95 warns beyond); radar at `RADAR_INSET` with a 400 column; `DOC_TOP`; derived spacings; centring dropped; IOSP split; corrected pins and fuller tests; the PRD carries D-71 through FR-94, NFR-1, SC-6, SC-17, D-31, D-66, D-69; split into PR 12a and PR 12b. |
 | 1.2 | 2026-10-11 | PR 12a review: SC-6 is not scoped to 480 (its claim holds at any width; it states the px); FR-95 names the quadrant whose label sets the radar's width; `svg::Document` and the arrangement-only constants move to PR 12b. |
 | 1.3 | 2026-10-11 | PR 12a shipped: Task 1 ticked; `NARROW_MIN_SCALE` and the arrangement constants listed under Task 2, where they first have a user; Task 1's asserts and D-71 doc placement as shipped. |
+| 1.4 | 2026-10-11 | PR 12b shipped (Tasks 2–4). As built: Task 2 committed with Task 3 (`narrow_scale` has no caller until `placements`); `LEGEND_PANEL_INSETS_X` and `RADAR_INSETS` name the two-inset terms (a `qual:allow` marker did not suppress); the rustqual baseline's stored score is one digit short as a float read-back workaround (crumb `rg-ksg`); the simplify pass kept local test helpers because sharing them pushed `test_support` past rustqual's module limit (crumb `rg-aea`). Follow-ups: `rg-pti` (emit FR-95), `rg-7gi` (narrow legend panel width). |

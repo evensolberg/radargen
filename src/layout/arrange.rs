@@ -218,7 +218,7 @@ fn narrow(blocks: &Blocks, scale: f64) -> Placements {
     }
 }
 
-/// Halvings of [`NARROW_MIN_SCALE`, 1]: past f64 resolution after about 53;
+/// Halvings of [`NARROW_MIN_SCALE`, 1]: past f64 resolution after about 54;
 /// the count is fixed so every machine gets the same bits (NFR-4).
 const BISECTIONS: u32 = 60;
 
@@ -423,7 +423,7 @@ mod tests {
 
     /// NFR-4: the search runs to the last ulp, the largest double with
     /// 1000 · s ≤ 400, on every machine; a bisection count cut short of
-    /// about 55 would stop above or below it.
+    /// about 54 would stop below it.
     #[test]
     fn narrow_scale_is_bit_stable() {
         let scale = narrow_scale(&Linear(1000.0), 400.0);

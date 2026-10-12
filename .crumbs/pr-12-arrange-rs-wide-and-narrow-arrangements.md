@@ -1,7 +1,7 @@
 ---
 id: rg-ozb
 title: 'PR 12: arrange.rs — wide and narrow arrangements'
-status: in_progress
+status: closed
 type: task
 priority: 2
 tags:
@@ -9,6 +9,7 @@ tags:
 - layout
 created: 2026-10-08
 updated: 2026-10-11
+closed_reason: PR 12a (#51) FR-94 headroom and PRD v0.54; PR 12b (#52) arrange.rs.
 blocks:
 - rg-6ku
 blocked_by:
@@ -33,3 +34,5 @@ FR-68–FR-71. One Blocks, two placements. FR-69 breakpoint computed per documen
 [2026-10-11] Unblocked: rg-y1t (PR 09), rg-svr (PR 10), rg-67j (PR 11) all closed and merged (#43-#49).
 
 [start] 2026-10-11 22:07:17
+
+[stop]  2026-10-11 22:47:57  40m 40s

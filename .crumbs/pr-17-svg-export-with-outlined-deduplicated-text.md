@@ -9,7 +9,7 @@ tags:
 - svg
 - output
 created: 2026-10-08
-updated: 2026-10-08
+updated: 2026-10-11
 blocked_by:
 - rg-6ku
 phase: v1.1
@@ -18,3 +18,5 @@ phase: v1.1
 # PR 17: SVG export with outlined, deduplicated text
 
 Architecture §11: a converter, not a serialiser. Glyph outlines via ttf-parser, one path per distinct glyph in defs, placed with <use>. Literal colours.
+
+[2026-10-11] From PR 12: export arrange(Arrangement::Wide, ..) only (FR-71).
