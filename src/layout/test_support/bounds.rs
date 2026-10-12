@@ -4,8 +4,11 @@
 
 use crate::layout::block::{Size, close};
 use crate::palette::{Neutral, Role};
-use crate::svg::{Anchor, Group, Node, Paint, PathCommand, Point, TextPaint};
-use crate::text::{Fonts, TEXT_ASCENT, TEXT_DESCENT};
+use crate::svg::{Group, Node, Paint, PathCommand, Point, TextPaint};
+use crate::text::{Fonts, TEXT_DESCENT};
+
+mod text;
+use text::text_bounds;
 
 /// How far outside its size a node may reach before it counts as outside:
 /// float noise from scaling, not drawing room.
@@ -159,49 +162,6 @@ fn path_bounds(commands: &[PathCommand], stroke_width: f64) -> Option<Rect> {
     boxes.into_iter().reduce(Rect::union)
 }
 
-/// Each line spans its measured width, from the ascent above its baseline to
-/// the descent below it; a halo widens that on all four sides.
-fn text_bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
-    let Node::Text {
-        origin,
-        style,
-        ink,
-        anchor,
-        lines,
-        leading,
-    } = node
-    else {
-        panic!("expected text, got {node:?}");
-    };
-    let halo = match ink {
-        TextPaint::Fill(_) => 0.0,
-        TextPaint::Halo { width, .. } => f64::midpoint(0.0, *width),
-    };
-    let (ascent, descent) = (TEXT_ASCENT * style.size, TEXT_DESCENT * style.size);
-    lines
-        .iter()
-        .scan(origin.y, |baseline, line| {
-            let at = *baseline;
-            *baseline += leading;
-            Some((at, line))
-        })
-        .map(|(baseline, line)| {
-            let width = style.measure(line, fonts);
-            let left = match anchor {
-                Anchor::Start => origin.x,
-                Anchor::Middle => origin.x - f64::midpoint(0.0, width),
-            };
-            Rect {
-                left,
-                top: baseline - ascent,
-                right: left + width,
-                bottom: baseline + descent,
-            }
-            .grown(halo)
-        })
-        .reduce(Rect::union)
-}
-
 /// `a` moved by `b`.
 pub fn plus(a: Point, b: Point) -> Point {
     Point {
@@ -250,26 +210,7 @@ pub fn assert_finite(node: &Node) {
             group.children.iter().for_each(assert_finite);
             vec![group.offset.x, group.offset.y]
         }
-        Node::Text {
-            origin,
-            style,
-            ink,
-            leading,
-            ..
-        } => {
-            let halo = match ink {
-                TextPaint::Fill(_) => 0.0,
-                TextPaint::Halo { width, .. } => *width,
-            };
-            vec![
-                origin.x,
-                origin.y,
-                style.size,
-                style.letter_spacing,
-                *leading,
-                halo,
-            ]
-        }
+        Node::Text { .. } => text_numbers(node),
         Node::Circle {
             centre,
             radius,
@@ -302,6 +243,40 @@ pub fn assert_finite(node: &Node) {
     }
 }
 
+/// A text node's numbers: its position, sizes, leading, halo, and its
+/// tail's gap and sizes.
+fn text_numbers(node: &Node) -> Vec<f64> {
+    let Node::Text {
+        origin,
+        style,
+        ink,
+        leading,
+        tail,
+        ..
+    } = node
+    else {
+        return Vec::new();
+    };
+    let halo = match ink {
+        TextPaint::Fill(_) => 0.0,
+        TextPaint::Halo { width, .. } => *width,
+    };
+    let tail = tail
+        .as_ref()
+        .map_or([0.0; 3], |t| [t.gap, t.style.size, t.style.letter_spacing]);
+    [
+        origin.x,
+        origin.y,
+        style.size,
+        style.letter_spacing,
+        *leading,
+        halo,
+    ]
+    .into_iter()
+    .chain(tail)
+    .collect()
+}
+
 fn path_numbers(commands: &[PathCommand], stroke_width: f64) -> Vec<f64> {
     let mut numbers = vec![stroke_width];
     for command in commands {
@@ -330,7 +305,8 @@ mod tests {
     use super::*;
     use crate::layout::block::fonts;
     use crate::style::KEY_LABEL;
-    use crate::svg::{Group, ItemKey};
+    use crate::svg::{Anchor, Group, ItemKey, Tail};
+    use crate::text::TEXT_ASCENT;
 
     const INK: Paint = Paint::Role(Role::Neutral(Neutral::TextMuted));
 
@@ -342,6 +318,7 @@ mod tests {
             anchor,
             lines: lines.iter().map(|line| (*line).to_owned()).collect(),
             leading,
+            tail: None,
         }
     }
 
@@ -604,5 +581,41 @@ mod tests {
                 "the failure must name {bad}: {message}"
             );
         }
+    }
+
+    /// A tail extends its text's last line from where that line ends, not
+    /// from the widest line: here it reaches past the first line, and the
+    /// right edge is the tail's own.
+    #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    fn bounds_include_the_tail() {
+        let fonts = fonts();
+        let tail = Tail {
+            gap: 5.0,
+            style: KEY_LABEL,
+            ink: INK,
+            text: " Conditional · Moved In, and more".to_owned(),
+        };
+        let mut node = text(
+            Anchor::Start,
+            TextPaint::Fill(INK),
+            &["a long first line", "b"],
+            15.0,
+        );
+        if let Node::Text { tail: slot, .. } = &mut node {
+            *slot = Some(tail.clone());
+        }
+        let rect = bounds(&node, fonts).expect("bounds");
+        let tail_end = node.tail_x(fonts).expect("a tail") + KEY_LABEL.measure(&tail.text, fonts);
+        let first_end = 100.0 + KEY_LABEL.measure("a long first line", fonts);
+        assert!(
+            tail_end > first_end,
+            "the fixture's tail passes the first line"
+        );
+        assert!((rect.right - tail_end).abs() < 1e-9, "{rect:?}");
+        assert!((rect.bottom - (65.0 + TEXT_DESCENT * KEY_LABEL.size)).abs() < 1e-9);
     }
 }

@@ -3,7 +3,7 @@
 use super::{Context, attr, coord, paint, shows};
 use crate::escape::xml_text;
 use crate::style::TextStyle;
-use crate::svg::{Anchor, Point, TextPaint};
+use crate::svg::{Anchor, Point, Tail, TextPaint};
 use crate::text::FAMILY;
 
 /// A text node's fields.
@@ -14,6 +14,7 @@ pub(super) struct Run<'a> {
     pub(super) anchor: Anchor,
     pub(super) lines: &'a [String],
     pub(super) leading: f64,
+    pub(super) tail: Option<&'a Tail>,
 }
 
 /// One line as the content, several as `<tspan>`s at absolute baselines;
@@ -39,6 +40,9 @@ pub(super) fn text(run: &Run<'_>, context: Context<'_>) -> String {
     }
     out.push('>');
     out.push_str(&content(run));
+    if let Some(tail) = run.tail {
+        out.push_str(&super::tail::tspan(tail, run.style, context));
+    }
     out.push_str("</text>\n");
     out
 }

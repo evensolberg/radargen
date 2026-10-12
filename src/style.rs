@@ -32,6 +32,15 @@ impl TextStyle {
         }
     }
 
+    /// `text`'s advance in this style as the shaper lays it out (FR-84):
+    /// where drawn text ends, for text that continues it.
+    #[must_use]
+    pub fn advance(self, text: &str, fonts: &Fonts) -> f64 {
+        fonts
+            .face(self.weight)
+            .measure(text, self.size, self.letter_spacing)
+    }
+
     /// `text`'s advance in this style, measured with `fonts` (FR-84).
     #[must_use]
     pub fn measure(self, text: &str, fonts: &Fonts) -> f64 {
