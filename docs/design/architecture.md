@@ -1,7 +1,7 @@
 # radargen — Design
 
 **Status:** draft, for review
-**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.52
+**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.53
 **Date:** 2026-08-29
 
 > **What this document is for.** The PRD says *what* radargen does and carries
@@ -143,7 +143,7 @@ declarations only and are not listed.
 | `src/layout/block.rs` | The `Block` trait, `Size`, `Placement`; nothing domain-specific — arrives with the first block (PR 09), using `geometry::Point` | v1.0 |
 | `src/layout/title.rs` | Title block (FR-65) | v1.0 |
 | `src/layout/radar.rs` | Radar block: sectors, bands, markers, labels, FR-70's three scales | v1.0 |
-| `src/layout/legend.rs` | Legend block (FR-35, FR-74, FR-75) | v1.0 |
+| `src/layout/legend/` (`mod.rs`, `layout.rs`) | Legend block (FR-35, FR-74, FR-75) | v1.0 |
 | `src/layout/key.rs` | Encoding key (FR-66) | v1.0 |
 | `src/layout/arrange.rs` | Wide and narrow placement (FR-68–FR-71) | v1.0 |
 | `src/svg/mod.rs` | `Node`, `Document` — the SVG tree and its serialiser. `Node` arrives with the first block that renders (PR 09) and gains variants with each block; `Document` and the serialiser arrive in PR 13 | v1.0 |
@@ -298,6 +298,7 @@ pub enum Anchor { Start, Middle }
 pub enum Semantics {
     None, Decorative, Heading(NonZeroU8),
     Marker(Control),      // a radar marker as an interactive control (FR-50)
+    LegendRow(Control),   // a legend row as an interactive control (FR-50)
     Indicator(ItemKey),   // an item's focus ring and backing (FR-48)
 }
 
@@ -315,6 +316,8 @@ pub enum Node {
     Text { origin: Point, style: TextStyle, ink: TextPaint, anchor: Anchor,
            lines: Vec<String>, leading: f64 },
     Circle { centre: Point, radius: f64, fill: Paint, stroke: Paint, stroke_width: f64 },
+    Rect { origin: Point, width: f64, height: f64, radius: f64, fill: Paint,
+           stroke: Paint, stroke_width: f64 },
     Line { from: Point, to: Point, stroke: Paint, stroke_width: f64 },
     Path { commands: Vec<PathCommand>, fill: Paint, stroke: Paint, stroke_width: f64 },
     // An invisible pointer target for the item with this key (FR-94).
@@ -334,6 +337,11 @@ pub enum TextPaint { Fill(Paint), Halo { stroke: Paint, width: f64 } }
 ```
 
 Variants and `Semantics` values are added by the PR that first needs them.
+A legend row is a `Semantics::LegendRow` group (`data-row`, no `data-marker`):
+an opaque Surface2 `Rect` target, invisible on the panel but pointer-receiving in
+every format, then an inset indicator `Rect` in a `Semantics::Indicator(key)`
+group for focus and selection (rows abut, so a stroke on the target would be
+painted over by the next row).
 A `Text` node's first baseline is at `origin`; each further line is `leading`
 below.
 
@@ -451,18 +459,25 @@ rows (FR-17) have no key in any of them.
 which layer a node came from. A static image has no pointer or focus, so the
 SVG and PNG emitters skip every interactive-only node (the two layer groups drop
 whole) and write a `Control` as `<g aria-label><title>` without `role` or
-`tabindex`. The HTML emitter keeps them: a marker control carries `data-row` and
-`data-marker` (a legend-row control, PR 11, `data-row` only), a hit area
-`data-hit`, an indicator `data-indicator`, all keyed
-on the item's CSV line. Indicators are hidden by presentation attributes
-(`visibility="hidden" aria-hidden="true" pointer-events="none"`) and hit areas
-are `fill="none" pointer-events="all"`, so neither needs a CSS colour keyword. One
-indicator is shown by a generated per-key rule,
-`svg:has([data-marker="L"]:focus-visible) [data-indicator="L"] { visibility:
-visible }`, which needs no JavaScript. It is qualified to `data-marker`, not
-`data-row`, so a legend row for the same item (PR 11) does not light the
-marker's ring. Pointer events on a hit area are forwarded to the control with the
-same key by the delegated handler FR-37 needs.
+`tabindex`. The HTML emitter keeps them: a marker control carries `data-row`
+and `data-marker`, a legend-row control (PR 11) `data-row` and
+`data-legend-row`, a hit area `data-hit`, all keyed on the item's CSV line. An
+indicator is written by where it sits: inside a legend-row control it is that
+row's inset focus and selection rect, `data-row-indicator`; anywhere else (the
+radar's indicator layer) it is a marker's raised copy, `data-marker-indicator`.
+An emitter therefore drops interactive-only nodes at any depth, not only whole
+layers. Indicators are hidden by presentation attributes (`visibility="hidden"
+aria-hidden="true" pointer-events="none"`) and hit areas are `fill="none"
+pointer-events="all"`, so neither needs a CSS colour keyword. A marker's
+indicator is shown by a generated per-key rule, `svg:has([data-marker="L"]
+:focus-visible) [data-marker-indicator="L"] { visibility: visible }`, which
+needs no JavaScript. It is qualified to `data-marker` on both sides, so a legend
+row for the same item neither lights the marker's ring nor has its own indicator
+lit by the marker's focus. A legend row's indicator is shown by the row's own
+focus, with no `:has` and no per-key rule: `[data-legend-row]:focus-visible >
+[data-row-indicator] { visibility: visible }`. Pointer events on a hit area are
+forwarded to the control with the same key by the delegated handler FR-37
+needs.
 
 ## 6. Determinism, enforced structurally
 
@@ -768,7 +783,7 @@ that outlives the measurement behind it.
 | One `Document` type shared by three emitters could grow format-specific special cases | §5 admits exactly two — colour binding, and the omission of interactive-only nodes from static formats, because a static image has no pointer or focus — and gives the reason for each. If an emitter needs a *third*, that is the signal the waist is leaking: reject it at review |
 | Golden files are brittle against innocent refactors | That is what they are *for* (NFR-4), and `UPDATE_GOLDEN=1` makes accepting a change deliberate |
 | The `Catalogue` side-channel could become a second data path that drifts from the graphic (**§2**) | It is read-only and additive — the HTML emitter reads prose and unplotted rows from it, never geometry or numbering. Anything the two could disagree about comes from `Document` |
-| Legend height sets the document height past ~25 items (**R-3**) | Accepted for this version, per the PRD. The `Block` shape is what makes the likely answer — a multi-column legend in the wide arrangement — a change inside `layout/legend.rs` and nowhere else |
+| Legend height sets the document height past ~25 items (**R-3**) | Accepted for this version, per the PRD. The `Block` shape is what makes the likely answer — a multi-column legend in the wide arrangement — a change inside `layout/legend/` and nowhere else |
 | The pinned font (**R-7**) | Swapped to Inter before step 4 of §9 (PR 01). Subset sizes are in §3; no Reserved Font Name |
 | `emit/svg.rs` outlines its text, so it is a converter rather than a serialiser and costs more than §14.2 assumed (**§11**) | Accepted — the spike showed the alternative fails in two of the consumers tested, including our own `resvg`. Bounded to one file in v1.1; `Document` and the HTML output are untouched. Illustrator and Figma rest on secondary reports and are worth confirming first-hand while building v1.1, but no decision waits on that |
 | Both arrangements live in one DOM, so every interactive element exists twice and a breakpoint change can move the focused one out of the tree (**§5**) | No `id`s, identity as `data-row`, selection and focus-return keyed on the item rather than the element. The rule sits in `Document`'s shape, so the interactive layer cannot reintroduce it by forgetting |

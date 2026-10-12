@@ -8,6 +8,7 @@ use std::num::NonZeroU8;
 
 use crate::palette::{Neutral, Role};
 use crate::style::TextStyle;
+use crate::text::TEXT_DESCENT;
 
 /// A point in SVG user units; the origin depends on the frame it is used in.
 /// Geometry produces points before any block exists, so it lives here and
@@ -127,8 +128,14 @@ pub enum Semantics {
     /// An interactive item; static formats keep its label and tooltip but
     /// not its role or focusability.
     Marker(Control),
-    /// The raised copy of an item's marker, shown while the control has
-    /// focus. Interactive-only: static formats omit it.
+    /// A legend row as an interactive control (FR-50): `data-row`, and no
+    /// `data-marker`, which marks a radar marker. Static formats keep its
+    /// label but not its role or focusability.
+    LegendRow(Control),
+    /// A focus and selection indicator. Two uses: the raised copy of an
+    /// item's marker, and a legend row's inset rect. The emitter tells them
+    /// apart by the enclosing control (`data-marker-indicator` or
+    /// `data-row-indicator`). Interactive-only: static formats omit it.
     Indicator(ItemKey),
 }
 
@@ -213,6 +220,23 @@ pub enum Node {
         /// The outline's width.
         stroke_width: f64,
     },
+    /// A rectangle with rounded corners, `radius` on every corner.
+    Rect {
+        /// The top-left corner.
+        origin: Point,
+        /// The width, right of `origin`.
+        width: f64,
+        /// The height, below `origin`.
+        height: f64,
+        /// The corner radius; zero for square corners.
+        radius: f64,
+        /// The interior paint.
+        fill: Paint,
+        /// The outline paint.
+        stroke: Paint,
+        /// The outline's width.
+        stroke_width: f64,
+    },
     /// An invisible pointer target (FR-94). Interactive-only: static formats
     /// omit it.
     HitArea {
@@ -263,11 +287,16 @@ impl Node {
                     !group.children.is_empty()
                         && group.children.iter().all(Self::is_interactive_only)
                 }
-                Semantics::Decorative | Semantics::Heading(_) | Semantics::Marker(_) => false,
+                Semantics::Decorative
+                | Semantics::Heading(_)
+                | Semantics::Marker(_)
+                | Semantics::LegendRow(_) => false,
             },
-            Self::Circle { .. } | Self::Line { .. } | Self::Path { .. } | Self::Text { .. } => {
-                false
-            }
+            Self::Circle { .. }
+            | Self::Rect { .. }
+            | Self::Line { .. }
+            | Self::Path { .. }
+            | Self::Text { .. } => false,
         }
     }
 }
@@ -310,6 +339,24 @@ impl TextRun {
             },
             scale,
         )
+    }
+
+    /// The baseline of the last line, at scale 1.
+    #[must_use]
+    pub const fn last_baseline(&self) -> f64 {
+        #[expect(
+            clippy::cast_precision_loss,
+            clippy::as_conversions,
+            reason = "a line count is far below 2^53, so the conversion is exact"
+        )]
+        let gaps = self.lines.len().saturating_sub(1) as f64;
+        self.origin.y + gaps * self.leading
+    }
+
+    /// The lowest extent of the last line's descenders, at scale 1.
+    #[must_use]
+    pub const fn bottom(&self) -> f64 {
+        self.last_baseline() + TEXT_DESCENT * self.style.size
     }
 
     fn painted(&self, ink: TextPaint, scale: Scale) -> Node {
@@ -481,6 +528,18 @@ mod tests {
         }
     }
 
+    fn rect() -> Node {
+        Node::Rect {
+            origin: Point::ORIGIN,
+            width: 4.0,
+            height: 3.0,
+            radius: 1.0,
+            fill: Paint::None,
+            stroke: Paint::None,
+            stroke_width: 1.0,
+        }
+    }
+
     #[test]
     fn interactive_only_nodes_say_so() {
         let group = |children| Group::new(Point::ORIGIN, children);
@@ -505,6 +564,14 @@ mod tests {
         let heading = group(vec![hit(1)]).with(Semantics::Heading(LEVEL_1));
         assert!(!Node::Group(heading).is_interactive_only());
         assert!(!disc().is_interactive_only());
+        assert!(!rect().is_interactive_only());
+        let row = Control {
+            key: ItemKey(1),
+            label: "1".to_owned(),
+            tooltip: None,
+        };
+        let row = group(vec![rect(), hit(1)]).with(Semantics::LegendRow(row));
+        assert!(!Node::Group(row).is_interactive_only());
         let text = Node::Text {
             origin: Point::ORIGIN,
             style: crate::style::KEY_LABEL,

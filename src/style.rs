@@ -125,10 +125,85 @@ pub const INDENT_RING: f64 = 24.0;
 pub const INDENT_ITEM: f64 = 44.0;
 /// Between an item name and its trailing meta (FR-74).
 pub const META_GAP: f64 = 8.0;
+/// The "Legend" heading's baseline, from the content's top.
+pub const LEGEND_HEADING_BASELINE: f64 = 14.0;
+/// From the "Legend" heading's baseline to the first quadrant's.
+pub const LEGEND_HEADING_TO_GROUP: f64 = 22.0;
+/// The first quadrant heading's baseline, from the content's top.
+pub const LEGEND_FIRST_GROUP: f64 = LEGEND_HEADING_BASELINE + LEGEND_HEADING_TO_GROUP;
+/// From a quadrant heading's last baseline to its first ring heading's.
+pub const LEGEND_QUADRANT_TO_RING: f64 = 18.0;
+/// From a ring heading's last baseline to the top of its first row.
+pub const LEGEND_RING_TO_ROW: f64 = 4.0;
+/// From a ring's last row's bottom to the next ring heading's baseline.
+pub const LEGEND_ROW_TO_RING: f64 = 12.0;
+/// The extra space between one quadrant's group and the next, beyond the
+/// step that would separate two rings.
+pub const LEGEND_GROUP_GAP: f64 = 8.0;
+/// From a quadrant's last row's bottom to the next quadrant's baseline.
+pub const LEGEND_ROW_TO_QUADRANT: f64 = LEGEND_ROW_TO_RING + LEGEND_GROUP_GAP;
+/// From a quadrant with no rows to the next one: the heading-to-ring step plus
+/// the gap between groups.
+pub const LEGEND_EMPTY_GROUP_GAP: f64 = LEGEND_QUADRANT_TO_RING + LEGEND_GROUP_GAP;
+/// A row's least height, at scale 1. FR-94: it renders at least `MIN_TARGET_PX`
+/// tall at `MIN_PX_PER_UNIT` (asserted below, in every build). One line of
+/// name needs less; the rest is the target.
+pub const LEGEND_ROW_MIN_HEIGHT: f64 = 32.0;
+/// A row's height beyond its text lines: `n · LINE_HEIGHT + LEGEND_ROW_PAD`.
+pub const LEGEND_ROW_PAD: f64 = 7.0;
+/// The least height of a row's text block, so a one-line row's text is centred
+/// on its badge.
+pub const LEGEND_TEXT_MIN_HEIGHT: f64 = 17.0;
+/// From a row's text block's top to its first name baseline.
+pub const LEGEND_FIRST_BASELINE: f64 = 9.0;
+/// Between a row's badge and its name.
+pub const LEGEND_BADGE_TO_NAME: f64 = 8.0;
+/// A badge's centre, from the content's left edge.
+pub const LEGEND_BADGE_X: f64 = INDENT_ITEM + BADGE_RADIUS;
+/// Where a row's name starts: after the item indent, the badge and a gap.
+pub const LEGEND_NAME_X: f64 = INDENT_ITEM + 2.0 * BADGE_RADIUS + LEGEND_BADGE_TO_NAME;
+/// A row's target starts this far left of `INDENT_ITEM`.
+pub const LEGEND_ROW_LEFT_OUTSET: f64 = 6.0;
+/// A row's target ends this far right of the content width.
+pub const LEGEND_ROW_RIGHT_OUTSET: f64 = 4.0;
+/// A row target's corner radius.
+pub const LEGEND_ROW_RADIUS: f64 = 6.0;
+/// How far a row's focus and selection indicator sits inside its target, so
+/// the stroke is not painted over by the next row (rows abut).
+pub const LEGEND_ROW_INDICATOR_INSET: f64 = 1.0;
+/// The legend panel's padding left and right of the content.
+pub const LEGEND_PANEL_INSET_X: f64 = 12.0;
+/// The legend panel's padding above and below the content.
+pub const LEGEND_PANEL_INSET_Y: f64 = 8.0;
+/// The legend panel's corner radius.
+pub const LEGEND_PANEL_RADIUS: f64 = 8.0;
 /// FR-79's fixed maximum for the legend block; its rendered width is the lesser
 /// of this and the longest measured line. One value for both arrangements, so
 /// the narrow document always holds it (D-56).
 pub const LEGEND_WIDTH_MAX: f64 = NARROW_WIDTH - 2.0 * MARGIN;
+/// The column a row's name and meta wrap in: `LEGEND_WIDTH_MAX` less the
+/// name's indent.
+pub const LEGEND_NAME_COLUMN: f64 = LEGEND_WIDTH_MAX - LEGEND_NAME_X;
+
+// FR-94: a legend row is at least `MIN_TARGET_PX` tall wherever the document
+// renders smallest.
+const _: () = assert!(
+    LEGEND_ROW_MIN_HEIGHT * MIN_PX_PER_UNIT >= MIN_TARGET_PX,
+    "FR-94: a legend row must be at least MIN_TARGET_PX tall"
+);
+// D-56: the content wraps at `LEGEND_WIDTH_MAX` and the panel reaches
+// `LEGEND_PANEL_INSET_X` past it each side, so the block is placed at
+// `MARGIN - LEGEND_PANEL_INSET_X` and must not reach past the document's edge.
+const _: () = assert!(
+    LEGEND_PANEL_INSET_X <= MARGIN,
+    "D-56: the legend panel must not reach past the document's edge"
+);
+// The indicator's corners are concentric with the target's, radius
+// `LEGEND_ROW_RADIUS - LEGEND_ROW_INDICATOR_INSET`, which must stay positive.
+const _: () = assert!(
+    LEGEND_ROW_INDICATOR_INSET < LEGEND_ROW_RADIUS,
+    "a row's indicator must sit inside its target's rounded corners"
+);
 
 // --- Markers (FR-20, FR-40) -----------------------------------------------------
 /// OQ-16's home: whether this is user units or output pixels is a change to
@@ -148,6 +223,8 @@ pub const BADGE_STROKE: f64 = 1.5;
 pub const BADGE_HOLLOW_STROKE: f64 = 2.0;
 /// FR-35's quadrant-colour swatch beside each legend group heading.
 pub const SWATCH_RADIUS: f64 = 5.0;
+/// The swatch's centre sits this far above its heading's first baseline.
+pub const SWATCH_RAISE: f64 = 4.0;
 /// FR-40's status ring sits this far outside the marker.
 pub const STATUS_RING_GAP: f64 = 4.0;
 /// Stroke width of the status ring (FR-40).
@@ -317,6 +394,28 @@ mod tests {
             badge < clear(BADGE_RADIUS, BADGE_HOLLOW_STROKE),
             "{badge} does not fit the badge"
         );
+    }
+
+    /// OQ-16, as on the markers: three digits do not fit a hollow badge.
+    /// Recorded so a change of face or size that makes them fit is noticed.
+    #[test]
+    fn three_digit_numbers_overflow_the_badge() {
+        let fonts = Fonts::embedded().expect("faces");
+        let t = LEGEND_BADGE_NUMBER;
+        let widest = (100..=999_u32)
+            .map(|n| {
+                fonts
+                    .face(t.weight)
+                    .measure(&n.to_string(), t.size, t.letter_spacing)
+            })
+            .fold(0.0_f64, f64::max);
+        // A hollow stroke is centred on r, so the clear interior is 2r − stroke.
+        #[expect(
+            clippy::suboptimal_flops,
+            reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+        )]
+        let clear = 2.0 * BADGE_RADIUS - BADGE_HOLLOW_STROKE;
+        assert!(widest > clear, "OQ-16: {widest} now fits in {clear}");
     }
 
     #[test]

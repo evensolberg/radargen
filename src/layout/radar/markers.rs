@@ -3,7 +3,7 @@
 //! number, its pointer target and its focus indicator.
 
 use crate::layout::geometry::place;
-use crate::layout::marker::{Glyph, StatusMark};
+use crate::layout::marker::{Glyph, StatusMark, number_paint, number_text};
 use crate::layout::radar::RadarScale;
 use crate::model::{Catalogue, Qualifier, Status};
 use crate::order::Plotted;
@@ -11,15 +11,8 @@ use crate::palette::{Neutral, Role};
 use crate::style::{
     FOCUS_RING_GAP, FOCUS_RING_STROKE, HIT_RADIUS, INDICATOR_REACH, MARKER_NUMBER, MARKER_RADIUS,
 };
-use crate::svg::{Anchor, Control, Group, ItemKey, Node, Paint, Point, Semantics, TextPaint};
-use crate::text::{TEXT_ASCENT, TEXT_DESCENT};
+use crate::svg::{Control, Group, ItemKey, Node, Paint, Point, Semantics};
 use crate::trim;
-
-/// How far below a marker's centre its number's baseline sits, per unit of
-/// font size: the em box's centre (CSS `dominant-baseline: central`, as the
-/// mockup has it). For Inter that is also half the cap height, because
-/// 1984 - 494 = 1490 = capHeight, so lining digits sit centred on the marker.
-const NUMBER_CENTRING: f64 = f64::midpoint(TEXT_ASCENT, -TEXT_DESCENT);
 
 /// One plotted item, ready to draw.
 #[derive(Debug, Clone, PartialEq)]
@@ -114,30 +107,16 @@ fn glyph_nodes(m: &Marker, r: RadarScale) -> Vec<Node> {
     .draw(r.marker())
 }
 
-/// A marker's FR-34 number, centred on it: in primary text on a hollow
-/// marker, else in the ink its series entry calls for (D-54).
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
-)]
+/// A marker's FR-34 number, centred on it.
 fn number_node(m: &Marker, r: RadarScale) -> Node {
-    let paint = if m.qualifier.is_some_and(Qualifier::is_hollow) {
-        Paint::Role(Role::Neutral(Neutral::TextPrimary))
-    } else {
-        Paint::NumberOn(m.series)
-    };
-    let centre = m.centre(r);
-    Node::Text {
-        origin: Point {
-            x: centre.x,
-            y: centre.y + NUMBER_CENTRING * MARKER_NUMBER.size * r.marks,
-        },
-        style: MARKER_NUMBER.scaled(r.marks),
-        ink: TextPaint::Fill(paint),
-        anchor: Anchor::Middle,
-        lines: vec![m.number.to_string()],
-        leading: 0.0,
-    }
+    let hollow = m.qualifier.is_some_and(Qualifier::is_hollow);
+    number_text(
+        m.centre(r),
+        MARKER_NUMBER,
+        number_paint(hollow, m.series),
+        m.number,
+        r.marks,
+    )
 }
 
 /// A marker's pointer target (FR-94), at natural size or larger.
@@ -197,16 +176,18 @@ mod tests {
     use crate::layout::geometry::{Geometry, polar};
     use crate::layout::radar::RadarBlock;
     use crate::layout::radar::tests::{
-        HEADER, MARKED_HEADER, PRD_EXAMPLE, Text, block, crowded, csv_of, frame, frame_at,
-        marked_csv, quadrants, text,
+        HEADER, MARKED_HEADER, Text, block, crowded, csv_of, frame, frame_at, marked_csv,
+        quadrants, text,
     };
-    use crate::layout::test_support::{fill, near, plotted, plus};
+    use crate::layout::test_support::{PRD_EXAMPLE, fill, near, plotted, plus};
     use crate::model::Item;
     use crate::palette::{Palette, Theme};
     use crate::style::{
         MARKER_HOLLOW_STROKE, MARKER_STROKE, RADAR_FLOOR, STATUS_RING_GAP, STATUS_RING_STROKE,
     };
     use crate::svg::PathCommand;
+    use crate::svg::{Anchor, TextPaint};
+    use crate::text::NUMBER_CENTRING;
 
     /// Every marker control among the centring group's children: its index
     /// there, its control and its children.

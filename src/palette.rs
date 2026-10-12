@@ -417,6 +417,47 @@ mod tests {
         }
     }
 
+    /// Legend text sits on the panel, `Surface2` (WCAG 1.4.3), in both themes.
+    #[test]
+    fn text_clears_4_5_on_surface2() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let p = Palette::built_in(theme);
+            let surface = p.value(Role::Neutral(Neutral::Surface2));
+            for ink in [Neutral::TextPrimary, Neutral::TextMuted] {
+                let ratio = contrast(p.value(Role::Neutral(ink)), surface);
+                assert!(ratio >= 4.5, "{theme:?} {ink:?}: {ratio:.2}");
+            }
+        }
+    }
+
+    /// SC-20: a legend row has no backing, so its focus indicator is measured
+    /// against `Surface2` (WCAG 1.4.11), in both themes.
+    #[test]
+    fn focus_clears_3_on_surface2() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let p = Palette::built_in(theme);
+            let ratio = contrast(
+                p.value(Role::Neutral(Neutral::Focus)),
+                p.value(Role::Neutral(Neutral::Surface2)),
+            );
+            assert!(ratio >= 3.0, "{theme:?}: {ratio:.2}");
+        }
+    }
+
+    /// The legend swatch and badge are a series entry on the panel, so each
+    /// entry clears 3:1 (WCAG 1.4.11) against `Surface2`, in both themes.
+    #[test]
+    fn series_clear_3_on_surface2() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let p = Palette::built_in(theme);
+            let surface = p.value(Role::Neutral(Neutral::Surface2));
+            for i in 0..BUILT_IN_SERIES.len() {
+                let ratio = contrast(p.value(Role::Series(i)), surface);
+                assert!(ratio >= 3.0, "{theme:?} series {i}: {ratio:.2}");
+            }
+        }
+    }
+
     #[test]
     fn contrast_matches_wcag_reference_values() {
         assert!((contrast("#FFFFFF", "#000000") - 21.0).abs() < 1e-9);

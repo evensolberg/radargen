@@ -3,6 +3,7 @@
 pub mod block;
 pub mod geometry;
 pub mod key;
+pub mod legend;
 pub mod marker;
 pub mod radar;
 pub mod title;
