@@ -217,7 +217,9 @@ impl Catalogue {
         let row = [
             Some(trim(&item.name)),
             item.qualifier.map(Qualifier::label),
-            item.status.map(Status::label),
+            item.status
+                .filter(|s| *s != Status::NoChange)
+                .map(Status::label),
         ]
         .into_iter()
         .flatten()
@@ -1360,6 +1362,28 @@ mod tests {
         assert_eq!(
             cat.accessible_name(old, None),
             "Old; Tool quadrant, Rejected ring; not on the radar"
+        );
+    }
+
+    /// `No Change` is FR-40's plain marker and no row shows it, so the name
+    /// leaves it out (FR-50); `New` is shown and stays.
+    #[test]
+    fn accessible_name_omits_no_change_and_keeps_new() {
+        let cat = catalogue(&format!(
+            "{FULL}Kept,Tool,adopt,d,,,,new
+Plain,Tool,adopt,d,,,,no change\n"
+        ));
+        let [kept, plain] = cat.items.as_slice() else {
+            panic!("expected two items: {:#?}", cat.items)
+        };
+        assert_eq!(plain.status, Some(Status::NoChange));
+        assert_eq!(
+            cat.accessible_name(kept, Some(1)),
+            "1. Kept, New; Tool quadrant, Adopt ring"
+        );
+        assert_eq!(
+            cat.accessible_name(plain, Some(2)),
+            "2. Plain; Tool quadrant, Adopt ring"
         );
     }
 

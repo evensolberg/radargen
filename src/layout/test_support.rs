@@ -14,6 +14,9 @@ use crate::rings::parse_rings;
 use crate::svg::{Anchor, Node, Paint, PathCommand, Point, TextPaint};
 use crate::text::{Fonts, TEXT_ASCENT, TEXT_DESCENT};
 
+/// The PRD's three-quadrant example (§12), shared by every block's tests.
+pub(crate) const PRD_EXAMPLE: &str = include_str!("../../tests/fixtures/three-quadrant.csv");
+
 /// How far outside its size a node may reach before it counts as outside:
 /// float noise from scaling, not drawing room.
 const SLACK: f64 = 1e-9;
@@ -99,6 +102,21 @@ pub(crate) fn bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
             *centre,
             radius + f64::midpoint(0.0, *stroke_width),
         )),
+        Node::Rect {
+            origin,
+            width,
+            height,
+            stroke_width,
+            ..
+        } => Some(
+            Rect {
+                left: origin.x,
+                top: origin.y,
+                right: origin.x + width,
+                bottom: origin.y + height,
+            }
+            .grown(f64::midpoint(0.0, *stroke_width)),
+        ),
         Node::HitArea { centre, radius, .. } => Some(Rect::disc(*centre, *radius)),
         Node::Line {
             from,
@@ -269,6 +287,14 @@ pub(crate) fn assert_finite(node: &Node) {
             stroke_width,
             ..
         } => vec![centre.x, centre.y, *radius, *stroke_width],
+        Node::Rect {
+            origin,
+            width,
+            height,
+            radius,
+            stroke_width,
+            ..
+        } => vec![origin.x, origin.y, *width, *height, *radius, *stroke_width],
         Node::HitArea { centre, radius, .. } => vec![centre.x, centre.y, *radius],
         Node::Line {
             from,
@@ -455,6 +481,24 @@ mod tests {
     }
 
     #[test]
+    fn a_rect_reaches_half_its_stroke_past_its_sides() {
+        let fonts = fonts();
+        let node = Node::Rect {
+            origin: Point { x: 10.0, y: 20.0 },
+            width: 30.0,
+            height: 8.0,
+            radius: 6.0,
+            fill: INK,
+            stroke: INK,
+            stroke_width: 2.0,
+        };
+        same(
+            bounds(&node, fonts).expect("paints"),
+            [9.0, 19.0, 41.0, 29.0],
+        );
+    }
+
+    #[test]
     fn a_hit_area_is_its_circle() {
         let fonts = fonts();
         let node = Node::HitArea {
@@ -548,6 +592,20 @@ mod tests {
             key: ItemKey(0),
         };
         assert_finite(&hit(1.0));
+        let rect = |height| Node::Rect {
+            origin: Point::ORIGIN,
+            width: 1.0,
+            height,
+            radius: 0.0,
+            fill: INK,
+            stroke: INK,
+            stroke_width: 1.0,
+        };
+        assert_finite(&rect(1.0));
+        let message = panic_message(std::panic::catch_unwind(|| {
+            assert_finite(&rect(f64::INFINITY));
+        }));
+        assert!(message.contains("inf"), "{message}");
         let message = panic_message(std::panic::catch_unwind(|| assert_finite(&hit(f64::NAN))));
         assert!(message.contains("NaN"), "{message}");
         for bad in [f64::NAN, f64::INFINITY] {

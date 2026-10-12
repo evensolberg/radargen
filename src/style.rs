@@ -125,10 +125,67 @@ pub const INDENT_RING: f64 = 24.0;
 pub const INDENT_ITEM: f64 = 44.0;
 /// Between an item name and its trailing meta (FR-74).
 pub const META_GAP: f64 = 8.0;
+/// The "Legend" heading's baseline, from the content's top.
+pub const LEGEND_HEADING_BASELINE: f64 = 14.0;
+/// From the "Legend" heading's baseline to the first quadrant's.
+pub const LEGEND_HEADING_TO_GROUP: f64 = 22.0;
+/// From a quadrant heading's last baseline to its first ring heading's.
+pub const LEGEND_QUADRANT_TO_RING: f64 = 18.0;
+/// From a ring heading's last baseline to the top of its first row.
+pub const LEGEND_RING_TO_ROW: f64 = 4.0;
+/// From a ring's last row's bottom to the next ring heading's baseline.
+pub const LEGEND_ROW_TO_RING: f64 = 12.0;
+/// From a quadrant's last row's bottom to the next quadrant's baseline.
+pub const LEGEND_ROW_TO_QUADRANT: f64 = 20.0;
+/// From a quadrant with no rows to the next one: the heading-to-ring step plus
+/// the 8 between groups.
+pub const LEGEND_EMPTY_GROUP_GAP: f64 = 26.0;
+/// A row's least height, at scale 1. FR-94: it renders at least `MIN_TARGET_PX`
+/// tall at `MIN_PX_PER_UNIT` (asserted below, in every build). One line of
+/// name needs less; the rest is the target.
+pub const LEGEND_ROW_MIN_HEIGHT: f64 = 32.0;
+/// A row's height beyond its text lines: `n · LINE_HEIGHT + LEGEND_ROW_PAD`.
+pub const LEGEND_ROW_PAD: f64 = 7.0;
+/// The least height of a row's text block, so a one-line row's text is centred
+/// on its badge.
+pub const LEGEND_TEXT_MIN_HEIGHT: f64 = 17.0;
+/// From a row's text block's top to its first name baseline.
+pub const LEGEND_FIRST_BASELINE: f64 = 9.0;
+/// Where a row's name starts: after the item indent, the badge and a gap.
+pub const LEGEND_NAME_X: f64 = INDENT_ITEM + 2.0 * BADGE_RADIUS + 8.0;
+/// A row's target starts this far left of `INDENT_ITEM`.
+pub const LEGEND_ROW_LEFT_OUTSET: f64 = 6.0;
+/// A row's target ends this far right of the content width.
+pub const LEGEND_ROW_RIGHT_OUTSET: f64 = 4.0;
+/// A row target's corner radius.
+pub const LEGEND_ROW_RADIUS: f64 = 6.0;
+/// How far a row's focus and selection indicator sits inside its target, so
+/// the stroke is not painted over by the next row (rows abut).
+pub const LEGEND_ROW_INDICATOR_INSET: f64 = 1.0;
+/// The legend panel's padding left and right of the content.
+pub const LEGEND_PANEL_INSET_X: f64 = 12.0;
+/// The legend panel's padding above and below the content.
+pub const LEGEND_PANEL_INSET_Y: f64 = 8.0;
+/// The legend panel's corner radius.
+pub const LEGEND_PANEL_RADIUS: f64 = 8.0;
 /// FR-79's fixed maximum for the legend block; its rendered width is the lesser
 /// of this and the longest measured line. One value for both arrangements, so
 /// the narrow document always holds it (D-56).
 pub const LEGEND_WIDTH_MAX: f64 = NARROW_WIDTH - 2.0 * MARGIN;
+
+// FR-94: a legend row is at least `MIN_TARGET_PX` tall wherever the document
+// renders smallest, and its width is far beyond it.
+const _: () = assert!(
+    LEGEND_ROW_MIN_HEIGHT * MIN_PX_PER_UNIT >= MIN_TARGET_PX,
+    "FR-94: a legend row must be at least MIN_TARGET_PX tall"
+);
+// D-56: the content wraps at `LEGEND_WIDTH_MAX` and the panel reaches
+// `LEGEND_PANEL_INSET_X` past it each side, so the block is placed at
+// `MARGIN - LEGEND_PANEL_INSET_X` and must not reach past the document's edge.
+const _: () = assert!(
+    LEGEND_PANEL_INSET_X <= MARGIN,
+    "D-56: the legend panel must not reach past the document's edge"
+);
 
 // --- Markers (FR-20, FR-40) -----------------------------------------------------
 /// OQ-16's home: whether this is user units or output pixels is a change to
@@ -148,6 +205,8 @@ pub const BADGE_STROKE: f64 = 1.5;
 pub const BADGE_HOLLOW_STROKE: f64 = 2.0;
 /// FR-35's quadrant-colour swatch beside each legend group heading.
 pub const SWATCH_RADIUS: f64 = 5.0;
+/// The swatch's centre sits this far above its heading's first baseline.
+pub const SWATCH_RAISE: f64 = 4.0;
 /// FR-40's status ring sits this far outside the marker.
 pub const STATUS_RING_GAP: f64 = 4.0;
 /// Stroke width of the status ring (FR-40).

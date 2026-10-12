@@ -22,6 +22,12 @@ pub const TEXT_ASCENT: f64 = 1984.0 / 2048.0;
 /// Inter's descent as a fraction of the em: the negated `hhea` descender,
 /// 494, over 2048 units per em. The line gap is 0 in both faces.
 pub const TEXT_DESCENT: f64 = 494.0 / 2048.0;
+/// How far below a centre a number's baseline sits, per unit of font size.
+///
+/// The em box's centre (CSS `dominant-baseline: central`), which for Inter is
+/// also half the cap height, because 1984 - 494 = 1490 = capHeight, so lining
+/// digits sit centred on a marker or badge.
+pub const NUMBER_CENTRING: f64 = f64::midpoint(TEXT_ASCENT, -TEXT_DESCENT);
 
 /// FR-85 pins exactly two weights; FR-35 separates the legend's levels with
 /// them plus size, letter-spacing and indentation.
@@ -267,6 +273,14 @@ impl Column<'_, '_> {
 mod tests {
     use super::*;
     use ttf_parser::Face;
+
+    #[test]
+    fn number_centring_is_half_inters_cap_height() {
+        assert!((NUMBER_CENTRING - 1490.0 / 4096.0).abs() < 1e-12);
+        let face = Face::parse(REGULAR_TTF, 0).expect("the vendored face parses");
+        let cap = f64::from(face.capital_height().expect("Inter has a cap height"));
+        assert!((NUMBER_CENTRING - cap / 4096.0).abs() < 1e-12);
+    }
 
     #[test]
     fn text_metrics_match_the_vendored_faces() {

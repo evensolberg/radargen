@@ -457,12 +457,13 @@ mod tests {
     use super::*;
     use crate::layout::block::{assert_translates, at, close, fonts};
     use crate::layout::geometry::place;
-    use crate::layout::test_support::{Rect, assert_finite, bounds, fill, near, plotted, plus};
+    use crate::layout::test_support::{
+        PRD_EXAMPLE, Rect, assert_finite, bounds, fill, near, plotted, plus,
+    };
     use crate::svg::TextPaint;
     use crate::text::Weight;
 
     pub(super) const HEADER: &str = "name,quadrant,ring,description\n";
-    pub(super) const PRD_EXAMPLE: &str = include_str!("../../../tests/fixtures/three-quadrant.csv");
     /// How near the block's edge the drawn labels must come: float noise.
     const TIGHT: f64 = 1e-6;
 

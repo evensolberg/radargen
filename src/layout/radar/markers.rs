@@ -12,14 +12,8 @@ use crate::style::{
     FOCUS_RING_GAP, FOCUS_RING_STROKE, HIT_RADIUS, INDICATOR_REACH, MARKER_NUMBER, MARKER_RADIUS,
 };
 use crate::svg::{Anchor, Control, Group, ItemKey, Node, Paint, Point, Semantics, TextPaint};
-use crate::text::{TEXT_ASCENT, TEXT_DESCENT};
+use crate::text::NUMBER_CENTRING;
 use crate::trim;
-
-/// How far below a marker's centre its number's baseline sits, per unit of
-/// font size: the em box's centre (CSS `dominant-baseline: central`, as the
-/// mockup has it). For Inter that is also half the cap height, because
-/// 1984 - 494 = 1490 = capHeight, so lining digits sit centred on the marker.
-const NUMBER_CENTRING: f64 = f64::midpoint(TEXT_ASCENT, -TEXT_DESCENT);
 
 /// One plotted item, ready to draw.
 #[derive(Debug, Clone, PartialEq)]
@@ -197,10 +191,10 @@ mod tests {
     use crate::layout::geometry::{Geometry, polar};
     use crate::layout::radar::RadarBlock;
     use crate::layout::radar::tests::{
-        HEADER, MARKED_HEADER, PRD_EXAMPLE, Text, block, crowded, csv_of, frame, frame_at,
-        marked_csv, quadrants, text,
+        HEADER, MARKED_HEADER, Text, block, crowded, csv_of, frame, frame_at, marked_csv,
+        quadrants, text,
     };
-    use crate::layout::test_support::{fill, near, plotted, plus};
+    use crate::layout::test_support::{PRD_EXAMPLE, fill, near, plotted, plus};
     use crate::model::Item;
     use crate::palette::{Palette, Theme};
     use crate::style::{
