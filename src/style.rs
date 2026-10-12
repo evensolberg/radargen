@@ -479,6 +479,10 @@ mod tests {
     /// OQ-16 (d): the marker must hold its number. Two digits is the common
     /// case at realistic item counts; three is OQ-16's problem, not this one's.
     #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
     fn two_digit_numbers_fit_inside_the_marker() {
         let fonts = Fonts::embedded().expect("faces");
         let widest = |t: TextStyle| {
@@ -491,7 +495,7 @@ mod tests {
                 .fold(0.0_f64, f64::max)
         };
         // A hollow stroke is centred on r, so the clear interior is 2r − stroke.
-        let clear = |r: f64, stroke: f64| r.mul_add(2.0, -stroke);
+        let clear = |r: f64, stroke: f64| 2.0 * r - stroke;
         let marker = widest(MARKER_NUMBER);
         assert!(
             marker < clear(MARKER_RADIUS, MARKER_HOLLOW_STROKE),
