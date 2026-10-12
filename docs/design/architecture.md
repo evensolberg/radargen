@@ -1,7 +1,7 @@
 # radargen — Design
 
 **Status:** draft, for review
-**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.52
+**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.53
 **Date:** 2026-08-29
 
 > **What this document is for.** The PRD says *what* radargen does and carries
@@ -298,6 +298,7 @@ pub enum Anchor { Start, Middle }
 pub enum Semantics {
     None, Decorative, Heading(NonZeroU8),
     Marker(Control),      // a radar marker as an interactive control (FR-50)
+    LegendRow(Control),   // a legend row as an interactive control (FR-50)
     Indicator(ItemKey),   // an item's focus ring and backing (FR-48)
 }
 
@@ -315,6 +316,8 @@ pub enum Node {
     Text { origin: Point, style: TextStyle, ink: TextPaint, anchor: Anchor,
            lines: Vec<String>, leading: f64 },
     Circle { centre: Point, radius: f64, fill: Paint, stroke: Paint, stroke_width: f64 },
+    Rect { origin: Point, width: f64, height: f64, radius: f64, fill: Paint,
+           stroke: Paint, stroke_width: f64 },
     Line { from: Point, to: Point, stroke: Paint, stroke_width: f64 },
     Path { commands: Vec<PathCommand>, fill: Paint, stroke: Paint, stroke_width: f64 },
     // An invisible pointer target for the item with this key (FR-94).
@@ -334,6 +337,11 @@ pub enum TextPaint { Fill(Paint), Halo { stroke: Paint, width: f64 } }
 ```
 
 Variants and `Semantics` values are added by the PR that first needs them.
+A legend row is a `Semantics::LegendRow` group (`data-row`, no `data-marker`):
+an opaque Surface2 `Rect` target, invisible on the panel but pointer-receiving in
+every format, then an inset indicator `Rect` in a `Semantics::Indicator(key)`
+group for focus and selection (rows abut, so a stroke on the target would be
+painted over by the next row).
 A `Text` node's first baseline is at `origin`; each further line is `leading`
 below.
 
