@@ -5,3 +5,6 @@
 *.ttf binary
 *.woff2 binary
 *.png binary
+
+# Golden files are compared byte for byte: git must never convert them.
+tests/golden/** -text
