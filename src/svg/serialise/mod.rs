@@ -98,7 +98,6 @@ impl<'a> Context<'a> {
 /// A text keeps its tspans on its own line: whitespace between them would
 /// render as a space in a browser.
 #[must_use]
-// qual:api — PR 14's main.rs is its first production caller
 pub fn serialise(document: &Document, target: Target<'_>) -> String {
     let context = Context::top(target);
     let mut out = String::from("<svg");

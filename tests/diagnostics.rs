@@ -5,7 +5,8 @@ use std::sync::Arc;
 
 use radargen::columns::ColumnKind;
 use radargen::diagnostics::{
-    DateColumn, Fatal, Position, RenderKind, RowKind, Separator, Warning, Warnings, column_label,
+    Binding, DateColumn, Fatal, Position, RenderKind, RowKind, Separator, Warning, Warnings,
+    column_label,
 };
 use radargen::rings::{RingSource, RingsError};
 
@@ -992,4 +993,77 @@ fn interior_format_characters_are_escaped_except_joiners_and_tags() {
         let shown = ring(3, kept).to_string();
         assert!(shown.contains(&format!("'{kept}'")), "{shown}");
     }
+}
+
+/// The pipeline's own tier-one messages (plan RG-014A, Task 1).
+#[test]
+fn pipeline_messages() {
+    let cases = [
+        (
+            Fatal::MissingDirectory {
+                path: "out/radar.html".into(),
+                dir: "out".into(),
+            },
+            "error: -o out/radar.html: the directory out does not exist",
+        ),
+        (
+            Fatal::OutputIsInput {
+                path: "radar.csv".into(),
+            },
+            "error: -o radar.csv: is the input CSV; choose another output path",
+        ),
+    ];
+    for (fatal, expected) in cases {
+        assert_eq!(fatal.render(), expected);
+    }
+}
+
+/// NFR-15: a face that does not parse is named, so the message says which.
+#[test]
+fn a_font_failure_names_the_face() {
+    let Err(error) = radargen::text::FontMetrics::load(b"x", "Inter SemiBold") else {
+        panic!("one byte is not a font");
+    };
+    let line = Fatal::from(error).render();
+    assert!(
+        line.starts_with("error: the embedded Inter SemiBold font cannot be read: "),
+        "{line}"
+    );
+}
+
+/// FR-95 names the label that sets the width, quadrant or ring (D-73),
+/// trimmed and single-quoted as FR-89's names are.
+#[test]
+fn fr95_names_a_quadrant_or_a_ring() {
+    let cases = [
+        (
+            RenderKind::NarrowWidened {
+                binding: Binding::Quadrant(" Infrastructure Platforms and Tooling ".into()),
+                width: 503,
+            },
+            "the narrow arrangement is 503 units wide, past the 480 its legend rows and marker targets are sized for, so on a 320-pixel screen they fall below 24 pixels; a shorter name for quadrant 'Infrastructure Platforms and Tooling' would fix it",
+        ),
+        (
+            RenderKind::NarrowWidened {
+                binding: Binding::Ring("Under evaluation by the architecture board".into()),
+                width: 750,
+            },
+            "the narrow arrangement is 750 units wide, past the 480 its legend rows and marker targets are sized for, so on a 320-pixel screen they fall below 24 pixels; a shorter name for ring 'Under evaluation by the architecture board' in --rings would fix it",
+        ),
+    ];
+    for (kind, expected) in cases {
+        assert_eq!(Warning::Render(kind).to_string(), expected);
+    }
+}
+
+/// NFR-12 and SC-25: the output carries `major.minor`, never the patch.
+#[test]
+fn output_version_has_no_patch() {
+    let mut parts = env!("CARGO_PKG_VERSION").split('.');
+    let major = parts.next().expect("a major version");
+    let minor = parts.next().expect("a minor version");
+    assert_eq!(
+        radargen::emit::OUTPUT_VERSION,
+        format!("radargen {major}.{minor}")
+    );
 }

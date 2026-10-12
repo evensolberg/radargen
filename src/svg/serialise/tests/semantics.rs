@@ -41,6 +41,22 @@ fn headings_and_decoration_in_both_targets() {
     }
 }
 
+/// rg-eae: a named group reads the same in both targets.
+#[test]
+fn a_named_group_in_both_targets() {
+    let palette = light();
+    for target in [Target::Interactive(&palette), Target::Static(&palette)] {
+        let group = one(
+            &semantic(Semantics::Group("Technology radar".into()), vec![dot()]),
+            target,
+        );
+        assert_eq!(
+            first_line(&group),
+            "<g role=\"group\" aria-label=\"Technology radar\">"
+        );
+    }
+}
+
 #[test]
 fn controls_differ_by_target() {
     let palette = light();

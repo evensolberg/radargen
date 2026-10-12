@@ -3,7 +3,7 @@
 use radargen::text::{FontMetrics, REGULAR_TTF as FONT, wrap};
 
 fn main() {
-    let m = FontMetrics::load(FONT).expect("font parses");
+    let m = FontMetrics::load(FONT, "Inter Regular").expect("font parses");
     for size in [12.5, 20.0] {
         for ls in [0.0, 0.4] {
             for text in [

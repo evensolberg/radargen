@@ -52,8 +52,11 @@ impl Weight {
 
 /// A vendored face the shaper cannot read: NFR-15's font load failure.
 #[derive(Debug, thiserror::Error)]
-#[error("the embedded font cannot be read: {0}")]
-pub struct FontError(String);
+#[error("the embedded {face} font cannot be read: {reason}")]
+pub struct FontError {
+    face: &'static str,
+    reason: String,
+}
 
 /// Both faces, parsed once at startup and passed down.
 ///
@@ -75,8 +78,8 @@ impl Fonts {
     /// A vendored face that `harfrust` cannot read.
     pub fn embedded() -> Result<Self, FontError> {
         Ok(Self {
-            regular: FontMetrics::load(REGULAR_TTF)?,
-            semibold: FontMetrics::load(SEMIBOLD_TTF)?,
+            regular: FontMetrics::load(REGULAR_TTF, "Inter Regular")?,
+            semibold: FontMetrics::load(SEMIBOLD_TTF, "Inter SemiBold")?,
         })
     }
 
@@ -99,13 +102,17 @@ pub struct FontMetrics<'a> {
 }
 
 impl<'a> FontMetrics<'a> {
-    /// Parse a font face for shaping.
+    /// Parse a font face for shaping; `face` names it in the error
+    /// (NFR-15), since the binary embeds more than one.
     ///
     /// # Errors
     ///
     /// [`FontError`] if `data` is not a font `harfrust` can read.
-    pub fn load(data: &'a [u8]) -> Result<Self, FontError> {
-        let font = FontRef::from_index(data, 0).map_err(|e| FontError(e.to_string()))?;
+    pub fn load(data: &'a [u8], face: &'static str) -> Result<Self, FontError> {
+        let font = FontRef::from_index(data, 0).map_err(|e| FontError {
+            face,
+            reason: e.to_string(),
+        })?;
         let data = ShaperData::new(&font);
         Ok(Self { font, data })
     }

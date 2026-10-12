@@ -13,7 +13,6 @@ use crate::diagnostics::{
     Fatal, Mismatch, error_line, one_row, plural, row_causes, unnamed_clause,
 };
 
-// qual:api — PR 14's main.rs is its first production caller
 /// The stderr lines for `errors`, each `error: …`, in NFR-11's order.
 ///
 /// `errors` is `parse`'s tier-two errors followed by `build_catalogue`'s, and
@@ -138,6 +137,9 @@ const fn classify(order: usize, fatal: &Fatal) -> Classified<'_> {
         | Fatal::Rings(_)
         | Fatal::Unreadable { .. }
         | Fatal::Unwritable { .. }
+        | Fatal::MissingDirectory { .. }
+        | Fatal::OutputIsInput { .. }
+        | Fatal::Font(_)
         | Fatal::NotUtf8 { .. }
         | Fatal::UnterminatedQuote { .. }
         | Fatal::TextAfterQuote { .. }
@@ -208,6 +210,9 @@ const fn line_of(fatal: &Fatal) -> usize {
         | Fatal::Rings(_)
         | Fatal::Unreadable { .. }
         | Fatal::Unwritable { .. }
+        | Fatal::MissingDirectory { .. }
+        | Fatal::OutputIsInput { .. }
+        | Fatal::Font(_)
         | Fatal::NoHeader => 0,
     }
 }
@@ -225,6 +230,9 @@ const fn rank_of(fatal: &Fatal) -> u8 {
         | Fatal::Rings(_)
         | Fatal::Unreadable { .. }
         | Fatal::Unwritable { .. }
+        | Fatal::MissingDirectory { .. }
+        | Fatal::OutputIsInput { .. }
+        | Fatal::Font(_)
         | Fatal::NotUtf8 { .. }
         | Fatal::UnterminatedQuote { .. }
         | Fatal::TextAfterQuote { .. }

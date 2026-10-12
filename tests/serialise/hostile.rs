@@ -45,10 +45,14 @@ impl Strings {
         }
         match node {
             Node::Group(group) => {
-                if let Semantics::Marker(c) | Semantics::LegendRow(c) = &group.semantics {
-                    self.labels.push(c.label.clone());
-                    self.tooltips
-                        .extend(c.tooltip.iter().filter(|t| !t.is_empty()).cloned());
+                match &group.semantics {
+                    Semantics::Marker(c) | Semantics::LegendRow(c) => {
+                        self.labels.push(c.label.clone());
+                        self.tooltips
+                            .extend(c.tooltip.iter().filter(|t| !t.is_empty()).cloned());
+                    }
+                    Semantics::Group(label) => self.labels.push(label.clone()),
+                    _ => {}
                 }
                 group
                     .children

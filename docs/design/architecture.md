@@ -129,7 +129,8 @@ declarations only and are not listed.
 | File | Responsibility | Slice |
 | --- | --- | --- |
 | `src/lib.rs` | Crate root, lint gate. `normalise()` — FR-76's single rule, stated once; `trim()` — FR-76's trim, also the display trim (D-61) | *exists* |
-| `src/main.rs` | Parse args, run the pipeline, map outcome to exit code and stderr (NFR-16 tier one) | *stub* |
+| `src/main.rs` | Parse args, call `pipeline::run`, print its report to stderr, map the outcome to the exit code (NFR-8) | v1.0 |
+| `src/pipeline.rs` | The run: `Config` built once from `Cli`, the stages in §2's order, the three failure points (§7), and the rendered `Report` | v1.0 |
 | `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52). In v1.1, also the `--config` merge under the command-line flags and `{edition}` expansion, both before any other validation (FR-91, FR-92) | *exists* |
 | `src/diagnostics.rs` | `Fatal`, `Warning`, `Warnings` — the taxonomy and NFR-20 grouping | v1.0 |
 | `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17) | *exists* |
@@ -568,7 +569,7 @@ own; warnings other stages already pushed still print, before the errors
 
 `Config` is the resolved run: the `RingSet` (the ring list and its source, FR-17), the
 palette, the theme, the width, the title strings. Only `build_catalogue` reads the `RingSet`; stages below read `Catalogue::rings`. It is built once in
-`main.rs` from `Cli` plus `rings.rs` plus `palette.rs` and is read-only
+`pipeline.rs` from `Cli` plus `rings.rs` plus `palette.rs` and is read-only
 thereafter, so no stage below can reinterpret a flag differently from another.
 
 **There is a third failure point below both tiers, and NFR-14 makes it the

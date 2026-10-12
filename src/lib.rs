@@ -14,6 +14,7 @@ pub mod model;
 pub mod num;
 pub mod order;
 pub mod palette;
+pub mod pipeline;
 pub mod rings;
 pub mod style;
 pub mod svg;
