@@ -1,7 +1,7 @@
 ---
 id: rg-hs9
 title: 'PRD vs code: name is trimmed for display'
-status: open
+status: closed
 type: task
 priority: 3
 tags:
@@ -9,6 +9,7 @@ tags:
 - csv
 created: 2026-10-12
 updated: 2026-10-12
+closed_reason: 'Maintainer 2026-10-12: names are shown trimmed; PRD v0.57 amends FR-76 and records D-76'
 phase: ''
 ---
 

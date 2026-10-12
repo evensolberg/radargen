@@ -1,7 +1,7 @@
 ---
 id: rg-6zu
 title: 'PR 15: HTML interactive layer and table view'
-status: blocked
+status: open
 type: feature
 priority: 1
 tags:
