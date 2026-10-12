@@ -17,6 +17,12 @@ use crate::text::{Fonts, TEXT_ASCENT, TEXT_DESCENT};
 /// The PRD's three-quadrant example (§12), shared by every block's tests.
 pub(crate) const PRD_EXAMPLE: &str = include_str!("../../tests/fixtures/three-quadrant.csv");
 
+/// The four required columns.
+pub(crate) const HEAD: &str = "name,quadrant,ring,description\n";
+
+/// The required columns with FR-20's qualifier and FR-26's status.
+pub(crate) const HEAD_META: &str = "name,quadrant,ring,description,qualifier,status\n";
+
 /// A name that wraps to two lines in a legend row's 312-unit name column.
 pub(crate) const NAME_TWO_LINES: &str =
     "Bounded trial of continuous delivery pipelines across managed estates and environments";

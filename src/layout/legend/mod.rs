@@ -2,9 +2,10 @@
 //!
 //! A `Surface2` panel holding the laid-out headings, swatches and rows,
 //! each row a control. Its layout, as data, lives in the `layout`
-//! submodule.
+//! submodule, and one row's composition in `row`.
 
 mod layout;
+mod row;
 
 use std::num::NonZeroU8;
 
@@ -16,12 +17,13 @@ use crate::palette::{Neutral, Role};
 use crate::style::{
     BADGE_HOLLOW_STROKE, BADGE_RADIUS, BADGE_STROKE, INDENT_ITEM, LEGEND_BADGE_NUMBER,
     LEGEND_PANEL_INSET_X, LEGEND_PANEL_INSET_Y, LEGEND_PANEL_RADIUS, LEGEND_ROW_INDICATOR_INSET,
-    LEGEND_ROW_LEFT_OUTSET, LEGEND_ROW_RADIUS, LEGEND_ROW_RIGHT_OUTSET, SWATCH_RADIUS,
+    LEGEND_ROW_LEFT_OUTSET, LEGEND_ROW_RADIUS, LEGEND_ROW_RIGHT_OUTSET, SWATCH_RADIUS, TextStyle,
 };
 use crate::svg::{Group, ItemKey, Node, Paint, Point, Scale, Semantics, TextRun};
-use crate::text::Fonts;
+use crate::text::{Fonts, wrap};
 
-use layout::{Entry, Layout, Row, layout};
+use layout::{Entry, Layout, layout};
+use row::Row;
 
 /// The panel's colour, and the row targets': invisible on it, yet they
 /// receive the pointer in every format (a `none` fill would not).
@@ -278,20 +280,35 @@ fn number_node(row: &Row, s: f64) -> Node {
     )
 }
 
+/// `text` wrapped at `column` in `style` (FR-79).
+fn wrapped(text: &str, style: TextStyle, column: f64, fonts: &Fonts) -> Vec<String> {
+    wrap(
+        text,
+        column,
+        fonts.face(style.weight),
+        style.size,
+        style.letter_spacing,
+    )
+}
+
+/// `text`'s advance in `style`.
+fn measure(text: &str, style: TextStyle, fonts: &Fonts) -> f64 {
+    fonts
+        .face(style.weight)
+        .measure(text, style.size, style.letter_spacing)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::layout::block::{assert_translates, at, close, fonts};
     use crate::layout::test_support::{
-        NAME_FULL_LINE, NAME_THREE_LINES, NAME_TWO_LINES, PRD_EXAMPLE, Rect, assert_finite,
-        assert_inside, bounds, empty_catalogue, fill, near, plotted,
+        HEAD_META, NAME_FULL_LINE, NAME_THREE_LINES, NAME_TWO_LINES, PRD_EXAMPLE, Rect,
+        assert_finite, assert_inside, bounds, empty_catalogue, fill, near, plotted,
     };
     use crate::style::{MIN_PX_PER_UNIT, MIN_TARGET_PX};
     use crate::svg::{Anchor, Control, TextPaint};
     use crate::text::NUMBER_CENTRING;
-
-    /// With FR-20's qualifier and FR-26's status.
-    const HEAD_META: &str = "name,quadrant,ring,description,qualifier,status\n";
 
     fn legend(csv: &str) -> (Catalogue, Plotted, LegendBlock) {
         let (catalogue, order) = plotted(csv, None);
