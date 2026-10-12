@@ -181,6 +181,8 @@ impl Catalogue {
     ///
     /// It starts with what the legend row shows — number, name, qualifier,
     /// status (FR-74) — so the visible text is in the name (WCAG 2.5.3).
+    /// `No Change` is FR-40's plain marker and no row shows it, so it is
+    /// left out too (FR-50).
     /// The quadrant and ring follow even where the legend's grouping shows
     /// them, since a screen reader reaching one row by Tab sees no grouping,
     /// and are named as such, since their names are the author's own and a

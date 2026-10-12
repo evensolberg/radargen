@@ -174,7 +174,7 @@ pub const LEGEND_PANEL_RADIUS: f64 = 8.0;
 pub const LEGEND_WIDTH_MAX: f64 = NARROW_WIDTH - 2.0 * MARGIN;
 
 // FR-94: a legend row is at least `MIN_TARGET_PX` tall wherever the document
-// renders smallest, and its width is far beyond it.
+// renders smallest.
 const _: () = assert!(
     LEGEND_ROW_MIN_HEIGHT * MIN_PX_PER_UNIT >= MIN_TARGET_PX,
     "FR-94: a legend row must be at least MIN_TARGET_PX tall"
