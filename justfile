@@ -152,12 +152,31 @@ publish:
     cargo deny check licenses
     rustqual . --compare rustqual-baseline.json --fail-on-regression --no-fail
 
-# Records the current rustqual score as the baseline `just ci` compares to.
-# Refuses a lower score: the compare fails first. The baseline is from
-# rustqual 1.8.3 (pinned in `install`); a rustqual upgrade re-records it.
-@quality-baseline:
+# Records the current rustqual score as the baseline `just ci` compares to,
+# refusing a lower score. The baseline is from rustqual 1.8.3 (pinned in
+# `install`); a rustqual upgrade re-records it.
+#
+# rustqual flags a regression when the stored score, as its JSON reader reads
+# it back, is above the computed one, and that reader can come back one ulp
+# high, so a score saved verbatim can fail the very next compare (crumb
+# rg-ksg). So the score is compared with a tolerance far below any real
+# change, stored floored to 12 decimals (always read back below the computed
+# score), and the stored file is then checked with rustqual's own compare.
+quality-baseline:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    fresh="$(mktemp)"
+    trap 'rm -f "$fresh"' EXIT
+    rustqual . --save-baseline "$fresh" --no-fail > /dev/null 2>&1
+    old="$(jq '.quality_score' rustqual-baseline.json)"
+    new="$(jq '.quality_score' "$fresh")"
+    if jq -en --argjson old "$old" --argjson new "$new" '$new < $old - 1e-9' > /dev/null; then
+        echo "rustqual score fell: $old -> $new; find the cause before re-recording" >&2
+        exit 1
+    fi
+    jq '.quality_score = ((.quality_score * 1e12 | floor) / 1e12)' "$fresh" > rustqual-baseline.json
     rustqual . --compare rustqual-baseline.json --fail-on-regression --no-fail > /dev/null
-    -rustqual . --save-baseline rustqual-baseline.json > /dev/null
+    echo "rustqual baseline recorded: $(jq '.quality_score' rustqual-baseline.json)"
 
 # Checks every target for lint findings; the lint levels live in Cargo.toml
 @lint:
