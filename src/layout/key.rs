@@ -126,11 +126,7 @@ fn heading_node(scale: f64) -> Node {
 
 /// The scale-1 size: the widest label (after its indent) or the heading.
 fn measure(fonts: &Fonts) -> Size {
-    let width_of = |style: TextStyle, label: &str| {
-        fonts
-            .face(style.weight)
-            .measure(label, style.size, style.letter_spacing)
-    };
+    let width_of = |style: TextStyle, label: &str| style.measure(label, fonts);
     let labels = ROWS
         .iter()
         .map(|row| KEY_LABEL_X + width_of(KEY_LABEL, row.label));

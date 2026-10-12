@@ -20,7 +20,6 @@ use crate::svg::{Anchor, Point, TextRun};
 use crate::text::Fonts;
 
 use super::row::{Numbered, Row};
-use super::{measure, wrapped};
 
 /// The legend's heading text.
 const LEGEND_TITLE: &str = "Legend";
@@ -248,7 +247,7 @@ fn heading(tier: Tier, text: &str, baseline: f64, fonts: &Fonts) -> TextRun {
         style: tier.style,
         ink: tier.ink,
         anchor: Anchor::Start,
-        lines: wrapped(text, tier.style, LEGEND_WIDTH_MAX - tier.indent, fonts),
+        lines: tier.style.wrap(text, LEGEND_WIDTH_MAX - tier.indent, fonts),
         leading: LINE_HEIGHT,
     }
 }
@@ -329,7 +328,7 @@ fn width(entries: &[Entry], fonts: &Fonts) -> f64 {
         .flat_map(|run| {
             run.lines
                 .iter()
-                .map(move |line| run.origin.x + measure(line, run.style, fonts))
+                .map(move |line| run.origin.x + run.style.measure(line, fonts))
         })
         .fold(0.0, f64::max)
 }
@@ -524,7 +523,7 @@ mod tests {
         assert!(near(heading.origin, Point { x: 16.0, y: 36.0 }));
         assert!(close(heading.leading, 15.0));
         for line in &heading.lines {
-            let w = measure(line, LEGEND_QUADRANT, fonts());
+            let w = LEGEND_QUADRANT.measure(line, fonts());
             assert!(w <= 364.0, "{line}: {w}");
         }
         assert!(near(only(&swatches(&l)).0, Point { x: 5.0, y: 32.0 }));
@@ -542,9 +541,9 @@ mod tests {
     fn a_heading_exactly_filling_its_column_does_not_wrap() {
         let text = "Infrastructure platforms";
         let style = QUADRANT_TIER.style;
-        let exact = measure(text, style, fonts());
-        assert_eq!(wrapped(text, style, exact, fonts()), [text]);
-        assert_eq!(wrapped(text, style, exact - 1e-9, fonts()).len(), 2);
+        let exact = style.measure(text, fonts());
+        assert_eq!(style.wrap(text, exact, fonts()), [text]);
+        assert_eq!(style.wrap(text, exact - 1e-9, fonts()).len(), 2);
     }
 
     /// A heading wraps at its own column, `LEGEND_WIDTH_MAX` less its
@@ -557,7 +556,7 @@ mod tests {
         let words = |n: usize| vec!["Wide"; n].join(" ");
         // The column holds at most ~30 four-letter words; 64 bounds the search.
         let fit = (1..64)
-            .take_while(|&n| measure(&words(n), tier.style, fonts()) <= column)
+            .take_while(|&n| tier.style.measure(&words(n), fonts()) <= column)
             .last()
             .expect("one word fits the column");
         let lines = |n: usize| heading(tier, &words(n), 36.0, fonts()).lines.len();
@@ -614,7 +613,7 @@ mod tests {
             .name
             .lines
             .iter()
-            .map(|line| 68.0 + measure(line, LEGEND_NAME, fonts()))
+            .map(|line| 68.0 + LEGEND_NAME.measure(line, fonts()))
             .fold(0.0, f64::max);
         assert!(l.width <= 380.0, "{}", l.width);
         assert!(close(l.width, widest), "{} vs {widest}", l.width);

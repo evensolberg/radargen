@@ -94,9 +94,7 @@ struct Label {
 
 impl Label {
     fn measured(text: &str, style: TextStyle, at: Point, fonts: &Fonts) -> Self {
-        let width = fonts
-            .face(style.weight)
-            .measure(text, style.size, style.letter_spacing);
+        let width = style.measure(text, fonts);
         Self {
             text: text.to_owned(),
             width,
@@ -671,11 +669,7 @@ mod tests {
 
     /// A quadrant name's width at natural size.
     fn quadrant_width(fonts: &Fonts, name: &str) -> f64 {
-        fonts.face(QUADRANT_LABEL.weight).measure(
-            name,
-            QUADRANT_LABEL.size,
-            QUADRANT_LABEL.letter_spacing,
-        )
+        QUADRANT_LABEL.measure(name, fonts)
     }
 
     /// FR-79's centre for a name of `width` on `middle` at scale `s`, from
@@ -1007,11 +1001,7 @@ mod tests {
     #[test]
     fn a_long_ring_name_widens_the_block() {
         let fonts = fonts();
-        let w = fonts.face(RING_LABEL.weight).measure(
-            &long(80),
-            RING_LABEL.size,
-            RING_LABEL.letter_spacing,
-        );
+        let w = RING_LABEL.measure(&long(80), fonts);
         let want = 2.0 * (w / 2.0 + 1.5 + 10.0);
         let got = block(fonts, HEADER, Some(&long(80))).size(1.0).width;
         assert!(close(got, want) && got > 660.0, "{got} vs {want}");
@@ -1253,11 +1243,7 @@ mod tests {
                 let nodes = frame_at(&b, s);
                 for (p, label) in quadrant_labels(&nodes).iter().enumerate() {
                     // The drawn node's own origin and measured width.
-                    let half = fonts.face(label.style.weight).measure(
-                        &label.lines.concat(),
-                        label.style.size,
-                        label.style.letter_spacing,
-                    ) / 2.0;
+                    let half = label.style.measure(&label.lines.concat(), fonts) / 2.0;
                     let unit = polar(g.middle(p), 1.0);
                     let inner = label.origin.x - unit.x.signum() * half;
                     let point = polar(g.middle(p), 300.0 * s);
