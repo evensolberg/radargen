@@ -12,7 +12,7 @@ created_date: 2026-10-12
 synopsis: "Headroom for WCAG 1.4.12 (maintainer ruling): every wrap point and block size uses the text width with 1.4.12 spacing added, so spaced text fits by construction. A legend row's qualifier and status become a tspan that follows the name inside the name's own text element, so text-spacing overrides (WCAG 1.4.12) push them along instead of overlapping them. Node::Text gains an optional inline tail; the serialiser writes it as a tspan with dx. Rendering is unchanged at default spacing, checked against resvg and in a browser with 1.4.12's spacing applied."
 status: draft
 type: Plan
-revision: "1.1"
+revision: "1.2"
 review_date: 2026-10-12
 reviewed_by:
   - Rust seat
@@ -101,6 +101,18 @@ Design: `docs/design/architecture.md` §4 (blocks size from measured text), §5 
 
 ## Review rulings
 
+**From the Rust seat** (its report arrived after 1.1):
+
+- **Cross-boundary kerning** (blocker): `usvg` shapes a whole text chunk, so a kern pair between the name's last glyph and the meta's first is applied across the tspan. Probed: names ending `A L T V Y .` before `Conditional`, and `r v y` before `Default`/`New`/`Moved In`, drew sub-pixel differently from today's separate `<text>`. Browsers likely split shaping at the size change, so HTML and PNG could disagree (SC-7).
+  - **Ruling:** the tail's leading space makes the pair at the boundary *letter–space*, which Inter does not kern.
+  - **The oracle's corpus must include names ending in each of `A L T V Y r v y .`** before each meta label, at 2x, with the 0.5 px-shift case as the discrimination check.
+  - If any pair still drifts, the gap is corrected by the kern `resvg` applies, and the residual between engines is bounded in the browser check. A ruling either way is recorded at Task 3.
+- **Shape:** the tail lives on `Node::Text` only, not on `TextRun`. `Row`'s meta becomes `enum Meta { Inline(Tail), OwnLine(TextRun) }`, so "inline and on its own line" cannot be built, and `TextRun::node_with_tail` writes the inline form. That saves `tail: None` at eight `TextRun` sites. `Tail::scaled` holds the arithmetic; `serialise::text::Run` borrows `Option<&Tail>`; `text()` appends the tail after `content()`.
+- **Sites that compile but would skip a tail:** `bounds.rs` `assert_finite`, `tests/serialise/hostile.rs` `Strings::walk` (the tail's text joins the line's), and `tests/serialise/vocabulary.rs`'s every-kind fixture (gains a tail, covering `dx`).
+- **The oracle has no existing pixel-diff helper:** about 25 lines in a new test, building the old form by walking the `Document`, with a count bound of about 64 px at 2x.
+
+**From the other seats:**
+
 Five seats reviewed revision 1.0 (Rust, QA, architecture, accessibility, UI). The QA seat's blocker reversed the overflow decision: `overflow:visible` does not create scrollable overflow for SVG content. The maintainer ruled headroom. Folded in:
 
 - the tail's leading space (accessibility);
@@ -138,9 +150,9 @@ Five seats reviewed revision 1.0 (Rust, QA, architecture, accessibility, UI). Th
 
 **Files:**
 
-- `src/svg/mod.rs`: `Tail`, `Node::Text { tail }`, `TextRun { tail }`, `Node::tail_x`; `halo` drops the tail;
+- `src/svg/mod.rs`: `Tail` (with `scaled`), `Node::Text { tail }`, `Node::tail_x`, and `TextRun::node_with_tail`;
 - `src/svg/serialise/text.rs`;
-- every `Node::Text`/`TextRun` construction gets `tail: None`;
+- every `Node::Text` construction gets `tail: None` (seven sites); `TextRun` is unchanged;
 - `src/layout/test_support/bounds.rs`, through `tail_x`.
 
 - [ ] **Step 1: Failing tests** (`src/svg/serialise/tests/text.rs`, `svg/mod.rs`):
@@ -150,7 +162,7 @@ Five seats reviewed revision 1.0 (Rust, QA, architecture, accessibility, UI). Th
     - static target: a literal fill.
   - `a_tail_is_escaped`: `<&>` arrives as `&lt;&amp;&gt;`.
   - `a_tail_scales_with_its_run`.
-  - `a_halo_has_no_tail`.
+  - `a_halo_has_no_tail`: `TextRun::halo` never carries one.
   - `bounds_include_the_tail`, on a two-line name, where the tail extends the last line, not the widest.
 - [ ] **Step 2–4:** red, implement, green; lints; rustqual.
 - [ ] **Step 5: Commit** `feat(svg): text with an inline tail, written as a dx tspan`.
@@ -225,3 +237,4 @@ Five seats reviewed revision 1.0 (Rust, QA, architecture, accessibility, UI). Th
 | --- | --- | --- |
 | 1.0 | 2026-10-12 | Initial version, for the plan review. |
 | 1.1 | 2026-10-12 | The five-seat review: `overflow:visible` cannot prevent loss (QA, UI). The maintainer ruled headroom: the layout width adds 1.4.12's allowance everywhere (D-78). The tail gains a leading space, `tail_x`, and guards. A committed browser check over every text pair; an independent oracle. |
+| 1.2 | 2026-10-12 | The Rust seat: cross-boundary kerning answered by the leading space and pinned by an oracle corpus; the tail on `Node::Text` only, with `Meta::{Inline, OwnLine}`; sites that would skip a tail. |
