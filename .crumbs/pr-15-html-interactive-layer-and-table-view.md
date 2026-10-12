@@ -28,3 +28,5 @@ FR-38 detail panel, FR-72 cross-highlight, FR-49 keyboard and focus return keyed
 [2026-10-11] Final review (PR 11): the row indicator sits under the row text (first ascent box starts about top+0.4), so draw focus inside the inset band; const-assert the focus stroke <= 2 * LEGEND_ROW_INDICATOR_INSET when the stroke width is defined, else the next row cuts it off.
 
 [2026-10-12] From PR 13: aria-expanded/aria-controls go in svg::serialise group.rs control_attrs (one place, fixed order); the panel's single id lives outside both arrangements. The headless a11y test asserts each marker's computed name and description (the <title> beside aria-label is announced as a description; maintainer decides then). FR-34 tab order through the markers.
+
+[2026-10-12] Maintainer decisions 2026-10-12: the theme toggle (FR-56 in-page override) lands here, 14b already declares the [data-theme] palette overrides; the skip-to-legend link lands here with keyboard navigation; PR 15 cuts the first release (0.2.0 or 1.0.0, decided then).
