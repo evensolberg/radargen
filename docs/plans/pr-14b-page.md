@@ -12,11 +12,16 @@ created_date: 2026-10-12
 synopsis: "The HTML page carries both arrangements, drawn interactive, and a media query at the per-document breakpoint shows exactly one (FR-69). Both palettes are declared at once: light by default, dark under prefers-color-scheme, and a [data-theme] override for PR 15's toggle (FR-56). Inter is inlined as WOFF2 (NFR-5). Focus indicators are shown by generated CSS, with no JavaScript. Tests add an HTML golden, an HTML5-parser round trip of hostile input, and a cross-process determinism check (NFR-4)."
 status: draft
 type: Plan
-revision: "1.0"
-review_date:
-reviewed_by: []
+revision: "1.1"
+review_date: 2026-10-12
+reviewed_by:
+  - Rust seat
+  - QA seat
+  - architecture seat
+  - accessibility seat
+  - UI seat
 completed_date:
-comments: "For the plan review. Part two of PR 14 (rg-f27)."
+comments: "1.1 folds in the five-seat plan review. See Review rulings. Part two of PR 14 (rg-f27)."
 ---
 # PR 14b — the full page: Implementation Plan
 
@@ -45,7 +50,7 @@ comments: "For the plan review. Part two of PR 14 (rg-f27)."
 
 - Rust 2024.
 - `base64` moves from dev-dependency to dependency (MIT/Apache-2.0) to encode the vendored WOFF2.
-- `html5ever` and `markup5ever_rcdom` are new dev-dependencies (MIT/Apache-2.0), for the HTML5-parser round trip. Both licences are on `deny.toml`'s allow list.
+- `html5ever` and `markup5ever_rcdom` 0.39 are new dev-dependencies (MIT/Apache-2.0), for the HTML5-parser round trip. Both licences are on `deny.toml`'s allow list.
 
 **Spec:** `docs/product/radargen-prd.md` v0.56:
 
@@ -65,7 +70,7 @@ Design: `docs/design/architecture.md`:
 
 - **FR-69:** the hidden arrangement is `display: none`. Never `visibility` or `opacity`, so it leaves the tab order and the accessibility tree; one radar group and one heading outline reach assistive technology.
 - **No window with both or neither arrangement shown.** The wide container shows by default; one `max-width` query swaps them below the breakpoint.
-- **The narrow SVG spans the viewport** (`NARROW_HORIZONTAL_INSET_PX = 0`): `body` has no margin and no padding, and the narrow SVG is `width: 100%`. FR-94's hit radius rests on this.
+- **The narrow SVG spans the viewport up to its own width** (`NARROW_HORIZONTAL_INSET_PX = 0`): `body` has no margin and no padding, and the narrow SVG is `width: 100%` of a container capped at its document width. FR-94's hit radius rests on the spanning below that width.
 - **NFR-5:** the only `url(` anywhere is `url(data:font/woff2;base64,…)` inside `@font-face`, exactly two of them. Every other check from 14a stays.
 - **NFR-4 and NFR-17:** byte-identical across runs and platforms. The stylesheet is LF, and every number in it is an integer or goes through `num::fmt_coord`. Marker keys are in document order, never from a hash map.
 - **NFR-6:** no CSV text enters the stylesheet. Keys are CSV line numbers, written as integers.
@@ -87,62 +92,119 @@ Design: `docs/design/architecture.md`:
 4. **The inlined font is the vendored font.** The base64 in each `@font-face` decodes to `assets/Inter-*.woff2` byte for byte, under `text::FAMILY` and the weights the SVG text uses. *Test: Task 1, `the_font_faces_are_the_vendored_fonts`.*
 5. **Two processes write the same bytes** (NFR-4), and the page matches its golden apart from the font payload. *Tests: Task 4, `two_processes_write_the_same_bytes` and `prd_page_matches_its_golden`.*
 
-## Decisions taken in this plan (flag on review)
+## Decisions taken in this plan
 
 - **Containers:** `<div class="arrangement wide">` and `<div class="arrangement narrow">`, the wide one first in document order. Each holds one SVG.
-- **Sizing:**
-  - every SVG is `display: block; width: 100%; height: auto`;
-  - the wide container is capped at the wide document's own width (`max-width: {W}px`, `W` through `fmt_coord`) and centred, so a large screen draws it at one CSS pixel per unit rather than blowing it up;
-  - the narrow container is not capped, so it spans the viewport.
-- **The breakpoint rule:** `.narrow{display:none}` and `@media (max-width: {B - 1}px){.wide{display:none}.narrow{display:block}}`, where `B = style::breakpoint_px(wide.width)`. One query, so there is no gap. At fractional widths between `B - 1` and `B`, the wide one shows, which is the safe side.
-- **The palettes:**
-  - `:root{color-scheme:light;…light declarations}`;
+- **Sizing (FR-51):**
+  - every SVG is `display:block;width:100%;height:auto`;
+  - **each container is capped at its own document's width and centred**: `.wide{max-width:{W}px;margin:0 auto}` and `.narrow{max-width:{N}px;margin:0 auto}`, with `W` and `N` through `fmt_coord`. A large screen then draws each at one CSS pixel per unit rather than enlarging it. At or below `N` the narrow SVG still spans the viewport, which is where FR-94's `NARROW_HORIZONTAL_INSET_PX = 0` binds.
+- **The breakpoint rule:** `.narrow{display:none}`, then `@media {narrow_query}{.wide{display:none}.narrow{display:block}}`, where `fn narrow_query(wide_width) -> String` gives `(max-width: {B - 1}px)` and `B = style::breakpoint_px(wide.width)`, with `saturating_sub(1)`.
+  - One query and a default, so there is no width where both or neither show.
+  - Range syntax `(width < Bpx)` would close the fractional gap between `B - 1` and `B`, but Safari before 16.4 drops the whole rule. Keep `max-width`, and say so in a comment.
+  - A classic scrollbar counts towards the query width, so at exactly `B` the wide legend draws near 9.8 px rather than 10. Accepted, and noted in a comment.
+  - `narrow_query` is the one source of the query. PR 15's `matchMedia` reads it (note on `rg-6zu`).
+- **The palettes (§5):**
+  - `:root{color-scheme:light;…light}`;
   - `@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark;…dark}}`;
   - `:root[data-theme="dark"]{color-scheme:dark;…dark}`.
 
-  `data-theme` sits on `<html>`, which PR 15's toggle sets. Declarations come from `Palette::declarations()` in its order. The series are the same in both themes but are declared in each block anyway, so each block is complete on its own.
-- **The page background:** `body{margin:0;background:var(--surface-1);color:var(--text-primary)}`. The radar ground is Surface1 (FR-82), so the page and the SVG agree in both themes.
+  `data-theme` sits on `<html>`. Each value passes through `escape::css_value` (NFR-6 context 5), so v1.1's `--palette` reaches this code unchanged. The built-in values pass through untouched.
+- **The page background:** `body{margin:0;background:var(--surface-1);color:var(--text-primary)}`.
 - **The fonts:**
-  - two `@font-face` rules, `font-family:"Inter"` from `text::FAMILY`;
-  - `font-weight:400` and `600`, `font-style:normal`, `font-display:block`;
+  - two `@font-face` rules, family `text::FAMILY`, weights `Weight::Regular.css()` and `Weight::SemiBold.css()`;
+  - `font-style:normal;font-display:block`;
   - `src:url(data:font/woff2;base64,…) format("woff2")`.
 
-  `block` is the right choice because the data is inline: there is no load to wait for, and no fallback flash. A locally installed Inter is never used, since `@font-face` takes precedence for the family name.
-- **The focus indicators** (architecture §5), shown with no JavaScript:
-  - **Legend rows:** `[data-legend-row]:focus-visible>[data-row-indicator]{visibility:visible}`, and `[data-row-indicator]>rect{stroke:var(--focus);stroke-width:{FOCUS_RING_STROKE}px}`. The row's rect is drawn with `stroke="none"` for the interactive layer to paint.
-  - **Markers:** inside `@supports selector(:has(*))`, one rule per marker key in the wide document's order: `svg:has([data-marker="L"]:focus-visible) [data-marker-indicator="L"]{visibility:visible}`. The ring is already stroked.
-  - **Default outlines:** the browser's outline is removed where the indicator replaces it. For legend rows that is always. For markers it is only inside the same `@supports` block, so a browser without `:has` keeps its default outline rather than showing nothing.
-- **The fallback `<h1>`, `<main>` and `lang`** stay from 14a. The visually-hidden rule moves into `css.rs`.
-- **Not in this PR:**
-  - **Forced-colours styling for the indicators:** the PR 15 assistive-technology pass, crumb.
-  - **Selection (FR-73)**, the toggle, and the JavaScript that moves focus across a breakpoint change: all PR 15.
+  The WOFF2 bytes are `text::REGULAR_WOFF2` and `text::SEMIBOLD_WOFF2`, beside the TTFs, and are encoded with `base64` at run time.
+- **The focus indicators** (architecture §5). Each rule that removes the browser outline has the same selector as the rule that replaces it, so both fail together in an older browser. The outline is made transparent, not removed, so forced-colours mode turns it into a visible system-colour outline:
+  - **Legend rows:**
+    - `[data-legend-row]:focus-visible{outline:2px solid transparent}`;
+    - `[data-legend-row]:focus-visible>[data-row-indicator]{visibility:visible}`;
+    - `[data-legend-row]:focus-visible>[data-row-indicator]>rect{stroke:var(--focus);stroke-width:{fmt_coord(FOCUS_RING_STROKE)}px}`.
+
+    The stroke is scoped to focus, so PR 15's selection (FR-73) can style the same rect differently.
+  - **Markers,** inside one `@supports selector(:has(*)){…}`:
+    - `[data-marker]:focus-visible{outline:2px solid transparent}`;
+    - one rule per marker key, `svg:has([data-marker="L"]:focus-visible) [data-marker-indicator="L"]{visibility:visible}`.
+
+    The block is omitted when there are no markers.
+  - **A guard:** a `const _: () = assert!(FOCUS_RING_STROKE <= 2.0 * LEGEND_ROW_INDICATOR_INSET)` in `style.rs`. Otherwise the next row cuts the ring off. Today the margin is exactly zero.
+- **Marker keys:** `svg::marker_keys(&Document) -> Vec<ItemKey>` walks `Semantics::Marker` controls only, in document order, by recursive `flat_map`. It lives in `svg` so PR 15's selection CSS can reuse it. `page` debug-asserts that the narrow document has the same keys.
+- **The stylesheet is assembled by `page`** from `css.rs` sections (`font_faces`, `palettes`, `layout`, `indicators`, `VISUALLY_HIDDEN`). PR 15 can then add the table's CSS beside `table.rs` without widening one function. Every literal rule fragment is a module-level `const`; clippy's `literal_string_with_formatting_args` fires on `{…}` literals inside function bodies.
+- **The stylesheet holds no `<`** (asserted), so `</style>` cannot appear even if a later change puts a string in it.
+- **The fallback `<h1>`, `<main>` and `lang`** stay from 14a.
+- **Interactive controls without handlers:** markers and legend rows are focusable `role="button"`s before PR 15 gives them behaviour. Acceptable only because nothing is released before PR 15. The PR body says so.
+- **Not in this PR, with crumbs:**
+  - forced-colours styling of the rings (PR 15's assistive-technology pass), and a browser check of `:has` cost on a 300-item radar there;
+  - WCAG 1.4.12 text spacing: the legend's name and qualifier are separate `<text>`s at fixed x, so added letter spacing overlaps them. Before the first release (NFR-1);
+  - a CR in a name reaches HTML as `&#13;`, which an HTML5 parser reports as a parse error;
+  - SC-8's cross-platform comparison of hashes between CI jobs (architecture §10). This PR covers the cross-process half;
+  - selection (FR-73), the toggle, and moving focus across a breakpoint change: all PR 15.
 - **Narrow placements are computed twice,** once for FR-95 and once by `arrange`. That costs microseconds, so I'm keeping the simpler interface.
-- **The golden** is `tests/golden/html/prd.html`, with each font payload replaced by `…` before the comparison and the blessing. Otherwise every edit would diff 220 kB of base64; Review Focus 4 checks the payload separately.
+- **The golden:** `tests/golden/html/prd.html`, with each font payload elided to `…`. The test asserts that exactly two payloads were elided, so the golden cannot hide a missing font face.
+
+## Review rulings
+
+Five seats reviewed revision 1.0: Rust, QA (with injection), architecture, accessibility, and UI in place of security. The Rust and QA seats probed a scratch copy, including an `html5ever` crate on hostile input. There were no blockers. Rulings:
+
+- **Outline removal:** a browser without `:focus-visible` would get `outline:none` and no indicator (accessibility, architecture, UI). Each removal now shares its replacement's selector and uses a transparent outline, which forced colours make visible.
+- **Narrow cap** (UI, architecture, accessibility): the narrow arrangement filled tablets at almost 2x. Both containers are now capped at their own width.
+- **Print** (UI): declined. FR-58 makes printing the HTML unsupported, and PNG and SVG are the print path.
+- **Range syntax** (QA, Rust): declined, for Safari before 16.4. Kept `max-width` with no gap, because the wide arrangement is the default.
+- **`css_value` on palette values** (architecture), **`narrow_query`** (architecture), and the **stroke-in-inset guard** (architecture, from a PR 11 note) are adopted.
+- **The row stroke is scoped to focus** (accessibility), so selection can differ (FR-73).
+- **`html5ever` pinned to 0.39** (Rust, QA): 0.40 does not compile against `markup5ever_rcdom` 0.39. Counts are per namespace, since SVG tooltips are `title` elements too, and `dom.errors` must be empty.
+- **Hostile strings are compared** with `hostile.rs`'s document-against-parsed `Strings`, not by substring (Rust).
+- **Tests that bite** (QA):
+  - an exact `layout` string, plus the parsed stylesheet's `display` declarations;
+  - the selector structure checked on the parsed SVG;
+  - outline placement;
+  - fonts tied to `Weight::css()` and compared with the asset files on disk;
+  - interactive paints are `var()`, `none` or a number ink, and the series are equal in both themes;
+  - determinism on two fixtures;
+  - a zero-marker page and a 200-quadrant page.
+- **The golden helper** takes a directory (Rust). The `src:` check is relaxed together with `url(` (Rust, QA).
+- **Declined:**
+  - `width`/`height` attributes on the SVG root (UI), which would change the serialiser shared with the SVG goldens;
+  - `vector-effect: non-scaling-stroke` (accessibility), which only matters for an AAA criterion NFR-1 does not claim;
+  - a `Page` input struct now (architecture), which is for PR 15 once `Catalogue` and `Plotted` join. Noted on `rg-6zu`.
 
 ---
 
 ### Task 1: the stylesheet
 
-**Files:** Create `src/emit/html/css.rs` (`mod css;` in `src/emit/html/mod.rs`); `Cargo.toml` (`base64` to `[dependencies]`); tests in `css.rs`.
+**Files:**
 
-**Interfaces:** produces `pub(super) fn stylesheet(wide_width: f64, markers: &[ItemKey]) -> String`, built from small functions:
+- create `src/emit/html/css.rs` (`mod css;`);
+- `src/text.rs` (`REGULAR_WOFF2`, `SEMIBOLD_WOFF2`);
+- `src/style.rs` (the stroke guard);
+- `Cargo.toml` (`base64 = "0.23"` to `[dependencies]`);
+- tests in `css.rs`, or in `css/tests.rs` if the file passes about 300 lines.
 
-- `font_faces()`;
-- `palettes()`;
-- `layout(wide_width)`;
-- `indicators(markers)`;
-- `VISUALLY_HIDDEN`.
+**Interfaces** (all `pub(super)`):
+
+- `font_faces() -> String`;
+- `palettes() -> String`;
+- `layout(wide_width: f64, narrow_width: f64) -> String`;
+- `narrow_query(wide_width: f64) -> String`;
+- `indicators(markers: &[ItemKey]) -> String`;
+- `VISUALLY_HIDDEN: &str`.
 
 - [ ] **Step 1: Failing tests:**
-  - `the_font_faces_are_the_vendored_fonts`: two `@font-face` rules, family `text::FAMILY`, weights `400` and `600`. Each `base64,…)` payload decodes (`base64` engine `STANDARD`) to `include_bytes!("../../../assets/Inter-Regular.woff2")` and `…SemiBold.woff2` respectively.
+  - `the_font_faces_are_the_vendored_fonts`: two `@font-face` rules, family `text::FAMILY`, weights `Weight::Regular.css()` and `Weight::SemiBold.css()`, each `base64,…)` payload decoding to `std::fs::read("assets/Inter-Regular.woff2")` and `…SemiBold.woff2`.
   - `palettes_override_in_order`:
-    - the `:root{…}` block holds exactly `Palette::built_in(Light).declarations()` as `name:value;`, with `color-scheme:light`;
-    - the `prefers-color-scheme: dark` block's selector is `:root:not([data-theme="light"])` and holds the dark declarations;
-    - a `:root[data-theme="dark"]` block holds the same dark declarations;
-    - the order in the stylesheet is light, media, `[data-theme]`.
-  - `the_breakpoint_is_the_documents`: for widths 976.817 and 1200, the rule is `@media (max-width: {B-1}px){.wide{display:none}.narrow{display:block}}` with `B = breakpoint_px(w)`; `.narrow{display:none}` precedes it; the wide cap is `max-width:{fmt_coord(w)}px`.
-  - `one_rule_per_marker_key`: for keys `[6, 7, 2]`, three rules in that order, each `svg:has([data-marker="6"]:focus-visible) [data-marker-indicator="6"]{visibility:visible}`, all inside one `@supports selector(:has(*)){…}`. No keys gives no `@supports` block.
-  - `the_stylesheet_requests_nothing_but_fonts`: `url(` appears exactly twice, each followed by `data:font/woff2;base64,`; no `@import`; no `http`.
+    - the three blocks in order, each declaring exactly its palette's `declarations()` as `name:value;` with its `color-scheme`;
+    - the dark selectors are `:root:not([data-theme="light"])` inside the media query, and `:root[data-theme="dark"]`;
+    - the series are equal in both built-in themes.
+  - `the_layout_is_exact`: `layout(976.817, 420.0)` equals one expected string held as a test `const`, covering the body rule, the SVG rule, both caps and the breakpoint rule. `narrow_query(976.817)` is `(max-width: {B-1}px)`.
+  - `only_the_breakpoint_rule_sets_display`: in `layout`'s output, the only `display` declarations on `.wide`, `.narrow` or `.arrangement` are `.narrow{display:none}`, then `.wide{display:none}` and `.narrow{display:block}` inside the query. None uses `visibility` or `opacity`.
+  - `one_rule_per_marker_key`:
+    - keys `[6, 7, 2]` give three rules in that order inside one `@supports selector(:has(*))`;
+    - the marker outline rule is inside it;
+    - no keys gives no `@supports` and no empty `{}`.
+  - `outlines_go_only_with_their_indicator`: every `outline` declaration's selector ends in `:focus-visible`, and the `data-marker` one is inside the `@supports` block.
+  - `the_stylesheet_requests_nothing_but_fonts`: `url(` exactly twice, each `url(data:font/woff2;base64,`; `src:` exactly twice; no `@import`, no `http`, no `<`.
+  - `palette_values_pass_css_value`: a test palette value containing `;` is refused (through `escape::css_value`'s error), not written.
 - [ ] **Step 2–4:** red, implement, green; lints; rustqual.
 - [ ] **Step 5: Commit** `feat(emit): the page's stylesheet: fonts, palettes, breakpoint, focus`.
 
@@ -152,23 +214,25 @@ Design: `docs/design/architecture.md`:
 
 **Files:**
 
-- `src/emit/html/mod.rs`: `page(wide: &Document, narrow: &Document, title: Option<&str>) -> String`; `fn marker_keys(&Document) -> Vec<ItemKey>`.
+- `src/svg/mod.rs` (`marker_keys`);
+- `src/emit/html/mod.rs` (`page(wide, narrow, title)`);
+- `tests/common/html.rs`: `svgs(page) -> Vec<&str>` replaces `split`. The page allowlist adds `div`; the stylesheet check allows the two font `url(data:` and the two `src:`;
 - `tests/serialise/page.rs`.
-- `tests/common/html.rs`: `split` becomes `svgs(page) -> Vec<&str>`, and the allowlist adds `div`. The stylesheet check allows exactly the two font `url(data:font/woff2;base64,`.
 
 **Interfaces:**
 
-- Consumes: Task 1's `stylesheet`.
-- Produces: the new `page` signature for Task 3.
+- Consumes: Task 1.
+- Produces: `page(wide: &Document, narrow: &Document, title: Option<&str>) -> String`, and `svg::marker_keys(&Document) -> Vec<ItemKey>`.
 
-- [ ] **Step 1: Failing tests** (in `tests/serialise/page.rs`, the PRD example's wide and narrow documents):
-  - `one_arrangement_at_a_time` (Review Focus 1):
-    - the page holds exactly two SVGs, the wide first, in `<div class="arrangement wide">` and `<div class="arrangement narrow">`;
-    - the stylesheet hides `.narrow` by default and swaps both inside the one `max-width` query;
-    - no rule uses `visibility` or `opacity` on `.wide` or `.narrow`.
-  - `both_are_interactive`: each SVG has `role="button"` controls with `data-row`, and the same set of `data-marker` keys.
-  - `markers_have_indicator_rules`: every `data-marker` value in the wide SVG has its `:has` rule, and no rule names a key absent from it.
-  - The 14a tests carry over: `the_page_is_minimal_and_valid` (now with two SVGs inside `<main>`), `the_page_requests_nothing`, `the_title_falls_back`, `a_hostile_title_is_escaped`.
+- [ ] **Step 1: Failing tests** (the PRD example's wide and narrow documents):
+  - `marker_keys_walk_controls_only`: the PRD example's keys are its six `data-marker` lines in document order, with no hit areas or indicators among them.
+  - `one_arrangement_at_a_time`: two SVGs, the wide first, in their containers, and the stylesheet contains `layout(W, N)` exactly.
+  - `both_are_interactive`: in each SVG, every `fill` and `stroke` is `var(--…)`, `none` or one of the two number inks. Both SVGs carry the same `data-marker` keys.
+  - `the_indicator_selectors_match_the_tree`: on each parsed SVG,
+    - every `[data-row-indicator]` is a direct child of a `[data-legend-row]` with the same key, and has a direct `rect` child;
+    - every `[data-marker-indicator]` key is a `[data-marker]` key in the same SVG;
+    - every key in the `:has` rules is a wide `data-marker`, and every wide `data-marker` has a rule.
+  - The 14a tests carry over through `svgs`.
 - [ ] **Step 2–4:** red, implement, green; lints; rustqual.
 - [ ] **Step 5: Commit** `feat(emit): both arrangements, interactive, one shown at a time`.
 
@@ -178,7 +242,10 @@ Design: `docs/design/architecture.md`:
 
 **Files:** `src/pipeline.rs` (`render` arranges Narrow too); `tests/run.rs`.
 
-- [ ] **Step 1: Failing test:** `renders_the_prd_example` asserts two `<svg` elements and the `@font-face` rules. The rest of `tests/run.rs` stands. The hostile and allowlist checks now cover both SVGs and the stylesheet through Task 2's helpers.
+- [ ] **Step 1: Failing tests:**
+  - `renders_the_prd_example` asserts two `<svg` elements and two `@font-face` rules;
+  - `realistic_inputs` adds a zero-marker CSV, every ring unknown: a valid page with no `@supports`;
+  - a generated 200-quadrant CSV renders with exit 0 and one `:has` rule per marker.
 - [ ] **Step 2–4:** red, implement, green; lints; rustqual.
 - [ ] **Step 5: Commit** `feat(pipeline): write both arrangements`.
 
@@ -188,24 +255,28 @@ Design: `docs/design/architecture.md`:
 
 **Files:**
 
+- `tests/serialise/golden.rs`: `golden(dir, name, got)`;
 - `tests/golden/html/prd.html`;
-- `tests/serialise/page.rs`, for the golden and the round trip;
+- `tests/serialise/page.rs`;
+- `tests/serialise/hostile.rs` (`Strings` and `HOSTILE` `pub(super)`);
 - create `tests/determinism.rs`;
-- `Cargo.toml` dev-dependencies `html5ever`, `markup5ever_rcdom`.
+- `Cargo.toml` dev-dependencies `html5ever = "0.39"`, `markup5ever_rcdom = "0.39"`.
 
 - [ ] **Step 1: Tests:**
-  - `prd_page_matches_its_golden`:
-    - the PRD example's page, with each `base64,…)` payload replaced by `base64,…)`, equals the golden;
-    - blessing follows §10: `UPDATE_GOLDEN=1` writes it and fails, and it refuses under `CI`, as the serialiser goldens do.
-  - `hostile_text_survives_an_html5_parser` (Review Focus 3):
-    - the hostile catalogue from `tests/serialise/hostile.rs`, with a hostile title, rendered and parsed with `html5ever`;
-    - the tree's element names are only the page's and the SVG vocabulary, with no `script` anywhere;
-    - there is exactly one `style` and one `title`;
-    - every hostile string appears as text or as an `aria-label` value, unchanged.
-  - `two_processes_write_the_same_bytes` (NFR-4): the built binary run twice in separate processes on `three-quadrant.csv`, into two files; the bytes are equal.
-- [ ] **Step 2:** bless the golden and read it: the head, the stylesheet with the payloads elided, both SVGs.
-- [ ] **Step 3:** `just ci`. Render the PRD example and the template CSV; look at both arrangements, by viewport width, in light and dark.
-- [ ] **Step 4: Commit** `test: the page's golden, an HTML5 round trip, determinism across processes`.
+  - `prd_page_matches_its_golden`: the page with its two payloads elided (asserting two were) equals `tests/golden/html/prd.html`.
+  - `hostile_text_survives_an_html5_parser`: the hostile catalogue and a hostile title, rendered, then parsed by `html5ever` into an `RcDom`. Then:
+    - `dom.errors` is empty;
+    - HTML-namespace elements are only the page's (`html head meta title style body main h1 div`);
+    - SVG-namespace elements are only `SVG_ELEMENTS`;
+    - there is exactly one HTML `title` and one HTML `style`;
+    - `Strings` read back from the parsed SVGs equal the document's.
+
+    The doc comment says why this is stronger than the XML check: SVG `<title>` is an HTML integration point, whose content an HTML parser reads as HTML.
+  - `two_processes_write_the_same_bytes`: the built binary, two separate processes, on the PRD example and on a hostile CSV with a title; the bytes are equal for each.
+- [ ] **Step 2:** bless the golden and read it.
+- [ ] **Step 3:** `just ci`.
+- [ ] **Step 4: Look at it.** Render the PRD example and the template. In a browser, check viewport widths `B - 1`, `B` and `B + 1`, zoom 110% around `B`, light and dark, and Tab through both arrangements. Record what was checked in the PR body.
+- [ ] **Step 5: Commit** `test: the page's golden, an HTML5 round trip, determinism across processes`.
 
 ---
 
@@ -214,11 +285,18 @@ Design: `docs/design/architecture.md`:
 1. **Reviews:** a final whole-branch review on the most capable model in Copilot's seat (Copilot is out of credits until November 2026; say so), then simplify, then a final check.
 2. **Crumbs:**
    - `crumbs close rg-f27`.
-   - A new crumb for forced-colours indicators, for the PR 15 assistive-technology pass.
-   - A note on `rg-6zu` (PR 15):
+   - New crumbs:
+     - forced-colours indicators, and the `:has` cost check;
+     - WCAG 1.4.12 legend text spacing, before release;
+     - CR in names in HTML;
+     - SC-8's cross-job hash comparison.
+   - A note on `rg-6zu`:
      - the toggle sets `data-theme` on `<html>`;
+     - `narrow_query` feeds `matchMedia`;
      - on a breakpoint change, focus moves to the same key in the newly shown arrangement;
-     - selection styling (FR-73) goes beside the generated focus rules.
+     - selection styling (FR-73) goes beside the generated focus rules, reusing `svg::marker_keys`;
+     - a `Page` input struct when `Catalogue` and `Plotted` join;
+     - reduced motion for any transition.
 3. Move this plan to `docs/plans/done/`, tick the steps, and set `status: complete` and `completed_date`.
 4. **No version bump.** Commit, push, open the PR, check CI on all three platforms, and merge when clean if the maintainer authorises it.
 
@@ -227,3 +305,4 @@ Design: `docs/design/architecture.md`:
 | Revision | Date | Notes |
 | --- | --- | --- |
 | 1.0 | 2026-10-12 | Initial version, for the plan review. |
+| 1.1 | 2026-10-12 | The five-seat review: both containers capped; outline removal paired with its indicator, and transparent; `css_value` on palette values; `narrow_query`; the stroke guard; `html5ever` 0.39; tests that check structure, not substrings; print and range syntax declined. |
