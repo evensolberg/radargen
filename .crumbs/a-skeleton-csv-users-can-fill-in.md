@@ -25,3 +25,5 @@ Options for the spec step:
 - Either way: document every column (required vs optional, accepted values, what each drives in the output) beside it; README section.
 
 Considerations: Excel round trip (Excel mis-decodes UTF-8 without a BOM; FR-2 strips one on input, so the template could ship with a BOM, or the docs say to Save As CSV UTF-8 per FR-61 wording); --rings changes valid ring values; keep the template and the parser in one source of truth (a test that the template parses with zero warnings and renders); the PRD example fixture (tests/fixtures/three-quadrant.csv) is a natural seed.
+
+[2026-10-12] Maintainer prefers the command: the tool writes the seed CSV (e.g. radargen --template radar.csv), not a separately shipped file.

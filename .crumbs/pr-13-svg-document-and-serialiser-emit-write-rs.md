@@ -1,7 +1,7 @@
 ---
 id: rg-6ku
 title: 'PR 13: svg serialiser, emit/write.rs'
-status: open
+status: in_progress
 type: task
 priority: 1
 tags:
@@ -9,7 +9,7 @@ tags:
 - svg
 - output
 created: 2026-10-08
-updated: 2026-10-11
+updated: 2026-10-12
 blocks:
 - rg-f27
 - rg-42m
@@ -42,3 +42,5 @@ Node, Document, late colour binding via Role, no ids, data-row identity. NFR-14 
 [2026-10-11] From PR 12 (arrange): serialise svg::Document as viewBox="0 0 {width} {height}". The key rule (a Decorative group holding one Line) is <line> with aria-hidden. An empty title block group may be dropped. Give the radar group an accessible name (role="group" + aria-label) so heading navigation can reach the markers.
 
 [2026-10-11] Unblocked: rg-ozb (PR 12), rg-vgm (PR 03) and rg-f4o all closed.
+
+[start] 2026-10-12 10:29:31
