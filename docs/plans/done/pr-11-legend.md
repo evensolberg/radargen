@@ -10,17 +10,17 @@ crumb_id: rg-67j
 document_title: "PR 11 — the legend block: Implementation Plan"
 created_date: 2026-10-11
 synopsis: "The legend as a Block: a Surface2 panel, the 'Legend' heading, one group per quadrant in FR-10 order with its colour swatch, ring subheadings in declared order, and one row per plotted item — badge, wrapped name, inline qualifier/status — each row a control keyed by its CSV line, at least 24 CSS px tall at 320 px (FR-35, FR-46, FR-74, FR-75, FR-79, FR-94, D-54, D-56)."
-status: draft
+status: done
 type: Plan
 revision: "1.2"
 review_date: 2026-10-11
 reviewed_by: [rust-engineer, architect-reviewer, qa-expert, ui-designer, accessibility-tester]
-completed_date:
+completed_date: 2026-10-11
 comments: "1.1 folds in the five-seat plan review; 1.2 the scoped re-review. See Review rulings."
 ---
 # PR 11 — the legend block: Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Crumb:** `rg-67j` · **Phase:** v1.0 · **After:** PR 10a/10b, rg-umt, rg-kic · **Then:** PR 12 (arrangements, `rg-ozb`)
 
@@ -93,10 +93,10 @@ All in `style.rs`, as named constants, scale 1, content-relative (the panel inse
 
 **Files:** `docs/product/radargen-prd.md`, `docs/design/architecture.md`, `src/svg/mod.rs`, `src/style.rs`, `src/text.rs` (`NUMBER_CENTRING`), `src/layout/radar/markers.rs` (import it), `src/layout/test_support.rs` (arms, `PRD_EXAMPLE`), `src/layout/radar/mod.rs` (use the moved fixture), `src/palette.rs` (tests), `src/model.rs` (`accessible_name` drops `NoChange`).
 
-- [ ] **Step 1: PRD v0.53**: FR-79 (only radar labels never wrap; legend headings wrap at the column with a hanging indent), FR-42 (no quadrants ⇒ no legend), FR-50 (`NoChange` shown nowhere, so absent from the name), D-66 ("about a third taller", 24 → 32 units), SC-20 (legend focus on Surface2); revision row; `Version:`. Architecture `Implements:` v0.53 and §5 listing (`Rect`, `LegendRow`; the row target's Surface2 fill and inset focus stroke).
-- [ ] **Step 2: Failing tests**: `Rect` bounds (origin..origin + (w, h) ± stroke/2) and `assert_finite`; `is_interactive_only` false for `Rect` and a `LegendRow` group; style const asserts (row height, narrow fit); palette: `text_clears_4_5_on_surface2`, `focus_clears_3_on_surface2`, `series_clear_3_on_surface2` (both themes); model: `accessible_name` of a `NoChange` item omits it (and a `New` one keeps it); `NUMBER_CENTRING` value unchanged (1490/4096).
-- [ ] **Step 3–4:** implement, green; lints; rustqual.
-- [ ] **Step 5:** Commits `docs(prd): v0.53 — the legend's contracts` and `feat(svg): a rectangle and the legend-row control`.
+- [x] **Step 1: PRD v0.53**: FR-79 (only radar labels never wrap; legend headings wrap at the column with a hanging indent), FR-42 (no quadrants ⇒ no legend), FR-50 (`NoChange` shown nowhere, so absent from the name), D-66 ("about a third taller", 24 → 32 units), SC-20 (legend focus on Surface2); revision row; `Version:`. Architecture `Implements:` v0.53 and §5 listing (`Rect`, `LegendRow`; the row target's Surface2 fill and inset focus stroke).
+- [x] **Step 2: Failing tests**: `Rect` bounds (origin..origin + (w, h) ± stroke/2) and `assert_finite`; `is_interactive_only` false for `Rect` and a `LegendRow` group; style const asserts (row height, narrow fit); palette: `text_clears_4_5_on_surface2`, `focus_clears_3_on_surface2`, `series_clear_3_on_surface2` (both themes); model: `accessible_name` of a `NoChange` item omits it (and a `New` one keeps it); `NUMBER_CENTRING` value unchanged (1490/4096).
+- [x] **Step 3–4:** implement, green; lints; rustqual.
+- [x] **Step 5:** Commits `docs(prd): v0.53 — the legend's contracts` and `feat(svg): a rectangle and the legend-row control`.
 
 ---
 
@@ -106,7 +106,7 @@ All in `style.rs`, as named constants, scale 1, content-relative (the panel inse
 
 `Layout { width, height, entries: Vec<Entry> }`, `Entry::{Heading { run: TextRun, level: NonZeroU8 }, Swatch { centre: Point, series: usize }, Row(Row)}`, `Row { top, height, badge: Point, series, hollow, number: usize, name: TextRun, meta: Option<TextRun>, control: Control }`. The inline test is a pure operation `fits_inline(last_end: f64, meta_width: f64, column: f64) -> bool` (`last_end + META_GAP + meta_width <= column`). Built by an operation `layout(catalogue, plotted, fonts) -> Layout` walking `Plotted::quadrants` and `Plotted::runs` together with a y cursor.
 
-- [ ] **Step 1: Failing tests** (literal pins, citing mockup l.686–760; fixtures from `test_support`):
+- [x] **Step 1: Failing tests** (literal pins, citing mockup l.686–760; fixtures from `test_support`):
   - `pins_for_the_prd_example`: heading baseline 14; first quadrant baseline 36, swatch (5, 32); first ring baseline 54; first row top 58, height 32, badge centre y 74, first name baseline 74.5; every value a literal.
   - `rows_of_one_two_and_three_lines`: one ring with 1-, 2- and 3-line names → heights 32, 37, 52 and tops abutting (literals).
   - `groups_follow_fr10_and_rings_follow_the_declaration`: first-seen `Tool, platform, Practice` → `platform, Practice, Tool`; `--rings "Hold,Assess,Trial,Adopt"` with rows in Adopt and Hold → ring headings `Hold, Adopt` in that order; a declared ring with no rows has no heading.
@@ -119,8 +119,8 @@ All in `style.rs`, as named constants, scale 1, content-relative (the panel inse
   - `widths`: a one-row legend "A" is narrow (literal width); a long name gives width ≤ 380 and equal to its widest line's right edge.
   - `zero_quadrants_lays_out_nothing`; `nine_quadrants_use_unreduced_series` (the ninth swatch is `Series(8)`).
   - `names_carried_raw`: `A<&">B` and a non-Latin name appear unchanged.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual (`layout` an integration over small operations; helpers ≤ 4 parameters).
-- [ ] **Step 5:** Commit `feat(layout): the legend's layout (FR-35, FR-46, FR-74, FR-79)`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual (`layout` an integration over small operations; helpers ≤ 4 parameters).
+- [x] **Step 5:** Commit `feat(layout): the legend's layout (FR-35, FR-46, FR-74, FR-79)`.
 
 ---
 
@@ -130,7 +130,7 @@ All in `style.rs`, as named constants, scale 1, content-relative (the panel inse
 
 `size(s)` = (width + 2·`LEGEND_PANEL_INSET_X`, height + 2·`LEGEND_PANEL_INSET_Y`) × `s` (zero for an empty layout); `render(at)` = `Group::new(at.origin, [panel Rect, Group::new(insets · s, entries…)])`, each entry × `s` (`Scale::uniform(s)`): headings as `Text` in `Heading(n)` groups, swatches as `Decorative` circles, rows as `Group(ORIGIN, [target Rect, indicator Group(Indicator(key), [inset Rect]), badge Circle, badge number Text, name Text, meta Text?]).with(Semantics::LegendRow(control))`.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `rows_are_controls_with_the_ring_in_the_name`: one `LegendRow` per plotted item, `key == ItemKey(line)`, `label == accessible_name(item, Some(n))` (contains the ring; no "No Change"), `tooltip == None`; no `Marker` semantics.
   - `row_indicators_are_inset_and_interactive_only`: each row's second child is an `Indicator(key)` group holding one `Rect` inset by 1 on every side of the target, fill and stroke `None`; `is_interactive_only` true for it.
   - `row_targets_meet_fr94_and_tile`: for 1-, 2-, 3-line and own-line-meta rows, the drawn target `Rect` is the first child, `height · MIN_PX_PER_UNIT ≥ 24` and `width · MIN_PX_PER_UNIT ≥ 24`, fill `Surface2`; consecutive targets abut (`close`); each target contains its badge and text bounds.
@@ -139,9 +139,9 @@ All in `style.rs`, as named constants, scale 1, content-relative (the panel inse
   - `headings_and_inks`: `Heading(2/3/4)` levels; inks per level; swatches `Decorative`, fill `Series(rank)`.
   - `the_panel_is_surface2_and_holds_everything`: `test_support::assert_inside(render(at(s)), size(s))` at s ∈ {1, 0.7, 0.5}; panel `Rect` equals the size.
   - `scales_linearly`: `size(s)` = `size(1) · s` (`close`) for s ∈ {0.5, 0.7, 1.3}; `assert_translates` at 1 and 0.5.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual.
-- [ ] **Step 5: Gate** `just ci`.
-- [ ] **Step 6:** Commit `feat(layout): the legend block (FR-35, FR-50, FR-74, FR-75, FR-94)`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual.
+- [x] **Step 5: Gate** `just ci`.
+- [x] **Step 6:** Commit `feat(layout): the legend block (FR-35, FR-50, FR-74, FR-75, FR-94)`.
 
 ---
 
