@@ -146,13 +146,14 @@ declarations only and are not listed.
 | `src/layout/legend/` (`mod.rs`, `layout.rs`) | Legend block (FR-35, FR-74, FR-75) | v1.0 |
 | `src/layout/key.rs` | Encoding key (FR-66) | v1.0 |
 | `src/layout/arrange.rs` | Wide and narrow placement (FR-68–FR-71) | v1.0 |
-| `src/svg/mod.rs` | `Node`, `Document` — the SVG tree and its serialiser. `Node` arrives with the first block that renders (PR 09) and gains variants with each block; `Document` arrives with `arrange` (PR 12) and the serialiser in PR 13 | v1.0 |
+| `src/svg/mod.rs` | `Node`, `Document` — the SVG tree and its serialiser. `Node` arrives with the first block that renders (PR 09) and gains variants with each block; `Document` arrives with `arrange` (PR 12) | v1.0 |
+| `src/svg/serialise/` | `serialise(&Document, Target)`: one `<svg>` element, colours bound late for an interactive or static `Target`, interactive-only nodes dropped for static; every attribute through `escape::xml_attr`, every float through `num::fmt_coord` (PR 13) | v1.0 |
 | `src/escape.rs` | NFR-6's five output contexts, one function each | v1.0 |
 | `src/num.rs` | `fmt_coord()` — NFR-17's rounding, used by every emitter | v1.0 |
 | `src/text.rs` | Shaped measurement and FR-79 wrapping, over **both** of FR-85's faces | *exists* |
 | `src/emit/html/mod.rs` | Self-contained HTML: both arrangements, FR-69's computed media-query switch, FR-56's theme override, inline JS/CSS and font | v1.0 |
 | `src/emit/html/table.rs` | The table view (FR-41, FR-78) — every CSV row, every declared column | v1.0 |
-| `src/emit/write.rs` | NFR-14's atomic write: temp file in the same directory, flush, rename | v1.0 |
+| `src/emit/write.rs` | NFR-14's atomic write: temp file in the same directory, flush, rename; `fs::write`'s permissions, a symlink replaced not followed, a read-only target refused | v1.0 |
 | `src/emit/svg.rs` | The document with its text outlined and deduplicated through `<use>` (§11) | v1.1 |
 | `src/emit/png.rs` | `resvg` rasterisation | v1.1 |
 | `assets/` | The vendored font — TTF to measure and rasterise, WOFF2 to inline — and its OFL notice (FR-85, NFR-5), `include_bytes!` into the binary | *exists* |
@@ -468,8 +469,9 @@ rows (FR-17) have no key in any of them.
 `Node::is_interactive_only` says so structurally, so an emitter need not know
 which layer a node came from. A static image has no pointer or focus, so the
 SVG and PNG emitters skip every interactive-only node (the two layer groups drop
-whole) and write a `Control` as `<g aria-label><title>` without `role` or
-`tabindex`. The HTML emitter keeps them: a marker control carries `data-row`
+whole) and write a `Control` as `<g role="img" aria-label><title>`, without
+`tabindex`: `img` makes the control's drawn text presentational, so its
+name, which already holds that text (FR-50), is read once. The HTML emitter keeps them: a marker control carries `data-row`
 and `data-marker`, a legend-row control (PR 11) `data-row` and
 `data-legend-row`, a hit area `data-hit`, all keyed on the item's CSV line. An
 indicator is written by where it sits: inside a legend-row control it is that
@@ -729,7 +731,8 @@ half a release-checklist item nothing in `cargo test` can reach. §1's
 `cargo-deny` gate is the same shape: CI, not a test.
 
 A golden file is regenerated only by a deliberate `UPDATE_GOLDEN=1` run, never
-silently — NFR-12 makes a changed output a version-bumping event, so a diff that
+silently: a blessing run writes the file and then fails, so it is never green,
+and it refuses to run under `CI` — NFR-12 makes a changed output a version-bumping event, so a diff that
 appears without one is the signal, not the noise.
 
 ## 11. What is deliberately not designed yet
