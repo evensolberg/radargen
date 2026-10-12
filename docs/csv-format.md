@@ -10,10 +10,10 @@ doc_name: csv-format
 crumb_id:
 document_title: "The radar CSV"
 created_date: 2026-10-12
-synopsis: "How to write the CSV radargen reads: the four required columns and six optional ones, what each accepts, what is a hard error and what only warns, and how the file must be saved."
+synopsis: "How to write the CSV radargen reads: the four required columns and seven optional ones, what each accepts, what is a hard error and what only warns, and how the file must be saved."
 status: active
 type: Guide
-revision: "1.0"
+revision: "1.1"
 review_date:
 reviewed_by: []
 completed_date:
@@ -51,6 +51,7 @@ Columns are found by **name, not position**, so their order in the file does not
 | `last_affirmed` | no | A date, `YYYY-MM-DD` | The detail panel |
 | `exit_date` | no | A date, `YYYY-MM-DD` | The detail panel |
 | `status` | no | `New`, `Moved In`, `Moved Out`, `No Change`, or blank | A ring or half-ring on the marker, and the legend |
+| `link` | no | A web address starting `http://` or `https://`, or blank | A link in the detail panel and the table view (from PR 15) |
 
 **Any other column is ignored**, so a team can keep its own notes (a ticket reference, an owner, a survey score) in the same file. A column whose header cell is empty is dropped; if a row has a value under it, you get a warning.
 
@@ -140,6 +141,14 @@ How the item changed since the last edition. You set it for each edition; the to
 
 Values are matched ignoring case and surrounding spaces, so `moved in` works.
 
+### `link`
+
+A web address for the item, such as the product's home page: `https://www.terraform.io`. Once the detail panel and table view arrive (PR 15), it shows as a link in both and opens in a new tab.
+
+- Only addresses starting `http://` or `https://` become links. Anything else is shown as plain text, with a warning, so a mistyped or unsafe address is never something a reader can click.
+- A blank cell means no link.
+- Links appear only in the HTML page. The PNG, SVG and PDF exports cannot be clicked.
+
 ## Text in any field
 
 - **Leading and trailing spaces are ignored** for matching. Names, quadrants and rings are also shown trimmed; other fields are shown exactly as written.
@@ -161,6 +170,7 @@ Values are matched ignoring case and surrounding spaces, so `moved in` works.
 
 - an undeclared ring;
 - an unrecognised qualifier or status;
+- a `link` that is not an `http` or `https` address;
 - a date that does not parse;
 - an empty description;
 - a duplicate name;
@@ -175,11 +185,11 @@ Every message about a row names its CSV line, and the column where there is one.
 ## Example
 
 ```csv
-name,quadrant,ring,description,qualifier,domain,rationale,last_affirmed,exit_date,status
-Terraform,Tools,Adopt,"Declarative infrastructure as code.",default,Infrastructure as Code,"Default IaC tool across all environments.",2026-06-01,,No Change
-Pulumi,Tools,Trial,"Infrastructure as code in a general-purpose language.",conditional,Infrastructure as Code,"Where a client mandates a general-purpose language.",2026-06-01,,New
-Chef,Tools,Retire,"Agent-based configuration management.",,Configuration Management,"Superseded by Ansible; migration scheduled.",2026-03-15,2027-01-31,Moved Out
-Kubernetes,Platforms,Adopt,"Container orchestration.",default,Containers,"Default for new containerised workloads.",2026-06-01,,
+name,quadrant,ring,description,qualifier,domain,rationale,last_affirmed,exit_date,status,link
+Terraform,Tools,Adopt,"Declarative infrastructure as code.",default,Infrastructure as Code,"Default IaC tool across all environments.",2026-06-01,,No Change,https://www.terraform.io
+Pulumi,Tools,Trial,"Infrastructure as code in a general-purpose language.",conditional,Infrastructure as Code,"Where a client mandates a general-purpose language.",2026-06-01,,New,https://www.pulumi.com
+Chef,Tools,Retire,"Agent-based configuration management.",,Configuration Management,"Superseded by Ansible; migration scheduled.",2026-03-15,2027-01-31,Moved Out,
+Kubernetes,Platforms,Adopt,"Container orchestration.",default,Containers,"Default for new containerised workloads.",2026-06-01,,,https://kubernetes.io
 ```
 
 ## Revisions
@@ -187,3 +197,4 @@ Kubernetes,Platforms,Adopt,"Container orchestration.",default,Containers,"Defaul
 | Revision | Date | Notes |
 | --- | --- | --- |
 | 1.0 | 2026-10-12 | Initial version. |
+| 1.1 | 2026-10-12 | The `link` column (FR-96, D-77). |
