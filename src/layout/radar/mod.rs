@@ -431,7 +431,7 @@ fn ring_reach_y(mid: f64, r: RadarScale) -> f64 {
 /// outermost ring name's reach, at least `130 * s + 11.19`,
 /// outgrows it from there. That relies on at least one ring, which
 /// `rings.rs` guarantees by rejecting an empty list. The hit term, `|p| s +
-/// 16 · max(s, 1)`, is increasing.
+/// HIT_RADIUS · max(s, 1)`, is increasing.
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"

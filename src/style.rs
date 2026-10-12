@@ -188,7 +188,8 @@ pub const LEGEND_WIDTH_MAX: f64 = NARROW_WIDTH - 2.0 * MARGIN;
 pub const LEGEND_NAME_COLUMN: f64 = LEGEND_WIDTH_MAX - LEGEND_NAME_X;
 
 // FR-94: a legend row is at least `MIN_TARGET_PX` tall wherever the document
-// renders smallest.
+// renders smallest. It holds with equality: 36 is the least whole height at
+// 480 units.
 const _: () = assert!(
     LEGEND_ROW_MIN_HEIGHT * MIN_PX_PER_UNIT >= MIN_TARGET_PX,
     "FR-94: a legend row must be at least MIN_TARGET_PX tall"
@@ -271,7 +272,8 @@ pub const MARGIN: f64 = 20.0;
 /// Between radar and legend, wide arrangement only.
 pub const COLUMN_GAP: f64 = 28.0;
 /// The narrow document is authored at this width and the radar scaled to fit
-/// inside it, so text keeps its natural size (FR-70, D-31).
+/// its column, so text keeps its natural size (FR-70, D-31). D-71 widens it
+/// when the radar cannot fit at `NARROW_MIN_SCALE`.
 pub const NARROW_WIDTH: f64 = 420.0;
 /// The widest narrow document FR-94's targets are sized for (D-71).
 ///
@@ -325,13 +327,13 @@ pub const MIN_PX_PER_UNIT: f64 = ((NARROW_MIN_VIEWPORT_PX - NARROW_HORIZONTAL_IN
     .min(MIN_LEGIBLE_PX / LEGEND_NAME.size);
 /// FR-94's hit-area radius at scale 1, in user units.
 ///
-/// 18 renders at least
-/// `MIN_TARGET_PX` across at `MIN_PX_PER_UNIT` (asserted below, in every
-/// build), which holds up to D-71's `NARROW_MAX_WIDTH`.
+/// 18 renders at least `MIN_TARGET_PX` across at `MIN_PX_PER_UNIT` (asserted
+/// below, in every build), which holds up to D-71's `NARROW_MAX_WIDTH`.
 pub const HIT_RADIUS: f64 = 18.0;
 // FR-94: the hit area is at least `MIN_TARGET_PX` across wherever the
 // document renders smallest. A compile-time check, so changing a premise
-// (the viewport, the inset, the legend size) cannot silently break it.
+// (the viewport, the inset, the legend size) cannot silently break it. It
+// holds with equality: 18 is the least whole radius at 480 units.
 const _: () = assert!(
     2.0 * HIT_RADIUS * MIN_PX_PER_UNIT >= MIN_TARGET_PX,
     "FR-94: the hit area must be at least MIN_TARGET_PX across"

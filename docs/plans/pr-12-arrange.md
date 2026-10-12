@@ -12,7 +12,7 @@ created_date: 2026-10-11
 synopsis: "arrange.rs places the four blocks two ways from one set: wide, with the legend beside the radar at scale 1, and narrow, with the legend below and the radar scaled to fit a 400-unit column (never below 0.3; the document widens when even that does not fit, with FR-94 headroom to 480 and a warning beyond). Ships as PR 12a (FR-94 headroom, PRD v0.54) and PR 12b (arrange) (FR-68, FR-70, FR-71, FR-94, D-31, D-56, D-70, D-71)."
 status: draft
 type: Plan
-revision: "1.1"
+revision: "1.2"
 review_date: 2026-10-11
 reviewed_by: [rust-engineer, architect-reviewer, qa-expert, ui-designer, accessibility-tester]
 completed_date:
@@ -233,7 +233,7 @@ All of these are named constants in `style.rs`, at scale 1. With T = the title b
       - a fatal error: refuses a valid CSV.
   - **FR-95**: modelled on FR-88. A narrow arrangement wider than 480 units emits one render-level warning naming the quadrant with the widest label, and says that on a 320 px screen legend rows, marker targets and text fall below FR-94's and SC-6's sizes. It renders normally (exit 0) and is emitted before the row warnings (NFR-11).
   - **FR-70:** reword the lead sentence to "scaled down within the document, which widens only when the radar cannot fit at 0.3 (D-71)".
-  - **FR-94, NFR-1 (2.5.8), SC-6, SC-17:** scope each to narrow documents up to `NARROW_MAX_WIDTH`. SC-17's audit includes one FR-95 fixture, recorded as the known exception.
+  - **FR-94, NFR-1 (2.5.8), SC-17:** scope each to narrow documents up to `NARROW_MAX_WIDTH`. SC-17's audit includes one FR-95 fixture, recorded as the known exception. **SC-6** is not scoped (12a review): its claim is that text is not scaled with the radar, which holds at any width; it states the px instead (12.5 × 320/W).
   - **D-31:** add "*Amended by D-71*".
   - **D-66:** 24 → 36, half again.
   - **D-69:** the narrow scale is typically 0.3–0.6.
@@ -478,3 +478,4 @@ fn narrow_scale(radar: &impl Block, column: f64) -> f64 {
 | --- | --- | --- |
 | 1.0 | 2026-10-11 | Initial version, for the plan review. D-71 ruled by the maintainer on a wrong premise (widening only past ~360 units). |
 | 1.1 | 2026-10-11 | The five-seat review: measured widening thresholds; the maintainer re-ruled (FR-94 headroom to 480, FR-95 warns beyond); radar at `RADAR_INSET` with a 400 column; `DOC_TOP`; derived spacings; centring dropped; IOSP split; corrected pins and fuller tests; the PRD carries D-71 through FR-94, NFR-1, SC-6, SC-17, D-31, D-66, D-69; split into PR 12a and PR 12b. |
+| 1.2 | 2026-10-11 | PR 12a review: SC-6 is not scoped to 480 (its claim holds at any width; it states the px); FR-95 names the quadrant whose label sets the radar's width; `svg::Document` and the arrangement-only constants move to PR 12b. |
