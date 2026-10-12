@@ -101,7 +101,7 @@ Design: `docs/design/architecture.md` §2 (the pipeline), §3 (the module table)
 - **The binding label:** `RadarBlock::binding_label(scale: RadarScale) -> Option<Binding>`, where `pub enum Binding { Quadrant(String), Ring(String) }`. It is the label with the largest `quadrant_reach_x` or `ring_reach_x` at the narrow placement's scale, the first such in FR-10 order with quadrants before rings (a strict `>`). `None` only with no labels at all, which `rings.rs` rules out by rejecting an empty ring list.
 - **`warn_narrow(blocks: &Blocks, warnings: &mut Warnings)`** in `layout/arrange.rs`, as `warn_crowding` takes `&mut Warnings` (§7). It pushes `RenderKind::NarrowWidened { binding, width }` when `placements(Narrow, blocks).width > NARROW_MAX_WIDTH`.
 - **FR-62:** `Fatal::MissingDirectory { path, dir }`, `-o {path}: the directory {dir} does not exist`. The directory is `write.rs`'s `temp_dir_for` (made `pub(crate)` and renamed `parent_dir`), so an empty parent is `.`. Only `fs::metadata(dir)` failing with `ErrorKind::NotFound` is this error; a parent that is a file, or one that cannot be searched, is left to `write_atomic`'s `Unwritable`, which stays the final authority. A directory removed after the check still fails cleanly there.
-- **D-74, `-o` naming the input:** `Fatal::OutputIsInput { path }`, `-o {path}: is the input CSV; choose another output path`. Checked when `-o` exists, by comparing `fs::canonicalize` of both paths, so `./`, `..` and symlinks do not slip through. A hard link is not caught; recorded in D-74.
+- **D-74, `-o` naming the input:** `Fatal::OutputIsInput { path }`, `-o {path}: is the input CSV; choose another output path`. Checked when `-o` exists, by file identity through the `same-file` crate, so `./`, `..`, symlinks and hard links do not slip through (changed from `fs::canonicalize` at the final review: see Final review).
 - **NFR-15's font failure:** `Fatal::Font(#[from] FontError)`. `FontMetrics::load(bytes, face: &'static str)` names the face, and `FontError`'s message becomes `the embedded {face} font cannot be read: {reason}`. Loaded in tier one after the flags and before the CSV.
 - **`Report`:** `{ warnings: Vec<String>, outcome: Result<(), Vec<String>> }`, all rendered. `main` prints `warnings`, then the `Err` lines, and exits 1 on `Err`. clap's usage errors keep clap's own code (2).
 - **The `qual:api` markers** on `cli.rs:103`, `errors.rs:16`, `emit/write.rs:38`, `layout/arrange.rs:77` and `svg/serialise/mod.rs:101` become orphaned once `main.rs` calls those functions; Task 5 deletes them.
@@ -297,6 +297,19 @@ Warnings are rendered once at the end, so every exit prints those gathered so fa
      - adds the cross-process determinism test and the HTML5-parser round trip.
 3. Move this plan to `docs/plans/done/`, tick the steps, and set `status: complete` and `completed_date`.
 4. **No version bump.** Commit, push, open the PR, check CI. Merge when clean if the maintainer authorises it.
+
+## Final review
+
+A fresh Opus reviewer in Copilot's seat (out of credits until November 2026) found no Critical or Important findings, and checked each Review Focus item against the built binary.
+
+- **Fixed (re-graded to Important by effect):** D-74 compared canonicalised paths and passed silently if canonicalisation failed, which would replace the input. It now compares file identity through `same-file`, which also catches hard links. Test: `a_hard_link_to_the_input_is_the_input`, red then green.
+- **Fixed (CI):** `escaped_paths` failed on Windows, where an ESC makes an invalid file name, so the error comes from the write after the FR-17 warning. The test now uses a CSV with no warnings and checks the line.
+- **Deferred minors, as crumbs:**
+  - FR-95 names the ring's source (with PR 19);
+  - `Unwritable`'s reasons read inconsistently;
+  - FR-95's message interpolates its viewport and target constants;
+  - the failure matrix asserts the write error comes last;
+  - `Config` carries the input path.
 
 ## Revisions
 

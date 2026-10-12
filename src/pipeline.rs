@@ -134,14 +134,17 @@ fn missing_directory(output: &Path) -> Result<(), Fatal> {
     }
 }
 
-/// D-74: `-o` must not be the input CSV, compared after resolving `.`, `..`
-/// and symlinks. A hard link is not caught (D-74).
+/// D-74: `-o` must not be the input CSV. Files are compared by identity
+/// (device and inode, or volume and file index on Windows), so `./`, `..`,
+/// symlinks, case and hard links are all caught, and no path spelling needs
+/// resolving. A path that cannot be opened is not the input.
 fn output_is_input(output: &Path, input: &Path) -> Result<(), Fatal> {
-    match (std::fs::canonicalize(output), std::fs::canonicalize(input)) {
-        (Ok(o), Ok(i)) if o == i => Err(Fatal::OutputIsInput {
+    if same_file::is_same_file(output, input).unwrap_or(false) {
+        Err(Fatal::OutputIsInput {
             path: output.display().to_string(),
-        }),
-        _ => Ok(()),
+        })
+    } else {
+        Ok(())
     }
 }
 

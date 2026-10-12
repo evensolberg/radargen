@@ -348,21 +348,36 @@ fn output_paths() {
     }
 }
 
-/// The messages carry `-o` as given, with controls escaped (NFR-10).
+/// The messages carry `-o` as given, with controls escaped (NFR-10). Where
+/// the error comes from depends on the platform: FR-62 on unix, the write on
+/// Windows, which refuses such a name outright.
 #[test]
 fn escaped_paths() {
-    let dir = seeded(&[("radar.csv", PRD)]);
+    let dir = seeded(&[("radar.csv", &format!("{HEAD}Kafka,Tool,Adopt,d\n"))]);
     let ran = run_in(
         dir.path(),
         &["radar.csv", "-o", "a\u{1b}[31mb\u{202e}c/radar.html"],
     );
     assert!(!ran.ok());
-    assert!(ran.stderr.starts_with("error: -o a"), "{:?}", ran.stderr);
+    assert_starts(&ran, &["error: -o a"]);
     assert!(
         !ran.stderr.contains(['\u{1b}', '\u{202e}']),
         "{:?}",
         ran.stderr
     );
+}
+
+/// D-74 compares files, not names: a hard link to the input is the input.
+#[test]
+fn a_hard_link_to_the_input_is_the_input() {
+    let dir = seeded(&[("data.html", PRD)]);
+    fs::hard_link(dir.path().join("data.html"), dir.path().join("link.html")).expect("links");
+    let ran = run_in(dir.path(), &["data.html", "-o", "link.html"]);
+    assert_eq!(
+        ran.lines(),
+        ["error: -o link.html: is the input CSV; choose another output path"]
+    );
+    assert_eq!(read(dir.path(), "data.html"), PRD);
 }
 
 #[test]
