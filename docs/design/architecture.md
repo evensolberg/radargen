@@ -1,7 +1,7 @@
 # radargen — Design
 
 **Status:** draft, for review
-**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.53
+**Implements:** [`docs/product/radargen-prd.md`](../product/radargen-prd.md) v0.54
 **Date:** 2026-08-29
 
 > **What this document is for.** The PRD says *what* radargen does and carries
@@ -146,7 +146,7 @@ declarations only and are not listed.
 | `src/layout/legend/` (`mod.rs`, `layout.rs`) | Legend block (FR-35, FR-74, FR-75) | v1.0 |
 | `src/layout/key.rs` | Encoding key (FR-66) | v1.0 |
 | `src/layout/arrange.rs` | Wide and narrow placement (FR-68–FR-71) | v1.0 |
-| `src/svg/mod.rs` | `Node`, `Document` — the SVG tree and its serialiser. `Node` arrives with the first block that renders (PR 09) and gains variants with each block; `Document` and the serialiser arrive in PR 13 | v1.0 |
+| `src/svg/mod.rs` | `Node`, `Document` — the SVG tree and its serialiser. `Node` arrives with the first block that renders (PR 09) and gains variants with each block; `Document` arrives with `arrange` (PR 12) and the serialiser in PR 13 | v1.0 |
 | `src/escape.rs` | NFR-6's five output contexts, one function each | v1.0 |
 | `src/num.rs` | `fmt_coord()` — NFR-17's rounding, used by every emitter | v1.0 |
 | `src/text.rs` | Shaped measurement and FR-79 wrapping, over **both** of FR-85's faces | *exists* |
@@ -251,7 +251,9 @@ geometry scales by `s`, labels by `max(s, 1)`, and marks by `max(s, 7/9)`
 px per unit is the rendered width of its SVG over its `viewBox` width, and
 `NARROW_HORIZONTAL_INSET_PX` (0) ties that width to the viewport. FR-94's hit
 radius and PR 11's legend row height are derived from it, so PR 14 must keep the
-SVG spanning the viewport or change the constant.
+SVG spanning the viewport or change the constant. They are sized for a narrow
+`viewBox` up to `NARROW_MAX_WIDTH` (480) wide; a document D-71 widens past
+that renders fewer px per unit, and FR-95 warns.
 
 An arrangement is then a choice of placements:
 
@@ -262,12 +264,17 @@ pub fn arrange(a: Arrangement, blocks: &Blocks) -> Document;
 ```
 
 **Wide** places the legend beside the radar at scale 1; **narrow** places it
-below and scales the radar to fit the width the text wants (FR-70, D-31). Both
+below and scales the radar to fit the width the text wants (FR-70, D-31): the
+largest scale in [0.3, 1] at which the radar fits its 400-unit column, found
+by a fixed-count bisection over `size(s)`, which is non-decreasing. When even
+0.3 does not fit, the narrow document widens to hold the radar (D-71). The
+title, key and legend are drawn at scale 1 in both. Both
 come from the same `Blocks`, which is what makes FR-68's "same items, same
 numbering, same marker treatments" true by construction rather than by
 discipline. That holds only because the legend wraps the same way in both: its
 maximum width is `NARROW_WIDTH − 2 × MARGIN` in either arrangement (FR-79,
-D-56), so the narrow document always has room for it.
+D-56), so the narrow document always has room for the legend. The radar is
+the one block that can outgrow it (D-71).
 
 **FR-69's breakpoint is computed from the wide document, not picked.** The PRD
 calls the value an implementation detail and records that `mockup.html` uses
@@ -280,7 +287,10 @@ means a different rendered text size for every radar, and FR-70 exists precisely
 because that number going small is what SC-6 fails on. So the switch is emitted
 per document, at `W × (MIN_LEGIBLE_PX / LEGEND_SIZE_PX)` rounded to an integer,
 with the floor living in `style.rs` beside the type scale it is a floor for. The
-narrow arrangement's own width bounds it from below.
+narrow arrangement's own width bounds it from below. D-71's widening does not
+disturb this: the wide width is at least the radar at scale 1 plus its insets,
+and the widest narrow document is the radar at 0.3 plus the same insets, so
+the wide document is never the narrower of the two.
 
 `Blocks` is a struct of four concrete fields — title, radar, legend, key — not a
 `Vec<Box<dyn Block>>`. The trait exists to *impose a shape* on four types, not to
@@ -291,7 +301,7 @@ goes. Static dispatch throughout.
 ## 5. `Document`, and why colour is bound late
 
 ```rust
-pub struct Document { pub view_box: Rect, pub root: Node }
+pub struct Document { pub width: f64, pub height: f64, pub root: Node }
 
 pub struct Point { pub x: f64, pub y: f64 }
 pub enum Anchor { Start, Middle }
@@ -630,7 +640,7 @@ interface that has not been agreed. Each step is testable when it lands.
 | 6 | `emit/html/` | 5, `Catalogue` from 2 | HTML output wrapper |
 | 7 | `emit/{svg,png}.rs`, `--palette`, `--theme`/`--width` plumbing | 5, `text.rs` *(svg outlines re-shape)* | PNG + SVG export — **v1.1** |
 
-`Node` is built up with the blocks rather than ahead of them: each block adds the variants it draws, and step 5 adds `Document` and the serialiser.
+`Node` is built up with the blocks rather than ahead of them: each block adds the variants it draws, `arrange` (step 4) adds `Document`, and step 5 the serialiser.
 
 Steps 1–6 are v1.0; step 7 is v1.1. The font swap (Libertinus → Inter, FR-85)
 had to land **before step 4**, not with packaging, and did (PR 01): every
