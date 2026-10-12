@@ -1,6 +1,6 @@
 ---
 id: rg-6ku
-title: 'PR 13: svg/ Document and serialiser, emit/write.rs'
+title: 'PR 13: svg serialiser, emit/write.rs'
 status: blocked
 type: task
 priority: 1
@@ -21,7 +21,7 @@ blocked_by:
 phase: v1.0
 ---
 
-# PR 13: svg/ Document and serialiser, emit/write.rs
+# PR 13: svg serialiser, emit/write.rs
 
 Node, Document, late colour binding via Role, no ids, data-row identity. NFR-14 atomic write with a drop guard that removes the temp file (SC-18).
 
