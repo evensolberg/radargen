@@ -14,7 +14,7 @@ use crate::palette::{Neutral, Role};
 use crate::style::{
     COLUMN_GAP, DOC_TOP, KEY_RULE_STROKE, KEY_TO_LEGEND, LEGEND_PANEL_INSET_X,
     LEGEND_PANEL_INSETS_X, LEGEND_WIDE_DROP, MARGIN, NARROW_MIN_SCALE, NARROW_RADAR_COLUMN,
-    NARROW_WIDTH, RADAR_INSET, RADAR_LABEL_PAD,
+    NARROW_WIDTH, RADAR_INSET, RADAR_INSETS, RADAR_LABEL_PAD,
 };
 use crate::svg::{Document, Group, Node, Paint, Point, Semantics};
 
@@ -71,8 +71,8 @@ pub struct Placements {
 }
 
 /// `blocks` drawn in `arrangement`, in document order: title, radar, the
-/// key's rule, key, legend. Reading order, and every radar marker comes
-/// before every legend row.
+/// key's rule, key, legend. This is reading order: every radar marker
+/// precedes every legend row (FR-68).
 #[must_use]
 // qual:api — PR 14's main.rs is its first production caller
 pub fn arrange(arrangement: Arrangement, blocks: &Blocks) -> Document {
@@ -175,8 +175,7 @@ fn wide(blocks: &Blocks) -> Placements {
 fn narrow(blocks: &Blocks, scale: f64) -> Placements {
     let top = DOC_TOP + blocks.title.size(1.0).height;
     let radar = blocks.radar.size(scale);
-    // The radar's two insets: the document less the radar's column.
-    let width = NARROW_WIDTH.max(radar.width + (NARROW_WIDTH - NARROW_RADAR_COLUMN));
+    let width = NARROW_WIDTH.max(radar.width + RADAR_INSETS);
     let key_y = top + radar.height;
     let key_bottom = key_y + blocks.key.size(1.0).height;
     let legend = blocks.legend.size(1.0);
@@ -230,8 +229,8 @@ const BISECTIONS: u32 = 60;
 /// Only scales that passed the test are returned, so the result fits when
 /// any scale does; it is the largest because the radar's size is
 /// non-decreasing in the scale. A radar block is at least
-/// `MIN_RADAR_WIDTH` wide at 1, so the first return serves blocks that fit
-/// at natural size.
+/// `MIN_RADAR_WIDTH` (660) wide at 1, wider than any column, so it never
+/// takes the first return; only blocks that fit at natural size do.
 fn narrow_scale(radar: &impl Block, column: f64) -> f64 {
     let fits = |scale: f64| radar.size(scale).width <= column;
     if fits(1.0) {
@@ -425,8 +424,9 @@ mod tests {
         assert!(close(narrow_scale(&wide, below), NARROW_MIN_SCALE));
     }
 
-    /// NFR-4: the fixed count and plain arithmetic give these bits on every
-    /// machine; a tolerance loop or a fused multiply-add would change them.
+    /// NFR-4: the search runs to the last ulp, the largest double with
+    /// 1000 · s ≤ 400, on every machine; a bisection count cut short of
+    /// about 55 would stop above or below it.
     #[test]
     fn narrow_scale_is_bit_stable() {
         let scale = narrow_scale(&Linear(1000.0), 400.0);
@@ -587,7 +587,10 @@ mod tests {
         );
         let key_right = p.key.origin.x + b.key.size(1.0).width;
         assert!(key_right < p.legend.origin.x, "{key_right} vs {p:?}");
-        assert!(p.rule.to.x < p.legend.origin.x, "{p:?}");
+        assert!(
+            p.rule.to.x + KEY_RULE_STROKE / 2.0 < p.legend.origin.x,
+            "{p:?}"
+        );
     }
 
     #[test]

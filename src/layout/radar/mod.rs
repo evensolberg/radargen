@@ -426,9 +426,8 @@ fn ring_reach_y(mid: f64, r: RadarScale) -> f64 {
 ///
 /// The block's size is non-decreasing in `s` from `RADAR_MONOTONE_FROM`
 /// (0.0034) up. A quadrant label's pushed centre is `300 s` plus a push at
-/// `max(s, 1)` along the
-/// same direction, so its distance from the centre on each axis never
-/// falls. The only decreasing term is a below-centre quadrant label's
+/// `max(s, 1)` along the same direction, so its distance from the centre on
+/// each axis never falls. The only decreasing term is a below-centre quadrant label's
 /// ascent, at most 11.625, since its push only lowers the baseline; the
 /// outermost ring name's reach, at least `130 * s + 11.19`,
 /// outgrows it from there. That relies on at least one ring, which

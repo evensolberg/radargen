@@ -298,9 +298,11 @@ const _: () = assert!(
 /// Its widest label's ink then lands on the margin, as the legend's content
 /// does.
 pub const RADAR_INSET: f64 = MARGIN - RADAR_LABEL_PAD;
+/// The radar block's inset on both sides together.
+pub const RADAR_INSETS: f64 = 2.0 * RADAR_INSET;
 /// The width the narrow radar is scaled to fit: the document less the
-/// radar's inset each side (D-71).
-pub const NARROW_RADAR_COLUMN: f64 = NARROW_WIDTH - 2.0 * RADAR_INSET;
+/// radar's insets (D-71).
+pub const NARROW_RADAR_COLUMN: f64 = NARROW_WIDTH - RADAR_INSETS;
 /// Blank space above the document's first block.
 ///
 /// With `TITLE_TOP` and the title's first baseline it puts the title's
