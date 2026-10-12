@@ -12,6 +12,7 @@ use crate::csv::parse::{Record, Table};
 use crate::diagnostics::{DateColumn, Fatal, RowKind, Warning, Warnings, column_label};
 use crate::rings::{RingSet, RingSource};
 use crate::{normalise, single_line, trim};
+use std::borrow::Cow;
 use std::sync::Arc;
 
 /// FR-5's required columns, in the order its error lists them.
@@ -397,13 +398,18 @@ struct Positions {
 impl Positions {
     /// The columns that are labels, not prose: a line break in one becomes
     /// a space (FR-97).
-    fn single_line(&self) -> impl Iterator<Item = usize> + use<> {
-        [self.name, self.quadrant, self.ring]
-            .into_iter()
-            .chain(self.qualifier)
-            .chain(self.status)
-            .chain(self.last_affirmed)
-            .chain(self.exit_date)
+    fn labels(&self) -> impl Iterator<Item = usize> {
+        [
+            Some(self.name),
+            Some(self.quadrant),
+            Some(self.ring),
+            self.qualifier,
+            self.status,
+            self.last_affirmed,
+            self.exit_date,
+        ]
+        .into_iter()
+        .flatten()
     }
 
     fn of(header: &Header) -> Self {
@@ -589,17 +595,24 @@ impl Builder {
 }
 
 /// `record` with its label columns on one line (FR-97); prose keeps its
-/// newlines, which parsing has already made plain.
-fn single_lined(record: &Record, at: &Positions) -> Record {
+/// newlines, which parsing has already made plain. Borrowed unchanged in the
+/// usual case of no break in any label.
+fn single_lined<'r>(record: &'r Record, at: &Positions) -> Cow<'r, Record> {
+    if at
+        .labels()
+        .all(|p| !field(record, p).contains(['\r', '\n']))
+    {
+        return Cow::Borrowed(record);
+    }
     let mut record = record.clone();
-    for p in at.single_line() {
+    for p in at.labels() {
         if let Some(cell) = record.fields.get_mut(p)
-            && cell.contains('\n')
+            && cell.contains(['\r', '\n'])
         {
             *cell = single_line(cell);
         }
     }
-    record
+    Cow::Owned(record)
 }
 
 /// FR-20: `conditional` and `default` are recognised; blank claims nothing;
@@ -776,6 +789,23 @@ mod tests {
         for cell in &item.cells {
             assert!(!cell.contains('\r'), "{cell:?}");
         }
+    }
+
+    /// FR-97 before FR-28 and FR-9: a name or quadrant with a break matches
+    /// its spaced twin.
+    #[test]
+    fn a_break_matches_its_spaced_twin() {
+        let csv = format!(
+            "{}\"Kafka\r\nStreams\",Tool,Adopt,d\nKafka Streams,\"Tool\nkit\",Adopt,d\nFlink,Tool kit,Adopt,d\n",
+            "name,quadrant,ring,description\n"
+        );
+        let (built, warnings) = build(&csv);
+        let cat = built.expect("builds");
+        assert_eq!(cat.quadrants.len(), 2, "Tool, and Tool kit grouped");
+        assert!(
+            warnings.iter().any(|w| w.contains("repeats line 2")),
+            "a duplicate across the break: {warnings:?}"
+        );
     }
 
     fn errors(csv: &str) -> Vec<String> {

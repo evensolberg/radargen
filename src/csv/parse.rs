@@ -224,6 +224,7 @@ pub fn parse(text: &str, w: &mut Warnings) -> Result<(Table, Vec<Fatal>), Fatal>
     let mut scanner = Scanner::new(text);
     let mut head = header(scanner.next())?;
     let removed = cleaned(&mut head);
+    let head = one_line_names(head);
     // Judged before the rest is scanned: a quoted first-column cell in a
     // `;` export would otherwise surface as a quoting error.
     check_separator(&head)?;
@@ -259,7 +260,7 @@ fn one_line_names(mut head: Record) -> Record {
 fn header(first: Option<Result<Record, Malformed>>) -> Result<Record, Fatal> {
     match first {
         None => Err(Fatal::NoHeader),
-        Some(Ok(head)) => Ok(one_line_names(head)),
+        Some(Ok(head)) => Ok(head),
         Some(Err(Malformed {
             fault: Fatal::TextAfterQuote { .. },
             record_line,

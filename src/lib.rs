@@ -87,6 +87,24 @@ pub fn normalise(value: &str) -> String {
 mod tests {
     use super::*;
 
+    /// FR-97: a run of line breaks is one space; breaks at either end go;
+    /// only breaks is empty; spaces beside a break are kept as written.
+    #[test]
+    fn single_line_collapses_runs_of_breaks() {
+        assert_eq!(single_line("Kafka\r\n\r\nStreams"), "Kafka Streams");
+        assert_eq!(single_line("\nKafka\r"), "Kafka");
+        assert_eq!(single_line("\r\n\n"), "");
+        assert_eq!(single_line("a \n b"), "a   b");
+        assert_eq!(single_line("plain"), "plain");
+    }
+
+    /// FR-97: CR LF and a lone CR each become one LF; LF stays.
+    #[test]
+    fn plain_newlines_makes_every_break_a_newline() {
+        assert_eq!(plain_newlines("a\r\nb\rc\nd"), "a\nb\nc\nd");
+        assert_eq!(plain_newlines("\r\r\n"), "\n\n");
+    }
+
     /// England's flag: U+1F3F4, the tags g b e n g, then CANCEL TAG.
     const ENGLAND: &str = "\u{1f3f4}\u{e0067}\u{e0062}\u{e0065}\u{e006e}\u{e0067}\u{e007f}";
     /// Scotland's: the same black flag, tags g b s c t.
