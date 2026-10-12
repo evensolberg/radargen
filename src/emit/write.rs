@@ -35,7 +35,6 @@ const OUTPUT_MODE: u32 = 0o666;
 ///
 /// [`Fatal::Unwritable`] when the directory is missing or unwritable, the
 /// path names a directory or a read-only file, or the disk is full.
-// qual:api — PR 14's main.rs is its first production caller
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), Fatal> {
     let unwritable = |source| Fatal::Unwritable {
         path: path.display().to_string(),
@@ -51,7 +50,7 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), Fatal> {
     // tempfile's own errors name the random temporary path, which the user
     // never gave and which changes every run; keep only the OS's reason.
     let mut file = builder
-        .tempfile_in(temp_dir_for(path))
+        .tempfile_in(parent_dir(path))
         .map_err(|e| unwritable(io::Error::from(e.kind())))?;
     file.as_file_mut().write_all(bytes).map_err(unwritable)?;
     file.as_file().sync_all().map_err(unwritable)?;
@@ -71,9 +70,10 @@ fn refuse_read_only(path: &Path) -> io::Result<()> {
     }
 }
 
-/// The directory the temporary file goes in: the path's own, so the rename
-/// stays on one filesystem (NFR-14).
-fn temp_dir_for(path: &Path) -> &Path {
+/// The directory `path` is in, `.` for a bare file name: where the temporary
+/// file goes, so the rename stays on one filesystem (NFR-14), and what FR-62
+/// checks exists.
+pub(crate) fn parent_dir(path: &Path) -> &Path {
     path.parent()
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."))
@@ -122,10 +122,10 @@ mod tests {
     }
 
     #[test]
-    fn temp_dir_for_names_the_parent() {
-        assert_eq!(temp_dir_for(Path::new("out.html")), Path::new("."));
-        assert_eq!(temp_dir_for(Path::new("a/out.html")), Path::new("a"));
-        assert_eq!(temp_dir_for(Path::new("/out.html")), Path::new("/"));
+    fn parent_dir_names_the_parent() {
+        assert_eq!(parent_dir(Path::new("out.html")), Path::new("."));
+        assert_eq!(parent_dir(Path::new("a/out.html")), Path::new("a"));
+        assert_eq!(parent_dir(Path::new("/out.html")), Path::new("/"));
     }
 
     /// A temp file is created and then `persist` fails: the drop guard's case.

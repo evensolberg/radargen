@@ -13,7 +13,6 @@ use crate::diagnostics::{
     Fatal, Mismatch, error_line, one_row, plural, row_causes, unnamed_clause,
 };
 
-// qual:api — PR 14's main.rs is its first production caller
 /// The stderr lines for `errors`, each `error: …`, in NFR-11's order.
 ///
 /// `errors` is `parse`'s tier-two errors followed by `build_catalogue`'s, and

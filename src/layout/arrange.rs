@@ -75,7 +75,6 @@ pub struct Placements {
 /// key's rule, key, legend. This is reading order: every radar marker
 /// precedes every legend row (FR-68).
 #[must_use]
-// qual:api — PR 14's main.rs is its first production caller
 pub fn arrange(arrangement: Arrangement, blocks: &Blocks) -> Document {
     let at = placements(arrangement, blocks);
     let children = vec![

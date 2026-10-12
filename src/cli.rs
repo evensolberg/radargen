@@ -100,7 +100,6 @@ impl Cli {
 /// For `--rings` the caller cleans before [`crate::rings::parse_rings`], so
 /// FR-63's empty and duplicate checks see the cleaned list; FR-65's
 /// empty-or-whitespace rule likewise applies to the cleaned title.
-// qual:api — PR 14's main.rs is its first production caller
 pub fn clean_flag(flag: Flag, value: &str, warnings: &mut Warnings) -> String {
     let mut cleaned = value.to_string();
     if let Some((first, count)) = remove_undisplayable(&mut cleaned) {

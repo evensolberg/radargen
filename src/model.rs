@@ -255,8 +255,8 @@ impl Catalogue {
 /// `name`, `quadrant` or `ring` (FR-6) is returned together, in line order
 /// then column order. Rows are checked before any is built, so an `Err`
 /// comes with no warning from this stage. `csv::parse`'s FR-4 errors and
-/// FR-90 warnings are separate: `main.rs` merges both stages' errors in
-/// NFR-11's order and prints them after the warnings (PR 14).
+/// FR-90 warnings are separate: `pipeline.rs` merges both stages' errors in
+/// NFR-11's order and prints them after the warnings.
 ///
 /// # Errors
 ///
