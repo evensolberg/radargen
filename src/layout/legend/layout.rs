@@ -76,20 +76,20 @@ const RING_TIER: Tier = Tier {
 /// The legend laid out at scale 1, relative to its content's top-left (the
 /// panel's inset is added when it is drawn).
 #[derive(Debug, Clone, PartialEq)]
-pub struct Layout {
+pub(super) struct Layout {
     /// The widest line's right edge; at most `LEGEND_WIDTH_MAX`, since
     /// everything wraps there.
-    pub width: f64,
+    pub(super) width: f64,
     /// The bottom of the last entry.
-    pub height: f64,
+    pub(super) height: f64,
     /// Every heading, swatch and row in reading order, which is document
     /// and Tab order.
-    pub entries: Vec<Entry>,
+    pub(super) entries: Vec<Entry>,
 }
 
 /// One laid-out piece of the legend.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Entry {
+pub(super) enum Entry {
     /// "Legend", a quadrant or a ring.
     Heading {
         /// The wrapped heading; later lines hang at its indent.
@@ -110,32 +110,32 @@ pub enum Entry {
 
 /// One plotted item's row: badge, wrapped name and meta (FR-74).
 #[derive(Debug, Clone, PartialEq)]
-pub struct Row {
+pub(super) struct Row {
     /// The row's top edge; rows abut.
-    pub top: f64,
+    pub(super) top: f64,
     /// The row's height, at least `LEGEND_ROW_MIN_HEIGHT` (FR-94).
-    pub height: f64,
+    pub(super) height: f64,
     /// The badge's centre.
-    pub badge: Point,
+    pub(super) badge: Point,
     /// The quadrant's FR-10 rank: its series index, unreduced (FR-67).
-    pub series: usize,
+    pub(super) series: usize,
     /// Whether the badge is hollow (FR-20).
-    pub hollow: bool,
+    pub(super) hollow: bool,
     /// FR-34's number.
-    pub number: usize,
+    pub(super) number: usize,
     /// The name, wrapped at the name column (FR-46, FR-79).
-    pub name: TextRun,
+    pub(super) name: TextRun,
     /// The qualifier and status, inline after the name or on their own
     /// line; `None` when the row shows neither.
-    pub meta: Option<TextRun>,
+    pub(super) meta: Option<TextRun>,
     /// The row's key (its CSV line), FR-75's accessible name, no tooltip.
-    pub control: Control,
+    pub(super) control: Control,
 }
 
 /// FR-74: whether the meta fits after the name's last line, `META_GAP`
 /// after it, within `column`. Inclusive: exactly filling the column fits.
 #[must_use]
-pub fn fits_inline(last_end: f64, meta_width: f64, column: f64) -> bool {
+fn fits_inline(last_end: f64, meta_width: f64, column: f64) -> bool {
     last_end + META_GAP + meta_width <= column
 }
 
@@ -146,7 +146,7 @@ pub fn fits_inline(last_end: f64, meta_width: f64, column: f64) -> bool {
 /// If `plotted` was not built from `catalogue`, so an item, quadrant or
 /// ring index is out of range for it.
 #[must_use]
-pub fn layout(catalogue: &Catalogue, plotted: &Plotted, fonts: &Fonts) -> Layout {
+pub(super) fn layout(catalogue: &Catalogue, plotted: &Plotted, fonts: &Fonts) -> Layout {
     let context = Context {
         catalogue,
         plotted,
