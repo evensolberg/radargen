@@ -143,16 +143,17 @@ publish:
 # fails only when the quality score drops below rustqual-baseline.json, so
 # existing findings do not block; run `just quality-baseline` after a PR
 # that raises the score, to lock it in. rustqual scans the working tree,
-# untracked files included, so remove scratch files first. rustqual reads a
-# baseline it cannot parse, or one without a score, as no regression, so the
-# score is checked to be a number first.
+# untracked files included, so remove scratch files first. rustqual compares
+# the score only for a version-2 baseline, and reads anything else (no
+# version, version 1, a file it cannot parse) as no regression, so the
+# baseline's shape is checked first.
 @ci:
     cargo fmt --check
     cargo clippy --locked --all-targets -- -D warnings
     just lint
     cargo test --locked
     cargo deny check licenses
-    jq -e '.quality_score | numbers' rustqual-baseline.json > /dev/null
+    jq -e '.version == 2 and (.quality_score | type == "number")' rustqual-baseline.json > /dev/null
     rustqual . --compare rustqual-baseline.json --fail-on-regression --no-fail
 
 # Records the current rustqual score as the baseline `just ci` compares to,
@@ -162,17 +163,16 @@ publish:
 # rustqual flags a regression when the stored score, as its JSON reader reads
 # it back, is above the computed one, and that reader can come back one ulp
 # high, so a score saved verbatim can fail the very next compare (crumb
-# rg-ksg). So the score is stored floored to 12 decimals less one unit there
-# (always below the computed score, whatever the rounding), the result is
-# checked with rustqual's own compare on a staged copy, and only then moved
-# into place. jq reads numbers exactly, so the drop check needs no tolerance.
-# A missing or non-numeric score on either side stops the recipe.
+# rg-ksg). So the score is stored floored to 12 decimals less one unit there:
+# about 1e-12 below the computed score, thousands of ulps, whatever the
+# rounding. jq reads numbers exactly, so the drop check needs no tolerance.
+# A missing or non-numeric score on either side stops the recipe before
+# anything is written.
 quality-baseline:
     #!/usr/bin/env bash
     set -euo pipefail
     fresh="$(mktemp)"
-    staged="$(mktemp)"
-    trap 'rm -f "$fresh" "$staged"' EXIT
+    trap 'rm -f "$fresh"' EXIT
     rustqual . --save-baseline "$fresh" --no-fail > /dev/null
     old="$(jq -e '.quality_score | numbers' rustqual-baseline.json)"
     new="$(jq -e '.quality_score | numbers' "$fresh")"
@@ -180,9 +180,7 @@ quality-baseline:
         echo "rustqual score fell: $old -> $new; find the cause before re-recording" >&2
         exit 1
     fi
-    jq '.quality_score = ((.quality_score * 1e12 - 1 | floor) / 1e12)' "$fresh" > "$staged"
-    rustqual . --compare "$staged" --fail-on-regression --no-fail > /dev/null
-    mv "$staged" rustqual-baseline.json
+    jq '.quality_score = ((.quality_score * 1e12 - 1 | floor) / 1e12)' "$fresh" > rustqual-baseline.json
     echo "rustqual baseline recorded: $(jq '.quality_score' rustqual-baseline.json)"
 
 # Checks every target for lint findings; the lint levels live in Cargo.toml
