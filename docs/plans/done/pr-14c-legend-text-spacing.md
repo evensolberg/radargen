@@ -10,9 +10,9 @@ crumb_id: rg-mru
 document_title: "PR 14c — legend text spacing: Implementation Plan"
 created_date: 2026-10-12
 synopsis: "Headroom for WCAG 1.4.12 (maintainer ruling): every wrap point and block size uses the text width with 1.4.12 spacing added, so spaced text fits by construction. A legend row's qualifier and status become a tspan that follows the name inside the name's own text element, so text-spacing overrides (WCAG 1.4.12) push them along instead of overlapping them. Node::Text gains an optional inline tail; the serialiser writes it as a tspan with dx. Rendering is unchanged at default spacing, checked against resvg and in a browser with 1.4.12's spacing applied."
-status: draft
+status: complete
 type: Plan
-revision: "1.2"
+revision: "1.3"
 review_date: 2026-10-12
 reviewed_by:
   - Rust seat
@@ -20,12 +20,12 @@ reviewed_by:
   - architecture seat
   - accessibility seat
   - UI seat
-completed_date:
+completed_date: 2026-10-12
 comments: "1.1 folds in the five-seat review and the maintainer's headroom ruling. Lands before PR 15."
 ---
 # PR 14c — legend text spacing: Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Crumb:** `rg-mru` (P1) · **Phase:** v1.0 · **After:** PR 14b (#60) · **Before:** PR 15
 
@@ -131,18 +131,18 @@ Five seats reviewed revision 1.0 (Rust, QA, architecture, accessibility, UI). Th
 
 **Files:** `docs/product/radargen-prd.md` (v0.59), `docs/design/architecture.md`.
 
-- [ ] **Step 1:** In the PRD:
+- [x] **Step 1:** In the PRD:
   - **D-78** (headroom for 1.4.12: the allowance, why layout reserves it, the accepted cost, and the rejected alternatives);
   - **NFR-1** names 1.4.12 as met by construction (D-78);
   - **FR-79 and FR-84:** wrap points and block sizes use the layout width, while the shaper still gives every advance;
   - **FR-74:** the inline meta continues the name's own text;
   - **SC-17** adds a text-spacing check, with the four values, both arrangements and both themes;
   - **D-71's figures** re-measured (Task 2 gives them).
-- [ ] **Step 2:** In the architecture:
+- [x] **Step 2:** In the architecture:
   - §4: blocks size from the layout width;
   - §5: `Node::Text` gains `tail`;
   - §11: the outliner places a tail through `tail_x`.
-- [ ] **Step 3: Commit** `docs: headroom for text spacing (D-78)`.
+- [x] **Step 3: Commit** `docs: headroom for text spacing (D-78)`.
 
 ---
 
@@ -155,7 +155,7 @@ Five seats reviewed revision 1.0 (Rust, QA, architecture, accessibility, UI). Th
 - every `Node::Text` construction gets `tail: None` (seven sites); `TextRun` is unchanged;
 - `src/layout/test_support/bounds.rs`, through `tail_x`.
 
-- [ ] **Step 1: Failing tests** (`src/svg/serialise/tests/text.rs`, `svg/mod.rs`):
+- [x] **Step 1: Failing tests** (`src/svg/serialise/tests/text.rs`, `svg/mod.rs`):
   - `a_tail_follows_the_last_line`:
     - one line: `<text …>Kafka<tspan dx="…" font-size="10.5" font-weight="400" letter-spacing="0" fill="var(--text-muted)"> Default</tspan></text>`, with no text node between;
     - two lines: after the last `<tspan>`;
@@ -164,8 +164,8 @@ Five seats reviewed revision 1.0 (Rust, QA, architecture, accessibility, UI). Th
   - `a_tail_scales_with_its_run`.
   - `a_halo_has_no_tail`: `TextRun::halo` never carries one.
   - `bounds_include_the_tail`, on a two-line name, where the tail extends the last line, not the widest.
-- [ ] **Step 2–4:** red, implement, green; lints; rustqual.
-- [ ] **Step 5: Commit** `feat(svg): text with an inline tail, written as a dx tspan`.
+- [x] **Step 2–4:** red, implement, green; lints; rustqual.
+- [x] **Step 5: Commit** `feat(svg): text with an inline tail, written as a dx tspan`.
 
 ---
 
@@ -173,12 +173,12 @@ Five seats reviewed revision 1.0 (Rust, QA, architecture, accessibility, UI). Th
 
 **Files:** `src/style.rs` (`TextStyle::measure`, `wrap`, and `fn allowance`); `src/text.rs` (`wrap` takes a width function or an allowance); the tests whose figures move; the D-71 figures for Task 0.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `layout_width_is_advance_plus_allowance`: for `"Kafka Streams"` at `LEGEND_NAME`, `measure` equals `FontMetrics::measure + 0.12·12.5·13 + 0.16·12.5·1`.
   - `wrap_holds_spaced_lines`: every line `wrap` returns has a layout width ≤ the column.
   - The existing `test_support::bounds` and arrangement checks run unchanged, and now hold spaced text.
-- [ ] **Step 2–4:** red, implement, green. Update the tests whose figures were measured at the natural advance (the arrange fixtures' widths, and the legend's wrap thresholds), each with its new measured value in the comment. Lints; rustqual.
-- [ ] **Step 5: Commit** `fix(layout): reserve room for WCAG 1.4.12 text spacing (D-78)`.
+- [x] **Step 2–4:** red, implement, green. Update the tests whose figures were measured at the natural advance (the arrange fixtures' widths, and the legend's wrap thresholds), each with its new measured value in the comment. Lints; rustqual.
+- [x] **Step 5: Commit** `fix(layout): reserve room for WCAG 1.4.12 text spacing (D-78)`.
 
 ---
 
@@ -186,13 +186,13 @@ Five seats reviewed revision 1.0 (Rust, QA, architecture, accessibility, UI). Th
 
 **Files:** `src/layout/legend/row.rs`, `src/layout/legend/mod.rs`; re-bless `tests/golden/**` and read the diffs.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `an_inline_meta_is_the_names_tail`: one `Text` with a tail of ` Default`, and no separate meta `Text`.
   - `a_meta_on_its_own_line_stays_separate`.
   - `the_row_target_covers_the_meta`: the target's right edge is at least the meta's layout end plus the outset.
   - `the_tail_draws_where_the_meta_did` (oracle): the committed pre-change static golden and the new static output, both rendered by `resvg`, agree on the meta's ink position for the PRD example's rows. Measured as each row's leftmost meta-ink column, within one pixel at 2x. The layout change moves the rest, so only the meta's offset from its name is compared.
-- [ ] **Step 2–4:** red, implement, green; re-bless and read the diffs; lints; rustqual.
-- [ ] **Step 5: Commit** `fix(legend): the meta follows the name, with a space (rg-mru)`.
+- [x] **Step 2–4:** red, implement, green; re-bless and read the diffs; lints; rustqual.
+- [x] **Step 5: Commit** `fix(legend): the meta follows the name, with a space (rg-mru)`.
 
 ---
 
@@ -200,7 +200,7 @@ Five seats reviewed revision 1.0 (Rust, QA, architecture, accessibility, UI). Th
 
 **Files:** create `scripts/text-spacing.mjs` (CDP against the Playwright headless Chromium, as in 14b), add a `just text-spacing` recipe, and add fixtures under `tests/fixtures/` named for what they hold.
 
-- [ ] **Step 1: The check.** For each fixture, at widths 320, 420, B − 1, B and 1400, inject `*{letter-spacing:.12em!important;word-spacing:.16em!important;line-height:1.5!important} p{margin-bottom:2em!important}`. Then:
+- [x] **Step 1: The check.** For each fixture, at widths 320, 420, B − 1, B and 1400, inject `*{letter-spacing:.12em!important;word-spacing:.16em!important;line-height:1.5!important} p{margin-bottom:2em!important}`. Then:
   - every displayed `<text>`'s extent, from `getExtentOfChar` over its characters, lies inside its SVG's box;
   - no two displayed texts' extents intersect, excluding a halo and its fill, and a marker number and its own disc;
   - every tail starts at or after its name's last character's end;
@@ -208,15 +208,15 @@ Five seats reviewed revision 1.0 (Rust, QA, architecture, accessibility, UI). Th
   - the accessibility tree's names and roles are unchanged from a run without the stylesheet.
 
   The script exits non-zero on failure.
-- [ ] **Step 2: Fixtures:**
+- [x] **Step 2: Fixtures:**
   - qualifier only; status only; both;
   - a wrapped name with an inline meta; a name at the inline threshold; an own-line meta; no meta;
   - a hostile name with a tail;
   - one right-to-left name, for a screenshot only;
   - the PRD example and the template.
-- [ ] **Step 3:** run it, read the screenshots, record the results in the PR body. Firefox and Safari are not automated; that is a known limitation, crumbed.
-- [ ] **Step 4:** `just ci`.
-- [ ] **Step 5: Commit** `test: the text-spacing browser check (WCAG 1.4.12)`.
+- [x] **Step 3:** run it, read the screenshots, record the results in the PR body. Firefox and Safari are not automated; that is a known limitation, crumbed.
+- [x] **Step 4:** `just ci`.
+- [x] **Step 5: Commit** `test: the text-spacing browser check (WCAG 1.4.12)`.
 
 ---
 
@@ -231,6 +231,43 @@ Five seats reviewed revision 1.0 (Rust, QA, architecture, accessibility, UI). Th
 3. Move this plan to `docs/plans/done/`, tick the steps, and set `status: complete` and `completed_date`.
 4. **No version bump.** Commit, push, open the PR, check CI on all three platforms, and merge when clean if the maintainer authorises it.
 
+## Final review
+
+A fresh Opus reviewer in Copilot's seat (out of credits until November 2026) found no Critical issues. It confirmed:
+
+- `just text-spacing` passes on every fixture and width;
+- main's build fails it;
+- the oracle holds on wrapped names (54 of 64 pixels);
+- every sizing site uses the layout width.
+
+**Its Important findings:**
+
+- **The key wording changed.** This is in the PR body for the maintainer's acceptance.
+- **The oracle's pixel bound has only run on macOS.** CI covers Windows and Linux.
+
+**Fixed (re-graded from Minor):** test bounds started a tail at its drawn position while the lines spanned their layout width, a containment blind spot in CI. They now start it at the layout end. Test: `bounds_include_the_tail`, red then green.
+
+**The rest are crumbed** ("Text-spacing check: harden and widen").
+
+**Rulings at implementation:**
+
+- **The tail separator is U+00A0.** `resvg` drops a leading U+0020 in a tspan where a browser keeps it; this was probed.
+- **The key's two longest labels are shortened**, to fit the narrow column at the layout width.
+- **`Meta` is split** into the inline judgement (layout width) and the drawn end (advance).
+- **The oracle's old form is computed** from the advance and `META_GAP`, not from a committed golden.
+- **`Node::tail_x` is marked `qual:api`**, for PR 17.
+
+**Measured cost:**
+
+- PRD wide document: 977 → 1025 units.
+- Thoughtworks narrow: 387 → 460, within the headroom.
+- "Infrastructure Platforms, Tools, Practice": 438 → 522, past 480, so FR-95 warns.
+
+**Simplify** (four agents):
+
+- **Applied:** `Tail::layout_width`; `TextRun::right_edge`; `Fitted` as an enum; `node_with_tail` in place; tail bounds from the last line's box.
+- **Skipped:** moving the tail onto `TextRun`, which reverses the Rust seat's ruling; a shared raster helper; removing `text::wrap`, which the FR-84 oracle tests use.
+
 ## Revisions
 
 | Revision | Date | Notes |
@@ -238,3 +275,4 @@ Five seats reviewed revision 1.0 (Rust, QA, architecture, accessibility, UI). Th
 | 1.0 | 2026-10-12 | Initial version, for the plan review. |
 | 1.1 | 2026-10-12 | The five-seat review: `overflow:visible` cannot prevent loss (QA, UI). The maintainer ruled headroom: the layout width adds 1.4.12's allowance everywhere (D-78). The tail gains a leading space, `tail_x`, and guards. A committed browser check over every text pair; an independent oracle. |
 | 1.2 | 2026-10-12 | The Rust seat: cross-boundary kerning answered by the leading space and pinned by an oracle corpus; the tail on `Node::Text` only, with `Meta::{Inline, OwnLine}`; sites that would skip a tail. |
+| 1.3 | 2026-10-12 | Complete. The final review (no Critical), the tail-bounds fix, the implementation rulings, simplify. |
