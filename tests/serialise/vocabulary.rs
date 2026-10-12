@@ -98,7 +98,10 @@ fn attribute(name: &str, value: &str, interactive: bool) {
     let interactive_only = INTERACTIVE_ONLY.contains(&name);
     assert!(allowed || (interactive && interactive_only), "{name}");
     if name == "role" && !interactive {
-        assert!(matches!(value, "heading" | "img"), "static role {value}");
+        assert!(
+            matches!(value, "heading" | "img" | "group"),
+            "static role {value}"
+        );
     }
     assert!(!value.contains("url("), "{name}={value}");
     if NUMERIC.contains(&name) {

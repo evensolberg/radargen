@@ -6,7 +6,7 @@
 </g>
 </g>
 <g transform="translate(10 46)">
-<g transform="translate(330 330)">
+<g transform="translate(330 330)" role="group" aria-label="Technology radar: 3 quadrants, 4 rings, 6 items">
 <circle cx="0" cy="0" r="260" fill="none" stroke="var(--stroke-ring)" stroke-width="1"/>
 <circle cx="0" cy="0" r="195" fill="none" stroke="var(--stroke-ring)" stroke-width="1"/>
 <circle cx="0" cy="0" r="130" fill="none" stroke="var(--stroke-ring)" stroke-width="1"/>

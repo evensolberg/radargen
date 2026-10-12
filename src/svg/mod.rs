@@ -129,6 +129,9 @@ pub enum Semantics {
     Decorative,
     /// A heading of this level; level zero does not exist.
     Heading(NonZeroU8),
+    /// A named group: the radar, announced with its size before the user
+    /// explores it (D-75). Kept in every format.
+    Group(String),
     /// An interactive item; static formats keep its label and tooltip but
     /// not its role or focusability.
     Marker(Control),
@@ -305,6 +308,7 @@ impl Node {
                 }
                 Semantics::Decorative
                 | Semantics::Heading(_)
+                | Semantics::Group(_)
                 | Semantics::Marker(_)
                 | Semantics::LegendRow(_) => false,
             },

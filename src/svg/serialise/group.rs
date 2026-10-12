@@ -70,6 +70,10 @@ fn semantics(out: &mut String, semantics: &Semantics, context: Context<'_>) {
             attr(out, "role", "heading");
             attr(out, "aria-level", &level.to_string());
         }
+        Semantics::Group(label) => {
+            attr(out, "role", "group");
+            attr(out, "aria-label", label);
+        }
         Semantics::Marker(control) => {
             control_attrs(out, ControlKind::Marker, control, context.target);
         }

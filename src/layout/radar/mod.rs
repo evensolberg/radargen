@@ -17,6 +17,7 @@
 
 mod markers;
 
+use crate::diagnostics::plural;
 use crate::layout::block::{Block, Placement, Size};
 use crate::layout::geometry::{Geometry, polar};
 use crate::model::Catalogue;
@@ -356,9 +357,22 @@ impl Block for RadarBlock {
             .chain(controls)
             .chain(indicators)
             .collect();
-        let centred = Node::Group(Group::new(self.centre(r), children));
+        let name = label(self.quadrants.len(), self.rings.len(), self.markers.len());
+        let centred =
+            Node::Group(Group::new(self.centre(r), children).with(Semantics::Group(name)));
         Node::Group(Group::new(at.origin, vec![centred]))
     }
+}
+
+/// The radar's accessible name (D-75): its quadrants, declared rings and
+/// plotted items, so assistive technology announces its size first.
+fn label(quadrants: usize, rings: usize, items: usize) -> String {
+    format!(
+        "Technology radar: {quadrants} {}, {rings} {}, {items} {}",
+        plural(quadrants, "quadrant", "quadrants"),
+        plural(rings, "ring", "rings"),
+        plural(items, "item", "items")
+    )
 }
 
 /// How far a quadrant label reaches left or right of the centre: its pushed
@@ -1275,6 +1289,35 @@ mod tests {
         let labels = label_texts(&frame_at(&block(fonts(), &csv, None), 1.0));
         assert!(labels.iter().any(|l| l == "A<&\">B"), "{labels:?}");
         assert!(labels.iter().any(|l| l == "技术"), "{labels:?}");
+    }
+
+    /// rg-eae: the centring group names the radar, counting declared rings
+    /// and plotted items, so the PRD example's unplotted row is not counted.
+    #[test]
+    fn the_radar_is_a_named_group() {
+        let rendered = block(fonts(), PRD_EXAMPLE, None).render(at(1.0));
+        let Node::Group(root) = &rendered else {
+            panic!("the radar renders a group, got {rendered:?}");
+        };
+        let [Node::Group(centred)] = root.children.as_slice() else {
+            panic!("the root holds one centring group: {:?}", root.children);
+        };
+        assert_eq!(
+            centred.semantics,
+            Semantics::Group("Technology radar: 3 quadrants, 4 rings, 6 items".into())
+        );
+    }
+
+    #[test]
+    fn label_counts_singular_and_plural() {
+        assert_eq!(
+            label(1, 1, 1),
+            "Technology radar: 1 quadrant, 1 ring, 1 item"
+        );
+        assert_eq!(
+            label(0, 4, 0),
+            "Technology radar: 0 quadrants, 4 rings, 0 items"
+        );
     }
 
     #[test]
