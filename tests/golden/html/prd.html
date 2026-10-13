@@ -12,7 +12,7 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark;--surface-1:#15181D;--surface-2:#1E222A;--text-primary:#E8EAEE;--text-muted:#A6AEBB;--stroke-ring:#6C7480;--stroke-divider:#666E7A;--marker-hollow:#15181D;--focus:#7FB8E6;--series-1:#0072B2;--series-2:#C25400;--series-3:#00857A;--series-4:#787832;--series-5:#B5476B;--series-6:#2F9626;--series-7:#C431B8;--series-8:#9D5A43;}}
 :root[data-theme="dark"]{color-scheme:dark;--surface-1:#15181D;--surface-2:#1E222A;--text-primary:#E8EAEE;--text-muted:#A6AEBB;--stroke-ring:#6C7480;--stroke-divider:#666E7A;--marker-hollow:#15181D;--focus:#7FB8E6;--series-1:#0072B2;--series-2:#C25400;--series-3:#00857A;--series-4:#787832;--series-5:#B5476B;--series-6:#2F9626;--series-7:#C431B8;--series-8:#9D5A43;}
 @media (forced-colors: active){:root,:root[data-theme]{--surface-1:Canvas;--surface-2:Canvas;--text-primary:CanvasText;--text-muted:CanvasText;--stroke-ring:CanvasText;--stroke-divider:CanvasText;--marker-hollow:Canvas;--focus:Highlight;}}
-body{margin:0;background:var(--surface-1);color:var(--text-primary)}
+body{margin:0;line-height:1.4;font-family:"Inter";background:var(--surface-1);color:var(--text-primary)}
 svg{display:block;width:100%;height:auto}
 .wide{max-width:1025.077px;margin:0 auto}
 .narrow{max-width:420px;margin:0 auto}
@@ -31,6 +31,22 @@ svg:has([data-marker="2"]:focus-visible) [data-marker-indicator="2"]{visibility:
 svg:has([data-marker="5"]:focus-visible) [data-marker-indicator="5"]{visibility:visible}
 }
 .visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+.table-heading,.table-view{max-width:1025.077px;margin-inline:auto;padding-inline:20px;box-sizing:border-box}
+.table-heading{margin-block:1.5em .25em;font-size:1rem;font-weight:600}
+.table-view{margin-block-end:1.5em}
+summary{cursor:pointer;width:fit-content;padding-block:.5em;font-weight:600}
+.table-scroll{position:relative;overflow-x:auto;border-radius:6px;border:1px solid var(--stroke-divider)}
+table{min-width:100%;border-collapse:collapse;font-size:.8125rem;background:var(--surface-2)}
+th,td{text-align:start;vertical-align:top;padding:.4em .6em;border-bottom:1px solid var(--stroke-divider)}
+th{font-weight:600}
+thead th{font-size:.75rem;border-bottom-width:2px;color:var(--text-muted)}
+.number{text-align:end;font-variant-numeric:tabular-nums}
+.prose{white-space:pre-line;min-width:16em}
+.link{overflow-wrap:anywhere;min-width:12em}
+.flag{display:inline-block;padding:0 .45em;border:1px solid currentColor;border-radius:1em;font-size:.8em;font-weight:600;white-space:nowrap;color:var(--text-muted)}
+tr:not(.unplotted)+tr.unplotted>*{border-top:2px solid var(--stroke-divider)}
+a,a:visited{text-decoration:underline;color:var(--text-primary)}
+summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 </style>
 </head>
 <body>
@@ -513,6 +529,20 @@ svg:has([data-marker="5"]:focus-visible) [data-marker-indicator="5"]{visibility:
 </g>
 </svg>
 </div>
+<h2 class="table-heading" id="table-heading">Every item</h2>
+<details class="table-view"><summary>Show the table</summary>
+<div class="table-scroll" role="region" aria-labelledby="table-heading" tabindex="0">
+<table aria-labelledby="table-heading">
+<thead><tr><th scope="col"><span aria-hidden="true">#</span><span class="visually-hidden">Number</span></th><th scope="col">name</th><th scope="col">quadrant</th><th scope="col">ring</th><th scope="col">description</th><th scope="col">qualifier</th><th scope="col">domain</th><th scope="col">rationale</th><th scope="col">last_affirmed</th><th scope="col">exit_date</th><th scope="col">status</th></tr></thead>
+<tbody>
+<tr data-row="6"><td class="number">1</td><th scope="row">Kubernetes</th><td>Platform</td><td>Adopt</td><td class="prose">Container orchestration platform for deploying, scaling, and managing containerised workloads.</td><td>default</td><td class="prose">Container Orchestration</td><td class="prose">Default for all new containerised workloads.</td><td>2026-06-01</td><td></td><td></td></tr>
+<tr data-row="7"><td class="number">2</td><th scope="row">Trunk-Based Development</th><td>Practice</td><td>Adopt</td><td class="prose">Developers integrate small, frequent changes into a shared trunk.</td><td>default</td><td class="prose">Delivery Practice</td><td class="prose">Default branching model for managed delivery teams.</td><td>2026-06-01</td><td></td><td></td></tr>
+<tr data-row="4"><td class="number">3</td><th scope="row">Ansible</th><td>Tool</td><td>Trial</td><td class="prose">Agentless configuration management and orchestration over SSH.</td><td></td><td class="prose">Configuration Management</td><td class="prose">Bounded trial on one managed estate; was Assess last edition.</td><td>2026-05-12</td><td></td><td>Moved In</td></tr>
+<tr data-row="3"><td class="number">4</td><th scope="row">Pulumi</th><td>Tool</td><td>Adopt</td><td class="prose">Infrastructure-as-code authored in a general-purpose language instead of a domain-specific syntax.</td><td>conditional</td><td class="prose">Infrastructure as Code</td><td class="prose">Acceptable where a client mandates a general-purpose language over HCL.</td><td>2026-06-01</td><td></td><td>New</td></tr>
+<tr data-row="2"><td class="number">5</td><th scope="row">Terraform</th><td>Tool</td><td>Adopt</td><td class="prose">Declarative infrastructure-as-code tool for provisioning cloud and on-prem resources.</td><td>default</td><td class="prose">Infrastructure as Code</td><td class="prose">Default IaC tool across all managed environments.</td><td>2026-06-01</td><td></td><td>No Change</td></tr>
+<tr data-row="5"><td class="number">6</td><th scope="row">Chef</th><td>Tool</td><td>Retire</td><td class="prose">Agent-based configuration management using a Ruby DSL.</td><td></td><td class="prose">Configuration Management</td><td class="prose">Superseded by the Ansible trial outcome; migration owned and scheduled.</td><td>2026-03-15</td><td>2027-01-31</td><td></td></tr>
+<tr data-row="8" class="unplotted"><td class="number"></td><th scope="row">Legacy Ticketing-Driven Change <span class="flag">not on the radar</span></th><td>Practice</td><td>Rejected</td><td class="prose">Manual, ticket-driven change approval replacing automated policy gates.</td><td></td><td class="prose">Operations Practice</td><td class="prose">Declined during the 2026 review — see the domain ADR.</td><td>2026-01-10</td><td></td><td></td></tr>
+</tbody></table></div></details>
 </main>
 </body>
 </html>

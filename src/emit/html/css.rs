@@ -37,7 +37,10 @@ const CLOSE: &str = "}\n";
 const FORCED_OPEN: &str = "@media (forced-colors: active){:root,:root[data-theme]{";
 const CLOSE_TWICE: &str = "}}\n";
 
-const BODY_OPEN: &str = "body{margin:0;background:var(";
+/// Inter for the page's own text too, not only the SVG's: without it the
+/// heading, toggle and table fall back to the browser's serif.
+const BODY_OPEN: &str = "body{margin:0;line-height:1.4;font-family:\"";
+const BODY_GROUND: &str = "\";background:var(";
 const BODY_INK: &str = ");color:var(";
 const SVG_RULE: &str = ")}\nsvg{display:block;width:100%;height:auto}\n";
 const WIDE_CAP: &str = ".wide{max-width:";
@@ -156,6 +159,8 @@ fn declarations(palette: &Palette) -> String {
 pub(super) fn layout(wide_width: f64, narrow_width: f64) -> String {
     [
         BODY_OPEN,
+        FAMILY,
+        BODY_GROUND,
         Neutral::Surface1.as_str(),
         BODY_INK,
         Neutral::TextPrimary.as_str(),

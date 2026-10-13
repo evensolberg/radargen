@@ -2,6 +2,7 @@
 //! interactive, with one shown at a time, both palettes, and Inter inlined.
 
 mod css;
+mod table;
 
 use crate::emit::OUTPUT_VERSION;
 use crate::escape::xml_text;
@@ -18,7 +19,8 @@ const BODY_OPEN: &str = "</style>\n</head>\n<body>\n<main>\n";
 const HIDDEN_HEADING: &str = "<h1 class=\"visually-hidden\">";
 const WIDE_OPEN: &str = "<div class=\"arrangement wide\">\n";
 const NARROW_OPEN: &str = "\n</div>\n<div class=\"arrangement narrow\">\n";
-const BODY_CLOSE: &str = "\n</div>\n</main>\n</body>\n</html>\n";
+const NARROW_CLOSE: &str = "\n</div>\n";
+const BODY_CLOSE: &str = "</main>\n</body>\n</html>\n";
 
 /// Everything the page is written from: the two arrangements of one
 /// `Blocks` (FR-68), and the catalogue and its order, which the table view
@@ -53,8 +55,9 @@ pub fn page(input: &Page<'_>) -> String {
     let Page {
         wide,
         narrow,
+        catalogue,
+        plotted,
         title,
-        ..
     } = *input;
     let markers = union(marker_keys(wide), marker_keys(narrow));
     let target = Target::Interactive(&Palette::built_in(Theme::Light));
@@ -74,12 +77,15 @@ pub fn page(input: &Page<'_>) -> String {
         &css::layout(wide.width, narrow.width),
         &css::indicators(&markers),
         css::VISUALLY_HIDDEN,
+        &table::css(wide.width),
         BODY_OPEN,
         &heading,
         WIDE_OPEN,
         &serialise(wide, target),
         NARROW_OPEN,
         &serialise(narrow, target),
+        NARROW_CLOSE,
+        &table::table(catalogue, plotted),
         BODY_CLOSE,
     ]
     .concat()

@@ -66,9 +66,13 @@ fn the_page_is_minimal_and_valid() {
     assert!(style(&html).contains(VISUALLY_HIDDEN));
     let around = outside(&html);
     assert!(
-        around.ends_with(&format!(
-            "<body>\n<main>\n{WIDE_OPEN}\n</div>\n{NARROW_OPEN}\n</div>\n</main>\n</body>\n</html>\n"
+        around.contains(&format!(
+            "<body>\n<main>\n{WIDE_OPEN}\n</div>\n{NARROW_OPEN}\n</div>\n<h2 class=\"table-heading\""
         )),
+        "the table view follows both arrangements: {around}"
+    );
+    assert!(
+        around.ends_with("</details>\n</main>\n</body>\n</html>\n"),
         "{around}"
     );
 }
@@ -270,6 +274,15 @@ fn a_marker_in_one_arrangement_keeps_its_rule() {
         keys.len(),
         "one rule per key"
     );
+}
+
+/// The allow-list catches an attribute on the wrong element: an `href` on a
+/// `<div>` is a request or a navigation the page never makes (NFR-5).
+#[test]
+#[should_panic(expected = "href=\"https://x\" on <div>")]
+fn a_stray_href_fails_the_allow_list() {
+    let html = prd_page(None).replacen("<main>", "<main><div href=\"https://x\"></div>", 1);
+    assert_requests_nothing(&html);
 }
 
 /// `html` with each inlined font's base64 replaced by `…`, and how many were

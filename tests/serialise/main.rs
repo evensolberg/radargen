@@ -16,6 +16,7 @@ mod hostile;
 mod html5;
 mod identity;
 mod page;
+mod table;
 mod vocabulary;
 
 use radargen::emit::html::{Page, page};
