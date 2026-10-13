@@ -30,10 +30,9 @@ These came out of PR 15c's reviews and its audit. Each needs an answer before th
 - **SC-16, a released binary on a clean machine.** `just publish` creates a release with notes but attaches no binaries. Either:
   - (a) build release binaries for macOS (arm64), Linux (x86-64) and Windows, attach them to the release, and smoke-test one on a clean machine; or
   - (b) move SC-16 to 1.0.x with a D-entry.
-- **FR-94 and overlapping hit areas** (the audit's "2.5.8 overlap (open)" line, crumb "FR-94: neighbouring markers' hit areas overlap at narrow widths"). At 320 px, two pairs of markers in the interaction fixture sit 24.14 px apart, and their 27.43 px hit areas overlap. WCAG does not count overlapped area, so the clear radius on the shared side is about 10.4 px, not 12. Either:
-  - (a) have layout keep marker centres at least 36 units apart, a layout PR before 1.0.0; or
-  - (b) cap each hit radius at half the distance to its nearest neighbour. That fixes the fixture but not FR-94's worst case.
-  - (c) rule in the PRD that the overlap is accepted, with D-66's reasoning extended.
+- **FR-94, overlapping hit areas, and WCAG 2.5.8's Equivalent exception** (the audit's "2.5.8 spacing" line; crumb "FR-94: neighbouring markers' hit areas overlap at narrow widths"). At 320 px, two pairs of markers in the interaction fixture sit 24.14 px apart, and their 27.43 px hit areas overlap. Strictly, a circular hit area that size holds no 24 px square, and its 24 px circle meets a neighbour, so a marker alone passes neither 2.5.8's size test nor its spacing exception. The page meets 2.5.8 through the **Equivalent** exception: each item's legend row and table button open the same panel and each meet 24 px, which the audit checks. 2.5.8 is also a WCAG 2.2 criterion, beside NFR-1's 2.1 AA claim. The decision is whether that is enough:
+  - (a) accept it, and record the Equivalent exception in the PRD (FR-94 and D-66) and in the release notes; or
+  - (b) also make markers meet 2.5.8 alone, by having layout keep marker centres at least 36 units apart, a layout PR before 1.0.0.
 - **`rg-l4h`, the skeleton CSV,** is phase v1.0. Re-phase it to 1.1, or do it before the tag.
 
 ## 2. Testing and sign-off
@@ -53,8 +52,8 @@ These came out of PR 15c's reviews and its audit. Each needs an answer before th
 
 1. [ ] `git tag --list v1.0.0` prints nothing. Check now, not only at publish.
 2. [ ] On a new branch from main, set `version = "1.0.0"` in `Cargo.toml`, then run `cargo update -p radargen` to refresh `Cargo.lock`.
-3. [ ] Re-bless the HTML goldens locally: `UPDATE_GOLDEN=1 cargo test --test serialise golden` and `UPDATE_GOLDEN=1 cargo test --test serialise prd_page_matches`. Golden blessing is refused under `CI`. The diff must show only the generator meta line (`radargen 0.1` becoming `radargen 1.0`), and the run must be repeated without `UPDATE_GOLDEN` to pass.
-4. [ ] `just changelog`, which writes `CHANGELOG.md` from git history with git-cliff's default configuration. Read it: it lists commits since `v0.1.0` as their subjects were before squashing, which is expected.
+3. [ ] Re-bless the HTML goldens locally: `UPDATE_GOLDEN=1 cargo test --test serialise golden`, which matches every golden test. Golden blessing is refused under `CI`. The diff must show only the generator meta line (`radargen 0.1` becoming `radargen 1.0`), and the run must be repeated without `UPDATE_GOLDEN` to pass.
+4. [ ] `just changelog`, which writes `CHANGELOG.md` from all of git history with git-cliff's default configuration, `v0.1.0`'s section included. Read it: its 1.0.0 section lists the commits since `v0.1.0`, under their pre-squash subjects, which is expected.
 5. [ ] `just ci` green, browser checks included.
 6. [ ] The PR body cites PR 15's stated exception, as 15a's plan did: the bump lands apart from the PR that earned it, by the maintainer's decision of 2026-10-12. It also notes whether GitHub Actions ran.
 7. [ ] Merge.

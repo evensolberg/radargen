@@ -11,7 +11,7 @@
 import { writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { connect } from './cdp.mjs';
+import { SHOWN, connect } from './cdp.mjs';
 
 const [outDir, ...pages] = process.argv.slice(2);
 if (!outDir || pages.length === 0) {
@@ -48,7 +48,7 @@ try {
         const stem = `${basename(file, '.html')}-${width}-${mode}`;
         await shoot(`${stem}-closed`);
         const at = await evaluate(`(() => {
-          const shown = [...document.querySelectorAll('.arrangement')].find((a) => getComputedStyle(a).display !== 'none');
+          const shown = ${SHOWN};
           const m = shown.querySelector('[data-marker] circle');
           if (!m) return null;
           m.scrollIntoView({ block: 'center' });

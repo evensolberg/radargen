@@ -177,6 +177,7 @@ a11y-audit-only:
     #!/usr/bin/env bash
     set -euo pipefail
     out="$(mktemp -d)"
+    trap 'rm -rf "$out"' EXIT
     ./target/release/radargen tests/fixtures/interaction.csv -o "$out/interaction.html" 2>/dev/null
     width="$(./target/release/radargen tests/fixtures/d71-wide.csv -o "$out/d71.html" 2>&1 | sed -n 's/.*narrow arrangement is \([0-9]*\) units wide.*/\1/p')"
     node scripts/a11y-audit.mjs "$out/interaction.html" "$out/d71.html" "$width"

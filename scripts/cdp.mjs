@@ -1,6 +1,7 @@
 // Playwright's headless Chromium over the DevTools protocol, with no
-// dependency of its own: what scripts/text-spacing.mjs, interaction.mjs and
-// focus-cost.mjs share. CHROME overrides the browser's path.
+// dependency of its own: what the browser scripts share (text-spacing,
+// interaction, focus-cost, a11y-audit, screenshots). CHROME overrides the
+// browser's path.
 
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
@@ -171,6 +172,9 @@ export const KEYS = {
   ShiftTab: { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 8 },
   Escape: { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 },
 };
+
+// Page-side source: the arrangement on show (FR-69 hides the other).
+export const SHOWN = `[...document.querySelectorAll('.arrangement')].find((a) => getComputedStyle(a).display !== 'none')`;
 
 // Page-side source: the text of every element `selector` matches whose
 // visible text spills out of the element's box by more than `slack`.

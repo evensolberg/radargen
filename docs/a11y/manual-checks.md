@@ -48,7 +48,7 @@ The expected names come from `three-quadrant.csv`.
 3. **Opening the panel.** Press Enter.
    - *Expect:* "expanded", or the state change read in some form.
    - *Expect:* focus moves to "Item details, region", then "1. Kubernetes, heading level 2".
-4. **Reading the panel.** Read on.
+4. **Reading the panel.** Read on. For the link, use `interaction.csv`'s first Kafka, which has one; the three-quadrant fixture has no links.
    - *Expect:* "Close, button".
    - *Expect:* then a list of terms and values (quadrant, ring, description and so on), each term read before its value.
    - *Expect:* a link announced with its address and "opens in a new tab".
@@ -61,7 +61,7 @@ The expected names come from `three-quadrant.csv`.
    - *Expect:* "Skip to the legend, button".
    - *Expect:* on Enter, focus on "1. …" in the legend.
 8. **The toggle.** Tab to it.
-   - *Expect:* "Dark theme, toggle button, not pressed" (or "pressed" if the system is dark).
+   - *Expect:* "Dark theme" as a toggle button, with its state: "not pressed" (or "pressed" if the system is dark). VoiceOver words a toggle's state its own way; accept the state in any form.
    - *Expect:* Enter flips it, and the page's colours change.
 9. **The table** (`interaction.html`). Open *The table* and browse into it.
    - *Expect:* "Every item, region", then a table with its row and column counts.
@@ -70,7 +70,7 @@ The expected names come from `three-quadrant.csv`.
 10. **Two items with one name** (`interaction.html`).
     - *Expect:* the two "Kafka" markers are told apart by their number and position: "1. Kafka, Moved In; Platforms quadrant, Assess ring" and "6. Kafka, New; Tools quadrant, Adopt ring".
 11. **Browse mode and navigation lists.**
-    - *Expect, NVDA's headings list (Insert+F7) and VoiceOver's rotor (Headings):* one level-1 heading (the title), the quadrant headings at level 2, the ring headings at level 3, then "Every item".
+    - *Expect, NVDA's headings list (Insert+F7) and VoiceOver's rotor (Headings):* level 1 "Technology Radar"; level 2 "Key" and "Legend"; level 3 each quadrant; level 4 each ring under it; level 2 "Every item".
     - *Expect, iOS swipe order:* the same order as Tab.
 12. **Scrolling the panel with keys** (crumb `rg-n54`). In desktop Chrome, Firefox and Safari, at a small window (about 320 by 260), open a long item's panel. With focus on the panel heading:
     - *Expect:* ArrowDown and PageDown scroll the panel's content.

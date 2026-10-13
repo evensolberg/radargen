@@ -89,7 +89,7 @@ comments: "1.1 folds in the five-seat plan review. Part three of PR 15 (rg-6zu).
 | 2.4.6 headings and labels | The heading outline from the tree: one level-1, none skipped | Audit 8 |
 | 2.4.7 focus visible | After each Tab, a focus mark is drawn over the control | Audit 9 |
 | 2.5.1–2.5.4 pointer | No path gestures, activation on release, the visible label in the name, no motion | Audit 1; done |
-| 2.5.8 target size (2.2) | Every control, sampled by hit-testing, down to 320 px; D-71 is the recorded exception | Audit 5 |
+| 2.5.8 target size (2.2) | A WCAG 2.2 criterion, claimed beside NFR-1's 2.1 AA (D-66). Every control, by box and by hit-testing, down to 320 px. Markers meet it through the **Equivalent** exception: at 320 px neighbouring hit areas can overlap, and each item's legend row and table button, which open the same panel, meet 24 px. D-71's widened arrangement is the recorded exception | Audit 5 |
 | 3.1.1 language of page | `lang="en"` (FR-80) | done |
 | 3.1.2 language of parts | — | n/a: A-4 bounds text to the pinned font's scripts, none of them right-to-left |
 | 3.2.1 on focus | Focus alone never opens the panel or moves focus | Audit 9 |
@@ -194,14 +194,14 @@ Commit `feat(html): the table shows when it scrolls`.
    - After each Tab, a focus mark (a ring or an outline) is drawn and its box overlaps the control's.
    - Focus alone never opens the panel.
 
-- [ ] **Step 1:** write the audit. Build a release binary in a worktree at `74f95ac` (15b-1) and run the audit there: check 3 must fail on its presence assertion, not crash.
-- [ ] **Step 2:** run it on main: every check passes.
-- [ ] **Step 3: mutations of the built HTML, not the source.** Each must fail the audit:
+- [x] **Step 1:** write the audit. Build a release binary in a worktree at `74f95ac` (15b-1) and run the audit there: check 3 must fail on its presence assertion, not crash.
+- [x] **Step 2:** run it on main: every check passes.
+- [x] **Step 3: mutations of the built HTML, not the source.** Each must fail the audit:
   - shrink every `data-hit` circle's `r` with `sed` (check 5);
   - delete the start-up `aria-controls` line from the inlined script (check 3);
   - drop a legend row's name from its `aria-label` (check 1);
   - add CSS that paints the selection square in `Canvas` under forced colours (check 7).
-- [ ] **Step 4:** commit `test(a11y): WCAG 2.1 AA's automatable criteria, in a browser`.
+- [x] **Step 4:** commit `test(a11y): WCAG 2.1 AA's automatable criteria, in a browser`.
 
 ### Task 4: visual sign-off
 
@@ -288,6 +288,24 @@ Commit `docs: the 1.0.0 release checklist`.
 | Accessibility | 1.4.13, 3.2.1, 3.2.2, 4.1.1 | In the table: exempt, check 9, not applicable, and the HTML5 parse test |
 | UI | A visual sign-off step | Task 4 and the checklist |
 | UI | The title's size; ragged widths at 400 px | A crumb: neither blocks 1.0.0 |
+
+## Implementation review rulings
+
+| Seat | Finding | Ruling |
+| --- | --- | --- |
+| Code review | Three mutations passed: marker pointer targets off, selection square hidden, panel border removed | Hit-test misses that reach nothing fail; marks must be visible, stroked and in a system colour; the border must have width. All three now fail the audit |
+| Code review, accessibility | `keyboard()` passed with no focusable marker | Counts must equal the plotted rows; the page's stop sequence is asserted |
+| Code review, accessibility | The quadrant check counted level-2 headings ("Key", "Legend") | Level-3 heading texts must equal the quadrant set; each legend row must sit under its own quadrant and ring heading (1.3.1) |
+| Accessibility | 2.4.7 for HTML accepted a transparent or 0-width outline | Width ≥ 1 and a painted colour; legend rows by their stroked indicator |
+| Accessibility | The forced-colours marker check could pass on the outline alone; three marks missing | The ring and square must be visible; hover's dashes, the toggle's dot and a focused legend row are added; colours must be system colours other than Canvas |
+| Accessibility | The overlap is 2.5.8's Equivalent exception, not an open failure, and 2.5.8 is WCAG 2.2 | Reported as Equivalent; misses reaching nothing fail; the table and the release checklist say so; crumb `rg-frk` lowered to P2 |
+| Implementation | The forced-colours clips were in viewport, not page, coordinates, so at 400 px they compared blank images | Scroll offsets added; found by the failing legend-row check |
+| Code review | D-71 skipped SVG checks above a 24/36 scale | The strict branch applies unless the scale is below it |
+| Accessibility, code review | Manual step 11's heading outline was wrong; the link step had no link; VoiceOver words toggles differently | Corrected |
+| Code review | The scroll cue's gradients may be dropped in forced colours | Accepted: in forced colours the system scrollbar and the region's focusable scroll remain; the screenshots let the maintainer judge it |
+| Simplify | Shared `SHOWN`, named constants, `openTable`, a dead option and return, a one-item loop, the D-71 width derived | Applied |
+
+Ten mutations of the built page each fail the audit: pointer targets off, the square hidden, the border removed, markers unfocusable, hit radii shrunk, no `aria-controls`, names without items, selection in Canvas, heading levels collapsed, focus outlines transparent.
 
 ## Finishing
 
