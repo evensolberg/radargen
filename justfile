@@ -130,6 +130,20 @@ publish:
 # WCAG 1.4.12 text spacing in a browser (plan RG-014C, D-78): renders the
 # fixtures and checks every text fits and none overlaps, at five widths,
 # with the four spacing properties applied. Needs Playwright's headless
+# rg-jri: style recalculation per Tab on a 300-marker radar, in Chromium.
+focus-cost:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out="$(mktemp -d)"
+    cargo build --quiet --release
+    {
+        echo "name,quadrant,ring,description"
+        rings=(Assess Trial Adopt Retire)
+        for i in $(seq 0 299); do echo "Item $i,Q$((i % 6)),${rings[$((i % 4))]},d"; done
+    } > "$out/big.csv"
+    ./target/release/radargen "$out/big.csv" -o "$out/big.html" 2>/dev/null
+    node scripts/focus-cost.mjs "$out/big.html"
+
 # Chromium (or CHROME set to a Chromium binary); not part of `ci`.
 text-spacing:
     #!/usr/bin/env bash
