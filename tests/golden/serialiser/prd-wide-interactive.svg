@@ -70,39 +70,51 @@
 <circle cx="77.682" cy="-44.85" r="19" fill="var(--surface-1)" stroke="none"/>
 <circle cx="77.682" cy="-44.85" r="10" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
 <text x="77.682" y="-41.576" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">1</text>
+<g data-focus-ring="6">
 <circle cx="77.682" cy="-44.85" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
 </g>
 <g data-marker-indicator="7" visibility="hidden" aria-hidden="true" pointer-events="none">
 <circle cx="0" cy="89.7" r="19" fill="var(--surface-1)" stroke="none"/>
 <circle cx="0" cy="89.7" r="10" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 <text x="0" y="92.974" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">2</text>
+<g data-focus-ring="7">
 <circle cx="0" cy="89.7" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
 </g>
 <g data-marker-indicator="4" visibility="hidden" aria-hidden="true" pointer-events="none">
 <circle cx="-133.974" cy="-77.35" r="19" fill="var(--surface-1)" stroke="none"/>
 <path d="M -126.974 -89.474 A 14 14 0 0 1 -140.974 -65.226" fill="none" stroke="var(--series-3)" stroke-width="2"/>
 <circle cx="-133.974" cy="-77.35" r="10" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2"/>
 <text x="-133.974" y="-74.076" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">3</text>
+<g data-focus-ring="4">
 <circle cx="-133.974" cy="-77.35" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
 </g>
 <g data-marker-indicator="3" visibility="hidden" aria-hidden="true" pointer-events="none">
 <circle cx="-87.33" cy="-20.483" r="19" fill="var(--surface-1)" stroke="none"/>
 <circle cx="-87.33" cy="-20.483" r="14" fill="none" stroke="var(--series-3)" stroke-width="2"/>
 <circle cx="-87.33" cy="-20.483" r="10" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="3"/>
 <text x="-87.33" y="-17.209" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="var(--text-primary)">4</text>
+<g data-focus-ring="3">
 <circle cx="-87.33" cy="-20.483" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
 </g>
 <g data-marker-indicator="2" visibility="hidden" aria-hidden="true" pointer-events="none">
 <circle cx="-74.753" cy="-79.603" r="19" fill="var(--surface-1)" stroke="none"/>
 <circle cx="-74.753" cy="-79.603" r="10" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2"/>
 <text x="-74.753" y="-76.329" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">5</text>
+<g data-focus-ring="2">
 <circle cx="-74.753" cy="-79.603" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
 </g>
 <g data-marker-indicator="5" visibility="hidden" aria-hidden="true" pointer-events="none">
 <circle cx="-21.391" cy="-12.35" r="19" fill="var(--surface-1)" stroke="none"/>
 <circle cx="-21.391" cy="-12.35" r="10" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2"/>
 <text x="-21.391" y="-9.076" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">6</text>
+<g data-focus-ring="5">
 <circle cx="-21.391" cy="-12.35" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
 </g>
 </g>
 </g>

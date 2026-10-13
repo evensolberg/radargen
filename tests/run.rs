@@ -309,7 +309,11 @@ fn hostile_text_stays_text() {
         ),
         "{page}"
     );
-    assert!(!page.contains("<script"), "{page}");
+    assert_eq!(
+        page.matches("<script").count(),
+        1,
+        "the title opens no script; only the page's own is there"
+    );
 }
 
 /// Review Focus 4: `-o` as a person might type it.
@@ -496,9 +500,9 @@ fn realistic_inputs() {
     );
 }
 
-/// Radars at the edges of the page's CSS: no marker at all, so no `:has`
-/// block; and 200 quadrants, so hundreds of rules and a wide document whose
-/// breakpoint must still be computed.
+/// Radars at the edges of the page's CSS: no marker at all; and 200
+/// quadrants, a wide document whose breakpoint must still be computed. Focus
+/// is shown by attribute, so neither carries a rule per marker (rg-jri).
 #[test]
 fn the_page_at_its_extremes() {
     let unplotted = format!("{HEAD}Kafka,Tool,Hold,d\nFlink,Tool,Hold,d\n");
@@ -515,14 +519,17 @@ fn the_page_at_its_extremes() {
     assert!(ran.ok(), "{}", ran.stderr);
     let page = read(dir.path(), "none.html");
     html::assert_requests_nothing(&page);
-    assert!(!page.contains("@supports"), "no markers, no :has rules");
-    assert!(!page.contains("{}"), "no empty rule");
+    assert!(!html::style(&page).contains("{}"), "no empty rule");
 
     let ran = run_in(dir.path(), &["many.csv", "-o", "many.html"]);
     assert!(ran.ok(), "{}", ran.stderr);
     let page = read(dir.path(), "many.html");
     html::assert_requests_nothing(&page);
-    assert_eq!(page.matches("svg:has(").count(), 200, "one rule per marker");
+    let css = html::style(&page);
+    assert!(
+        !css.contains(":has(") && !css.contains("[data-marker=\""),
+        "no rule per marker"
+    );
 }
 
 /// FR-60, through the binary rather than clap's parser.

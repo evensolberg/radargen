@@ -146,6 +146,10 @@ pub enum Semantics {
     /// apart by the enclosing control (`data-marker-indicator` or
     /// `data-row-indicator`). Interactive-only: static formats omit it.
     Indicator(ItemKey),
+    /// A marker indicator's focus ring, marked so the page shows it apart
+    /// from the rest of the indicator, while the marker has visible focus
+    /// (FR-48, rg-jri). Interactive-only, inside an [`Semantics::Indicator`].
+    FocusRing(ItemKey),
 }
 
 /// One step of a path outline.
@@ -294,31 +298,6 @@ pub enum Node {
     },
 }
 
-/// Every marker control's key in `document`, in document order.
-///
-/// The radar's `Semantics::Marker` groups, never their hit areas or
-/// indicators. The page's per-key focus rules come from this walk, so the
-/// CSS agrees with the markup emitted (architecture §5).
-#[must_use]
-pub fn marker_keys(document: &Document) -> Vec<ItemKey> {
-    keys_in(&document.root)
-}
-
-fn keys_in(node: &Node) -> Vec<ItemKey> {
-    match node {
-        Node::Group(group) => {
-            let own = match &group.semantics {
-                Semantics::Marker(control) => Some(control.key),
-                _ => None,
-            };
-            own.into_iter()
-                .chain(group.children.iter().flat_map(keys_in))
-                .collect()
-        }
-        _ => Vec::new(),
-    }
-}
-
 impl Node {
     /// Where a text's tail is drawn: the last line's drawn end plus the gap,
     /// as a browser places the `dx` tspan at default spacing. PR 17's
@@ -351,7 +330,7 @@ impl Node {
         match self {
             Self::HitArea { .. } => true,
             Self::Group(group) => match group.semantics {
-                Semantics::Indicator(_) => true,
+                Semantics::Indicator(_) | Semantics::FocusRing(_) => true,
                 Semantics::None => {
                     !group.children.is_empty()
                         && group.children.iter().all(Self::is_interactive_only)

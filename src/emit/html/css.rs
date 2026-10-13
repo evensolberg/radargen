@@ -13,10 +13,11 @@ use base64::engine::general_purpose::STANDARD;
 use crate::num::fmt_coord;
 use crate::palette::{Neutral, Palette, Theme};
 use crate::style::{FOCUS_RING_STROKE, breakpoint_px};
-use crate::svg::ItemKey;
 use crate::svg::serialise::{
-    DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW_INDICATOR,
+    DATA_FOCUS_RING, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW_INDICATOR,
 };
+
+use super::chrome::{DATA_FOCUSED, DATA_THEME, JS_CLASS};
 use crate::text::{FAMILY, REGULAR_WOFF2, SEMIBOLD_WOFF2, Weight};
 
 /// Hides a heading from sight but not from assistive technology:
@@ -30,11 +31,13 @@ const FACE_SRC: &str = ";font-display:block;src:url(data:font/woff2;base64,";
 const FACE_CLOSE: &str = ") format(\"woff2\")}\n";
 
 const LIGHT_OPEN: &str = ":root{color-scheme:light;";
-const DARK_PREFERRED_OPEN: &str =
-    "@media (prefers-color-scheme: dark){:root:not([data-theme=\"light\"]){color-scheme:dark;";
-const DARK_CHOSEN_OPEN: &str = ":root[data-theme=\"dark\"]{color-scheme:dark;";
+const DARK_PREFERRED_OPEN: &str = "@media (prefers-color-scheme: dark){:root:not([";
+const NOT_LIGHT: &str = "=\"light\"]){color-scheme:dark;";
+const DARK_CHOSEN_OPEN: &str = ":root[";
+const DARK_CHOSEN: &str = "=\"dark\"]{color-scheme:dark;";
 const CLOSE: &str = "}\n";
-const FORCED_OPEN: &str = "@media (forced-colors: active){:root,:root[data-theme]{";
+const FORCED_OPEN: &str = "@media (forced-colors: active){:root,:root[";
+const FORCED_REST: &str = "]{";
 const CLOSE_TWICE: &str = "}}\n";
 
 /// Inter for the page's own text too, not only the SVG's: without it the
@@ -59,11 +62,12 @@ const VISIBLE: &str = "]{visibility:visible}\n[";
 const ROW_RING: &str = "]>rect{stroke:var(";
 const ROW_RING_WIDTH: &str = ");stroke-width:";
 const PX_CLOSE: &str = "px}\n";
-const SUPPORTS_HAS: &str = "@supports selector(:has(*)){\n[";
-const HAS_OPEN: &str = "svg:has([";
-const KEY_OPEN: &str = "=\"";
-const HAS_FOCUS: &str = "\"]:focus-visible) [";
-const KEY_VISIBLE: &str = "\"]{visibility:visible}\n";
+const SCRIPTED: &str = " [";
+const HIDDEN: &str = "]{visibility:hidden}\n[";
+const BOTH: &str = "][";
+const SHOWN: &str = "]{visibility:visible}\n[";
+const INSIDE: &str = "] [";
+const SHOWN_LAST: &str = "]{visibility:visible}\n";
 
 /// Both vendored faces, inlined (NFR-5) under the family the SVG text names
 /// (FR-85). `block` because the data is inline: there is no load to wait
@@ -104,12 +108,18 @@ pub(super) fn palettes() -> String {
         &light,
         CLOSE,
         DARK_PREFERRED_OPEN,
+        DATA_THEME,
+        NOT_LIGHT,
         &dark,
         CLOSE_TWICE,
         DARK_CHOSEN_OPEN,
+        DATA_THEME,
+        DARK_CHOSEN,
         &dark,
         CLOSE,
         FORCED_OPEN,
+        DATA_THEME,
+        FORCED_REST,
         &forced(),
         CLOSE_TWICE,
     ]
@@ -196,15 +206,16 @@ pub(super) fn narrow_query(wide_width: f64) -> String {
     .concat()
 }
 
-/// The focus indicators (FR-48, architecture §5), shown with no script.
+/// The focus indicators (FR-48, architecture §5).
 ///
-/// A legend row shows its own inset ring. A marker's ring is in a later
-/// layer, so a rule per key reaches it through `:has`, inside
-/// `@supports`; an engine without `:has` keeps its own outline. Each rule
-/// that hides the outline shares its replacement's selector, so the two
-/// stand or fall together (WCAG 2.4.7).
-pub(super) fn indicators(markers: &[ItemKey]) -> String {
-    [legend_focus(), marker_focus(markers)].concat()
+/// A legend row shows its own inset ring, with no script. A marker's ring
+/// is in a later layer, so the script marks the indicator `data-focused`
+/// while the marker has visible focus, and fixed rules show its ring: no
+/// rule per key, so a Tab costs the same at 300 markers as at 3 (rg-jri).
+/// The marker's own outline is hidden only under the script's `.js`
+/// class; without the script the browser's outline stays (WCAG 2.4.7).
+pub(super) fn indicators() -> String {
+    [legend_focus(), marker_focus()].concat()
 }
 
 fn legend_focus() -> String {
@@ -229,29 +240,26 @@ fn legend_focus() -> String {
     .concat()
 }
 
-fn marker_focus(markers: &[ItemKey]) -> String {
-    if markers.is_empty() {
-        return String::new();
-    }
-    let rules: String = markers.iter().copied().map(marker_rule).collect();
-    [SUPPORTS_HAS, DATA_MARKER, OUTLINE, &rules, CLOSE].concat()
-}
-
-/// `svg:has([data-marker="L"]:focus-visible) [data-marker-indicator="L"]`:
-/// qualified to markers on both sides, so a legend row neither lights a
-/// marker's ring nor is lit by it.
-fn marker_rule(key: ItemKey) -> String {
-    let line = key.0.to_string();
+fn marker_focus() -> String {
     [
-        HAS_OPEN,
+        ".",
+        JS_CLASS,
+        SCRIPTED,
         DATA_MARKER,
-        KEY_OPEN,
-        &line,
-        HAS_FOCUS,
+        OUTLINE,
+        "[",
+        DATA_FOCUS_RING,
+        HIDDEN,
         DATA_MARKER_INDICATOR,
-        KEY_OPEN,
-        &line,
-        KEY_VISIBLE,
+        BOTH,
+        DATA_FOCUSED,
+        SHOWN,
+        DATA_MARKER_INDICATOR,
+        BOTH,
+        DATA_FOCUSED,
+        INSIDE,
+        DATA_FOCUS_RING,
+        SHOWN_LAST,
     ]
     .concat()
 }

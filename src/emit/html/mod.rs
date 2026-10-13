@@ -1,6 +1,7 @@
 //! The HTML page (FR-52, FR-68, FR-69, FR-80): both arrangements, drawn
 //! interactive, with one shown at a time, both palettes, and Inter inlined.
 
+mod chrome;
 mod css;
 mod table;
 
@@ -9,18 +10,20 @@ use crate::escape::xml_text;
 use crate::model::Catalogue;
 use crate::order::Plotted;
 use crate::palette::{Palette, Theme};
-use crate::svg::{Document, ItemKey, Target, marker_keys, serialise};
+use crate::svg::{Document, Target, serialise};
 
 /// The tab title and hidden heading of a page with no title (FR-65, D-75).
 pub const UNTITLED: &str = "Technology Radar";
 
 const HEAD_OPEN: &str = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"generator\" content=\"";
-const BODY_OPEN: &str = "</style>\n</head>\n<body>\n<main>\n";
+const BODY_OPEN: &str = "</style>\n</head>\n<body>\n";
 const HIDDEN_HEADING: &str = "<h1 class=\"visually-hidden\">";
-const WIDE_OPEN: &str = "<div class=\"arrangement wide\">\n";
-const NARROW_OPEN: &str = "\n</div>\n<div class=\"arrangement narrow\">\n";
-const NARROW_CLOSE: &str = "\n</div>\n";
-const BODY_CLOSE: &str = "</main>\n</body>\n</html>\n";
+const DIV_OPEN: &str = "<div class=\"";
+const WIDE_REST: &str = " wide\">\n";
+const NARROW_REST: &str = " narrow\">\n";
+const DIV_CLOSE: &str = "\n</div>\n";
+const MAIN_CLOSE: &str = "</main>\n";
+const BODY_CLOSE: &str = "</body>\n</html>\n";
 
 /// Everything the page is written from: the two arrangements of one
 /// `Blocks` (FR-68), and the catalogue and its order, which the table view
@@ -59,7 +62,6 @@ pub fn page(input: &Page<'_>) -> String {
         plotted,
         title,
     } = *input;
-    let markers = union(marker_keys(wide), marker_keys(narrow));
     let target = Target::Interactive(&Palette::built_in(Theme::Light));
     let heading = if title.is_some() {
         String::new()
@@ -75,33 +77,28 @@ pub fn page(input: &Page<'_>) -> String {
         &css::font_faces(),
         &css::palettes(),
         &css::layout(wide.width, narrow.width),
-        &css::indicators(&markers),
+        &css::indicators(),
         css::VISUALLY_HIDDEN,
         &table::css(wide.width),
+        &chrome::css(wide.width),
         BODY_OPEN,
+        &chrome::main_open(&css::narrow_query(wide.width)),
+        &chrome::controls(),
         &heading,
-        WIDE_OPEN,
+        DIV_OPEN,
+        chrome::ARRANGEMENT_CLASS,
+        WIDE_REST,
         &serialise(wide, target),
-        NARROW_OPEN,
+        DIV_CLOSE,
+        DIV_OPEN,
+        chrome::ARRANGEMENT_CLASS,
+        NARROW_REST,
         &serialise(narrow, target),
-        NARROW_CLOSE,
+        DIV_CLOSE,
         &table::table(catalogue, plotted),
+        MAIN_CLOSE,
+        &chrome::script(),
         BODY_CLOSE,
     ]
     .concat()
-}
-
-/// `wide`'s keys, then any of `narrow`'s it lacks, each once.
-///
-/// FR-68 draws the same items in both arrangements, but the focus rules come
-/// from both trees anyway: a marker only one draws would otherwise show no
-/// ring while its outline is hidden (FR-48, rg-l0x).
-fn union(wide: Vec<ItemKey>, narrow: Vec<ItemKey>) -> Vec<ItemKey> {
-    let mut keys = wide;
-    for key in narrow {
-        if !keys.contains(&key) {
-            keys.push(key);
-        }
-    }
-    keys
 }

@@ -5,17 +5,15 @@
 use std::collections::BTreeSet;
 
 use radargen::emit::OUTPUT_VERSION;
-use radargen::emit::html::UNTITLED;
 use radargen::layout::arrange::{Arrangement, arrange};
 use radargen::num::fmt_coord;
 use radargen::style::breakpoint_px;
-use radargen::svg::{Document, marker_keys};
+use radargen::svg::Document;
 
 use super::golden::golden;
-use super::html::{assert_requests_nothing, outside, style, svgs, tags};
-use super::identity::interactive;
+use super::html::{assert_requests_nothing, outside, style, svgs};
 use super::vocabulary::vocabulary;
-use super::{PRD_EXAMPLE, build, parse, prd};
+use super::{parse, prd};
 
 const VIEWPORT: &str = r#"<meta name="viewport" content="width=device-width, initial-scale=1">"#;
 const VISUALLY_HIDDEN: &str = ".visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}";
@@ -67,12 +65,16 @@ fn the_page_is_minimal_and_valid() {
     let around = outside(&html);
     assert!(
         around.contains(&format!(
-            "<body>\n<main>\n{WIDE_OPEN}\n</div>\n{NARROW_OPEN}\n</div>\n<h2 class=\"table-heading\""
+            "{WIDE_OPEN}\n</div>\n{NARROW_OPEN}\n</div>\n<h2 class=\"table-heading\""
         )),
         "the table view follows both arrangements: {around}"
     );
     assert!(
-        around.ends_with("</details>\n</main>\n</body>\n</html>\n"),
+        around.contains("</head>\n<body>\n<main data-narrow-query="),
+        "{around}"
+    );
+    assert!(
+        around.ends_with("</details>\n</main>\n<script></script>\n</body>\n</html>\n"),
         "{around}"
     );
 }
@@ -93,7 +95,7 @@ fn the_title_falls_back() {
     let around = outside(&untitled);
     assert!(
         around.contains(&format!(
-            "<main>\n<h1 class=\"visually-hidden\">Technology Radar</h1>\n{WIDE_OPEN}"
+            "</div>\n<h1 class=\"visually-hidden\">Technology Radar</h1>\n{WIDE_OPEN}"
         )),
         "{around}"
     );
@@ -113,7 +115,11 @@ fn a_hostile_title_is_escaped() {
         "{html}"
     );
     assert_requests_nothing(&html);
-    assert!(tags(&outside(&html)).iter().all(|tag| tag.name != "script"));
+    assert_eq!(
+        html.matches("<script").count(),
+        1,
+        "the title opens no script; only the page's own is there"
+    );
 }
 
 /// Review Focus 1 (FR-69): two arrangements, the wide first, each capped at
@@ -174,18 +180,6 @@ fn both_are_interactive() {
     assert_eq!(wide, narrow, "the same items in both");
 }
 
-/// The walk finds the marker controls in document order, and nothing else.
-#[test]
-fn marker_keys_walk_controls_only() {
-    let (wide, _) = documents();
-    let svg = interactive(&prd(), Arrangement::Wide);
-    let walked: Vec<String> = marker_keys(&wide)
-        .into_iter()
-        .map(|key| key.0.to_string())
-        .collect();
-    assert_eq!(walked, values(&svg, "data-marker"));
-}
-
 /// The generated focus rules match the tree they style: a selector that
 /// matches nothing would show no ring and fail no string check (FR-48).
 #[test]
@@ -219,61 +213,22 @@ fn the_indicator_selectors_match_the_tree() {
         {
             assert!(markers.contains(key), "indicator {key} has its marker");
         }
+        // rg-jri: the script shows a ring by its indicator's key, so each
+        // marker needs exactly one indicator holding exactly one ring.
         for key in &markers {
-            assert!(
-                css.contains(&format!(
-                    "svg:has([data-marker=\"{key}\"]:focus-visible) [data-marker-indicator=\"{key}\"]{{visibility:visible}}"
-                )),
-                "marker {key} has its rule"
-            );
+            let rings: usize = doc
+                .descendants()
+                .filter(|n| n.attribute("data-marker-indicator") == Some(key))
+                .map(|n| {
+                    n.descendants()
+                        .filter(|d| d.attribute("data-focus-ring") == Some(key))
+                        .count()
+                })
+                .sum();
+            assert_eq!(rings, 1, "marker {key} has one ring to show");
         }
-        assert_eq!(
-            css.matches("svg:has(").count(),
-            markers.len(),
-            "no rule for a key the page lacks"
-        );
+        assert!(!css.contains(":has("), "no rule per key");
     }
-}
-
-/// A marker only one arrangement draws keeps its focus ring: the rules come
-/// from both trees, not the wide one alone (rg-l0x). FR-68 draws the same
-/// items in both today, so the two catalogues here differ by one row.
-#[test]
-fn a_marker_in_one_arrangement_keeps_its_rule() {
-    let fewer = prd();
-    let more = build(
-        &[PRD_EXAMPLE, "Extra,Tool,Adopt,d,,,,,,\n"].concat(),
-        None,
-        Some(UNTITLED),
-    );
-    let wide = arrange(Arrangement::Wide, &fewer.blocks);
-    let narrow = arrange(Arrangement::Narrow, &more.blocks);
-    let html = more.page_of(&wide, &narrow, None);
-    let css = style(&html);
-    let keys: BTreeSet<String> = svgs(&html)
-        .into_iter()
-        .flat_map(|svg| values(svg, "data-marker"))
-        .collect();
-    assert_eq!(
-        keys.len(),
-        marker_keys(&narrow).len(),
-        "narrow has every key"
-    );
-    assert!(
-        marker_keys(&wide).len() < keys.len(),
-        "wide lacks the extra marker, so the trees differ"
-    );
-    for key in &keys {
-        assert!(
-            css.contains(&format!("svg:has([data-marker=\"{key}\"]:focus-visible)")),
-            "marker {key} has its rule"
-        );
-    }
-    assert_eq!(
-        css.matches("svg:has(").count(),
-        keys.len(),
-        "one rule per key"
-    );
 }
 
 /// The allow-list catches an attribute on the wrong element: an `href` on a
@@ -281,7 +236,11 @@ fn a_marker_in_one_arrangement_keeps_its_rule() {
 #[test]
 #[should_panic(expected = "href=\"https://x\" on <div>")]
 fn a_stray_href_fails_the_allow_list() {
-    let html = prd_page(None).replacen("<main>", "<main><div href=\"https://x\"></div>", 1);
+    let html = prd_page(None).replacen(
+        "<div class=\"page-controls\">",
+        "<div href=\"https://x\"></div><div class=\"page-controls\">",
+        1,
+    );
     assert_requests_nothing(&html);
 }
 

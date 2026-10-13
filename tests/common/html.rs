@@ -9,13 +9,16 @@ pub const SVG_ELEMENTS: [&str; 9] = [
 
 /// Every element the page itself writes around the SVG, the table view
 /// (FR-41) included.
-pub const PAGE_ELEMENTS: [&str; 20] = [
+pub const PAGE_ELEMENTS: [&str; 22] = [
     "html", "head", "meta", "title", "style", "body", "main", "h1", "div", "h2", "details",
-    "summary", "table", "thead", "tbody", "tr", "th", "td", "a", "span",
+    "summary", "table", "thead", "tbody", "tr", "th", "td", "a", "span", "button", "script",
 ];
 
 /// Every attribute the page may write on any of its own elements.
-const PAGE_ATTRIBUTES: [&str; 11] = [
+const PAGE_ATTRIBUTES: [&str; 14] = [
+    "type",
+    "hidden",
+    "aria-pressed",
     "lang",
     "charset",
     "name",
@@ -51,6 +54,7 @@ pub fn page_attribute(element: &str, name: &str, value: &str, all: &[(String, St
     match (element, name) {
         (_, n) if PAGE_ATTRIBUTES.contains(&n) => true,
         ("h2", "id") => value == "table-heading",
+        ("main", "data-narrow-query") => value.starts_with("(max-width: "),
         ("a", "href") => web && has("target", "_blank") && has("rel", "noopener noreferrer"),
         ("a", "target") => value == "_blank",
         ("a", "rel") => value == "noopener noreferrer",
@@ -95,11 +99,20 @@ pub fn svgs(page: &str) -> Vec<&str> {
     found
 }
 
-/// The page with its SVGs taken out: the HTML around them.
+/// The page with its SVGs and its script's body taken out: the HTML
+/// around them. The script's `<script>` and `</script>` stay, so the tags
+/// are still checked; its code is not markup.
 pub fn outside(page: &str) -> String {
-    svgs(page)
+    let markup = svgs(page)
         .iter()
-        .fold(page.to_owned(), |text, svg| text.replacen(svg, "", 1))
+        .fold(page.to_owned(), |text, svg| text.replacen(svg, "", 1));
+    match markup.split_once("<script>") {
+        Some((head, rest)) => {
+            let (_, tail) = rest.split_once("</script>").expect("the script closes");
+            [head, "<script></script>", tail].concat()
+        }
+        None => markup,
+    }
 }
 
 /// The page's one stylesheet.
