@@ -7,6 +7,7 @@
 //! [`xml_text`], an `href` with [`html_attr`]. Rule fragments are module
 //! constants, as in `css.rs`.
 
+use super::chrome::DATA_SELECTED;
 use super::css::{OUTLINE_CLOSE, capped};
 use crate::escape::{html_attr, xml_text};
 use crate::model::{Catalogue, ColumnKind, Item, Link, NOT_ON_THE_RADAR};
@@ -219,12 +220,20 @@ const CELL_OPEN: &str =
     ")}\nth,td{text-align:start;vertical-align:top;padding:.4em .6em;border-bottom:1px solid var(";
 const HEAD_OPEN: &str =
     ")}\nth{font-weight:600}\nthead th{font-size:.75rem;border-bottom-width:2px;color:var(";
-const NUMBER_RULE: &str = ")}\n.number{text-align:end;font-variant-numeric:tabular-nums}\n.prose{white-space:pre-line;min-width:16em}\n.link{overflow-wrap:anywhere;min-width:12em}\n";
+const NUMBER_RULE: &str = ")}\n.number{text-align:end;font-variant-numeric:tabular-nums}\ntd.prose{white-space:pre-line;min-width:16em}\ntd.link{overflow-wrap:anywhere;min-width:12em}\n";
 const FLAG_OPEN: &str = ".flag{display:inline-block;padding:0 .45em;border:1px solid currentColor;border-radius:1em;font-size:.8em;font-weight:600;white-space:nowrap;color:var(";
 const BOUNDARY_OPEN: &str = ")}\ntr:not(.unplotted)+tr.unplotted>*{border-top:2px solid var(";
 const LINK_OPEN: &str = ")}\na,a:visited{text-decoration:underline;color:var(";
-const FOCUS_OPEN: &str =
-    ")}\nsummary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px solid var(";
+/// A selected row's mark: a start border, which forced colours keep where
+/// they drop backgrounds and shadows (FR-72).
+const SELECTED_OPEN: &str = ")}\ntr[";
+const SELECTED_REST: &str = "]>:first-child{border-inline-start:3px solid var(";
+/// The name cell's button looks like the 15a text it holds, with a dotted
+/// underline that says it does something, solid on hover and unlike a
+/// link's; it keeps a 24px target (FR-94). The focus rule below is more
+/// specific, so the reset never removes the outline.
+const BUTTON_RESET: &str = ")}\nth button{all:unset;display:block;min-height:24px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:.2em}\nth button:hover{text-decoration-style:solid}\n";
+const FOCUS_OPEN: &str = "summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focus-visible{outline:2px solid var(";
 
 /// The table view's rules, capped at the wide document's width and inset by
 /// its margin, so the table's edge lines up with the radar's content.
@@ -253,6 +262,11 @@ pub(super) fn css(wide_width: f64) -> String {
         Neutral::StrokeDivider.as_str(),
         LINK_OPEN,
         Neutral::TextPrimary.as_str(),
+        SELECTED_OPEN,
+        DATA_SELECTED,
+        SELECTED_REST,
+        Neutral::TextPrimary.as_str(),
+        BUTTON_RESET,
         FOCUS_OPEN,
         Neutral::Focus.as_str(),
         OUTLINE_CLOSE,

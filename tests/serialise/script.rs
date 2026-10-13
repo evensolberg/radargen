@@ -87,9 +87,16 @@ fn one_hidden_panel_between_the_radar_and_the_table() {
     let open = "<section id=\"detail\" class=\"detail\" aria-label=\"Item details\" hidden=\"\">";
     assert_eq!(html.matches("id=\"detail\"").count(), 1, "one panel id");
     let panel = html.find(open).expect("the panel, hidden");
-    let narrow = html.find("<div class=\"arrangement narrow\">").expect("narrow");
-    let table = html.find("<h2 class=\"table-heading\"").expect("the table view");
-    assert!(narrow < panel && panel < table, "after the radar, before the table");
+    let narrow = html
+        .find("<div class=\"arrangement narrow\">")
+        .expect("narrow");
+    let table = html
+        .find("<h2 class=\"table-heading\"")
+        .expect("the table view");
+    assert!(
+        narrow < panel && panel < table,
+        "after the radar, before the table"
+    );
     assert!(html.contains(
         "<div class=\"detail-head\"><h2 class=\"detail-heading\" tabindex=\"-1\"></h2><button type=\"button\" class=\"detail-close\">Close</button></div><dl></dl></section>"
     ));

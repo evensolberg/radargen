@@ -120,3 +120,17 @@ fn words_match_whole() {
     assert!(!has_word("prefetch", "fetch"));
     assert!(has_word("open", "open"));
 }
+
+/// FR-38's panel is sticky at the viewport's bottom, scrolls inside itself,
+/// and its close button and heading show focus (WCAG 2.4.7).
+#[test]
+fn the_panel_sticks_and_shows_focus() {
+    let css = super::css(1000.0);
+    for rule in [
+        ".detail{position:sticky;bottom:0;max-height:min(45vh,28em);overflow:auto;",
+        ".detail-close:focus-visible,.detail-heading:focus-visible{outline:2px solid var(--focus)",
+        ".detail dd.prose{white-space:pre-line;max-width:70ch}",
+    ] {
+        assert!(css.contains(rule), "{rule} in {css}");
+    }
+}

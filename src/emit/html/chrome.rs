@@ -23,6 +23,12 @@ pub(super) const DATA_THEME: &str = "data-theme";
 pub(super) const ARIA_PRESSED: &str = "aria-pressed";
 /// Set on a marker's indicator while the marker has visible focus (rg-jri).
 pub(super) const DATA_FOCUSED: &str = "data-focused";
+/// Set by the script on an item's elements while the pointer is over one
+/// of them (FR-37).
+pub(super) const DATA_HOVERED: &str = "data-hovered";
+/// Set by the script on an item's elements while its panel is open
+/// (FR-72).
+pub(super) const DATA_SELECTED: &str = "data-selected";
 /// The class the script puts on `<html>` once it runs: rules that need the
 /// script to stand in for the browser apply only under it.
 pub(super) const JS_CLASS: &str = "js";
@@ -69,7 +75,7 @@ pub(super) fn script() -> String {
 
 const HIDDEN_RULE: &str = "[hidden]{display:none!important}\n";
 const BAR_OPEN: &str = ".page-controls{display:flex;";
-const BUTTON_OPEN: &str = ".page-controls button{margin-block:.5em;font:inherit;padding:.4em .8em;border-radius:6px;cursor:pointer;border:1px solid var(";
+const BUTTON_OPEN: &str = ".page-controls button,.detail-close{margin-block:.5em;font:inherit;padding:.4em .8em;border-radius:6px;cursor:pointer;border:1px solid var(";
 const BUTTON_GROUND: &str = ");background:var(";
 const BUTTON_INK: &str = ");color:var(";
 const BUTTON_CLOSE: &str = ")}\n";
@@ -81,7 +87,15 @@ const SKIP_RULE: &str =
 /// pressed. Forced colours drop backgrounds, so there the dot keeps the
 /// button's system ink (WCAG 1.4.1).
 const DOT_RULE: &str = ".theme-toggle::before{content:\"\";display:inline-block;width:.75em;height:.75em;border:1.5px solid currentColor;border-radius:50%;margin-inline-end:.4em;vertical-align:-.05em}\n.theme-toggle[aria-pressed=true]::before{background:currentColor}\n@media (forced-colors: active){.theme-toggle[aria-pressed=true]::before{forced-color-adjust:none;background:ButtonText}}\n";
-const FOCUS_OPEN: &str = ".page-controls button:focus-visible{outline:2px solid var(";
+const FOCUS_OPEN: &str = ".page-controls button:focus-visible,.detail-close:focus-visible,.detail-heading:focus-visible{outline:2px solid var(";
+/// FR-38's panel, sticky at the viewport's bottom while open so the radar
+/// stays in view, and scrolling inside itself past 45% of the screen.
+const PANEL_CAP: &str = ".detail{";
+const PANEL_OPEN: &str = ".detail{position:sticky;bottom:0;max-height:min(45vh,28em);overflow:auto;margin-block:1em;padding-block:1em;border-radius:8px;background:var(";
+const PANEL_EDGE: &str = ");border:1px solid var(";
+const PANEL_REST: &str = ")}\n.detail-head{display:flex;justify-content:space-between;align-items:baseline;gap:1em}\n.detail-heading{margin:0;font-size:1.0625rem;font-weight:600}\n.detail dl{margin:.5em 0 0}\n.detail dd{margin:0 0 .6em}\n.detail dd.prose{white-space:pre-line;max-width:70ch}\n.detail dt{font-size:.75rem;font-weight:600;color:var(";
+const PANEL_EMPTY: &str = ")}\n.detail-empty{color:var(";
+const PANEL_CLOSE: &str = ")}\n";
 
 /// The controls' rules, capped and inset like the table view.
 pub(super) fn css(wide_width: f64) -> String {
@@ -101,6 +115,16 @@ pub(super) fn css(wide_width: f64) -> String {
         FOCUS_OPEN,
         Neutral::Focus.as_str(),
         OUTLINE_CLOSE,
+        &capped(PANEL_CAP, wide_width),
+        PANEL_OPEN,
+        Neutral::Surface2.as_str(),
+        PANEL_EDGE,
+        Neutral::StrokeDivider.as_str(),
+        PANEL_REST,
+        Neutral::TextMuted.as_str(),
+        PANEL_EMPTY,
+        Neutral::TextMuted.as_str(),
+        PANEL_CLOSE,
     ]
     .concat()
 }

@@ -309,13 +309,42 @@ fn each_name_cell_holds_one_button() {
     let table = table_of(&html);
     let doc = parse(&table);
     for row in rows(&doc) {
-        let header = row.children().find(|n| n.has_tag_name("th")).expect("a row header");
-        let buttons: Vec<Node> = header.children().filter(|n| n.has_tag_name("button")).collect();
+        let header = row
+            .children()
+            .find(|n| n.has_tag_name("th"))
+            .expect("a row header");
+        let buttons: Vec<Node> = header
+            .children()
+            .filter(|n| n.has_tag_name("button"))
+            .collect();
         let [button] = buttons.as_slice() else {
             panic!("one button: {}", text(header));
         };
         assert_eq!(button.attribute("type"), Some("button"));
         assert_eq!(button.attribute("data-row"), row.attribute("data-row"));
-        assert_eq!(text(*button), text(header), "all the cell's text is the button's");
+        assert_eq!(
+            text(*button),
+            text(header),
+            "all the cell's text is the button's"
+        );
     }
+}
+
+/// FR-72 and FR-94 in the table: a selected row's start border survives
+/// forced colours, and the name button keeps a 24px target and its outline.
+#[test]
+fn the_table_marks_selection_and_keeps_its_button_usable() {
+    let html = built().page(Some("T"));
+    let css = super::html::style(&html);
+    for rule in [
+        "tr[data-selected]>:first-child{border-inline-start:3px solid var(--text-primary)}",
+        "th button{all:unset;display:block;min-height:24px;cursor:pointer;",
+        "th button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}",
+    ] {
+        assert!(css.contains(rule), "{rule}");
+    }
+    assert!(
+        !css.contains("\n.prose{"),
+        "prose is scoped to the table's cells"
+    );
 }
