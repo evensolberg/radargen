@@ -13,7 +13,7 @@ created_date: 2026-10-12
 synopsis: "How to write the CSV radargen reads: the four required columns and seven optional ones, what each accepts, what is a hard error and what only warns, and how the file must be saved."
 status: active
 type: Guide
-revision: "1.3"
+revision: "1.4"
 review_date:
 reviewed_by: []
 completed_date:
@@ -44,20 +44,20 @@ Columns are found by **name, not position**, so their order in the file does not
 | `name` | **yes**, on every row | Free text | The legend entry, the marker's tooltip and the detail panel's heading |
 | `quadrant` | **yes**, on every row | Free text | The sector the item sits in, and its legend group |
 | `ring` | **yes**, on every row | One of the declared rings (see [Rings](#rings)) | How far from the centre the item sits |
-| `description` | **yes** as a column; a cell may be empty | Free text | The table view, and the detail panel (from PR 15b) |
+| `description` | **yes** as a column; a cell may be empty | Free text | The table view, and the detail panel |
 | `qualifier` | no | `default`, `conditional`, or blank | A solid marker, or a hollow one for `conditional` |
-| `domain` | no | Free text | The table view, and the detail panel (from PR 15b) |
-| `rationale` | no | Free text | The table view, and the detail panel (from PR 15b) |
-| `last_affirmed` | no | A date, `YYYY-MM-DD` | The table view, and the detail panel (from PR 15b) |
-| `exit_date` | no | A date, `YYYY-MM-DD` | The table view, and the detail panel (from PR 15b) |
+| `domain` | no | Free text | The table view, and the detail panel |
+| `rationale` | no | Free text | The table view, and the detail panel |
+| `last_affirmed` | no | A date, `YYYY-MM-DD` | The table view, and the detail panel |
+| `exit_date` | no | A date, `YYYY-MM-DD` | The table view, and the detail panel |
 | `status` | no | `New`, `Moved In`, `Moved Out`, `No Change`, or blank | A ring or half-ring on the marker, and the legend |
-| `link` | no | A web address starting `http://` or `https://`, or blank | A link in the table view, and in the detail panel (from PR 15b) |
+| `link` | no | A web address starting `http://` or `https://`, or blank | A link in the table view and the detail panel |
 
 **Any other column is shown in the table view**, under its own header name, so a team can keep its own notes (a ticket reference, an owner, a survey score) in the same file. The radar and legend ignore it. A column whose header cell is empty is dropped; if a row has a value under it, you get a warning.
 
 An optional column that is missing, or empty on a row, is simply left out for that item. Nothing is shown as blank or as a dash.
 
-Every row and every column appears in the **table view**, under the *Every item* heading below the radar: open *The table* to see it. Plotted rows come first, numbered as on the radar, then rows the radar cannot plot, flagged "not on the radar". The detail panel, which opens when you click a marker, a legend row or a table row, arrives in the next release step (PR 15b).
+Every row and every column appears in the **table view**, under the *Every item* heading below the radar: open *The table* to see it. Plotted rows come first, numbered as on the radar, then rows the radar cannot plot, flagged "not on the radar". Click a marker, a legend row or a name in the table, or Tab to one and press Enter or Space, and the **detail panel** opens at the bottom of the window with that item's number, name and every field it has. Click it again, press Escape, or use Close to close it.
 
 ### `name`
 
@@ -143,7 +143,7 @@ Values are matched ignoring case and surrounding spaces, so `moved in` works.
 
 ### `link`
 
-A web address for the item, such as the product's home page: `https://www.terraform.io`. It shows as a link in the table view, and in the detail panel once that arrives (PR 15b); it opens in a new tab.
+A web address for the item, such as the product's home page: `https://www.terraform.io`. It shows as a link in the table view and the detail panel, and opens in a new tab.
 
 - Only addresses starting `http://` or `https://` become links. Anything else is shown as plain text, with a warning, so a mistyped or unsafe address is never something a reader can click.
 - A blank cell means no link.
@@ -201,3 +201,4 @@ Kubernetes,Platforms,Adopt,"Container orchestration.",default,Containers,"Defaul
 | 1.1 | 2026-10-12 | The `link` column (FR-96, D-77). |
 | 1.2 | 2026-10-12 | Line breaks in cells (FR-97). |
 | 1.3 | 2026-10-12 | The table view is live (FR-41, FR-78, D-80). |
+| 1.4 | 2026-10-12 | The detail panel is live (FR-38). |
