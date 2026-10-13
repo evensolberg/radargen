@@ -200,12 +200,12 @@ Each PR is complete in itself: every handler lands with the state it manages, an
 
 ### Task 0: close out 15a's plan; the skip link in the PRD
 
-- [ ] **Step 1:** set `docs/plans/pr-15a-table.md` to `status: complete` with `completed_date: 2026-10-12`, and move it to `docs/plans/done/`.
-- [ ] **Step 2:** PRD 0.62.
+- [x] **Step 1:** set `docs/plans/pr-15a-table.md` to `status: complete` with `completed_date: 2026-10-12`, and move it to `docs/plans/done/`.
+- [x] **Step 2:** PRD 0.62.
   - **FR-98:** with script, a skip link before the radar moves focus to the shown arrangement's first legend row (WCAG 2.4.1). It is absent without script.
   - **FR-56's toggle:** the in-page toggle is a pressed/unpressed **Dark theme** button.
   - Add a revisions row.
-- [ ] **Step 3:** commit `docs: RG-015A complete; FR-98, the skip link`.
+- [x] **Step 3:** commit `docs: RG-015A complete; FR-98, the skip link`.
 
 ### Task 1: the script, the names block, and the page controls
 
@@ -228,7 +228,7 @@ Each PR is complete in itself: every handler lands with the state it manages, an
 - the skip link's click;
 - the `matchMedia` change, which moves focus to `state.focus`'s key in the shown arrangement.
 
-- [ ] **Step 1: failing tests.**
+- [x] **Step 1: failing tests.**
   - **The script's bytes:**
     - the page holds exactly one attribute-less `<script>`, whose content equals `include_str!("../../src/emit/html/script.js")`;
     - the names block's values equal the Rust constants;
@@ -238,7 +238,7 @@ Each PR is complete in itself: every handler lands with the state it manages, an
     - `.page-controls` is first in `<main>`;
     - both controls carry `hidden=""`;
     - `data-narrow-query` equals `css::narrow_query(wide.width)`.
-- [ ] **Step 2:** see them fail. **Step 3:** implement. **Step 4:** commit `feat(html): the script's skeleton, toggle and skip link`.
+- [x] **Step 2:** see them fail. **Step 3:** implement. **Step 4:** commit `feat(html): the script's skeleton, toggle and skip link`.
 
 ### Task 2: focus by attribute (`rg-jri`)
 
@@ -263,18 +263,18 @@ Each PR is complete in itself: every handler lands with the state it manages, an
 - `[data-marker-indicator][data-focused] [data-focus-ring]{visibility:visible}`
 - `[hidden]{display:none!important}`
 
-- [ ] **Step 1: failing tests.**
+- [x] **Step 1: failing tests.**
   - The stylesheet has no `:has(`, no `@supports selector`, and no attribute selector with a value.
   - Each marker indicator holds one `data-focus-ring` group.
   - The legend's focus rule is unchanged.
   - Static goldens are unchanged.
-- [ ] **Step 2:** see them fail. **Step 3:** implement, and re-bless the HTML golden only. **Step 4:** commit `perf(html): marker focus by attribute, not per-key rules (rg-jri)`.
+- [x] **Step 2:** see them fail. **Step 3:** implement, and re-bless the HTML golden only. **Step 4:** commit `perf(html): marker focus by attribute, not per-key rules (rg-jri)`.
 
 ### Task 3: the cost, measured
 
-- [ ] **Step 1:** create `scripts/focus-cost.mjs`, from the `rg-min` probe: it generates a 300-marker page, Tabs 40 times, and reports `RecalcStyleDuration` per Tab. Add `just focus-cost`.
-- [ ] **Step 2:** run it on main and on the branch, and record both numbers. Expected: about 49 ms before, under 1 ms after.
-- [ ] **Step 3:** commit `test(perf): a probe for focus-ring style cost (rg-jri)`.
+- [x] **Step 1:** create `scripts/focus-cost.mjs`, from the `rg-min` probe: it generates a 300-marker page, Tabs 40 times, and reports `RecalcStyleDuration` per Tab. Add `just focus-cost`.
+- [x] **Step 2:** run it on main and on the branch, and record both numbers. Expected: about 49 ms before, under 1 ms after.
+- [x] **Step 3:** commit `test(perf): a probe for focus-ring style cost (rg-jri)`.
 
 ### Task 4: the browser harness
 
@@ -308,11 +308,11 @@ Each PR is complete in itself: every handler lands with the state it manages, an
    - Enter on the summary opens the table.
 7. **NFR-5:** with `Network.enable`, the document is the only request.
 
-- [ ] **Step 1:** write the harness. Run it on main's build: Scenarios 1 and 3–5 fail.
-- [ ] **Step 2:** run it on the branch: all pass. Mutation-check:
+- [x] **Step 1:** write the harness. Run it on main's build: Scenarios 1 and 3–5 fail.
+- [x] **Step 2:** run it on the branch: all pass. Mutation-check:
   - the `.js` gate removed (Scenario 6);
   - `focusin` reading `activeElement` instead of `state.focus` (Scenario 3).
-- [ ] **Step 3:** commit `test(a11y): the interactive layer in a browser`.
+- [x] **Step 3:** commit `test(a11y): the interactive layer in a browser`.
 
 ### Part 1 finishing
 
