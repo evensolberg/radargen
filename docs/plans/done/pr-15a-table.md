@@ -10,7 +10,7 @@ crumb_id: rg-6zu
 document_title: "PR 15a — the link column and the table view: Implementation Plan"
 created_date: 2026-10-12
 synopsis: "The model recognises FR-96's link column: an http or https value becomes a link and anything else is text, with a warning NFR-20 groups. The page gains FR-41's table view of every CSV row and every column (FR-78, amended by D-80), under a visible heading and a native details toggle that works without script, with each http or https link opening in a new tab. page() takes a Page input. 15b builds the detail panel by reading the item's table row. No script and no panel here: those, and every handler, are PR 15b."
-status: draft
+status: complete
 type: Plan
 revision: "1.1"
 review_date: 2026-10-12
@@ -20,7 +20,7 @@ reviewed_by:
   - architecture seat
   - accessibility seat
   - UI seat
-completed_date:
+completed_date: 2026-10-12
 comments: "1.1 folds in the five-seat plan review and the maintainer's ruling on description (D-80). See Review rulings. Part one of PR 15 (rg-6zu)."
 ---
 # PR 15a — the link column and the table view: Implementation Plan
