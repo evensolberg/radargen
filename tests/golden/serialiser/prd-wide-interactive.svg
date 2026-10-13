@@ -189,7 +189,7 @@
 <rect x="39" y="59" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="6" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="59" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="64" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="76" r="8" fill="var(--series-1)" stroke="var(--series-1)" stroke-width="1.5"/>
 <text x="52" y="79.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">1</text>
@@ -210,7 +210,7 @@
 <rect x="39" y="137" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="7" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="137" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="142" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="154" r="8" fill="var(--series-2)" stroke="var(--series-2)" stroke-width="1.5"/>
 <text x="52" y="157.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">2</text>
@@ -231,7 +231,7 @@
 <rect x="39" y="215" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="4" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="215" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="220" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="232" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
 <text x="52" y="235.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">3</text>
@@ -246,7 +246,7 @@
 <rect x="39" y="267" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="3" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="267" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="272" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="284" r="8" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="2"/>
 <text x="52" y="287.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="var(--text-primary)" pointer-events="none">4</text>
@@ -258,7 +258,7 @@
 <rect x="39" y="303" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="2" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="303" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="308" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="320" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
 <text x="52" y="323.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">5</text>
@@ -273,7 +273,7 @@
 <rect x="39" y="355" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="5" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="355" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="360" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="372" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
 <text x="52" y="375.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">6</text>

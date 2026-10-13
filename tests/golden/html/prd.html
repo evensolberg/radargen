@@ -19,7 +19,7 @@ svg{display:block;width:100%;height:auto}
 .narrow{display:none}
 @media (max-width: 819px){.wide{display:none}.narrow{display:block}}
 [data-legend-row][data-hovered]>[data-row-indicator]{visibility:visible}
-[data-legend-row][data-hovered]>[data-row-indicator]>rect{stroke:var(--text-muted);stroke-width:1px;stroke-dasharray:3 2}
+[data-legend-row][data-hovered]>[data-row-indicator]>rect{stroke:var(--text-muted);stroke-width:1px;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
 [data-legend-row][data-selected]>[data-selection]{visibility:visible}
 [data-legend-row]:focus-visible{outline:2px solid transparent}
 [data-legend-row]:focus-visible>[data-row-indicator]{visibility:visible}
@@ -30,7 +30,7 @@ svg{display:block;width:100%;height:auto}
 [data-marker-indicator][data-focused] [data-focus-ring]{visibility:visible}
 [data-marker-indicator][data-hovered],[data-marker-indicator][data-selected]{visibility:visible}
 [data-marker-indicator][data-hovered] [data-selection]{visibility:visible}
-[data-marker-indicator][data-hovered] [data-selection]>rect{stroke:var(--text-muted);stroke-dasharray:3 2}
+[data-marker-indicator][data-hovered] [data-selection]>rect{stroke:var(--text-muted);stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
 [data-marker-indicator][data-selected] [data-selection]{visibility:visible}
 [data-marker-indicator][data-selected] [data-selection]>rect{stroke:var(--text-primary);stroke-dasharray:none}
 [data-hit],[role=button]{cursor:pointer}
@@ -51,7 +51,8 @@ td.link{overflow-wrap:anywhere;min-width:12em}
 tr:not(.unplotted)+tr.unplotted>*{border-top:2px solid var(--stroke-divider)}
 a,a:visited{text-decoration:underline;color:var(--text-primary)}
 tr[data-selected]>:first-child{border-inline-start:3px solid var(--text-primary)}
-th button{all:unset;display:block;min-height:24px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:.2em}
+tr[data-selected]>*{background:var(--surface-1)}
+th button{all:unset;display:block;padding-block:3px;margin-block:-3px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:.2em}
 th button:hover{text-decoration-style:solid}
 summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 [hidden]{display:none!important}
@@ -65,14 +66,16 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 @media (forced-colors: active){.theme-toggle[aria-pressed=true]::before{forced-color-adjust:none;background:ButtonText}}
 .page-controls button:focus-visible,.detail-close:focus-visible,.detail-heading:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .detail{max-width:1025.077px;margin-inline:auto;padding-inline:20px;box-sizing:border-box}
-.detail{position:sticky;bottom:0;max-height:min(45vh,28em);overflow:auto;margin-block:1em;padding-block:1em;border-radius:8px;background:var(--surface-2);border:1px solid var(--stroke-divider)}
-.detail-head{display:flex;justify-content:space-between;align-items:baseline;gap:1em}
+.detail{position:sticky;bottom:.75rem;max-height:min(45vh,28em);overflow:auto;margin-block:1em;padding-block:1em;border-radius:8px;box-shadow:0 2px 12px rgb(0 0 0 / .14);background:var(--surface-2);border:1px solid var(--stroke-divider)}
+.detail-head{display:flex;justify-content:space-between;align-items:center;gap:1em}
 .detail-heading{margin:0;font-size:1.0625rem;font-weight:600}
 .detail dl{margin:.5em 0 0}
-.detail dd{margin:0 0 .6em}
+.detail dd{margin:0 0 .6em;overflow-wrap:anywhere}
 .detail dd.prose{white-space:pre-line;max-width:70ch}
 .detail dt{font-size:.75rem;font-weight:600;color:var(--text-muted)}
 .detail-empty{color:var(--text-muted)}
+@media (max-width: 819px){.detail{bottom:0;margin-block-end:0;border-inline:0;border-radius:8px 8px 0 0}}
+@media (min-width: 820px){.detail dl{display:grid;grid-template-columns:max-content 1fr;column-gap:1.5em;align-items:baseline}.detail dt{grid-column:1}.detail dd{grid-column:2}}
 </style>
 </head>
 <body>
@@ -270,7 +273,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 <rect x="39" y="59" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="6" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="59" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="64" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="76" r="8" fill="var(--series-1)" stroke="var(--series-1)" stroke-width="1.5"/>
 <text x="52" y="79.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">1</text>
@@ -291,7 +294,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 <rect x="39" y="137" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="7" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="137" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="142" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="154" r="8" fill="var(--series-2)" stroke="var(--series-2)" stroke-width="1.5"/>
 <text x="52" y="157.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">2</text>
@@ -312,7 +315,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 <rect x="39" y="215" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="4" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="215" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="220" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="232" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
 <text x="52" y="235.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">3</text>
@@ -327,7 +330,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 <rect x="39" y="267" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="3" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="267" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="272" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="284" r="8" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="2"/>
 <text x="52" y="287.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="var(--text-primary)" pointer-events="none">4</text>
@@ -339,7 +342,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 <rect x="39" y="303" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="2" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="303" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="308" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="320" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
 <text x="52" y="323.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">5</text>
@@ -354,7 +357,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 <rect x="39" y="355" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="5" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="355" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="360" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="372" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
 <text x="52" y="375.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">6</text>
@@ -557,7 +560,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 <rect x="39" y="59" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="6" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="59" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="64" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="76" r="8" fill="var(--series-1)" stroke="var(--series-1)" stroke-width="1.5"/>
 <text x="52" y="79.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">1</text>
@@ -578,7 +581,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 <rect x="39" y="137" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="7" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="137" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="142" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="154" r="8" fill="var(--series-2)" stroke="var(--series-2)" stroke-width="1.5"/>
 <text x="52" y="157.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">2</text>
@@ -599,7 +602,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 <rect x="39" y="215" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="4" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="215" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="220" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="232" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
 <text x="52" y="235.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">3</text>
@@ -614,7 +617,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 <rect x="39" y="267" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="3" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="267" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="272" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="284" r="8" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="2"/>
 <text x="52" y="287.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="var(--text-primary)" pointer-events="none">4</text>
@@ -626,7 +629,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 <rect x="39" y="303" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="2" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="303" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="308" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="320" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
 <text x="52" y="323.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">5</text>
@@ -641,7 +644,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 <rect x="39" y="355" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
 <g data-selection="5" visibility="hidden" aria-hidden="true" pointer-events="none">
-<rect x="39" y="355" width="4" height="34" fill="var(--text-primary)" stroke="none"/>
+<rect x="39" y="360" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="372" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
 <text x="52" y="375.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">6</text>
@@ -665,7 +668,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 <tr data-row="3"><td class="number">4</td><th scope="row"><button type="button" data-row="3">Pulumi</button></th><td>Tool</td><td>Adopt</td><td class="prose">Infrastructure-as-code authored in a general-purpose language instead of a domain-specific syntax.</td><td>conditional</td><td class="prose">Infrastructure as Code</td><td class="prose">Acceptable where a client mandates a general-purpose language over HCL.</td><td>2026-06-01</td><td></td><td>New</td></tr>
 <tr data-row="2"><td class="number">5</td><th scope="row"><button type="button" data-row="2">Terraform</button></th><td>Tool</td><td>Adopt</td><td class="prose">Declarative infrastructure-as-code tool for provisioning cloud and on-prem resources.</td><td>default</td><td class="prose">Infrastructure as Code</td><td class="prose">Default IaC tool across all managed environments.</td><td>2026-06-01</td><td></td><td>No Change</td></tr>
 <tr data-row="5"><td class="number">6</td><th scope="row"><button type="button" data-row="5">Chef</button></th><td>Tool</td><td>Retire</td><td class="prose">Agent-based configuration management using a Ruby DSL.</td><td></td><td class="prose">Configuration Management</td><td class="prose">Superseded by the Ansible trial outcome; migration owned and scheduled.</td><td>2026-03-15</td><td>2027-01-31</td><td></td></tr>
-<tr data-row="8" class="unplotted"><td class="number"></td><th scope="row"><button type="button" data-row="8">Legacy Ticketing-Driven Change <span class="flag">not on the radar</span></button></th><td>Practice</td><td>Rejected</td><td class="prose">Manual, ticket-driven change approval replacing automated policy gates.</td><td></td><td class="prose">Operations Practice</td><td class="prose">Declined during the 2026 review — see the domain ADR.</td><td>2026-01-10</td><td></td><td></td></tr>
+<tr data-row="8" class="unplotted"><td class="number"></td><th scope="row"><button type="button" data-row="8">Legacy Ticketing-Driven Change<span class="visually-hidden">,</span> <span class="flag">not on the radar</span></button></th><td>Practice</td><td>Rejected</td><td class="prose">Manual, ticket-driven change approval replacing automated policy gates.</td><td></td><td class="prose">Operations Practice</td><td class="prose">Declined during the 2026 review — see the domain ADR.</td><td>2026-01-10</td><td></td><td></td></tr>
 </tbody></table></div></details>
 </main>
 <script>
@@ -718,6 +721,8 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
   const TABLE = 'table';
   const state = { focus: null, open: null, hovered: null };
 
+  // `[name="key"]`: every element of an item carries its key (§5).
+  const by = (name, key) => '[' + name + '="' + key + '"]';
   const shown = () =>
     [...document.querySelectorAll('.' + N.arrangement)].find(
       (a) => getComputedStyle(a).display !== 'none',
@@ -734,7 +739,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
   const ring = (el, on) => {
     const indicator = el
       .closest('svg')
-      .querySelector('[' + N.markerIndicator + '="' + keyOf(el) + '"]');
+      .querySelector(by(N.markerIndicator, keyOf(el)));
     if (!indicator) return;
     indicator.toggleAttribute(N.focused, on);
     if (on && indicator !== indicator.parentNode.lastElementChild) indicator.parentNode.append(indicator);
@@ -769,7 +774,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
     const lost = !now || now === document.body || (where && where !== visible);
     if (!state.focus || !lost) return;
     const { key, kind } = state.focus;
-    const el = visible?.querySelector('[' + kind + '="' + key + '"]');
+    const el = visible?.querySelector(by(kind, key));
     if (el) el.focus();
   });
 
@@ -786,7 +791,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
   const valueShape = list.querySelector('dd');
   list.replaceChildren();
   const details = document.querySelector('details.' + N.tableView);
-  const tableRow = (key) => document.querySelector('tr[' + N.row + '="' + key + '"]');
+  const tableRow = (key) => document.querySelector('tr' + by(N.row, key));
   const tableButton = (key) => tableRow(key)?.querySelector('button');
 
   const fill = (key) => {
@@ -817,12 +822,15 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
   };
   new ResizeObserver(pad).observe(panel);
 
+  // Every element of an item that matches `own`: its controls, its table
+  // row and button, and its marker's indicators.
+  const parts = (key, own) =>
+    document.querySelectorAll(own + by(N.row, key) + ',' + by(N.markerIndicator, key));
+
   // FR-72: selection shows on every element of the item, both arrangements
   // and the table; FR-73's marks come from the page's fixed rules.
   const mark = (key, on) => {
-    for (const el of document.querySelectorAll(
-      '[' + N.row + '="' + key + '"],[' + N.markerIndicator + '="' + key + '"]',
-    )) {
+    for (const el of parts(key, '')) {
       el.toggleAttribute(N.selected, on);
       if (el.hasAttribute(N.expanded)) el.setAttribute(N.expanded, String(on));
     }
@@ -831,7 +839,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
   // Where focus returns for `key`: its opener in the arrangement shown, else
   // its table button, or the table's toggle while the table is closed.
   const opener = (key, kind) => {
-    const shownEl = kind === TABLE ? null : shown()?.querySelector('[' + kind + '="' + key + '"]');
+    const shownEl = kind === TABLE ? null : shown()?.querySelector(by(kind, key));
     if (shownEl) return shownEl;
     return details.open ? tableButton(key) : details.querySelector('summary');
   };
@@ -844,6 +852,10 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
     panel.hidden = false;
     pad();
     heading.focus({ preventScroll: true });
+    // Sticky lifts the panel from below the viewport, never down from above
+    // it: opened from deep in the table, it would be out of sight.
+    const box = panel.getBoundingClientRect();
+    if (box.bottom <= 0 || box.top >= innerHeight) panel.scrollIntoView({ block: 'nearest' });
   };
   const close = (returnFocus) => {
     if (!state.open) return;
@@ -864,7 +876,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
     if (!(node instanceof Element)) return null;
     const hit = node.closest('[' + N.hit + ']');
     if (!hit) return control(node);
-    return hit.closest('svg').querySelector('[' + N.marker + '="' + hit.getAttribute(N.hit) + '"]');
+    return hit.closest('svg').querySelector(by(N.marker, hit.getAttribute(N.hit)));
   };
 
   document.addEventListener('click', (event) => {
@@ -872,7 +884,12 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
     if (!(node instanceof Element)) return;
     if (node.closest('.' + N.close)) return close(true);
     const el = target(node);
-    if (el) return activate(keyOf(el), kindOf(el));
+    if (el) {
+      // A hit area takes no focus, so its marker does, and is where focus
+      // stays if this activation closes the panel.
+      if (el !== control(node)) el.focus({ preventScroll: true });
+      return activate(keyOf(el), kindOf(el));
+    }
     const button = node.closest('tr[' + N.row + '] button');
     if (button) activate(button.getAttribute(N.row), TABLE);
   });
@@ -881,10 +898,10 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
   // Escape closes the panel and returns focus. Escape acts only from the
   // panel or the open item's own control, so it never moves focus from
   // anywhere else.
-  const svgButton = (node) => {
-    const el = control(node);
-    return el && el === node ? el : null;
-  };
+  const svgButton = (node) => (control(node) === node ? node : null);
+  // Space activates on release only where it was pressed, as a native
+  // button does.
+  let spaceOn = null;
   document.addEventListener('keydown', (event) => {
     const active = document.activeElement;
     const focusedControl = control(active);
@@ -896,16 +913,24 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
       if (!event.repeat) activate(keyOf(el), kindOf(el));
     } else if (el && event.key === ' ') {
       event.preventDefault();
+      spaceOn = el;
     } else if (event.key === 'Escape' && state.open) {
-      if (panel.contains(active) || active?.getAttribute(N.expanded) === 'true') {
+      // From the panel, focus goes back to the opener; from one of the open
+      // item's own controls, it stays where the reader is.
+      if (panel.contains(active)) {
         event.preventDefault();
         close(true);
+      } else if (active?.getAttribute(N.expanded) === 'true') {
+        event.preventDefault();
+        close(false);
       }
     }
   });
   document.addEventListener('keyup', (event) => {
+    if (event.key !== ' ') return;
     const el = svgButton(event.target);
-    if (el && event.key === ' ' && !event.defaultPrevented) activate(keyOf(el), kindOf(el));
+    if (el && el === spaceOn) activate(keyOf(el), kindOf(el));
+    spaceOn = null;
   });
 
   // FR-37: the pointer over a marker lights its legend row, and the
@@ -913,11 +938,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
   const hover = (key) => {
     if (state.hovered === key) return;
     const set = (k, on) => {
-      for (const el of document.querySelectorAll(
-        '[' + N.marker + '="' + k + '"],[' + N.legend + '="' + k + '"],[' + N.markerIndicator + '="' + k + '"]',
-      )) {
-        el.toggleAttribute(N.hovered, on);
-      }
+      for (const el of parts(k, '[role=button]')) el.toggleAttribute(N.hovered, on);
     };
     if (state.hovered) set(state.hovered, false);
     state.hovered = key;

@@ -11,7 +11,7 @@
 
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { connect, poll } from './cdp.mjs';
+import { KEYS, connect, poll } from './cdp.mjs';
 
 const WIDE = 1400;
 const NARROW = 400;
@@ -41,12 +41,15 @@ const click = async (x, y) => {
   }
 };
 
+const resize = (width, height = 900) =>
+  send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+
 // A fresh page at `width`, with the colour scheme and script switch set
 // before it loads, so the script's start-up reads them.
-async function load(width, { scheme = 'light', script = true } = {}) {
+async function load(width, { scheme = 'light', script = true, height = 900 } = {}) {
   await send('Emulation.setScriptExecutionDisabled', { value: !script });
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
-  await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+  await resize(width, height);
   requests.length = 0;
   await navigate(url);
 }
@@ -75,6 +78,7 @@ async function tabTo(want, what, key = 'Tab') {
   }
   throw new Error(`never reached ${what}`);
 }
+const tabToMarker = (n) => tabTo((a) => a.marker && a.label?.startsWith(`${n}. `), `marker ${n}`);
 // Whether the focused marker's ring is shown, as the page computes it.
 const RING = `(() => {
   const a = document.activeElement;
@@ -111,6 +115,19 @@ const centreOf = (selector) => evaluate(`(() => {
   return { x: r.x + r.width / 2, y: r.y + r.height / 2, key: e.getAttribute('data-row') };
 })()`);
 const move = (x, y) => send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+// Clicks the centre of the first element `selector` matches; returns it.
+const clickOn = async (selector) => {
+  const at = await centreOf(selector);
+  await click(at.x, at.y);
+  return at;
+};
+const panelHidden = () => evaluate(`document.getElementById('detail').hidden`);
+// Opens the table, then the panel of the row on CSV line `line`, by its
+// button: by line, since the fixture repeats a name.
+const openRow = async (line) => {
+  await evaluate(`document.querySelector('details.table-view').open = true`);
+  return clickOn(`tr[data-row="${line}"] button`);
+};
 
 const failures = [];
 const check = (ok, what) => {
@@ -187,14 +204,9 @@ try {
   // 9b. A breakpoint change moves focus to the same item (architecture §5).
   await scenario('breakpoint keeps focus on the item', [WIDE], async (width) => {
     await load(width);
-    let a;
-    for (let i = 0; i < 6; i++) {
-      await press('Tab');
-      a = await active();
-      if (a.label?.startsWith('3. ')) break;
-    }
-    check(a.label?.startsWith('3. ') && a.arrangement === 'wide', 'wide marker 3 is focused');
-    await send('Emulation.setDeviceMetricsOverride', { width: NARROW, height: 900, deviceScaleFactor: 1, mobile: false });
+    const a = await tabToMarker(3);
+    check(a.arrangement === 'wide', 'wide marker 3 is focused');
+    await resize(NARROW);
     const moved = await eventually(async () => {
       const b = await active();
       return b.arrangement === 'narrow' && b.marker === a.marker ? b : undefined;
@@ -214,7 +226,7 @@ try {
     check((await active()).marker !== null, 'a marker is focused');
     await click(5, 5);
     check((await active()).tag === 'body', 'a click on blank page leaves it');
-    await send('Emulation.setDeviceMetricsOverride', { width: NARROW, height: 900, deviceScaleFactor: 1, mobile: false });
+    await resize(NARROW);
     await evaluate('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))');
     check((await active()).tag === 'body', `focus stays where the reader left it: ${JSON.stringify(await active())}`);
   });
@@ -272,8 +284,7 @@ try {
       `(() => { const s = getComputedStyle(document.activeElement); return [s.outlineStyle, s.outlineColor]; })()`,
     );
     check(outline[0] !== 'none' && outline[1] !== 'rgba(0, 0, 0, 0)', `the native outline shows: ${outline}`);
-    for (let i = 0; i < 200 && (await active()).tag !== 'summary'; i++) await press('Tab');
-    check((await active()).tag === 'summary', 'the table toggle is reached');
+    await tabTo((x) => x.tag === 'summary', 'the table toggle');
     await press('Enter');
     check(await evaluate(`document.querySelector('details.table-view').open`), 'Enter opens the table');
   });
@@ -281,7 +292,7 @@ try {
   // NFR-5: the page requests nothing but itself.
   await scenario('no requests', [WIDE, NARROW], async (width) => {
     await load(width);
-    await tabTo((a) => a.label?.startsWith('1. '), 'marker 1');
+    await tabToMarker(1);
     await press('Enter');
     const fetched = requests.filter((u) => !u.startsWith('data:'));
     check(fetched.length === 1 && fetched[0] === url, `only the document, panel open: ${JSON.stringify(fetched)}`);
@@ -292,7 +303,7 @@ try {
   // P1. Open: focus in the panel, exact expanded and selected sets.
   await scenario('P1 open', [WIDE, NARROW], async (width) => {
     await load(width);
-    const m = await tabTo((a) => a.label?.startsWith('3. ') && a.marker, 'marker 3');
+    const m = await tabToMarker(3);
     await press('Enter');
     const a = await active();
     check(a.cls === 'detail-heading', `focus on the panel heading, got ${JSON.stringify(a)}`);
@@ -309,7 +320,7 @@ try {
   // P1b. Swapping items leaves only the new one.
   await scenario('P1b swap', [WIDE], async (width) => {
     await load(width);
-    await tabTo((a) => a.label?.startsWith('3. ') && a.marker, 'marker 3');
+    await tabToMarker(3);
     await press('Enter');
     const row = await centreOf(`.arrangement.wide [data-legend-row][aria-label^="5. "]`);
     await click(row.x, row.y);
@@ -330,7 +341,7 @@ try {
   // P2. Closing: Escape, Space without scrolling, Close, a second click.
   await scenario('P2 close', [WIDE], async (width) => {
     await load(width);
-    const m = await tabTo((a) => a.label?.startsWith('3. ') && a.marker, 'marker 3');
+    const m = await tabToMarker(3);
     await press('Enter');
     await press('Escape');
     const a = await active();
@@ -340,7 +351,7 @@ try {
     const row = await tabTo((x) => x.legend && x.label?.startsWith('2. '), 'legend row 2');
     const before = await evaluate('scrollY');
     await press('Space');
-    check(!(await evaluate(`document.getElementById('detail').hidden`)), 'Space opens the panel');
+    check(!(await panelHidden()), 'Space opens the panel');
     check((await evaluate('scrollY')) === before, 'Space does not scroll the page');
     await press('Tab');
     check((await active()).cls === 'detail-close', 'Tab reaches Close');
@@ -348,9 +359,9 @@ try {
     check((await active()).legend === row.legend, 'Close returns to legend row 2');
     const at = await centreOf(`.arrangement.wide [data-legend-row="${row.legend}"]`);
     await click(at.x, at.y);
-    check(!(await evaluate(`document.getElementById('detail').hidden`)), 'a click opens it');
+    check(!(await panelHidden()), 'a click opens it');
     await click(at.x, at.y);
-    check(await evaluate(`document.getElementById('detail').hidden`), 'a second click closes it');
+    check(await panelHidden(), 'a second click closes it');
   });
 
   // P3. The table, with Enter and with Space, and P3b, a closed table.
@@ -389,9 +400,7 @@ try {
     check(keys.length === 2, `two Kafka rows: ${keys}`);
     const headings = [];
     for (const key of keys) {
-      await evaluate(`document.querySelector('details.table-view').open = true`);
-      const b = await centreOf(`tr[data-row="${key}"] button`);
-      await click(b.x, b.y);
+      await openRow(key);
       const sets = await evaluate(SETS);
       check(sets.selected.every((k) => k === key), `key ${key} alone: ${JSON.stringify(sets)}`);
       headings.push(await panelHeading());
@@ -403,12 +412,6 @@ try {
   await scenario('P5 hostile content', [WIDE], async (width) => {
     await load(width);
     await evaluate(`window.__alerts = 0; window.alert = () => { window.__alerts += 1; }`);
-    // By CSV line, since the fixture repeats a name.
-    const openRow = async (line) => {
-      await evaluate(`document.querySelector('details.table-view').open = true`);
-      const b = await centreOf(`tr[data-row="${line}"] button`);
-      await click(b.x, b.y);
-    };
     await openRow(6);
     const spark = await evaluate(`(() => { const p = document.getElementById('detail'); return [p.querySelectorAll('img').length, [...p.querySelectorAll('dd')].map((d) => d.textContent)]; })()`);
     check(spark[0] === 0, 'no image in the panel');
@@ -466,9 +469,9 @@ try {
   // P8. A breakpoint change with the panel open.
   await scenario('P8 breakpoint, panel open', [WIDE], async (width) => {
     await load(width);
-    const m = await tabTo((a) => a.label?.startsWith('3. ') && a.marker, 'marker 3');
+    const m = await tabToMarker(3);
     await press('Enter');
-    await send('Emulation.setDeviceMetricsOverride', { width: NARROW, height: 900, deviceScaleFactor: 1, mobile: false });
+    await resize(NARROW);
     await eventually(async () => (await evaluate(`getComputedStyle(document.querySelector('.arrangement.narrow')).display`)) !== 'none' || undefined, 'the narrow arrangement shows');
     check(await evaluate(`document.querySelector('.arrangement.narrow [data-marker="${m.marker}"]').hasAttribute('data-selected')`), 'the narrow marker is selected');
     await press('Escape');
@@ -480,7 +483,7 @@ try {
   // P9. The sticky panel keeps the radar in view and never hides focus.
   await scenario('P9 sticky panel', [WIDE], async (width) => {
     await load(width);
-    const m = await tabTo((a) => a.label?.startsWith('3. ') && a.marker, 'marker 3');
+    const m = await tabToMarker(3);
     await press('Enter');
     check(await inView(`document.querySelector('.arrangement.wide [data-marker="${m.marker}"]')`), 'the selected marker stays on screen');
     const pad = await evaluate(`[document.documentElement.style.scrollPaddingBottom, document.getElementById('detail').offsetHeight + 'px']`);
@@ -507,10 +510,14 @@ try {
     const marks = await evaluate(`(() => {
       const row = document.querySelector('.arrangement.wide [data-legend-row="${last}"]');
       const ring = getComputedStyle(row.querySelector('[data-row-indicator] rect'));
-      const focus = getComputedStyle(document.documentElement).getPropertyValue('--focus').trim();
+      const probe = document.createElement('div');
+      probe.style.color = 'var(--focus)';
+      document.body.append(probe);
+      const focus = getComputedStyle(probe).color;
+      probe.remove();
       return [ring.stroke, ring.strokeDasharray, getComputedStyle(row.querySelector('[data-selection]')).visibility, focus];
     })()`);
-    check(marks[1] === 'none' && marks[2] === 'visible', `a solid outline and the bar: ${marks}`);
+    check(marks[0] === marks[3] && marks[1] === 'none' && marks[2] === 'visible', `a solid outline in the focus colour, and the bar: ${marks}`);
   });
 
   // P11. Negatives.
@@ -519,22 +526,72 @@ try {
     await press('Tab');
     await press('Escape');
     check((await active()).cls === 'skip', 'Escape with no panel changes nothing');
-    await tabTo((a) => a.label?.startsWith('1. ') && a.marker, 'marker 1');
+    await tabToMarker(1);
     await press('Enter');
     await tabTo((a) => a.cls?.includes('theme-toggle'), 'the toggle', 'ShiftTab');
     await press('Escape');
-    check(!(await evaluate(`document.getElementById('detail').hidden`)), 'Escape on the toggle leaves the panel open');
+    check(!(await panelHidden()), 'Escape on the toggle leaves the panel open');
     const head = await centreOf('#detail .detail-heading');
     await click(head.x, head.y);
     const dl = await centreOf('#detail dl');
     await click(dl.x, dl.y);
-    check(!(await evaluate(`document.getElementById('detail').hidden`)), 'clicks inside the panel do not close it');
+    check(!(await panelHidden()), 'clicks inside the panel do not close it');
     await press('Escape');
-    await tabTo((a) => a.label?.startsWith('2. ') && a.marker, 'marker 2');
-    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
-    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', autoRepeat: true });
-    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
-    check(!(await evaluate(`document.getElementById('detail').hidden`)), 'a held Enter opens once and stays open');
+    await tabToMarker(2);
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', ...KEYS.Enter });
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', ...KEYS.Enter, autoRepeat: true });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', ...KEYS.Enter });
+    check(!(await panelHidden()), 'a held Enter opens once and stays open');
+  });
+  // P12. Opened from deep in a long table, the panel comes into view; the
+  // sticky rule alone never brings it down from above.
+  await scenario('P12 opened from deep in the table', [WIDE, NARROW], async (width) => {
+    await load(width, { height: 300 });
+    const last = await evaluate(`[...document.querySelectorAll('tr[data-row]')].pop().getAttribute('data-row')`);
+    await openRow(last);
+    check(await inView(`document.querySelector('#detail .detail-heading')`), 'the panel heading is on screen');
+  });
+
+  // P13. Escape on one of the open item's own controls closes the panel
+  // and leaves focus there, rather than jumping to the opener.
+  await scenario('P13 Escape on another of the item\'s controls', [WIDE], async (width) => {
+    await load(width);
+    await evaluate(`document.querySelector('details.table-view').open = true`);
+    await tabToMarker(3);
+    await press('Enter');
+    const name = (await panelHeading()).replace(/^3\. /, '');
+    await tabTo((a) => a.tag === 'button' && a.text?.startsWith(name), `the table button for ${name}`);
+    await press('Escape');
+    check(await panelHidden(), 'the panel closes');
+    const a = await active();
+    check(a.tag === 'button' && a.text?.startsWith(name), `focus stays on the table button: ${JSON.stringify(a)}`);
+  });
+
+  // P14. Space released on another control activates neither.
+  await scenario('P14 Space moved between controls', [WIDE], async (width) => {
+    await load(width);
+    await tabToMarker(1);
+    const { text, ...space } = KEYS.Space;
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', ...space, text });
+    await press('Tab');
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', ...space });
+    check(await panelHidden(), 'no panel opens');
+  });
+
+  // P15. Re-activating an item through its hit area keeps focus on its marker.
+  await scenario('P15 hit area twice', [WIDE], async (width) => {
+    await load(width);
+    const at = await evaluate(`(() => {
+      const hit = document.querySelector('.arrangement.wide [data-hit]');
+      const key = hit.getAttribute('data-hit');
+      const disc = document.querySelector('.arrangement.wide [data-marker="' + key + '"] circle').getBoundingClientRect();
+      const box = hit.getBoundingClientRect();
+      return { key, x: box.x + box.width / 2 + (disc.width / 2 + box.width / 2) / 2, y: box.y + box.height / 2 };
+    })()`);
+    await click(at.x, at.y);
+    await click(at.x, at.y);
+    check(await panelHidden(), 'the second click closes it');
+    check((await active()).marker === at.key, 'focus is on the marker, not the page');
   });
 } finally {
   await close();

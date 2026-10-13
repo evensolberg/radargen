@@ -47,6 +47,8 @@
   const TABLE = 'table';
   const state = { focus: null, open: null, hovered: null };
 
+  // `[name="key"]`: every element of an item carries its key (§5).
+  const by = (name, key) => '[' + name + '="' + key + '"]';
   const shown = () =>
     [...document.querySelectorAll('.' + N.arrangement)].find(
       (a) => getComputedStyle(a).display !== 'none',
@@ -63,7 +65,7 @@
   const ring = (el, on) => {
     const indicator = el
       .closest('svg')
-      .querySelector('[' + N.markerIndicator + '="' + keyOf(el) + '"]');
+      .querySelector(by(N.markerIndicator, keyOf(el)));
     if (!indicator) return;
     indicator.toggleAttribute(N.focused, on);
     if (on && indicator !== indicator.parentNode.lastElementChild) indicator.parentNode.append(indicator);
@@ -98,7 +100,7 @@
     const lost = !now || now === document.body || (where && where !== visible);
     if (!state.focus || !lost) return;
     const { key, kind } = state.focus;
-    const el = visible?.querySelector('[' + kind + '="' + key + '"]');
+    const el = visible?.querySelector(by(kind, key));
     if (el) el.focus();
   });
 
@@ -115,7 +117,7 @@
   const valueShape = list.querySelector('dd');
   list.replaceChildren();
   const details = document.querySelector('details.' + N.tableView);
-  const tableRow = (key) => document.querySelector('tr[' + N.row + '="' + key + '"]');
+  const tableRow = (key) => document.querySelector('tr' + by(N.row, key));
   const tableButton = (key) => tableRow(key)?.querySelector('button');
 
   const fill = (key) => {
@@ -146,12 +148,15 @@
   };
   new ResizeObserver(pad).observe(panel);
 
+  // Every element of an item that matches `own`: its controls, its table
+  // row and button, and its marker's indicators.
+  const parts = (key, own) =>
+    document.querySelectorAll(own + by(N.row, key) + ',' + by(N.markerIndicator, key));
+
   // FR-72: selection shows on every element of the item, both arrangements
   // and the table; FR-73's marks come from the page's fixed rules.
   const mark = (key, on) => {
-    for (const el of document.querySelectorAll(
-      '[' + N.row + '="' + key + '"],[' + N.markerIndicator + '="' + key + '"]',
-    )) {
+    for (const el of parts(key, '')) {
       el.toggleAttribute(N.selected, on);
       if (el.hasAttribute(N.expanded)) el.setAttribute(N.expanded, String(on));
     }
@@ -160,7 +165,7 @@
   // Where focus returns for `key`: its opener in the arrangement shown, else
   // its table button, or the table's toggle while the table is closed.
   const opener = (key, kind) => {
-    const shownEl = kind === TABLE ? null : shown()?.querySelector('[' + kind + '="' + key + '"]');
+    const shownEl = kind === TABLE ? null : shown()?.querySelector(by(kind, key));
     if (shownEl) return shownEl;
     return details.open ? tableButton(key) : details.querySelector('summary');
   };
@@ -173,6 +178,10 @@
     panel.hidden = false;
     pad();
     heading.focus({ preventScroll: true });
+    // Sticky lifts the panel from below the viewport, never down from above
+    // it: opened from deep in the table, it would be out of sight.
+    const box = panel.getBoundingClientRect();
+    if (box.bottom <= 0 || box.top >= innerHeight) panel.scrollIntoView({ block: 'nearest' });
   };
   const close = (returnFocus) => {
     if (!state.open) return;
@@ -193,7 +202,7 @@
     if (!(node instanceof Element)) return null;
     const hit = node.closest('[' + N.hit + ']');
     if (!hit) return control(node);
-    return hit.closest('svg').querySelector('[' + N.marker + '="' + hit.getAttribute(N.hit) + '"]');
+    return hit.closest('svg').querySelector(by(N.marker, hit.getAttribute(N.hit)));
   };
 
   document.addEventListener('click', (event) => {
@@ -201,7 +210,12 @@
     if (!(node instanceof Element)) return;
     if (node.closest('.' + N.close)) return close(true);
     const el = target(node);
-    if (el) return activate(keyOf(el), kindOf(el));
+    if (el) {
+      // A hit area takes no focus, so its marker does, and is where focus
+      // stays if this activation closes the panel.
+      if (el !== control(node)) el.focus({ preventScroll: true });
+      return activate(keyOf(el), kindOf(el));
+    }
     const button = node.closest('tr[' + N.row + '] button');
     if (button) activate(button.getAttribute(N.row), TABLE);
   });
@@ -210,10 +224,10 @@
   // Escape closes the panel and returns focus. Escape acts only from the
   // panel or the open item's own control, so it never moves focus from
   // anywhere else.
-  const svgButton = (node) => {
-    const el = control(node);
-    return el && el === node ? el : null;
-  };
+  const svgButton = (node) => (control(node) === node ? node : null);
+  // Space activates on release only where it was pressed, as a native
+  // button does.
+  let spaceOn = null;
   document.addEventListener('keydown', (event) => {
     const active = document.activeElement;
     const focusedControl = control(active);
@@ -225,16 +239,24 @@
       if (!event.repeat) activate(keyOf(el), kindOf(el));
     } else if (el && event.key === ' ') {
       event.preventDefault();
+      spaceOn = el;
     } else if (event.key === 'Escape' && state.open) {
-      if (panel.contains(active) || active?.getAttribute(N.expanded) === 'true') {
+      // From the panel, focus goes back to the opener; from one of the open
+      // item's own controls, it stays where the reader is.
+      if (panel.contains(active)) {
         event.preventDefault();
         close(true);
+      } else if (active?.getAttribute(N.expanded) === 'true') {
+        event.preventDefault();
+        close(false);
       }
     }
   });
   document.addEventListener('keyup', (event) => {
+    if (event.key !== ' ') return;
     const el = svgButton(event.target);
-    if (el && event.key === ' ' && !event.defaultPrevented) activate(keyOf(el), kindOf(el));
+    if (el && el === spaceOn) activate(keyOf(el), kindOf(el));
+    spaceOn = null;
   });
 
   // FR-37: the pointer over a marker lights its legend row, and the
@@ -242,11 +264,7 @@
   const hover = (key) => {
     if (state.hovered === key) return;
     const set = (k, on) => {
-      for (const el of document.querySelectorAll(
-        '[' + N.marker + '="' + k + '"],[' + N.legend + '="' + k + '"],[' + N.markerIndicator + '="' + k + '"]',
-      )) {
-        el.toggleAttribute(N.hovered, on);
-      }
+      for (const el of parts(k, '[role=button]')) el.toggleAttribute(N.hovered, on);
     };
     if (state.hovered) set(state.hovered, false);
     state.hovered = key;

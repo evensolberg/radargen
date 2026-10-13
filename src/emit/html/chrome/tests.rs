@@ -142,7 +142,8 @@ fn words_match_whole() {
 fn the_panel_sticks_and_shows_focus() {
     let css = super::css(1000.0);
     for rule in [
-        ".detail{position:sticky;bottom:0;max-height:min(45vh,28em);overflow:auto;",
+        ".detail{position:sticky;bottom:.75rem;max-height:min(45vh,28em);overflow:auto;",
+        ".detail dd{margin:0 0 .6em;overflow-wrap:anywhere}",
         ".detail-close:focus-visible,.detail-heading:focus-visible{outline:2px solid var(--focus)",
         ".detail dd.prose{white-space:pre-line;max-width:70ch}",
     ] {

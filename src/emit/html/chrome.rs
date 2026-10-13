@@ -6,9 +6,10 @@
 //! `svg::serialise`, and a test holds the script's names block to them.
 //! Rule fragments are module constants, as in `css.rs`.
 
-use super::css::{HIDDEN_BOX, OUTLINE_CLOSE, capped};
+use super::css::{HIDDEN_BOX, OUTLINE_CLOSE, capped, narrow_query};
 use crate::escape::html_attr;
 use crate::palette::Neutral;
+use crate::style::breakpoint_px;
 
 /// The interactive layer, inlined (NFR-5).
 pub(super) const SCRIPT: &str = include_str!("script.js");
@@ -125,11 +126,18 @@ const FOCUS_OPEN: &str = ".page-controls button:focus-visible,.detail-close:focu
 /// FR-38's panel, sticky at the viewport's bottom while open so the radar
 /// stays in view, and scrolling inside itself past 45% of the screen.
 const PANEL_CAP: &str = ".detail{";
-const PANEL_OPEN: &str = ".detail{position:sticky;bottom:0;max-height:min(45vh,28em);overflow:auto;margin-block:1em;padding-block:1em;border-radius:8px;background:var(";
+const PANEL_OPEN: &str = ".detail{position:sticky;bottom:.75rem;max-height:min(45vh,28em);overflow:auto;margin-block:1em;padding-block:1em;border-radius:8px;box-shadow:0 2px 12px rgb(0 0 0 / .14);background:var(";
 const PANEL_EDGE: &str = ");border:1px solid var(";
-const PANEL_REST: &str = ")}\n.detail-head{display:flex;justify-content:space-between;align-items:baseline;gap:1em}\n.detail-heading{margin:0;font-size:1.0625rem;font-weight:600}\n.detail dl{margin:.5em 0 0}\n.detail dd{margin:0 0 .6em}\n.detail dd.prose{white-space:pre-line;max-width:70ch}\n.detail dt{font-size:.75rem;font-weight:600;color:var(";
+const PANEL_REST: &str = ")}\n.detail-head{display:flex;justify-content:space-between;align-items:center;gap:1em}\n.detail-heading{margin:0;font-size:1.0625rem;font-weight:600}\n.detail dl{margin:.5em 0 0}\n.detail dd{margin:0 0 .6em;overflow-wrap:anywhere}\n.detail dd.prose{white-space:pre-line;max-width:70ch}\n.detail dt{font-size:.75rem;font-weight:600;color:var(";
 const PANEL_EMPTY: &str = ")}\n.detail-empty{color:var(";
 const PANEL_CLOSE: &str = ")}\n";
+/// Below the breakpoint the panel is a bottom sheet, edge to edge.
+const SHEET_OPEN: &str = "@media ";
+const SHEET_RULE: &str =
+    "{.detail{bottom:0;margin-block-end:0;border-inline:0;border-radius:8px 8px 0 0}}\n";
+/// Where there is room, terms and values sit side by side.
+const GRID_OPEN: &str = "@media (min-width: ";
+const GRID_RULE: &str = "px){.detail dl{display:grid;grid-template-columns:max-content 1fr;column-gap:1.5em;align-items:baseline}.detail dt{grid-column:1}.detail dd{grid-column:2}}\n";
 
 /// The controls' rules, capped and inset like the table view.
 pub(super) fn css(wide_width: f64) -> String {
@@ -159,6 +167,12 @@ pub(super) fn css(wide_width: f64) -> String {
         PANEL_EMPTY,
         Neutral::TextMuted.as_str(),
         PANEL_CLOSE,
+        SHEET_OPEN,
+        &narrow_query(wide_width),
+        SHEET_RULE,
+        GRID_OPEN,
+        &breakpoint_px(wide_width).to_string(),
+        GRID_RULE,
     ]
     .concat()
 }

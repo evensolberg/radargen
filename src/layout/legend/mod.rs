@@ -260,14 +260,22 @@ fn indicator_node(target: Area, key: ItemKey, s: f64) -> Node {
 }
 
 /// The row's selection mark (FR-72, FR-73): a bar at the start of
-/// `target` (already scaled by `s`), inside the indicator's edge, shown by
-/// the page while the item is selected.
+/// `target` (already scaled by `s`), inside the indicator's edge and clear of
+/// the row's rounded corners, shown by the page while the item is selected.
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+)]
 fn selection_node(target: Area, key: ItemKey, s: f64) -> Node {
-    let inside = target.inset(LEGEND_ROW_INDICATOR_INSET * s);
+    let corner = LEGEND_ROW_RADIUS * s;
     let bar = rect_node(
         Area {
+            origin: Point {
+                x: target.origin.x + LEGEND_ROW_INDICATOR_INSET * s,
+                y: target.origin.y + corner,
+            },
             width: SELECTION_BAR_WIDTH * s,
-            ..inside
+            height: target.height - 2.0 * corner,
         },
         0.0,
         Paint::Role(Role::Neutral(Neutral::TextPrimary)),
@@ -549,15 +557,17 @@ mod tests {
             let [mark] = b.children.as_slice() else {
                 panic!("a bar holds one rect: {b:?}");
             };
+            // Inset from the row's rounded corners, so its square ends never
+            // cross the target's or the outline's curve.
             let (bar_at, bar_w, bar_h, _, bar_fill, _) = rect(mark);
             assert!(near(
                 bar_at,
                 Point {
                     x: origin.x + 1.0,
-                    y: origin.y + 1.0
+                    y: origin.y + 6.0
                 }
             ));
-            assert!(close(bar_w, SELECTION_BAR_WIDTH) && close(bar_h, height - 2.0));
+            assert!(close(bar_w, 3.0) && close(bar_h, height - 12.0), "{mark:?}");
             assert_eq!(bar_fill, Paint::Role(Role::Neutral(Neutral::TextPrimary)));
         }
     }

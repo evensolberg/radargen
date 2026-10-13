@@ -92,7 +92,9 @@ const RING_CLOSE: &str = "px;stroke-dasharray:none}\n";
 const LBRACE: &str = "{";
 const RBRACE: &str = "}\n";
 const SHOW: &str = "visibility:visible";
-const DASHED: &str = ";stroke-dasharray:3 2";
+/// Hover's dashes, a pixel wide at any scale: the narrow arrangement shrinks
+/// the SVG, which would thin a scaled stroke below a pixel.
+const DASHED: &str = ";stroke-dasharray:3 2;vector-effect:non-scaling-stroke";
 const SOLID: &str = ";stroke-dasharray:none";
 const SCRIPTED: &str = " [";
 const HIDDEN: &str = "]{visibility:hidden}\n[";

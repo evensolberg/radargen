@@ -139,7 +139,8 @@ fn unplotted_rows_are_flagged_and_plotted_ones_are_not() {
         .expect("the unplotted row");
     assert_eq!(
         text(cells(old).get(1).copied().expect("name")),
-        format!("Old {NOT_ON_THE_RADAR}")
+        format!("Old, {NOT_ON_THE_RADAR}"),
+        "the name, a comma for the ear, a space, the flag: never run together"
     );
 }
 
@@ -338,7 +339,8 @@ fn the_table_marks_selection_and_keeps_its_button_usable() {
     let css = super::html::style(&html);
     for rule in [
         "tr[data-selected]>:first-child{border-inline-start:3px solid var(--text-primary)}",
-        "th button{all:unset;display:block;min-height:24px;cursor:pointer;",
+        "th button{all:unset;display:block;padding-block:3px;margin-block:-3px;cursor:pointer;",
+        "tr[data-selected]>*{background:var(--surface-1)}",
         "th button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}",
     ] {
         assert!(css.contains(rule), "{rule}");

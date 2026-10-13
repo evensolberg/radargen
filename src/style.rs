@@ -230,12 +230,12 @@ pub const LEGEND_ROW_INDICATOR_INSET: f64 = 1.0;
 /// A selected legend row's bar, at its start inside the indicator's edge
 /// (FR-72, FR-73): selection reads as a bar, focus as an outline, so a row
 /// that is both shows two marks rather than one thicker edge.
-pub const SELECTION_BAR_WIDTH: f64 = 4.0;
-// The bar sits between the target's edge and the badge, so it covers
-// neither the badge nor the name.
+pub const SELECTION_BAR_WIDTH: f64 = 3.0;
+// The bar sits between the target's edge and the badge with room to spare,
+// so it covers neither the badge nor the name and does not crowd them.
 const _: () = assert!(
-    LEGEND_ROW_INDICATOR_INSET + SELECTION_BAR_WIDTH < LEGEND_ROW_LEFT_OUTSET,
-    "a legend row's selection bar must clear the badge"
+    LEGEND_ROW_INDICATOR_INSET + SELECTION_BAR_WIDTH + 2.0 <= LEGEND_ROW_LEFT_OUTSET,
+    "a legend row's selection bar must clear the badge by two units"
 );
 /// The legend panel's padding left and right of the content.
 pub const LEGEND_PANEL_INSET_X: f64 = 12.0;

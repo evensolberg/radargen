@@ -204,12 +204,12 @@ fn forced_colours_map_the_neutrals_to_system_colours() {
 /// focus, at the same specificity, so focus wins on a row that is both.
 const STATES: [&str; 9] = [
     "[data-legend-row][data-hovered]>[data-row-indicator]{visibility:visible}\n",
-    "[data-legend-row][data-hovered]>[data-row-indicator]>rect{stroke:var(--text-muted);stroke-width:1px;stroke-dasharray:3 2}\n",
+    "[data-legend-row][data-hovered]>[data-row-indicator]>rect{stroke:var(--text-muted);stroke-width:1px;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}\n",
     "[data-legend-row][data-selected]>[data-selection]{visibility:visible}\n",
     "[data-legend-row]:focus-visible>[data-row-indicator]>rect{stroke:var(--focus);stroke-width:2px;stroke-dasharray:none}\n",
     "[data-marker-indicator][data-hovered],[data-marker-indicator][data-selected]{visibility:visible}\n",
     "[data-marker-indicator][data-hovered] [data-selection]{visibility:visible}\n",
-    "[data-marker-indicator][data-hovered] [data-selection]>rect{stroke:var(--text-muted);stroke-dasharray:3 2}\n",
+    "[data-marker-indicator][data-hovered] [data-selection]>rect{stroke:var(--text-muted);stroke-dasharray:3 2;vector-effect:non-scaling-stroke}\n",
     "[data-marker-indicator][data-selected] [data-selection]{visibility:visible}\n",
     "[data-marker-indicator][data-selected] [data-selection]>rect{stroke:var(--text-primary);stroke-dasharray:none}\n",
 ];

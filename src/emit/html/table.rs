@@ -25,8 +25,8 @@ const HEADING: &str = "Every item";
 const SUMMARY: &str = "The table";
 
 const OPEN_HEADING: &str = "<h2 class=\"table-heading\" id=\"";
-/// The table view's `<details>` (FR-41), which the script reopens to
-/// return focus into a closed table.
+/// The table view's `<details>` (FR-41). The script finds it by this class:
+/// while it is closed, its `summary` takes focus back when the panel closes.
 pub(super) const TABLE_VIEW_CLASS: &str = "table-view";
 /// A prose cell's class: its line breaks show, here and in the panel built
 /// from it (FR-97, D-80).
@@ -181,7 +181,13 @@ fn td(class: Option<&str>, text: &str) -> String {
 /// without it the button claims no state.
 fn name_cell(item: &Item, unplotted: bool) -> String {
     let flag = if unplotted {
-        [" <span class=\"flag\">", NOT_ON_THE_RADAR, "</span>"].concat()
+        // A comma for the ear only, so the name and the flag are heard apart.
+        [
+            "<span class=\"visually-hidden\">,</span> <span class=\"flag\">",
+            NOT_ON_THE_RADAR,
+            "</span>",
+        ]
+        .concat()
     } else {
         String::new()
     };
@@ -238,11 +244,14 @@ const LINK_OPEN: &str = ")}\na,a:visited{text-decoration:underline;color:var(";
 /// they drop backgrounds and shadows (FR-72).
 const SELECTED_OPEN: &str = ")}\ntr[";
 const SELECTED_REST: &str = "]>:first-child{border-inline-start:3px solid var(";
+const SELECTED_TINT: &str = ")}\ntr[";
+const TINT_REST: &str = "]>*{background:var(";
 /// The name cell's button looks like the 15a text it holds, with a dotted
 /// underline that says it does something, solid on hover and unlike a
-/// link's; it keeps a 24px target (FR-94). The focus rule below is more
+/// link's. Padding keeps a 24px target (FR-94) on the cell's baseline, which
+/// a minimum height, centring the text, would not. The focus rule below is more
 /// specific, so the reset never removes the outline.
-const BUTTON_RESET: &str = ")}\nth button{all:unset;display:block;min-height:24px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:.2em}\nth button:hover{text-decoration-style:solid}\n";
+const BUTTON_RESET: &str = ")}\nth button{all:unset;display:block;padding-block:3px;margin-block:-3px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:.2em}\nth button:hover{text-decoration-style:solid}\n";
 const FOCUS_OPEN: &str = "summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focus-visible{outline:2px solid var(";
 
 /// The table view's rules, capped at the wide document's width and inset by
@@ -276,6 +285,10 @@ pub(super) fn css(wide_width: f64) -> String {
         DATA_SELECTED,
         SELECTED_REST,
         Neutral::TextPrimary.as_str(),
+        SELECTED_TINT,
+        DATA_SELECTED,
+        TINT_REST,
+        Neutral::Surface1.as_str(),
         BUTTON_RESET,
         FOCUS_OPEN,
         Neutral::Focus.as_str(),
