@@ -171,3 +171,30 @@ export const KEYS = {
   ShiftTab: { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 8 },
   Escape: { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 },
 };
+
+// Page-side source: the text of every element `selector` matches whose
+// visible text spills out of the element's box by more than `slack`.
+// Visually hidden text is laid out unwrapped in a 1px box by design, so
+// only the text a reader sees is measured.
+export const SPILLS = `(selector, slack) => {
+  const out = [];
+  for (const cell of document.querySelectorAll(selector)) {
+    const box = cell.getBoundingClientRect();
+    const walk = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+    let left = Infinity, right = -Infinity, bottom = -Infinity;
+    for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+      if (node.parentElement.closest('.visually-hidden')) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      for (const r of range.getClientRects()) {
+        left = Math.min(left, r.left);
+        right = Math.max(right, r.right);
+        bottom = Math.max(bottom, r.bottom);
+      }
+    }
+    if (bottom > box.bottom + slack || right > box.right + slack || left < box.left - slack) {
+      out.push(cell.textContent.slice(0, 40));
+    }
+  }
+  return out;
+}`;
