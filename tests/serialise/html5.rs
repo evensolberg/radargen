@@ -14,7 +14,8 @@ use radargen::layout::arrange::{Arrangement, arrange};
 
 use super::build;
 use super::hostile::{RING, Strings, TITLE, csv};
-use super::html::{PAGE_ELEMENTS, SVG_ELEMENTS};
+use super::html::{PAGE_ATTRIBUTES, PAGE_ELEMENTS, SVG_ELEMENTS};
+use super::vocabulary::{EITHER, INTERACTIVE_ONLY};
 
 /// Every element under `node`, itself included, in document order.
 fn elements(node: &Handle) -> Vec<Handle> {
@@ -41,6 +42,28 @@ fn attribute(node: &Handle, wanted: &str) -> Option<String> {
             .find(|a| &*a.name.local == wanted)
             .map(|a| a.value.to_string()),
         _ => None,
+    }
+}
+
+/// Every attribute name on `node`, with its prefix, so `xlink:role` cannot
+/// pass as `role`.
+fn attribute_names(node: &Handle) -> Vec<String> {
+    match &node.data {
+        NodeData::Element { attrs, .. } => attrs
+            .borrow()
+            .iter()
+            .map(|a| {
+                a.name
+                    .prefix
+                    .as_ref()
+                    .filter(|prefix| !prefix.is_empty())
+                    .map_or_else(
+                        || a.name.local.to_string(),
+                        |prefix| format!("{prefix}:{}", a.name.local),
+                    )
+            })
+            .collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -114,9 +137,32 @@ fn hostile_text_survives_an_html5_parser() {
     let all = elements(&dom.document);
     for node in &all {
         let (namespace, local) = name_of(node);
+        let names = attribute_names(node);
+        // No handler, whatever the allow-lists below come to hold.
+        assert!(
+            names.iter().all(|n| !n.starts_with("on")),
+            "<{local}> {names:?}"
+        );
         if namespace == ns!(svg) {
             assert!(SVG_ELEMENTS.contains(&&*local), "<svg:{local}>");
+            for name in &names {
+                assert!(
+                    EITHER.contains(&name.as_str()) || INTERACTIVE_ONLY.contains(&name.as_str()),
+                    "<svg:{local} {name}>"
+                );
+            }
+            // Only text, its lines and tooltips carry text: anything else
+            // holding some is markup the parser built from a string.
+            if !["text", "tspan", "title"].contains(&&*local) {
+                assert!(
+                    own_text(node).chars().all(char::is_whitespace),
+                    "<svg:{local}> text"
+                );
+            }
         } else {
+            for name in &names {
+                assert!(PAGE_ATTRIBUTES.contains(&name.as_str()), "<{local} {name}>");
+            }
             assert_eq!(namespace, ns!(html), "<{local}>");
             // html5ever puts the `<svg>` start tag itself in the SVG namespace,
             // so an HTML-namespace element is always one the page wrote.
@@ -134,6 +180,11 @@ fn hostile_text_survives_an_html5_parser() {
         "one page title; SVG tooltips are SVG"
     );
     assert_eq!(html_named("style"), 1, "one stylesheet");
+    let page_title = all
+        .iter()
+        .find(|n| name_of(n) == (ns!(html), LocalName::from("title")))
+        .map(own_text);
+    assert_eq!(page_title.as_deref(), Some(TITLE), "the tab title as given");
 
     let svgs: Vec<&Handle> = all
         .iter()

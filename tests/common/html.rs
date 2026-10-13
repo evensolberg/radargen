@@ -13,7 +13,7 @@ pub const PAGE_ELEMENTS: [&str; 9] = [
 ];
 
 /// Every attribute the page itself writes around the SVG.
-const PAGE_ATTRIBUTES: [&str; 5] = ["lang", "charset", "name", "content", "class"];
+pub const PAGE_ATTRIBUTES: [&str; 5] = ["lang", "charset", "name", "content", "class"];
 
 /// Attributes that fetch or navigate, on any element.
 const FETCHING: [&str; 8] = [
