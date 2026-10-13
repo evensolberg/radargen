@@ -2,8 +2,9 @@
 //! templated: every value comes from a constant or from the `Document`, so
 //! the CSS cannot drift from the markup it styles.
 //!
-//! Each section is its own function, and `page` assembles them, so PR 15 can
-//! add the table's and the panel's rules beside their markup. Rule fragments
+//! Each section is its own function, and `page` assembles them; the table's
+//! and the page chrome's rules live beside their markup, in `table.rs` and
+//! `chrome.rs`. Rule fragments
 //! are module constants: a `{…}` literal inside a function body reads to
 //! clippy as a forgotten `format!` argument.
 
@@ -23,7 +24,31 @@ use crate::text::{FAMILY, REGULAR_WOFF2, SEMIBOLD_WOFF2, Weight};
 /// Hides a heading from sight but not from assistive technology:
 /// `display: none` and `visibility: hidden` would drop it from the
 /// accessibility tree, and a zero size from `VoiceOver`.
-pub(super) const VISUALLY_HIDDEN: &str = ".visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}\n";
+pub(super) const VISUALLY_HIDDEN: &str = ".visually-hidden";
+/// The declarations that hide a box from sight only, for any selector.
+pub(super) const HIDDEN_BOX: &str = "{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}\n";
+/// The end of a focus outline rule, after its colour: page chrome outlines
+/// sit 2px out, so they never touch the control.
+pub(super) const OUTLINE_CLOSE: &str = ");outline-offset:2px}\n";
+
+const INSET_WIDTH: &str = "max-width:";
+const INSET_REST: &str = "px;margin-inline:auto;padding-inline:";
+const INSET_CLOSE: &str = "px;box-sizing:border-box}\n";
+
+/// `open`, a selector and its rule's opening declarations, capped at the
+/// wide document's width and inset by its margin, so page chrome lines up
+/// with the radar's content edge.
+pub(super) fn capped(open: &str, wide_width: f64) -> String {
+    [
+        open,
+        INSET_WIDTH,
+        &fmt_coord(wide_width),
+        INSET_REST,
+        &fmt_coord(crate::style::MARGIN),
+        INSET_CLOSE,
+    ]
+    .concat()
+}
 
 const FACE_OPEN: &str = "@font-face{font-family:\"";
 const FACE_WEIGHT: &str = "\";font-style:normal;font-weight:";
@@ -65,7 +90,6 @@ const PX_CLOSE: &str = "px}\n";
 const SCRIPTED: &str = " [";
 const HIDDEN: &str = "]{visibility:hidden}\n[";
 const BOTH: &str = "][";
-const SHOWN: &str = "]{visibility:visible}\n[";
 const INSIDE: &str = "] [";
 const SHOWN_LAST: &str = "]{visibility:visible}\n";
 
@@ -95,7 +119,7 @@ fn face(woff2: &[u8], weight: Weight) -> String {
 
 /// Both palettes (FR-56, architecture §5): light by default, dark when the
 /// viewer prefers it unless the page is set light, and dark when the page is
-/// set dark. PR 15's toggle sets `data-theme` on `<html>`.
+/// set dark. The theme toggle (FR-56) sets `data-theme` on `<html>`.
 ///
 /// Values are written as `Palette` holds them: they are validated when a
 /// palette is built (crumb `rg-cdo`), which guards this context and the SVG
@@ -253,7 +277,7 @@ fn marker_focus() -> String {
         DATA_MARKER_INDICATOR,
         BOTH,
         DATA_FOCUSED,
-        SHOWN,
+        VISIBLE,
         DATA_MARKER_INDICATOR,
         BOTH,
         DATA_FOCUSED,

@@ -170,7 +170,7 @@ fn the_stylesheet_requests_nothing_but_fonts() {
         palettes(),
         layout(WIDE, NARROW),
         indicators(),
-        VISUALLY_HIDDEN.to_owned(),
+        [VISUALLY_HIDDEN, HIDDEN_BOX].concat(),
     ]
     .concat();
     assert_eq!(css.matches("url(").count(), 2);

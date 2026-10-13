@@ -6,10 +6,9 @@
 //! `svg::serialise`, and a test holds the script's names block to them.
 //! Rule fragments are module constants, as in `css.rs`.
 
+use super::css::{HIDDEN_BOX, OUTLINE_CLOSE, capped};
 use crate::escape::html_attr;
-use crate::num::fmt_coord;
 use crate::palette::Neutral;
-use crate::style::MARGIN;
 
 /// The interactive layer, inlined (NFR-5).
 pub(super) const SCRIPT: &str = include_str!("script.js");
@@ -20,6 +19,8 @@ pub(super) const DATA_NARROW_QUERY: &str = "data-narrow-query";
 /// The root attribute the theme toggle sets (FR-56); `css::palettes`
 /// declares its overrides.
 pub(super) const DATA_THEME: &str = "data-theme";
+/// The toggle's state (FR-56), set by the script.
+pub(super) const ARIA_PRESSED: &str = "aria-pressed";
 /// Set on a marker's indicator while the marker has visible focus (rg-jri).
 pub(super) const DATA_FOCUSED: &str = "data-focused";
 /// The class the script puts on `<html>` once it runs: rules that need the
@@ -33,7 +34,8 @@ pub(super) const ARRANGEMENT_CLASS: &str = "arrangement";
 const CONTROLS_OPEN: &str = "<div class=\"page-controls\"><button type=\"button\" class=\"";
 const SKIP_REST: &str =
     "\" hidden=\"\">Skip to the legend</button><button type=\"button\" class=\"";
-const TOGGLE_REST: &str = "\" aria-pressed=\"false\" hidden=\"\">Dark theme</button></div>\n";
+const TOGGLE_REST: &str = "\" ";
+const TOGGLE_END: &str = "=\"false\" hidden=\"\">Dark theme</button></div>\n";
 
 /// `<main>`'s start tag, carrying the narrow query.
 pub(super) fn main_open(query: &str) -> String {
@@ -49,6 +51,8 @@ pub(super) fn controls() -> String {
         SKIP_REST,
         TOGGLE_CLASS,
         TOGGLE_REST,
+        ARIA_PRESSED,
+        TOGGLE_END,
     ]
     .concat()
 }
@@ -59,31 +63,26 @@ pub(super) fn script() -> String {
 }
 
 const HIDDEN_RULE: &str = "[hidden]{display:none!important}\n";
-const BAR_OPEN: &str = ".page-controls{display:flex;max-width:";
-const BAR_REST: &str = "px;margin-inline:auto;padding-inline:";
-const BAR_CLOSE: &str = "px;box-sizing:border-box}\n";
+const BAR_OPEN: &str = ".page-controls{display:flex;";
 const BUTTON_OPEN: &str = ".page-controls button{margin-block:.5em;font:inherit;padding:.4em .8em;border-radius:6px;cursor:pointer;border:1px solid var(";
 const BUTTON_GROUND: &str = ");background:var(";
 const BUTTON_INK: &str = ");color:var(";
 const BUTTON_CLOSE: &str = ")}\n";
 /// The skip link sits at the start when focused, and is visually hidden
 /// otherwise; the toggle keeps the end.
-const SKIP_RULE: &str = ".skip{margin-inline-end:auto}\n.skip:not(:focus){position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}\n.theme-toggle{margin-inline-start:auto}\n";
+const SKIP_RULE: &str =
+    ".skip{margin-inline-end:auto}\n.theme-toggle{margin-inline-start:auto}\n.skip:not(:focus)";
 /// The toggle's state is visible as well as announced: a dot, filled when
-/// pressed.
-const DOT_RULE: &str = ".theme-toggle::before{content:\"\";display:inline-block;width:.75em;height:.75em;border:1.5px solid currentColor;border-radius:50%;margin-inline-end:.4em;vertical-align:-.05em}\n.theme-toggle[aria-pressed=true]::before{background:currentColor}\n";
+/// pressed. Forced colours drop backgrounds, so there the dot keeps the
+/// button's system ink (WCAG 1.4.1).
+const DOT_RULE: &str = ".theme-toggle::before{content:\"\";display:inline-block;width:.75em;height:.75em;border:1.5px solid currentColor;border-radius:50%;margin-inline-end:.4em;vertical-align:-.05em}\n.theme-toggle[aria-pressed=true]::before{background:currentColor}\n@media (forced-colors: active){.theme-toggle[aria-pressed=true]::before{forced-color-adjust:none;background:ButtonText}}\n";
 const FOCUS_OPEN: &str = ".page-controls button:focus-visible{outline:2px solid var(";
-const FOCUS_CLOSE: &str = ");outline-offset:2px}\n";
 
 /// The controls' rules, capped and inset like the table view.
 pub(super) fn css(wide_width: f64) -> String {
     [
         HIDDEN_RULE,
-        BAR_OPEN,
-        &fmt_coord(wide_width),
-        BAR_REST,
-        &fmt_coord(MARGIN),
-        BAR_CLOSE,
+        &capped(BAR_OPEN, wide_width),
         BUTTON_OPEN,
         Neutral::StrokeDivider.as_str(),
         BUTTON_GROUND,
@@ -92,10 +91,11 @@ pub(super) fn css(wide_width: f64) -> String {
         Neutral::TextPrimary.as_str(),
         BUTTON_CLOSE,
         SKIP_RULE,
+        HIDDEN_BOX,
         DOT_RULE,
         FOCUS_OPEN,
         Neutral::Focus.as_str(),
-        FOCUS_CLOSE,
+        OUTLINE_CLOSE,
     ]
     .concat()
 }

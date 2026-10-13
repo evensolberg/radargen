@@ -17,6 +17,7 @@
     focused: 'data-focused',
     narrowQuery: 'data-narrow-query',
     theme: 'data-theme',
+    pressed: 'aria-pressed',
     js: 'js',
     toggle: 'theme-toggle',
     skip: 'skip',
@@ -49,7 +50,7 @@
       .querySelector('[' + N.markerIndicator + '="' + keyOf(el) + '"]');
     if (!indicator) return;
     indicator.toggleAttribute(N.focused, on);
-    if (on) indicator.parentNode.append(indicator);
+    if (on && indicator !== indicator.parentNode.lastElementChild) indicator.parentNode.append(indicator);
   };
   const showRing = (el) => {
     if (kindOf(el) === N.marker) ring(el, el.matches(':focus-visible'));
@@ -62,7 +63,12 @@
   });
   document.addEventListener('focusout', (event) => {
     const el = control(event.target);
-    if (el && kindOf(el) === N.marker) ring(el, false);
+    if (!el) return;
+    if (kindOf(el) === N.marker) ring(el, false);
+    // Still rendered, so the reader left it, and a later breakpoint change
+    // must not pull focus back. A blur from the breakpoint itself comes
+    // once the element is hidden, which keeps the key.
+    if (el.getClientRects().length > 0) state.focus = null;
   });
   // A key press after a mouse focus makes the focus visible.
   document.addEventListener('keydown', () => {
@@ -77,10 +83,11 @@
   matchMedia(main.getAttribute(N.narrowQuery)).addEventListener('change', () => {
     const now = document.activeElement;
     const where = now?.closest('.' + N.arrangement);
-    const lost = !now || now === document.body || (where && where !== shown());
+    const visible = shown();
+    const lost = !now || now === document.body || (where && where !== visible);
     if (!state.focus || !lost) return;
     const { key, kind } = state.focus;
-    const el = shown()?.querySelector('[' + kind + '="' + key + '"]');
+    const el = visible?.querySelector('[' + kind + '="' + key + '"]');
     if (el) el.focus();
   });
 
@@ -91,7 +98,7 @@
     const chosen = root.getAttribute(N.theme);
     return chosen ? chosen === 'dark' : prefersDark.matches;
   };
-  const pressed = () => toggle.setAttribute('aria-pressed', String(dark()));
+  const pressed = () => toggle.setAttribute(N.pressed, String(dark()));
   toggle.addEventListener('click', () => {
     root.setAttribute(N.theme, dark() ? 'light' : 'dark');
     pressed();
@@ -106,6 +113,7 @@
 
   root.classList.add(N.js);
   toggle.hidden = false;
-  skip.hidden = false;
+  // With nothing plotted there is no legend to skip to.
+  skip.hidden = !document.querySelector('[' + N.legend + ']');
   pressed();
 })();

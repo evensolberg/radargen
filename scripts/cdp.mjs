@@ -135,5 +135,37 @@ async function attach(profile, stop) {
   };
   // Calls `fn` with the params of every `method` event from now on.
   const on = (method, fn) => listeners.push([method, fn]);
-  return { send, next, on, close };
+  // `expression` evaluated in the page, awaited, by value. An exception it
+  // throws, or a hang, fails the caller.
+  const evaluate = async (expression) => {
+    const r = await within(
+      send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }),
+      expression.slice(0, 40),
+    );
+    if (r.result.exceptionDetails) throw new Error(`${expression.slice(0, 60)}: ${r.result.exceptionDetails.text}`);
+    return r.result.result.value;
+  };
+  // Loads `url` and waits for its load event; a navigation error throws.
+  const navigate = async (url) => {
+    const loaded = next('Page.loadEventFired');
+    const r = await send('Page.navigate', { url });
+    if (r.result?.errorText) throw new Error(`${url}: ${r.result.errorText}`);
+    await within(loaded, `${url} to load`);
+  };
+  // A trusted press and release of one of `KEYS`.
+  const press = async (name) => {
+    const { text, ...key } = KEYS[name];
+    await send('Input.dispatchKeyEvent', { type: text ? 'keyDown' : 'rawKeyDown', ...key, ...(text ? { text } : {}) });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', ...key });
+  };
+  return { send, next, on, close, evaluate, navigate, press };
 }
+
+// The keys the scripts press, as trusted key events describe them. A key
+// with `text` is typed (keyDown); one without is a raw key.
+export const KEYS = {
+  Tab: { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 },
+  Enter: { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' },
+  Space: { key: ' ', code: 'Space', windowsVirtualKeyCode: 32, text: ' ' },
+  Shift: { key: 'Shift', code: 'ShiftLeft', windowsVirtualKeyCode: 16 },
+};

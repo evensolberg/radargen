@@ -7,12 +7,11 @@
 //! [`xml_text`], an `href` with [`html_attr`]. Rule fragments are module
 //! constants, as in `css.rs`.
 
+use super::css::{OUTLINE_CLOSE, capped};
 use crate::escape::{html_attr, xml_text};
 use crate::model::{Catalogue, ColumnKind, Item, Link, NOT_ON_THE_RADAR};
-use crate::num::fmt_coord;
 use crate::order::Plotted;
 use crate::palette::Neutral;
-use crate::style::MARGIN;
 use crate::svg::serialise::DATA_ROW;
 use crate::trim;
 
@@ -201,9 +200,7 @@ fn link_cell(link: Option<&Link>) -> String {
     ["<td class=\"link\">", &inner, "</td>"].concat()
 }
 
-const CAP_OPEN: &str = ".table-heading,.table-view{max-width:";
-const CAP_REST: &str = "px;margin-inline:auto;padding-inline:";
-const CAP_CLOSE: &str = "px;box-sizing:border-box}\n";
+const CAP_OPEN: &str = ".table-heading,.table-view{";
 const HEADING_RULE: &str = ".table-heading{margin-block:1.5em .25em;font-size:1rem;font-weight:600}\n.table-view{margin-block-end:1.5em}\n";
 const SUMMARY_RULE: &str =
     "summary{cursor:pointer;width:fit-content;padding-block:.5em;font-weight:600}\n";
@@ -221,7 +218,6 @@ const BOUNDARY_OPEN: &str = ")}\ntr:not(.unplotted)+tr.unplotted>*{border-top:2p
 const LINK_OPEN: &str = ")}\na,a:visited{text-decoration:underline;color:var(";
 const FOCUS_OPEN: &str =
     ")}\nsummary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px solid var(";
-const FOCUS_CLOSE: &str = ");outline-offset:2px}\n";
 
 /// The table view's rules, capped at the wide document's width and inset by
 /// its margin, so the table's edge lines up with the radar's content.
@@ -232,11 +228,7 @@ const FOCUS_CLOSE: &str = ");outline-offset:2px}\n";
 /// height is fixed anywhere, so 1.4.12's spacing clips nothing (D-78).
 pub(super) fn css(wide_width: f64) -> String {
     [
-        CAP_OPEN,
-        &fmt_coord(wide_width),
-        CAP_REST,
-        &fmt_coord(MARGIN),
-        CAP_CLOSE,
+        &capped(CAP_OPEN, wide_width),
         HEADING_RULE,
         SUMMARY_RULE,
         SCROLL_OPEN,
@@ -256,7 +248,7 @@ pub(super) fn css(wide_width: f64) -> String {
         Neutral::TextPrimary.as_str(),
         FOCUS_OPEN,
         Neutral::Focus.as_str(),
-        FOCUS_CLOSE,
+        OUTLINE_CLOSE,
     ]
     .concat()
 }

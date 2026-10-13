@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use super::{
-    ARRANGEMENT_CLASS, DATA_FOCUSED, DATA_NARROW_QUERY, DATA_THEME, JS_CLASS, SCRIPT, SKIP_CLASS,
-    TOGGLE_CLASS,
+    ARIA_PRESSED, ARRANGEMENT_CLASS, DATA_FOCUSED, DATA_NARROW_QUERY, DATA_THEME, JS_CLASS, SCRIPT,
+    SKIP_CLASS, TOGGLE_CLASS,
 };
 use crate::svg::serialise::{DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR};
 
@@ -41,6 +41,7 @@ fn the_scripts_names_are_the_pages() {
         ("focused", DATA_FOCUSED),
         ("narrowQuery", DATA_NARROW_QUERY),
         ("theme", DATA_THEME),
+        ("pressed", ARIA_PRESSED),
         ("js", JS_CLASS),
         ("toggle", TOGGLE_CLASS),
         ("skip", SKIP_CLASS),
@@ -51,10 +52,12 @@ fn the_scripts_names_are_the_pages() {
     .collect();
     let (got, rest) = names();
     assert_eq!(got, want, "the names block");
-    assert!(
-        !rest.contains("data-"),
-        "every data- attribute comes from the names block"
-    );
+    for prefix in ["data-", "aria-"] {
+        assert!(
+            !rest.contains(prefix),
+            "every {prefix} attribute comes from the names block"
+        );
+    }
 }
 
 /// Whether `word` occurs in `text` with no identifier character either
@@ -72,7 +75,7 @@ fn has_word(text: &str, word: &str) -> bool {
 /// markup or code from a string, so no CSV text can become either.
 #[test]
 fn the_script_fetches_nothing_and_parses_no_markup() {
-    const BANNED: [&str; 21] = [
+    const BANNED: [&str; 27] = [
         "fetch",
         "XMLHttpRequest",
         "import",
@@ -94,12 +97,19 @@ fn the_script_fetches_nothing_and_parses_no_markup() {
         "eval",
         "Function",
         "setTimeout",
+        "setInterval",
+        "location",
+        "href",
+        "createElement",
+        "insertRule",
+        "cssText",
     ];
     for word in BANNED {
         assert!(!has_word(SCRIPT, word), "{word} in the script");
     }
+    let lower = SCRIPT.to_lowercase();
     for text in ["<!--", "</script"] {
-        assert!(!SCRIPT.contains(text), "{text} in the script");
+        assert!(!lower.contains(text), "{text} in the script, in any case");
     }
 }
 

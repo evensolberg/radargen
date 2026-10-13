@@ -11,7 +11,7 @@
 
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { connect, poll, within } from './cdp.mjs';
+import { connect, poll } from './cdp.mjs';
 
 const WIDE = 1400;
 const NARROW = 400;
@@ -23,29 +23,12 @@ if (!file) {
 }
 const url = pathToFileURL(resolve(file)).href;
 
-const { send, next, on, close } = await connect();
+const { send, on, close, evaluate, navigate, press } = await connect();
 const thrown = [];
 on('Runtime.exceptionThrown', (p) => thrown.push(p.exceptionDetails.exception?.description ?? p.exceptionDetails.text));
 const requests = [];
 on('Network.requestWillBeSent', (p) => requests.push(p.request.url));
 
-const evaluate = async (expression) => {
-  const r = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
-  if (r.result.exceptionDetails) throw new Error(`${expression}: ${r.result.exceptionDetails.text}`);
-  return r.result.result.value;
-};
-
-const KEYS = {
-  Tab: { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 },
-  Enter: { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' },
-  Space: { key: ' ', code: 'Space', windowsVirtualKeyCode: 32, text: ' ' },
-  Shift: { key: 'Shift', code: 'ShiftLeft', windowsVirtualKeyCode: 16 },
-};
-const press = async (name) => {
-  const { text, ...k } = KEYS[name];
-  await send('Input.dispatchKeyEvent', { type: text ? 'keyDown' : 'rawKeyDown', ...k, ...(text ? { text } : {}) });
-  await send('Input.dispatchKeyEvent', { type: 'keyUp', ...k });
-};
 const click = async (x, y) => {
   for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) {
     await send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 });
@@ -59,9 +42,7 @@ async function load(width, { scheme = 'light', script = true } = {}) {
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
   await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
   requests.length = 0;
-  const loaded = next('Page.loadEventFired');
-  await send('Page.navigate', { url });
-  await within(loaded, 'the page to load');
+  await navigate(url);
 }
 
 // What the focused element is, as the scenarios compare it.
@@ -95,6 +76,9 @@ const failures = [];
 const check = (ok, what) => {
   if (!ok) failures.push(what);
 };
+// `ready` becomes truthy within the timeout, or `what` is a failure.
+const eventually = (ready, what) => poll(ready, what).catch((e) => void failures.push(e.message));
+const PRESSED = `document.querySelector('.theme-toggle').getAttribute('aria-pressed')`;
 async function scenario(name, widths, body) {
   for (const width of widths) {
     const before = failures.length;
@@ -102,7 +86,7 @@ async function scenario(name, widths, body) {
     try {
       await body(width);
     } catch (error) {
-      failures.push(`${error.message}`);
+      failures.push(error.message);
     }
     for (const t of thrown) failures.push(`page threw: ${t}`);
     const mine = failures.splice(before);
@@ -125,7 +109,8 @@ try {
     check((await active()).cls === 'skip', 'first stop is the skip link');
     await press('Tab');
     check((await active()).cls?.includes('theme-toggle'), 'second stop is the theme toggle');
-    const markers = await evaluate(`document.querySelectorAll('.arrangement:not([style*=none]) [data-marker]').length / 1`);
+    const shown = width === WIDE ? 'wide' : 'narrow';
+    const markers = await evaluate(`document.querySelectorAll('.arrangement.${shown} [data-marker]').length`);
     let n = 0;
     for (;;) {
       await press('Tab');
@@ -137,9 +122,8 @@ try {
       check(ring.focused && ring.visible, `marker ${n} shows its ring`);
       check(ring.last, `marker ${n}'s indicator is last in its layer`);
     }
-    check(n > 0, 'markers are reached');
+    check(n > 0 && n === markers, `every marker is reached: ${n} of ${markers}`);
     check((await active()).legend !== null, 'legend rows follow the markers');
-    void markers;
   });
 
   // A mouse click focuses without a ring; the next key press shows it.
@@ -154,9 +138,7 @@ try {
     check((await active()).marker !== null, 'the click focused a marker');
     check(!(await evaluate(RING)).focused, 'no ring after a mouse click');
     await press('Shift');
-    await poll(async () => (await evaluate(RING)).focused || undefined, 'the ring after a key press').catch((e) =>
-      failures.push(e.message),
-    );
+    await eventually(async () => (await evaluate(RING)).focused || undefined, 'the ring after a key press');
   });
 
   // 9b. A breakpoint change moves focus to the same item (architecture §5).
@@ -170,28 +152,42 @@ try {
     }
     check(a.label?.startsWith('3. ') && a.arrangement === 'wide', 'wide marker 3 is focused');
     await send('Emulation.setDeviceMetricsOverride', { width: NARROW, height: 900, deviceScaleFactor: 1, mobile: false });
-    const moved = await poll(async () => {
+    const moved = await eventually(async () => {
       const b = await active();
       return b.arrangement === 'narrow' && b.marker === a.marker ? b : undefined;
-    }, 'focus on narrow marker 3').catch((e) => void failures.push(e.message));
+    }, 'focus on narrow marker 3');
     if (moved) {
       const ring = await evaluate(RING);
       check(ring.focused && ring.visible, 'its ring shows');
     }
   });
 
+  // A reader who left the marker is not pulled back by a later resize.
+  await scenario('a resize after leaving a marker', [WIDE], async (width) => {
+    await load(width);
+    await press('Tab');
+    await press('Tab');
+    await press('Tab');
+    check((await active()).marker !== null, 'a marker is focused');
+    await click(5, 5);
+    check((await active()).tag === 'body', 'a click on blank page leaves it');
+    await send('Emulation.setDeviceMetricsOverride', { width: NARROW, height: 900, deviceScaleFactor: 1, mobile: false });
+    await evaluate('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))');
+    check((await active()).tag === 'body', `focus stays where the reader left it: ${JSON.stringify(await active())}`);
+  });
+
   // FR-56: the toggle follows the viewer's preference until pressed.
   await scenario('theme toggle', [WIDE], async (width) => {
     for (const scheme of ['dark', 'light']) {
       await load(width, { scheme });
-      const pressed = await evaluate(`document.querySelector('.theme-toggle').getAttribute('aria-pressed')`);
+      const pressed = await evaluate(PRESSED);
       check(pressed === String(scheme === 'dark'), `${scheme}: aria-pressed ${pressed}`);
     }
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
-    await poll(
-      async () => (await evaluate(`document.querySelector('.theme-toggle').getAttribute('aria-pressed')`)) === 'true' || undefined,
+    await eventually(
+      async () => (await evaluate(PRESSED)) === 'true' || undefined,
       'aria-pressed follows a live change of preference',
-    ).catch((e) => failures.push(e.message));
+    );
     const ground = () => evaluate(`getComputedStyle(document.body).backgroundColor`);
     const before = await ground();
     await press('Tab');
@@ -199,7 +195,7 @@ try {
     check((await active()).cls?.includes('theme-toggle'), 'the toggle is reached');
     await press('Enter');
     check((await evaluate(`document.documentElement.getAttribute('data-theme')`)) === 'light', 'pressing it sets light');
-    check((await evaluate(`document.querySelector('.theme-toggle').getAttribute('aria-pressed')`)) === 'false', 'and unpresses');
+    check((await evaluate(PRESSED)) === 'false', 'and unpresses');
     check((await ground()) !== before, 'the background changes');
   });
 

@@ -79,6 +79,7 @@ pub fn page(input: &Page<'_>) -> String {
         &css::layout(wide.width, narrow.width),
         &css::indicators(),
         css::VISUALLY_HIDDEN,
+        css::HIDDEN_BOX,
         &table::css(wide.width),
         &chrome::css(wide.width),
         BODY_OPEN,

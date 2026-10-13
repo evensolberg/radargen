@@ -10,7 +10,7 @@
 
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { connect, within } from './cdp.mjs';
+import { connect } from './cdp.mjs';
 
 const [file, count = '40'] = process.argv.slice(2);
 if (!file) {
@@ -19,24 +19,19 @@ if (!file) {
 }
 const tabs = Number(count);
 
-const { send, next, close } = await connect();
+const { send, close, evaluate, navigate, press } = await connect();
 try {
   await send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 1000, deviceScaleFactor: 1, mobile: false });
   await send('Emulation.setFocusEmulationEnabled', { enabled: true });
   await send('Page.enable');
-  const loaded = next('Page.loadEventFired');
-  await send('Page.navigate', { url: pathToFileURL(resolve(file)).href });
-  await within(loaded, `${file} to load`);
+  await navigate(pathToFileURL(resolve(file)).href);
   await send('Performance.enable');
   const metrics = async () =>
     Object.fromEntries((await send('Performance.getMetrics')).result.metrics.map((m) => [m.name, m.value]));
-  const key = (type) =>
-    send('Input.dispatchKeyEvent', { type, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   const before = await metrics();
   for (let i = 0; i < tabs; i++) {
-    await key('keyDown');
-    await key('keyUp');
-    await send('Runtime.evaluate', { expression: 'document.body.offsetHeight' });
+    await press('Tab');
+    await evaluate('document.body.offsetHeight');
   }
   const after = await metrics();
   const per = (name) => (((after[name] - before[name]) * 1000) / tabs).toFixed(2);

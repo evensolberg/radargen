@@ -127,43 +127,27 @@ publish:
 @test:
     cargo nextest run
 
+# The release binary the browser checks render with, built once per run.
+[private]
+release-build:
+    cargo build --quiet --release
+
+# Every browser check, in Playwright's headless Chromium (or CHROME set to a
+# Chromium binary). Part of `just ci`, and it fails when Chromium is missing
+# rather than skipping: a skipped behaviour check would pass without
+# looking (RG-015B).
+browser: release-build text-spacing-only interaction-only
+
 # WCAG 1.4.12 text spacing in a browser (plan RG-014C, D-78): renders the
 # fixtures and checks every text fits and none overlaps, at five widths,
-# with the four spacing properties applied. Needs Playwright's headless
-# The interactive layer, driven in headless Chromium (RG-015B).
-interaction:
+# with the four spacing properties applied.
+text-spacing: release-build text-spacing-only
+
+[private]
+text-spacing-only:
     #!/usr/bin/env bash
     set -euo pipefail
     out="$(mktemp -d)"
-    cargo build --quiet --release
-    ./target/release/radargen tests/fixtures/interaction.csv -o "$out/interaction.html" 2>/dev/null
-    node scripts/interaction.mjs "$out/interaction.html"
-
-# Every browser check. Part of `just ci`, and it fails when Playwright's
-# headless Chromium is missing rather than skipping: a skipped behaviour
-# check would pass without looking (RG-015B).
-browser: text-spacing interaction
-
-# rg-jri: style recalculation per Tab on a 300-marker radar, in Chromium.
-focus-cost:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    out="$(mktemp -d)"
-    cargo build --quiet --release
-    {
-        echo "name,quadrant,ring,description"
-        rings=(Assess Trial Adopt Retire)
-        for i in $(seq 0 299); do echo "Item $i,Q$((i % 6)),${rings[$((i % 4))]},d"; done
-    } > "$out/big.csv"
-    ./target/release/radargen "$out/big.csv" -o "$out/big.html" 2>/dev/null
-    node scripts/focus-cost.mjs "$out/big.html"
-
-# Chromium (or CHROME set to a Chromium binary); not part of `ci`.
-text-spacing:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    out="$(mktemp -d)"
-    cargo build --quiet --release
     for f in text-spacing three-quadrant; do
         ./target/release/radargen "tests/fixtures/$f.csv" -o "$out/$f.html" --title "Technology Radar" 2>/dev/null
     done
@@ -171,6 +155,30 @@ text-spacing:
     ./target/release/radargen tests/fixtures/table-wide.csv -o "$out/table-wide.html" --title "Technology Radar" 2>/dev/null
     node scripts/text-spacing.mjs "$out" "$out/text-spacing.html:6" "$out/three-quadrant.html:5" "$out/table-wide.html:scroll"
     echo "screenshots in $out (rtl.html is for a look, not checked)"
+
+# The interactive layer, driven in headless Chromium (RG-015B).
+interaction: release-build interaction-only
+
+[private]
+interaction-only:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out="$(mktemp -d)"
+    ./target/release/radargen tests/fixtures/interaction.csv -o "$out/interaction.html" 2>/dev/null
+    node scripts/interaction.mjs "$out/interaction.html"
+
+# rg-jri: style recalculation per Tab on a 300-marker radar, in Chromium.
+focus-cost: release-build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out="$(mktemp -d)"
+    {
+        echo "name,quadrant,ring,description"
+        rings=(Assess Trial Adopt Retire)
+        for i in $(seq 0 299); do echo "Item $i,Q$((i % 6)),${rings[$((i % 4))]},d"; done
+    } > "$out/big.csv"
+    ./target/release/radargen "$out/big.csv" -o "$out/big.html" 2>/dev/null
+    node scripts/focus-cost.mjs "$out/big.html"
 
 # Tests the project with output
 @testp:

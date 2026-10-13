@@ -21,7 +21,7 @@
 import { writeFileSync } from 'node:fs';
 import { join, resolve, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { connect, within } from './cdp.mjs';
+import { connect } from './cdp.mjs';
 
 const SPACING =
   '*{letter-spacing:.12em!important;word-spacing:.16em!important;line-height:1.5!important}' +
@@ -126,10 +126,7 @@ async function main() {
     console.error('usage: node scripts/text-spacing.mjs <out-dir> <page.html>[:<tails>] ...');
     process.exit(2);
   }
-  const { send, next, close } = await connect();
-  const evaluate = async (expression) =>
-    (await within(send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }), expression.slice(0, 40)))
-      .result.result.value;
+  const { send, close, evaluate, navigate } = await connect();
   let failures = 0;
   try {
     await send('Page.enable');
@@ -138,10 +135,7 @@ async function main() {
       // The tail count follows the last colon, so a Windows drive letter
       // stays in the path.
       const [, file, expected, scroll] = arg.match(/^(.*?)(?::(\d+))?(:scroll)?$/);
-      const loaded = next('Page.loadEventFired');
-      const navigated = await send('Page.navigate', { url: pathToFileURL(resolve(file)).href });
-      if (navigated.result?.errorText) throw new Error(`${file}: ${navigated.result.errorText}`);
-      await within(loaded, `${file} to load`);
+      await navigate(pathToFileURL(resolve(file)).href);
       // Open the table view once, before any accessibility snapshot, so
       // opening it is never reported as the tree changing.
       await evaluate(`document.querySelectorAll('details').forEach((d) => { d.open = true; })`);

@@ -12,6 +12,7 @@ created: 2026-10-08
 updated: 2026-10-12
 blocks:
 - rg-l4h
+- rg-9ay
 blocked_by:
 - rg-f27
 phase: v1.0
@@ -40,3 +41,5 @@ FR-38 detail panel, FR-72 cross-highlight, FR-49 keyboard and focus return keyed
 [start] 2026-10-12 17:30:08
 
 [2026-10-12] PR 15a shipped (RG-015A): FR-96 link column in the model (link.rs); Page input; FR-41/FR-78 table view of every row and column (D-80), under an h2 and a details toggle, no script; PRD 0.61. 15b reads the table row for the panel; the name cell gains the button there.
+
+[2026-10-12] PR 15b-1 shipped: script skeleton with names block and bans, rg-jri focus by attribute, theme toggle (FR-56), skip link (FR-98), browser harness (just browser, in just ci). 15b-2 (panel, selection, hover, keyboard) and 15c remain.
