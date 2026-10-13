@@ -74,7 +74,7 @@ const SPACED_WORDS_EM: f64 = 0.16;
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
 )]
-pub fn spacing_allowance(text: &str, size: f64) -> f64 {
+pub(crate) fn spacing_allowance(text: &str, size: f64) -> f64 {
     #[expect(
         clippy::cast_precision_loss,
         clippy::as_conversions,

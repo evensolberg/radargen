@@ -12,61 +12,112 @@
 // It writes a screenshot per page and width, and exits non-zero on failure.
 //
 // It drives Playwright's headless Chromium over the DevTools protocol with
-// no dependency of its own. CHROME overrides the browser's path.
+// no dependency of its own. CHROME overrides the browser's path. Chromium
+// only: Firefox and Safari are not covered.
 
 import { spawn } from 'node:child_process';
-import { readdirSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join, resolve, basename } from 'node:path';
 
 const SPACING =
   '*{letter-spacing:.12em!important;word-spacing:.16em!important;line-height:1.5!important}' +
   'p{margin-bottom:2em!important}';
-const PORT = 9334;
+// Playwright's cache and its headless shell's folder, per platform.
+const CACHES = {
+  darwin: 'Library/Caches/ms-playwright',
+  linux: '.cache/ms-playwright',
+  win32: 'AppData/Local/ms-playwright',
+};
+const SHELLS = {
+  'darwin-arm64': 'chrome-headless-shell-mac-arm64',
+  'darwin-x64': 'chrome-headless-shell-mac-x64',
+  'linux-x64': 'chrome-headless-shell-linux64',
+  'win32-x64': 'chrome-headless-shell-win64',
+};
+const MISSING = "no headless Chromium: set CHROME, or run 'npx playwright install chromium-headless-shell'";
 
 function chrome() {
   if (process.env.CHROME) return process.env.CHROME;
-  const cache = join(homedir(), 'Library/Caches/ms-playwright');
-  const shell = readdirSync(cache).filter((d) => d.startsWith('chromium_headless_shell')).sort().pop();
-  if (!shell) throw new Error('no headless Chromium: set CHROME, or install Playwright\'s');
-  return join(cache, shell, 'chrome-headless-shell-mac-arm64', 'chrome-headless-shell');
+  const cache = join(homedir(), CACHES[process.platform] ?? CACHES.linux);
+  const folder = SHELLS[`${process.platform}-${process.arch}`];
+  if (!folder || !existsSync(cache)) throw new Error(MISSING);
+  // The newest build: names end in a build number, compared as a number.
+  const shell = readdirSync(cache)
+    .filter((d) => d.startsWith('chromium_headless_shell-'))
+    .sort((a, b) => Number(a.split('-').pop()) - Number(b.split('-').pop()))
+    .pop();
+  const exe = shell && join(cache, shell, folder, process.platform === 'win32' ? 'chrome-headless-shell.exe' : 'chrome-headless-shell');
+  if (!exe || !existsSync(exe)) throw new Error(MISSING);
+  return exe;
+}
+
+// Polls `ready` every 100 ms until it returns a value, for up to 5 s.
+async function poll(ready, what) {
+  for (let i = 0; i < 50; i++) {
+    const value = await ready();
+    if (value) return value;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(what);
 }
 
 async function connect() {
-  const proc = spawn(chrome(), [`--remote-debugging-port=${PORT}`, '--no-first-run', 'about:blank'], {
+  // Port 0 lets Chromium pick a free port, which it writes to
+  // DevToolsActivePort in its profile, so two runs never collide.
+  const profile = mkdtempSync(join(tmpdir(), 'text-spacing-'));
+  const proc = spawn(chrome(), ['--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', 'about:blank'], {
     stdio: 'ignore',
   });
-  for (let i = 0; i < 50; i++) {
+  const activePort = join(profile, 'DevToolsActivePort');
+  const port = await poll(
+    () => existsSync(activePort) && readFileSync(activePort, 'utf8').split('\n')[0],
+    'Chromium did not start',
+  );
+  const page = await poll(async () => {
     try {
-      const targets = await (await fetch(`http://127.0.0.1:${PORT}/json`)).json();
-      const page = targets.find((t) => t.type === 'page');
-      if (page) {
-        const ws = new WebSocket(page.webSocketDebuggerUrl);
-        await new Promise((r) => ws.addEventListener('open', r));
-        let id = 0;
-        const pending = new Map();
-        ws.addEventListener('message', (e) => {
-          const m = JSON.parse(e.data);
-          if (m.id && pending.has(m.id)) {
-            pending.get(m.id)(m);
-            pending.delete(m.id);
-          }
-        });
-        const send = (method, params = {}) =>
-          new Promise((r) => {
-            const i2 = ++id;
-            pending.set(i2, r);
-            ws.send(JSON.stringify({ id: i2, method, params }));
-          });
-        return { proc, ws, send };
-      }
+      const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
+      return targets.find((t) => t.type === 'page');
     } catch {
-      /* not up yet */
+      return undefined; // not listening yet
     }
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  throw new Error('Chromium did not start');
+  }, 'Chromium has no page');
+  const ws = new WebSocket(page.webSocketDebuggerUrl);
+  await new Promise((r) => ws.addEventListener('open', r));
+  let id = 0;
+  const pending = new Map();
+  const waiting = new Map();
+  ws.addEventListener('message', (e) => {
+    const m = JSON.parse(e.data);
+    if (m.id && pending.has(m.id)) {
+      pending.get(m.id)(m);
+      pending.delete(m.id);
+    } else if (m.method && waiting.has(m.method)) {
+      waiting.get(m.method)(m);
+      waiting.delete(m.method);
+    }
+  });
+  const send = (method, params = {}) =>
+    new Promise((r) => {
+      const i2 = ++id;
+      pending.set(i2, r);
+      ws.send(JSON.stringify({ id: i2, method, params }));
+    });
+  // Resolves on the next `method` event; register before the call that fires it.
+  const next = (method) => new Promise((r) => waiting.set(method, r));
+  const close = async () => {
+    const exited = new Promise((r) => proc.once('exit', r));
+    ws.close();
+    proc.kill();
+    await exited;
+    rmSync(profile, { recursive: true, force: true });
+  };
+  return { send, next, close };
 }
+
+// Settles layout: the fonts are in, and two frames have painted since the
+// last change, so a measurement sees the styles just applied.
+const SETTLED = `document.fonts.ready.then(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))`;
 
 // Runs in the page: every check over the displayed arrangement.
 const CHECK = `(() => {
@@ -78,11 +129,13 @@ const CHECK = `(() => {
   for (const arrangement of shown) {
     const svg = arrangement.querySelector('svg');
     const frame = svg.getBoundingClientRect();
+    // A marker's number is drawn right after its circle and sits on it by
+    // design; a name of digits alone is still checked.
     const texts = [...svg.querySelectorAll('text')].filter((t) =>
       t.getNumberOfChars() > 0 &&
       getComputedStyle(t).visibility !== 'hidden' &&
       t.getAttribute('aria-hidden') !== 'true' &&
-      !/^[0-9]+$/.test(t.textContent));
+      t.previousElementSibling?.tagName !== 'circle');
     const boxes = texts.map((t) => ({ t, r: t.getBoundingClientRect() }));
     for (const { t, r } of boxes) {
       if (r.left < frame.left - slack || r.right > frame.right + slack ||
@@ -131,7 +184,7 @@ async function main() {
     console.error('usage: node scripts/text-spacing.mjs <out-dir> <page.html>[:<tails>] ...');
     process.exit(2);
   }
-  const { proc, ws, send } = await connect();
+  const { send, next, close } = await connect();
   const evaluate = async (expression) =>
     (await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result.result.value;
   let failures = 0;
@@ -140,19 +193,22 @@ async function main() {
     await send('Accessibility.enable');
     for (const arg of pages) {
       const [file, expected] = arg.split(':');
+      const loaded = next('Page.loadEventFired');
       await send('Page.navigate', { url: 'file://' + resolve(file) });
-      await new Promise((r) => setTimeout(r, 800));
+      await loaded;
+      await evaluate(SETTLED);
       const query = await evaluate(`(document.querySelector('style').textContent.match(/max-width: (\\d+)px/)||[])[1]`);
       const breakpoint = Number(query) + 1;
+      if (!Number.isInteger(breakpoint)) throw new Error(`${file}: no max-width breakpoint in its stylesheet`);
       for (const width of [320, 420, breakpoint - 1, breakpoint, 1400]) {
         await send('Emulation.setDeviceMetricsOverride', { width, height: 1200, deviceScaleFactor: 1, mobile: false });
         await evaluate(`document.getElementById('spacing')?.remove()`);
-        await new Promise((r) => setTimeout(r, 100));
+        await evaluate(SETTLED);
         const before = await axNames(send);
         await evaluate(
           `(() => { const s = document.createElement('style'); s.id = 'spacing'; s.textContent = ${JSON.stringify(SPACING)}; document.head.append(s); })()`,
         );
-        await new Promise((r) => setTimeout(r, 150));
+        await evaluate(SETTLED);
         const { problems, tails } = await evaluate(CHECK);
         if (expected !== undefined && tails !== Number(expected)) {
           problems.push(`tails: ${tails}, expected ${expected}`);
@@ -167,8 +223,7 @@ async function main() {
       }
     }
   } finally {
-    ws.close();
-    proc.kill();
+    await close();
   }
   process.exit(failures === 0 ? 0 : 1);
 }
