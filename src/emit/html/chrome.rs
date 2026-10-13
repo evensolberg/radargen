@@ -63,10 +63,44 @@ pub(super) fn controls() -> String {
     .concat()
 }
 
-/// FR-38's panel, written once outside both arrangements, the one `id`
-/// every control's `aria-controls` names (architecture §5). It is empty and
-/// hidden: the script fills it from the item's table row (D-80).
-pub(super) const PANEL: &str = "<section id=\"detail\" class=\"detail\" aria-label=\"Item details\" hidden=\"\"><div class=\"detail-head\"><h2 class=\"detail-heading\" tabindex=\"-1\"></h2><button type=\"button\" class=\"detail-close\">Close</button></div><dl></dl></section>\n";
+/// The panel's `id`, the one every control's `aria-controls` names; written
+/// once, outside both arrangements (architecture §5).
+pub(super) const PANEL_ID: &str = "detail";
+pub(super) const HEADING_CLASS: &str = "detail-heading";
+pub(super) const CLOSE_CLASS: &str = "detail-close";
+pub(super) const EMPTY_CLASS: &str = "detail-empty";
+/// A control's expanded state and the panel it opens (D-66). Only the
+/// script writes them, so no static markup claims a panel; they are named
+/// here for the test that holds the script's names block.
+#[cfg(test)]
+pub(super) const ARIA_EXPANDED: &str = "aria-expanded";
+#[cfg(test)]
+pub(super) const ARIA_CONTROLS: &str = "aria-controls";
+
+const SECTION_OPEN: &str = "<section id=\"";
+const PANEL_HEAD: &str = "\" class=\"detail\" aria-label=\"Item details\" hidden=\"\"><div class=\"detail-head\"><h2 class=\"";
+const PANEL_CLOSE_OPEN: &str = "\" tabindex=\"-1\"></h2><button type=\"button\" class=\"";
+/// The term and value the script clones for each field, and the empty
+/// state, so the script writes no markup of its own (NFR-6).
+const PANEL_BODY: &str = "\">Close</button></div><dl><dt></dt><dd></dd></dl><p class=\"";
+const PANEL_END: &str = "\" hidden=\"\">No further details.</p></section>\n";
+
+/// FR-38's panel, hidden and empty until the script fills it from the
+/// item's table row (D-80).
+pub(super) fn panel() -> String {
+    [
+        SECTION_OPEN,
+        PANEL_ID,
+        PANEL_HEAD,
+        HEADING_CLASS,
+        PANEL_CLOSE_OPEN,
+        CLOSE_CLASS,
+        PANEL_BODY,
+        EMPTY_CLASS,
+        PANEL_END,
+    ]
+    .concat()
+}
 
 /// The script element, last in `<body>`.
 pub(super) fn script() -> String {

@@ -25,7 +25,14 @@ const HEADING: &str = "Every item";
 const SUMMARY: &str = "The table";
 
 const OPEN_HEADING: &str = "<h2 class=\"table-heading\" id=\"";
-const OPEN_TOGGLE: &str = "</h2>\n<details class=\"table-view\"><summary>";
+/// The table view's `<details>` (FR-41), which the script reopens to
+/// return focus into a closed table.
+pub(super) const TABLE_VIEW_CLASS: &str = "table-view";
+/// A prose cell's class: its line breaks show, here and in the panel built
+/// from it (FR-97, D-80).
+pub(super) const PROSE_CLASS: &str = "prose";
+const OPEN_TOGGLE: &str = "</h2>\n<details class=\"";
+const TOGGLE_REST: &str = "\"><summary>";
 const OPEN_REGION: &str =
     "</summary>\n<div class=\"table-scroll\" role=\"region\" aria-labelledby=\"";
 /// Only the region is named by the heading: naming the table too would
@@ -36,8 +43,8 @@ const OPEN_TABLE: &str = "\" tabindex=\"0\">\n<table>\n<thead><tr>";
 const NUMBER_HEADING: &str = "<th scope=\"col\"><span aria-hidden=\"true\">#</span><span class=\"visually-hidden\">Number</span></th>";
 const OPEN_BODY: &str = "</tr></thead>\n<tbody>\n";
 const CLOSE: &str = "</tbody></table></div></details>\n";
-/// A prose cell's class: its line breaks show (FR-97).
-const PROSE: &str = " class=\"prose\"";
+const CLASS_OPEN: &str = " class=\"";
+const CLASS_CLOSE: &str = "\"";
 const NEW_TAB: &str = "<span class=\"visually-hidden\"> (opens in a new tab)</span>";
 
 /// The table view, for `<main>` after both arrangements.
@@ -62,6 +69,8 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted) -> String {
         "\">",
         HEADING,
         OPEN_TOGGLE,
+        TABLE_VIEW_CLASS,
+        TOGGLE_REST,
         SUMMARY,
         OPEN_REGION,
         HEADING_ID,
@@ -140,28 +149,29 @@ fn cell(catalogue: &Catalogue, column: usize, item: &Item, unplotted: bool) -> S
     match kind {
         ColumnKind::Name => name_cell(item, unplotted),
         ColumnKind::Quadrant => td(
-            "",
+            None,
             catalogue
                 .quadrants
                 .get(item.quadrant)
                 .map_or("", |q| q.label.as_str()),
         ),
-        ColumnKind::Ring => td("", catalogue.ring_label(item)),
+        ColumnKind::Ring => td(None, catalogue.ring_label(item)),
         ColumnKind::Link => link_cell(item.link.as_ref()),
         ColumnKind::Description
         | ColumnKind::Domain
         | ColumnKind::Rationale
-        | ColumnKind::Other => td(PROSE, value),
+        | ColumnKind::Other => td(Some(PROSE_CLASS), value),
         ColumnKind::Qualifier
         | ColumnKind::Status
         | ColumnKind::LastAffirmed
-        | ColumnKind::ExitDate => td("", trim(value)),
+        | ColumnKind::ExitDate => td(None, trim(value)),
     }
 }
 
-/// A data cell holding `text`, escaped, with `class` (empty, or [`PROSE`]).
-fn td(class: &str, text: &str) -> String {
-    ["<td", class, ">", &xml_text(text), "</td>"].concat()
+/// A data cell holding `text`, escaped, with `class` when given.
+fn td(class: Option<&str>, text: &str) -> String {
+    let class = class.map_or_else(String::new, |c| [CLASS_OPEN, c, CLASS_CLOSE].concat());
+    ["<td", &class, ">", &xml_text(text), "</td>"].concat()
 }
 
 /// The row header: a native button keyed on the row, holding the name and,

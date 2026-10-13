@@ -9,10 +9,10 @@ pub const SVG_ELEMENTS: [&str; 9] = [
 
 /// Every element the page itself writes around the SVG, the table view
 /// (FR-41) included.
-pub const PAGE_ELEMENTS: [&str; 26] = [
+pub const PAGE_ELEMENTS: [&str; 27] = [
     "html", "head", "meta", "title", "style", "body", "main", "h1", "div", "h2", "details",
     "summary", "table", "thead", "tbody", "tr", "th", "td", "a", "span", "button", "script",
-    "section", "dl", "dt", "dd",
+    "section", "dl", "dt", "dd", "p",
 ];
 
 /// Every attribute the page may write on any of its own elements.

@@ -98,6 +98,6 @@ fn one_hidden_panel_between_the_radar_and_the_table() {
         "after the radar, before the table"
     );
     assert!(html.contains(
-        "<div class=\"detail-head\"><h2 class=\"detail-heading\" tabindex=\"-1\"></h2><button type=\"button\" class=\"detail-close\">Close</button></div><dl></dl></section>"
+        "<div class=\"detail-head\"><h2 class=\"detail-heading\" tabindex=\"-1\"></h2><button type=\"button\" class=\"detail-close\">Close</button></div><dl><dt></dt><dd></dd></dl><p class=\"detail-empty\" hidden=\"\">No further details.</p></section>"
     ));
 }

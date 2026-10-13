@@ -96,7 +96,7 @@ pub fn page(input: &Page<'_>) -> String {
         NARROW_REST,
         &serialise(narrow, target),
         DIV_CLOSE,
-        chrome::PANEL,
+        &chrome::panel(),
         &table::table(catalogue, plotted),
         MAIN_CLOSE,
         &chrome::script(),

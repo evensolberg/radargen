@@ -1,10 +1,14 @@
 use std::collections::BTreeMap;
 
+use super::super::table::{PROSE_CLASS, TABLE_VIEW_CLASS};
 use super::{
-    ARIA_PRESSED, ARRANGEMENT_CLASS, DATA_FOCUSED, DATA_NARROW_QUERY, DATA_THEME, JS_CLASS, SCRIPT,
-    SKIP_CLASS, TOGGLE_CLASS,
+    ARIA_CONTROLS, ARIA_EXPANDED, ARIA_PRESSED, ARRANGEMENT_CLASS, CLOSE_CLASS, DATA_FOCUSED,
+    DATA_HOVERED, DATA_NARROW_QUERY, DATA_SELECTED, DATA_THEME, EMPTY_CLASS, HEADING_CLASS,
+    JS_CLASS, PANEL_ID, SCRIPT, SKIP_CLASS, TOGGLE_CLASS,
 };
-use crate::svg::serialise::{DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR};
+use crate::svg::serialise::{
+    DATA_HIT, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW,
+};
 
 /// The script's `const N = {…}` block as `name → value`, and the script
 /// with the block taken out.
@@ -35,7 +39,19 @@ fn names() -> (BTreeMap<String, String>, String) {
 #[test]
 fn the_scripts_names_are_the_pages() {
     let want: BTreeMap<String, String> = [
+        ("row", DATA_ROW),
         ("marker", DATA_MARKER),
+        ("hit", DATA_HIT),
+        ("selected", DATA_SELECTED),
+        ("hovered", DATA_HOVERED),
+        ("expanded", ARIA_EXPANDED),
+        ("controls", ARIA_CONTROLS),
+        ("panel", PANEL_ID),
+        ("heading", HEADING_CLASS),
+        ("close", CLOSE_CLASS),
+        ("empty", EMPTY_CLASS),
+        ("prose", PROSE_CLASS),
+        ("tableView", TABLE_VIEW_CLASS),
         ("legend", DATA_LEGEND_ROW),
         ("markerIndicator", DATA_MARKER_INDICATOR),
         ("focused", DATA_FOCUSED),
@@ -75,7 +91,7 @@ fn has_word(text: &str, word: &str) -> bool {
 /// markup or code from a string, so no CSV text can become either.
 #[test]
 fn the_script_fetches_nothing_and_parses_no_markup() {
-    const BANNED: [&str; 27] = [
+    const BANNED: [&str; 26] = [
         "fetch",
         "XMLHttpRequest",
         "import",
@@ -84,7 +100,6 @@ fn the_script_fetches_nothing_and_parses_no_markup() {
         "Worker",
         "sendBeacon",
         "navigator",
-        "open",
         "write",
         "Image",
         "src",
@@ -108,7 +123,7 @@ fn the_script_fetches_nothing_and_parses_no_markup() {
         assert!(!has_word(SCRIPT, word), "{word} in the script");
     }
     let lower = SCRIPT.to_lowercase();
-    for text in ["<!--", "</script"] {
+    for text in ["<!--", "</script", "window.open"] {
         assert!(!lower.contains(text), "{text} in the script, in any case");
     }
 }
@@ -118,7 +133,7 @@ fn words_match_whole() {
     assert!(has_word("x.import(y)", "import"));
     assert!(!has_word("!important", "import"));
     assert!(!has_word("prefetch", "fetch"));
-    assert!(has_word("open", "open"));
+    assert!(has_word("write", "write"));
 }
 
 /// FR-38's panel is sticky at the viewport's bottom, scrolls inside itself,
