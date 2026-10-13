@@ -1,7 +1,7 @@
 ---
 id: rg-6h9
 title: 'Text-spacing check: harden and widen (PR 14c review minors)'
-status: open
+status: closed
 type: task
 priority: 3
 tags:
@@ -9,6 +9,7 @@ tags:
 - a11y
 created: 2026-10-12
 updated: 2026-10-12
+closed_reason: 'PR C2: test/text-spacing-hardening; item 4 deferred to a new crumb'
 phase: ''
 ---
 

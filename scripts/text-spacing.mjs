@@ -19,6 +19,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve, basename } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const SPACING =
   '*{letter-spacing:.12em!important;word-spacing:.16em!important;line-height:1.5!important}' +
@@ -35,7 +36,11 @@ const SHELLS = {
   'linux-x64': 'chrome-headless-shell-linux64',
   'win32-x64': 'chrome-headless-shell-win64',
 };
-const MISSING = "no headless Chromium: set CHROME, or run 'npx playwright install chromium-headless-shell'";
+const MISSING =
+  "no headless Chromium: set CHROME, or run 'npx playwright install chromium-headless-shell' " +
+  '(Playwright ships no shell for this platform when it is not macOS, linux-x64 or win32-x64)';
+// How long Chromium may take to start, a page to load, or a frame to paint.
+const TIMEOUT_MS = 15000;
 
 function chrome() {
   if (process.env.CHROME) return process.env.CHROME;
@@ -43,18 +48,19 @@ function chrome() {
   const folder = SHELLS[`${process.platform}-${process.arch}`];
   if (!folder || !existsSync(cache)) throw new Error(MISSING);
   // The newest build: names end in a build number, compared as a number.
+  const build = (d) => Number(d.split('-').pop());
   const shell = readdirSync(cache)
-    .filter((d) => d.startsWith('chromium_headless_shell-'))
-    .sort((a, b) => Number(a.split('-').pop()) - Number(b.split('-').pop()))
+    .filter((d) => /^chromium_headless_shell-\d+$/.test(d))
+    .sort((a, b) => build(a) - build(b))
     .pop();
   const exe = shell && join(cache, shell, folder, process.platform === 'win32' ? 'chrome-headless-shell.exe' : 'chrome-headless-shell');
   if (!exe || !existsSync(exe)) throw new Error(MISSING);
   return exe;
 }
 
-// Polls `ready` every 100 ms until it returns a value, for up to 5 s.
+// Polls `ready` every 100 ms until it returns a value, for up to TIMEOUT_MS.
 async function poll(ready, what) {
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < TIMEOUT_MS / 100; i++) {
     const value = await ready();
     if (value) return value;
     await new Promise((r) => setTimeout(r, 100));
@@ -62,18 +68,51 @@ async function poll(ready, what) {
   throw new Error(what);
 }
 
+// `promise`, or a rejection naming `what` after TIMEOUT_MS: a page that
+// never loads or a frame that never paints fails the run, not hangs it.
+function within(promise, what) {
+  let timer;
+  const late = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`timed out: ${what}`)), TIMEOUT_MS);
+  });
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
+}
+
 async function connect() {
   // Port 0 lets Chromium pick a free port, which it writes to
   // DevToolsActivePort in its profile, so two runs never collide.
+  const exe = chrome();
   const profile = mkdtempSync(join(tmpdir(), 'text-spacing-'));
-  const proc = spawn(chrome(), ['--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', 'about:blank'], {
+  const proc = spawn(exe, ['--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', 'about:blank'], {
     stdio: 'ignore',
   });
+  const exited = new Promise((r) => proc.once('close', r));
+  const failed = new Promise((_, reject) => proc.once('error', reject));
+  // Kills Chromium if it is still running, then removes its profile.
+  const stop = async () => {
+    if (proc.exitCode === null && proc.signalCode === null && proc.pid !== undefined) {
+      proc.kill();
+      await exited;
+    }
+    rmSync(profile, { recursive: true, force: true });
+  };
+  try {
+    return await Promise.race([failed, attach(profile, stop)]);
+  } catch (error) {
+    await stop();
+    throw error;
+  }
+}
+
+async function attach(profile, stop) {
   const activePort = join(profile, 'DevToolsActivePort');
-  const port = await poll(
-    () => existsSync(activePort) && readFileSync(activePort, 'utf8').split('\n')[0],
-    'Chromium did not start',
-  );
+  const port = await poll(() => {
+    try {
+      return readFileSync(activePort, 'utf8').split('\n')[0];
+    } catch {
+      return undefined; // not written yet
+    }
+  }, 'Chromium did not start');
   const page = await poll(async () => {
     try {
       const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
@@ -106,11 +145,8 @@ async function connect() {
   // Resolves on the next `method` event; register before the call that fires it.
   const next = (method) => new Promise((r) => waiting.set(method, r));
   const close = async () => {
-    const exited = new Promise((r) => proc.once('exit', r));
     ws.close();
-    proc.kill();
-    await exited;
-    rmSync(profile, { recursive: true, force: true });
+    await stop();
   };
   return { send, next, close };
 }
@@ -130,7 +166,8 @@ const CHECK = `(() => {
     const svg = arrangement.querySelector('svg');
     const frame = svg.getBoundingClientRect();
     // A marker's number is drawn right after its circle and sits on it by
-    // design; a name of digits alone is still checked.
+    // design; a name of digits alone is still checked. This leans on the
+    // emitter drawing each number straight after its circle.
     const texts = [...svg.querySelectorAll('text')].filter((t) =>
       t.getNumberOfChars() > 0 &&
       getComputedStyle(t).visibility !== 'hidden' &&
@@ -186,17 +223,20 @@ async function main() {
   }
   const { send, next, close } = await connect();
   const evaluate = async (expression) =>
-    (await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result.result.value;
+    (await within(send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }), expression.slice(0, 40)))
+      .result.result.value;
   let failures = 0;
   try {
     await send('Page.enable');
     await send('Accessibility.enable');
     for (const arg of pages) {
-      const [file, expected] = arg.split(':');
+      // The tail count follows the last colon, so a Windows drive letter
+      // stays in the path.
+      const [, file, expected] = arg.match(/^(.*?)(?::(\d+))?$/);
       const loaded = next('Page.loadEventFired');
-      await send('Page.navigate', { url: 'file://' + resolve(file) });
-      await loaded;
-      await evaluate(SETTLED);
+      const navigated = await send('Page.navigate', { url: pathToFileURL(resolve(file)).href });
+      if (navigated.result?.errorText) throw new Error(`${file}: ${navigated.result.errorText}`);
+      await within(loaded, `${file} to load`);
       const query = await evaluate(`(document.querySelector('style').textContent.match(/max-width: (\\d+)px/)||[])[1]`);
       const breakpoint = Number(query) + 1;
       if (!Number.isInteger(breakpoint)) throw new Error(`${file}: no max-width breakpoint in its stylesheet`);
