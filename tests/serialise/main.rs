@@ -18,10 +18,12 @@ mod identity;
 mod page;
 mod vocabulary;
 
-use radargen::layout::arrange::{Arrangement, Blocks};
+use radargen::emit::html::{Page, page};
+use radargen::layout::arrange::{Arrangement, Blocks, arrange};
 use radargen::model::Catalogue;
 use radargen::order::{Plotted, resolve};
 use radargen::palette::Palette;
+use radargen::svg::Document;
 use radargen::svg::Target;
 use radargen::text::Fonts;
 
@@ -33,6 +35,28 @@ struct Built {
     catalogue: Catalogue,
     plotted: Plotted,
     blocks: Blocks,
+}
+
+impl Built {
+    /// The page for `wide` and `narrow`, with this catalogue's table.
+    fn page_of(&self, wide: &Document, narrow: &Document, title: Option<&str>) -> String {
+        page(&Page {
+            wide,
+            narrow,
+            catalogue: &self.catalogue,
+            plotted: &self.plotted,
+            title,
+        })
+    }
+
+    /// The page for both arrangements of these blocks.
+    fn page(&self, title: Option<&str>) -> String {
+        self.page_of(
+            &arrange(Arrangement::Wide, &self.blocks),
+            &arrange(Arrangement::Narrow, &self.blocks),
+            title,
+        )
+    }
 }
 
 /// `csv` with `--rings` and `--title`, laid out.

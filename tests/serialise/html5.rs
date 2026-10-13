@@ -9,7 +9,6 @@
 use html5ever::tendril::TendrilSink;
 use html5ever::{LocalName, Namespace, ParseOpts, ns, parse_document};
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
-use radargen::emit::html::page;
 use radargen::layout::arrange::{Arrangement, arrange};
 
 use super::build;
@@ -126,7 +125,7 @@ fn hostile_text_survives_an_html5_parser() {
     let built = build(&csv, Some(&format!("{RING},Adopt")), Some(TITLE));
     let wide = arrange(Arrangement::Wide, &built.blocks);
     let narrow = arrange(Arrangement::Narrow, &built.blocks);
-    let html = page(&wide, &narrow, Some(TITLE));
+    let html = built.page_of(&wide, &narrow, Some(TITLE));
 
     let dom = parse_document(RcDom::default(), ParseOpts::default())
         .from_utf8()
