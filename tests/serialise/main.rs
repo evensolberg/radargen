@@ -16,6 +16,7 @@ mod hostile;
 mod html5;
 mod identity;
 mod page;
+mod script;
 mod table;
 mod vocabulary;
 

@@ -2,8 +2,9 @@
 //! templated: every value comes from a constant or from the `Document`, so
 //! the CSS cannot drift from the markup it styles.
 //!
-//! Each section is its own function, and `page` assembles them, so PR 15 can
-//! add the table's and the panel's rules beside their markup. Rule fragments
+//! Each section is its own function, and `page` assembles them; the table's
+//! and the page chrome's rules live beside their markup, in `table.rs` and
+//! `chrome.rs`. Rule fragments
 //! are module constants: a `{…}` literal inside a function body reads to
 //! clippy as a forgotten `format!` argument.
 
@@ -13,16 +14,41 @@ use base64::engine::general_purpose::STANDARD;
 use crate::num::fmt_coord;
 use crate::palette::{Neutral, Palette, Theme};
 use crate::style::{FOCUS_RING_STROKE, breakpoint_px};
-use crate::svg::ItemKey;
 use crate::svg::serialise::{
-    DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW_INDICATOR,
+    DATA_FOCUS_RING, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW_INDICATOR,
 };
+
+use super::chrome::{DATA_FOCUSED, DATA_THEME, JS_CLASS};
 use crate::text::{FAMILY, REGULAR_WOFF2, SEMIBOLD_WOFF2, Weight};
 
 /// Hides a heading from sight but not from assistive technology:
 /// `display: none` and `visibility: hidden` would drop it from the
 /// accessibility tree, and a zero size from `VoiceOver`.
-pub(super) const VISUALLY_HIDDEN: &str = ".visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}\n";
+pub(super) const VISUALLY_HIDDEN: &str = ".visually-hidden";
+/// The declarations that hide a box from sight only, for any selector.
+pub(super) const HIDDEN_BOX: &str = "{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}\n";
+/// The end of a focus outline rule, after its colour: page chrome outlines
+/// sit 2px out, so they never touch the control.
+pub(super) const OUTLINE_CLOSE: &str = ");outline-offset:2px}\n";
+
+const INSET_WIDTH: &str = "max-width:";
+const INSET_REST: &str = "px;margin-inline:auto;padding-inline:";
+const INSET_CLOSE: &str = "px;box-sizing:border-box}\n";
+
+/// `open`, a selector and its rule's opening declarations, capped at the
+/// wide document's width and inset by its margin, so page chrome lines up
+/// with the radar's content edge.
+pub(super) fn capped(open: &str, wide_width: f64) -> String {
+    [
+        open,
+        INSET_WIDTH,
+        &fmt_coord(wide_width),
+        INSET_REST,
+        &fmt_coord(crate::style::MARGIN),
+        INSET_CLOSE,
+    ]
+    .concat()
+}
 
 const FACE_OPEN: &str = "@font-face{font-family:\"";
 const FACE_WEIGHT: &str = "\";font-style:normal;font-weight:";
@@ -30,11 +56,13 @@ const FACE_SRC: &str = ";font-display:block;src:url(data:font/woff2;base64,";
 const FACE_CLOSE: &str = ") format(\"woff2\")}\n";
 
 const LIGHT_OPEN: &str = ":root{color-scheme:light;";
-const DARK_PREFERRED_OPEN: &str =
-    "@media (prefers-color-scheme: dark){:root:not([data-theme=\"light\"]){color-scheme:dark;";
-const DARK_CHOSEN_OPEN: &str = ":root[data-theme=\"dark\"]{color-scheme:dark;";
+const DARK_PREFERRED_OPEN: &str = "@media (prefers-color-scheme: dark){:root:not([";
+const NOT_LIGHT: &str = "=\"light\"]){color-scheme:dark;";
+const DARK_CHOSEN_OPEN: &str = ":root[";
+const DARK_CHOSEN: &str = "=\"dark\"]{color-scheme:dark;";
 const CLOSE: &str = "}\n";
-const FORCED_OPEN: &str = "@media (forced-colors: active){:root,:root[data-theme]{";
+const FORCED_OPEN: &str = "@media (forced-colors: active){:root,:root[";
+const FORCED_REST: &str = "]{";
 const CLOSE_TWICE: &str = "}}\n";
 
 /// Inter for the page's own text too, not only the SVG's: without it the
@@ -59,11 +87,11 @@ const VISIBLE: &str = "]{visibility:visible}\n[";
 const ROW_RING: &str = "]>rect{stroke:var(";
 const ROW_RING_WIDTH: &str = ");stroke-width:";
 const PX_CLOSE: &str = "px}\n";
-const SUPPORTS_HAS: &str = "@supports selector(:has(*)){\n[";
-const HAS_OPEN: &str = "svg:has([";
-const KEY_OPEN: &str = "=\"";
-const HAS_FOCUS: &str = "\"]:focus-visible) [";
-const KEY_VISIBLE: &str = "\"]{visibility:visible}\n";
+const SCRIPTED: &str = " [";
+const HIDDEN: &str = "]{visibility:hidden}\n[";
+const BOTH: &str = "][";
+const INSIDE: &str = "] [";
+const SHOWN_LAST: &str = "]{visibility:visible}\n";
 
 /// Both vendored faces, inlined (NFR-5) under the family the SVG text names
 /// (FR-85). `block` because the data is inline: there is no load to wait
@@ -91,7 +119,7 @@ fn face(woff2: &[u8], weight: Weight) -> String {
 
 /// Both palettes (FR-56, architecture §5): light by default, dark when the
 /// viewer prefers it unless the page is set light, and dark when the page is
-/// set dark. PR 15's toggle sets `data-theme` on `<html>`.
+/// set dark. The theme toggle (FR-56) sets `data-theme` on `<html>`.
 ///
 /// Values are written as `Palette` holds them: they are validated when a
 /// palette is built (crumb `rg-cdo`), which guards this context and the SVG
@@ -104,12 +132,18 @@ pub(super) fn palettes() -> String {
         &light,
         CLOSE,
         DARK_PREFERRED_OPEN,
+        DATA_THEME,
+        NOT_LIGHT,
         &dark,
         CLOSE_TWICE,
         DARK_CHOSEN_OPEN,
+        DATA_THEME,
+        DARK_CHOSEN,
         &dark,
         CLOSE,
         FORCED_OPEN,
+        DATA_THEME,
+        FORCED_REST,
         &forced(),
         CLOSE_TWICE,
     ]
@@ -196,15 +230,16 @@ pub(super) fn narrow_query(wide_width: f64) -> String {
     .concat()
 }
 
-/// The focus indicators (FR-48, architecture §5), shown with no script.
+/// The focus indicators (FR-48, architecture §5).
 ///
-/// A legend row shows its own inset ring. A marker's ring is in a later
-/// layer, so a rule per key reaches it through `:has`, inside
-/// `@supports`; an engine without `:has` keeps its own outline. Each rule
-/// that hides the outline shares its replacement's selector, so the two
-/// stand or fall together (WCAG 2.4.7).
-pub(super) fn indicators(markers: &[ItemKey]) -> String {
-    [legend_focus(), marker_focus(markers)].concat()
+/// A legend row shows its own inset ring, with no script. A marker's ring
+/// is in a later layer, so the script marks the indicator `data-focused`
+/// while the marker has visible focus, and fixed rules show its ring: no
+/// rule per key, so a Tab costs the same at 300 markers as at 3 (rg-jri).
+/// The marker's own outline is hidden only under the script's `.js`
+/// class; without the script the browser's outline stays (WCAG 2.4.7).
+pub(super) fn indicators() -> String {
+    [legend_focus(), marker_focus()].concat()
 }
 
 fn legend_focus() -> String {
@@ -229,29 +264,26 @@ fn legend_focus() -> String {
     .concat()
 }
 
-fn marker_focus(markers: &[ItemKey]) -> String {
-    if markers.is_empty() {
-        return String::new();
-    }
-    let rules: String = markers.iter().copied().map(marker_rule).collect();
-    [SUPPORTS_HAS, DATA_MARKER, OUTLINE, &rules, CLOSE].concat()
-}
-
-/// `svg:has([data-marker="L"]:focus-visible) [data-marker-indicator="L"]`:
-/// qualified to markers on both sides, so a legend row neither lights a
-/// marker's ring nor is lit by it.
-fn marker_rule(key: ItemKey) -> String {
-    let line = key.0.to_string();
+fn marker_focus() -> String {
     [
-        HAS_OPEN,
+        ".",
+        JS_CLASS,
+        SCRIPTED,
         DATA_MARKER,
-        KEY_OPEN,
-        &line,
-        HAS_FOCUS,
+        OUTLINE,
+        "[",
+        DATA_FOCUS_RING,
+        HIDDEN,
         DATA_MARKER_INDICATOR,
-        KEY_OPEN,
-        &line,
-        KEY_VISIBLE,
+        BOTH,
+        DATA_FOCUSED,
+        VISIBLE,
+        DATA_MARKER_INDICATOR,
+        BOTH,
+        DATA_FOCUSED,
+        INSIDE,
+        DATA_FOCUS_RING,
+        SHOWN_LAST,
     ]
     .concat()
 }

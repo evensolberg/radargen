@@ -507,11 +507,13 @@ An emitter therefore drops interactive-only nodes at any depth, not only whole
 layers. Indicators are hidden by presentation attributes (`visibility="hidden"
 aria-hidden="true" pointer-events="none"`) and hit areas are `fill="none"
 pointer-events="all"`, so neither needs a CSS colour keyword. A marker's
-indicator is shown by a generated per-key rule, `svg:has([data-marker="L"]
-:focus-visible) [data-marker-indicator="L"] { visibility: visible }`, which
-needs no JavaScript. It is qualified to `data-marker` on both sides, so a legend
-row for the same item neither lights the marker's ring nor has its own indicator
-lit by the marker's focus. A legend row's indicator is shown by the row's own
+indicator is shown by the page's script, which sets `data-focused` on it while
+the marker has visible focus and moves it last in its layer; fixed rules show
+its ring, marked `data-focus-ring` (PR 15b, `rg-jri`). PR 14b's generated
+per-key `:has` rules did this without script but cost style recalculation on
+every Tab, 49 ms at 300 markers; the attribute costs 0.14 ms. Without script
+the marker keeps the browser's own outline, which the page hides only under
+the script's `.js` class. A legend row's indicator is shown by the row's own
 focus, with no `:has` and no per-key rule: `[data-legend-row]:focus-visible >
 [data-row-indicator] { visibility: visible }`. Pointer events on a hit area are
 forwarded to the control with the same key by the delegated handler FR-37

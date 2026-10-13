@@ -21,15 +21,10 @@ svg{display:block;width:100%;height:auto}
 [data-legend-row]:focus-visible{outline:2px solid transparent}
 [data-legend-row]:focus-visible>[data-row-indicator]{visibility:visible}
 [data-legend-row]:focus-visible>[data-row-indicator]>rect{stroke:var(--focus);stroke-width:2px}
-@supports selector(:has(*)){
-[data-marker]:focus-visible{outline:2px solid transparent}
-svg:has([data-marker="6"]:focus-visible) [data-marker-indicator="6"]{visibility:visible}
-svg:has([data-marker="7"]:focus-visible) [data-marker-indicator="7"]{visibility:visible}
-svg:has([data-marker="4"]:focus-visible) [data-marker-indicator="4"]{visibility:visible}
-svg:has([data-marker="3"]:focus-visible) [data-marker-indicator="3"]{visibility:visible}
-svg:has([data-marker="2"]:focus-visible) [data-marker-indicator="2"]{visibility:visible}
-svg:has([data-marker="5"]:focus-visible) [data-marker-indicator="5"]{visibility:visible}
-}
+.js [data-marker]:focus-visible{outline:2px solid transparent}
+[data-focus-ring]{visibility:hidden}
+[data-marker-indicator][data-focused]{visibility:visible}
+[data-marker-indicator][data-focused] [data-focus-ring]{visibility:visible}
 .visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
 .table-heading,.table-view{max-width:1025.077px;margin-inline:auto;padding-inline:20px;box-sizing:border-box}
 .table-heading{margin-block:1.5em .25em;font-size:1rem;font-weight:600}
@@ -47,10 +42,21 @@ thead th{font-size:.75rem;border-bottom-width:2px;color:var(--text-muted)}
 tr:not(.unplotted)+tr.unplotted>*{border-top:2px solid var(--stroke-divider)}
 a,a:visited{text-decoration:underline;color:var(--text-primary)}
 summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+[hidden]{display:none!important}
+.page-controls{display:flex;max-width:1025.077px;margin-inline:auto;padding-inline:20px;box-sizing:border-box}
+.page-controls button{margin-block:.5em;font:inherit;padding:.4em .8em;border-radius:6px;cursor:pointer;border:1px solid var(--stroke-divider);background:var(--surface-2);color:var(--text-primary)}
+.skip{margin-inline-end:auto}
+.theme-toggle{margin-inline-start:auto}
+.skip:not(:focus){position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+.theme-toggle::before{content:"";display:inline-block;width:.75em;height:.75em;border:1.5px solid currentColor;border-radius:50%;margin-inline-end:.4em;vertical-align:-.05em}
+.theme-toggle[aria-pressed=true]::before{background:currentColor}
+@media (forced-colors: active){.theme-toggle[aria-pressed=true]::before{forced-color-adjust:none;background:ButtonText}}
+.page-controls button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 </style>
 </head>
 <body>
-<main>
+<main data-narrow-query="(max-width: 819px)">
+<div class="page-controls"><button type="button" class="skip" hidden="">Skip to the legend</button><button type="button" class="theme-toggle" aria-pressed="false" hidden="">Dark theme</button></div>
 <div class="arrangement wide">
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1025.077 872">
 <g>
@@ -124,39 +130,51 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <circle cx="77.682" cy="-44.85" r="19" fill="var(--surface-1)" stroke="none"/>
 <circle cx="77.682" cy="-44.85" r="10" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
 <text x="77.682" y="-41.576" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">1</text>
+<g data-focus-ring="6">
 <circle cx="77.682" cy="-44.85" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
 </g>
 <g data-marker-indicator="7" visibility="hidden" aria-hidden="true" pointer-events="none">
 <circle cx="0" cy="89.7" r="19" fill="var(--surface-1)" stroke="none"/>
 <circle cx="0" cy="89.7" r="10" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 <text x="0" y="92.974" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">2</text>
+<g data-focus-ring="7">
 <circle cx="0" cy="89.7" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
 </g>
 <g data-marker-indicator="4" visibility="hidden" aria-hidden="true" pointer-events="none">
 <circle cx="-133.974" cy="-77.35" r="19" fill="var(--surface-1)" stroke="none"/>
 <path d="M -126.974 -89.474 A 14 14 0 0 1 -140.974 -65.226" fill="none" stroke="var(--series-3)" stroke-width="2"/>
 <circle cx="-133.974" cy="-77.35" r="10" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2"/>
 <text x="-133.974" y="-74.076" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">3</text>
+<g data-focus-ring="4">
 <circle cx="-133.974" cy="-77.35" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
 </g>
 <g data-marker-indicator="3" visibility="hidden" aria-hidden="true" pointer-events="none">
 <circle cx="-87.33" cy="-20.483" r="19" fill="var(--surface-1)" stroke="none"/>
 <circle cx="-87.33" cy="-20.483" r="14" fill="none" stroke="var(--series-3)" stroke-width="2"/>
 <circle cx="-87.33" cy="-20.483" r="10" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="3"/>
 <text x="-87.33" y="-17.209" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="var(--text-primary)">4</text>
+<g data-focus-ring="3">
 <circle cx="-87.33" cy="-20.483" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
 </g>
 <g data-marker-indicator="2" visibility="hidden" aria-hidden="true" pointer-events="none">
 <circle cx="-74.753" cy="-79.603" r="19" fill="var(--surface-1)" stroke="none"/>
 <circle cx="-74.753" cy="-79.603" r="10" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2"/>
 <text x="-74.753" y="-76.329" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">5</text>
+<g data-focus-ring="2">
 <circle cx="-74.753" cy="-79.603" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
 </g>
 <g data-marker-indicator="5" visibility="hidden" aria-hidden="true" pointer-events="none">
 <circle cx="-21.391" cy="-12.35" r="19" fill="var(--surface-1)" stroke="none"/>
 <circle cx="-21.391" cy="-12.35" r="10" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2"/>
 <text x="-21.391" y="-9.076" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">6</text>
+<g data-focus-ring="5">
 <circle cx="-21.391" cy="-12.35" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
 </g>
 </g>
 </g>
@@ -363,39 +381,51 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <circle cx="40.092" cy="-23.147" r="14.778" fill="var(--surface-1)" stroke="none"/>
 <circle cx="40.092" cy="-23.147" r="7.778" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="1.556"/>
 <text x="40.092" y="-20.601" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF">1</text>
+<g data-focus-ring="6">
 <circle cx="40.092" cy="-23.147" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
+</g>
 </g>
 <g data-marker-indicator="7" visibility="hidden" aria-hidden="true" pointer-events="none">
 <circle cx="0" cy="46.295" r="14.778" fill="var(--surface-1)" stroke="none"/>
 <circle cx="0" cy="46.295" r="7.778" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="1.556"/>
 <text x="0" y="48.841" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF">2</text>
+<g data-focus-ring="7">
 <circle cx="0" cy="46.295" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
+</g>
 </g>
 <g data-marker-indicator="4" visibility="hidden" aria-hidden="true" pointer-events="none">
 <circle cx="-69.145" cy="-39.921" r="14.778" fill="var(--surface-1)" stroke="none"/>
 <path d="M -63.7 -49.351 A 10.889 10.889 0 0 1 -74.589 -30.491" fill="none" stroke="var(--series-3)" stroke-width="1.556"/>
 <circle cx="-69.145" cy="-39.921" r="7.778" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="1.556"/>
 <text x="-69.145" y="-37.374" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF">3</text>
+<g data-focus-ring="4">
 <circle cx="-69.145" cy="-39.921" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
+</g>
 </g>
 <g data-marker-indicator="3" visibility="hidden" aria-hidden="true" pointer-events="none">
 <circle cx="-45.071" cy="-10.571" r="14.778" fill="var(--surface-1)" stroke="none"/>
 <circle cx="-45.071" cy="-10.571" r="10.889" fill="none" stroke="var(--series-3)" stroke-width="1.556"/>
 <circle cx="-45.071" cy="-10.571" r="7.778" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="2.333"/>
 <text x="-45.071" y="-8.025" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="var(--text-primary)">4</text>
+<g data-focus-ring="3">
 <circle cx="-45.071" cy="-10.571" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
+</g>
 </g>
 <g data-marker-indicator="2" visibility="hidden" aria-hidden="true" pointer-events="none">
 <circle cx="-38.58" cy="-41.084" r="14.778" fill="var(--surface-1)" stroke="none"/>
 <circle cx="-38.58" cy="-41.084" r="7.778" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="1.556"/>
 <text x="-38.58" y="-38.537" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF">5</text>
+<g data-focus-ring="2">
 <circle cx="-38.58" cy="-41.084" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
+</g>
 </g>
 <g data-marker-indicator="5" visibility="hidden" aria-hidden="true" pointer-events="none">
 <circle cx="-11.04" cy="-6.374" r="14.778" fill="var(--surface-1)" stroke="none"/>
 <circle cx="-11.04" cy="-6.374" r="7.778" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="1.556"/>
 <text x="-11.04" y="-3.828" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF">6</text>
+<g data-focus-ring="5">
 <circle cx="-11.04" cy="-6.374" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
+</g>
 </g>
 </g>
 </g>
@@ -544,5 +574,126 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <tr data-row="8" class="unplotted"><td class="number"></td><th scope="row">Legacy Ticketing-Driven Change <span class="flag">not on the radar</span></th><td>Practice</td><td>Rejected</td><td class="prose">Manual, ticket-driven change approval replacing automated policy gates.</td><td></td><td class="prose">Operations Practice</td><td class="prose">Declined during the 2026 review — see the domain ADR.</td><td>2026-01-10</td><td></td><td></td></tr>
 </tbody></table></div></details>
 </main>
+<script>
+// radargen's interactive layer (FR-48, FR-56, FR-98; architecture §5).
+//
+// Constant: it holds nothing from the CSV and reads what it needs from the
+// page, so every page carries these same bytes (NFR-4) and no CSV text is
+// ever script (NFR-6). It requests nothing (NFR-5). Without it the page
+// still works: markers keep their native outline, and the controls it
+// drives stay hidden.
+(() => {
+  'use strict';
+
+  // Every attribute, class and id this script uses. A Rust test checks
+  // each value against the constant the page is written with.
+  const N = {
+    marker: 'data-marker',
+    legend: 'data-legend-row',
+    markerIndicator: 'data-marker-indicator',
+    focused: 'data-focused',
+    narrowQuery: 'data-narrow-query',
+    theme: 'data-theme',
+    pressed: 'aria-pressed',
+    js: 'js',
+    toggle: 'theme-toggle',
+    skip: 'skip',
+    arrangement: 'arrangement',
+  };
+
+  const root = document.documentElement;
+  const main = document.querySelector('main');
+  // The control last focused, as its key and kind, never as an element: a
+  // breakpoint change hides the element, and Chromium then moves focus to
+  // the body, so only the key survives (architecture §5).
+  const state = { focus: null };
+
+  const shown = () =>
+    [...document.querySelectorAll('.' + N.arrangement)].find(
+      (a) => getComputedStyle(a).display !== 'none',
+    );
+  const control = (node) =>
+    node instanceof Element ? node.closest('[' + N.marker + '],[' + N.legend + ']') : null;
+  const kindOf = (el) => (el.hasAttribute(N.marker) ? N.marker : N.legend);
+  const keyOf = (el) => el.getAttribute(kindOf(el));
+
+  // A marker's focus ring lives in the indicator layer, after every marker,
+  // so it is shown by attribute rather than by a rule per key (rg-jri). The
+  // focused indicator moves last in its layer, so no later indicator shown
+  // for hover or selection covers it (FR-48, D-66).
+  const ring = (el, on) => {
+    const indicator = el
+      .closest('svg')
+      .querySelector('[' + N.markerIndicator + '="' + keyOf(el) + '"]');
+    if (!indicator) return;
+    indicator.toggleAttribute(N.focused, on);
+    if (on && indicator !== indicator.parentNode.lastElementChild) indicator.parentNode.append(indicator);
+  };
+  const showRing = (el) => {
+    if (kindOf(el) === N.marker) ring(el, el.matches(':focus-visible'));
+  };
+
+  document.addEventListener('focusin', (event) => {
+    const el = control(event.target);
+    state.focus = el ? { key: keyOf(el), kind: kindOf(el) } : null;
+    if (el) showRing(el);
+  });
+  document.addEventListener('focusout', (event) => {
+    const el = control(event.target);
+    if (!el) return;
+    if (kindOf(el) === N.marker) ring(el, false);
+    // Still rendered, so the reader left it, and a later breakpoint change
+    // must not pull focus back. A blur from the breakpoint itself comes
+    // once the element is hidden, which keeps the key.
+    if (el.getClientRects().length > 0) state.focus = null;
+  });
+  // A key press after a mouse focus makes the focus visible.
+  document.addEventListener('keydown', () => {
+    const el = control(document.activeElement);
+    if (el) showRing(el);
+  });
+
+  // A breakpoint change hides the arrangement holding the focus; focus the
+  // same item in the one now shown. When the change event fires, Chromium
+  // may not yet have moved focus off the hidden element, so focus counts
+  // as lost on the body or anywhere in an arrangement no longer shown.
+  matchMedia(main.getAttribute(N.narrowQuery)).addEventListener('change', () => {
+    const now = document.activeElement;
+    const where = now?.closest('.' + N.arrangement);
+    const visible = shown();
+    const lost = !now || now === document.body || (where && where !== visible);
+    if (!state.focus || !lost) return;
+    const { key, kind } = state.focus;
+    const el = visible?.querySelector('[' + kind + '="' + key + '"]');
+    if (el) el.focus();
+  });
+
+  // FR-56: dark while pressed; until pressed, the viewer's preference.
+  const toggle = document.querySelector('.' + N.toggle);
+  const prefersDark = matchMedia('(prefers-color-scheme: dark)');
+  const dark = () => {
+    const chosen = root.getAttribute(N.theme);
+    return chosen ? chosen === 'dark' : prefersDark.matches;
+  };
+  const pressed = () => toggle.setAttribute(N.pressed, String(dark()));
+  toggle.addEventListener('click', () => {
+    root.setAttribute(N.theme, dark() ? 'light' : 'dark');
+    pressed();
+  });
+  prefersDark.addEventListener('change', pressed);
+
+  // FR-98: past the markers to the legend of the arrangement shown.
+  const skip = document.querySelector('.' + N.skip);
+  skip.addEventListener('click', () => {
+    shown()?.querySelector('[' + N.legend + ']')?.focus();
+  });
+
+  root.classList.add(N.js);
+  toggle.hidden = false;
+  // With nothing plotted there is no legend to skip to.
+  skip.hidden = !document.querySelector('[' + N.legend + ']');
+  pressed();
+})();
+</script>
 </body>
 </html>

@@ -117,50 +117,47 @@ fn only_the_breakpoint_rule_sets_display() {
     }
 }
 
-#[test]
-fn one_rule_per_marker_key() {
-    use crate::svg::ItemKey;
-    let css = indicators(&[ItemKey(6), ItemKey(7), ItemKey(2)]);
-    let supports = between(&css, "@supports selector(:has(*)){\n", "\n}\n");
-    let [block] = supports.as_slice() else {
-        panic!("one @supports block: {css}");
-    };
-    let rules: Vec<&str> = block.lines().skip(1).collect();
-    assert_eq!(
-        rules,
-        [6, 7, 2].map(|k| format!(
-            "svg:has([data-marker=\"{k}\"]:focus-visible) [data-marker-indicator=\"{k}\"]{{visibility:visible}}"
-        ))
-    );
-    assert!(block.starts_with("[data-marker]:focus-visible{outline:2px solid transparent}"));
+/// The marker focus rules, whole.
+const MARKER_FOCUS: [&str; 4] = [
+    ".js [data-marker]:focus-visible{outline:2px solid transparent}\n",
+    "[data-focus-ring]{visibility:hidden}\n",
+    "[data-marker-indicator][data-focused]{visibility:visible}\n",
+    "[data-marker-indicator][data-focused] [data-focus-ring]{visibility:visible}\n",
+];
 
-    let none = indicators(&[]);
-    assert!(!none.contains("@supports"), "{none}");
-    assert!(!none.contains("{}"), "{none}");
+/// rg-jri: a marker's ring is shown by the attribute the script sets, with
+/// fixed rules, so the stylesheet does not grow with the markers and no
+/// `:has` reruns on every Tab. The browser's outline goes only when the
+/// script runs to stand in for it (WCAG 2.4.7).
+#[test]
+fn marker_focus_is_by_attribute() {
+    let css = indicators();
+    for rule in MARKER_FOCUS {
+        assert!(css.contains(rule), "{rule} in {css}");
+    }
+    for banned in [
+        ":has(",
+        "@supports",
+        "[data-marker=\"",
+        "[data-marker-indicator=\"",
+    ] {
+        assert!(!css.contains(banned), "{banned} in {css}");
+    }
 }
 
-/// The browser's outline goes only where an indicator replaces it, so an
-/// engine that drops one rule drops the other (WCAG 2.4.7).
+/// A legend row's ring is its own, so it needs neither script nor `:has`.
 #[test]
-fn outlines_go_only_with_their_indicator() {
-    use crate::svg::ItemKey;
-    let css = indicators(&[ItemKey(6)]);
-    let (outside, inside) = css
-        .split_once("@supports selector(:has(*)){")
-        .expect("a @supports block");
-    for (part, wants) in [(outside, "[data-legend-row]"), (inside, "[data-marker]")] {
-        let outlines: Vec<&str> = part
-            .lines()
-            .filter(|line| line.contains("outline"))
-            .collect();
-        assert_eq!(
-            outlines,
-            [format!(
-                "{wants}:focus-visible{{outline:2px solid transparent}}"
-            )],
-            "{css}"
-        );
-    }
+fn legend_focus_is_unchanged() {
+    let css = indicators();
+    let outlines: Vec<&str> = css.lines().filter(|l| l.contains("outline")).collect();
+    assert_eq!(
+        outlines,
+        [
+            "[data-legend-row]:focus-visible{outline:2px solid transparent}",
+            ".js [data-marker]:focus-visible{outline:2px solid transparent}",
+        ],
+        "{css}"
+    );
     assert!(css.contains(
         "[data-legend-row]:focus-visible>[data-row-indicator]>rect{stroke:var(--focus);stroke-width:2px}"
     ));
@@ -168,13 +165,12 @@ fn outlines_go_only_with_their_indicator() {
 
 #[test]
 fn the_stylesheet_requests_nothing_but_fonts() {
-    use crate::svg::ItemKey;
     let css = [
         font_faces(),
         palettes(),
         layout(WIDE, NARROW),
-        indicators(&[ItemKey(6)]),
-        VISUALLY_HIDDEN.to_owned(),
+        indicators(),
+        [VISUALLY_HIDDEN, HIDDEN_BOX].concat(),
     ]
     .concat();
     assert_eq!(css.matches("url(").count(), 2);

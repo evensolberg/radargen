@@ -40,6 +40,8 @@ pub const DATA_HIT: &str = "data-hit";
 pub const DATA_MARKER_INDICATOR: &str = "data-marker-indicator";
 /// A legend row's inset focus and selection rect.
 pub const DATA_ROW_INDICATOR: &str = "data-row-indicator";
+/// A marker's focus ring inside its indicator (rg-jri).
+pub const DATA_FOCUS_RING: &str = "data-focus-ring";
 
 /// Who reads the markup, which decides how colours bind and whether
 /// interactive-only nodes are kept (architecture §5).

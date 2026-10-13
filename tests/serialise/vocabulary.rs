@@ -6,7 +6,8 @@ use radargen::palette::{Palette, Role, Theme};
 use radargen::style::TITLE;
 use radargen::style::TextStyle;
 use radargen::svg::serialise::{
-    DATA_HIT, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW, DATA_ROW_INDICATOR,
+    DATA_FOCUS_RING, DATA_HIT, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW,
+    DATA_ROW_INDICATOR,
 };
 use radargen::svg::{
     Anchor, Document, Group, ItemKey, Node, Paint, PathCommand, Point, Tail, Target, TextPaint,
@@ -48,7 +49,7 @@ pub const EITHER: [&str; 30] = [
     "letter-spacing",
     "text-anchor",
 ];
-pub const INTERACTIVE_ONLY: [&str; 9] = [
+pub const INTERACTIVE_ONLY: [&str; 10] = [
     "tabindex",
     "pointer-events",
     "visibility",
@@ -58,6 +59,7 @@ pub const INTERACTIVE_ONLY: [&str; 9] = [
     DATA_HIT,
     DATA_MARKER_INDICATOR,
     DATA_ROW_INDICATOR,
+    DATA_FOCUS_RING,
 ];
 const NUMERIC: [&str; 17] = [
     "dx",

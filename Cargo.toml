@@ -56,3 +56,7 @@ unimplemented = "deny"
 disallowed_methods = "deny"
 indexing_slicing = "deny"
 as_conversions = "deny"
+
+[profile.release]
+strip = true
+lto = true

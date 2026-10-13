@@ -1,8 +1,8 @@
 //! Groups and what they mean: headings, decoration, controls, indicators.
 
 use super::{
-    Context, ControlKind, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW,
-    DATA_ROW_INDICATOR, Target, attr, node, point, shows,
+    Context, ControlKind, DATA_FOCUS_RING, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR,
+    DATA_ROW, DATA_ROW_INDICATOR, Target, attr, node, point, shows,
 };
 use crate::escape::xml_text;
 use crate::svg::{Control, Group, Semantics};
@@ -92,6 +92,7 @@ fn semantics(out: &mut String, semantics: &Semantics, context: Context<'_>) {
             attr(out, "aria-hidden", "true");
             attr(out, "pointer-events", "none");
         }
+        Semantics::FocusRing(key) => attr(out, DATA_FOCUS_RING, &key.0.to_string()),
     }
 }
 

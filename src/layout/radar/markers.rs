@@ -147,6 +147,10 @@ pub(super) fn indicator_node(m: &Marker, raised: Vec<Node>, r: RadarScale) -> No
         stroke: Paint::Role(Role::Neutral(Neutral::Focus)),
         stroke_width: FOCUS_RING_STROKE * r.marks,
     };
+    // Marked, so the page shows the ring apart from the rest (rg-jri).
+    let ring = Node::Group(
+        Group::new(Point::ORIGIN, vec![ring]).with(Semantics::FocusRing(m.control.key)),
+    );
     let children = std::iter::once(backing)
         .chain(raised)
         .chain([ring])
@@ -550,7 +554,10 @@ mod tests {
         let Some(Node::Group(indicator)) = indicator_layer(nodes).first() else {
             panic!("an indicator");
         };
-        let Some(Node::Circle { radius: focus, .. }) = indicator.children.last() else {
+        let Some(Node::Group(ring)) = indicator.children.last() else {
+            panic!("a focus ring group");
+        };
+        let [Node::Circle { radius: focus, .. }] = ring.children.as_slice() else {
             panic!("a focus ring");
         };
         Probe {
@@ -657,6 +664,15 @@ mod tests {
                         stroke_width: backing_width,
                     },
                     raised @ ..,
+                    Node::Group(marked),
+                ] = group.children.as_slice()
+                else {
+                    panic!("backing, raised marker, ring: {:?}", group.children);
+                };
+                // rg-jri: the ring is marked, so the page can show it apart
+                // from the rest of the indicator.
+                assert_eq!(marked.semantics, Semantics::FocusRing(control.key));
+                let [
                     Node::Circle {
                         centre: ring_at,
                         radius: ring,
@@ -664,9 +680,9 @@ mod tests {
                         stroke: Paint::Role(Role::Neutral(Neutral::Focus)),
                         stroke_width: ring_width,
                     },
-                ] = group.children.as_slice()
+                ] = marked.children.as_slice()
                 else {
-                    panic!("backing, raised marker, ring: {:?}", group.children);
+                    panic!("the ring alone: {:?}", marked.children);
                 };
                 assert!(near(*backing_at, c) && near(*ring_at, c));
                 assert!(close(*backing, INDICATOR_REACH * marks));

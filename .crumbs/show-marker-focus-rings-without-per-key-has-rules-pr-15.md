@@ -1,7 +1,7 @@
 ---
 id: rg-jri
 title: Show marker focus rings without per-key :has rules (PR 15)
-status: open
+status: closed
 type: task
 priority: 2
 tags:
@@ -10,6 +10,7 @@ tags:
 - performance
 created: 2026-10-12
 updated: 2026-10-12
+closed_reason: 'PR 15b-1: marker focus by attribute; 49.4 ms -> 0.14 ms style recalc per Tab at 300 markers (just focus-cost)'
 phase: v1.0
 ---
 
