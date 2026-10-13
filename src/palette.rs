@@ -430,6 +430,24 @@ mod tests {
         }
     }
 
+    /// FR-73's selection marks are `TextPrimary`: the marker's square on the
+    /// radar ground, and the table's selected-row border on that row's
+    /// `Surface1` tint, so the pair clears 3:1 (WCAG 1.4.11) in both themes.
+    /// On `Surface2` (the legend's bar) `text_clears_4_5_on_surface2` covers
+    /// it, and hover's `TextMuted` dashes are covered by that test and
+    /// `ring_names_clear_4_5_on_their_halo`.
+    #[test]
+    fn selection_marks_clear_3_on_surface1() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let p = Palette::built_in(theme);
+            let ratio = contrast(
+                p.value(Role::Neutral(Neutral::TextPrimary)),
+                p.value(Role::Neutral(Neutral::Surface1)),
+            );
+            assert!(ratio >= 3.0, "{theme:?}: {ratio:.2}");
+        }
+    }
+
     /// SC-20: a legend row has no backing, so its focus indicator is measured
     /// against `Surface2` (WCAG 1.4.11), in both themes.
     #[test]
