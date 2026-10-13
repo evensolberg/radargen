@@ -29,6 +29,9 @@ const METAS: [&str; 4] = ["default,", "conditional,", ",new", ",moved in"];
 const ZOOM: f32 = 2.0;
 /// Differing pixels allowed between the two forms: anti-aliasing noise.
 const NOISE: usize = 64;
+/// A name long enough to wrap in the legend, so its tail rides the last of
+/// several lines (rg-6h9).
+const WRAPPED: &str = "Ends on a second line as a long name wraps in the legend column A";
 
 fn csv() -> String {
     let rows: String = ENDINGS
@@ -40,7 +43,13 @@ fn csv() -> String {
                 .map(move |meta| format!("Ends {end},Q{},Adopt,d,{meta}\n", i % 4))
         })
         .collect();
-    ["name,quadrant,ring,description,qualifier,status\n", &rows].concat()
+    let wrapped = format!("{WRAPPED},Q0,Adopt,d,default,\n");
+    [
+        "name,quadrant,ring,description,qualifier,status\n",
+        &rows,
+        &wrapped,
+    ]
+    .concat()
 }
 
 /// `node` with each tail drawn as its own text, `shift` units right of
@@ -146,8 +155,13 @@ fn the_tail_draws_where_the_meta_did() {
     let tails = count_tails(&tailed.root);
     assert_eq!(
         tails,
-        ENDINGS.len() * METAS.len(),
+        ENDINGS.len() * METAS.len() + 1,
         "every row's meta rides inline"
+    );
+    assert_eq!(
+        wrapped_tails(&tailed.root),
+        1,
+        "{WRAPPED} wraps, so its tail is on a later line"
     );
 
     let as_split = |shift| Document {
@@ -162,6 +176,19 @@ fn the_tail_draws_where_the_meta_did() {
         shifted > 10 * NOISE,
         "a half-unit shift must show: {shifted}"
     );
+}
+
+/// Tails after a name of two or more lines.
+fn wrapped_tails(node: &Node) -> usize {
+    match node {
+        Node::Group(group) => group.children.iter().map(wrapped_tails).sum(),
+        Node::Text {
+            tail: Some(_),
+            lines,
+            ..
+        } => usize::from(lines.len() > 1),
+        _ => 0,
+    }
 }
 
 fn count_tails(node: &Node) -> usize {
