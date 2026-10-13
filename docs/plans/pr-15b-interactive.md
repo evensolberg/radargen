@@ -332,14 +332,14 @@ Each PR is complete in itself: every handler lands with the state it manages, an
 - Modify: `src/emit/html/chrome.rs`: the panel `<section>` with its head row and `<dl>`, and the empty state written by the script.
 - Modify: `src/emit/html/table.rs`: the name cell's `<button type="button" data-row="L">`.
 
-- [ ] **Step 1: failing tests.**
+- [x] **Step 1: failing tests.**
   - Each marker indicator has one `data-selection`, and each legend row has one bar.
   - The square's bounds equal the backing disc's.
   - Static goldens are unchanged.
   - The table button's text equals 15a's cell text.
   - The panel is the only `id="detail"`: it is `hidden=""` and sits between the narrow arrangement and the table heading.
   - The allow-lists gain `section`, `dl`, `dt`, `dd`, `p` and `aria-label`; `id` is allowed only as `detail` on `section`.
-- [ ] **Step 2:** see them fail. **Step 3:** implement and re-bless the HTML golden. **Step 4:** commit `feat(html): the panel and selection markup`.
+- [x] **Step 2:** see them fail. **Step 3:** implement and re-bless the HTML golden. **Step 4:** commit `feat(html): the panel and selection markup`.
 
 ### Task 2: the state rules
 
@@ -425,6 +425,26 @@ Commit `test(a11y): the panel, selection and keyboard in a browser`.
 - **The 15a split table:** text spacing over the panel moved into 15b.
 
 Commit `docs: the interactive layer is live`.
+
+### Part 2 implementation rulings
+
+| Seat | Finding | Ruling |
+| --- | --- | --- |
+| Code review, accessibility | **Important:** opened from deep in the table, the panel's place is above the viewport, so sticky never lifts it and focus lands off screen (Decision 2 assumed otherwise) | After focusing the heading, the panel scrolls into view when it is out of sight; scenario P12 at a 300 px viewport |
+| Code review | Escape on another of the open item's controls jumped focus to the opener | Escape from the panel returns focus; from the item's own control it closes and leaves focus there (P13) |
+| Code review | A Space keyup on a different control activated it | Space activates only where it was pressed (P14) |
+| Code review, UI | Long URLs scrolled the panel sideways | `.detail dd{overflow-wrap:anywhere}` |
+| Code review, UI | The legend bar crossed the row's rounded corners and crowded the badge | 3 units wide, inset by the row's corner radius, two units clear of the badge (const-assert) |
+| Code review | A hit area's re-activation left focus on the body | A hit area's click focuses its marker (P15) |
+| Accessibility | Hover's 1-unit outline thins below a pixel when the SVG scales | `vector-effect:non-scaling-stroke` on hover's dashes |
+| Accessibility | "Legacy Bus not on the radar" ran together for the ear | A visually hidden comma before the flag |
+| Accessibility | Keyboard scrolling of the panel could not be driven by CDP | A crumb for 15c's manual pass in Chrome, Firefox and Safari |
+| UI | The stuck panel looked cut off; edge to edge at 400 px | Lifted `.75rem` with a shadow; a bottom sheet below the breakpoint |
+| UI | The selected table row barely showed | A Surface1 tint beside the start border. The suggested `box-shadow` was declined: forced colours drop shadows, which is why the border was chosen |
+| UI | Name buttons sat 3 px low | Padding, not a minimum height, keeps the 24 px target on the baseline |
+| UI | Terms and values wasted height at wide widths; heading and Close misaligned | A two-column grid above the breakpoint; the head row centred |
+| Simplify | Repeated selectors, the hidden-mark attributes, harness helpers, an unasserted focus colour in P10, a wrong doc comment | Applied (`by`, `parts`, `hidden_mark`, `tabToMarker`, `clickOn`, `openRow`, `resize`, `panelHidden`) |
+| Simplify | `legend_focus` and `marker_focus` still in the fragment style | A crumb: the move is mechanical and the golden pins it |
 
 ### Part 2 finishing
 

@@ -15,10 +15,11 @@ use crate::num::fmt_coord;
 use crate::palette::{Neutral, Palette, Theme};
 use crate::style::{FOCUS_RING_STROKE, breakpoint_px};
 use crate::svg::serialise::{
-    DATA_FOCUS_RING, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW_INDICATOR,
+    DATA_FOCUS_RING, DATA_HIT, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR,
+    DATA_ROW_INDICATOR, DATA_SELECTION,
 };
 
-use super::chrome::{DATA_FOCUSED, DATA_THEME, JS_CLASS};
+use super::chrome::{DATA_FOCUSED, DATA_HOVERED, DATA_SELECTED, DATA_THEME, JS_CLASS};
 use crate::text::{FAMILY, REGULAR_WOFF2, SEMIBOLD_WOFF2, Weight};
 
 /// Hides a heading from sight but not from assistive technology:
@@ -86,7 +87,15 @@ const ROW_SHOWN: &str = "]:focus-visible>[";
 const VISIBLE: &str = "]{visibility:visible}\n[";
 const ROW_RING: &str = "]>rect{stroke:var(";
 const ROW_RING_WIDTH: &str = ");stroke-width:";
-const PX_CLOSE: &str = "px}\n";
+/// Focus's ring ends solid, whatever hover set before it.
+const RING_CLOSE: &str = "px;stroke-dasharray:none}\n";
+const LBRACE: &str = "{";
+const RBRACE: &str = "}\n";
+const SHOW: &str = "visibility:visible";
+/// Hover's dashes, a pixel wide at any scale: the narrow arrangement shrinks
+/// the SVG, which would thin a scaled stroke below a pixel.
+const DASHED: &str = ";stroke-dasharray:3 2;vector-effect:non-scaling-stroke";
+const SOLID: &str = ";stroke-dasharray:none";
 const SCRIPTED: &str = " [";
 const HIDDEN: &str = "]{visibility:hidden}\n[";
 const BOTH: &str = "][";
@@ -239,7 +248,96 @@ pub(super) fn narrow_query(wide_width: f64) -> String {
 /// The marker's own outline is hidden only under the script's `.js`
 /// class; without the script the browser's outline stays (WCAG 2.4.7).
 pub(super) fn indicators() -> String {
-    [legend_focus(), marker_focus()].concat()
+    [
+        legend_states(),
+        legend_focus(),
+        marker_focus(),
+        marker_states(),
+        rule(
+            &[&attr(DATA_HIT), ",[role=button]"].concat(),
+            "cursor:pointer",
+        ),
+    ]
+    .concat()
+}
+
+/// `[name]`.
+fn attr(name: &str) -> String {
+    ["[", name, "]"].concat()
+}
+
+/// `selector{declarations}` on its own line.
+fn rule(selector: &str, declarations: &str) -> String {
+    [selector, LBRACE, declarations, RBRACE].concat()
+}
+
+/// `var(--role)`.
+fn var(role: Neutral) -> String {
+    ["var(", role.as_str(), ")"].concat()
+}
+
+/// A legend row's hover and selection (FR-37, FR-72, FR-73). Hover dashes
+/// the inset outline in the muted colour; focus, after it at the same
+/// specificity, strokes it solid. Selection is the start bar, so a focused,
+/// selected row shows two marks, not one thicker edge.
+fn legend_states() -> String {
+    let row = attr(DATA_LEGEND_ROW);
+    let hovered = [
+        row.as_str(),
+        &attr(DATA_HOVERED),
+        ">",
+        &attr(DATA_ROW_INDICATOR),
+    ]
+    .concat();
+    [
+        rule(&hovered, SHOW),
+        rule(
+            &[hovered.as_str(), ">rect"].concat(),
+            &[
+                "stroke:",
+                &var(Neutral::TextMuted),
+                ";stroke-width:1px",
+                DASHED,
+            ]
+            .concat(),
+        ),
+        rule(
+            &[
+                row.as_str(),
+                &attr(DATA_SELECTED),
+                ">",
+                &attr(DATA_SELECTION),
+            ]
+            .concat(),
+            SHOW,
+        ),
+    ]
+    .concat()
+}
+
+/// A marker's hover and selection (FR-37, FR-72, FR-73): its indicator
+/// shows, raising the marker; hover adds the square dashed and muted,
+/// selection solid in the text colour, later so it wins. Never a ring,
+/// which would read as a status (FR-40).
+fn marker_states() -> String {
+    let indicator = attr(DATA_MARKER_INDICATOR);
+    let hovered = [indicator.as_str(), &attr(DATA_HOVERED)].concat();
+    let selected = [indicator.as_str(), &attr(DATA_SELECTED)].concat();
+    let square = |state: &str| [state, " ", &attr(DATA_SELECTION)].concat();
+    [
+        rule(&[hovered.as_str(), ",", &selected].concat(), SHOW),
+        rule(&square(&hovered), SHOW),
+        rule(
+            &[square(&hovered).as_str(), ">rect"].concat(),
+            &["stroke:", &var(Neutral::TextMuted), DASHED].concat(),
+        ),
+        rule(&square(&selected), SHOW),
+        rule(
+            &[square(&selected).as_str(), ">rect"].concat(),
+            &["stroke:", &var(Neutral::TextPrimary), SOLID].concat(),
+        ),
+    ]
+    .concat()
 }
 
 fn legend_focus() -> String {
@@ -259,7 +357,7 @@ fn legend_focus() -> String {
         Neutral::Focus.as_str(),
         ROW_RING_WIDTH,
         &fmt_coord(FOCUS_RING_STROKE),
-        PX_CLOSE,
+        RING_CLOSE,
     ]
     .concat()
 }

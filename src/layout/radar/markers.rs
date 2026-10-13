@@ -147,15 +147,47 @@ pub(super) fn indicator_node(m: &Marker, raised: Vec<Node>, r: RadarScale) -> No
         stroke: Paint::Role(Role::Neutral(Neutral::Focus)),
         stroke_width: FOCUS_RING_STROKE * r.marks,
     };
+    let selection = selection_node(m, centre, r);
     // Marked, so the page shows the ring apart from the rest (rg-jri).
     let ring = Node::Group(
         Group::new(Point::ORIGIN, vec![ring]).with(Semantics::FocusRing(m.control.key)),
     );
     let children = std::iter::once(backing)
         .chain(raised)
-        .chain([ring])
+        .chain([selection, ring])
         .collect();
     Node::Group(Group::new(Point::ORIGIN, children).with(Semantics::Indicator(m.control.key)))
+}
+
+/// Half the selection square's side: its stroke's outer edge is the
+/// indicator's reach, so the square adds nothing to what layout reserves.
+const SELECTION_HALF: f64 = INDICATOR_REACH - FOCUS_RING_STROKE / 2.0;
+/// The square's corner, small enough that it never reads as a ring, which
+/// would be taken for a status (FR-40, FR-73).
+const SELECTION_CORNER: f64 = MARKER_RADIUS / 4.0;
+const _: () = assert!(
+    SELECTION_CORNER < SELECTION_HALF / 2.0,
+    "a selection square's corners stay under a quarter of its side"
+);
+
+/// A marker's selection mark (FR-72, FR-73): a rounded square in the text
+/// colour, shown by the page while the item is selected, under the ring so
+/// a focused, selected marker keeps its ring whole.
+fn selection_node(m: &Marker, centre: Point, r: RadarScale) -> Node {
+    let half = SELECTION_HALF * r.marks;
+    let square = Node::Rect {
+        origin: Point {
+            x: centre.x - half,
+            y: centre.y - half,
+        },
+        width: 2.0 * half,
+        height: 2.0 * half,
+        radius: SELECTION_CORNER * r.marks,
+        fill: Paint::None,
+        stroke: Paint::Role(Role::Neutral(Neutral::TextPrimary)),
+        stroke_width: FOCUS_RING_STROKE * r.marks,
+    };
+    Node::Group(Group::new(Point::ORIGIN, vec![square]).with(Semantics::Selection(m.control.key)))
 }
 
 /// `nodes` as one plain group, or nothing when there are none.
@@ -664,11 +696,48 @@ mod tests {
                         stroke_width: backing_width,
                     },
                     raised @ ..,
+                    Node::Group(selection),
                     Node::Group(marked),
                 ] = group.children.as_slice()
                 else {
-                    panic!("backing, raised marker, ring: {:?}", group.children);
+                    panic!(
+                        "backing, raised marker, selection, ring: {:?}",
+                        group.children
+                    );
                 };
+                // FR-73: selection is a rounded square, not a ring, inside the
+                // indicator's reach, drawn before the ring so it never breaks it.
+                assert_eq!(selection.semantics, Semantics::Selection(control.key));
+                let [
+                    Node::Rect {
+                        origin: square_at,
+                        width: side,
+                        height: side_y,
+                        radius: corner,
+                        fill: Paint::None,
+                        stroke: Paint::Role(Role::Neutral(Neutral::TextPrimary)),
+                        stroke_width: square_width,
+                    },
+                ] = selection.children.as_slice()
+                else {
+                    panic!("the square alone: {:?}", selection.children);
+                };
+                let half = (INDICATOR_REACH - FOCUS_RING_STROKE / 2.0) * marks;
+                assert!(close(*side, 2.0 * half) && close(*side_y, 2.0 * half));
+                assert!(near(
+                    Point {
+                        x: square_at.x + half,
+                        y: square_at.y + half
+                    },
+                    c
+                ));
+                assert!(close(*corner, MARKER_RADIUS / 4.0 * marks));
+                assert!(*corner < *side / 4.0, "never read as a ring");
+                assert!(close(*square_width, FOCUS_RING_STROKE * marks));
+                assert!(
+                    close(half + *square_width / 2.0, INDICATOR_REACH * marks),
+                    "the square's outer edge is the indicator's reach"
+                );
                 // rg-jri: the ring is marked, so the page can show it apart
                 // from the rest of the indicator.
                 assert_eq!(marked.semantics, Semantics::FocusRing(control.key));

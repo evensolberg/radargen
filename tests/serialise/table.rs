@@ -139,7 +139,8 @@ fn unplotted_rows_are_flagged_and_plotted_ones_are_not() {
         .expect("the unplotted row");
     assert_eq!(
         text(cells(old).get(1).copied().expect("name")),
-        format!("Old {NOT_ON_THE_RADAR}")
+        format!("Old, {NOT_ON_THE_RADAR}"),
+        "the name, a comma for the ear, a space, the flag: never run together"
     );
 }
 
@@ -297,5 +298,55 @@ fn the_table_is_closed_under_a_visible_heading() {
     assert!(
         html.contains("<div class=\"table-scroll\" role=\"region\" aria-labelledby=\"table-heading\" tabindex=\"0\">"),
         "a named, focusable scroll region"
+    );
+}
+
+/// 15b: the name cell's control is a native button keyed on the row, its
+/// text exactly 15a's cell text, so the button's name holds the flag.
+#[test]
+fn each_name_cell_holds_one_button() {
+    let b = built();
+    let html = b.page(Some("T"));
+    let table = table_of(&html);
+    let doc = parse(&table);
+    for row in rows(&doc) {
+        let header = row
+            .children()
+            .find(|n| n.has_tag_name("th"))
+            .expect("a row header");
+        let buttons: Vec<Node> = header
+            .children()
+            .filter(|n| n.has_tag_name("button"))
+            .collect();
+        let [button] = buttons.as_slice() else {
+            panic!("one button: {}", text(header));
+        };
+        assert_eq!(button.attribute("type"), Some("button"));
+        assert_eq!(button.attribute("data-row"), row.attribute("data-row"));
+        assert_eq!(
+            text(*button),
+            text(header),
+            "all the cell's text is the button's"
+        );
+    }
+}
+
+/// FR-72 and FR-94 in the table: a selected row's start border survives
+/// forced colours, and the name button keeps a 24px target and its outline.
+#[test]
+fn the_table_marks_selection_and_keeps_its_button_usable() {
+    let html = built().page(Some("T"));
+    let css = super::html::style(&html);
+    for rule in [
+        "tr[data-selected]>:first-child{border-inline-start:3px solid var(--text-primary)}",
+        "th button{all:unset;display:block;padding-block:3px;margin-block:-3px;cursor:pointer;",
+        "tr[data-selected]>*{background:var(--surface-1)}",
+        "th button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}",
+    ] {
+        assert!(css.contains(rule), "{rule}");
+    }
+    assert!(
+        !css.contains("\n.prose{"),
+        "prose is scoped to the table's cells"
     );
 }

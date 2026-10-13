@@ -9,13 +9,15 @@ pub const SVG_ELEMENTS: [&str; 9] = [
 
 /// Every element the page itself writes around the SVG, the table view
 /// (FR-41) included.
-pub const PAGE_ELEMENTS: [&str; 22] = [
+pub const PAGE_ELEMENTS: [&str; 27] = [
     "html", "head", "meta", "title", "style", "body", "main", "h1", "div", "h2", "details",
     "summary", "table", "thead", "tbody", "tr", "th", "td", "a", "span", "button", "script",
+    "section", "dl", "dt", "dd", "p",
 ];
 
 /// Every attribute the page may write on any of its own elements.
-const PAGE_ATTRIBUTES: [&str; 14] = [
+const PAGE_ATTRIBUTES: [&str; 15] = [
+    "aria-label",
     "type",
     "hidden",
     "aria-pressed",
@@ -54,6 +56,7 @@ pub fn page_attribute(element: &str, name: &str, value: &str, all: &[(String, St
     match (element, name) {
         (_, n) if PAGE_ATTRIBUTES.contains(&n) => true,
         ("h2", "id") => value == "table-heading",
+        ("section", "id") => value == "detail",
         ("main", "data-narrow-query") => value.starts_with("(max-width: "),
         ("a", "href") => web && has("target", "_blank") && has("rel", "noopener noreferrer"),
         ("a", "target") => value == "_blank",

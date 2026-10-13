@@ -43,3 +43,5 @@ FR-38 detail panel, FR-72 cross-highlight, FR-49 keyboard and focus return keyed
 [2026-10-12] PR 15a shipped (RG-015A): FR-96 link column in the model (link.rs); Page input; FR-41/FR-78 table view of every row and column (D-80), under an h2 and a details toggle, no script; PRD 0.61. 15b reads the table row for the panel; the name cell gains the button there.
 
 [2026-10-12] PR 15b-1 shipped: script skeleton with names block and bans, rg-jri focus by attribute, theme toggle (FR-56), skip link (FR-98), browser harness (just browser, in just ci). 15b-2 (panel, selection, hover, keyboard) and 15c remain.
+
+[2026-10-12] PR 15b-2 shipped: sticky detail panel built from the table row (D-80), selection on marker, legend row and table row, hover, keyboard activation, Escape and focus return keyed on the item, aria-expanded/aria-controls at start-up. 15c remains: verification and the 1.0.0 release (maintainer to test first).

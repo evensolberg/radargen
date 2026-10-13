@@ -2,7 +2,7 @@
 
 use super::{
     Context, ControlKind, DATA_FOCUS_RING, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR,
-    DATA_ROW, DATA_ROW_INDICATOR, Target, attr, node, point, shows,
+    DATA_ROW, DATA_ROW_INDICATOR, DATA_SELECTION, Target, attr, node, point, shows,
 };
 use crate::escape::xml_text;
 use crate::svg::{Control, Group, Semantics};
@@ -88,12 +88,24 @@ fn semantics(out: &mut String, semantics: &Semantics, context: Context<'_>) {
                 DATA_MARKER_INDICATOR
             };
             attr(out, name, &key.0.to_string());
-            attr(out, "visibility", "hidden");
-            attr(out, "aria-hidden", "true");
-            attr(out, "pointer-events", "none");
+            hidden_mark(out);
         }
         Semantics::FocusRing(key) => attr(out, DATA_FOCUS_RING, &key.0.to_string()),
+        // Hidden in its own right: a legend row's bar sits outside any
+        // indicator.
+        Semantics::Selection(key) => {
+            attr(out, DATA_SELECTION, &key.0.to_string());
+            hidden_mark(out);
+        }
     }
+}
+
+/// What the page shows only in a state: hidden until a rule shows it, never
+/// read by assistive technology, and never in the pointer's way.
+fn hidden_mark(out: &mut String) {
+    attr(out, "visibility", "hidden");
+    attr(out, "aria-hidden", "true");
+    attr(out, "pointer-events", "none");
 }
 
 /// Every attribute a control carries, in one place and a fixed order, so

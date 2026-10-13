@@ -8,8 +8,9 @@
 //   - no two displayed texts overlap, numbers and halos aside;
 //   - every tail starts at or after its name's last character;
 //   - the number of tails per arrangement is <tails>, when given;
-//   - the page never scrolls sideways, and no table cell's text spills
-//     out of its cell (FR-41's table, opened first, D-78);
+//   - the page never scrolls sideways, and no text in a table cell or in
+//     the detail panel spills out of its box (FR-41's table and FR-38's
+//     panel, both opened first, D-78);
 //   - with :scroll, the table's own region does scroll at 320 px, so the
 //     check above is not vacuous for a table that happens to fit;
 //   - the accessibility tree's roles and names do not change.
@@ -84,7 +85,7 @@ const CHECK = `(() => {
   if (document.documentElement.scrollWidth > innerWidth + slack) {
     problems.push('the page scrolls sideways: ' + document.documentElement.scrollWidth + ' > ' + innerWidth);
   }
-  for (const cell of document.querySelectorAll('.table-scroll td, .table-scroll th, summary')) {
+  for (const cell of document.querySelectorAll('.table-scroll td, .table-scroll th, summary, .detail-heading, .detail dt, .detail dd')) {
     // Visually hidden text is laid out unwrapped in a 1px box by design, so
     // only the text a reader sees is measured.
     const box = cell.getBoundingClientRect();
@@ -103,6 +104,10 @@ const CHECK = `(() => {
     if (bottom > box.bottom + slack || right > box.right + slack || left < box.left - slack) {
       problems.push('clipped: ' + cell.textContent.slice(0, 40));
     }
+  }
+  const panel = document.getElementById('detail');
+  if (document.querySelector('tr[data-row] button') && panel?.hidden) {
+    problems.push('the detail panel did not open, so its text went unchecked');
   }
   const scrolls = [...document.querySelectorAll('.table-scroll')]
     .some((r) => r.scrollWidth > r.clientWidth + slack);
@@ -139,6 +144,9 @@ async function main() {
       // Open the table view once, before any accessibility snapshot, so
       // opening it is never reported as the tree changing.
       await evaluate(`document.querySelectorAll('details').forEach((d) => { d.open = true; })`);
+      // And the detail panel, for the table's first row (FR-38), so its
+      // text is checked too.
+      await evaluate(`document.querySelector('tr[data-row] button')?.click()`);
       const query = await evaluate(`(document.querySelector('style').textContent.match(/max-width: (\\d+)px/)||[])[1]`);
       const breakpoint = Number(query) + 1;
       if (!Number.isInteger(breakpoint)) throw new Error(`${file}: no max-width breakpoint in its stylesheet`);

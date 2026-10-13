@@ -159,7 +159,7 @@ fn legend_focus_is_unchanged() {
         "{css}"
     );
     assert!(css.contains(
-        "[data-legend-row]:focus-visible>[data-row-indicator]>rect{stroke:var(--focus);stroke-width:2px}"
+        "[data-legend-row]:focus-visible>[data-row-indicator]>rect{stroke:var(--focus);stroke-width:2px;stroke-dasharray:none}"
     ));
 }
 
@@ -195,4 +195,40 @@ fn forced_colours_map_the_neutrals_to_system_colours() {
         "--marker-hollow:Canvas;--focus:Highlight;}}\n"
     );
     assert!(css.ends_with(forced), "{css}");
+}
+
+/// FR-37, FR-72, FR-73 on the radar and legend: hover, focus and selection
+/// differ in shape. A marker's hover is a dashed muted square and its
+/// selection a solid one; a legend row's hover is a dashed outline, its
+/// focus a solid one, its selection a bar. Legend hover comes before legend
+/// focus, at the same specificity, so focus wins on a row that is both.
+const STATES: [&str; 9] = [
+    "[data-legend-row][data-hovered]>[data-row-indicator]{visibility:visible}\n",
+    "[data-legend-row][data-hovered]>[data-row-indicator]>rect{stroke:var(--text-muted);stroke-width:1px;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}\n",
+    "[data-legend-row][data-selected]>[data-selection]{visibility:visible}\n",
+    "[data-legend-row]:focus-visible>[data-row-indicator]>rect{stroke:var(--focus);stroke-width:2px;stroke-dasharray:none}\n",
+    "[data-marker-indicator][data-hovered],[data-marker-indicator][data-selected]{visibility:visible}\n",
+    "[data-marker-indicator][data-hovered] [data-selection]{visibility:visible}\n",
+    "[data-marker-indicator][data-hovered] [data-selection]>rect{stroke:var(--text-muted);stroke-dasharray:3 2;vector-effect:non-scaling-stroke}\n",
+    "[data-marker-indicator][data-selected] [data-selection]{visibility:visible}\n",
+    "[data-marker-indicator][data-selected] [data-selection]>rect{stroke:var(--text-primary);stroke-dasharray:none}\n",
+];
+
+/// Hit areas and controls look clickable.
+const CURSOR: &str = "[data-hit],[role=button]{cursor:pointer}\n";
+
+#[test]
+fn hover_focus_and_selection_differ() {
+    let css = indicators();
+    let at = |rule: &str| css.find(rule).unwrap_or_else(|| panic!("{rule} in {css}"));
+    for rule in STATES {
+        at(rule);
+    }
+    let [hover, _, _, focus, _, _, hovered_square, _, selected_square] = STATES.map(at);
+    assert!(hover < focus, "legend focus wins over hover");
+    assert!(
+        hovered_square < selected_square,
+        "selection wins over hover"
+    );
+    assert!(css.contains(CURSOR));
 }

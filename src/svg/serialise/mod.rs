@@ -42,6 +42,8 @@ pub const DATA_MARKER_INDICATOR: &str = "data-marker-indicator";
 pub const DATA_ROW_INDICATOR: &str = "data-row-indicator";
 /// A marker's focus ring inside its indicator (rg-jri).
 pub const DATA_FOCUS_RING: &str = "data-focus-ring";
+/// An item's selection mark: a marker's square or a legend row's bar.
+pub const DATA_SELECTION: &str = "data-selection";
 
 /// Who reads the markup, which decides how colours bind and whether
 /// interactive-only nodes are kept (architecture §5).

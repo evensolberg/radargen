@@ -168,4 +168,6 @@ export const KEYS = {
   Enter: { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' },
   Space: { key: ' ', code: 'Space', windowsVirtualKeyCode: 32, text: ' ' },
   Shift: { key: 'Shift', code: 'ShiftLeft', windowsVirtualKeyCode: 16 },
+  ShiftTab: { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 8 },
+  Escape: { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 },
 };

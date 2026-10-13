@@ -7,6 +7,7 @@
 //! [`xml_text`], an `href` with [`html_attr`]. Rule fragments are module
 //! constants, as in `css.rs`.
 
+use super::chrome::DATA_SELECTED;
 use super::css::{OUTLINE_CLOSE, capped};
 use crate::escape::{html_attr, xml_text};
 use crate::model::{Catalogue, ColumnKind, Item, Link, NOT_ON_THE_RADAR};
@@ -24,7 +25,14 @@ const HEADING: &str = "Every item";
 const SUMMARY: &str = "The table";
 
 const OPEN_HEADING: &str = "<h2 class=\"table-heading\" id=\"";
-const OPEN_TOGGLE: &str = "</h2>\n<details class=\"table-view\"><summary>";
+/// The table view's `<details>` (FR-41). The script finds it by this class:
+/// while it is closed, its `summary` takes focus back when the panel closes.
+pub(super) const TABLE_VIEW_CLASS: &str = "table-view";
+/// A prose cell's class: its line breaks show, here and in the panel built
+/// from it (FR-97, D-80).
+pub(super) const PROSE_CLASS: &str = "prose";
+const OPEN_TOGGLE: &str = "</h2>\n<details class=\"";
+const TOGGLE_REST: &str = "\"><summary>";
 const OPEN_REGION: &str =
     "</summary>\n<div class=\"table-scroll\" role=\"region\" aria-labelledby=\"";
 /// Only the region is named by the heading: naming the table too would
@@ -35,8 +43,8 @@ const OPEN_TABLE: &str = "\" tabindex=\"0\">\n<table>\n<thead><tr>";
 const NUMBER_HEADING: &str = "<th scope=\"col\"><span aria-hidden=\"true\">#</span><span class=\"visually-hidden\">Number</span></th>";
 const OPEN_BODY: &str = "</tr></thead>\n<tbody>\n";
 const CLOSE: &str = "</tbody></table></div></details>\n";
-/// A prose cell's class: its line breaks show (FR-97).
-const PROSE: &str = " class=\"prose\"";
+const CLASS_OPEN: &str = " class=\"";
+const CLASS_CLOSE: &str = "\"";
 const NEW_TAB: &str = "<span class=\"visually-hidden\"> (opens in a new tab)</span>";
 
 /// The table view, for `<main>` after both arrangements.
@@ -61,6 +69,8 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted) -> String {
         "\">",
         HEADING,
         OPEN_TOGGLE,
+        TABLE_VIEW_CLASS,
+        TOGGLE_REST,
         SUMMARY,
         OPEN_REGION,
         HEADING_ID,
@@ -139,43 +149,57 @@ fn cell(catalogue: &Catalogue, column: usize, item: &Item, unplotted: bool) -> S
     match kind {
         ColumnKind::Name => name_cell(item, unplotted),
         ColumnKind::Quadrant => td(
-            "",
+            None,
             catalogue
                 .quadrants
                 .get(item.quadrant)
                 .map_or("", |q| q.label.as_str()),
         ),
-        ColumnKind::Ring => td("", catalogue.ring_label(item)),
+        ColumnKind::Ring => td(None, catalogue.ring_label(item)),
         ColumnKind::Link => link_cell(item.link.as_ref()),
         ColumnKind::Description
         | ColumnKind::Domain
         | ColumnKind::Rationale
-        | ColumnKind::Other => td(PROSE, value),
+        | ColumnKind::Other => td(Some(PROSE_CLASS), value),
         ColumnKind::Qualifier
         | ColumnKind::Status
         | ColumnKind::LastAffirmed
-        | ColumnKind::ExitDate => td("", trim(value)),
+        | ColumnKind::ExitDate => td(None, trim(value)),
     }
 }
 
-/// A data cell holding `text`, escaped, with `class` (empty, or [`PROSE`]).
-fn td(class: &str, text: &str) -> String {
-    ["<td", class, ">", &xml_text(text), "</td>"].concat()
+/// A data cell holding `text`, escaped, with `class` when given.
+fn td(class: Option<&str>, text: &str) -> String {
+    let class = class.map_or_else(String::new, |c| [CLASS_OPEN, c, CLASS_CLOSE].concat());
+    ["<td", &class, ">", &xml_text(text), "</td>"].concat()
 }
 
-/// The row header: the name, and for an unplotted row FR-41's flag after a
-/// space, so the text reads "Old not on the radar" and never runs together.
+/// The row header: a native button keyed on the row, holding the name and,
+/// for an unplotted row, FR-41's flag after a space, so the text and the
+/// button's name read "Old not on the radar" and never run together (D-66,
+/// WCAG 2.5.3). The script adds its `aria-expanded` and `aria-controls`, so
+/// without it the button claims no state.
 fn name_cell(item: &Item, unplotted: bool) -> String {
     let flag = if unplotted {
-        [" <span class=\"flag\">", NOT_ON_THE_RADAR, "</span>"].concat()
+        // A comma for the ear only, so the name and the flag are heard apart.
+        [
+            "<span class=\"visually-hidden\">,</span> <span class=\"flag\">",
+            NOT_ON_THE_RADAR,
+            "</span>",
+        ]
+        .concat()
     } else {
         String::new()
     };
     [
-        "<th scope=\"row\">",
+        "<th scope=\"row\"><button type=\"button\" ",
+        DATA_ROW,
+        "=\"",
+        &item.line.to_string(),
+        "\">",
         &xml_text(trim(&item.name)),
         &flag,
-        "</th>",
+        "</button></th>",
     ]
     .concat()
 }
@@ -212,12 +236,23 @@ const CELL_OPEN: &str =
     ")}\nth,td{text-align:start;vertical-align:top;padding:.4em .6em;border-bottom:1px solid var(";
 const HEAD_OPEN: &str =
     ")}\nth{font-weight:600}\nthead th{font-size:.75rem;border-bottom-width:2px;color:var(";
-const NUMBER_RULE: &str = ")}\n.number{text-align:end;font-variant-numeric:tabular-nums}\n.prose{white-space:pre-line;min-width:16em}\n.link{overflow-wrap:anywhere;min-width:12em}\n";
+const NUMBER_RULE: &str = ")}\n.number{text-align:end;font-variant-numeric:tabular-nums}\ntd.prose{white-space:pre-line;min-width:16em}\ntd.link{overflow-wrap:anywhere;min-width:12em}\n";
 const FLAG_OPEN: &str = ".flag{display:inline-block;padding:0 .45em;border:1px solid currentColor;border-radius:1em;font-size:.8em;font-weight:600;white-space:nowrap;color:var(";
 const BOUNDARY_OPEN: &str = ")}\ntr:not(.unplotted)+tr.unplotted>*{border-top:2px solid var(";
 const LINK_OPEN: &str = ")}\na,a:visited{text-decoration:underline;color:var(";
-const FOCUS_OPEN: &str =
-    ")}\nsummary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px solid var(";
+/// A selected row's mark: a start border, which forced colours keep where
+/// they drop backgrounds and shadows (FR-72).
+const SELECTED_OPEN: &str = ")}\ntr[";
+const SELECTED_REST: &str = "]>:first-child{border-inline-start:3px solid var(";
+const SELECTED_TINT: &str = ")}\ntr[";
+const TINT_REST: &str = "]>*{background:var(";
+/// The name cell's button looks like the 15a text it holds, with a dotted
+/// underline that says it does something, solid on hover and unlike a
+/// link's. Padding keeps a 24px target (FR-94) on the cell's baseline, which
+/// a minimum height, centring the text, would not. The focus rule below is more
+/// specific, so the reset never removes the outline.
+const BUTTON_RESET: &str = ")}\nth button{all:unset;display:block;padding-block:3px;margin-block:-3px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:.2em}\nth button:hover{text-decoration-style:solid}\n";
+const FOCUS_OPEN: &str = "summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focus-visible{outline:2px solid var(";
 
 /// The table view's rules, capped at the wide document's width and inset by
 /// its margin, so the table's edge lines up with the radar's content.
@@ -246,6 +281,15 @@ pub(super) fn css(wide_width: f64) -> String {
         Neutral::StrokeDivider.as_str(),
         LINK_OPEN,
         Neutral::TextPrimary.as_str(),
+        SELECTED_OPEN,
+        DATA_SELECTED,
+        SELECTED_REST,
+        Neutral::TextPrimary.as_str(),
+        SELECTED_TINT,
+        DATA_SELECTED,
+        TINT_REST,
+        Neutral::Surface1.as_str(),
+        BUTTON_RESET,
         FOCUS_OPEN,
         Neutral::Focus.as_str(),
         OUTLINE_CLOSE,

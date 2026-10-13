@@ -448,9 +448,13 @@ knows there are two of anything:
   use; if something one day cannot be, the HTML emitter namespaces it per
   arrangement and `Document` still does not. **The one exception is page
   chrome written once, outside both arrangements:** the table view's heading,
-  which names the table and its scroll region (PR 15a), and the single detail
-  panel controls point at (PR 15b). Neither is in a `Document`, so neither can
-  be duplicated.
+  which names the table and its scroll region (`table-heading`, PR 15a), and
+  the single detail panel every control's `aria-controls` names (`detail`,
+  PR 15b). Neither is in a `Document`, so neither can be duplicated. The
+  script adds `aria-expanded` and `aria-controls` to every control at
+  start-up, so without it nothing claims a panel; the table's name buttons
+  are then native buttons that do nothing, which is accepted as the markers'
+  `role=button` is.
 - **Identity travels as `data-row`, carrying the CSV line — not FR-34's number.**
   One key space rather than two: the number is contiguous over plotted items
   only (FR-18), so it cannot name the unplotted rows FR-78 puts in the table, and
@@ -483,9 +487,13 @@ centring group, in this order:
    status ring, disc and number;
 4. the **indicator layer**, a `Semantics::None` group of one
    `Semantics::Indicator(key)` group per plotted item: a Surface1 backing disc, a
-   copy of the marker, then the focus ring. After every marker, so a focused
+   copy of the marker, the selection square (`Semantics::Selection`, FR-73), then
+   the focus ring (`Semantics::FocusRing`). After every marker, so a focused
    marker is never covered, and on its own Surface1 backing so SC-20 measures the
-   ring against Surface1 whatever it crosses.
+   ring against Surface1 whatever it crosses. The square's outer edge is the
+   indicator's reach, so it costs no layout; drawn before the ring, it never
+   breaks it. A legend row carries its own selection mark, a start bar inside
+   its indicator's edge.
 
 A radar with no markers emits neither the hit nor the indicator layer. Unplotted
 rows (FR-17) have no key in any of them.
@@ -705,7 +713,7 @@ is on plan, not short.
 | Oracle | Our measurement against the thing that rasterises it; and §11's outlining against the `<text>` it replaces | `tests/agrees_with_resvg.rs`, `tests/rasterises_within_measurement.rs`, `tests/outlines_match_text.rs` |
 | Golden | CSV in → exact bytes out, per format and per ring set | `tests/golden/` |
 | Determinism | Two **separate process invocations**, byte-compared | `tests/determinism.rs` |
-| Behaviour | Keyboard operability, focus, panel open/close | `tests/a11y.rs`, headless browser |
+| Behaviour | Keyboard operability, focus, panel open/close, selection, hover, breakpoint changes | `scripts/interaction.mjs` in headless Chromium, run by `just browser` in `just ci` |
 
 The **oracle** level is not a nicety and is why it is named rather than folded
 into "unit". SC-7 asserts that the wrap points baked into the HTML are the ones

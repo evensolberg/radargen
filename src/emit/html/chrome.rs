@@ -6,9 +6,10 @@
 //! `svg::serialise`, and a test holds the script's names block to them.
 //! Rule fragments are module constants, as in `css.rs`.
 
-use super::css::{HIDDEN_BOX, OUTLINE_CLOSE, capped};
+use super::css::{HIDDEN_BOX, OUTLINE_CLOSE, capped, narrow_query};
 use crate::escape::html_attr;
 use crate::palette::Neutral;
+use crate::style::breakpoint_px;
 
 /// The interactive layer, inlined (NFR-5).
 pub(super) const SCRIPT: &str = include_str!("script.js");
@@ -23,6 +24,12 @@ pub(super) const DATA_THEME: &str = "data-theme";
 pub(super) const ARIA_PRESSED: &str = "aria-pressed";
 /// Set on a marker's indicator while the marker has visible focus (rg-jri).
 pub(super) const DATA_FOCUSED: &str = "data-focused";
+/// Set by the script on an item's elements while the pointer is over one
+/// of them (FR-37).
+pub(super) const DATA_HOVERED: &str = "data-hovered";
+/// Set by the script on an item's elements while its panel is open
+/// (FR-72).
+pub(super) const DATA_SELECTED: &str = "data-selected";
 /// The class the script puts on `<html>` once it runs: rules that need the
 /// script to stand in for the browser apply only under it.
 pub(super) const JS_CLASS: &str = "js";
@@ -57,6 +64,45 @@ pub(super) fn controls() -> String {
     .concat()
 }
 
+/// The panel's `id`, the one every control's `aria-controls` names; written
+/// once, outside both arrangements (architecture §5).
+pub(super) const PANEL_ID: &str = "detail";
+pub(super) const HEADING_CLASS: &str = "detail-heading";
+pub(super) const CLOSE_CLASS: &str = "detail-close";
+pub(super) const EMPTY_CLASS: &str = "detail-empty";
+/// A control's expanded state and the panel it opens (D-66). Only the
+/// script writes them, so no static markup claims a panel; they are named
+/// here for the test that holds the script's names block.
+#[cfg(test)]
+pub(super) const ARIA_EXPANDED: &str = "aria-expanded";
+#[cfg(test)]
+pub(super) const ARIA_CONTROLS: &str = "aria-controls";
+
+const SECTION_OPEN: &str = "<section id=\"";
+const PANEL_HEAD: &str = "\" class=\"detail\" aria-label=\"Item details\" hidden=\"\"><div class=\"detail-head\"><h2 class=\"";
+const PANEL_CLOSE_OPEN: &str = "\" tabindex=\"-1\"></h2><button type=\"button\" class=\"";
+/// The term and value the script clones for each field, and the empty
+/// state, so the script writes no markup of its own (NFR-6).
+const PANEL_BODY: &str = "\">Close</button></div><dl><dt></dt><dd></dd></dl><p class=\"";
+const PANEL_END: &str = "\" hidden=\"\">No further details.</p></section>\n";
+
+/// FR-38's panel, hidden and empty until the script fills it from the
+/// item's table row (D-80).
+pub(super) fn panel() -> String {
+    [
+        SECTION_OPEN,
+        PANEL_ID,
+        PANEL_HEAD,
+        HEADING_CLASS,
+        PANEL_CLOSE_OPEN,
+        CLOSE_CLASS,
+        PANEL_BODY,
+        EMPTY_CLASS,
+        PANEL_END,
+    ]
+    .concat()
+}
+
 /// The script element, last in `<body>`.
 pub(super) fn script() -> String {
     ["<script>\n", SCRIPT, "</script>\n"].concat()
@@ -64,7 +110,7 @@ pub(super) fn script() -> String {
 
 const HIDDEN_RULE: &str = "[hidden]{display:none!important}\n";
 const BAR_OPEN: &str = ".page-controls{display:flex;";
-const BUTTON_OPEN: &str = ".page-controls button{margin-block:.5em;font:inherit;padding:.4em .8em;border-radius:6px;cursor:pointer;border:1px solid var(";
+const BUTTON_OPEN: &str = ".page-controls button,.detail-close{margin-block:.5em;font:inherit;padding:.4em .8em;border-radius:6px;cursor:pointer;border:1px solid var(";
 const BUTTON_GROUND: &str = ");background:var(";
 const BUTTON_INK: &str = ");color:var(";
 const BUTTON_CLOSE: &str = ")}\n";
@@ -76,7 +122,22 @@ const SKIP_RULE: &str =
 /// pressed. Forced colours drop backgrounds, so there the dot keeps the
 /// button's system ink (WCAG 1.4.1).
 const DOT_RULE: &str = ".theme-toggle::before{content:\"\";display:inline-block;width:.75em;height:.75em;border:1.5px solid currentColor;border-radius:50%;margin-inline-end:.4em;vertical-align:-.05em}\n.theme-toggle[aria-pressed=true]::before{background:currentColor}\n@media (forced-colors: active){.theme-toggle[aria-pressed=true]::before{forced-color-adjust:none;background:ButtonText}}\n";
-const FOCUS_OPEN: &str = ".page-controls button:focus-visible{outline:2px solid var(";
+const FOCUS_OPEN: &str = ".page-controls button:focus-visible,.detail-close:focus-visible,.detail-heading:focus-visible{outline:2px solid var(";
+/// FR-38's panel, sticky at the viewport's bottom while open so the radar
+/// stays in view, and scrolling inside itself past 45% of the screen.
+const PANEL_CAP: &str = ".detail{";
+const PANEL_OPEN: &str = ".detail{position:sticky;bottom:.75rem;max-height:min(45vh,28em);overflow:auto;margin-block:1em;padding-block:1em;border-radius:8px;box-shadow:0 2px 12px rgb(0 0 0 / .14);background:var(";
+const PANEL_EDGE: &str = ");border:1px solid var(";
+const PANEL_REST: &str = ")}\n.detail-head{display:flex;justify-content:space-between;align-items:center;gap:1em}\n.detail-heading{margin:0;font-size:1.0625rem;font-weight:600}\n.detail dl{margin:.5em 0 0}\n.detail dd{margin:0 0 .6em;overflow-wrap:anywhere}\n.detail dd.prose{white-space:pre-line;max-width:70ch}\n.detail dt{font-size:.75rem;font-weight:600;color:var(";
+const PANEL_EMPTY: &str = ")}\n.detail-empty{color:var(";
+const PANEL_CLOSE: &str = ")}\n";
+/// Below the breakpoint the panel is a bottom sheet, edge to edge.
+const SHEET_OPEN: &str = "@media ";
+const SHEET_RULE: &str =
+    "{.detail{bottom:0;margin-block-end:0;border-inline:0;border-radius:8px 8px 0 0}}\n";
+/// Where there is room, terms and values sit side by side.
+const GRID_OPEN: &str = "@media (min-width: ";
+const GRID_RULE: &str = "px){.detail dl{display:grid;grid-template-columns:max-content 1fr;column-gap:1.5em;align-items:baseline}.detail dt{grid-column:1}.detail dd{grid-column:2}}\n";
 
 /// The controls' rules, capped and inset like the table view.
 pub(super) fn css(wide_width: f64) -> String {
@@ -96,6 +157,22 @@ pub(super) fn css(wide_width: f64) -> String {
         FOCUS_OPEN,
         Neutral::Focus.as_str(),
         OUTLINE_CLOSE,
+        &capped(PANEL_CAP, wide_width),
+        PANEL_OPEN,
+        Neutral::Surface2.as_str(),
+        PANEL_EDGE,
+        Neutral::StrokeDivider.as_str(),
+        PANEL_REST,
+        Neutral::TextMuted.as_str(),
+        PANEL_EMPTY,
+        Neutral::TextMuted.as_str(),
+        PANEL_CLOSE,
+        SHEET_OPEN,
+        &narrow_query(wide_width),
+        SHEET_RULE,
+        GRID_OPEN,
+        &breakpoint_px(wide_width).to_string(),
+        GRID_RULE,
     ]
     .concat()
 }

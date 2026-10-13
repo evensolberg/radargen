@@ -65,9 +65,9 @@ fn the_page_is_minimal_and_valid() {
     let around = outside(&html);
     assert!(
         around.contains(&format!(
-            "{WIDE_OPEN}\n</div>\n{NARROW_OPEN}\n</div>\n<h2 class=\"table-heading\""
+            "{WIDE_OPEN}\n</div>\n{NARROW_OPEN}\n</div>\n<section id=\"detail\""
         )),
-        "the table view follows both arrangements: {around}"
+        "the panel, then the table view, follow both arrangements: {around}"
     );
     assert!(
         around.contains("</head>\n<body>\n<main data-narrow-query="),

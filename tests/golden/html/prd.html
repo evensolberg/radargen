@@ -18,13 +18,22 @@ svg{display:block;width:100%;height:auto}
 .narrow{max-width:420px;margin:0 auto}
 .narrow{display:none}
 @media (max-width: 819px){.wide{display:none}.narrow{display:block}}
+[data-legend-row][data-hovered]>[data-row-indicator]{visibility:visible}
+[data-legend-row][data-hovered]>[data-row-indicator]>rect{stroke:var(--text-muted);stroke-width:1px;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
+[data-legend-row][data-selected]>[data-selection]{visibility:visible}
 [data-legend-row]:focus-visible{outline:2px solid transparent}
 [data-legend-row]:focus-visible>[data-row-indicator]{visibility:visible}
-[data-legend-row]:focus-visible>[data-row-indicator]>rect{stroke:var(--focus);stroke-width:2px}
+[data-legend-row]:focus-visible>[data-row-indicator]>rect{stroke:var(--focus);stroke-width:2px;stroke-dasharray:none}
 .js [data-marker]:focus-visible{outline:2px solid transparent}
 [data-focus-ring]{visibility:hidden}
 [data-marker-indicator][data-focused]{visibility:visible}
 [data-marker-indicator][data-focused] [data-focus-ring]{visibility:visible}
+[data-marker-indicator][data-hovered],[data-marker-indicator][data-selected]{visibility:visible}
+[data-marker-indicator][data-hovered] [data-selection]{visibility:visible}
+[data-marker-indicator][data-hovered] [data-selection]>rect{stroke:var(--text-muted);stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
+[data-marker-indicator][data-selected] [data-selection]{visibility:visible}
+[data-marker-indicator][data-selected] [data-selection]>rect{stroke:var(--text-primary);stroke-dasharray:none}
+[data-hit],[role=button]{cursor:pointer}
 .visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
 .table-heading,.table-view{max-width:1025.077px;margin-inline:auto;padding-inline:20px;box-sizing:border-box}
 .table-heading{margin-block:1.5em .25em;font-size:1rem;font-weight:600}
@@ -36,22 +45,37 @@ th,td{text-align:start;vertical-align:top;padding:.4em .6em;border-bottom:1px so
 th{font-weight:600}
 thead th{font-size:.75rem;border-bottom-width:2px;color:var(--text-muted)}
 .number{text-align:end;font-variant-numeric:tabular-nums}
-.prose{white-space:pre-line;min-width:16em}
-.link{overflow-wrap:anywhere;min-width:12em}
+td.prose{white-space:pre-line;min-width:16em}
+td.link{overflow-wrap:anywhere;min-width:12em}
 .flag{display:inline-block;padding:0 .45em;border:1px solid currentColor;border-radius:1em;font-size:.8em;font-weight:600;white-space:nowrap;color:var(--text-muted)}
 tr:not(.unplotted)+tr.unplotted>*{border-top:2px solid var(--stroke-divider)}
 a,a:visited{text-decoration:underline;color:var(--text-primary)}
-summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+tr[data-selected]>:first-child{border-inline-start:3px solid var(--text-primary)}
+tr[data-selected]>*{background:var(--surface-1)}
+th button{all:unset;display:block;padding-block:3px;margin-block:-3px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:.2em}
+th button:hover{text-decoration-style:solid}
+summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 [hidden]{display:none!important}
 .page-controls{display:flex;max-width:1025.077px;margin-inline:auto;padding-inline:20px;box-sizing:border-box}
-.page-controls button{margin-block:.5em;font:inherit;padding:.4em .8em;border-radius:6px;cursor:pointer;border:1px solid var(--stroke-divider);background:var(--surface-2);color:var(--text-primary)}
+.page-controls button,.detail-close{margin-block:.5em;font:inherit;padding:.4em .8em;border-radius:6px;cursor:pointer;border:1px solid var(--stroke-divider);background:var(--surface-2);color:var(--text-primary)}
 .skip{margin-inline-end:auto}
 .theme-toggle{margin-inline-start:auto}
 .skip:not(:focus){position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
 .theme-toggle::before{content:"";display:inline-block;width:.75em;height:.75em;border:1.5px solid currentColor;border-radius:50%;margin-inline-end:.4em;vertical-align:-.05em}
 .theme-toggle[aria-pressed=true]::before{background:currentColor}
 @media (forced-colors: active){.theme-toggle[aria-pressed=true]::before{forced-color-adjust:none;background:ButtonText}}
-.page-controls button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.page-controls button:focus-visible,.detail-close:focus-visible,.detail-heading:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.detail{max-width:1025.077px;margin-inline:auto;padding-inline:20px;box-sizing:border-box}
+.detail{position:sticky;bottom:.75rem;max-height:min(45vh,28em);overflow:auto;margin-block:1em;padding-block:1em;border-radius:8px;box-shadow:0 2px 12px rgb(0 0 0 / .14);background:var(--surface-2);border:1px solid var(--stroke-divider)}
+.detail-head{display:flex;justify-content:space-between;align-items:center;gap:1em}
+.detail-heading{margin:0;font-size:1.0625rem;font-weight:600}
+.detail dl{margin:.5em 0 0}
+.detail dd{margin:0 0 .6em;overflow-wrap:anywhere}
+.detail dd.prose{white-space:pre-line;max-width:70ch}
+.detail dt{font-size:.75rem;font-weight:600;color:var(--text-muted)}
+.detail-empty{color:var(--text-muted)}
+@media (max-width: 819px){.detail{bottom:0;margin-block-end:0;border-inline:0;border-radius:8px 8px 0 0}}
+@media (min-width: 820px){.detail dl{display:grid;grid-template-columns:max-content 1fr;column-gap:1.5em;align-items:baseline}.detail dt{grid-column:1}.detail dd{grid-column:2}}
 </style>
 </head>
 <body>
@@ -130,6 +154,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <circle cx="77.682" cy="-44.85" r="19" fill="var(--surface-1)" stroke="none"/>
 <circle cx="77.682" cy="-44.85" r="10" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
 <text x="77.682" y="-41.576" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">1</text>
+<g data-selection="6" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="59.682" y="-62.85" width="36" height="36" rx="2.5" fill="none" stroke="var(--text-primary)" stroke-width="2"/>
+</g>
 <g data-focus-ring="6">
 <circle cx="77.682" cy="-44.85" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
 </g>
@@ -138,6 +165,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <circle cx="0" cy="89.7" r="19" fill="var(--surface-1)" stroke="none"/>
 <circle cx="0" cy="89.7" r="10" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 <text x="0" y="92.974" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">2</text>
+<g data-selection="7" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-18" y="71.7" width="36" height="36" rx="2.5" fill="none" stroke="var(--text-primary)" stroke-width="2"/>
+</g>
 <g data-focus-ring="7">
 <circle cx="0" cy="89.7" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
 </g>
@@ -147,6 +177,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <path d="M -126.974 -89.474 A 14 14 0 0 1 -140.974 -65.226" fill="none" stroke="var(--series-3)" stroke-width="2"/>
 <circle cx="-133.974" cy="-77.35" r="10" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2"/>
 <text x="-133.974" y="-74.076" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">3</text>
+<g data-selection="4" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-151.974" y="-95.35" width="36" height="36" rx="2.5" fill="none" stroke="var(--text-primary)" stroke-width="2"/>
+</g>
 <g data-focus-ring="4">
 <circle cx="-133.974" cy="-77.35" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
 </g>
@@ -156,6 +189,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <circle cx="-87.33" cy="-20.483" r="14" fill="none" stroke="var(--series-3)" stroke-width="2"/>
 <circle cx="-87.33" cy="-20.483" r="10" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="3"/>
 <text x="-87.33" y="-17.209" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="var(--text-primary)">4</text>
+<g data-selection="3" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-105.33" y="-38.483" width="36" height="36" rx="2.5" fill="none" stroke="var(--text-primary)" stroke-width="2"/>
+</g>
 <g data-focus-ring="3">
 <circle cx="-87.33" cy="-20.483" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
 </g>
@@ -164,6 +200,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <circle cx="-74.753" cy="-79.603" r="19" fill="var(--surface-1)" stroke="none"/>
 <circle cx="-74.753" cy="-79.603" r="10" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2"/>
 <text x="-74.753" y="-76.329" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">5</text>
+<g data-selection="2" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-92.753" y="-97.603" width="36" height="36" rx="2.5" fill="none" stroke="var(--text-primary)" stroke-width="2"/>
+</g>
 <g data-focus-ring="2">
 <circle cx="-74.753" cy="-79.603" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
 </g>
@@ -172,6 +211,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <circle cx="-21.391" cy="-12.35" r="19" fill="var(--surface-1)" stroke="none"/>
 <circle cx="-21.391" cy="-12.35" r="10" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2"/>
 <text x="-21.391" y="-9.076" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">6</text>
+<g data-selection="5" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-39.391" y="-30.35" width="36" height="36" rx="2.5" fill="none" stroke="var(--text-primary)" stroke-width="2"/>
+</g>
 <g data-focus-ring="5">
 <circle cx="-21.391" cy="-12.35" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
 </g>
@@ -230,6 +272,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <g data-row-indicator="6" visibility="hidden" aria-hidden="true" pointer-events="none">
 <rect x="39" y="59" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
+<g data-selection="6" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="64" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
 <circle cx="52" cy="76" r="8" fill="var(--series-1)" stroke="var(--series-1)" stroke-width="1.5"/>
 <text x="52" y="79.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">1</text>
 <text x="68" y="76.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Kubernetes<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Default</tspan></text>
@@ -247,6 +292,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <rect x="38" y="136" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
 <g data-row-indicator="7" visibility="hidden" aria-hidden="true" pointer-events="none">
 <rect x="39" y="137" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="7" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="142" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="154" r="8" fill="var(--series-2)" stroke="var(--series-2)" stroke-width="1.5"/>
 <text x="52" y="157.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">2</text>
@@ -266,6 +314,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <g data-row-indicator="4" visibility="hidden" aria-hidden="true" pointer-events="none">
 <rect x="39" y="215" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
+<g data-selection="4" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="220" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
 <circle cx="52" cy="232" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
 <text x="52" y="235.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">3</text>
 <text x="68" y="232.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Ansible<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Moved In</tspan></text>
@@ -278,6 +329,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <g data-row-indicator="3" visibility="hidden" aria-hidden="true" pointer-events="none">
 <rect x="39" y="267" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
+<g data-selection="3" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="272" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
 <circle cx="52" cy="284" r="8" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="2"/>
 <text x="52" y="287.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="var(--text-primary)" pointer-events="none">4</text>
 <text x="68" y="284.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Pulumi<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Conditional · New</tspan></text>
@@ -286,6 +340,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <rect x="38" y="302" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
 <g data-row-indicator="2" visibility="hidden" aria-hidden="true" pointer-events="none">
 <rect x="39" y="303" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="2" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="308" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="320" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
 <text x="52" y="323.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">5</text>
@@ -298,6 +355,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <rect x="38" y="354" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
 <g data-row-indicator="5" visibility="hidden" aria-hidden="true" pointer-events="none">
 <rect x="39" y="355" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="5" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="360" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="372" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
 <text x="52" y="375.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">6</text>
@@ -381,6 +441,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <circle cx="40.092" cy="-23.147" r="14.778" fill="var(--surface-1)" stroke="none"/>
 <circle cx="40.092" cy="-23.147" r="7.778" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="1.556"/>
 <text x="40.092" y="-20.601" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF">1</text>
+<g data-selection="6" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="26.092" y="-37.147" width="28" height="28" rx="1.944" fill="none" stroke="var(--text-primary)" stroke-width="1.556"/>
+</g>
 <g data-focus-ring="6">
 <circle cx="40.092" cy="-23.147" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
 </g>
@@ -389,6 +452,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <circle cx="0" cy="46.295" r="14.778" fill="var(--surface-1)" stroke="none"/>
 <circle cx="0" cy="46.295" r="7.778" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="1.556"/>
 <text x="0" y="48.841" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF">2</text>
+<g data-selection="7" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-14" y="32.295" width="28" height="28" rx="1.944" fill="none" stroke="var(--text-primary)" stroke-width="1.556"/>
+</g>
 <g data-focus-ring="7">
 <circle cx="0" cy="46.295" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
 </g>
@@ -398,6 +464,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <path d="M -63.7 -49.351 A 10.889 10.889 0 0 1 -74.589 -30.491" fill="none" stroke="var(--series-3)" stroke-width="1.556"/>
 <circle cx="-69.145" cy="-39.921" r="7.778" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="1.556"/>
 <text x="-69.145" y="-37.374" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF">3</text>
+<g data-selection="4" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-83.145" y="-53.921" width="28" height="28" rx="1.944" fill="none" stroke="var(--text-primary)" stroke-width="1.556"/>
+</g>
 <g data-focus-ring="4">
 <circle cx="-69.145" cy="-39.921" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
 </g>
@@ -407,6 +476,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <circle cx="-45.071" cy="-10.571" r="10.889" fill="none" stroke="var(--series-3)" stroke-width="1.556"/>
 <circle cx="-45.071" cy="-10.571" r="7.778" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="2.333"/>
 <text x="-45.071" y="-8.025" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="var(--text-primary)">4</text>
+<g data-selection="3" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-59.071" y="-24.571" width="28" height="28" rx="1.944" fill="none" stroke="var(--text-primary)" stroke-width="1.556"/>
+</g>
 <g data-focus-ring="3">
 <circle cx="-45.071" cy="-10.571" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
 </g>
@@ -415,6 +487,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <circle cx="-38.58" cy="-41.084" r="14.778" fill="var(--surface-1)" stroke="none"/>
 <circle cx="-38.58" cy="-41.084" r="7.778" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="1.556"/>
 <text x="-38.58" y="-38.537" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF">5</text>
+<g data-selection="2" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-52.58" y="-55.084" width="28" height="28" rx="1.944" fill="none" stroke="var(--text-primary)" stroke-width="1.556"/>
+</g>
 <g data-focus-ring="2">
 <circle cx="-38.58" cy="-41.084" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
 </g>
@@ -423,6 +498,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <circle cx="-11.04" cy="-6.374" r="14.778" fill="var(--surface-1)" stroke="none"/>
 <circle cx="-11.04" cy="-6.374" r="7.778" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="1.556"/>
 <text x="-11.04" y="-3.828" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF">6</text>
+<g data-selection="5" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-25.04" y="-20.374" width="28" height="28" rx="1.944" fill="none" stroke="var(--text-primary)" stroke-width="1.556"/>
+</g>
 <g data-focus-ring="5">
 <circle cx="-11.04" cy="-6.374" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
 </g>
@@ -481,6 +559,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <g data-row-indicator="6" visibility="hidden" aria-hidden="true" pointer-events="none">
 <rect x="39" y="59" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
+<g data-selection="6" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="64" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
 <circle cx="52" cy="76" r="8" fill="var(--series-1)" stroke="var(--series-1)" stroke-width="1.5"/>
 <text x="52" y="79.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">1</text>
 <text x="68" y="76.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Kubernetes<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Default</tspan></text>
@@ -498,6 +579,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <rect x="38" y="136" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
 <g data-row-indicator="7" visibility="hidden" aria-hidden="true" pointer-events="none">
 <rect x="39" y="137" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="7" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="142" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="154" r="8" fill="var(--series-2)" stroke="var(--series-2)" stroke-width="1.5"/>
 <text x="52" y="157.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">2</text>
@@ -517,6 +601,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <g data-row-indicator="4" visibility="hidden" aria-hidden="true" pointer-events="none">
 <rect x="39" y="215" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
+<g data-selection="4" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="220" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
 <circle cx="52" cy="232" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
 <text x="52" y="235.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">3</text>
 <text x="68" y="232.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Ansible<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Moved In</tspan></text>
@@ -529,6 +616,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <g data-row-indicator="3" visibility="hidden" aria-hidden="true" pointer-events="none">
 <rect x="39" y="267" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
+<g data-selection="3" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="272" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
 <circle cx="52" cy="284" r="8" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="2"/>
 <text x="52" y="287.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="var(--text-primary)" pointer-events="none">4</text>
 <text x="68" y="284.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Pulumi<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Conditional · New</tspan></text>
@@ -537,6 +627,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <rect x="38" y="302" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
 <g data-row-indicator="2" visibility="hidden" aria-hidden="true" pointer-events="none">
 <rect x="39" y="303" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="2" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="308" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
 </g>
 <circle cx="52" cy="320" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
 <text x="52" y="323.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">5</text>
@@ -550,6 +643,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 <g data-row-indicator="5" visibility="hidden" aria-hidden="true" pointer-events="none">
 <rect x="39" y="355" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
 </g>
+<g data-selection="5" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="360" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
 <circle cx="52" cy="372" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
 <text x="52" y="375.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">6</text>
 <text x="68" y="372.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Chef</text>
@@ -559,39 +655,53 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 </g>
 </svg>
 </div>
+<section id="detail" class="detail" aria-label="Item details" hidden=""><div class="detail-head"><h2 class="detail-heading" tabindex="-1"></h2><button type="button" class="detail-close">Close</button></div><dl><dt></dt><dd></dd></dl><p class="detail-empty" hidden="">No further details.</p></section>
 <h2 class="table-heading" id="table-heading">Every item</h2>
 <details class="table-view"><summary>The table</summary>
 <div class="table-scroll" role="region" aria-labelledby="table-heading" tabindex="0">
 <table>
 <thead><tr><th scope="col"><span aria-hidden="true">#</span><span class="visually-hidden">Number</span></th><th scope="col">name</th><th scope="col">quadrant</th><th scope="col">ring</th><th scope="col">description</th><th scope="col">qualifier</th><th scope="col">domain</th><th scope="col">rationale</th><th scope="col">last_affirmed</th><th scope="col">exit_date</th><th scope="col">status</th></tr></thead>
 <tbody>
-<tr data-row="6"><td class="number">1</td><th scope="row">Kubernetes</th><td>Platform</td><td>Adopt</td><td class="prose">Container orchestration platform for deploying, scaling, and managing containerised workloads.</td><td>default</td><td class="prose">Container Orchestration</td><td class="prose">Default for all new containerised workloads.</td><td>2026-06-01</td><td></td><td></td></tr>
-<tr data-row="7"><td class="number">2</td><th scope="row">Trunk-Based Development</th><td>Practice</td><td>Adopt</td><td class="prose">Developers integrate small, frequent changes into a shared trunk.</td><td>default</td><td class="prose">Delivery Practice</td><td class="prose">Default branching model for managed delivery teams.</td><td>2026-06-01</td><td></td><td></td></tr>
-<tr data-row="4"><td class="number">3</td><th scope="row">Ansible</th><td>Tool</td><td>Trial</td><td class="prose">Agentless configuration management and orchestration over SSH.</td><td></td><td class="prose">Configuration Management</td><td class="prose">Bounded trial on one managed estate; was Assess last edition.</td><td>2026-05-12</td><td></td><td>Moved In</td></tr>
-<tr data-row="3"><td class="number">4</td><th scope="row">Pulumi</th><td>Tool</td><td>Adopt</td><td class="prose">Infrastructure-as-code authored in a general-purpose language instead of a domain-specific syntax.</td><td>conditional</td><td class="prose">Infrastructure as Code</td><td class="prose">Acceptable where a client mandates a general-purpose language over HCL.</td><td>2026-06-01</td><td></td><td>New</td></tr>
-<tr data-row="2"><td class="number">5</td><th scope="row">Terraform</th><td>Tool</td><td>Adopt</td><td class="prose">Declarative infrastructure-as-code tool for provisioning cloud and on-prem resources.</td><td>default</td><td class="prose">Infrastructure as Code</td><td class="prose">Default IaC tool across all managed environments.</td><td>2026-06-01</td><td></td><td>No Change</td></tr>
-<tr data-row="5"><td class="number">6</td><th scope="row">Chef</th><td>Tool</td><td>Retire</td><td class="prose">Agent-based configuration management using a Ruby DSL.</td><td></td><td class="prose">Configuration Management</td><td class="prose">Superseded by the Ansible trial outcome; migration owned and scheduled.</td><td>2026-03-15</td><td>2027-01-31</td><td></td></tr>
-<tr data-row="8" class="unplotted"><td class="number"></td><th scope="row">Legacy Ticketing-Driven Change <span class="flag">not on the radar</span></th><td>Practice</td><td>Rejected</td><td class="prose">Manual, ticket-driven change approval replacing automated policy gates.</td><td></td><td class="prose">Operations Practice</td><td class="prose">Declined during the 2026 review — see the domain ADR.</td><td>2026-01-10</td><td></td><td></td></tr>
+<tr data-row="6"><td class="number">1</td><th scope="row"><button type="button" data-row="6">Kubernetes</button></th><td>Platform</td><td>Adopt</td><td class="prose">Container orchestration platform for deploying, scaling, and managing containerised workloads.</td><td>default</td><td class="prose">Container Orchestration</td><td class="prose">Default for all new containerised workloads.</td><td>2026-06-01</td><td></td><td></td></tr>
+<tr data-row="7"><td class="number">2</td><th scope="row"><button type="button" data-row="7">Trunk-Based Development</button></th><td>Practice</td><td>Adopt</td><td class="prose">Developers integrate small, frequent changes into a shared trunk.</td><td>default</td><td class="prose">Delivery Practice</td><td class="prose">Default branching model for managed delivery teams.</td><td>2026-06-01</td><td></td><td></td></tr>
+<tr data-row="4"><td class="number">3</td><th scope="row"><button type="button" data-row="4">Ansible</button></th><td>Tool</td><td>Trial</td><td class="prose">Agentless configuration management and orchestration over SSH.</td><td></td><td class="prose">Configuration Management</td><td class="prose">Bounded trial on one managed estate; was Assess last edition.</td><td>2026-05-12</td><td></td><td>Moved In</td></tr>
+<tr data-row="3"><td class="number">4</td><th scope="row"><button type="button" data-row="3">Pulumi</button></th><td>Tool</td><td>Adopt</td><td class="prose">Infrastructure-as-code authored in a general-purpose language instead of a domain-specific syntax.</td><td>conditional</td><td class="prose">Infrastructure as Code</td><td class="prose">Acceptable where a client mandates a general-purpose language over HCL.</td><td>2026-06-01</td><td></td><td>New</td></tr>
+<tr data-row="2"><td class="number">5</td><th scope="row"><button type="button" data-row="2">Terraform</button></th><td>Tool</td><td>Adopt</td><td class="prose">Declarative infrastructure-as-code tool for provisioning cloud and on-prem resources.</td><td>default</td><td class="prose">Infrastructure as Code</td><td class="prose">Default IaC tool across all managed environments.</td><td>2026-06-01</td><td></td><td>No Change</td></tr>
+<tr data-row="5"><td class="number">6</td><th scope="row"><button type="button" data-row="5">Chef</button></th><td>Tool</td><td>Retire</td><td class="prose">Agent-based configuration management using a Ruby DSL.</td><td></td><td class="prose">Configuration Management</td><td class="prose">Superseded by the Ansible trial outcome; migration owned and scheduled.</td><td>2026-03-15</td><td>2027-01-31</td><td></td></tr>
+<tr data-row="8" class="unplotted"><td class="number"></td><th scope="row"><button type="button" data-row="8">Legacy Ticketing-Driven Change<span class="visually-hidden">,</span> <span class="flag">not on the radar</span></button></th><td>Practice</td><td>Rejected</td><td class="prose">Manual, ticket-driven change approval replacing automated policy gates.</td><td></td><td class="prose">Operations Practice</td><td class="prose">Declined during the 2026 review — see the domain ADR.</td><td>2026-01-10</td><td></td><td></td></tr>
 </tbody></table></div></details>
 </main>
 <script>
-// radargen's interactive layer (FR-48, FR-56, FR-98; architecture §5).
+// radargen's interactive layer (FR-37, FR-38, FR-48, FR-49, FR-56, FR-72,
+// FR-73, FR-98; architecture §5).
 //
 // Constant: it holds nothing from the CSV and reads what it needs from the
 // page, so every page carries these same bytes (NFR-4) and no CSV text is
 // ever script (NFR-6). It requests nothing (NFR-5). Without it the page
-// still works: markers keep their native outline, and the controls it
-// drives stay hidden.
+// still works: markers keep their native outline, the table shows every
+// row, and the controls it drives stay hidden.
 (() => {
   'use strict';
 
   // Every attribute, class and id this script uses. A Rust test checks
   // each value against the constant the page is written with.
   const N = {
+    row: 'data-row',
     marker: 'data-marker',
     legend: 'data-legend-row',
+    hit: 'data-hit',
     markerIndicator: 'data-marker-indicator',
     focused: 'data-focused',
+    selected: 'data-selected',
+    hovered: 'data-hovered',
+    expanded: 'aria-expanded',
+    controls: 'aria-controls',
+    panel: 'detail',
+    heading: 'detail-heading',
+    close: 'detail-close',
+    empty: 'detail-empty',
+    prose: 'prose',
+    tableView: 'table-view',
     narrowQuery: 'data-narrow-query',
     theme: 'data-theme',
     pressed: 'aria-pressed',
@@ -603,11 +713,16 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
 
   const root = document.documentElement;
   const main = document.querySelector('main');
-  // The control last focused, as its key and kind, never as an element: a
-  // breakpoint change hides the element, and Chromium then moves focus to
-  // the body, so only the key survives (architecture §5).
-  const state = { focus: null };
+  // Items are held as their key and kind, never as elements: a breakpoint
+  // change hides an element, and Chromium then moves focus to the body, so
+  // only the key survives (architecture §5). `focus` is the control last
+  // focused, `open` the item whose panel shows and what opened it, and
+  // `hovered` the key under the pointer.
+  const TABLE = 'table';
+  const state = { focus: null, open: null, hovered: null };
 
+  // `[name="key"]`: every element of an item carries its key (§5).
+  const by = (name, key) => '[' + name + '="' + key + '"]';
   const shown = () =>
     [...document.querySelectorAll('.' + N.arrangement)].find(
       (a) => getComputedStyle(a).display !== 'none',
@@ -624,7 +739,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
   const ring = (el, on) => {
     const indicator = el
       .closest('svg')
-      .querySelector('[' + N.markerIndicator + '="' + keyOf(el) + '"]');
+      .querySelector(by(N.markerIndicator, keyOf(el)));
     if (!indicator) return;
     indicator.toggleAttribute(N.focused, on);
     if (on && indicator !== indicator.parentNode.lastElementChild) indicator.parentNode.append(indicator);
@@ -647,11 +762,6 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
     // once the element is hidden, which keeps the key.
     if (el.getClientRects().length > 0) state.focus = null;
   });
-  // A key press after a mouse focus makes the focus visible.
-  document.addEventListener('keydown', () => {
-    const el = control(document.activeElement);
-    if (el) showRing(el);
-  });
 
   // A breakpoint change hides the arrangement holding the focus; focus the
   // same item in the one now shown. When the change event fires, Chromium
@@ -664,8 +774,183 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
     const lost = !now || now === document.body || (where && where !== visible);
     if (!state.focus || !lost) return;
     const { key, kind } = state.focus;
-    const el = visible?.querySelector('[' + kind + '="' + key + '"]');
+    const el = visible?.querySelector(by(kind, key));
     if (el) el.focus();
+  });
+
+  // FR-38's panel, built from the item's table row (D-80): its heading is
+  // the number and name, and each non-empty cell after the name becomes a
+  // term and its value, cloned so a link keeps the table's escaped address.
+  // The prototypes for those come from the page, so the script makes no
+  // markup of its own (NFR-6).
+  const panel = document.getElementById(N.panel);
+  const heading = panel.querySelector('.' + N.heading);
+  const list = panel.querySelector('dl');
+  const empty = panel.querySelector('.' + N.empty);
+  const termShape = list.querySelector('dt');
+  const valueShape = list.querySelector('dd');
+  list.replaceChildren();
+  const details = document.querySelector('details.' + N.tableView);
+  const tableRow = (key) => document.querySelector('tr' + by(N.row, key));
+  const tableButton = (key) => tableRow(key)?.querySelector('button');
+
+  const fill = (key) => {
+    const row = tableRow(key);
+    const titles = [...row.closest('table').querySelectorAll('thead th')];
+    const cells = [...row.children];
+    const nameAt = cells.findIndex((c) => c.tagName === 'TH');
+    const number = cells[0].textContent;
+    const name = cells[nameAt].textContent;
+    heading.textContent = number ? number + '. ' + name : name;
+    list.replaceChildren();
+    cells.slice(nameAt + 1).forEach((cell, i) => {
+      if (!cell.textContent.trim()) return;
+      const term = termShape.cloneNode(false);
+      term.textContent = titles[nameAt + 1 + i].textContent;
+      const value = valueShape.cloneNode(false);
+      for (const child of cell.childNodes) value.append(child.cloneNode(true));
+      if (cell.classList.contains(N.prose)) value.classList.add(N.prose);
+      list.append(term, value);
+    });
+    list.hidden = list.childElementCount === 0;
+    empty.hidden = !list.hidden;
+  };
+
+  // The sticky panel must never hide what has focus (WCAG 2.4.11).
+  const pad = () => {
+    root.style.scrollPaddingBottom = panel.hidden ? '' : panel.offsetHeight + 'px';
+  };
+  new ResizeObserver(pad).observe(panel);
+
+  // Every element of an item that matches `own`: its controls, its table
+  // row and button, and its marker's indicators.
+  const parts = (key, own) =>
+    document.querySelectorAll(own + by(N.row, key) + ',' + by(N.markerIndicator, key));
+
+  // FR-72: selection shows on every element of the item, both arrangements
+  // and the table; FR-73's marks come from the page's fixed rules.
+  const mark = (key, on) => {
+    for (const el of parts(key, '')) {
+      el.toggleAttribute(N.selected, on);
+      if (el.hasAttribute(N.expanded)) el.setAttribute(N.expanded, String(on));
+    }
+  };
+
+  // Where focus returns for `key`: its opener in the arrangement shown, else
+  // its table button, or the table's toggle while the table is closed.
+  const opener = (key, kind) => {
+    const shownEl = kind === TABLE ? null : shown()?.querySelector(by(kind, key));
+    if (shownEl) return shownEl;
+    return details.open ? tableButton(key) : details.querySelector('summary');
+  };
+
+  const open = (key, kind) => {
+    if (state.open) mark(state.open.key, false);
+    state.open = { key, kind };
+    fill(key);
+    mark(key, true);
+    panel.hidden = false;
+    pad();
+    heading.focus({ preventScroll: true });
+    // Sticky lifts the panel from below the viewport, never down from above
+    // it: opened from deep in the table, it would be out of sight.
+    const box = panel.getBoundingClientRect();
+    if (box.bottom <= 0 || box.top >= innerHeight) panel.scrollIntoView({ block: 'nearest' });
+  };
+  const close = (returnFocus) => {
+    if (!state.open) return;
+    const { key, kind } = state.open;
+    mark(key, false);
+    state.open = null;
+    panel.hidden = true;
+    pad();
+    if (returnFocus) opener(key, kind)?.focus();
+  };
+  // Activating the open item again closes it, leaving focus where the
+  // activation put it (FR-38).
+  const activate = (key, kind) => (state.open?.key === key ? close(false) : open(key, kind));
+
+  // The control an event's target stands for: a marker, a legend row, or the
+  // marker a hit area enlarges (FR-94).
+  const target = (node) => {
+    if (!(node instanceof Element)) return null;
+    const hit = node.closest('[' + N.hit + ']');
+    if (!hit) return control(node);
+    return hit.closest('svg').querySelector(by(N.marker, hit.getAttribute(N.hit)));
+  };
+
+  document.addEventListener('click', (event) => {
+    const node = event.target;
+    if (!(node instanceof Element)) return;
+    if (node.closest('.' + N.close)) return close(true);
+    const el = target(node);
+    if (el) {
+      // A hit area takes no focus, so its marker does, and is where focus
+      // stays if this activation closes the panel.
+      if (el !== control(node)) el.focus({ preventScroll: true });
+      return activate(keyOf(el), kindOf(el));
+    }
+    const button = node.closest('tr[' + N.row + '] button');
+    if (button) activate(button.getAttribute(N.row), TABLE);
+  });
+
+  // FR-48: Enter and Space work as a click, as on a native button; FR-49:
+  // Escape closes the panel and returns focus. Escape acts only from the
+  // panel or the open item's own control, so it never moves focus from
+  // anywhere else.
+  const svgButton = (node) => (control(node) === node ? node : null);
+  // Space activates on release only where it was pressed, as a native
+  // button does.
+  let spaceOn = null;
+  document.addEventListener('keydown', (event) => {
+    const active = document.activeElement;
+    const focusedControl = control(active);
+    if (focusedControl) showRing(focusedControl);
+    if (event.defaultPrevented || event.isComposing) return;
+    const el = svgButton(event.target);
+    if (el && event.key === 'Enter') {
+      event.preventDefault();
+      if (!event.repeat) activate(keyOf(el), kindOf(el));
+    } else if (el && event.key === ' ') {
+      event.preventDefault();
+      spaceOn = el;
+    } else if (event.key === 'Escape' && state.open) {
+      // From the panel, focus goes back to the opener; from one of the open
+      // item's own controls, it stays where the reader is.
+      if (panel.contains(active)) {
+        event.preventDefault();
+        close(true);
+      } else if (active?.getAttribute(N.expanded) === 'true') {
+        event.preventDefault();
+        close(false);
+      }
+    }
+  });
+  document.addEventListener('keyup', (event) => {
+    if (event.key !== ' ') return;
+    const el = svgButton(event.target);
+    if (el && el === spaceOn) activate(keyOf(el), kindOf(el));
+    spaceOn = null;
+  });
+
+  // FR-37: the pointer over a marker lights its legend row, and the
+  // reverse. A touch has no hover to end, so it sets none.
+  const hover = (key) => {
+    if (state.hovered === key) return;
+    const set = (k, on) => {
+      for (const el of parts(k, '[role=button]')) el.toggleAttribute(N.hovered, on);
+    };
+    if (state.hovered) set(state.hovered, false);
+    state.hovered = key;
+    if (key) set(key, true);
+  };
+  document.addEventListener('pointerover', (event) => {
+    if (event.pointerType === 'touch') return;
+    const el = target(event.target);
+    hover(el ? keyOf(el) : null);
+  });
+  document.addEventListener('pointerout', (event) => {
+    if (!event.relatedTarget) hover(null);
   });
 
   // FR-56: dark while pressed; until pressed, the viewer's preference.
@@ -688,6 +973,13 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible{outline:2px so
     shown()?.querySelector('[' + N.legend + ']')?.focus();
   });
 
+  // D-66: every control says whether its panel is open, and names it.
+  for (const el of document.querySelectorAll(
+    '[role=button][' + N.row + '],tr[' + N.row + '] button',
+  )) {
+    el.setAttribute(N.expanded, 'false');
+    el.setAttribute(N.controls, N.panel);
+  }
   root.classList.add(N.js);
   toggle.hidden = false;
   // With nothing plotted there is no legend to skip to.
