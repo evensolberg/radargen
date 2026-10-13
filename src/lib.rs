@@ -10,6 +10,7 @@ pub mod emit;
 pub mod errors;
 pub mod escape;
 pub mod layout;
+pub mod link;
 pub mod model;
 pub mod num;
 pub mod order;
