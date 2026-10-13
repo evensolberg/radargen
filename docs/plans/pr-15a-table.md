@@ -134,20 +134,20 @@ comments: "1.1 folds in the five-seat plan review and the maintainer's ruling on
 - Modify: `docs/design/architecture.md`
 - Modify: `docs/product/mockup.html`
 
-- [ ] **Step 1: the PRD.** FR-78's column list becomes the number, `name`, `quadrant`, `ring`, then **every other named column in header order, `description` included**. Add **D-80**, *The table carries every column, and the detail panel reads it*:
+- [x] **Step 1: the PRD.** FR-78's column list becomes the number, `name`, `quadrant`, `ring`, then **every other named column in header order, `description` included**. Add **D-80**, *The table carries every column, and the detail panel reads it*:
   - without script the table is the only route to an item's prose;
   - a panel built from the table row keeps each item's prose in the page once;
   - this supersedes D-38's "duplicates the panel" objection in mechanism, not in purpose;
   - rejected alternatives: a JSON island (NFR-6 context 4, a second renderer) and per-item templates (a second copy).
 
   Point D-38 at D-80, and add a 0.61 row to the revisions table.
-- [ ] **Step 2: the architecture.**
+- [x] **Step 2: the architecture.**
   - §2: `page(&Page)` replaces the three-document signature.
   - §3: the module table gains `link.rs` (FR-96) and names FR-96 on `model.rs`.
   - §5: `<tr data-row>` is listed with the elements keyed on the CSV line. The **no-`id` rule's single exception** is recorded: one panel id (15b) and one table heading id, each outside both arrangements and written once.
   - §11: under the HTML interactive layer, the panel is built from the table row (D-80).
-- [ ] **Step 3: the mockup.** `not plotted` → `not on the radar` (D-66).
-- [ ] **Step 4: commit** `docs: the table carries every column; the panel reads it (D-80)`.
+- [x] **Step 3: the mockup.** `not plotted` → `not on the radar` (D-66).
+- [x] **Step 4: commit** `docs: the table carries every column; the panel reads it (D-80)`.
 
 ### Task 1: FR-96 in the model
 
@@ -172,7 +172,7 @@ comments: "1.1 folds in the five-seat plan review and the maintainer's ruling on
   - `model::NOT_ON_THE_RADAR`;
   - `Catalogue::ring_label(&self, &Item) -> &str`.
 
-- [ ] **Step 1: write the failing tests.**
+- [x] **Step 1: write the failing tests.**
 
   **`src/link.rs`** unit tests over `read_link`:
 
@@ -200,10 +200,10 @@ comments: "1.1 folds in the five-seat plan review and the maintainer's ruling on
   `warning: 3 rows have a link that is not an http or https address — ftp://x (2, first line 2), mailto:y (1, line 4); shown as text, not links`
 
   These follow `tallied`'s unquoted shape (see `tests/diagnostics.rs` around line 479).
-- [ ] **Step 2: run them and see them fail** (`cargo test link`).
-- [ ] **Step 3: implement as the files above say.** `read_link` is an operation, and the row builder stays an integration.
-- [ ] **Step 4: run `cargo test`.** Expected: all pass.
-- [ ] **Step 5: commit** `feat(model): the link column (FR-96)`.
+- [x] **Step 2: run them and see them fail** (`cargo test link`).
+- [x] **Step 3: implement as the files above say.** `read_link` is an operation, and the row builder stays an integration.
+- [x] **Step 4: run `cargo test`.** Expected: all pass.
+- [x] **Step 5: commit** `feat(model): the link column (FR-96)`.
 
 ### Task 2: `page()` takes a `Page`
 
@@ -231,9 +231,9 @@ pub struct Page<'a> {
 pub fn page(input: &Page<'_>) -> String
 ```
 
-- [ ] **Step 1:** change the signature and the callers. The body is untouched.
-- [ ] **Step 2:** run `cargo test`. Expected: every test passes, and **the HTML golden is byte-identical**. That is this task's test.
-- [ ] **Step 3: commit** `refactor(html): page() takes a Page`.
+- [x] **Step 1:** change the signature and the callers. The body is untouched.
+- [x] **Step 2:** run `cargo test`. Expected: every test passes, and **the HTML golden is byte-identical**. That is this task's test.
+- [x] **Step 3: commit** `refactor(html): page() takes a Page`.
 
 ### Task 3: the table
 
@@ -243,7 +243,7 @@ pub fn page(input: &Page<'_>) -> String
 - Modify: `src/emit/html/css.rs` (`body` and table rules from roles and constants)
 - Test: `tests/serialise/table.rs`, new and added to `main.rs`, with a fixture pinned so wrong code cannot pass by luck:
   - a later quadrant's row comes first in the CSV;
-  - an unplotted row with an empty ring cell sits mid-file;
+  - an unplotted row sits mid-file;
   - a multi-line description comes early, so `data-row` (the line) is not the index plus 2;
   - a plotted row's ring is written `adopt`;
   - a name holds CRLF;
@@ -285,7 +285,7 @@ pub fn page(input: &Page<'_>) -> String
 
 `<wide>` is the wide document's width, the same cap `css::layout` uses. `<MARGIN>` is `style::MARGIN`, so the table's edge lines up with the SVG's content edge.
 
-- [ ] **Step 1: write the failing tests.**
+- [x] **Step 1: write the failing tests.**
   - **Row order:** the rows' `data-row` sequence equals `plotted.table_rows()` mapped to lines (FR-78).
   - **Numbers:** each number cell equals `plotted.numbers[i]` and matches the number the SVG legend gives that name; unplotted cells are empty.
   - **The flag:** each unplotted row has the `unplotted` class and its row header's text is exactly `Name not on the radar`; plotted rows have neither.
@@ -293,17 +293,17 @@ pub fn page(input: &Page<'_>) -> String
   - **Cell values:**
     - quadrant is `Quadrant::label`;
     - the ring written `adopt` shows as `Adopt`;
-    - the unplotted row's empty ring cell stays empty;
+    - the unplotted row's ring cell is its value trimmed (an empty ring is FR-6's error, so an unplotted row always has one);
     - the CRLF name is on one line, in a `th` with no `prose` class.
   - **Links:**
     - a `Link::Address` cell holds exactly one `<a>`, with the escaped `href`, `target="_blank"`, `rel="noopener noreferrer"`, the trimmed address as its text, and the hidden suffix;
     - a `Link::Text` cell holds text only, with no `<a>` and no suffix (D-77).
   - **Prose:** `description`, `domain`, `rationale` and `Other` cells carry `prose`, and a newline survives (FR-97).
   - **Toggle:** the `<details>` has no `open` attribute, and the heading precedes it.
-- [ ] **Step 2: run them and see them fail** (`cargo test --test serialise table`).
-- [ ] **Step 3: implement `table.rs`.** The operations are `header_row`, `body_row`, `cell` and `link_cell`. `table` is a pure composition.
-- [ ] **Step 4: run `cargo test`.** The golden fails as expected; re-bless it. The check is mechanical: the new golden, with the `<h2 class="table-heading"…</details>` block and `<style>…</style>` cut out, must be byte-equal to the old golden with its `<style>` cut out. The stylesheet diff is then read by eye.
-- [ ] **Step 5: commit** `feat(html): the table view (FR-41, FR-78, D-80)`.
+- [x] **Step 2: run them and see them fail** (`cargo test --test serialise table`).
+- [x] **Step 3: implement `table.rs`.** The operations are `header_row`, `body_row`, `cell` and `link_cell`. `table` is a pure composition.
+- [x] **Step 4: run `cargo test`.** The golden fails as expected; re-bless it. The check is mechanical: the new golden, with the `<h2 class="table-heading"…</details>` block and `<style>…</style>` cut out, must be byte-equal to the old golden with its `<style>` cut out. The stylesheet diff is then read by eye.
+- [x] **Step 5: commit** `feat(html): the table view (FR-41, FR-78, D-80)`.
 
 ### Task 4: the test harness learns the table
 
@@ -312,7 +312,7 @@ pub fn page(input: &Page<'_>) -> String
 - Modify: `tests/serialise/html5.rs`
 - Modify: `tests/serialise/hostile.rs`
 
-- [ ] **Step 1: allow-lists, per element.**
+- [x] **Step 1: allow-lists, per element.**
   - **`PAGE_ELEMENTS`** gains `h2`, `details`, `summary`, `table`, `thead`, `tbody`, `tr`, `th`, `td`, `a` and `span`.
   - **`PAGE_ATTRIBUTES`** gains `id`, `role`, `aria-labelledby`, `aria-hidden`, `tabindex`, `scope` and `data-row`.
   - **`href`, `target` and `rel` stay out of `PAGE_ATTRIBUTES`.** They are allowed **only on an HTML-namespace `<a>`**:
@@ -322,7 +322,7 @@ pub fn page(input: &Page<'_>) -> String
     This is one per-element rule, used by both `assert_requests_nothing` and the html5ever walk.
   - **`id`** is allowed only on the table heading in 15a. The rule names the element and value, so a stray `id` still fails.
   - **A negative test** feeds the checker a page holding `<div href="https://x">` and expects a panic.
-- [ ] **Step 2: the hostile fixture.** It gains a `link` column holding:
+- [x] **Step 2: the hostile fixture.** It gains a `link` column holding:
   - `javascript:alert(1)`, ` JAVASCRIPT:x` and `data:text/html,<b>x</b>`;
   - `https://a" onmouseover="x`;
   - `https://x/?a=1&b=2&lt=3`;
@@ -333,14 +333,14 @@ pub fn page(input: &Page<'_>) -> String
   - their `href`s and text read back exactly as the three `https` values;
   - every other value appears as text;
   - the hostile heading reads back as written.
-- [ ] **Step 3: run them and see them fail, then pass.** Mutation-check each:
+- [x] **Step 3: run them and see them fail, then pass.** Mutation-check each:
   - drop `html_attr` from the `href`;
   - drop `xml_text` from a `<th>`;
   - emit `<a>` for a `Link::Text`;
   - drop `rel`.
 
   Each must fail.
-- [ ] **Step 4: commit** `test(html): the parse tests read the table and its links`.
+- [x] **Step 4: commit** `test(html): the parse tests read the table and its links`.
 
 ### Task 5: text spacing over the table
 
@@ -350,15 +350,15 @@ pub fn page(input: &Page<'_>) -> String
 - Create: `tests/fixtures/table-wide.csv`: twelve columns, long prose, and links, one of them in the last column
 - Modify: `docs/csv-format.md`: the table is live, and the panel arrives in PR 15b
 
-- [ ] **Step 1:** at each width the script **opens every `details` before the `before` accessibility snapshot**, so opening it is not reported as a tree change. With 1.4.12's spacing applied, it asserts:
+- [x] **Step 1:** at each width the script **opens every `details` before the `before` accessibility snapshot**, so opening it is not reported as a tree change. With 1.4.12's spacing applied, it asserts:
   - **the page never scrolls sideways:** `document.documentElement.scrollWidth <= innerWidth + slack`;
   - **the fixture really overflows:** for `table-wide.html` at 320 px, `.table-scroll.scrollWidth > clientWidth`, so the page check is not vacuous;
   - **no cell can clip:** no `td`, `th` or `summary` has a computed `height` or `max-height` other than `auto`/`none`, or an `overflow` other than `visible`;
   - **nothing overlaps:** text inside the table does not overlap other table text, by the existing overlap check scoped to `.table-scroll`.
-- [ ] **Step 2: run `just text-spacing`.** Expected: `ok` at every width for all four pages. Mutation-check each; the 320 px `table-wide` page must fail:
+- [x] **Step 2: run `just text-spacing`.** Expected: `ok` at every width for all four pages. Mutation-check each; the 320 px `table-wide` page must fail:
   - remove `overflow-x:auto`;
   - remove `position:relative`.
-- [ ] **Step 3: commit** `test(a11y): text spacing reaches the table`.
+- [x] **Step 3: commit** `test(a11y): text spacing reaches the table`.
 
 ## Review rulings
 
@@ -401,6 +401,10 @@ pub fn page(input: &Page<'_>) -> String
 | QA | Mechanical golden re-bless | Task 3 Step 4 |
 | QA | A 500-row determinism fixture | Declined for 15a. Determinism does not depend on row count, and the existing cross-process test covers the mechanism |
 | QA | An `Other` header literally `#` | Accepted as the team's own column (Decision 3) |
+| Implementation | Task 3's "empty ring cell" for an unplotted row cannot occur: an empty ring is FR-6's hard error | Tested as the ring cell trimmed |
+| Implementation | Task 5's computed-height test is vacuous (`getComputedStyle` gives a cell's used height) and the table's HTML flow cannot overlap | Replaced by a text-inside-the-cell check over visible text, mutation-checked with a fixed cell height. The accessibility-tree comparison ignores `InlineTextBox` line fragments, which rewrap under spacing as 1.4.12 intends |
+| Implementation | Tasks 3 and 4 | One commit, since the table fails the old allow-list |
+| Implementation | The table's CSS | Lives in `table.rs` beside its markup, as `css.rs`'s module comment planned, which keeps `css.rs` under its size |
 
 ## Finishing
 

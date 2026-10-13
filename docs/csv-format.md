@@ -13,7 +13,7 @@ created_date: 2026-10-12
 synopsis: "How to write the CSV radargen reads: the four required columns and seven optional ones, what each accepts, what is a hard error and what only warns, and how the file must be saved."
 status: active
 type: Guide
-revision: "1.2"
+revision: "1.3"
 review_date:
 reviewed_by: []
 completed_date:
@@ -51,13 +51,13 @@ Columns are found by **name, not position**, so their order in the file does not
 | `last_affirmed` | no | A date, `YYYY-MM-DD` | The detail panel |
 | `exit_date` | no | A date, `YYYY-MM-DD` | The detail panel |
 | `status` | no | `New`, `Moved In`, `Moved Out`, `No Change`, or blank | A ring or half-ring on the marker, and the legend |
-| `link` | no | A web address starting `http://` or `https://`, or blank | A link in the detail panel and the table view (from PR 15) |
+| `link` | no | A web address starting `http://` or `https://`, or blank | A link in the table view, and in the detail panel (from PR 15b) |
 
 **Any other column is ignored**, so a team can keep its own notes (a ticket reference, an owner, a survey score) in the same file. A column whose header cell is empty is dropped; if a row has a value under it, you get a warning.
 
 An optional column that is missing, or empty on a row, is simply left out for that item. Nothing is shown as blank or as a dash.
 
-The detail panel and the table view arrive in the next release step (PR 15). Until then, the page shows each plotted item's name, quadrant, ring and qualifier, and any status other than `No Change`. Rows on an undeclared ring are not shown anywhere until then, though their warning already mentions the table view.
+Every row and every column appears in the **table view**, under the *Every item* heading below the radar: open *Show the table* to see it. Plotted rows come first, numbered as on the radar, then rows the radar cannot plot, flagged "not on the radar". The detail panel, which opens when you click a marker, a legend row or a table row, arrives in the next release step (PR 15b).
 
 ### `name`
 
@@ -75,7 +75,7 @@ Free text. Every distinct value becomes one sector, so the file decides how many
 
 Which band the item sits in. The value must be one of the declared rings, matched ignoring case and surrounding spaces.
 
-A row whose ring is not declared is **not an error**. It is left off the radar, it will appear in the table view flagged "not on the radar", and you get a warning naming the declared rings. Usually the value is a typo (`Adpot`), or a ring missing from `--rings`.
+A row whose ring is not declared is **not an error**. It is left off the radar, it appears in the table view flagged "not on the radar", and you get a warning naming the declared rings. Usually the value is a typo (`Adpot`), or a ring missing from `--rings`.
 
 #### Rings
 
@@ -143,7 +143,7 @@ Values are matched ignoring case and surrounding spaces, so `moved in` works.
 
 ### `link`
 
-A web address for the item, such as the product's home page: `https://www.terraform.io`. Once the detail panel and table view arrive (PR 15), it shows as a link in both and opens in a new tab.
+A web address for the item, such as the product's home page: `https://www.terraform.io`. It shows as a link in the table view, and in the detail panel once that arrives (PR 15b); it opens in a new tab.
 
 - Only addresses starting `http://` or `https://` become links. Anything else is shown as plain text, with a warning, so a mistyped or unsafe address is never something a reader can click.
 - A blank cell means no link.
@@ -200,3 +200,4 @@ Kubernetes,Platforms,Adopt,"Container orchestration.",default,Containers,"Defaul
 | 1.0 | 2026-10-12 | Initial version. |
 | 1.1 | 2026-10-12 | The `link` column (FR-96, D-77). |
 | 1.2 | 2026-10-12 | Line breaks in cells (FR-97). |
+| 1.3 | 2026-10-12 | The table view is live (FR-41, FR-78, D-80). |
