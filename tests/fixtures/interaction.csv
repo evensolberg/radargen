@@ -1,0 +1,9 @@
+name,quadrant,ring,description,rationale,status,link
+Kafka,Tools,Adopt,Event streaming between services.,"Chosen for replay.
+Kept for its ecosystem.",New,https://kafka.apache.org
+Flink,Tools,Trial,Stream processing.,,,javascript:alert(1)
+Kafka,Platforms,Assess,A second Kafka: the managed service.,,Moved In,
+Spark,Platforms,Adopt,"<img src=x onerror=alert(1)>",,,
+Legacy Bus,Tools,Rejected,An old message bus kept for the record.,,,
+Airflow,Techniques,Trial,Workflow scheduling.,,,https://airflow.apache.org
+Dagster,Techniques,Assess,,,,

@@ -130,6 +130,20 @@ publish:
 # WCAG 1.4.12 text spacing in a browser (plan RG-014C, D-78): renders the
 # fixtures and checks every text fits and none overlaps, at five widths,
 # with the four spacing properties applied. Needs Playwright's headless
+# The interactive layer, driven in headless Chromium (RG-015B).
+interaction:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out="$(mktemp -d)"
+    cargo build --quiet --release
+    ./target/release/radargen tests/fixtures/interaction.csv -o "$out/interaction.html" 2>/dev/null
+    node scripts/interaction.mjs "$out/interaction.html"
+
+# Every browser check. Part of `just ci`, and it fails when Playwright's
+# headless Chromium is missing rather than skipping: a skipped behaviour
+# check would pass without looking (RG-015B).
+browser: text-spacing interaction
+
 # rg-jri: style recalculation per Tab on a 300-marker radar, in Chromium.
 focus-cost:
     #!/usr/bin/env bash
@@ -177,7 +191,8 @@ text-spacing:
 # untracked files included, so remove scratch files first. rustqual compares
 # the score only for a version-2 baseline, and reads anything else (no
 # version, version 1, a file it cannot parse) as no regression, so the
-# baseline's shape is checked first.
+# baseline's shape is checked first. Last, `just browser` drives the page in
+# headless Chromium, and fails if Chromium is missing.
 @ci:
     cargo fmt --check
     cargo clippy --locked --all-targets -- -D warnings
@@ -186,6 +201,7 @@ text-spacing:
     cargo deny check licenses
     jq -e '.version == 2 and (.quality_score | type == "number")' rustqual-baseline.json > /dev/null
     rustqual . --compare rustqual-baseline.json --fail-on-regression --no-fail
+    just browser
 
 # Records the current rustqual score as the baseline `just ci` compares to,
 # refusing a lower score. The baseline is from rustqual 1.8.3 (pinned in

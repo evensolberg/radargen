@@ -71,9 +71,13 @@
   });
 
   // A breakpoint change hides the arrangement holding the focus; focus the
-  // same item in the one now shown.
+  // same item in the one now shown. When the change event fires, Chromium
+  // may not yet have moved focus off the hidden element, so focus counts
+  // as lost on the body or anywhere in an arrangement no longer shown.
   matchMedia(main.getAttribute(N.narrowQuery)).addEventListener('change', () => {
-    const lost = document.activeElement === document.body || !document.activeElement;
+    const now = document.activeElement;
+    const where = now?.closest('.' + N.arrangement);
+    const lost = !now || now === document.body || (where && where !== shown());
     if (!state.focus || !lost) return;
     const { key, kind } = state.focus;
     const el = shown()?.querySelector('[' + kind + '="' + key + '"]');
