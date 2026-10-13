@@ -7,13 +7,56 @@ pub const SVG_ELEMENTS: [&str; 9] = [
     "svg", "g", "circle", "rect", "line", "path", "text", "tspan", "title",
 ];
 
-/// Every element the page itself writes around the SVG.
-pub const PAGE_ELEMENTS: [&str; 9] = [
-    "html", "head", "meta", "title", "style", "body", "main", "h1", "div",
+/// Every element the page itself writes around the SVG, the table view
+/// (FR-41) included.
+pub const PAGE_ELEMENTS: [&str; 20] = [
+    "html", "head", "meta", "title", "style", "body", "main", "h1", "div", "h2", "details",
+    "summary", "table", "thead", "tbody", "tr", "th", "td", "a", "span",
 ];
 
-/// Every attribute the page itself writes around the SVG.
-pub const PAGE_ATTRIBUTES: [&str; 5] = ["lang", "charset", "name", "content", "class"];
+/// Every attribute the page may write on any of its own elements.
+const PAGE_ATTRIBUTES: [&str; 11] = [
+    "lang",
+    "charset",
+    "name",
+    "content",
+    "class",
+    "role",
+    "aria-labelledby",
+    "aria-hidden",
+    "tabindex",
+    "scope",
+    "data-row",
+];
+
+/// Whether the page may write `name="value"` on its own `element`, whose
+/// attributes are `all`.
+///
+/// Most attributes are allowed anywhere. The rest are allowed on one
+/// element only, so a stray one anywhere else fails: an `id` on the table
+/// view's heading (architecture §5's exception), and FR-96's link, an
+/// `http` or `https` `href` on an `<a>` that opens a new tab with no opener
+/// and no referrer (D-77). A link is something a reader follows, not a
+/// request the page makes (NFR-5).
+pub fn page_attribute(element: &str, name: &str, value: &str, all: &[(String, String)]) -> bool {
+    let has = |k: &str, v: &str| all.iter().any(|(a, b)| a == k && b == v);
+    // Deliberately not `radargen::link::Link::of`: this is the oracle for
+    // that test, so a regression there must not pass here too.
+    let web = ["http://", "https://"].iter().any(|scheme| {
+        value
+            .as_bytes()
+            .get(..scheme.len())
+            .is_some_and(|p| p.eq_ignore_ascii_case(scheme.as_bytes()))
+    });
+    match (element, name) {
+        (_, n) if PAGE_ATTRIBUTES.contains(&n) => true,
+        ("h2", "id") => value == "table-heading",
+        ("a", "href") => web && has("target", "_blank") && has("rel", "noopener noreferrer"),
+        ("a", "target") => value == "_blank",
+        ("a", "rel") => value == "noopener noreferrer",
+        _ => false,
+    }
+}
 
 /// Attributes that fetch or navigate, on any element.
 const FETCHING: [&str; 8] = [
@@ -81,6 +124,14 @@ pub fn tags(html: &str) -> Vec<Tag> {
                 attributes.push((key.to_owned(), value.to_owned()));
                 rest = tail;
             }
+            // The page quotes every value, so anything left over is an
+            // attribute this walk would otherwise not see (`open`, `href=x`).
+            assert!(
+                rest.trim_start_matches(' ')
+                    .trim_end_matches('/')
+                    .is_empty(),
+                "an unquoted or valueless attribute on <{name}>: {rest:?}"
+            );
             Tag {
                 name: name.to_owned(),
                 attributes,
@@ -96,10 +147,10 @@ pub fn tags(html: &str) -> Vec<Tag> {
 pub fn assert_requests_nothing(page: &str) {
     for tag in tags(&outside(page)) {
         assert!(PAGE_ELEMENTS.contains(&tag.name.as_str()), "<{}>", tag.name);
-        for (name, _) in &tag.attributes {
+        for (name, value) in &tag.attributes {
             assert!(
-                PAGE_ATTRIBUTES.contains(&name.as_str()),
-                "{name} on <{}>",
+                page_attribute(&tag.name, name, value, &tag.attributes),
+                "{name}=\"{value}\" on <{}>",
                 tag.name
             );
         }

@@ -14,7 +14,7 @@ const NARROW: f64 = 420.0;
 /// `layout(WIDE, NARROW)` in full: the body, the SVGs, both caps, the
 /// default and the one query (FR-51, FR-69).
 const LAYOUT: &str = concat!(
-    "body{margin:0;background:var(--surface-1);color:var(--text-primary)}\n",
+    "body{margin:0;line-height:1.4;font-family:\"Inter\";background:var(--surface-1);color:var(--text-primary)}\n",
     "svg{display:block;width:100%;height:auto}\n",
     ".wide{max-width:976.817px;margin:0 auto}\n",
     ".narrow{max-width:420px;margin:0 auto}\n",

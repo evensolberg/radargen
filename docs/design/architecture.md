@@ -82,11 +82,13 @@ something to test for — the wide arrangement is one object, serialised twice.
 no band, FR-18 gives them no number — and it never carried per-item prose,
 because §6.3 keeps `description`, `domain`, `rationale` and the dates out of the
 shared document (D-26). But **FR-78 requires a table row for every CSV row**,
-unplotted included, carrying every optional column the header declared, and
+unplotted included, carrying every named column the header declared (D-80), and
 **FR-38's detail panel is built from exactly the prose the graphic omits**. Both
 are HTML chrome around the graphic, not part of it. So the HTML emitter takes
-`(&Document wide, &Document narrow, &Catalogue)` and the static emitters take
-`(&Document wide)` alone. The HTML emitter also reads `Plotted::numbers` (aligned with
+a `Page` — both `Document`s, the `Catalogue`, the `Plotted` order and the title —
+and the static emitters take `(&Document wide)` alone. The detail panel is built
+from the item's table row, so each item's prose is written into the page once
+(D-80). The HTML emitter also reads `Plotted::numbers` (aligned with
 `Catalogue::items`) for FR-78's number column and FR-50's accessible names, and
 `Plotted::table_rows` for FR-78's row order.
 
@@ -136,7 +138,8 @@ declarations only and are not listed.
 | `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17) | *exists* |
 | `src/csv/decode.rs` | Bytes → `String`: BOM, UTF-8, line numbering (FR-1, FR-2, FR-61); `read` is the stage's one file read | v1.0 |
 | `src/csv/parse.rs` | String → `Table` (header and records); header, field counts (FR-3, FR-4); removal of undisplayable characters, with a warning, before any other check except the blank-record test (FR-90, FR-3), using `escape::displayable` so both modules share one set | v1.0 |
-| `src/model.rs` | `Item`, `Catalogue`; column validation, quadrant grouping and ring matching (FR-5–FR-29); the named columns in header order and every row's cells (FR-27, FR-78); unnamed columns dropped, with a warning when they hold a value (FR-93); `accessible_name()` (FR-50, FR-75) | *exists* |
+| `src/model.rs` | `Item`, `Catalogue`; column validation, quadrant grouping and ring matching (FR-5–FR-29); the named columns in header order and every row's cells (FR-27, FR-78); unnamed columns dropped, with a warning when they hold a value (FR-93); `accessible_name()` (FR-50, FR-75); each row's link (FR-96) | *exists* |
+| `src/link.rs` | `Link`: FR-96's `http`/`https` test, decided once at build time (D-77) | v1.0 |
 | `src/order.rs` | `resolve` → `Plotted`: FR-10's quadrant order and rank (`compare_quadrants`, `quadrant_order`), FR-34's item order (`compare_names`, `compare_items`), FR-18's numbers and FR-78's table order | *exists* |
 | `src/style.rs` | Every layout constant: type scale, the legend's three indents (FR-35), marker radius, band label offsets, legend column maximum (FR-79), and the legibility floor FR-69's breakpoint is computed from (§4); `TextStyle::measure` and `TextStyle::wrap`, the one way every block measures and wraps its text | v1.0 |
 | `src/palette.rs` | `Role`; FR-81/FR-82 built-in values; FR-67's quadrant index → series entry, including its cycling; `--palette` parsing and FR-86/FR-87 validation | v1.0 / v1.1 |
@@ -443,13 +446,19 @@ knows there are two of anything:
   paint the narrow one, which is a class of bug that renders correctly in the
   exported SVG and wrongly in the HTML. Anything wanting an id is inlined at each
   use; if something one day cannot be, the HTML emitter namespaces it per
-  arrangement and `Document` still does not.
+  arrangement and `Document` still does not. **The one exception is page
+  chrome written once, outside both arrangements:** the table view's heading,
+  which names the table and its scroll region (PR 15a), and the single detail
+  panel controls point at (PR 15b). Neither is in a `Document`, so neither can
+  be duplicated.
 - **Identity travels as `data-row`, carrying the CSV line — not FR-34's number.**
   One key space rather than two: the number is contiguous over plotted items
   only (FR-18), so it cannot name the unplotted rows FR-78 puts in the table, and
   a second key for those would be a second thing to collide. The line is unique
   for every row, stable across renders, and NFR-10 already assigns it. The
-  number stays what it is — a label the reader sees.
+  number stays what it is — a label the reader sees. The name is not a key
+  either: FR-28 lets two rows share one. The table's `<tr>` carries the same
+  `data-row`, so an item's marker, legend row and table row share one key.
 
   The interactive layer's job (FR-38, FR-72, FR-49) is to relate a marker, a
   legend row and a table row for one item, and to survive a breakpoint change
@@ -764,7 +773,10 @@ the noise.
   PRD already records: the prototype labels markers `"N. Name"` with **no
   position**, which fails FR-50, and it escapes through **one HTML-context
   helper** where NFR-6 needs five. Both are specified differently from what the
-  prototype does; the port fixes them rather than carrying them.
+  prototype does; the port fixes them rather than carrying them. **The panel
+  reads the item's table row** (D-80): its cells and their column headings are
+  the panel's content, so the prose is in the page once and no JSON island or
+  template carries a second copy.
 - **`--palette` parsing.** v1.1, and FR-86/FR-87 already fix its rules.
 - **The PNG emitter.** v1.1, and thin: it rasterises the `<text>` document
   through our own `fontdb`.

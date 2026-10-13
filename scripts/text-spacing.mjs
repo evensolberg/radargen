@@ -1,6 +1,6 @@
 // WCAG 1.4.12 text spacing, checked in a browser (plan RG-014C, D-78).
 //
-// Usage: node scripts/text-spacing.mjs <out-dir> <page.html>[:<tails>] ...
+// Usage: node scripts/text-spacing.mjs <out-dir> <page.html>[:<tails>][:scroll] ...
 //
 // For each page, at viewport widths 320, 420, the breakpoint less one, the
 // breakpoint, and 1400, with 1.4.12's four properties injected, it asserts:
@@ -8,6 +8,10 @@
 //   - no two displayed texts overlap, numbers and halos aside;
 //   - every tail starts at or after its name's last character;
 //   - the number of tails per arrangement is <tails>, when given;
+//   - the page never scrolls sideways, and no table cell's text spills
+//     out of its cell (FR-41's table, opened first, D-78);
+//   - with :scroll, the table's own region does scroll at 320 px, so the
+//     check above is not vacuous for a table that happens to fit;
 //   - the accessibility tree's roles and names do not change.
 // It writes a screenshot per page and width, and exits non-zero on failure.
 //
@@ -203,13 +207,42 @@ const CHECK = `(() => {
       }
     }
   }
-  return { problems, tails };
+  // The table view (FR-41): its region may scroll, the page may not, and no
+  // cell's text may spill out of the cell's box under 1.4.12's spacing.
+  if (document.documentElement.scrollWidth > innerWidth + slack) {
+    problems.push('the page scrolls sideways: ' + document.documentElement.scrollWidth + ' > ' + innerWidth);
+  }
+  for (const cell of document.querySelectorAll('.table-scroll td, .table-scroll th, summary')) {
+    // Visually hidden text is laid out unwrapped in a 1px box by design, so
+    // only the text a reader sees is measured.
+    const box = cell.getBoundingClientRect();
+    const walk = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+    let left = Infinity, right = -Infinity, bottom = -Infinity;
+    for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+      if (node.parentElement.closest('.visually-hidden')) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      for (const r of range.getClientRects()) {
+        left = Math.min(left, r.left);
+        right = Math.max(right, r.right);
+        bottom = Math.max(bottom, r.bottom);
+      }
+    }
+    if (bottom > box.bottom + slack || right > box.right + slack || left < box.left - slack) {
+      problems.push('clipped: ' + cell.textContent.slice(0, 40));
+    }
+  }
+  const scrolls = [...document.querySelectorAll('.table-scroll')]
+    .some((r) => r.scrollWidth > r.clientWidth + slack);
+  return { problems, tails, scrolls };
 })()`;
 
 async function axNames(send) {
   const { result } = await send('Accessibility.getFullAXTree');
   return result.nodes
-    .filter((n) => !n.ignored && n.name?.value)
+    // InlineTextBox nodes are line fragments, not semantics: HTML text
+    // rewraps under the added spacing, which is 1.4.12 working.
+    .filter((n) => !n.ignored && n.name?.value && n.role?.value !== 'InlineTextBox')
     .map((n) => `${n.role?.value}:${n.name.value}`)
     .sort()
     .join('\n');
@@ -232,11 +265,14 @@ async function main() {
     for (const arg of pages) {
       // The tail count follows the last colon, so a Windows drive letter
       // stays in the path.
-      const [, file, expected] = arg.match(/^(.*?)(?::(\d+))?$/);
+      const [, file, expected, scroll] = arg.match(/^(.*?)(?::(\d+))?(:scroll)?$/);
       const loaded = next('Page.loadEventFired');
       const navigated = await send('Page.navigate', { url: pathToFileURL(resolve(file)).href });
       if (navigated.result?.errorText) throw new Error(`${file}: ${navigated.result.errorText}`);
       await within(loaded, `${file} to load`);
+      // Open the table view once, before any accessibility snapshot, so
+      // opening it is never reported as the tree changing.
+      await evaluate(`document.querySelectorAll('details').forEach((d) => { d.open = true; })`);
       const query = await evaluate(`(document.querySelector('style').textContent.match(/max-width: (\\d+)px/)||[])[1]`);
       const breakpoint = Number(query) + 1;
       if (!Number.isInteger(breakpoint)) throw new Error(`${file}: no max-width breakpoint in its stylesheet`);
@@ -249,7 +285,8 @@ async function main() {
           `(() => { const s = document.createElement('style'); s.id = 'spacing'; s.textContent = ${JSON.stringify(SPACING)}; document.head.append(s); })()`,
         );
         await evaluate(SETTLED);
-        const { problems, tails } = await evaluate(CHECK);
+        const { problems, tails, scrolls } = await evaluate(CHECK);
+        if (scroll && width === 320 && !scrolls) problems.push('the table region does not scroll at 320 px');
         if (expected !== undefined && tails !== Number(expected)) {
           problems.push(`tails: ${tails}, expected ${expected}`);
         }

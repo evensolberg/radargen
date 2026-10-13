@@ -1,7 +1,7 @@
 ---
 id: rg-6zu
 title: 'PR 15: HTML interactive layer and table view'
-status: open
+status: in_progress
 type: feature
 priority: 1
 tags:
@@ -36,3 +36,7 @@ FR-38 detail panel, FR-72 cross-highlight, FR-49 keyboard and focus return keyed
 [2026-10-12] PRD 0.58 adds FR-96 / D-77: an optional `link` column. In PR 15: an http/https value (case-insensitive, after trim) renders as <a href target=_blank rel="noopener noreferrer"> in the detail panel and in the table's link column (FR-78), link text = the address as written, with a visually hidden "(opens in a new tab)"; any other non-blank value shows as text with a new RowKind warning (and NFR-20 grouping). Parse/validate in model.rs (FR-96) so the warning is raised at build time. tests/common/html.rs FETCHING bans href: allow exactly <a href> with http(s) values in the panel/table; the html5ever test gains `a`. Escape the href with escape::html_attr.
 
 [2026-10-12] From PR 14c (D-78): check the panel and table layout under WCAG 1.4.12 with `just text-spacing` (extend scripts/text-spacing.mjs to the new HTML text). Wide-arrangement spaced text may spill toward whatever sits beside the radar. TextStyle::measure is now the layout width (advance + 1.4.12 allowance); use advance only where drawn text continues other text.
+
+[start] 2026-10-12 17:30:08
+
+[2026-10-12] PR 15a shipped (RG-015A): FR-96 link column in the model (link.rs); Page input; FR-41/FR-78 table view of every row and column (D-80), under an h2 and a details toggle, no script; PRD 0.61. 15b reads the table row for the panel; the name cell gains the button there.

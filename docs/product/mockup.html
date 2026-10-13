@@ -839,7 +839,7 @@ function render() {
       </tr>`),
     ...prep.unplotted.map((it) => `<tr class="unplotted">
         <td>—</td><td>${esc(it.name)}</td><td>${esc(it.quadrant)}</td>
-        <td>${esc(it.ring)} <span class="flag">not plotted</span></td>
+        <td>${esc(it.ring)} <span class="flag">not on the radar</span></td>
         <td>${esc(it.domain)}</td><td>${esc(it.lastAffirmed)}</td><td>${esc(it.exit || "—")}</td>
       </tr>`)
   ].join("");

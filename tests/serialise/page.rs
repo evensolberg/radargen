@@ -5,7 +5,7 @@
 use std::collections::BTreeSet;
 
 use radargen::emit::OUTPUT_VERSION;
-use radargen::emit::html::{UNTITLED, page};
+use radargen::emit::html::UNTITLED;
 use radargen::layout::arrange::{Arrangement, arrange};
 use radargen::num::fmt_coord;
 use radargen::style::breakpoint_px;
@@ -35,8 +35,7 @@ fn documents() -> (Document, Document) {
 }
 
 fn prd_page(title: Option<&str>) -> String {
-    let (wide, narrow) = documents();
-    page(&wide, &narrow, title)
+    prd().page(title)
 }
 
 /// The values of `attribute` on every element of `svg` carrying it.
@@ -67,9 +66,13 @@ fn the_page_is_minimal_and_valid() {
     assert!(style(&html).contains(VISUALLY_HIDDEN));
     let around = outside(&html);
     assert!(
-        around.ends_with(&format!(
-            "<body>\n<main>\n{WIDE_OPEN}\n</div>\n{NARROW_OPEN}\n</div>\n</main>\n</body>\n</html>\n"
+        around.contains(&format!(
+            "<body>\n<main>\n{WIDE_OPEN}\n</div>\n{NARROW_OPEN}\n</div>\n<h2 class=\"table-heading\""
         )),
+        "the table view follows both arrangements: {around}"
+    );
+    assert!(
+        around.ends_with("</details>\n</main>\n</body>\n</html>\n"),
         "{around}"
     );
 }
@@ -118,7 +121,7 @@ fn a_hostile_title_is_escaped() {
 #[test]
 fn one_arrangement_at_a_time() {
     let (wide, narrow) = documents();
-    let html = page(&wide, &narrow, None);
+    let html = prd().page_of(&wide, &narrow, None);
     assert_eq!(svgs(&html).len(), 2);
     let around = outside(&html);
     let (w, n) = (
@@ -245,7 +248,7 @@ fn a_marker_in_one_arrangement_keeps_its_rule() {
     );
     let wide = arrange(Arrangement::Wide, &fewer.blocks);
     let narrow = arrange(Arrangement::Narrow, &more.blocks);
-    let html = page(&wide, &narrow, None);
+    let html = more.page_of(&wide, &narrow, None);
     let css = style(&html);
     let keys: BTreeSet<String> = svgs(&html)
         .into_iter()
@@ -271,6 +274,15 @@ fn a_marker_in_one_arrangement_keeps_its_rule() {
         keys.len(),
         "one rule per key"
     );
+}
+
+/// The allow-list catches an attribute on the wrong element: an `href` on a
+/// `<div>` is a request or a navigation the page never makes (NFR-5).
+#[test]
+#[should_panic(expected = "href=\"https://x\" on <div>")]
+fn a_stray_href_fails_the_allow_list() {
+    let html = prd_page(None).replacen("<main>", "<main><div href=\"https://x\"></div>", 1);
+    assert_requests_nothing(&html);
 }
 
 /// `html` with each inlined font's base64 replaced by `…`, and how many were

@@ -82,7 +82,9 @@ pub fn xml_text(s: &str) -> String {
 /// Returned **with** its surrounding `"`, so a caller cannot emit it unquoted.
 ///
 /// For plain values only: escaping does not make text safe in a URL, an `on*`
-/// handler or a `style` attribute, and nothing CSV-derived goes in one.
+/// handler or a `style` attribute. Nothing CSV-derived goes in a handler or a
+/// style; the one URL is FR-96's `href`, which only a [`crate::link::Link`]
+/// that passed the `http`/`https` test reaches (D-77).
 #[must_use]
 pub fn xml_attr(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);

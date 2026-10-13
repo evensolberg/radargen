@@ -86,6 +86,16 @@ fn each_row_kind_has_its_per_row_message() {
             "line 8, exit_date: 'soon' is not a YYYY-MM-DD date; shown as written",
         ),
         (
+            at(
+                4,
+                4,
+                RowKind::RefusedLink {
+                    value: "javascript:alert(1)".into(),
+                },
+            ),
+            "line 4, link: 'javascript:alert(1)' is not an http or https address; shown as text, not a link",
+        ),
+        (
             at(9, 3, RowKind::EmptyDescription),
             "line 9, description: empty; the detail panel omits it",
         ),
@@ -1117,4 +1127,31 @@ fn fr95_names_where_a_ring_came_from() {
     assert!(message(RingSource::Default).ends_with(
         "a shorter name for ring 'Under evaluation' (a default ring, so pass --rings to rename it) would fix it"
     ));
+}
+
+/// FR-96 under NFR-20: refused links group by value as written, trimmed and
+/// not folded, since a URL's path is case-sensitive.
+#[test]
+fn refused_links_group_by_value() {
+    let link = |line, value: &str| {
+        at(
+            line,
+            4,
+            RowKind::RefusedLink {
+                value: value.into(),
+            },
+        )
+    };
+    let mut w = Warnings::default();
+    w.push(link(2, "ftp://x"));
+    w.push(link(3, " ftp://x "));
+    w.push(link(4, "mailto:y"));
+    w.push(link(5, "FTP://x"));
+    assert_eq!(
+        w.render(),
+        [
+            "warning: 4 rows have a link that is not an http or https address — ftp://x (2, first line 2), mailto:y (1, line 4), FTP://x (1, line 5); shown as text, not links"
+        ],
+        "one line, values in first-occurrence order"
+    );
 }

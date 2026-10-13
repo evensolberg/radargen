@@ -90,6 +90,11 @@ pub enum RowKind {
         /// The date cell as the CSV had it.
         value: String,
     },
+    /// FR-96: a non-blank `link` that is not an `http` or `https` address.
+    RefusedLink {
+        /// The link cell as the CSV had it.
+        value: String,
+    },
     /// FR-7.
     EmptyDescription,
     /// FR-28, reported at the later line naming the earlier (NFR-10).
@@ -244,6 +249,7 @@ enum Class {
     Qualifier,
     Status,
     Date(DateColumn),
+    Link,
     Description,
     DuplicateName,
     Undisplayable,
@@ -257,6 +263,7 @@ impl RowKind {
             Self::UnrecognisedQualifier { .. } => Class::Qualifier,
             Self::UnrecognisedStatus { .. } => Class::Status,
             Self::UnparsableDate { column, .. } => Class::Date(*column),
+            Self::RefusedLink { .. } => Class::Link,
             Self::EmptyDescription => Class::Description,
             Self::DuplicateName { .. } => Class::DuplicateName,
             Self::Undisplayable { .. } => Class::Undisplayable,
@@ -271,6 +278,7 @@ impl RowKind {
             Self::UnrecognisedQualifier { .. } => ColumnKind::Qualifier.as_str(),
             Self::UnrecognisedStatus { .. } => ColumnKind::Status.as_str(),
             Self::UnparsableDate { column, .. } => column.as_str(),
+            Self::RefusedLink { .. } => ColumnKind::Link.as_str(),
             Self::EmptyDescription => ColumnKind::Description.as_str(),
             Self::DuplicateName { .. } => ColumnKind::Name.as_str(),
             // A header name is CSV text (FR-18's extra columns); it is escaped
@@ -287,6 +295,7 @@ impl RowKind {
             | Self::UnrecognisedQualifier { value }
             | Self::UnrecognisedStatus { value }
             | Self::UnparsableDate { value, .. }
+            | Self::RefusedLink { value }
             | Self::DuplicateName { value, .. }
             | Self::UnnamedValue { column: value } => Some(value),
             Self::EmptyDescription | Self::Undisplayable { .. } => None,
@@ -315,6 +324,9 @@ impl RowKind {
             }
             Self::UnparsableDate { .. } => {
                 format!("'{v}' is not a YYYY-MM-DD date; shown as written")
+            }
+            Self::RefusedLink { .. } => {
+                format!("'{v}' is not an http or https address; shown as text, not a link")
             }
             Self::EmptyDescription => "empty; the detail panel omits it".into(),
             Self::DuplicateName {
@@ -574,6 +586,12 @@ fn grouped(class: Class, members: &[Member]) -> String {
         // parsed, so only trimmed, and two spellings are two values.
         Class::Date(column) => format!(
             "{n} rows have {column} values that are not YYYY-MM-DD dates — {}; each is shown as written",
+            tallied(members, |v| trim(v).to_string())
+        ),
+        // A URL's path is case-sensitive, so two spellings are two values,
+        // as for a date.
+        Class::Link => format!(
+            "{n} rows have a link that is not an http or https address — {}; shown as text, not links",
             tallied(members, |v| trim(v).to_string())
         ),
         Class::DuplicateName => format!(

@@ -25,6 +25,8 @@ pub enum ColumnKind {
     ExitDate,
     /// Author-supplied movement since the last edition (FR-26, D-9).
     Status,
+    /// A web address for the item (FR-96).
+    Link,
     /// FR-27: a column the tool does not know. Kept for the table (FR-78).
     Other,
 }
@@ -32,7 +34,7 @@ pub enum ColumnKind {
 impl ColumnKind {
     /// Every known kind, so the header names are written once, in
     /// [`ColumnKind::as_str`].
-    const KNOWN: [Self; 10] = [
+    const KNOWN: [Self; 11] = [
         Self::Name,
         Self::Quadrant,
         Self::Ring,
@@ -43,6 +45,7 @@ impl ColumnKind {
         Self::LastAffirmed,
         Self::ExitDate,
         Self::Status,
+        Self::Link,
     ];
 
     /// The kind a header name under FR-76 names.
@@ -67,6 +70,7 @@ impl ColumnKind {
             Self::LastAffirmed => "last_affirmed",
             Self::ExitDate => "exit_date",
             Self::Status => "status",
+            Self::Link => "link",
             Self::Other => "",
         }
     }

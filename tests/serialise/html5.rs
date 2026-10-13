@@ -9,12 +9,11 @@
 use html5ever::tendril::TendrilSink;
 use html5ever::{LocalName, Namespace, ParseOpts, ns, parse_document};
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
-use radargen::emit::html::page;
 use radargen::layout::arrange::{Arrangement, arrange};
 
 use super::build;
 use super::hostile::{RING, Strings, TITLE, csv};
-use super::html::{PAGE_ATTRIBUTES, PAGE_ELEMENTS, SVG_ELEMENTS};
+use super::html::{PAGE_ELEMENTS, SVG_ELEMENTS, page_attribute};
 use super::vocabulary::{EITHER, INTERACTIVE_ONLY};
 
 /// Every element under `node`, itself included, in document order.
@@ -45,22 +44,24 @@ fn attribute(node: &Handle, wanted: &str) -> Option<String> {
     }
 }
 
-/// Every attribute name on `node`, with its prefix, so `xlink:role` cannot
-/// pass as `role`.
-fn attribute_names(node: &Handle) -> Vec<String> {
+/// Every attribute on `node`, its name with its prefix, so `xlink:role`
+/// cannot pass as `role`, and its value as the parser decoded it.
+fn attribute_pairs(node: &Handle) -> Vec<(String, String)> {
     match &node.data {
         NodeData::Element { attrs, .. } => attrs
             .borrow()
             .iter()
             .map(|a| {
-                a.name
+                let name = a
+                    .name
                     .prefix
                     .as_ref()
                     .filter(|prefix| !prefix.is_empty())
                     .map_or_else(
                         || a.name.local.to_string(),
                         |prefix| format!("{prefix}:{}", a.name.local),
-                    )
+                    );
+                (name, a.value.to_string())
             })
             .collect(),
         _ => Vec::new(),
@@ -114,19 +115,108 @@ fn strings_in(svg: &Handle) -> Strings {
     }
 }
 
+/// FR-96's hostile and awkward links: three schemes refused, a quote that
+/// would leave the attribute, a query whose `&` must round-trip, and a
+/// plain address.
+const LINKS: [&str; 6] = [
+    "javascript:alert(1)",
+    " JAVASCRIPT:x",
+    "data:text/html,<b>x</b>",
+    "https://a\" onmouseover=\"x",
+    "https://x/?a=1&b=2&lt=3",
+    "https://ok.example",
+];
+/// An `Other` column heading that would open a tag were it not escaped.
+const HEADING: &str = "a<b>&\"c";
+
+/// All the text under `node`, at any depth.
+fn all_text(node: &Handle) -> String {
+    node.children
+        .borrow()
+        .iter()
+        .map(|child| match &child.data {
+            NodeData::Text { contents } => contents.borrow().to_string(),
+            NodeData::Element { .. } => all_text(child),
+            _ => String::new(),
+        })
+        .collect()
+}
+
+/// `csv` with a `link` column, [`LINKS`] on its first rows, and an `Other`
+/// column headed [`HEADING`].
+fn with_links(csv: &str) -> String {
+    let field = |s: &str| ["\"", &s.replace('"', "\"\""), "\""].concat();
+    let mut rows = csv.lines();
+    let header = [
+        rows.next().expect("a header"),
+        ",link,",
+        &field(HEADING),
+        "\n",
+    ]
+    .concat();
+    let body: String = rows
+        .enumerate()
+        .map(|(i, row)| {
+            let link = LINKS.get(i).map_or_else(String::new, |l| field(l));
+            [row, ",", &link, ",x\n"].concat()
+        })
+        .collect();
+    header + &body
+}
+
+/// D-77 and NFR-6 through the parser: only the `https` values are links,
+/// each `href` and its text read back as written, the refused values are
+/// text, and the hostile heading reads back as written.
+fn links_and_headings_read_back(all: &[Handle]) {
+    let html_named = |local: &str| {
+        all.iter()
+            .filter(|n| name_of(n) == (ns!(html), LocalName::from(local)))
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    let mut anchors: Vec<(String, String)> = html_named("a")
+        .iter()
+        .map(|a| (attribute(a, "href").unwrap_or_default(), all_text(a)))
+        .collect();
+    anchors.sort();
+    let mut addresses: Vec<(String, String)> = LINKS
+        .iter()
+        .map(|l| radargen::trim(l))
+        .filter(|l| l.starts_with("https://"))
+        .map(|l| (l.to_owned(), format!("{l} (opens in a new tab)")))
+        .collect();
+    addresses.sort();
+    assert_eq!(
+        anchors, addresses,
+        "only the https values are links, as written"
+    );
+    let headings: Vec<String> = html_named("th").iter().map(own_text).collect();
+    assert!(headings.iter().any(|h| h == HEADING), "{headings:?}");
+    let cells: String = html_named("td").iter().map(all_text).collect();
+    for refused in LINKS
+        .iter()
+        .map(|l| radargen::trim(l))
+        .filter(|l| !l.starts_with("https://"))
+    {
+        assert!(cells.contains(refused), "{refused} shown as text");
+    }
+}
+
 #[test]
 fn hostile_text_survives_an_html5_parser() {
     // A cell holding Excel's Alt+Enter line break, CR LF, in a name and in
     // a description: no carriage return may reach the page (FR-97, rg-c4l).
+    // FR-96's links on the first rows, and a column heading that is
+    // hostile itself (NFR-6): three addresses become `<a>`, the rest text.
     let csv = [
-        csv().as_str(),
-        "\"Kafka\r\nStreams\",Plain,Adopt,\"one\r\ntwo\"\n",
+        with_links(&csv()).as_str(),
+        "\"Kafka\r\nStreams\",Plain,Adopt,\"one\r\ntwo\",,x\n",
     ]
     .concat();
     let built = build(&csv, Some(&format!("{RING},Adopt")), Some(TITLE));
     let wide = arrange(Arrangement::Wide, &built.blocks);
     let narrow = arrange(Arrangement::Narrow, &built.blocks);
-    let html = page(&wide, &narrow, Some(TITLE));
+    let html = built.page_of(&wide, &narrow, Some(TITLE));
 
     let dom = parse_document(RcDom::default(), ParseOpts::default())
         .from_utf8()
@@ -137,7 +227,8 @@ fn hostile_text_survives_an_html5_parser() {
     let all = elements(&dom.document);
     for node in &all {
         let (namespace, local) = name_of(node);
-        let names = attribute_names(node);
+        let pairs = attribute_pairs(node);
+        let names: Vec<&String> = pairs.iter().map(|(n, _)| n).collect();
         // No handler, whatever the allow-lists below come to hold.
         assert!(
             names.iter().all(|n| !n.starts_with("on")),
@@ -160,8 +251,11 @@ fn hostile_text_survives_an_html5_parser() {
                 );
             }
         } else {
-            for name in &names {
-                assert!(PAGE_ATTRIBUTES.contains(&name.as_str()), "<{local} {name}>");
+            for (name, value) in &pairs {
+                assert!(
+                    page_attribute(&local, name, value, &pairs),
+                    "<{local} {name}=\"{value}\">"
+                );
             }
             assert_eq!(namespace, ns!(html), "<{local}>");
             // html5ever puts the `<svg>` start tag itself in the SVG namespace,
@@ -185,6 +279,8 @@ fn hostile_text_survives_an_html5_parser() {
         .find(|n| name_of(n) == (ns!(html), LocalName::from("title")))
         .map(own_text);
     assert_eq!(page_title.as_deref(), Some(TITLE), "the tab title as given");
+
+    links_and_headings_read_back(&all);
 
     let svgs: Vec<&Handle> = all
         .iter()

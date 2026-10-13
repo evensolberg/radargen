@@ -2,9 +2,12 @@
 //! interactive, with one shown at a time, both palettes, and Inter inlined.
 
 mod css;
+mod table;
 
 use crate::emit::OUTPUT_VERSION;
 use crate::escape::xml_text;
+use crate::model::Catalogue;
+use crate::order::Plotted;
 use crate::palette::{Palette, Theme};
 use crate::svg::{Document, ItemKey, Target, marker_keys, serialise};
 
@@ -16,21 +19,46 @@ const BODY_OPEN: &str = "</style>\n</head>\n<body>\n<main>\n";
 const HIDDEN_HEADING: &str = "<h1 class=\"visually-hidden\">";
 const WIDE_OPEN: &str = "<div class=\"arrangement wide\">\n";
 const NARROW_OPEN: &str = "\n</div>\n<div class=\"arrangement narrow\">\n";
-const BODY_CLOSE: &str = "\n</div>\n</main>\n</body>\n</html>\n";
+const NARROW_CLOSE: &str = "\n</div>\n";
+const BODY_CLOSE: &str = "</main>\n</body>\n</html>\n";
 
-/// The page for the two arrangements of one `Blocks` (FR-68).
+/// Everything the page is written from: the two arrangements of one
+/// `Blocks` (FR-68), and the catalogue and its order, which the table view
+/// reads (FR-78).
+#[derive(Debug, Clone, Copy)]
+pub struct Page<'a> {
+    /// The wide arrangement.
+    pub wide: &'a Document,
+    /// The narrow arrangement.
+    pub narrow: &'a Document,
+    /// Every row, as the model read it.
+    pub catalogue: &'a Catalogue,
+    /// The catalogue's order and numbers.
+    pub plotted: &'a Plotted,
+    /// FR-65's resolved title; `None` names the page [`UNTITLED`].
+    pub title: Option<&'a str>,
+}
+
+/// The page for `input` (FR-68).
 ///
 /// Both are serialised interactive, binding colours to custom properties
 /// the stylesheet declares for both themes (FR-56, architecture §5). The
 /// palette passed only names them and cycles the series, which the two
 /// built-in themes share.
 ///
-/// `title` is FR-65's resolved title, `None` when absent or blank: the
-/// page is then named [`UNTITLED`], with a visually hidden level-1 heading,
+/// `input.title` is FR-65's resolved title, `None` when absent or blank:
+/// the page is then named [`UNTITLED`], with a visually hidden level-1 heading,
 /// since the drawn document has none (D-75). With a title, the SVG's own
 /// title is the level-1 heading.
 #[must_use]
-pub fn page(wide: &Document, narrow: &Document, title: Option<&str>) -> String {
+pub fn page(input: &Page<'_>) -> String {
+    let Page {
+        wide,
+        narrow,
+        catalogue,
+        plotted,
+        title,
+    } = *input;
     let markers = union(marker_keys(wide), marker_keys(narrow));
     let target = Target::Interactive(&Palette::built_in(Theme::Light));
     let heading = if title.is_some() {
@@ -49,12 +77,15 @@ pub fn page(wide: &Document, narrow: &Document, title: Option<&str>) -> String {
         &css::layout(wide.width, narrow.width),
         &css::indicators(&markers),
         css::VISUALLY_HIDDEN,
+        &table::css(wide.width),
         BODY_OPEN,
         &heading,
         WIDE_OPEN,
         &serialise(wide, target),
         NARROW_OPEN,
         &serialise(narrow, target),
+        NARROW_CLOSE,
+        &table::table(catalogue, plotted),
         BODY_CLOSE,
     ]
     .concat()

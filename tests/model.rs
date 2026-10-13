@@ -3,7 +3,7 @@
 
 use radargen::csv::parse::parse;
 use radargen::diagnostics::{RowError, Warnings};
-use radargen::model::{ColumnKind, Qualifier, Status, build_catalogue};
+use radargen::model::{ColumnKind, Link, Qualifier, Status, build_catalogue};
 use radargen::rings::parse_rings;
 
 /// PRD §6.1.6's example, architecture §10's `three-quadrant.csv` (SC-2):
@@ -133,5 +133,63 @@ fn parse_errors_do_not_suppress_model_warnings() {
         [
             "warning: line 3, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
         ]
+    );
+}
+
+/// FR-96: the `link` header matches under FR-76, an `http` or `https` value
+/// is an address and any other non-blank value is text, with one warning per
+/// refused row; a line break in the cell is a space (FR-97).
+#[test]
+fn the_link_column_is_read_once_per_row() {
+    for header in ["link", " Link ", "LINK"] {
+        let csv = format!(
+            "name,quadrant,ring,description,{header}\n\
+             A,T,Adopt,d,https://a.example\n\
+             B,T,Adopt,d,javascript:alert(1)\n\
+             C,T,Adopt,d,\"https://c.example/\r\nmore\"\n\
+             D,T,Adopt,d,\n"
+        );
+        let mut w = Warnings::default();
+        let (table, errs) = parse(&csv, &mut w).expect("parses");
+        assert!(errs.is_empty(), "{errs:?}");
+        let rings = parse_rings(None).expect("default");
+        let cat = build_catalogue(&table, &rings, &mut w).expect("builds");
+        let links: Vec<Option<Link>> = cat.items.iter().map(|i| i.link.clone()).collect();
+        assert_eq!(
+            links,
+            [
+                Some(Link::Address("https://a.example".into())),
+                Some(Link::Text("javascript:alert(1)".into())),
+                Some(Link::Address("https://c.example/ more".into())),
+                None,
+            ],
+            "{header:?}"
+        );
+        assert_eq!(
+            w.render(),
+            [
+                "warning: line 3, link: 'javascript:alert(1)' is not an http or https address; shown as text, not a link"
+            ],
+            "{header:?}: one warning, for the refused row"
+        );
+    }
+}
+
+/// Two `link` columns are FR-4's duplicate header, so the model never has to
+/// choose between them.
+#[test]
+fn two_link_columns_are_a_duplicate_header() {
+    let mut w = Warnings::default();
+    let (_, errs) = parse(
+        "name,quadrant,ring,description,link,Link\nA,T,Adopt,d,x,y\n",
+        &mut w,
+    )
+    .expect("parses");
+    assert_eq!(errs.len(), 1, "{errs:?}");
+    assert!(
+        errs.iter()
+            .map(RowError::render)
+            .all(|e| e.contains("link")),
+        "{errs:?}"
     );
 }

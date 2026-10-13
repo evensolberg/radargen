@@ -10,6 +10,7 @@
 pub use crate::columns::ColumnKind;
 use crate::csv::parse::{Record, Table};
 use crate::diagnostics::{DateColumn, RowError, RowKind, Warning, Warnings, column_label};
+pub use crate::link::Link;
 use crate::rings::{RingSet, RingSource};
 use crate::{normalise, single_line, trim};
 use std::borrow::Cow;
@@ -135,6 +136,9 @@ pub struct Item {
     /// FR-26: `None` when blank or absent; an unrecognised value is
     /// `Some(Status::NoChange)`, with a warning.
     pub status: Option<Status>,
+    /// FR-96: `None` when blank or absent; a value that is not an `http` or
+    /// `https` address is [`Link::Text`], with a warning.
+    pub link: Option<Link>,
     /// Every named column's cell, aligned with [`Catalogue::columns`] (not
     /// with the header, which may hold unnamed columns), as written after
     /// FR-90's removal (FR-78).
@@ -186,6 +190,31 @@ impl Catalogue {
         self.columns.iter().position(|c| c.kind == kind)
     }
 
+    /// The ring `item` is shown under: its declared ring's label when it is
+    /// plotted, otherwise its cell trimmed, empty when the cell is (FR-17).
+    ///
+    /// # Panics
+    ///
+    /// If `item.ring` is out of range for this catalogue, as for an item
+    /// from another one.
+    #[must_use]
+    // qual:allow(complexity, error_handling) reason: "the documented # Panics: an item from another catalogue is a caller bug"
+    pub fn ring_label<'a>(&'a self, item: &'a Item) -> &'a str {
+        item.ring.map_or_else(
+            || {
+                self.column(ColumnKind::Ring)
+                    .and_then(|c| item.cell(c))
+                    .map_or("", trim)
+            },
+            |r| {
+                self.rings
+                    .get(r)
+                    .expect("item.ring is within this catalogue's rings")
+                    .as_str()
+            },
+        )
+    }
+
     /// FR-50, FR-75: an accessible name for a marker, a legend row and —
     /// until `rg-6ny` settles how table rows are exposed — a table row.
     /// Only a table row can be unplotted (FR-18).
@@ -214,19 +243,7 @@ impl Catalogue {
     // qual:allow(complexity, error_handling) reason: "the documented # Panics: an item from another catalogue is a caller bug"
     pub fn accessible_name(&self, item: &Item, number: Option<usize>) -> String {
         debug_assert_eq!(number.is_some(), item.ring.is_some(), "FR-18");
-        let ring = item.ring.map_or_else(
-            || {
-                self.column(ColumnKind::Ring)
-                    .and_then(|c| item.cell(c))
-                    .map_or("", trim)
-            },
-            |r| {
-                self.rings
-                    .get(r)
-                    .expect("item.ring is within this catalogue's rings")
-                    .as_str()
-            },
-        );
+        let ring = self.ring_label(item);
         let row = [
             Some(trim(&item.name)),
             item.qualifier.map(Qualifier::label),
@@ -247,7 +264,7 @@ impl Catalogue {
             format!("{quadrant} quadrant, {ring} ring")
         };
         number.map_or_else(
-            || format!("{row}; {position}; not on the radar"),
+            || format!("{row}; {position}; {NOT_ON_THE_RADAR}"),
             |n| format!("{n}. {row}; {position}"),
         )
     }
@@ -396,6 +413,7 @@ struct Positions {
     status: Option<usize>,
     last_affirmed: Option<usize>,
     exit_date: Option<usize>,
+    link: Option<usize>,
 }
 
 impl Positions {
@@ -410,6 +428,7 @@ impl Positions {
             self.status,
             self.last_affirmed,
             self.exit_date,
+            self.link,
         ]
         .into_iter()
         .flatten()
@@ -428,9 +447,15 @@ impl Positions {
             status: header.position(ColumnKind::Status),
             last_affirmed: header.position(ColumnKind::LastAffirmed),
             exit_date: header.position(ColumnKind::ExitDate),
+            link: header.position(ColumnKind::Link),
         }
     }
 }
+
+/// FR-17 and FR-41's words for a row the radar cannot plot: the table's
+/// flag and the end of its accessible name, so a speech-input user can say
+/// what a sighted reader sees (WCAG 2.5.3, D-66).
+pub const NOT_ON_THE_RADAR: &str = "not on the radar";
 
 /// Builds the catalogue a row at a time.
 struct Builder {
@@ -505,6 +530,7 @@ impl Builder {
             .at
             .status
             .and_then(|p| read_status(at(p), p, &mut warn));
+        let link = self.at.link.and_then(|p| read_link(at(p), p, &mut warn));
         for (column, position) in [
             (DateColumn::LastAffirmed, self.at.last_affirmed),
             (DateColumn::ExitDate, self.at.exit_date),
@@ -532,6 +558,7 @@ impl Builder {
             ring,
             qualifier,
             status,
+            link,
             cells,
         });
     }
@@ -640,6 +667,21 @@ fn read_qualifier(
             None
         }
     }
+}
+
+/// FR-96: blank is absent; a value that is not an `http` or `https`
+/// address is shown as text, with a warning (D-77).
+fn read_link(value: &str, column: usize, warn: &mut impl FnMut(usize, RowKind)) -> Option<Link> {
+    let link = Link::of(value);
+    if let Some(Link::Text(_)) = link {
+        warn(
+            column,
+            RowKind::RefusedLink {
+                value: value.to_string(),
+            },
+        );
+    }
+    link
 }
 
 /// FR-26: blank is absent; an unrecognised value is `NoChange`, with a
@@ -1529,6 +1571,7 @@ Plain,Tool,adopt,d,,,,no change\n"
                 ring: None,
                 qualifier: None,
                 status: None,
+                link: None,
                 cells: vec!["Old".into()],
             }],
         };

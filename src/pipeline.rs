@@ -16,7 +16,7 @@ use crate::cli::{Cli, clean_flag};
 use crate::csv::decode;
 use crate::csv::parse::parse;
 use crate::diagnostics::{Fatal, Flag, RowError, Warnings};
-use crate::emit::html::page;
+use crate::emit::html::{Page, page};
 use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
 use crate::errors::render_errors;
@@ -206,11 +206,13 @@ fn render(
         fonts,
     );
     warn_narrow(&blocks, warnings);
-    page(
-        &arrange(Arrangement::Wide, &blocks),
-        &arrange(Arrangement::Narrow, &blocks),
-        config.title.as_deref(),
-    )
+    page(&Page {
+        wide: &arrange(Arrangement::Wide, &blocks),
+        narrow: &arrange(Arrangement::Narrow, &blocks),
+        catalogue,
+        plotted: &plotted,
+        title: config.title.as_deref(),
+    })
 }
 
 #[cfg(test)]
