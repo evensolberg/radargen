@@ -350,3 +350,29 @@ fn the_table_marks_selection_and_keeps_its_button_usable() {
         "prose is scoped to the table's cells"
     );
 }
+
+/// A table wider than its region shows that it scrolls: shadows pinned to
+/// the region's edges, covered at whichever end the reader has reached. The
+/// table has no background of its own, which would hide them.
+#[test]
+fn the_table_shows_when_it_scrolls() {
+    let html = built().page(Some("T"));
+    let css = super::html::style(&html);
+    assert!(
+        css.contains(concat!(
+            ".table-scroll{position:relative;overflow-x:auto;border-radius:6px;",
+            "border:1px solid var(--stroke-divider);background:linear-gradient(to right,"
+        )),
+        "the scroll cue follows the region's border, its rule intact"
+    );
+    assert!(
+        css.contains(
+            "background-attachment:local,local,scroll,scroll;background-color:var(--surface-2)}"
+        ),
+        "the scroll cue"
+    );
+    assert!(
+        css.contains("table{min-width:100%;border-collapse:collapse;font-size:.8125rem}"),
+        "no table background over the cue"
+    );
+}
