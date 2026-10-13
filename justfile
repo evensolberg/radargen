@@ -136,7 +136,7 @@ release-build:
 # Chromium binary). Part of `just ci`, and it fails when Chromium is missing
 # rather than skipping: a skipped behaviour check would pass without
 # looking (RG-015B).
-browser: release-build text-spacing-only interaction-only
+browser: release-build text-spacing-only interaction-only a11y-audit-only
 
 # WCAG 1.4.12 text spacing in a browser (plan RG-014C, D-78): renders the
 # fixtures and checks every text fits and none overlaps, at five widths,
@@ -166,6 +166,34 @@ interaction-only:
     out="$(mktemp -d)"
     ./target/release/radargen tests/fixtures/interaction.csv -o "$out/interaction.html" 2>/dev/null
     node scripts/interaction.mjs "$out/interaction.html"
+
+# WCAG 2.1 AA's automatable criteria in headless Chromium (RG-015C). D-71's
+# fixture is wider than 480 units, so its narrow width is read from FR-95's
+# warning and passed on: the audit bounds that recorded 2.5.8 exception.
+a11y-audit: release-build a11y-audit-only
+
+[private]
+a11y-audit-only:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out="$(mktemp -d)"
+    trap 'rm -rf "$out"' EXIT
+    ./target/release/radargen tests/fixtures/interaction.csv -o "$out/interaction.html" 2>/dev/null
+    width="$(./target/release/radargen tests/fixtures/d71-wide.csv -o "$out/d71.html" 2>&1 | sed -n 's/.*narrow arrangement is \([0-9]*\) units wide.*/\1/p')"
+    node scripts/a11y-audit.mjs "$out/interaction.html" "$out/d71.html" "$width"
+
+# Screenshots for the release's visual sign-off (RG-015C): each fixture at
+# five widths, three colour modes, panel closed and open. Looked at, not
+# compared; see docs/release-1.0.0.md.
+screenshots: release-build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out="${SCREENSHOTS:-$(mktemp -d)}"
+    mkdir -p "$out"
+    for f in interaction three-quadrant d71-wide; do
+        ./target/release/radargen "tests/fixtures/$f.csv" -o "$out/$f.html" --title "Technology Radar" 2>/dev/null
+    done
+    node scripts/screenshots.mjs "$out" "$out/interaction.html" "$out/three-quadrant.html" "$out/d71-wide.html"
 
 # rg-jri: style recalculation per Tab on a 300-marker radar, in Chromium.
 focus-cost: release-build

@@ -9,7 +9,7 @@ tags:
 - html
 - a11y
 created: 2026-10-08
-updated: 2026-10-12
+updated: 2026-10-13
 blocks:
 - rg-l4h
 - rg-9ay
@@ -45,3 +45,5 @@ FR-38 detail panel, FR-72 cross-highlight, FR-49 keyboard and focus return keyed
 [2026-10-12] PR 15b-1 shipped: script skeleton with names block and bans, rg-jri focus by attribute, theme toggle (FR-56), skip link (FR-98), browser harness (just browser, in just ci). 15b-2 (panel, selection, hover, keyboard) and 15c remain.
 
 [2026-10-12] PR 15b-2 shipped: sticky detail panel built from the table row (D-80), selection on marker, legend row and table row, hover, keyboard activation, Escape and focus return keyed on the item, aria-expanded/aria-controls at start-up. 15c remains: verification and the 1.0.0 release (maintainer to test first).
+
+[2026-10-13] PR 15c shipped: WCAG 2.1 AA audit in just ci (scripts/a11y-audit.mjs), the table scroll cue, just screenshots, docs/a11y/manual-checks.md and docs/release-1.0.0.md. Remaining before 1.0.0: the maintainer tests and answers the release checklist decisions (SC-8, SC-16, 2.5.8 Equivalent, rg-l4h), then the dependency check, then the bump PR. Closes with the release.

@@ -230,10 +230,19 @@ const SUMMARY_RULE: &str =
     "summary{cursor:pointer;width:fit-content;padding-block:.5em;font-weight:600}\n";
 const SCROLL_OPEN: &str =
     ".table-scroll{position:relative;overflow-x:auto;border-radius:6px;border:1px solid var(";
-const TABLE_OPEN: &str =
-    ")}\ntable{min-width:100%;border-collapse:collapse;font-size:.8125rem;background:var(";
+/// The scroll cue: a shadow pinned to each edge of the region, and a cover
+/// in the surface colour that scrolls with the table and hides the shadow at
+/// whichever end the reader has reached. So a table wider than the region
+/// shows that it scrolls, even under overlay scrollbars that show nothing.
+/// The table itself has no background, or it would cover the shadows.
+const CUE_OPEN: &str = ");background:linear-gradient(to right,var(";
+const CUE_LEFT_COVER: &str = ") 30%,transparent) left/2.5em 100%,linear-gradient(to left,var(";
+const CUE_RIGHT_COVER: &str = ") 30%,transparent) right/2.5em 100%,radial-gradient(farthest-side at 0 50%,color-mix(in srgb,var(";
+const CUE_LEFT_SHADOW: &str = ") 45%,transparent),transparent) left/.9em 100%,radial-gradient(farthest-side at 100% 50%,color-mix(in srgb,var(";
+const CUE_RIGHT_SHADOW: &str = ") 45%,transparent),transparent) right/.9em 100%;background-repeat:no-repeat;background-attachment:local,local,scroll,scroll;background-color:var(";
+const TABLE_OPEN: &str = ")}\ntable{min-width:100%;border-collapse:collapse;font-size:.8125rem";
 const CELL_OPEN: &str =
-    ")}\nth,td{text-align:start;vertical-align:top;padding:.4em .6em;border-bottom:1px solid var(";
+    "}\nth,td{text-align:start;vertical-align:top;padding:.4em .6em;border-bottom:1px solid var(";
 const HEAD_OPEN: &str =
     ")}\nth{font-weight:600}\nthead th{font-size:.75rem;border-bottom-width:2px;color:var(";
 const NUMBER_RULE: &str = ")}\n.number{text-align:end;font-variant-numeric:tabular-nums}\ntd.prose{white-space:pre-line;min-width:16em}\ntd.link{overflow-wrap:anywhere;min-width:12em}\n";
@@ -268,8 +277,17 @@ pub(super) fn css(wide_width: f64) -> String {
         SUMMARY_RULE,
         SCROLL_OPEN,
         Neutral::StrokeDivider.as_str(),
-        TABLE_OPEN,
+        CUE_OPEN,
         Neutral::Surface2.as_str(),
+        CUE_LEFT_COVER,
+        Neutral::Surface2.as_str(),
+        CUE_RIGHT_COVER,
+        Neutral::TextMuted.as_str(),
+        CUE_LEFT_SHADOW,
+        Neutral::TextMuted.as_str(),
+        CUE_RIGHT_SHADOW,
+        Neutral::Surface2.as_str(),
+        TABLE_OPEN,
         CELL_OPEN,
         Neutral::StrokeDivider.as_str(),
         HEAD_OPEN,

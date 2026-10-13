@@ -22,7 +22,7 @@
 import { writeFileSync } from 'node:fs';
 import { join, resolve, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { connect } from './cdp.mjs';
+import { SPILLS, connect } from './cdp.mjs';
 
 const SPACING =
   '*{letter-spacing:.12em!important;word-spacing:.16em!important;line-height:1.5!important}' +
@@ -85,25 +85,9 @@ const CHECK = `(() => {
   if (document.documentElement.scrollWidth > innerWidth + slack) {
     problems.push('the page scrolls sideways: ' + document.documentElement.scrollWidth + ' > ' + innerWidth);
   }
-  for (const cell of document.querySelectorAll('.table-scroll td, .table-scroll th, summary, .detail-heading, .detail dt, .detail dd')) {
-    // Visually hidden text is laid out unwrapped in a 1px box by design, so
-    // only the text a reader sees is measured.
-    const box = cell.getBoundingClientRect();
-    const walk = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
-    let left = Infinity, right = -Infinity, bottom = -Infinity;
-    for (let node = walk.nextNode(); node; node = walk.nextNode()) {
-      if (node.parentElement.closest('.visually-hidden')) continue;
-      const range = document.createRange();
-      range.selectNodeContents(node);
-      for (const r of range.getClientRects()) {
-        left = Math.min(left, r.left);
-        right = Math.max(right, r.right);
-        bottom = Math.max(bottom, r.bottom);
-      }
-    }
-    if (bottom > box.bottom + slack || right > box.right + slack || left < box.left - slack) {
-      problems.push('clipped: ' + cell.textContent.slice(0, 40));
-    }
+  const spills = ${SPILLS};
+  for (const text of spills('.table-scroll td, .table-scroll th, summary, .detail-heading, .detail dt, .detail dd', slack)) {
+    problems.push('clipped: ' + text);
   }
   const panel = document.getElementById('detail');
   if (document.querySelector('tr[data-row] button') && panel?.hidden) {
