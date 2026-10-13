@@ -44,37 +44,28 @@ fn attribute(node: &Handle, wanted: &str) -> Option<String> {
     }
 }
 
-/// Every attribute name on `node`, with its prefix, so `xlink:role` cannot
-/// pass as `role`.
-fn attribute_names(node: &Handle) -> Vec<String> {
+/// Every attribute on `node`, its name with its prefix, so `xlink:role`
+/// cannot pass as `role`, and its value as the parser decoded it.
+fn attribute_pairs(node: &Handle) -> Vec<(String, String)> {
     match &node.data {
         NodeData::Element { attrs, .. } => attrs
             .borrow()
             .iter()
             .map(|a| {
-                a.name
+                let name = a
+                    .name
                     .prefix
                     .as_ref()
                     .filter(|prefix| !prefix.is_empty())
                     .map_or_else(
                         || a.name.local.to_string(),
                         |prefix| format!("{prefix}:{}", a.name.local),
-                    )
+                    );
+                (name, a.value.to_string())
             })
             .collect(),
         _ => Vec::new(),
     }
-}
-
-/// Every attribute on `node` with its value, as the parser decoded it.
-fn attribute_pairs(node: &Handle) -> Vec<(String, String)> {
-    let values: Vec<String> = match &node.data {
-        NodeData::Element { attrs, .. } => {
-            attrs.borrow().iter().map(|a| a.value.to_string()).collect()
-        }
-        _ => Vec::new(),
-    };
-    attribute_names(node).into_iter().zip(values).collect()
 }
 
 /// The text of `node`'s direct text children.
@@ -202,11 +193,11 @@ fn links_and_headings_read_back(all: &[Handle]) {
     let headings: Vec<String> = html_named("th").iter().map(own_text).collect();
     assert!(headings.iter().any(|h| h == HEADING), "{headings:?}");
     let cells: String = html_named("td").iter().map(all_text).collect();
-    for refused in [
-        "javascript:alert(1)",
-        "JAVASCRIPT:x",
-        "data:text/html,<b>x</b>",
-    ] {
+    for refused in LINKS
+        .iter()
+        .map(|l| radargen::trim(l))
+        .filter(|l| !l.starts_with("https://"))
+    {
         assert!(cells.contains(refused), "{refused} shown as text");
     }
 }
@@ -236,7 +227,8 @@ fn hostile_text_survives_an_html5_parser() {
     let all = elements(&dom.document);
     for node in &all {
         let (namespace, local) = name_of(node);
-        let names = attribute_names(node);
+        let pairs = attribute_pairs(node);
+        let names: Vec<&String> = pairs.iter().map(|(n, _)| n).collect();
         // No handler, whatever the allow-lists below come to hold.
         assert!(
             names.iter().all(|n| !n.starts_with("on")),
@@ -259,7 +251,6 @@ fn hostile_text_survives_an_html5_parser() {
                 );
             }
         } else {
-            let pairs = attribute_pairs(node);
             for (name, value) in &pairs {
                 assert!(
                     page_attribute(&local, name, value, &pairs),

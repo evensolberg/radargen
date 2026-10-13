@@ -38,3 +38,5 @@ FR-38 detail panel, FR-72 cross-highlight, FR-49 keyboard and focus return keyed
 [2026-10-12] From PR 14c (D-78): check the panel and table layout under WCAG 1.4.12 with `just text-spacing` (extend scripts/text-spacing.mjs to the new HTML text). Wide-arrangement spaced text may spill toward whatever sits beside the radar. TextStyle::measure is now the layout width (advance + 1.4.12 allowance); use advance only where drawn text continues other text.
 
 [start] 2026-10-12 17:30:08
+
+[2026-10-12] PR 15a shipped (RG-015A): FR-96 link column in the model (link.rs); Page input; FR-41/FR-78 table view of every row and column (D-80), under an h2 and a details toggle, no script; PRD 0.61. 15b reads the table row for the panel; the name cell gains the button there.

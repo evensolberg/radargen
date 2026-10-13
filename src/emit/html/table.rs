@@ -21,19 +21,23 @@ use crate::trim;
 const HEADING_ID: &str = "table-heading";
 /// The heading's words and the toggle's.
 const HEADING: &str = "Every item";
-const SUMMARY: &str = "Show the table";
+/// Neutral, since a screen reader adds "collapsed" or "expanded".
+const SUMMARY: &str = "The table";
 
 const OPEN_HEADING: &str = "<h2 class=\"table-heading\" id=\"";
 const OPEN_TOGGLE: &str = "</h2>\n<details class=\"table-view\"><summary>";
 const OPEN_REGION: &str =
     "</summary>\n<div class=\"table-scroll\" role=\"region\" aria-labelledby=\"";
-const OPEN_TABLE: &str = "\" tabindex=\"0\">\n<table aria-labelledby=\"";
-const OPEN_HEAD: &str = "\">\n<thead><tr>";
+/// Only the region is named by the heading: naming the table too would
+/// announce "Every item" a third time in a row.
+const OPEN_TABLE: &str = "\" tabindex=\"0\">\n<table>\n<thead><tr>";
 /// The number column: `#` to the eye, "Number" to a screen reader, which
 /// may read a bare `#` as "pound" or skip it.
 const NUMBER_HEADING: &str = "<th scope=\"col\"><span aria-hidden=\"true\">#</span><span class=\"visually-hidden\">Number</span></th>";
 const OPEN_BODY: &str = "</tr></thead>\n<tbody>\n";
 const CLOSE: &str = "</tbody></table></div></details>\n";
+/// A prose cell's class: its line breaks show (FR-97).
+const PROSE: &str = " class=\"prose\"";
 const NEW_TAB: &str = "<span class=\"visually-hidden\"> (opens in a new tab)</span>";
 
 /// The table view, for `<main>` after both arrangements.
@@ -62,8 +66,6 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted) -> String {
         OPEN_REGION,
         HEADING_ID,
         OPEN_TABLE,
-        HEADING_ID,
-        OPEN_HEAD,
         NUMBER_HEADING,
         &head,
         OPEN_BODY,
@@ -102,7 +104,10 @@ fn row(catalogue: &Catalogue, columns: &[usize], item: &Item, number: Option<usi
     } else {
         " class=\"unplotted\""
     };
-    let cells: String = columns.iter().map(|&c| cell(catalogue, c, item)).collect();
+    let cells: String = columns
+        .iter()
+        .map(|&c| cell(catalogue, c, item, number.is_none()))
+        .collect();
     [
         "<tr ",
         DATA_ROW,
@@ -121,45 +126,51 @@ fn row(catalogue: &Catalogue, columns: &[usize], item: &Item, number: Option<usi
 
 /// One cell of `item` under `column`.
 ///
-/// The name is the row's header, flagged when unplotted. Quadrant and ring
-/// show the labels the legend uses (FR-9, FR-17); a link shows what the
-/// model decided (FR-96); prose keeps its line breaks (FR-97), and every
-/// other value is shown trimmed (D-76).
-fn cell(catalogue: &Catalogue, column: usize, item: &Item) -> String {
+/// The name is the row's header, flagged when `unplotted`. Quadrant and
+/// ring show the labels the legend uses (FR-9, FR-17); a link shows what the
+/// model decided (FR-96). Prose is verbatim, keeping its line breaks and
+/// blank lines (FR-97, D-76: its whitespace may be deliberate); the other
+/// labels are shown trimmed (D-76).
+fn cell(catalogue: &Catalogue, column: usize, item: &Item, unplotted: bool) -> String {
     let kind = catalogue
         .columns
         .get(column)
         .map_or(ColumnKind::Other, |c| c.kind);
-    let value = item.cell(column).map_or("", trim);
+    let value = item.cell(column).unwrap_or_default();
     match kind {
-        ColumnKind::Name => name_cell(item),
-        ColumnKind::Quadrant => {
-            let label = catalogue
+        ColumnKind::Name => name_cell(item, unplotted),
+        ColumnKind::Quadrant => td(
+            "",
+            catalogue
                 .quadrants
                 .get(item.quadrant)
-                .map_or("", |q| q.label.as_str());
-            ["<td>", &xml_text(label), "</td>"].concat()
-        }
-        ColumnKind::Ring => ["<td>", &xml_text(catalogue.ring_label(item)), "</td>"].concat(),
+                .map_or("", |q| q.label.as_str()),
+        ),
+        ColumnKind::Ring => td("", catalogue.ring_label(item)),
         ColumnKind::Link => link_cell(item.link.as_ref()),
         ColumnKind::Description
         | ColumnKind::Domain
         | ColumnKind::Rationale
-        | ColumnKind::Other => ["<td class=\"prose\">", &xml_text(value), "</td>"].concat(),
+        | ColumnKind::Other => td(PROSE, value),
         ColumnKind::Qualifier
         | ColumnKind::Status
         | ColumnKind::LastAffirmed
-        | ColumnKind::ExitDate => ["<td>", &xml_text(value), "</td>"].concat(),
+        | ColumnKind::ExitDate => td("", trim(value)),
     }
+}
+
+/// A data cell holding `text`, escaped, with `class` (empty, or [`PROSE`]).
+fn td(class: &str, text: &str) -> String {
+    ["<td", class, ">", &xml_text(text), "</td>"].concat()
 }
 
 /// The row header: the name, and for an unplotted row FR-41's flag after a
 /// space, so the text reads "Old not on the radar" and never runs together.
-fn name_cell(item: &Item) -> String {
-    let flag = if item.ring.is_some() {
-        String::new()
-    } else {
+fn name_cell(item: &Item, unplotted: bool) -> String {
+    let flag = if unplotted {
         [" <span class=\"flag\">", NOT_ON_THE_RADAR, "</span>"].concat()
+    } else {
+        String::new()
     };
     [
         "<th scope=\"row\">",

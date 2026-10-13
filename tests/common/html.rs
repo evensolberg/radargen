@@ -40,6 +40,8 @@ const PAGE_ATTRIBUTES: [&str; 11] = [
 /// request the page makes (NFR-5).
 pub fn page_attribute(element: &str, name: &str, value: &str, all: &[(String, String)]) -> bool {
     let has = |k: &str, v: &str| all.iter().any(|(a, b)| a == k && b == v);
+    // Deliberately not `radargen::link::Link::of`: this is the oracle for
+    // that test, so a regression there must not pass here too.
     let web = ["http://", "https://"].iter().any(|scheme| {
         value
             .as_bytes()
@@ -122,6 +124,14 @@ pub fn tags(html: &str) -> Vec<Tag> {
                 attributes.push((key.to_owned(), value.to_owned()));
                 rest = tail;
             }
+            // The page quotes every value, so anything left over is an
+            // attribute this walk would otherwise not see (`open`, `href=x`).
+            assert!(
+                rest.trim_start_matches(' ')
+                    .trim_end_matches('/')
+                    .is_empty(),
+                "an unquoted or valueless attribute on <{name}>: {rest:?}"
+            );
             Tag {
                 name: name.to_owned(),
                 attributes,

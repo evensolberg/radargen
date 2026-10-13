@@ -91,8 +91,8 @@ comments: "1.1 folds in the five-seat plan review and the maintainer's ruling on
 
 1. **Heading and toggle:**
    - **Heading:** a visible `<h2 class="table-heading">Every item</h2>` sits just before the toggle. Heading navigation then finds the table while it is closed, and Safari flattens headings placed inside a summary.
-   - **Toggle:** `<details>`/`<summary>Show the table</summary>`, closed by default. It is native, keyboard-operable, exposes its expanded state, and needs no script.
-   - **Naming:** the table and its scroll region are named by the heading (`aria-labelledby`). Because the elements are related by a class-free `aria-labelledby`, the heading needs an `id`, `table-heading`. It sits outside both arrangements and appears once, which is the same exception architecture §5 records for the panel.
+   - **Toggle:** `<details>`/`<summary>The table</summary>`, closed by default (worded for both states, after the code review). It is native, keyboard-operable, exposes its expanded state, and needs no script.
+   - **Naming:** the scroll region is named by the heading (`aria-labelledby`); the table is not, after the code review, so the name is not announced three times. Because the elements are related by a class-free `aria-labelledby`, the heading needs an `id`, `table-heading`. It sits outside both arrangements and appears once, which is the same exception architecture §5 records for the panel.
 2. **Column order.**
    - **Order:** the number, then `name`, `quadrant` and `ring`, then every other named column in header order, `description` included.
    - **Why description is in:** the maintainer's ruling of 2026-10-12 (D-80). FR-78 and D-38 are amended to match in Task 0.
@@ -404,6 +404,17 @@ pub fn page(input: &Page<'_>) -> String
 | Implementation | Task 3's "empty ring cell" for an unplotted row cannot occur: an empty ring is FR-6's hard error | Tested as the ring cell trimmed |
 | Implementation | Task 5's computed-height test is vacuous (`getComputedStyle` gives a cell's used height) and the table's HTML flow cannot overlap | Replaced by a text-inside-the-cell check over visible text, mutation-checked with a fixed cell height. The accessibility-tree comparison ignores `InlineTextBox` line fragments, which rewrap under spacing as 1.4.12 intends |
 | Implementation | Tasks 3 and 4 | One commit, since the table fails the old allow-list |
+| Code review | **Important:** the CSV guide still called other columns ignored and the prose columns panel-only | Corrected |
+| Code review | **Important:** prose cells were trimmed, against D-76 ("their whitespace may be deliberate"), and the comment cited D-76 for it | Prose (`description`, `domain`, `rationale`, `Other`) is verbatim, RED→GREEN on a leading blank line; Decision 7's "every other cell trimmed" now covers the short fields only |
+| Code review, simplify | `Link::as_str` unused | Removed |
+| Code review | The unplotted class and the flag decided from different fields | Both from `number` |
+| Code review, accessibility | "Every item" announced three times | Only the region is named; the `<table>` is not |
+| Accessibility | "Show the table, expanded" contradicts itself | The summary reads "The table" |
+| Code review | `escape.rs` said nothing CSV-derived goes in a URL | Names FR-96's `href` and its `Link` guard |
+| Code review | `tags()` missed valueless or unquoted attributes | It now fails on any attribute left unparsed |
+| Code review | The clip check missed the left edge (RTL) | Checked |
+| Simplify | Four copies of the `<td>` arm; a two-pass attribute read; refused links listed twice; the oracle's duplicated scheme test | `td()` helper; one pass; derived from `LINKS`; the duplication is kept, with a comment, since the oracle must not share the code it checks |
+| Accessibility | A visible new-tab cue; a tab stop on a region that fits; raw CSV header names | Declined: advisory (G201), needs script (15b may), and Decision 3 |
 | Implementation | The table's CSS | Lives in `table.rs` beside its markup, as `css.rs`'s module comment planned, which keeps `css.rs` under its size |
 
 ## Finishing

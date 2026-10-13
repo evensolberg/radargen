@@ -44,20 +44,20 @@ Columns are found by **name, not position**, so their order in the file does not
 | `name` | **yes**, on every row | Free text | The legend entry, the marker's tooltip and the detail panel's heading |
 | `quadrant` | **yes**, on every row | Free text | The sector the item sits in, and its legend group |
 | `ring` | **yes**, on every row | One of the declared rings (see [Rings](#rings)) | How far from the centre the item sits |
-| `description` | **yes** as a column; a cell may be empty | Free text | The detail panel |
+| `description` | **yes** as a column; a cell may be empty | Free text | The table view, and the detail panel (from PR 15b) |
 | `qualifier` | no | `default`, `conditional`, or blank | A solid marker, or a hollow one for `conditional` |
-| `domain` | no | Free text | The detail panel |
-| `rationale` | no | Free text | The detail panel |
-| `last_affirmed` | no | A date, `YYYY-MM-DD` | The detail panel |
-| `exit_date` | no | A date, `YYYY-MM-DD` | The detail panel |
+| `domain` | no | Free text | The table view, and the detail panel (from PR 15b) |
+| `rationale` | no | Free text | The table view, and the detail panel (from PR 15b) |
+| `last_affirmed` | no | A date, `YYYY-MM-DD` | The table view, and the detail panel (from PR 15b) |
+| `exit_date` | no | A date, `YYYY-MM-DD` | The table view, and the detail panel (from PR 15b) |
 | `status` | no | `New`, `Moved In`, `Moved Out`, `No Change`, or blank | A ring or half-ring on the marker, and the legend |
 | `link` | no | A web address starting `http://` or `https://`, or blank | A link in the table view, and in the detail panel (from PR 15b) |
 
-**Any other column is ignored**, so a team can keep its own notes (a ticket reference, an owner, a survey score) in the same file. A column whose header cell is empty is dropped; if a row has a value under it, you get a warning.
+**Any other column is shown in the table view**, under its own header name, so a team can keep its own notes (a ticket reference, an owner, a survey score) in the same file. The radar and legend ignore it. A column whose header cell is empty is dropped; if a row has a value under it, you get a warning.
 
 An optional column that is missing, or empty on a row, is simply left out for that item. Nothing is shown as blank or as a dash.
 
-Every row and every column appears in the **table view**, under the *Every item* heading below the radar: open *Show the table* to see it. Plotted rows come first, numbered as on the radar, then rows the radar cannot plot, flagged "not on the radar". The detail panel, which opens when you click a marker, a legend row or a table row, arrives in the next release step (PR 15b).
+Every row and every column appears in the **table view**, under the *Every item* heading below the radar: open *The table* to see it. Plotted rows come first, numbered as on the radar, then rows the radar cannot plot, flagged "not on the radar". The detail panel, which opens when you click a marker, a legend row or a table row, arrives in the next release step (PR 15b).
 
 ### `name`
 
@@ -152,7 +152,7 @@ A web address for the item, such as the product's home page: `https://www.terraf
 ## Text in any field
 
 - **A line break inside a cell** (Alt+Enter in Excel) becomes a space in a name, quadrant, ring, qualifier, status or date, and is kept as a line break in a description, domain, rationale or your own columns.
-- **Leading and trailing spaces are ignored** for matching. Names, quadrants and rings are also shown trimmed; other fields are shown exactly as written.
+- **Leading and trailing spaces are ignored** for matching. Names, quadrants, rings and the other short fields (qualifier, status, dates, link) are also shown trimmed; a description, domain, rationale or your own column is shown exactly as written, spaces and blank lines included.
 - **Characters that cannot be displayed are removed, with a warning naming the line and column.** These are control characters other than tab and line break, and the invisible characters that reverse the direction of text. The same applies to `--title`, `--subtitle` and `--rings`.
 - **Anything else is shown as written.** Characters such as `<`, `&` and `"` are safe and appear literally. Names in Latin, Greek and Cyrillic scripts, including Vietnamese, draw with the built-in font.
 

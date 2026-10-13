@@ -19,7 +19,7 @@ const CSV: &str = "name,quadrant,ring,description,link,note\n\
 \"Zed\r\nTwo\",Tools,Trial,\"first\r\nsecond\",https://z.example/?a=1&b=2,n1\n\
 Old,Tools, Rejected ,gone,javascript:x,\n\
 Alpha,Platforms,adopt,d,,\n\
-Beta,Tools,Adopt,d,  HTTPS://B.example  ,n2\n";
+Beta,Tools,Adopt,\"\nIntro\n\n\",  HTTPS://B.example  ,  n2  \n";
 
 fn built() -> Built {
     build(CSV, None, Some("T"))
@@ -214,6 +214,17 @@ fn cells_show_labels_trimmed_and_prose_with_its_lines() {
         Some("prose"),
         "an Other column"
     );
+    let beta = cells(row("Beta"));
+    assert_eq!(
+        beta.get(4).copied().map(text).as_deref(),
+        Some("\nIntro\n\n"),
+        "D-76: prose stays verbatim, blank lines included"
+    );
+    assert_eq!(
+        beta.get(6).copied().map(text).as_deref(),
+        Some("  n2  "),
+        "an Other column is prose, verbatim"
+    );
 }
 
 #[test]
@@ -275,13 +286,13 @@ fn the_table_is_closed_under_a_visible_heading() {
         "closed by default"
     );
     assert!(
-        html.contains("<summary>Show the table</summary>"),
-        "FR-41's toggle"
+        html.contains("<summary>The table</summary>"),
+        "FR-41's toggle, worded for both states"
     );
     let table = table_of(&html);
     assert!(
-        table.starts_with("<table aria-labelledby=\"table-heading\">"),
-        "{table}"
+        table.starts_with("<table>\n"),
+        "only the region is named by the heading: {table}"
     );
     assert!(
         html.contains("<div class=\"table-scroll\" role=\"region\" aria-labelledby=\"table-heading\" tabindex=\"0\">"),

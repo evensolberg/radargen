@@ -45,14 +45,6 @@ impl Link {
             Self::Text(owned)
         })
     }
-
-    /// The value as shown: the address, or the refused text.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        match self {
-            Self::Address(s) | Self::Text(s) => s,
-        }
-    }
 }
 
 #[cfg(test)]

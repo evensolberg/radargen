@@ -217,17 +217,18 @@ const CHECK = `(() => {
     // only the text a reader sees is measured.
     const box = cell.getBoundingClientRect();
     const walk = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
-    let right = -Infinity, bottom = -Infinity;
+    let left = Infinity, right = -Infinity, bottom = -Infinity;
     for (let node = walk.nextNode(); node; node = walk.nextNode()) {
       if (node.parentElement.closest('.visually-hidden')) continue;
       const range = document.createRange();
       range.selectNodeContents(node);
       for (const r of range.getClientRects()) {
+        left = Math.min(left, r.left);
         right = Math.max(right, r.right);
         bottom = Math.max(bottom, r.bottom);
       }
     }
-    if (bottom > box.bottom + slack || right > box.right + slack) {
+    if (bottom > box.bottom + slack || right > box.right + slack || left < box.left - slack) {
       problems.push('clipped: ' + cell.textContent.slice(0, 40));
     }
   }
