@@ -6,7 +6,7 @@ mod css;
 use crate::emit::OUTPUT_VERSION;
 use crate::escape::xml_text;
 use crate::palette::{Palette, Theme};
-use crate::svg::{Document, Target, marker_keys, serialise};
+use crate::svg::{Document, ItemKey, Target, marker_keys, serialise};
 
 /// The tab title and hidden heading of a page with no title (FR-65, D-75).
 pub const UNTITLED: &str = "Technology Radar";
@@ -31,12 +31,7 @@ const BODY_CLOSE: &str = "\n</div>\n</main>\n</body>\n</html>\n";
 /// title is the level-1 heading.
 #[must_use]
 pub fn page(wide: &Document, narrow: &Document, title: Option<&str>) -> String {
-    let markers = marker_keys(wide);
-    debug_assert_eq!(
-        markers,
-        marker_keys(narrow),
-        "FR-68: the same items in both"
-    );
+    let markers = union(marker_keys(wide), marker_keys(narrow));
     let target = Target::Interactive(&Palette::built_in(Theme::Light));
     let heading = if title.is_some() {
         String::new()
@@ -63,4 +58,19 @@ pub fn page(wide: &Document, narrow: &Document, title: Option<&str>) -> String {
         BODY_CLOSE,
     ]
     .concat()
+}
+
+/// `wide`'s keys, then any of `narrow`'s it lacks, each once.
+///
+/// FR-68 draws the same items in both arrangements, but the focus rules come
+/// from both trees anyway: a marker only one draws would otherwise show no
+/// ring while its outline is hidden (FR-48, rg-l0x).
+fn union(wide: Vec<ItemKey>, narrow: Vec<ItemKey>) -> Vec<ItemKey> {
+    let mut keys = wide;
+    for key in narrow {
+        if !keys.contains(&key) {
+            keys.push(key);
+        }
+    }
+    keys
 }

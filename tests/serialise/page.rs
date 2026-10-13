@@ -15,7 +15,7 @@ use super::golden::golden;
 use super::html::{assert_requests_nothing, outside, style, svgs, tags};
 use super::identity::interactive;
 use super::vocabulary::vocabulary;
-use super::{parse, prd};
+use super::{PRD_EXAMPLE, build, parse, prd};
 
 const VIEWPORT: &str = r#"<meta name="viewport" content="width=device-width, initial-scale=1">"#;
 const VISUALLY_HIDDEN: &str = ".visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}";
@@ -230,6 +230,45 @@ fn the_indicator_selectors_match_the_tree() {
             "no rule for a key the page lacks"
         );
     }
+}
+
+/// A marker only one arrangement draws keeps its focus ring: the rules come
+/// from both trees, not the wide one alone (rg-l0x). FR-68 draws the same
+/// items in both today, so the two catalogues here differ by one row.
+#[test]
+fn a_marker_in_one_arrangement_keeps_its_rule() {
+    let fewer = prd();
+    let more = build(
+        &[PRD_EXAMPLE, "Extra,Tool,Adopt,d,,,,,,\n"].concat(),
+        None,
+        Some("Technology Radar"),
+    );
+    let html = page(
+        &arrange(Arrangement::Wide, &fewer.blocks),
+        &arrange(Arrangement::Narrow, &more.blocks),
+        None,
+    );
+    let css = style(&html);
+    let keys: BTreeSet<String> = svgs(&html)
+        .into_iter()
+        .flat_map(|svg| values(svg, "data-marker"))
+        .collect();
+    assert_eq!(
+        keys.len(),
+        marker_keys(&arrange(Arrangement::Narrow, &more.blocks)).len(),
+        "the narrow arrangement has the extra marker"
+    );
+    for key in &keys {
+        assert!(
+            css.contains(&format!("svg:has([data-marker=\"{key}\"]:focus-visible)")),
+            "marker {key} has its rule"
+        );
+    }
+    assert_eq!(
+        css.matches("svg:has(").count(),
+        keys.len(),
+        "one rule per key"
+    );
 }
 
 /// `html` with each inlined font's base64 replaced by `…`, and how many were

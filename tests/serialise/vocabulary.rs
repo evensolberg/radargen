@@ -16,7 +16,7 @@ use radargen::svg::{
 use super::html::SVG_ELEMENTS;
 use super::{BOTH, parse, prd, targets};
 
-const EITHER: [&str; 30] = [
+pub const EITHER: [&str; 30] = [
     "xmlns",
     "dx",
     "viewBox",
@@ -48,7 +48,7 @@ const EITHER: [&str; 30] = [
     "letter-spacing",
     "text-anchor",
 ];
-const INTERACTIVE_ONLY: [&str; 9] = [
+pub const INTERACTIVE_ONLY: [&str; 9] = [
     "tabindex",
     "pointer-events",
     "visibility",
