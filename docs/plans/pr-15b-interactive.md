@@ -9,14 +9,19 @@ doc_name: pr-15b-interactive
 crumb_id: rg-6zu
 document_title: "PR 15b — the interactive layer: Implementation Plan"
 created_date: 2026-10-12
-synopsis: "One constant script brings the page to life with no data of its own. A marker, legend row or table row opens one detail panel, built from the item's table row (D-80). Selection, hover and keyboard focus are shown through attributes the script sets, never through per-key CSS, which ends rg-jri's :has cost. Escape and close return focus to the opener's key in whichever arrangement is shown. A theme toggle and a skip link appear only when the script runs."
+synopsis: "One constant script brings the page to life, with no data of its own. Part 1 (15b-1) lays the script's skeleton, shows marker focus rings by attribute instead of per-key CSS (rg-jri), and adds the theme toggle and skip link. Part 2 (15b-2) adds one sticky detail panel built from the item's table row (D-80), selection, hover, keyboard activation, and focus return keyed on the item in whichever arrangement is shown."
 status: draft
 type: Plan
-revision: "1.0"
-review_date:
-reviewed_by: []
+revision: "1.1"
+review_date: 2026-10-12
+reviewed_by:
+  - Rust seat
+  - QA seat
+  - architecture seat
+  - accessibility seat
+  - UI seat
 completed_date:
-comments: "Part two of PR 15 (rg-6zu), with rg-jri. 15a (#70) shipped the table this reads; 15c verifies and releases."
+comments: "1.1 folds in the five-seat plan review and the maintainer's two rulings (a sticky panel; 15b split in two). See Review rulings. Part two of PR 15 (rg-6zu), with rg-jri."
 ---
 # PR 15b — the interactive layer: Implementation Plan
 
@@ -24,337 +29,412 @@ comments: "Part two of PR 15 (rg-6zu), with rg-jri. 15a (#70) shipped the table 
 
 **Crumbs:** `rg-6zu` (part two), `rg-jri` · **Phase:** v1.0 · **After:** PR 15a (#70) · **Then:** PR 15c (verification, the first release)
 
-**Goal:**
+This plan ships as **two PRs**, by the maintainer's ruling of 2026-10-12:
 
-- **The detail panel (FR-38).** Activating a marker, legend row or table row opens one panel with the item's number, name and every non-empty field. The panel reads these from the item's table row (D-80).
-- **Closing it.** Activating the same target again, Escape, or the close button closes the panel and clears the selection. Escape and close return focus to the opener (FR-49).
-- **Selection (FR-72, FR-73).** It shows on the marker, the legend row and the table row at once. It looks different from hover, and the marker's selection is not a ring.
-- **Hover (FR-37).** Hovering a marker highlights its legend row, and the reverse.
-- **Keyboard (FR-48).** Enter and Space activate a control, as a click does.
-- **Expanded state (D-66, WCAG 4.1.2).** Every control states it with `aria-expanded` and `aria-controls`.
-- **Breakpoints (architecture §5).** On a breakpoint change, focus and selection move to the same item in the arrangement now shown.
-- **`rg-jri`.** A marker's focus ring is shown by the script, which ends the per-key `:has` rules. Without script, the native outline returns.
-- **Script-only controls.** The theme toggle (FR-56) and a skip link to the legend appear only when the script runs.
+| PR | Delivers |
+| --- | --- |
+| **15b-1** (Part 1) | <ul><li>The script's skeleton: the `.js` gate, the shared names block, and the delegated listeners with nothing yet to activate.</li><li>**`rg-jri`:** marker focus shown by a script-set attribute, the per-key `:has` rules gone, and the cost measured.</li><li>The theme toggle (FR-56) and the skip link.</li><li>The browser harness, `scripts/interaction.mjs`.</li></ul> |
+| **15b-2** (Part 2) | <ul><li>The detail panel (FR-38), sticky at the viewport's bottom and built from the item's table row (D-80).</li><li>Selection (FR-72, FR-73), hover (FR-37) and keyboard activation (FR-48).</li><li>Escape and close with focus return (FR-49), and `aria-expanded`/`aria-controls` (D-66).</li><li>Breakpoint handling (architecture §5) and hit-area forwarding.</li></ul> |
+
+Each PR is complete in itself: every handler lands with the state it manages, and no PR ships a control that does nothing.
 
 **Architecture:**
 
-- **One constant script.** `src/emit/html/script.js` is inlined through `include_str!` into a single `<script>` at the end of `<body>`. It holds **no CSV-derived data**: it reads keys, names and fields from the DOM, so NFR-6's JavaScript context never arises and the script is byte-identical in every page.
-- **One configuration value.** The breakpoint query reaches the script as an attribute, `<main data-narrow-query="(max-width: 780px)">`, written from `css::narrow_query`, its one source.
-- **State as attributes.** The script sets `data-selected`, `data-hovered` and `data-focused` on the elements carrying an item's key. CSS styles these attributes with **fixed** rules. Nothing is generated per key, so style recalculation no longer grows with the marker count (`rg-jri`).
-- **The marker indicator gains a selection outline.** It is a rounded square, not a ring (FR-73), and joins the indicator group (rg-6zu's PR 10b note). The focus ring and the outline are marked `data-focus-ring` and `data-selection`, so one indicator can show either, both or neither.
-- **The panel** is `<section id="detail" class="detail" hidden aria-label="Item details">`, written once, outside both arrangements and before the table heading. It is architecture §5's sanctioned exception, and every control's `aria-controls` names it.
-- **Behaviour is tested in a browser.** `scripts/interaction.mjs` drives Chromium over CDP, as `scripts/text-spacing.mjs` does, and asserts each behaviour below. The markup is tested in Rust.
+- **One constant script.** `src/emit/html/script.js` is inlined via `include_str!` into a single `<script>` at the end of `<body>`.
+  - **No data:** it holds **no CSV-derived data** and reads everything from the DOM, so NFR-6's JavaScript context never arises.
+  - **Same bytes everywhere:** it is byte-identical in every page (NFR-4).
+- **One configuration value.** The breakpoint query reaches the script as `<main data-narrow-query="…">`, from `css::narrow_query`, its one source.
+- **One names block.** Every attribute, class and id the script uses sits in one `const N = {…}` at the top of `script.js`. A Rust test parses it, asserts each value equals the Rust constant of the same role (`DATA_ROW`, `DATA_MARKER`, …), and asserts the script holds no other `data-` literal. A renamed constant then fails `cargo test`, even with the browser checks out of CI.
+- **State as attributes.** The script sets `data-focused` (15b-1), and `data-selected` and `data-hovered` (15b-2), on elements carrying an item's key. CSS styles these attributes with **fixed** rules, so style recalculation no longer grows with the marker count (`rg-jri`).
+- **Marks, not positions.** The serialiser finds the focus ring and the selection marks through two new unit variants, `Semantics::FocusRing` and `Semantics::Selection`. Each wraps one child in a `<g data-focus-ring="L">` or `<g data-selection="L">` inside an indicator.
+  - **Static outputs:** both are `is_interactive_only`, so the SVG and PNG emitters drop them with their indicator. Static goldens and the resvg tests do not change.
+  - **Geometry:** stroke widths are in the tree, scaled by `r.marks`. CSS only toggles visibility and swaps paint.
 
-**Tech stack:** Rust 2024; vanilla ES2020 with no dependencies, inlined; Playwright's headless Chromium over CDP.
+**Tech stack:** Rust 2024; vanilla ES2020, no dependencies, inlined; Playwright's headless Chromium over CDP.
 
 **Spec:**
 
-- `docs/product/radargen-prd.md` v0.61: FR-34, FR-36–FR-38, FR-48–FR-50, FR-56, FR-69, FR-72, FR-73, FR-94, FR-96; NFR-1, NFR-5, NFR-6; D-16, D-66, D-80.
-- Architecture §5 (*Identity in the output*, the four radar layers, per-format rules) and §11.
-- Crumbs `rg-6zu` (its PR 10b, PR 11, PR 13 and PR 14b notes) and `rg-jri`.
+- `docs/product/radargen-prd.md`, v0.61 → v0.62 (Part 1 Task 0): FR-34, FR-36–FR-38, FR-48–FR-50, FR-56, FR-69, FR-72, FR-73, FR-94, FR-96; NFR-1, NFR-5, NFR-6; D-16, D-66, D-80.
+- Architecture §5 and §11.
+- Crumbs `rg-6zu` and `rg-jri`.
 
 ## Global Constraints
 
-- Rust 2024; `cargo clippy --all-targets -- -D warnings` and `cargo lclippy` clean.
-- **rustqual IOSP:** every function is either integration or operation.
-- **Module size:** about 300 lines.
-- **NFR-4:** byte-identical output. The script is a constant, so every page carries the same bytes.
-- **NFR-5:** the script fetches nothing. There is no `fetch`, `XMLHttpRequest`, `import`, `WebSocket`, `navigator.sendBeacon` or `src` anywhere in it, and a Rust test asserts this on the bytes.
+- Rust 2024; `cargo clippy --all-targets -- -D warnings` and `cargo lclippy` clean. CSS rule text is built from **module-constant fragments**, as `css.rs` does, never from `{…}` literals in function bodies.
+- **rustqual IOSP:** every function is integration or operation. **Module size** is about 300 lines: the page chrome (controls, panel and their CSS) goes in a new `src/emit/html/chrome.rs` from the start, since `table.rs` is already 262 lines.
+- NFR-4: byte-identical output.
+- **NFR-5:** the script fetches nothing. This is tested two ways:
+  - **On the bytes:** a word-boundary test rejects `fetch`, `XMLHttpRequest`, `import`, `WebSocket`, `EventSource`, `Worker`, `sendBeacon`, `navigator.`, `window.open`, `document.write`, `new Image`, `src`, `srcdoc` and `<!--`.
+  - **Behaviourally:** with `Network.enable` and a panel open, the document is the only request.
 - **NFR-6:**
-  - The script reads text through `textContent` and writes it through `textContent` or `cloneNode`. Nothing goes through `innerHTML`, `insertAdjacentHTML` or `outerHTML`, and a Rust test asserts that too.
-  - The one CSV-derived value the script copies, a link, is cloned from the table's already-escaped `<a>` (D-77), never rebuilt.
-- **Static outputs are untouched.** The SVG and PNG emitters still drop interactive-only nodes, the new selection outline included (architecture §5).
+  - **The DOM:** the script reads with `textContent` and writes with `textContent`, `setAttribute` on its own names, or `cloneNode`. There is no `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `DOMParser`, `createContextualFragment`, `eval` or `Function(`, and the word-boundary test asserts it.
+  - **Links:** a link is cloned from the table's escaped `<a>`, never rebuilt (D-77).
 - **No script, no loss:**
   - the table works as in 15a;
-  - focus shows as the native outline;
-  - the toggle and skip link stay `hidden`;
-  - nothing claims an action it cannot perform.
-- **No transitions are added.** `prefers-reduced-motion` therefore has nothing to wrap, and `scrollIntoView` uses `block: 'nearest'` with no smooth behaviour.
-- **No version bump.** The maintainer's 2026-10-12 decision: PR 15 releases in 15c.
+  - markers show the native outline;
+  - the toggle, skip link and panel stay `hidden=""`, guarded by `[hidden]{display:none!important}`.
+  - **Static `aria-*` attributes:** the name-cell buttons, which are static markup, carry no `aria-expanded` or `aria-controls`; the script adds both at start-up. A native button without its handler is still a button that does nothing. That is accepted for those buttons alone, as it already is for the `role=button` markers. Architecture §5 records it.
+- **No transitions or animations:** a Rust test bans `transition`, `animation` and `scroll-behavior` in the stylesheet, so `prefers-reduced-motion` has nothing to wrap.
+- **Every hidden element is written `hidden=""`,** which the tag scanner can read.
+- **No version bump.** By the maintainer's decision of 2026-10-12, PR 15 releases in 15c.
 
 ## Review Focus
 
-1. **A breakpoint change while the panel is open.** Focus is in the panel and the opener's arrangement disappears. Escape must return focus to the same key in the arrangement now shown, never to `<body>`. *Test:* Task 6.
-2. **Two rows sharing a name** (FR-28). Selection, hover and the panel follow the key, never the name. *Test:* Task 6's fixture has two `Kafka` rows.
-3. **An unplotted row.** It opens from its table button only. The panel says it is not on the radar, and no marker or legend row is selected. *Test:* Task 6.
-4. **A hostile value in the panel.** A description holding `<img src=x onerror=alert(1)>` and a refused `javascript:` link appear as text in the panel. Only the table's `https` link is an `<a>`. *Test:* Task 6, with the Rust ban on `innerHTML` in Task 3.
-5. **No script.** The page with scripting disabled:
-   - has no visible toggle, skip link or panel;
-   - shows each marker's native focus outline;
-   - still has a working table. *Test:* Task 6, through `Emulation.setScriptExecutionDisabled`.
+1. **Focus return when the opener cannot take focus.** Two cases:
+   - the opener was a table button, and the reader has since closed the table's `<details>`;
+   - a breakpoint hid the opener's arrangement.
+
+   Escape must land on a focusable element, never `<body>`:
+   - **the closed table:** the table's `summary`;
+   - **the breakpoint:** the same key in the shown arrangement.
+
+   *Test:* Part 2 Scenarios 4b and 9.
+2. **Swapping items without closing.** Opening item 3 and then activating item 5 leaves:
+   - only key 5 selected and expanded;
+   - a `<dl>` holding only item 5's fields;
+   - Escape returning focus to 5's opener.
+
+   *Test:* Scenario 2b.
+3. **A breakpoint change with focus on a marker and no panel open.** Focus moves to the same key's marker in the new arrangement, with its ring shown. *Test:* Scenario 9b.
+4. **A hostile value in the panel.** A description `<img src=x onerror=alert(1)>` and a refused `javascript:` link are text, only the `https` link is an `<a>`, and `alert` is never called. *Test:* Scenario 6.
+5. **No script.** No toggle, skip link or panel renders, a marker shows its native outline, and the table opens with Enter on its summary. *Test:* Part 1 Scenario 12.
 
 ## Decisions taken in this plan
 
-1. **Focus moves into the panel on open,** to its heading (`tabindex="-1"`), and Escape or Close returns it (FR-49). The heading takes focus, rather than the close button, so a screen reader reads the item's name first, and the page scrolls to the panel with no scripted scroll.
-2. **Activating the opener again closes the panel, and focus stays where the activation put it.** A click on the selected marker closes the panel, and focus stays on the marker. Activating a different item swaps the panel's content and moves focus to its heading again.
-3. **The opener is remembered as `(key, kind)`,** where `kind` is `marker`, `legend` or `table`, never as an element. On return, the element is looked up in the shown arrangement, or in the table, which is always present. That is architecture §5's rule, and it is what makes Review Focus 1 work.
-4. **The panel's content** is built from `tr[data-row="L"]`:
-   - **Heading:** the number cell, then the name, as in "`7. Kafka`". An unplotted row's heading is the name followed by FR-41's flag text.
-   - **Fields:** a `<dl>` with one `<dt>`/`<dd>` per non-empty cell after the name, in the table's column order. The `<dt>` is the column heading's text, and the `<dd>` holds clones of the cell's child nodes, so a link keeps its escaped `href`, `target`, `rel` and hidden suffix.
-   - **Prose:** a prose cell's `<dd>` keeps the `prose` class, so its line breaks show (FR-97).
-5. **Selection is drawn without a ring (FR-73):**
-   - **Marker:** a rounded square outline, `stroke: var(--text-primary)` at 2 px. It is the new `Node::Rect`, `data-selection`, in the indicator group, at `INDICATOR_REACH` half-width, so it encloses the backing disc.
-   - **Legend row:** its backing rect is stroked `var(--text-primary)` at 1.5 px.
-   - **Table row:** its cells take `var(--surface-1)` with a 3 px start border in `var(--text-primary)`.
-   - All three use `--text-primary`, which already passes 1.4.11 against both surfaces.
-6. **Hover is distinct from selection and focus.**
-   - **Marker:** its indicator shows the raised copy and backing only, with no outline and no ring.
-   - **Legend row:** its backing rect fills `var(--surface-1)`.
-   - **Table row:** not highlighted. FR-37 relates the radar and the legend, and a table row is reached by reading, not by matching dots.
-7. **Focus (`rg-jri`).**
-   - **The handlers:** on `focusin`, the script sets `data-focused` on the focused marker's indicator, but only when `:focus-visible` matches, so a mouse click shows no ring. On `focusout` it clears it.
-   - **The CSS:** `[data-marker-indicator][data-focused] [data-focus-ring]{visibility:visible}`.
-   - **The no-script fallback:** the rule `[data-marker]:focus-visible{outline:2px solid transparent}` applies only under `.js` on `<html>`, which the script sets first. Without script, the native outline stays.
-   - **What goes:** the `@supports selector(:has(*))` block, `marker_rule` and the `markers` argument to `css::indicators`. Legend rows keep their `:has`-free rule.
-8. **Keyboard.** On a `role="button"` control:
-   - Enter activates on `keydown`;
-   - Space activates on `keyup`, and its `keydown` calls `preventDefault` so the page does not scroll.
+1. **The panel is a disclosure whose target is a named region.**
+   - **Markup:** `<section id="detail" class="detail" aria-label="Item details" hidden="">`. It is not a dialog: its content is for reading, and a dialog implies containment.
+   - **Placement:** it sits after both arrangements, before the table heading.
+   - **Sticky (the maintainer's ruling):** `.detail{position:sticky;bottom:0;max-height:min(45vh,28em);overflow:auto}`. While it is open, the radar stays in view.
+   - **No hidden focus:** on open and close the script sets `document.documentElement.style.scrollPaddingBottom` to the panel's height, so the panel never covers a focused legend row (WCAG 2.4.11).
+2. **Focus moves to the panel's heading on open,** `<h2 class="detail-heading" tabindex="-1">`, with `focus({preventScroll:true})`. The heading is on screen, since the panel is sticky. Screen readers announce "Item details region, 3. Kafka, heading 2". Escape or Close returns focus to the opener (FR-49).
+3. **The panel's head row:** `<div class="detail-head">` holds the heading and a `Close` button, so Close sits beside the name rather than after long prose.
+4. **Activating the open item again closes the panel; focus stays where the activation put it.** Activating a different item swaps the content and moves focus to the heading.
+5. **The opener is remembered as `(key, kind)`,** where `kind` is `marker`, `legend` or `table`, never as an element. `state.focus` records the last `(key, kind)` on every `focusin`, and `focusout` never clears it, so a breakpoint change can restore focus after Chromium's focus fixup has moved focus to `<body>`.
+   - **Return order:** focus goes to the opener in the shown arrangement, else that key's table button. If the table's `<details>` is closed, it goes to its `summary`.
+6. **The panel's content is built from `tr[data-row="L"]`.**
+   - **Heading:** the number cell, then the name, as "`7. Kafka`". An unplotted row's heading is the name followed by FR-41's flag text.
+   - **Fields:** one `<dt>`/`<dd>` per non-empty cell after the name, in column order. Each `<dt>` is the column heading's visible text. Each `<dd>` holds clones of the cell's children, with `prose` kept.
+   - **Empty state:** when no cell after the name has a value, the panel shows `<p class="detail-empty">No further details.</p>`.
+7. **Selection, hover and focus differ in shape, not only in colour (FR-73, 1.4.1).** On a marker:
 
-   That is the native button contract. Table buttons are native `<button>`s and need nothing.
-9. **Hit areas.** A `click` or `pointerover` on `[data-hit="L"]` is handled as the marker with the same key in the same `<svg>` (rg-6zu's PR 10b note).
-   - **The raised copy:** it already has `pointer-events: none`, so its clicks reach what lies beneath.
-   - **The cursor:** hit areas and controls take `cursor: pointer`.
-10. **The theme toggle:** a `<button type="button" class="theme-toggle" aria-pressed="false" hidden>Dark theme</button>`, with these rules:
-    - the script unhides it and sets `aria-pressed` from the theme in effect: `data-theme` if set, else `prefers-color-scheme`;
-    - pressing it sets `data-theme` on `<html>` to `dark` or `light`;
-    - nothing is stored, so each open follows the viewer's preference, as FR-56 describes.
-11. **The skip link:** a `<button type="button" class="skip" hidden>Skip to the legend</button>`. It comes first in `<main>`, is visually hidden until focused, and focuses the first legend row of the shown arrangement. It is a button because the target has no `id` (§5): two arrangements would duplicate one.
-12. **The page controls sit together:** `<div class="page-controls">` holds the skip link and the toggle, at the top of `<main>`, capped like the table. The skip link stays visually hidden unless focused. The toggle sits at the inline end.
-13. **Hidden state is kept honest.**
-    - **Visibility:** the panel is `hidden` when closed, so it is out of the accessibility tree and the tab order.
-    - **Expanded state:** every control's `aria-expanded` is `false` except the opener's, which is `true` on all of its elements (marker, legend row and table button). The relationship is symmetric (FR-72).
-14. **`marker_keys` and 15a's `union`** lose their only caller, the per-key rules, and are removed (no dead code). `rg-l0x`'s test of a narrow-only marker is replaced by the interaction check that every marker shows its ring.
+   | State | What shows |
+   | --- | --- |
+   | Selection | a rounded square, `data-selection`, stroked `--text-primary` in the tree at `FOCUS_RING_STROKE · r.marks`. Its half-width is `(INDICATOR_REACH − FOCUS_RING_STROKE/2) · r.marks`, so its outer edge stays at `INDICATOR_REACH` and the reach and frame invariants hold. Its corner radius is `MARKER_RADIUS / 4`, below a quarter of its side, so it never reads as a ring. |
+   | Hover | the same square, dashed (`stroke-dasharray:3 2`) in `--text-muted`, through CSS paint overrides. Selection's rule comes later, so it wins. |
+   | Focus | the existing ring, drawn after the square, so it is never broken. Where both show, the two cross at four points, and only on a marker that is both focused and selected. Accepted: keeping the square inside the reach budget forbids clearing the ring. |
 
-## Tasks
+   On a legend row (architecture §5: never on the target rect, which the next row covers):
 
-### Task 0: close out 15a's plan
+   | State | What shows |
+   | --- | --- |
+   | Selection | a new **start bar**, `data-selection`, inside the inset band: 4 units wide, `--text-primary`, interactive-only. |
+   | Hover | the inset indicator rect, dashed 1 unit in `--text-muted`. |
+   | Focus | the same rect, solid in `--focus` at `FOCUS_RING_STROKE`, as today. Focus's rule comes after hover's. |
+
+   A focused, selected row therefore shows a ring and a bar, never two overlapping outlines.
+
+   On a table row: selection is `border-inline-start:3px solid var(--text-primary)` on the first cell, which survives forced colours, where a `box-shadow` would not. Table rows are not hover-highlighted.
+8. **Keeping focus on top (FR-48, D-66).** Hover and selection now show indicators too, and a later indicator's opaque backing could cover an earlier focused ring. So on `focusin` the script moves the focused marker's indicator to the end of its layer (`parentNode.append`).
+9. **Focus (`rg-jri`).**
+   - **Setting the ring:** `data-focused` is set on `focusin` when `:focus-visible` matches. It is checked again on `keydown`, so the first key after a mouse focus shows the ring. It is cleared on `focusout`.
+   - **The outline:** removed only under `.js` (`.js [data-marker]:focus-visible{outline:2px solid transparent}`).
+   - **What goes:** the `@supports selector(:has(*))` block, `marker_rule`, `css::indicators`' keys, `svg::marker_keys` and 15a's `union`. `marker_keys` is public API, and removing it is acceptable before 1.0. This supersedes rg-6zu's PR 14b note to reuse it.
+10. **Keyboard.** The key handlers act only on `[role=button]`, so a table's native button is never activated twice.
+    - **Enter:** activates on `keydown`, ignoring `event.repeat`.
+    - **Space:** activates on `keyup`; its `keydown` calls `preventDefault`.
+    - **Escape:** acts only while the panel is open and focus is inside it or on an element with `aria-expanded="true"`. It skips events that are `defaultPrevented` or `isComposing`.
+11. **Hover is driven by the mouse:** `pointerover`/`pointerout` with `pointerType !== 'touch'`, so a tap leaves no hover behind. A hit area's `click` and `pointerover` act as the marker with that key in the same `<svg>`. Hit areas and controls take `cursor:pointer`.
+12. **The theme toggle** is `<button type="button" class="theme-toggle" aria-pressed="false" hidden="">Dark theme</button>`, with a dot before it that fills when pressed.
+    - **Its state:** `aria-pressed` follows `data-theme` if set, else `prefers-color-scheme`, including a live change of that preference while `data-theme` is unset.
+    - **Storage:** nothing is stored.
+13. **The skip link** is a button, `Skip to the legend`. It comes first in `.page-controls`, is visually hidden until focused, and appears at the start when focused (`margin-inline-end:auto`). It focuses the shown arrangement's first legend row. It is a button because the target has no `id` (§5).
+14. **Name-cell buttons:** `all:unset; display:block; min-height:24px; cursor:pointer; text-decoration:underline dotted`, solid on hover.
+    - The rule comes before the focus rule, and the focus selector `th button:focus-visible` is the more specific, so the outline always wins. A test asserts the computed outline.
+    - The dotted underline shows on touch and with the keyboard, and differs from a link's solid one.
+15. **Shared classes are scoped:** `td.prose` and `td.link` keep 15a's minimum widths, and `.detail dd.prose{white-space:pre-line;max-width:70ch}`.
+
+## Review rulings
+
+| Seat | Finding | Ruling |
+| --- | --- | --- |
+| Maintainer | Panel placement | **Sticky at the viewport's bottom** (Decision 1) |
+| Maintainer, architecture | Split 15b | **Two PRs**, Part 1 and Part 2 |
+| Rust | **Critical:** `tags()` splits on every `<`, so it cannot read a script; `run.rs` bans `{}` in the whole page | `outside()` also removes `<script>…</script>`; the `{}` check is narrowed to the stylesheet (Part 1 Task 1) |
+| Rust | **Critical:** a bare `hidden` fails the scanner | `hidden=""` everywhere (Global Constraints) |
+| QA | **Critical:** focus return into a closed `<details>` lands on `<body>` | Falls back to the `summary` (Decision 5); Scenario 4b |
+| QA | **Critical:** item swaps are untested | Scenario 2b |
+| QA | **Critical:** "no other element has either" is ambiguous, and the `tr` would get `aria-expanded` | Exact sets named in Scenario 2; `aria-expanded` only on `[role=button]` and `button` |
+| UI, accessibility | **Critical:** marker hover invisible (FR-37) | A dashed, muted square (Decision 7) |
+| Architecture | Hover and selection indicators can cover a focused ring | The focused indicator moves last (Decision 8); a scenario |
+| Architecture, Rust, accessibility | Legend selection stroked on the target rect | A start bar in the inset band; hover is a dashed inset outline (Decision 7) |
+| Architecture | The script's names are untied to Rust | The names block plus its Rust test |
+| Architecture, Rust, UI | Selection square overshoots the reach, or touches the ring | Outer edge at `INDICATOR_REACH`, stroke in the tree; the ring crossing is accepted and recorded (Decision 7) |
+| Architecture, Rust | How the serialiser finds the ring and the selection | `Semantics::FocusRing` and `Semantics::Selection` |
+| Architecture, QA, accessibility | `activeElement` is `<body>` after a breakpoint | `state.focus` from `focusin` (Decision 5); Scenario 9b |
+| Architecture | "No script, no loss" contradicts the static table buttons | The script adds `aria-*` at start-up; native buttons without script accepted, as for markers (Global Constraints) |
+| Architecture | Architecture amendments missing | Part 2 Task 7 lists them |
+| Architecture | The skip link has no FR | PRD 0.62 adds it (Part 1 Task 0) |
+| Architecture | A no-transitions test | Global Constraints |
+| Accessibility | A focused, selected legend row is told apart by colour only | A bar for selection, the outline for focus (Decision 7) |
+| UI, accessibility | Table selection vanishes in forced colours | `border-inline-start` (Decision 7) |
+| UI | The panel below the radar scrolls the item away | Sticky (maintainer); `preventScroll` (Decision 2) |
+| UI | A selected row is weaker than a hovered one | Selection is a solid bar, hover a dashed outline |
+| UI, accessibility | The name-cell button has no affordance; `all:unset` can drop the outline and size | Decision 14, with a test |
+| UI | Close at the panel's end | Beside the heading (Decision 3) |
+| UI | The toggle's visible state; the skip link's placement; shared class scope; panel type; empty state | Decisions 12, 13, 15, 6 and Part 2 Task 4 |
+| Accessibility | Escape caught everywhere | Scoped (Decision 10) |
+| Accessibility | Space activating a table button twice | Key handlers on `[role=button]` only; Space on a table button in Scenario 4 |
+| Accessibility | The section's `tabindex` | Dropped |
+| Accessibility | `[hidden]` overridable | `display:none!important` |
+| Accessibility | `event.repeat`; the ring after a mouse click; the theme following a live preference; persistent underline | Decisions 9, 10, 12, 14 |
+| QA | Input fidelity (trusted events, focus emulation, a reload per scenario, exceptions) | The harness's rules (Part 1 Task 4) |
+| QA | Missing negatives | Scenario 13 |
+| QA | Ban-list brittleness | Word-boundary regexes plus the network check |
+| QA | The equal-length CSS test | Replaced: no attribute selector carries a value (`\[data-[a-z-]+="`) and no `:has(` |
+| QA | `just browser` outside every gate | **`just ci` runs `just browser`** and fails when Chromium is missing |
+| QA | Scenario 12 passes without the script | Its mutation is the `.js` gate, as Part 1 Task 4 says |
+| Architecture | The `<title>` description check | 15c's, recorded there |
+| Rust | The tests Task 2 breaks | Listed in Part 1 Task 2 |
+
+## Part 1 — PR 15b-1: the skeleton, `rg-jri`, the toggle and skip link
+
+### Task 0: close out 15a's plan; the skip link in the PRD
 
 - [ ] **Step 1:** set `docs/plans/pr-15a-table.md` to `status: complete` with `completed_date: 2026-10-12`, and move it to `docs/plans/done/`.
-- [ ] **Step 2:** commit `docs(plans): RG-015A is complete`.
+- [ ] **Step 2:** PRD 0.62.
+  - **FR-98:** with script, a skip link before the radar moves focus to the shown arrangement's first legend row (WCAG 2.4.1). It is absent without script.
+  - **FR-56's toggle:** the in-page toggle is a pressed/unpressed **Dark theme** button.
+  - Add a revisions row.
+- [ ] **Step 3:** commit `docs: RG-015A complete; FR-98, the skip link`.
 
-### Task 1: the markup the script needs
-
-**Files:**
-- Modify: `src/svg/serialise/group.rs` (`control_attrs`)
-- Modify: `src/layout/radar/markers.rs` (`indicator_node` gains the selection rect)
-- Modify: `src/svg/mod.rs` (the selection and focus-ring marks)
-- Modify: `src/svg/serialise/*` (writes `data-focus-ring` and `data-selection`)
-- Modify: `src/emit/html/table.rs` (the name cell's button)
-- Modify: `src/emit/html/mod.rs` (the panel, page controls, `data-narrow-query`)
-- Test: `tests/serialise/{page,table,vocabulary,identity}.rs`, and `tests/common/html.rs` allow-lists
-
-**What changes:**
-- **Controls:** each interactive control gains `aria-expanded="false" aria-controls="detail"`, after `aria-label` and before `data-row`, in that fixed order.
-- **Marker indicators:** each gains a `data-selection` rect. Its focus ring circle is marked `data-focus-ring`.
-- **Table rows:** the name cell becomes `<th scope="row"><button type="button" data-row="L" aria-expanded="false" aria-controls="detail">Name <span class="flag">…</span></button></th>`.
-- **The page:**
-  - `<main data-narrow-query="…">` opens with the page controls;
-  - `<section id="detail" class="detail" hidden aria-label="Item details" tabindex="-1">` follows the arrangements;
-  - inside the panel, the heading and `<dl>` the script fills: `<h2 class="detail-heading" tabindex="-1"></h2>` and `<dl></dl>`;
-  - the panel ends with its `Close` button.
-
-- [ ] **Step 1: failing tests.**
-  - **Controls:** every interactive control's attributes, in order (`identity.rs`). The static target has none of the new attributes, and no `data-selection` (`vocabulary.rs`).
-  - **Indicators:** each marker indicator holds exactly one `data-selection` rect and one `data-focus-ring` circle.
-  - **Table:** each name cell holds one button with the row's key, whose text is the 15a cell's text exactly.
-  - **The panel:** there is one `id="detail"`; it is `hidden`; it sits after both arrangements and before the table heading.
-  - **The query:** `data-narrow-query` equals `css::narrow_query(wide.width)`.
-  - **Allow-lists:**
-    - `button`, `section`, `dl`, `dt`, `dd` and `script` become page elements;
-    - `type`, `hidden`, `aria-expanded`, `aria-pressed` and `aria-label` become page attributes;
-    - `aria-controls` is allowed only with the value `detail`;
-    - `id` is allowed only as `table-heading` on the `h2` or `detail` on the `section`;
-    - `data-narrow-query` is allowed only on `main`.
-- [ ] **Step 2:** run them and see them fail.
-- [ ] **Step 3:** implement, then re-bless the goldens: both the serialiser goldens and the HTML one, since the static targets gain nothing and the interactive ones gain attributes. Read the diff by eye against the list above.
-- [ ] **Step 4:** commit `feat(html): the markup the interactive layer drives`.
-
-### Task 2: state through attributes, and `rg-jri`
+### Task 1: the script, the names block, and the page controls
 
 **Files:**
-- Modify: `src/emit/html/css.rs` (`indicators` takes no keys; fixed state rules)
-- Modify: `src/emit/html/mod.rs` (drop `union`)
-- Modify: `src/svg/mod.rs` (drop `marker_keys`)
-- Test: `src/emit/html/css/tests.rs`, `tests/serialise/page.rs`
-
-**Rules** (built from `Neutral::as_str()` and the `DATA_*` constants):
-
-```css
-.js [data-marker]:focus-visible{outline:2px solid transparent}
-[data-marker-indicator] [data-focus-ring],[data-marker-indicator] [data-selection]{visibility:hidden}
-[data-marker-indicator][data-focused],[data-marker-indicator][data-selected],[data-marker-indicator][data-hovered]{visibility:visible}
-[data-marker-indicator][data-focused] [data-focus-ring]{visibility:visible}
-[data-marker-indicator][data-selected] [data-selection]{visibility:visible;stroke:var(--text-primary);stroke-width:2}
-[data-legend-row][data-hovered]>rect:first-child{fill:var(--surface-1)}
-[data-legend-row][data-selected]>rect:first-child{stroke:var(--text-primary);stroke-width:1.5}
-tr[data-selected]>*{background:var(--surface-1)}
-tr[data-selected]>:first-child{box-shadow:inset 3px 0 var(--text-primary)}
-[data-hit],[role=button]{cursor:pointer}
-```
-
-- [ ] **Step 1: failing tests.**
-  - The stylesheet holds no `:has(` and no `@supports selector`, and its length does not grow with the marker count: a 5-marker and a 300-marker page give stylesheets of equal length, fonts elided.
-  - Each rule above is present.
-  - The legend rule (`[data-legend-row]:focus-visible>[data-row-indicator]`) is unchanged.
-- [ ] **Step 2:** see them fail.
-- [ ] **Step 3:** implement. Delete `marker_rule`, `marker_focus`, `SUPPORTS_HAS`, `HAS_*`, `KEY_*`, `union` and `marker_keys`, together with their tests.
-- [ ] **Step 4:** commit `perf(html): focus and selection by attribute, not per-key rules (rg-jri)`.
-
-### Task 3: the script
-
-**Files:**
-- Create: `src/emit/html/script.js`
-- Modify: `src/emit/html/mod.rs` (`<script>` + the `include_str!` constant before `</body>`)
+- Create: `src/emit/html/script.js`, `src/emit/html/chrome.rs`
+- Modify: `src/emit/html/mod.rs` (`<main data-narrow-query>`, the page controls, `<script>`)
+- Modify: `tests/common/html.rs`:
+  - `outside()` drops `<script>…</script>`;
+  - the allow-lists add `button`, `script`, `type`, `hidden`, `aria-pressed` and `data-narrow-query` (on `main` only);
+  - `id` stays limited to `table-heading`.
+- Modify: `tests/run.rs` (the `{}` check is limited to the stylesheet)
 - Test: `tests/serialise/script.rs` (new)
 
-**The script's shape** is an IIFE in strict mode, about 200 lines.
+**The script in Part 1:**
+- the names block;
+- `state.focus`;
+- start-up: add `js`, unhide the toggle and skip link, set `aria-pressed`;
+- `focusin`, `focusout` and `keydown` for the ring;
+- the toggle's click and its `prefers-color-scheme` listener;
+- the skip link's click;
+- the `matchMedia` change, which moves focus to `state.focus`'s key in the shown arrangement.
 
-- **`state`:** `{ open: null | {key, kind}, hovered: null | key }`.
-- **`shown()`:** the arrangement whose `getComputedStyle(...).display !== 'none'`.
-- **`find(key, kind)`:**
-  - `marker`: `[data-marker="L"]` in `shown()`;
-  - `legend`: `[data-legend-row="L"]` in `shown()`;
-  - `table`: `tr[data-row="L"] button`.
-- **`elements(key)`:** every element carrying `data-row="L"`, in both arrangements and the table, plus the marker indicators with `data-marker-indicator="L"`.
-- **`open(key, kind)`:**
-  - fill the panel from the table row (Decision 4);
-  - set `data-selected` and `aria-expanded="true"` on `elements(key)`;
-  - unhide the panel and focus its heading.
-- **`close(returnFocus)`:**
-  - clear `data-selected` and set `aria-expanded="false"`;
-  - hide the panel;
-  - if `returnFocus`, focus `find(open.key, open.kind)`, falling back to the table button when that kind is not in the shown arrangement.
-- **`activate(key, kind)`:** close if `key` is already open, otherwise open.
-- **One delegated listener per event on `document`:**
-  - `click`: controls, hit areas, table buttons and the close button;
-  - `keydown`: Enter, Space and Escape;
-  - `keyup`: Space;
-  - `pointerover` and `pointerout`: hover;
-  - `focusin` and `focusout`: `rg-jri`.
-- **`matchMedia(main.dataset.narrowQuery)` change:** if focus was in the arrangement just hidden, focus `find(key, kind)` in the new one.
-- **Start-up:**
-  - set `document.documentElement.classList.add('js')`;
-  - unhide `.theme-toggle` and `.skip`;
-  - set the toggle's `aria-pressed`.
+- [ ] **Step 1: failing tests.**
+  - **The script's bytes:**
+    - the page holds exactly one attribute-less `<script>`, whose content equals `include_str!("../../src/emit/html/script.js")`;
+    - the names block's values equal the Rust constants;
+    - there is no other `data-` literal;
+    - the word-boundary bans hold.
+  - **The markup:**
+    - `.page-controls` is first in `<main>`;
+    - both controls carry `hidden=""`;
+    - `data-narrow-query` equals `css::narrow_query(wide.width)`.
+- [ ] **Step 2:** see them fail. **Step 3:** implement. **Step 4:** commit `feat(html): the script's skeleton, toggle and skip link`.
 
-- [ ] **Step 1: failing Rust tests** on the bytes of `script.js`:
-  - it contains none of `fetch`, `XMLHttpRequest`, `import`, `WebSocket`, `sendBeacon`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `eval`, `Function(` or `</script`;
-  - the page holds exactly one `<script>`, with no attributes, and its content equals `script.js` byte for byte;
-  - two different CSVs give the same script bytes.
-- [ ] **Step 2:** see them fail.
-- [ ] **Step 3:** write the script.
-- [ ] **Step 4:** commit `feat(html): the interactive layer's script`.
-
-### Task 4: the panel and page controls' CSS
+### Task 2: focus by attribute (`rg-jri`)
 
 **Files:**
-- Modify: `src/emit/html/table.rs`, or a new `src/emit/html/chrome.rs` for the panel and controls if `table.rs` passes about 300 lines
+- Modify: `src/svg/mod.rs` (`Semantics::FocusRing`; drop `marker_keys`)
+- Modify: `src/layout/radar/markers.rs` (wrap the ring)
+- Modify: `src/svg/serialise/group.rs`
+- Modify: `src/emit/html/css.rs` (`indicators()` takes no keys; fixed rules)
+- Modify: `src/emit/html/mod.rs` (drop `union`)
+- **Tests that change:**
+  - `markers.rs` `probe`, and the slice pattern at about line 650;
+  - `svg/serialise/tests/semantics.rs`;
+  - `tests/serialise/vocabulary.rs` (`data-focus-ring` in `INTERACTIVE_ONLY`);
+  - `tests/run.rs` `the_page_at_its_extremes` (no `svg:has(`);
+  - `tests/serialise/page.rs` (the three indicator tests);
+  - `css/tests.rs`, at about lines 123–180.
 
 **Rules:**
-- `.page-controls{display:flex;justify-content:flex-end}`, capped and inset like `.table-view`.
-- `.skip:not(:focus){…visually hidden…}`.
-- Buttons: `button{font:inherit;padding:.4em .8em;border:1px solid var(--stroke-divider);border-radius:6px;background:var(--surface-2);color:var(--text-primary);cursor:pointer}`. This keeps every button target at least 24 px tall (FR-94).
-- `.detail{…capped…;margin-block:1em;padding:1em;background:var(--surface-2);border:1px solid var(--stroke-divider);border-radius:10px}`.
-- `.detail dt{font-weight:600;color:var(--text-muted)}`, `.detail dd{margin:0 0 .6em}`, and `.detail dd.prose{white-space:pre-line}`.
-- The focus outline rule gains `button:focus-visible` and `.detail-heading:focus-visible`.
-- Table name-cell buttons are reset to look like the 15a text, `all:unset` plus a focus outline, so the table looks as before. The underline appears on hover only.
+- `.js [data-marker]:focus-visible{outline:2px solid transparent}`
+- `[data-focus-ring]{visibility:hidden}`
+- `[data-marker-indicator][data-focused]{visibility:visible}`
+- `[data-marker-indicator][data-focused] [data-focus-ring]{visibility:visible}`
+- `[hidden]{display:none!important}`
 
-- [ ] **Step 1:** add tests that each rule is present, then implement.
-- [ ] **Step 2:** commit `feat(html): the panel and page controls' styles`.
+- [ ] **Step 1: failing tests.**
+  - The stylesheet has no `:has(`, no `@supports selector`, and no attribute selector with a value.
+  - Each marker indicator holds one `data-focus-ring` group.
+  - The legend's focus rule is unchanged.
+  - Static goldens are unchanged.
+- [ ] **Step 2:** see them fail. **Step 3:** implement, and re-bless the HTML golden only. **Step 4:** commit `perf(html): marker focus by attribute, not per-key rules (rg-jri)`.
 
-### Task 5: the measurement probe for `rg-jri`
+### Task 3: the cost, measured
+
+- [ ] **Step 1:** create `scripts/focus-cost.mjs`, from the `rg-min` probe: it generates a 300-marker page, Tabs 40 times, and reports `RecalcStyleDuration` per Tab. Add `just focus-cost`.
+- [ ] **Step 2:** run it on main and on the branch, and record both numbers. Expected: about 49 ms before, under 1 ms after.
+- [ ] **Step 3:** commit `test(perf): a probe for focus-ring style cost (rg-jri)`.
+
+### Task 4: the browser harness
 
 **Files:**
-- Create: `scripts/focus-cost.mjs`, generalised from the `rg-min` probe: it Tabs 40 times through a generated 300-marker page and reports `RecalcStyleDuration` per Tab.
-- Modify: `justfile` (`focus-cost`)
+- Create: `scripts/interaction.mjs`, with `connect`, `poll`, `within` and `close` taken from `text-spacing.mjs` into a shared `scripts/cdp.mjs`, which both import
+- Create: `tests/fixtures/interaction.csv`
+- Modify: `justfile`:
+  - `interaction`;
+  - `browser`, which runs `text-spacing` and `interaction`;
+  - `ci` gains `just browser`, which fails if Chromium is missing.
 
-- [ ] **Step 1:** run it on main's build and on this branch's. Record both in the PR body and in `rg-jri`'s close note. Expected: about 49 ms per Tab before, and under 1 ms after.
-- [ ] **Step 2:** commit `test(perf): a probe for focus-ring style cost (rg-jri)`.
+**The harness's rules:**
+- **Trusted input only:** `Input.dispatchKeyEvent` (Enter with `windowsVirtualKeyCode:13` and `text:'\r'`; Space with code 32 down and up) and `Input.dispatchMouseEvent`. Never `.focus()` or `dispatchEvent` for input.
+- **Setup:** `Emulation.setFocusEmulationEnabled({enabled:true})`. Colour scheme and script disabling are set **before** navigation.
+- **Isolation:** the page is reloaded for each scenario.
+- **Exceptions:** any `Runtime.exceptionThrown` fails the run.
+- **Waiting:** by polling, never by sleeping.
 
-### Task 6: behaviour in a browser
+**Part 1 scenarios**, run at 1400 and 400 px:
 
-**Files:**
-- Create: `scripts/interaction.mjs`, reusing `text-spacing.mjs`'s connect, poll, within and close.
-- Create: `tests/fixtures/interaction.csv`, with:
-  - two `Kafka` rows (FR-28);
-  - an unplotted row;
-  - a description `<img src=x onerror=alert(1)>`;
-  - a refused `javascript:x` link;
-  - an `https` link;
-  - a multi-line rationale.
-- Modify: `justfile`. `interaction` renders the fixture and runs the script; `browser` runs `text-spacing` and `interaction`.
+1. **Tab order:** the skip link, the toggle, markers 1…n in number order (FR-34), then legend rows. Each marker shows its ring. A mouse click shows none until the next key press.
+2. **Focus on top:** a focused marker's ring stays visible when its later neighbour is hovered, a check that applies once Part 2 adds hover, and when the focused indicator is moved last.
+3. **Breakpoint (9b):** focus marker 3 at 1400 px and resize to 400 px. Focus reaches narrow marker 3, with its ring.
+4. **Theme:**
+   - `aria-pressed` matches an emulated `dark` and an emulated `light`, and follows a live change while `data-theme` is unset;
+   - pressing it flips `data-theme` and the body's computed background.
+5. **Skip link:** visible when focused; activating it focuses the shown first legend row.
+6. **No script:**
+   - the toggle and skip link compute `display:none`;
+   - a marker's computed outline is not transparent;
+   - Enter on the summary opens the table.
+7. **NFR-5:** with `Network.enable`, the document is the only request.
 
-**Scenarios.** Each is asserted at 1400 px (wide) and at 400 px (narrow) unless it names a width.
-
-1. **Tab order (FR-34):**
-   - Tab from the top reaches the skip link, then the toggle, then markers 1…n in number order, then legend rows 1…n.
-   - Each marker shows its focus ring (`data-focused`, the ring computed visible).
-   - A mouse click on a marker shows no ring.
-2. **Activation:**
-   - Enter on marker 3 opens the panel, whose heading is "3. …" and is focused.
-   - Marker 3, legend row 3 and the table button for that key have `aria-expanded="true"` and `data-selected`; no other element has either.
-   - The marker's selection outline is visible, and its focus ring is not unless focused.
-3. **Closing:**
-   - Escape closes the panel; focus returns to marker 3; nothing is selected.
-   - Space on legend row 2 opens it, and the page does not scroll (`scrollY` unchanged).
-   - The Close button closes it and returns focus to legend row 2.
-   - Clicking legend row 2 twice opens it, then closes it.
-4. **The table:**
-   - Opening the table and pressing Enter on the unplotted row's button opens a panel whose heading ends "not on the radar".
-   - No marker or legend row is selected.
-   - Escape returns focus to that button.
-5. **Duplicate names:** the two `Kafka` rows open different panels, and each selects only its own key.
-6. **Hostile content:**
-   - The panel for the hostile row holds no `img` element; its text equals the CSV's.
-   - The refused link is text; the `https` link is an `<a>` with `target="_blank"` and `rel="noopener noreferrer"`.
-   - `window.alert` is stubbed and never called.
-7. **Hover:**
-   - `pointerover` a marker gives its legend row `data-hovered`, and the reverse.
-   - A hovered and a selected item can differ at once, and their styles differ: computed `fill` and `stroke` compared.
-8. **Hit area:** a click at a hit area's edge, outside the marker disc, opens that marker's panel.
-9. **Breakpoint (Review Focus 1):**
-   - Open a marker's panel at 1400 px, then resize to 400 px and press Escape.
-   - Focus lands on the same key's marker in the narrow arrangement.
-   - The panel stays open across the resize, and the narrow arrangement's elements for the key carry `data-selected`.
-10. **Theme:**
-    - The toggle's `aria-pressed` matches the emulated `prefers-color-scheme`.
-    - Pressing it flips `data-theme` and the page background's computed colour.
-11. **Skip link:** focusing it makes it visible; activating it focuses legend row 1 in the shown arrangement.
-12. **No script (Review Focus 5):** with `Emulation.setScriptExecutionDisabled`:
-    - the toggle, skip link and panel are not rendered;
-    - Tab to a marker shows a non-transparent computed outline;
-    - the `details` still opens.
-
-- [ ] **Step 1:** write the script and fixture. Run it against Task 1's markup before Task 3's script exists: every scenario must fail.
-- [ ] **Step 2:** run it after Tasks 1–4. Every scenario must pass. Mutation-check each, and each must fail:
-  - remove the Escape handler;
-  - look the opener up by element instead of by key (Scenario 9);
-  - use `innerHTML` in the panel (Scenario 6);
-  - drop the `.js` gate (Scenario 12).
+- [ ] **Step 1:** write the harness. Run it on main's build: Scenarios 1 and 3–5 fail.
+- [ ] **Step 2:** run it on the branch: all pass. Mutation-check:
+  - the `.js` gate removed (Scenario 6);
+  - `focusin` reading `activeElement` instead of `state.focus` (Scenario 3).
 - [ ] **Step 3:** commit `test(a11y): the interactive layer in a browser`.
 
-### Task 7: text spacing over the panel, and docs
+### Part 1 finishing
 
-- [ ] **Step 1:** `text-spacing.mjs` opens the hostile row's panel at each width, so its clip and overflow checks cover the panel and the page controls. Expect `ok` everywhere.
-- [ ] **Step 2:** update the docs:
-  - `docs/csv-format.md` (the panel is live);
-  - architecture §5: the per-key rule paragraph becomes the attribute mechanism, and the sanctioned `id`s are `table-heading` and `detail`;
-  - architecture §11: the interactive layer is designed here.
-- [ ] **Step 3:** commit `docs: the interactive layer is live`.
+- Run `just ci`, which now includes `just browser`.
+- Review seats: code review (holding Copilot's seat), simplify, and accessibility on the rendered page.
+- Close `rg-jri` with the measured numbers. `rg-6zu` stays open, with a note appended.
 
-## Finishing
+## Part 2 — PR 15b-2: the panel, selection, hover and keyboard
 
-- Run `just ci` and `just browser`.
-- Review seats:
-  - code review and simplify;
-  - accessibility, on the rendered page with a screen-reader-like walk of the accessibility tree;
-  - UI;
-  - Copilot's seat, held by a fresh Opus reviewer.
-- Close `rg-jri`, with the measured numbers. `rg-6zu` stays open for 15c, with a note appended.
-- Note CI's billing block in the PR body if it persists. Raise a crumb to run `just browser` in CI once Actions works.
+### Task 1: the markup
+
+**Files:**
+- Modify: `src/svg/mod.rs` (`Semantics::Selection`)
+- Modify: `src/layout/radar/markers.rs`: the square, with `MARKER_RADIUS / 4` corners and its stroke in the tree. A const-assert keeps its reach at `INDICATOR_REACH`.
+- Modify: `src/layout/legend/mod.rs`: the start bar in the inset band, interactive-only, with a const-assert that it fits the inset.
+- Modify: `src/svg/serialise/group.rs`
+- Modify: `src/emit/html/chrome.rs`: the panel `<section>` with its head row and `<dl>`, and the empty state written by the script.
+- Modify: `src/emit/html/table.rs`: the name cell's `<button type="button" data-row="L">`.
+
+- [ ] **Step 1: failing tests.**
+  - Each marker indicator has one `data-selection`, and each legend row has one bar.
+  - The square's bounds equal the backing disc's.
+  - Static goldens are unchanged.
+  - The table button's text equals 15a's cell text.
+  - The panel is the only `id="detail"`: it is `hidden=""` and sits between the narrow arrangement and the table heading.
+  - The allow-lists gain `section`, `dl`, `dt`, `dd`, `p` and `aria-label`; `id` is allowed only as `detail` on `section`.
+- [ ] **Step 2:** see them fail. **Step 3:** implement and re-bless the HTML golden. **Step 4:** commit `feat(html): the panel and selection markup`.
+
+### Task 2: the state rules
+
+**What the rules cover**, as module-constant fragments, with Rust tests that each is present:
+- the selection and hover visibility and paint overrides of Decision 7;
+- `tr[data-selected]>:first-child{border-inline-start:3px solid var(--text-primary)}`;
+- `[data-hit],[role=button]{cursor:pointer}`;
+- the panel, head row, `dt`/`dd`, empty state, buttons, the toggle's dot, the name-cell button, and the focus outlines.
+
+Commit `feat(html): selection, hover and panel styles`.
+
+### Task 3: the script's behaviour
+
+Add the following, all through the names block:
+- `open`, `close`, `activate` and `elements`. `elements` gives `aria-expanded` to `[role=button]` and `button` only, and `data-selected` to those, the `tr` and the indicators.
+- The panel built from the row.
+- The click, key and pointer handlers.
+- The scroll padding.
+- The table buttons' `aria-*`, added at start-up.
+
+The word-boundary bans still hold. Commit `feat(html): the panel, selection and keyboard`.
+
+### Task 4: the scenarios
+
+Run at 1400 and 400 px; each must fail on Part 1's build and pass after Task 3.
+
+2. **Open:**
+   - Enter on marker 3 opens the panel; its heading reads "3. …" and is focused and inside the viewport.
+   - `aria-expanded="true"` is on exactly the five controls for key 3: two markers, two legend rows and the table button. `data-selected` is on those five, the `tr` and both indicators.
+   - The square is visible and the ring hidden, unless focused.
+   - **2b:** activating legend row 5 without closing leaves only key 5's sets, gives a `<dl>` with exactly 5's non-empty fields, and Escape returns focus to legend row 5.
+3. **Close:**
+   - Escape returns focus to marker 3, now inside the viewport, with nothing selected.
+   - Space on legend row 2 opens it without scrolling the page.
+   - Close returns focus to legend row 2.
+   - Clicking legend row 2 twice opens it, then closes it.
+4. **The table:**
+   - Enter, and separately Space, on the unplotted row's button opens a panel whose heading ends "not on the radar". No marker or legend row is selected. Escape returns focus to the button.
+   - **4b:** open from a table button, close the `details` with Enter on its summary, then press Escape: focus is on the summary.
+5. **Duplicate names:** the two `Kafka` rows each open their own panel and select only their own key.
+6. **Hostile content:** no `img` in the panel; text equal to the CSV's; the refused link is text; the `https` link is an `<a>` with its `target` and `rel`; `alert` is stubbed and never called.
+7. **Hover:**
+   - real `mouseMoved` over a marker gives its legend row `data-hovered`, and the reverse;
+   - moving to empty space clears it;
+   - a tap (`Input.dispatchTouchEvent`) leaves no hover;
+   - hovered and selected items differ in computed `stroke` and `stroke-dasharray`.
+8. **Hit area:** a click at a hit area's edge, outside the disc, opens that marker.
+9. **Breakpoint with the panel open:** open at 1400 px, resize to 400 px, press Escape. Focus lands on the narrow marker for the key; the wide arrangement holds no `data-selected` once closed; while open, the narrow elements carry it.
+10. **Sticky panel:**
+    - with the panel open, the selected marker stays inside the viewport;
+    - `scroll-padding-bottom` equals the panel's height;
+    - Tabbing through legend rows never leaves one hidden under the panel.
+11. **A focused, selected legend row:** the computed outline is `--focus` and the bar is visible, so two marks show, not one merged edge.
+13. **Negatives:**
+    - Escape with no panel open changes nothing;
+    - Escape in the toggle with a panel open does nothing;
+    - an Enter with `autoRepeat` does not toggle twice;
+    - a click on the heading or the `<dl>` does not close the panel.
+
+Mutation-check:
+- the Escape handler removed;
+- the opener looked up by element (Scenario 9);
+- `innerHTML` in the panel (Scenario 6);
+- no `append` on `focusin` (Part 1's Scenario 2, now that hover exists);
+- `aria-expanded` set on the `tr` (Scenario 2).
+
+Commit `test(a11y): the panel, selection and keyboard in a browser`.
+
+### Task 5: text spacing over the panel
+
+`text-spacing.mjs` opens the hostile row's panel at each width, so the clip and overflow checks cover the panel and its head row. Expect `ok` everywhere. Commit `test(a11y): text spacing reaches the panel`.
+
+### Task 6: docs
+
+- **`docs/csv-format.md`:** the panel is live.
+- **Architecture §5:**
+  - item 4 of the layer list gains the selection square and the legend bar;
+  - the per-format paragraph describes the attribute mechanism and the marks, in place of the per-key rules;
+  - the sanctioned `id`s are `table-heading` and `detail`;
+  - native table buttons without script are accepted.
+- **Architecture §10:** the behaviour row names `scripts/interaction.mjs`.
+- **Architecture §11:** the interactive layer is designed here.
+- **The 15a split table:** text spacing over the panel moved into 15b.
+
+Commit `docs: the interactive layer is live`.
+
+### Part 2 finishing
+
+- Run `just ci`.
+- Review seats: code review (holding Copilot's seat), simplify, accessibility, and UI on the rendered page.
+- Append a note to `rg-6zu`; 15c remains.
 
 ## Revisions
 
 | Revision | Date | Change |
 | --- | --- | --- |
 | 1.0 | 2026-10-12 | First draft. |
+| 1.1 | 2026-10-12 | Five-seat review folded in (see Review rulings). The maintainer rules on a sticky panel and a split into 15b-1 and 15b-2. |
