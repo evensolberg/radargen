@@ -2,7 +2,9 @@
 
 use radargen::layout::arrange::{Arrangement, arrange};
 use radargen::palette::{Palette, Role, Theme};
-use radargen::svg::serialise::{DATA_HIT, DATA_MARKER_INDICATOR, DATA_ROW_INDICATOR};
+use radargen::svg::serialise::{
+    DATA_HIT, DATA_MARKER_INDICATOR, DATA_ROW_INDICATOR, DATA_SELECTION,
+};
 use radargen::svg::{Document, Group, Node, Paint, Point, Target, serialise};
 
 use super::{BOTH, fonts, parse, prd};
@@ -10,9 +12,14 @@ use super::{BOTH, fonts, parse, prd};
 /// Whether an interactive element is one static output drops: a hit area or
 /// an indicator, or a group of nothing else.
 fn dropped(node: roxmltree::Node<'_, '_>) -> bool {
-    let own = [DATA_HIT, DATA_MARKER_INDICATOR, DATA_ROW_INDICATOR]
-        .iter()
-        .any(|name| node.attribute(*name).is_some());
+    let own = [
+        DATA_HIT,
+        DATA_MARKER_INDICATOR,
+        DATA_ROW_INDICATOR,
+        DATA_SELECTION,
+    ]
+    .iter()
+    .any(|name| node.attribute(*name).is_some());
     let mut kids = node
         .children()
         .filter(roxmltree::Node::is_element)

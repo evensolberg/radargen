@@ -227,6 +227,16 @@ pub const LEGEND_ROW_RADIUS: f64 = 6.0;
 /// How far a row's focus and selection indicator sits inside its target, so
 /// the stroke is not painted over by the next row (rows abut).
 pub const LEGEND_ROW_INDICATOR_INSET: f64 = 1.0;
+/// A selected legend row's bar, at its start inside the indicator's edge
+/// (FR-72, FR-73): selection reads as a bar, focus as an outline, so a row
+/// that is both shows two marks rather than one thicker edge.
+pub const SELECTION_BAR_WIDTH: f64 = 4.0;
+// The bar sits between the target's edge and the badge, so it covers
+// neither the badge nor the name.
+const _: () = assert!(
+    LEGEND_ROW_INDICATOR_INSET + SELECTION_BAR_WIDTH < LEGEND_ROW_LEFT_OUTSET,
+    "a legend row's selection bar must clear the badge"
+);
 /// The legend panel's padding left and right of the content.
 pub const LEGEND_PANEL_INSET_X: f64 = 12.0;
 /// The legend panel's padding above and below the content.

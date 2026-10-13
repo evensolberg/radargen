@@ -150,6 +150,10 @@ pub enum Semantics {
     /// from the rest of the indicator, while the marker has visible focus
     /// (FR-48, rg-jri). Interactive-only, inside an [`Semantics::Indicator`].
     FocusRing(ItemKey),
+    /// An item's selection mark (FR-72, FR-73): a marker's square, inside
+    /// its indicator, or a legend row's start bar. Shown by the page while
+    /// the item is selected; interactive-only, and hidden until then.
+    Selection(ItemKey),
 }
 
 /// One step of a path outline.
@@ -330,7 +334,7 @@ impl Node {
         match self {
             Self::HitArea { .. } => true,
             Self::Group(group) => match group.semantics {
-                Semantics::Indicator(_) | Semantics::FocusRing(_) => true,
+                Semantics::Indicator(_) | Semantics::FocusRing(_) | Semantics::Selection(_) => true,
                 Semantics::None => {
                     !group.children.is_empty()
                         && group.children.iter().all(Self::is_interactive_only)

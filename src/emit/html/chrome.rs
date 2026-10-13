@@ -57,6 +57,11 @@ pub(super) fn controls() -> String {
     .concat()
 }
 
+/// FR-38's panel, written once outside both arrangements, the one `id`
+/// every control's `aria-controls` names (architecture §5). It is empty and
+/// hidden: the script fills it from the item's table row (D-80).
+pub(super) const PANEL: &str = "<section id=\"detail\" class=\"detail\" aria-label=\"Item details\" hidden=\"\"><div class=\"detail-head\"><h2 class=\"detail-heading\" tabindex=\"-1\"></h2><button type=\"button\" class=\"detail-close\">Close</button></div><dl></dl></section>\n";
+
 /// The script element, last in `<body>`.
 pub(super) fn script() -> String {
     ["<script>\n", SCRIPT, "</script>\n"].concat()

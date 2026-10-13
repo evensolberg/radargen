@@ -163,8 +163,11 @@ fn td(class: &str, text: &str) -> String {
     ["<td", class, ">", &xml_text(text), "</td>"].concat()
 }
 
-/// The row header: the name, and for an unplotted row FR-41's flag after a
-/// space, so the text reads "Old not on the radar" and never runs together.
+/// The row header: a native button keyed on the row, holding the name and,
+/// for an unplotted row, FR-41's flag after a space, so the text and the
+/// button's name read "Old not on the radar" and never run together (D-66,
+/// WCAG 2.5.3). The script adds its `aria-expanded` and `aria-controls`, so
+/// without it the button claims no state.
 fn name_cell(item: &Item, unplotted: bool) -> String {
     let flag = if unplotted {
         [" <span class=\"flag\">", NOT_ON_THE_RADAR, "</span>"].concat()
@@ -172,10 +175,14 @@ fn name_cell(item: &Item, unplotted: bool) -> String {
         String::new()
     };
     [
-        "<th scope=\"row\">",
+        "<th scope=\"row\"><button type=\"button\" ",
+        DATA_ROW,
+        "=\"",
+        &item.line.to_string(),
+        "\">",
         &xml_text(trim(&item.name)),
         &flag,
-        "</th>",
+        "</button></th>",
     ]
     .concat()
 }

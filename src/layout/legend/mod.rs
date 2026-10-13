@@ -17,7 +17,8 @@ use crate::palette::{Neutral, Role};
 use crate::style::{
     BADGE_HOLLOW_STROKE, BADGE_RADIUS, BADGE_STROKE, INDENT_ITEM, LEGEND_BADGE_NUMBER,
     LEGEND_PANEL_INSET_X, LEGEND_PANEL_INSET_Y, LEGEND_PANEL_RADIUS, LEGEND_ROW_INDICATOR_INSET,
-    LEGEND_ROW_LEFT_OUTSET, LEGEND_ROW_RADIUS, LEGEND_ROW_RIGHT_OUTSET, SWATCH_RADIUS,
+    LEGEND_ROW_LEFT_OUTSET, LEGEND_ROW_RADIUS, LEGEND_ROW_RIGHT_OUTSET, SELECTION_BAR_WIDTH,
+    SWATCH_RADIUS,
 };
 use crate::svg::{Group, ItemKey, Node, Paint, Point, Scale, Semantics, TextRun};
 use crate::text::Fonts;
@@ -206,6 +207,7 @@ fn row_node(row: &Row, width: f64, s: f64) -> Node {
     let children = [
         rect_node(target, LEGEND_ROW_RADIUS * s, SURFACE2),
         indicator_node(target, row.control.key, s),
+        selection_node(target, row.control.key, s),
         badge_node(row, s),
         number_node(row, s),
     ]
@@ -255,6 +257,22 @@ fn indicator_node(target: Area, key: ItemKey, s: f64) -> Node {
         Paint::None,
     );
     Node::Group(Group::new(Point::ORIGIN, vec![ring]).with(Semantics::Indicator(key)))
+}
+
+/// The row's selection mark (FR-72, FR-73): a bar at the start of
+/// `target` (already scaled by `s`), inside the indicator's edge, shown by
+/// the page while the item is selected.
+fn selection_node(target: Area, key: ItemKey, s: f64) -> Node {
+    let inside = target.inset(LEGEND_ROW_INDICATOR_INSET * s);
+    let bar = rect_node(
+        Area {
+            width: SELECTION_BAR_WIDTH * s,
+            ..inside
+        },
+        0.0,
+        Paint::Role(Role::Neutral(Neutral::TextPrimary)),
+    );
+    Node::Group(Group::new(Point::ORIGIN, vec![bar]).with(Semantics::Selection(key)))
 }
 
 /// The row's badge, drawn as its marker is (FR-20): solid in the series
@@ -317,10 +335,11 @@ mod tests {
     /// number, name, and meta when it shows one.
     const TARGET: usize = 0;
     const INDICATOR: usize = 1;
-    const BADGE: usize = 2;
-    const NUMBER: usize = 3;
-    const NAME: usize = 4;
-    const META: usize = 5;
+    const SELECTION: usize = 2;
+    const BADGE: usize = 3;
+    const NUMBER: usize = 4;
+    const NAME: usize = 5;
+    const META: usize = 6;
 
     fn group(node: &Node) -> &Group {
         let Node::Group(group) = node else {
@@ -519,6 +538,27 @@ mod tests {
             assert!(close(w, width - 2.0) && close(h, height - 2.0), "{inset:?}");
             assert_eq!((fill, stroke), (Paint::None, Paint::None));
             assert!(indicator.is_interactive_only());
+
+            // FR-72, FR-73: selection is a bar at the row's start, inside the
+            // indicator's edge, so focus keeps the outline and the two never
+            // merge into one thicker edge.
+            let bar = child(children, SELECTION);
+            let b = group(bar);
+            assert_eq!(b.semantics, Semantics::Selection(control.key));
+            assert!(bar.is_interactive_only());
+            let [mark] = b.children.as_slice() else {
+                panic!("a bar holds one rect: {b:?}");
+            };
+            let (bar_at, bar_w, bar_h, _, bar_fill, _) = rect(mark);
+            assert!(near(
+                bar_at,
+                Point {
+                    x: origin.x + 1.0,
+                    y: origin.y + 1.0
+                }
+            ));
+            assert!(close(bar_w, SELECTION_BAR_WIDTH) && close(bar_h, height - 2.0));
+            assert_eq!(bar_fill, Paint::Role(Role::Neutral(Neutral::TextPrimary)));
         }
     }
 

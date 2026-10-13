@@ -299,3 +299,23 @@ fn the_table_is_closed_under_a_visible_heading() {
         "a named, focusable scroll region"
     );
 }
+
+/// 15b: the name cell's control is a native button keyed on the row, its
+/// text exactly 15a's cell text, so the button's name holds the flag.
+#[test]
+fn each_name_cell_holds_one_button() {
+    let b = built();
+    let html = b.page(Some("T"));
+    let table = table_of(&html);
+    let doc = parse(&table);
+    for row in rows(&doc) {
+        let header = row.children().find(|n| n.has_tag_name("th")).expect("a row header");
+        let buttons: Vec<Node> = header.children().filter(|n| n.has_tag_name("button")).collect();
+        let [button] = buttons.as_slice() else {
+            panic!("one button: {}", text(header));
+        };
+        assert_eq!(button.attribute("type"), Some("button"));
+        assert_eq!(button.attribute("data-row"), row.attribute("data-row"));
+        assert_eq!(text(*button), text(header), "all the cell's text is the button's");
+    }
+}
