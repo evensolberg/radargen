@@ -12,7 +12,7 @@ created_date: 2026-10-12
 synopsis: "One constant script brings the page to life, with no data of its own. Part 1 (15b-1) lays the script's skeleton, shows marker focus rings by attribute instead of per-key CSS (rg-jri), and adds the theme toggle and skip link. Part 2 (15b-2) adds one sticky detail panel built from the item's table row (D-80), selection, hover, keyboard activation, and focus return keyed on the item in whichever arrangement is shown."
 status: draft
 type: Plan
-revision: "1.1"
+revision: "1.2"
 review_date: 2026-10-12
 reviewed_by:
   - Rust seat
@@ -88,16 +88,16 @@ Each PR is complete in itself: every handler lands with the state it manages, an
    - **the closed table:** the table's `summary`;
    - **the breakpoint:** the same key in the shown arrangement.
 
-   *Test:* Part 2 Scenarios 4b and 9.
+   *Test:* Part 2 Scenarios 3b and 8.
 2. **Swapping items without closing.** Opening item 3 and then activating item 5 leaves:
    - only key 5 selected and expanded;
    - a `<dl>` holding only item 5's fields;
    - Escape returning focus to 5's opener.
 
-   *Test:* Scenario 2b.
-3. **A breakpoint change with focus on a marker and no panel open.** Focus moves to the same key's marker in the new arrangement, with its ring shown. *Test:* Scenario 9b.
-4. **A hostile value in the panel.** A description `<img src=x onerror=alert(1)>` and a refused `javascript:` link are text, only the `https` link is an `<a>`, and `alert` is never called. *Test:* Scenario 6.
-5. **No script.** No toggle, skip link or panel renders, a marker shows its native outline, and the table opens with Enter on its summary. *Test:* Part 1 Scenario 12.
+   *Test:* Part 2 Scenario 1b.
+3. **A breakpoint change with focus on a marker and no panel open.** Focus moves to the same key's marker in the new arrangement, with its ring shown. *Test:* Part 1 Scenario 3.
+4. **A hostile value in the panel.** A description `<img src=x onerror=alert(1)>` and a refused `javascript:` link are text, only the `https` link is an `<a>`, and `alert` is never called. *Test:* Part 2 Scenario 5.
+5. **No script.** No toggle, skip link or panel renders, a marker shows its native outline, and the table opens with Enter on its summary. *Test:* Part 1 Scenario 6.
 
 ## Decisions taken in this plan
 
@@ -161,16 +161,16 @@ Each PR is complete in itself: every handler lands with the state it manages, an
 | Maintainer, architecture | Split 15b | **Two PRs**, Part 1 and Part 2 |
 | Rust | **Critical:** `tags()` splits on every `<`, so it cannot read a script; `run.rs` bans `{}` in the whole page | `outside()` also removes `<script>…</script>`; the `{}` check is narrowed to the stylesheet (Part 1 Task 1) |
 | Rust | **Critical:** a bare `hidden` fails the scanner | `hidden=""` everywhere (Global Constraints) |
-| QA | **Critical:** focus return into a closed `<details>` lands on `<body>` | Falls back to the `summary` (Decision 5); Scenario 4b |
-| QA | **Critical:** item swaps are untested | Scenario 2b |
-| QA | **Critical:** "no other element has either" is ambiguous, and the `tr` would get `aria-expanded` | Exact sets named in Scenario 2; `aria-expanded` only on `[role=button]` and `button` |
+| QA | **Critical:** focus return into a closed `<details>` lands on `<body>` | Falls back to the `summary` (Decision 5); Part 2 Scenario 3b |
+| QA | **Critical:** item swaps are untested | Part 2 Scenario 1b |
+| QA | **Critical:** "no other element has either" is ambiguous, and the `tr` would get `aria-expanded` | Exact sets named in Part 2 Scenario 1; `aria-expanded` only on `[role=button]` and `button` |
 | UI, accessibility | **Critical:** marker hover invisible (FR-37) | A dashed, muted square (Decision 7) |
 | Architecture | Hover and selection indicators can cover a focused ring | The focused indicator moves last (Decision 8); a scenario |
 | Architecture, Rust, accessibility | Legend selection stroked on the target rect | A start bar in the inset band; hover is a dashed inset outline (Decision 7) |
 | Architecture | The script's names are untied to Rust | The names block plus its Rust test |
 | Architecture, Rust, UI | Selection square overshoots the reach, or touches the ring | Outer edge at `INDICATOR_REACH`, stroke in the tree; the ring crossing is accepted and recorded (Decision 7) |
 | Architecture, Rust | How the serialiser finds the ring and the selection | `Semantics::FocusRing` and `Semantics::Selection` |
-| Architecture, QA, accessibility | `activeElement` is `<body>` after a breakpoint | `state.focus` from `focusin` (Decision 5); Scenario 9b |
+| Architecture, QA, accessibility | `activeElement` is `<body>` after a breakpoint | `state.focus` from `focusin` (Decision 5); Part 1 Scenario 3 |
 | Architecture | "No script, no loss" contradicts the static table buttons | The script adds `aria-*` at start-up; native buttons without script accepted, as for markers (Global Constraints) |
 | Architecture | Architecture amendments missing | Part 2 Task 7 lists them |
 | Architecture | The skip link has no FR | PRD 0.62 adds it (Part 1 Task 0) |
@@ -183,16 +183,16 @@ Each PR is complete in itself: every handler lands with the state it manages, an
 | UI | Close at the panel's end | Beside the heading (Decision 3) |
 | UI | The toggle's visible state; the skip link's placement; shared class scope; panel type; empty state | Decisions 12, 13, 15, 6 and Part 2 Task 4 |
 | Accessibility | Escape caught everywhere | Scoped (Decision 10) |
-| Accessibility | Space activating a table button twice | Key handlers on `[role=button]` only; Space on a table button in Scenario 4 |
+| Accessibility | Space activating a table button twice | Key handlers on `[role=button]` only; Space on a table button in Part 2 Scenario 3 |
 | Accessibility | The section's `tabindex` | Dropped |
 | Accessibility | `[hidden]` overridable | `display:none!important` |
 | Accessibility | `event.repeat`; the ring after a mouse click; the theme following a live preference; persistent underline | Decisions 9, 10, 12, 14 |
 | QA | Input fidelity (trusted events, focus emulation, a reload per scenario, exceptions) | The harness's rules (Part 1 Task 4) |
-| QA | Missing negatives | Scenario 13 |
+| QA | Missing negatives | Part 2 Scenario 11 |
 | QA | Ban-list brittleness | Word-boundary regexes plus the network check |
 | QA | The equal-length CSS test | Replaced: no attribute selector carries a value (`\[data-[a-z-]+="`) and no `:has(` |
 | QA | `just browser` outside every gate | **`just ci` runs `just browser`** and fails when Chromium is missing |
-| QA | Scenario 12 passes without the script | Its mutation is the `.js` gate, as Part 1 Task 4 says |
+| QA | Part 1 Scenario 6 passes without the script | Its mutation is the `.js` gate, as Part 1 Task 4 says |
 | Architecture | The `<title>` description check | 15c's, recorded there |
 | Rust | The tests Task 2 breaks | Listed in Part 1 Task 2 |
 
@@ -297,7 +297,7 @@ Each PR is complete in itself: every handler lands with the state it manages, an
 
 1. **Tab order:** the skip link, the toggle, markers 1…n in number order (FR-34), then legend rows. Each marker shows its ring. A mouse click shows none until the next key press.
 2. **Focus on top:** a focused marker's ring stays visible when its later neighbour is hovered, a check that applies once Part 2 adds hover, and when the focused indicator is moved last.
-3. **Breakpoint (9b):** focus marker 3 at 1400 px and resize to 400 px. Focus reaches narrow marker 3, with its ring.
+3. **Breakpoint, no panel open:** focus marker 3 at 1400 px and resize to 400 px. Focus reaches narrow marker 3, with its ring.
 4. **Theme:**
    - `aria-pressed` matches an emulated `dark` and an emulated `light`, and follows a live change while `data-theme` is unset;
    - pressing it flips `data-theme` and the body's computed background.
@@ -366,34 +366,34 @@ The word-boundary bans still hold. Commit `feat(html): the panel, selection and 
 
 Run at 1400 and 400 px; each must fail on Part 1's build and pass after Task 3.
 
-2. **Open:**
+1. **Open:**
    - Enter on marker 3 opens the panel; its heading reads "3. …" and is focused and inside the viewport.
    - `aria-expanded="true"` is on exactly the five controls for key 3: two markers, two legend rows and the table button. `data-selected` is on those five, the `tr` and both indicators.
    - The square is visible and the ring hidden, unless focused.
-   - **2b:** activating legend row 5 without closing leaves only key 5's sets, gives a `<dl>` with exactly 5's non-empty fields, and Escape returns focus to legend row 5.
-3. **Close:**
+   - **1b:** activating legend row 5 without closing leaves only key 5's sets, gives a `<dl>` with exactly 5's non-empty fields, and Escape returns focus to legend row 5.
+2. **Close:**
    - Escape returns focus to marker 3, now inside the viewport, with nothing selected.
    - Space on legend row 2 opens it without scrolling the page.
    - Close returns focus to legend row 2.
    - Clicking legend row 2 twice opens it, then closes it.
-4. **The table:**
+3. **The table:**
    - Enter, and separately Space, on the unplotted row's button opens a panel whose heading ends "not on the radar". No marker or legend row is selected. Escape returns focus to the button.
-   - **4b:** open from a table button, close the `details` with Enter on its summary, then press Escape: focus is on the summary.
-5. **Duplicate names:** the two `Kafka` rows each open their own panel and select only their own key.
-6. **Hostile content:** no `img` in the panel; text equal to the CSV's; the refused link is text; the `https` link is an `<a>` with its `target` and `rel`; `alert` is stubbed and never called.
-7. **Hover:**
+   - **3b:** open from a table button, close the `details` with Enter on its summary, then press Escape: focus is on the summary.
+4. **Duplicate names:** the two `Kafka` rows each open their own panel and select only their own key.
+5. **Hostile content:** no `img` in the panel; text equal to the CSV's; the refused link is text; the `https` link is an `<a>` with its `target` and `rel`; `alert` is stubbed and never called.
+6. **Hover:**
    - real `mouseMoved` over a marker gives its legend row `data-hovered`, and the reverse;
    - moving to empty space clears it;
    - a tap (`Input.dispatchTouchEvent`) leaves no hover;
    - hovered and selected items differ in computed `stroke` and `stroke-dasharray`.
-8. **Hit area:** a click at a hit area's edge, outside the disc, opens that marker.
-9. **Breakpoint with the panel open:** open at 1400 px, resize to 400 px, press Escape. Focus lands on the narrow marker for the key; the wide arrangement holds no `data-selected` once closed; while open, the narrow elements carry it.
-10. **Sticky panel:**
+7. **Hit area:** a click at a hit area's edge, outside the disc, opens that marker.
+8. **Breakpoint with the panel open:** open at 1400 px, resize to 400 px, press Escape. Focus lands on the narrow marker for the key; the wide arrangement holds no `data-selected` once closed; while open, the narrow elements carry it.
+9. **Sticky panel:**
     - with the panel open, the selected marker stays inside the viewport;
     - `scroll-padding-bottom` equals the panel's height;
     - Tabbing through legend rows never leaves one hidden under the panel.
-11. **A focused, selected legend row:** the computed outline is `--focus` and the bar is visible, so two marks show, not one merged edge.
-13. **Negatives:**
+10. **A focused, selected legend row:** the computed outline is `--focus` and the bar is visible, so two marks show, not one merged edge.
+11. **Negatives:**
     - Escape with no panel open changes nothing;
     - Escape in the toggle with a panel open does nothing;
     - an Enter with `autoRepeat` does not toggle twice;
@@ -401,10 +401,10 @@ Run at 1400 and 400 px; each must fail on Part 1's build and pass after Task 3.
 
 Mutation-check:
 - the Escape handler removed;
-- the opener looked up by element (Scenario 9);
-- `innerHTML` in the panel (Scenario 6);
+- the opener looked up by element (Scenario 8);
+- `innerHTML` in the panel (Scenario 5);
 - no `append` on `focusin` (Part 1's Scenario 2, now that hover exists);
-- `aria-expanded` set on the `tr` (Scenario 2).
+- `aria-expanded` set on the `tr` (Scenario 1).
 
 Commit `test(a11y): the panel, selection and keyboard in a browser`.
 
@@ -438,3 +438,4 @@ Commit `docs: the interactive layer is live`.
 | --- | --- | --- |
 | 1.0 | 2026-10-12 | First draft. |
 | 1.1 | 2026-10-12 | Five-seat review folded in (see Review rulings). The maintainer rules on a sticky panel and a split into 15b-1 and 15b-2. |
+| 1.2 | 2026-10-12 | Part 2's scenarios renumbered from 1, and every cross-reference names its part: the 1.0 numbers had survived the split. |
