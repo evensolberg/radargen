@@ -45,13 +45,23 @@ fn attribute(node: &Handle, wanted: &str) -> Option<String> {
     }
 }
 
-/// Every attribute name on `node`, as the parser reads it.
+/// Every attribute name on `node`, with its prefix, so `xlink:role` cannot
+/// pass as `role`.
 fn attribute_names(node: &Handle) -> Vec<String> {
     match &node.data {
         NodeData::Element { attrs, .. } => attrs
             .borrow()
             .iter()
-            .map(|a| a.name.local.to_string())
+            .map(|a| {
+                a.name
+                    .prefix
+                    .as_ref()
+                    .filter(|prefix| !prefix.is_empty())
+                    .map_or_else(
+                        || a.name.local.to_string(),
+                        |prefix| format!("{prefix}:{}", a.name.local),
+                    )
+            })
             .collect(),
         _ => Vec::new(),
     }

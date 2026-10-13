@@ -5,7 +5,7 @@
 use std::collections::BTreeSet;
 
 use radargen::emit::OUTPUT_VERSION;
-use radargen::emit::html::page;
+use radargen::emit::html::{UNTITLED, page};
 use radargen::layout::arrange::{Arrangement, arrange};
 use radargen::num::fmt_coord;
 use radargen::style::breakpoint_px;
@@ -241,13 +241,11 @@ fn a_marker_in_one_arrangement_keeps_its_rule() {
     let more = build(
         &[PRD_EXAMPLE, "Extra,Tool,Adopt,d,,,,,,\n"].concat(),
         None,
-        Some("Technology Radar"),
+        Some(UNTITLED),
     );
-    let html = page(
-        &arrange(Arrangement::Wide, &fewer.blocks),
-        &arrange(Arrangement::Narrow, &more.blocks),
-        None,
-    );
+    let wide = arrange(Arrangement::Wide, &fewer.blocks);
+    let narrow = arrange(Arrangement::Narrow, &more.blocks);
+    let html = page(&wide, &narrow, None);
     let css = style(&html);
     let keys: BTreeSet<String> = svgs(&html)
         .into_iter()
@@ -255,8 +253,12 @@ fn a_marker_in_one_arrangement_keeps_its_rule() {
         .collect();
     assert_eq!(
         keys.len(),
-        marker_keys(&arrange(Arrangement::Narrow, &more.blocks)).len(),
-        "the narrow arrangement has the extra marker"
+        marker_keys(&narrow).len(),
+        "narrow has every key"
+    );
+    assert!(
+        marker_keys(&wide).len() < keys.len(),
+        "wide lacks the extra marker, so the trees differ"
     );
     for key in &keys {
         assert!(
