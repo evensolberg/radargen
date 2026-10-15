@@ -5,23 +5,53 @@
 //! tests below hold it to the parser: every column in order, every kind of
 //! value shown, and no warning when it is read; `tests/run.rs` renders it.
 
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
 use std::path::Path;
 
 use crate::diagnostics::Fatal;
-use crate::emit::write::write_new;
 
 /// The starter CSV: a header naming every column the tool reads, then
 /// example rows to replace or delete.
 pub const TEMPLATE: &str = include_str!("template.csv");
 
-/// FR-99: [`TEMPLATE`] at `path`, atomically, never replacing a file.
+/// FR-99: [`TEMPLATE`] at `path`, never replacing anything there.
+///
+/// The file is created with `create_new` (`O_EXCL`), so a file that appears
+/// between a check and the write is refused too, and a dangling symlink is
+/// refused rather than followed. It is written in place, not renamed into
+/// place as `-o` is (NFR-14): a no-replace rename is unsupported on some
+/// filesystems, exFAT on macOS among them, and with nothing there before,
+/// a rename has nothing to protect. A failed write removes the file; a
+/// process killed mid-write can leave part of it.
 ///
 /// # Errors
 ///
-/// [`Fatal::TemplateExists`] when something is already at `path`, and
+/// [`Fatal::TemplateExists`] when anything is at `path`, and
 /// [`Fatal::TemplateUnwritable`] when it cannot be written.
 pub fn create(path: &Path) -> Result<(), Fatal> {
-    write_new(path, TEMPLATE.as_bytes())
+    let shown = || path.display().to_string();
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|source| match source.kind() {
+            io::ErrorKind::AlreadyExists => Fatal::TemplateExists { path: shown() },
+            _ => Fatal::TemplateUnwritable {
+                path: shown(),
+                source,
+            },
+        })?;
+    file.write_all(TEMPLATE.as_bytes())
+        .and_then(|()| file.sync_all())
+        .map_err(|source| {
+            drop(file);
+            let _ = fs::remove_file(path);
+            Fatal::TemplateUnwritable {
+                path: shown(),
+                source,
+            }
+        })
 }
 
 #[cfg(test)]
@@ -92,6 +122,46 @@ mod tests {
             items.iter().any(|i| i.cell(column).is_some())
         };
         assert!(dated(ColumnKind::LastAffirmed) && dated(ColumnKind::ExitDate));
+    }
+
+    #[test]
+    fn create_writes_the_template() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("radar.csv");
+        create(&path).expect("writes");
+        assert_eq!(fs::read_to_string(&path).expect("reads"), TEMPLATE);
+    }
+
+    /// FR-99: the likeliest file at the path is the author's radar.
+    #[test]
+    fn create_never_replaces_a_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("radar.csv");
+        fs::write(&path, b"mine").expect("seeds");
+        let error = create(&path).expect_err("refuses");
+        assert!(matches!(error, Fatal::TemplateExists { .. }), "{error}");
+        assert_eq!(fs::read(&path).expect("reads"), b"mine");
+    }
+
+    /// A dangling symlink is refused, not followed to create its target.
+    #[cfg(unix)]
+    #[test]
+    fn create_refuses_a_dangling_symlink() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("radar.csv");
+        let target = dir.path().join("elsewhere.csv");
+        std::os::unix::fs::symlink(&target, &path).expect("links");
+        let error = create(&path).expect_err("refuses");
+        assert!(matches!(error, Fatal::TemplateExists { .. }), "{error}");
+        assert!(!target.exists());
+    }
+
+    #[test]
+    fn create_in_a_missing_directory_is_unwritable() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("nope").join("radar.csv");
+        let error = create(&path).expect_err("refuses");
+        assert!(matches!(error, Fatal::TemplateUnwritable { .. }), "{error}");
     }
 
     /// NFR-17: LF, no byte-order mark, and ASCII, so Excel opens it

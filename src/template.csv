@@ -1,6 +1,6 @@
 name,quadrant,ring,description,qualifier,domain,rationale,last_affirmed,exit_date,status,link
-Example tool,Tools,Adopt,"What the item is, in a sentence or two. Every row needs a name, a quadrant and a ring; any other column may be left blank, and the page then leaves that field out.",default,Build,Why it sits in this ring.,2026-10-01,,No Change,https://example.com
-Example platform,Platforms,Trial,"A conditional qualifier draws a hollow marker: fit for use where a condition holds, which the rationale names. Default, or blank, draws a solid one.",conditional,Hosting,Say what the condition is.,2026-10-01,,New,
+Example tool,Tools,Adopt,"What the item is, in a sentence or two. Every row needs a name, a quadrant and a ring, and should have a description, since a blank one is warned about. Any other column may be left blank, and the page then leaves that field out.",conditional,Build,Say what the condition is.,2026-10-01,,No Change,https://example.com
+Example platform,Platforms,Trial,"A conditional qualifier, as on the first row, draws a hollow marker: fit for use where a condition holds, which the rationale names. Default, or blank, draws a solid one.",default,Hosting,Why it sits in this ring.,2026-10-01,,New,
 Example technique,Techniques,Assess,"Quadrants are whatever names this column holds. Rings are Assess, Trial, Adopt and Retire unless --rings names others.",,,,,,Moved In,
 Example language,Languages,Trial,"Status says how the item moved since the last edition: New, Moved In, Moved Out or No Change. Blank says nothing.",default,Build,,2026-10-01,,Moved Out,
-Example retiring tool,Tools,Retire,"Retire is for an item on its way out; exit_date says when it goes. Dates are written YYYY-MM-DD.",,Build,Say what replaces it.,2026-10-01,2027-06-30,,
+Example retiring tool,Tools,Retire,"Retire is for an item on its way out. exit_date, on any ring, says when it goes. Dates are written YYYY-MM-DD.",,Build,Say what replaces it.,2026-10-01,2027-06-30,,

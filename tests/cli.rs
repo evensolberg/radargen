@@ -139,7 +139,7 @@ fn an_unknown_theme_is_a_usage_error() {
 // which §6.6 says is where this belongs.
 
 #[test]
-fn every_flag_has_a_short_form() {
+fn every_render_flag_has_a_short_form() {
     let cli = parse(&[
         "in.csv",
         "-o",
@@ -350,18 +350,39 @@ fn create_template_with_anything_else_is_a_usage_error() {
         &["in.csv", "-o", "e.html"],
         &["-t", "Radar"],
         &["-T", "dark"],
+        // The default value, given explicitly, is still given.
+        &["-T", "light"],
+        &["-r", "Adopt"],
+        &["-s", "2026-09"],
+        &["-w", "1920"],
     ] {
         let args: Vec<&str> = ["--create-template", "radar.csv"]
             .into_iter()
             .chain(extra.iter().copied())
             .collect();
-        assert!(parse(&args).is_err(), "{args:?}");
+        let kind = parse(&args).map(|_| ()).map_err(|e| e.kind());
+        assert_eq!(
+            kind,
+            Err(clap::error::ErrorKind::ArgumentConflict),
+            "{args:?}"
+        );
     }
 }
 
 #[test]
 fn a_render_still_needs_both_paths() {
     assert!(parse(&["-o", "e.html"]).is_err());
+    assert!(parse(&["in.csv"]).is_err());
+}
+
+/// The usage names both forms; clap's own would show the CSV as optional
+/// and leave out -o.
+#[test]
+fn usage_names_both_forms() {
+    use clap::CommandFactory;
+    let help = Cli::command().render_help().to_string();
+    assert!(help.contains("radargen <CSV_PATH> -o <OUTPUT>"), "{help}");
+    assert!(help.contains("radargen --create-template <PATH>"), "{help}");
 }
 
 #[test]
@@ -372,10 +393,14 @@ fn the_task_is_a_render_or_a_template() {
     assert!(matches!(cli.task(), Ok(Task::Template(_))));
 }
 
-/// A `Cli` built by hand, which clap would have refused, asks for nothing.
+/// A `Cli` built by hand, which clap would have refused, asking for
+/// neither task or for both.
 #[test]
-fn a_cli_with_neither_task_is_an_error() {
+fn a_cli_with_neither_task_or_both_is_an_error() {
     let mut cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
+    cli.create_template = Some("radar.csv".into());
+    assert!(matches!(cli.task(), Err(Fatal::NoTask)));
+    cli.create_template = None;
     cli.output = None;
     assert!(matches!(cli.task(), Err(Fatal::NoTask)));
 }

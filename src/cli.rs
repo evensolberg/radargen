@@ -32,6 +32,9 @@ pub enum OutputFormat {
     name = "radargen",
     version,
     about = "Render a technology radar from a CSV file to a self-contained HTML page.",
+    // clap's own usage would show the CSV as optional and leave out -o,
+    // since each is required only without --create-template.
+    override_usage = "radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]\n       radargen --create-template <PATH>",
     long_about = None
 )]
 pub struct Cli {
