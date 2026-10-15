@@ -34,7 +34,7 @@ pub enum ColumnKind {
 impl ColumnKind {
     /// Every known kind, so the header names are written once, in
     /// [`ColumnKind::as_str`].
-    const KNOWN: [Self; 11] = [
+    pub(crate) const KNOWN: [Self; 11] = [
         Self::Name,
         Self::Quadrant,
         Self::Ring,

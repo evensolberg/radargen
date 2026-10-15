@@ -1,10 +1,11 @@
 //! Command-line surface (§6.6).
 //!
 //! Argument *behaviour* is fixed by the PRD; exact spelling is OQ-2. There is
-//! no subcommand (D-28): one CSV in, one file out.
+//! no subcommand (D-28): one CSV in, one file out, or `--create-template`
+//! alone to write a CSV to start from (FR-99).
 
 use clap::Parser;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::diagnostics::{Fatal, Flag, RenderKind, Warning, Warnings};
 use crate::escape::remove_undisplayable;
@@ -32,23 +33,29 @@ pub enum OutputFormat {
     name = "radargen",
     version,
     about = "Render a technology radar from a CSV file to a self-contained HTML page.",
+    // clap's own usage would show the CSV as optional and leave out -o,
+    // since each is required only without --create-template.
+    override_usage = "radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]\n       radargen --create-template <PATH>",
     long_about = None
 )]
 pub struct Cli {
-    // §6.1; exactly one file, with no glob or multi-file form (FR-60).
+    // §6.1; exactly one file, with no glob or multi-file form (FR-60),
+    // and none at all with --create-template (FR-99).
     /// The CSV file to read.
     ///
     /// A header row, then one row per item, with at least name, quadrant,
-    /// ring and description columns.
-    pub csv_path: PathBuf,
+    /// ring and description columns. --create-template writes one to start
+    /// from.
+    #[arg(required_unless_present = "create_template")]
+    pub csv_path: Option<PathBuf>,
 
     // FR-52: the format comes from the extension, matched ignoring case.
     /// Where to write the radar.
     ///
     /// The extension picks the format: .html, in any case (PNG and SVG arrive
     /// in version 1.1).
-    #[arg(short, long)]
-    pub output: PathBuf,
+    #[arg(short, long, required_unless_present = "create_template")]
+    pub output: Option<PathBuf>,
 
     // FR-12 to FR-15: the list is edge-to-centre and replaces the default
     // set (FR-13, `rings::DEFAULT_RINGS`); a test checks the help names it.
@@ -92,35 +99,72 @@ pub struct Cli {
     /// window.
     #[arg(short, long, value_parser = clap::value_parser!(u32).range(320..=10_000))]
     pub width: Option<u32>,
+
+    // FR-99, D-83: the tool writes the template, so it always matches the
+    // parser that reads it. `exclusive`, so it never half-renders; no short
+    // form, since it is run once per radar.
+    /// Write a starter CSV to fill in, and render nothing.
+    ///
+    /// It has every column the tool reads and a few example rows to replace
+    /// or delete. An existing file is never replaced. Give this flag alone.
+    #[arg(long, value_name = "PATH", exclusive = true)]
+    pub create_template: Option<PathBuf>,
+}
+
+/// What a command line asks for (FR-60, FR-99).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Task<'a> {
+    /// `--create-template <path>`: write the starter CSV there.
+    Template(&'a Path),
+    /// Render `input` to `output`.
+    Render {
+        /// The CSV, as given.
+        input: &'a Path,
+        /// `-o`, as given.
+        output: &'a Path,
+    },
 }
 
 impl Cli {
-    /// FR-52: format from the `-o` extension, matched case-insensitively.
+    /// The task this command line asks for.
     ///
     /// # Errors
     ///
-    /// [`Fatal::FormatNotInThisVersion`] for `.png` and `.svg`, which
-    /// v1.1 adds; [`Fatal::UnrecognisedExtension`] for any other or
-    /// missing extension.
-    pub fn format(&self) -> Result<OutputFormat, Fatal> {
-        let ext = self
-            .output
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-        match ext.as_str() {
-            "html" => Ok(OutputFormat::Html),
-            // §14.1: v1.0 ships HTML only, and these must not read as typos.
-            "png" | "svg" => Err(Fatal::FormatNotInThisVersion {
-                path: self.output.display().to_string(),
-                ext,
-                arrives_in: "1.1",
-            }),
-            _ => Err(Fatal::UnrecognisedExtension {
-                path: self.output.display().to_string(),
-            }),
+    /// [`Fatal::NoTask`] when it asks for neither or both, which clap
+    /// refuses before a `Cli` is built; only one built by hand gets here.
+    pub fn task(&self) -> Result<Task<'_>, Fatal> {
+        match (&self.create_template, &self.csv_path, &self.output) {
+            (Some(path), None, None) => Ok(Task::Template(path)),
+            (None, Some(input), Some(output)) => Ok(Task::Render { input, output }),
+            _ => Err(Fatal::NoTask),
         }
+    }
+}
+
+/// FR-52: format from the `-o` extension, matched case-insensitively.
+///
+/// # Errors
+///
+/// [`Fatal::FormatNotInThisVersion`] for `.png` and `.svg`, which
+/// v1.1 adds; [`Fatal::UnrecognisedExtension`] for any other or
+/// missing extension.
+pub fn format(output: &Path) -> Result<OutputFormat, Fatal> {
+    let ext = output
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    match ext.as_str() {
+        "html" => Ok(OutputFormat::Html),
+        // §14.1: v1.0 ships HTML only, and these must not read as typos.
+        "png" | "svg" => Err(Fatal::FormatNotInThisVersion {
+            path: output.display().to_string(),
+            ext,
+            arrives_in: "1.1",
+        }),
+        _ => Err(Fatal::UnrecognisedExtension {
+            path: output.display().to_string(),
+        }),
     }
 }
 

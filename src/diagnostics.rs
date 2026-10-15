@@ -803,6 +803,29 @@ pub enum Fatal {
         #[source]
         source: std::io::Error,
     },
+    /// FR-60, FR-99: a `Cli` asking for neither a render nor a template, or
+    /// both. clap refuses such a command line, so only a `Cli` built by hand
+    /// reaches this.
+    #[error("give a CSV and -o to render, or --create-template alone")]
+    NoTask,
+    /// FR-99: `--create-template` never replaces a file (D-83).
+    #[error(
+        "--create-template {path}: already exists; radargen never replaces a file, so choose another path"
+    )]
+    TemplateExists {
+        /// The `--create-template` argument as given.
+        path: String,
+    },
+    /// FR-99: the template cannot be written, for any of the reasons
+    /// [`Fatal::Unwritable`] gives `-o`. Nothing at the path has changed.
+    #[error("--create-template {path}: cannot be written: {}", io_reason(source))]
+    TemplateUnwritable {
+        /// The `--create-template` argument as given.
+        path: String,
+        /// The underlying I/O failure.
+        #[source]
+        source: std::io::Error,
+    },
     /// FR-61, D-27: the input is not UTF-8, or holds a NUL byte (FR-61, D-65).
     /// Say what to do — the likely cause is an Excel export in a legacy code
     /// page, and "invalid utf-8" alone does not tell the author that. `line`

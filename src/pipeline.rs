@@ -12,7 +12,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::cli::{Cli, clean_flag};
+use crate::cli::{Cli, Task, clean_flag, format};
 use crate::csv::decode;
 use crate::csv::parse::parse;
 use crate::diagnostics::{Fatal, Flag, RowError, Warnings};
@@ -26,6 +26,7 @@ use crate::layout::title::shown;
 use crate::model::{Catalogue, build_catalogue};
 use crate::order::resolve;
 use crate::rings::{RingSet, parse_rings};
+use crate::template;
 use crate::text::Fonts;
 
 /// The resolved run (architecture §7), read-only once built.
@@ -105,7 +106,11 @@ pub fn run(cli: &Cli) -> Report {
 
 /// The stages in order, each stopping the run on failure.
 fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
-    let config = config(cli, warnings).map_err(Failure::Alone)?;
+    let (input, output) = match cli.task()? {
+        Task::Template(path) => return Ok(template::create(path)?),
+        Task::Render { input, output } => (input, output),
+    };
+    let config = config(cli, input, output, warnings).map_err(Failure::Alone)?;
     let fonts = Fonts::embedded().map_err(Fatal::from)?;
     let catalogue = catalogue(&config.input, &config.rings, warnings)?;
     let html = render(&catalogue, &config, &fonts, warnings);
@@ -115,10 +120,15 @@ fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
 /// NFR-16 tier one, in order: FR-52's extension, FR-62's directory, D-74's
 /// same-file check, then the flag values, cleaned (FR-90), and the rings
 /// (FR-63, every violation together).
-fn config(cli: &Cli, warnings: &mut Warnings) -> Result<Config, Vec<Fatal>> {
-    cli.format()
-        .and_then(|_| missing_directory(&cli.output))
-        .and_then(|()| output_is_input(&cli.output, &cli.csv_path))
+fn config(
+    cli: &Cli,
+    input: &Path,
+    output: &Path,
+    warnings: &mut Warnings,
+) -> Result<Config, Vec<Fatal>> {
+    format(output)
+        .and_then(|_| missing_directory(output))
+        .and_then(|()| output_is_input(output, input))
         .map_err(|e| vec![e])?;
     let title = resolved(Flag::Title, cli.title.as_deref(), warnings);
     let subtitle = resolved(Flag::Subtitle, cli.subtitle.as_deref(), warnings);
@@ -129,11 +139,11 @@ fn config(cli: &Cli, warnings: &mut Warnings) -> Result<Config, Vec<Fatal>> {
     let rings = parse_rings(declared.as_deref())
         .map_err(|errors| errors.into_iter().map(Fatal::from).collect::<Vec<_>>())?;
     Ok(Config {
-        output: cli.output.clone(),
+        output: output.to_path_buf(),
         title,
         subtitle,
         rings,
-        input: cli.csv_path.clone(),
+        input: input.to_path_buf(),
     })
 }
 
