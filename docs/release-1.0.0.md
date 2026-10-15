@@ -10,7 +10,7 @@ created_date: 2026-10-13
 synopsis: "The steps from a green main to the 1.0.0 tag, in order: four decisions only the maintainer can make, the maintainer's testing and sign-off, then the bump, the goldens, the changelog, the PR and the release. The bump lands in its own PR, as PR 15's stated exception to every-PR-is-a-release has allowed since 15a."
 status: draft
 type: Guide
-revision: "1.1"
+revision: "1.2"
 review_date:
 reviewed_by: []
 completed_date:
@@ -32,6 +32,8 @@ These came out of PR 15c's reviews and its audit. Each needs an answer before th
 - **SC-16, a released binary on a clean machine.** `just publish` creates a release with notes but attaches no binaries. Either:
   - (a) build release binaries for macOS (arm64), Linux (x86-64) and Windows, attach them to the release, and smoke-test one on a clean machine; or
   - (b) move SC-16 to 1.0.x with a D-entry.
+
+  **Decided 2026-10-15: (b).** PRD D-84; crumb `rg-xpn` carries it.
 - **FR-94, overlapping hit areas, and WCAG 2.5.8's Equivalent exception** (the audit's "2.5.8 spacing" line; crumb "FR-94: neighbouring markers' hit areas overlap at narrow widths"). At 320 px, two pairs of markers in the interaction fixture sit 24.14 px apart, and their 27.43 px hit areas overlap. Strictly, a circular hit area that size holds no 24 px square, and its 24 px circle meets a neighbour, so a marker alone passes neither 2.5.8's size test nor its spacing exception. The page meets 2.5.8 through the **Equivalent** exception: each item's legend row and table button open the same panel and each meet 24 px, which the audit checks. 2.5.8 is also a WCAG 2.2 criterion, beside NFR-1's 2.1 AA claim. The decision is whether that is enough:
   - (a) accept it, and record the Equivalent exception in the PRD (FR-94 and D-66) and in the release notes; or
   - (b) also make markers meet 2.5.8 alone, by having layout keep marker centres at least 36 units apart, a layout PR before 1.0.0.
@@ -68,16 +70,15 @@ These came out of PR 15c's reviews and its audit. Each needs an answer before th
 
 1. [ ] `git switch main && git pull`.
 2. [ ] `just publish`. It refuses unless main is up to date, checks the tag, tags `v1.0.0` on the merge commit, pushes, and creates the GitHub release with generated notes.
-3. [ ] If decision SC-16 was (a), attach the binaries to the release (`gh release upload v1.0.0 …`).
-4. [ ] Add a short section to the release notes saying what 1.0.0 is not:
+3. [ ] Add a short section to the release notes saying what 1.0.0 is not:
    - HTML output only: PNG and SVG come in v1.1, and PDF later (PRD §14.1);
    - SC-3 depends on OQ-4;
    - the browser checks run locally until GitHub Actions works (crumb `rg-3wv`);
    - the README half of SC-22 is not covered by `cargo test`;
    - markers meet WCAG 2.5.8 through its Equivalent exception (D-81);
    - SC-8's cross-platform check waits for 1.0.x (D-82);
-   - and, if decision SC-16 was (b), the D-entry that moved it.
-5. [ ] Close `rg-6zu`.
+   - no release binaries yet: install with `cargo install --locked --git https://github.com/evensolberg/radargen --tag v1.0.0`, which needs a Rust toolchain (D-84).
+4. [ ] Close `rg-6zu`.
 
 ## Revisions
 
@@ -85,3 +86,4 @@ These came out of PR 15c's reviews and its audit. Each needs an answer before th
 | --- | --- | --- |
 | 1.0 | 2026-10-13 | First version. |
 | 1.1 | 2026-10-15 | The maintainer's answers on SC-8, FR-94 and `rg-l4h`. SC-16 is still open. |
+| 1.2 | 2026-10-15 | SC-16 moves to 1.0.x (D-84); every decision is answered. |

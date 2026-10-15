@@ -771,7 +771,8 @@ being quietly dropped: **SC-15** greps each output for an external reference and
 loads the HTML with no network; **SC-18** hashes an existing file at the `-o`
 path before and after a deliberately failing render, and asserts no temporary
 file was left beside it (§7); **SC-16** runs the released binary on a clean
-machine, which is a CI job and not a `cargo test`; and **SC-22's last sentence**
+machine, which is a CI job and not a `cargo test` (from 1.0.x, by the
+maintainer's ruling, PRD D-84); and **SC-22's last sentence**
 — that the README and `--help` both state the rendered range (NFR-19) — splits,
 the `--help` half being a contract assertion in `tests/cli.rs` and the README
 half a release-checklist item nothing in `cargo test` can reach. §1's
