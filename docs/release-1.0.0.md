@@ -10,7 +10,7 @@ created_date: 2026-10-13
 synopsis: "The steps from a green main to the 1.0.0 tag, in order: three decisions only the maintainer can make, the maintainer's testing and sign-off, then the bump, the goldens, the changelog, the PR and the release. The bump lands in its own PR, as PR 15's stated exception to every-PR-is-a-release has allowed since 15a."
 status: draft
 type: Guide
-revision: "1.0"
+revision: "1.1"
 review_date:
 reviewed_by: []
 completed_date:
@@ -22,18 +22,24 @@ Work down the list. A step that fails stops the release until it is fixed.
 
 ## 1. Decisions for the maintainer
 
-These came out of PR 15c's reviews and its audit. Each needs an answer before the tag.
+These came out of PR 15c's reviews and its audit. Each needs an answer before the tag. The maintainer's answer follows each one.
 
 - **SC-8, HTML byte-identity across operating systems** (NFR-13, crumb `rg-isw`, which calls it release-gating). Architecture §10 puts it in CI, and GitHub Actions is blocked by billing. Either:
   - (a) prove it by hand: render the three-quadrant fixture on macOS, Linux (a container is enough) and Windows, compare the SHA-256 of each output, and record the hashes here; or
   - (b) amend the PRD to move the cross-OS half to 1.0.x, with a D-entry, and say so in the release notes.
+
+  **Decided 2026-10-15: (b).** PRD D-82; `rg-isw` moves to phase v1.0.x.
 - **SC-16, a released binary on a clean machine.** `just publish` creates a release with notes but attaches no binaries. Either:
   - (a) build release binaries for macOS (arm64), Linux (x86-64) and Windows, attach them to the release, and smoke-test one on a clean machine; or
   - (b) move SC-16 to 1.0.x with a D-entry.
 - **FR-94, overlapping hit areas, and WCAG 2.5.8's Equivalent exception** (the audit's "2.5.8 spacing" line; crumb "FR-94: neighbouring markers' hit areas overlap at narrow widths"). At 320 px, two pairs of markers in the interaction fixture sit 24.14 px apart, and their 27.43 px hit areas overlap. Strictly, a circular hit area that size holds no 24 px square, and its 24 px circle meets a neighbour, so a marker alone passes neither 2.5.8's size test nor its spacing exception. The page meets 2.5.8 through the **Equivalent** exception: each item's legend row and table button open the same panel and each meet 24 px, which the audit checks. 2.5.8 is also a WCAG 2.2 criterion, beside NFR-1's 2.1 AA claim. The decision is whether that is enough:
   - (a) accept it, and record the Equivalent exception in the PRD (FR-94 and D-66) and in the release notes; or
   - (b) also make markers meet 2.5.8 alone, by having layout keep marker centres at least 36 units apart, a layout PR before 1.0.0.
+
+  **Decided 2026-10-15: (a).** PRD D-81, FR-94 and D-66; `rg-frk` is closed.
 - **`rg-l4h`, the skeleton CSV,** is phase v1.0. Re-phase it to 1.1, or do it before the tag.
+
+  **Decided 2026-10-15: before the tag**, as a command that writes the file.
 
 ## 2. Testing and sign-off
 
@@ -68,7 +74,9 @@ These came out of PR 15c's reviews and its audit. Each needs an answer before th
    - SC-3 depends on OQ-4;
    - the browser checks run locally until GitHub Actions works (crumb `rg-3wv`);
    - the README half of SC-22 is not covered by `cargo test`;
-   - and, where decisions SC-8 or SC-16 were (b), the D-entries that moved them.
+   - markers meet WCAG 2.5.8 through its Equivalent exception (D-81);
+   - SC-8's cross-platform check waits for 1.0.x (D-82);
+   - and, if decision SC-16 was (b), the D-entry that moved it.
 5. [ ] Close `rg-6zu`.
 
 ## Revisions
@@ -76,3 +84,4 @@ These came out of PR 15c's reviews and its audit. Each needs an answer before th
 | Revision | Date | Change |
 | --- | --- | --- |
 | 1.0 | 2026-10-13 | First version. |
+| 1.1 | 2026-10-15 | The maintainer's answers on SC-8, FR-94 and `rg-l4h`. SC-16 is still open. |
