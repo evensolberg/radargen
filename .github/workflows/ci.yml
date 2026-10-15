@@ -44,7 +44,8 @@ jobs:
 
   licenses:
     # NFR-18: every dependency is permissive, checked against deny.toml
-    # rather than remembered (architecture §1).
+    # rather than remembered (architecture §1), and none has an open
+    # RustSec advisory (rg-8im). The job keeps its name for branch rules.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -52,7 +53,7 @@ jobs:
           persist-credentials: false
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
         with:
-          command: check licenses
+          command: check licenses advisories
 
   test:
     # NFR-13's supported platforms, in its priority order.
