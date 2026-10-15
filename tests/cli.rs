@@ -257,10 +257,21 @@ fn a_bidi_override_is_removed_from_a_title() {
 fn help_speaks_to_users() {
     use clap::CommandFactory;
     let help = Cli::command().render_long_help().to_string();
-    for reference in [
-        "FR-", "NFR-", "§", "OQ-", "D-1", "D-2", "D-3", "D-4", "D-5", "D-6", "D-7", "D-8", "D-9",
-    ] {
-        assert!(!help.contains(reference), "{reference} in --help:\n{help}");
+    assert!(!help.contains('§'), "a PRD section in --help:\n{help}");
+    // A reference is a capital-letter prefix, a hyphen and a digit: FR-5,
+    // NFR-13, OQ-2, D-28, A-4.
+    for (at, _) in help.match_indices('-') {
+        let before = help.get(..at).unwrap_or_default();
+        let prefix = before.len()
+            - before
+                .trim_end_matches(|c: char| c.is_ascii_uppercase())
+                .len();
+        let digit = help.get(at + 1..).and_then(|rest| rest.chars().next());
+        assert!(
+            prefix == 0 || !digit.is_some_and(|c| c.is_ascii_digit()),
+            "a reference in --help near {:?}:\n{help}",
+            help.get(at - prefix..at + 2)
+        );
     }
     assert!(
         !help
@@ -282,4 +293,24 @@ fn rings_help_names_the_default_rings() {
         help.contains(&defaults),
         "--help must name {defaults}:\n{help}"
     );
+}
+
+/// `-h` is the short form: clap takes each comment's first paragraph, so
+/// each flag gets one sentence there, under 120 columns with clap's
+/// defaults, and the rest is left to `--help`.
+#[test]
+fn short_help_is_one_line_per_flag() {
+    use clap::CommandFactory;
+    let help = Cli::command().render_help().to_string();
+    for line in help.lines() {
+        assert!(line.chars().count() <= 120, "a long -h line:\n{line}");
+    }
+}
+
+/// The help says where case does not matter, so no one retypes `.HTML`.
+#[test]
+fn help_says_case_does_not_matter() {
+    use clap::CommandFactory;
+    let help = Cli::command().render_long_help().to_string();
+    assert!(help.contains("any case"), "--help:\n{help}");
 }

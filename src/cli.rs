@@ -36,27 +36,33 @@ pub enum OutputFormat {
 )]
 pub struct Cli {
     // §6.1; exactly one file, with no glob or multi-file form (FR-60).
-    /// The CSV file to read: a header row, then one row per item, with at
-    /// least name, quadrant, ring and description columns.
+    /// The CSV file to read.
+    ///
+    /// A header row, then one row per item, with at least name, quadrant,
+    /// ring and description columns.
     pub csv_path: PathBuf,
 
     // FR-52: the format comes from the extension, matched ignoring case.
-    /// Where to write the radar. The extension picks the format: .html
-    /// (PNG and SVG arrive in version 1.1).
+    /// Where to write the radar.
+    ///
+    /// The extension picks the format: .html, in any case (PNG and SVG arrive
+    /// in version 1.1).
     #[arg(short, long)]
     pub output: PathBuf,
 
     // FR-12 to FR-15: the list is edge-to-centre and replaces the default
     // set (FR-13, `rings::DEFAULT_RINGS`); a test checks the help names it.
-    /// The rings, outermost first, separated by commas, for example
-    /// "Hold,Assess,Trial,Adopt". The list replaces the default set, which is
-    /// Assess, Trial, Adopt, Retire. A row whose ring is not in the list is
-    /// left off the radar and listed in the table, with a warning.
+    /// The rings, outermost first, separated by commas.
+    ///
+    /// For example "Hold,Assess,Trial,Adopt". The list replaces the default
+    /// set, which is Assess, Trial, Adopt, Retire. A row's ring matches in any
+    /// case; a row whose ring is not in the list is left off the radar and
+    /// listed in the table, with a warning.
     #[arg(short, long)]
     pub rings: Option<String>,
 
     // FR-65: omitted renders nothing at all, with no placeholder or space.
-    /// A title shown above the radar. Without one, no title is shown.
+    /// A title shown above the radar.
     #[arg(short, long)]
     pub title: Option<String>,
 
@@ -70,17 +76,20 @@ pub struct Cli {
     // the courtesy FR-52 gives `.PNG`. `-T`, not `-t`, which is `--title`:
     // both appear in §6.6's canonical PNG invocation, so both earn a short
     // form (OQ-2).
-    /// The colour theme for PNG and SVG output (version 1.1). An HTML page
-    /// carries both themes and follows the reader's setting, with a button to
-    /// switch.
+    /// The theme for PNG and SVG (version 1.1).
+    ///
+    /// Written in any case. An HTML page carries both themes and follows the
+    /// reader's setting, with a button to switch.
     #[arg(short = 'T', long, value_enum, default_value_t = Theme::Light, ignore_case = true)]
     pub theme: Theme,
 
     // FR-57: the height always follows the document's aspect ratio and is
     // never a second flag. The range is FR-64's, enforced by clap so the
     // message is standard usage output. HTML ignores it.
-    /// The width in pixels of PNG and SVG output (version 1.1), from 320 to
-    /// 10000; the height follows. An HTML page fits the reader's window.
+    /// The width in pixels for PNG and SVG (version 1.1).
+    ///
+    /// From 320 to 10000; the height follows. An HTML page fits the reader's
+    /// window.
     #[arg(short, long, value_parser = clap::value_parser!(u32).range(320..=10_000))]
     pub width: Option<u32>,
 }
