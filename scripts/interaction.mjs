@@ -135,7 +135,9 @@ const check = (ok, what) => {
 };
 // `ready` becomes truthy within the timeout, or `what` is a failure.
 const eventually = (ready, what) => poll(ready, what).catch((e) => void failures.push(e.message));
-const PRESSED = `document.querySelector('.theme-toggle').getAttribute('aria-pressed')`;
+const LABEL = `document.querySelector('.theme-toggle').textContent`;
+const TO_DARK = 'Switch to dark theme';
+const TO_LIGHT = 'Switch to light theme';
 async function scenario(name, widths, body) {
   for (const width of widths) {
     const before = failures.length;
@@ -231,17 +233,18 @@ try {
     check((await active()).tag === 'body', `focus stays where the reader left it: ${JSON.stringify(await active())}`);
   });
 
-  // FR-56: the toggle follows the viewer's preference until pressed.
+  // FR-56: the toggle follows the viewer's preference until pressed, and
+  // its label names the theme a press switches to (rg-nuy).
   await scenario('theme toggle', [WIDE], async (width) => {
     for (const scheme of ['dark', 'light']) {
       await load(width, { scheme });
-      const pressed = await evaluate(PRESSED);
-      check(pressed === String(scheme === 'dark'), `${scheme}: aria-pressed ${pressed}`);
+      const text = await evaluate(LABEL);
+      check(text === (scheme === 'dark' ? TO_LIGHT : TO_DARK), `${scheme}: the label is "${text}"`);
     }
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
     await eventually(
-      async () => (await evaluate(PRESSED)) === 'true' || undefined,
-      'aria-pressed follows a live change of preference',
+      async () => (await evaluate(LABEL)) === TO_LIGHT || undefined,
+      'the label follows a live change of preference',
     );
     const ground = () => evaluate(`getComputedStyle(document.body).backgroundColor`);
     const before = await ground();
@@ -250,7 +253,7 @@ try {
     check((await active()).cls?.includes('theme-toggle'), 'the toggle is reached');
     await press('Enter');
     check((await evaluate(`document.documentElement.getAttribute('data-theme')`)) === 'light', 'pressing it sets light');
-    check((await evaluate(PRESSED)) === 'false', 'and unpresses');
+    check((await evaluate(LABEL)) === TO_DARK, 'and the label offers dark again');
     check((await ground()) !== before, 'the background changes');
   });
 

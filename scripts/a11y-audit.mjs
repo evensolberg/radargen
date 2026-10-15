@@ -125,6 +125,15 @@ async function names(label) {
     check(!seen.has(key + name), `${label}: "${name}" is not a duplicate`);
     seen.add(key + name);
   }
+  // rg-nuy: the theme toggle is named by what a press does, and has no
+  // pressed state to decode.
+  const toggleNode = await ax(`document.querySelector('.theme-toggle')`);
+  const toggleName = toggleNode.name?.value ?? '';
+  check(
+    toggleNode.role?.value === 'button' && /^Switch to (dark|light) theme$/.test(toggleName),
+    `${label}: the toggle is a button named by its action: ${toggleNode.role?.value} "${toggleName}"`,
+  );
+  check(prop(toggleNode, 'pressed') === undefined, `${label}: the toggle has no pressed state`);
   await openTable(true);
   const rows = await evaluate(`document.querySelectorAll('tr[data-row] button').length`);
   check(rows > 0, `${label}: the table has buttons`);
@@ -404,12 +413,13 @@ async function forced(label) {
   const cell = `document.querySelector('tr[data-row="${key}"] > td')`;
   const toggle = `document.querySelector('.theme-toggle')`;
   const before = { marker: await clip(marker), row: await clip(row), cell: await clip(cell), other: await clip(otherIndicator), toggle: await clip(toggle) };
-  // The toggle's pressed dot.
+  // The toggle: forced colours keep the page's colours, so its new label is
+  // what shows a press worked.
   await tabTo(toggle);
   const focusedToggle = await clip(toggle);
   await press('Enter');
-  check((await clip(toggle)) !== focusedToggle, `${label}: the toggle's pressed dot is painted`);
-  painted('the pressed dot', await evaluate(`getComputedStyle(${toggle}, '::before').backgroundColor`));
+  check((await clip(toggle)) !== focusedToggle, `${label}: a press repaints the toggle's label`);
+  painted("the toggle's label", await evaluate(`getComputedStyle(${toggle}).color`));
   // Focus: a marker's ring.
   await tabTo(marker);
   check((await clip(marker)) !== before.marker, `${label}: a focused marker's ring is painted`);

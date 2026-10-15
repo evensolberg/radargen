@@ -68,11 +68,14 @@ fn the_page_controls_are_hidden_until_the_script_runs() {
     assert!(main_at < controls && controls < wide, "first in <main>");
     for button in [
         "<button type=\"button\" class=\"skip\" hidden=\"\">Skip to the legend</button>",
-        "<button type=\"button\" class=\"theme-toggle\" aria-pressed=\"false\" hidden=\"\">Dark theme</button>",
+        "<button type=\"button\" class=\"theme-toggle\" hidden=\"\">Switch to dark theme</button>",
     ] {
         assert!(html.contains(button), "{button}");
     }
     let css = super::html::style(&html);
+    // rg-nuy: the toggle's label says what a press does, so it carries no
+    // pressed state for a sighted reader to decode.
+    assert!(!html.contains("aria-pressed"), "no pressed state");
     assert!(
         css.contains("[hidden]{display:none!important}"),
         "no rule reveals them"

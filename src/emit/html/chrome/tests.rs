@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 
 use super::super::table::{PROSE_CLASS, TABLE_VIEW_CLASS};
 use super::{
-    ARIA_CONTROLS, ARIA_EXPANDED, ARIA_PRESSED, ARRANGEMENT_CLASS, CLOSE_CLASS, DATA_FOCUSED,
-    DATA_HOVERED, DATA_NARROW_QUERY, DATA_SELECTED, DATA_THEME, EMPTY_CLASS, HEADING_CLASS,
-    JS_CLASS, PANEL_ID, SCRIPT, SKIP_CLASS, TOGGLE_CLASS,
+    ARIA_CONTROLS, ARIA_EXPANDED, ARRANGEMENT_CLASS, CLOSE_CLASS, DATA_FOCUSED, DATA_HOVERED,
+    DATA_NARROW_QUERY, DATA_SELECTED, DATA_THEME, EMPTY_CLASS, HEADING_CLASS, JS_CLASS, PANEL_ID,
+    SCRIPT, SKIP_CLASS, TO_DARK, TO_LIGHT, TOGGLE_CLASS,
 };
 use crate::svg::serialise::{
     DATA_HIT, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW,
@@ -57,7 +57,8 @@ fn the_scripts_names_are_the_pages() {
         ("focused", DATA_FOCUSED),
         ("narrowQuery", DATA_NARROW_QUERY),
         ("theme", DATA_THEME),
-        ("pressed", ARIA_PRESSED),
+        ("toDark", TO_DARK),
+        ("toLight", TO_LIGHT),
         ("js", JS_CLASS),
         ("toggle", TOGGLE_CLASS),
         ("skip", SKIP_CLASS),

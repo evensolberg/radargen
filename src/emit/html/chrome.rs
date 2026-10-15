@@ -20,8 +20,13 @@ pub(super) const DATA_NARROW_QUERY: &str = "data-narrow-query";
 /// The root attribute the theme toggle sets (FR-56); `css::palettes`
 /// declares its overrides.
 pub(super) const DATA_THEME: &str = "data-theme";
-/// The toggle's state (FR-56), set by the script.
-pub(super) const ARIA_PRESSED: &str = "aria-pressed";
+/// The toggle's label says what a press does (FR-56, rg-nuy): the script
+/// sets the one for the theme not showing, and the page is written with
+/// the light theme's. Only the script writes the other, so it is named
+/// here for the test that holds the script's names block.
+pub(super) const TO_DARK: &str = "Switch to dark theme";
+#[cfg(test)]
+pub(super) const TO_LIGHT: &str = "Switch to light theme";
 /// Set on a marker's indicator while the marker has visible focus (rg-jri).
 pub(super) const DATA_FOCUSED: &str = "data-focused";
 /// Set by the script on an item's elements while the pointer is over one
@@ -41,8 +46,8 @@ pub(super) const ARRANGEMENT_CLASS: &str = "arrangement";
 const CONTROLS_OPEN: &str = "<div class=\"page-controls\"><button type=\"button\" class=\"";
 const SKIP_REST: &str =
     "\" hidden=\"\">Skip to the legend</button><button type=\"button\" class=\"";
-const TOGGLE_REST: &str = "\" ";
-const TOGGLE_END: &str = "=\"false\" hidden=\"\">Dark theme</button></div>\n";
+const TOGGLE_REST: &str = "\" hidden=\"\">";
+const TOGGLE_END: &str = "</button></div>\n";
 
 /// `<main>`'s start tag, carrying the narrow query.
 pub(super) fn main_open(query: &str) -> String {
@@ -58,7 +63,7 @@ pub(super) fn controls() -> String {
         SKIP_REST,
         TOGGLE_CLASS,
         TOGGLE_REST,
-        ARIA_PRESSED,
+        TO_DARK,
         TOGGLE_END,
     ]
     .concat()
@@ -118,10 +123,6 @@ const BUTTON_CLOSE: &str = ")}\n";
 /// otherwise; the toggle keeps the end.
 const SKIP_RULE: &str =
     ".skip{margin-inline-end:auto}\n.theme-toggle{margin-inline-start:auto}\n.skip:not(:focus)";
-/// The toggle's state is visible as well as announced: a dot, filled when
-/// pressed. Forced colours drop backgrounds, so there the dot keeps the
-/// button's system ink (WCAG 1.4.1).
-const DOT_RULE: &str = ".theme-toggle::before{content:\"\";display:inline-block;width:.75em;height:.75em;border:1.5px solid currentColor;border-radius:50%;margin-inline-end:.4em;vertical-align:-.05em}\n.theme-toggle[aria-pressed=true]::before{background:currentColor}\n@media (forced-colors: active){.theme-toggle[aria-pressed=true]::before{forced-color-adjust:none;background:ButtonText}}\n";
 const FOCUS_OPEN: &str = ".page-controls button:focus-visible,.detail-close:focus-visible,.detail-heading:focus-visible{outline:2px solid var(";
 /// FR-38's panel, sticky at the viewport's bottom while open so the radar
 /// stays in view, and scrolling inside itself past 45% of the screen.
@@ -153,7 +154,6 @@ pub(super) fn css(wide_width: f64) -> String {
         BUTTON_CLOSE,
         SKIP_RULE,
         HIDDEN_BOX,
-        DOT_RULE,
         FOCUS_OPEN,
         Neutral::Focus.as_str(),
         OUTLINE_CLOSE,
