@@ -742,8 +742,8 @@ jobs each checking that its own output is self-consistent would pass on three
 platforms that disagree with each other, which is exactly the failure NFR-4 is
 written against. Each job publishes its HTML and SVG hashes and its decoded PNG;
 a final job compares them across the three.
-Until GitHub Actions runs (crumb `rg-3wv`), this arm waits for 1.0.x, by the
-maintainer's ruling (PRD D-82).
+By the maintainer's ruling (PRD D-82) this arm moves to 1.0.x, and lands once
+GitHub Actions runs (crumb `rg-3wv`).
 
 **Golden fixtures** live in `tests/fixtures/` as CSVs, with expected output in
 `tests/golden/`. The set is driven by the success criteria, not by intuition:

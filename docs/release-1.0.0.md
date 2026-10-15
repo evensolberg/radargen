@@ -7,7 +7,7 @@ doc_name: release-1.0.0
 crumb_id: rg-6zu
 document_title: "Releasing 1.0.0"
 created_date: 2026-10-13
-synopsis: "The steps from a green main to the 1.0.0 tag, in order: three decisions only the maintainer can make, the maintainer's testing and sign-off, then the bump, the goldens, the changelog, the PR and the release. The bump lands in its own PR, as PR 15's stated exception to every-PR-is-a-release has allowed since 15a."
+synopsis: "The steps from a green main to the 1.0.0 tag, in order: four decisions only the maintainer can make, the maintainer's testing and sign-off, then the bump, the goldens, the changelog, the PR and the release. The bump lands in its own PR, as PR 15's stated exception to every-PR-is-a-release has allowed since 15a."
 status: draft
 type: Guide
 revision: "1.1"
