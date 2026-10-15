@@ -9,9 +9,8 @@ tags:
 - html
 - a11y
 created: 2026-10-08
-updated: 2026-10-13
+updated: 2026-10-15
 blocks:
-- rg-l4h
 - rg-9ay
 blocked_by:
 - rg-f27

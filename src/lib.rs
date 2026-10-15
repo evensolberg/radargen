@@ -19,6 +19,7 @@ pub mod pipeline;
 pub mod rings;
 pub mod style;
 pub mod svg;
+pub mod template;
 pub mod text;
 
 use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};

@@ -559,3 +559,44 @@ fn unwritable_reasons_read_one_way() {
         assert!(!reason.ends_with('.'), "{output}: {reason}");
     }
 }
+
+/// FR-99: the template is written silently, and renders with no warning.
+#[test]
+fn the_template_renders_as_written() {
+    let dir = seeded(&[]);
+    let ran = run_in(dir.path(), &["--create-template", "radar.csv"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert_eq!((ran.stdout.as_str(), ran.stderr.as_str()), ("", ""));
+    assert_eq!(read(dir.path(), "radar.csv"), radargen::template::TEMPLATE);
+    let ran = run_in(dir.path(), &RENDER);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert_eq!(ran.stderr, "");
+}
+
+/// FR-99: an existing file is never replaced, and the error names it.
+#[test]
+fn the_template_never_replaces_a_file() {
+    let dir = seeded(&[("radar.csv", "mine\n")]);
+    let before = snapshot(dir.path());
+    let ran = run_in(dir.path(), &["--create-template", "radar.csv"]);
+    assert_eq!(ran.code, Some(1));
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: --create-template radar.csv: already exists; radargen never replaces a file, so choose another path"
+        ]
+    );
+    assert_eq!(snapshot(dir.path()), before);
+}
+
+/// FR-99: a template that cannot be written says so, under its own flag.
+#[test]
+fn an_unwritable_template_names_its_flag() {
+    let dir = seeded(&[]);
+    let ran = run_in(dir.path(), &["--create-template", "nope/radar.csv"]);
+    assert_eq!(ran.code, Some(1));
+    assert_starts(
+        &ran,
+        &["error: --create-template nope/radar.csv: cannot be written: "],
+    );
+}

@@ -41,6 +41,37 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), Fatal> {
         source,
     };
     refuse_read_only(path).map_err(unwritable)?;
+    let file = staged(path, bytes).map_err(unwritable)?;
+    file.persist(path).map_err(|e| unwritable(e.error))?;
+    Ok(())
+}
+
+/// `bytes` at `path` as [`write_atomic`] writes them, except that a file
+/// already at `path` is never replaced (FR-99): the rename refuses one, so a
+/// file appearing between a check and the write is refused too.
+///
+/// # Errors
+///
+/// [`Fatal::TemplateExists`] when anything is at `path`, a dangling symlink
+/// included, and [`Fatal::TemplateUnwritable`] for every reason
+/// [`write_atomic`] gives [`Fatal::Unwritable`].
+pub fn write_new(path: &Path, bytes: &[u8]) -> Result<(), Fatal> {
+    let failed = |source: io::Error| {
+        let path = path.display().to_string();
+        if source.kind() == io::ErrorKind::AlreadyExists {
+            Fatal::TemplateExists { path }
+        } else {
+            Fatal::TemplateUnwritable { path, source }
+        }
+    };
+    let file = staged(path, bytes).map_err(failed)?;
+    file.persist_noclobber(path).map_err(|e| failed(e.error))?;
+    Ok(())
+}
+
+/// `bytes` in a temporary file beside `path`, with the permissions
+/// `fs::write` would give, flushed to disk and ready to rename into place.
+fn staged(path: &Path, bytes: &[u8]) -> io::Result<tempfile::NamedTempFile> {
     let mut builder = tempfile::Builder::new();
     builder.prefix(".radargen-").suffix(".tmp");
     // tempfile creates 0600; give the output what fs::write would, 0666
@@ -52,11 +83,10 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), Fatal> {
     // inside that message; keep its kind.
     let mut file = builder
         .tempfile_in(parent_dir(path))
-        .map_err(|e| unwritable(io::Error::from(e.kind())))?;
-    file.as_file_mut().write_all(bytes).map_err(unwritable)?;
-    file.as_file().sync_all().map_err(unwritable)?;
-    file.persist(path).map_err(|e| unwritable(e.error))?;
-    Ok(())
+        .map_err(|e| io::Error::from(e.kind()))?;
+    file.as_file_mut().write_all(bytes)?;
+    file.as_file().sync_all()?;
+    Ok(file)
 }
 
 /// A read-only file at `path` is refused, as `fs::write` refuses it: a
@@ -143,6 +173,36 @@ mod tests {
         let want = format!("-o {}: cannot be written: ", path.display());
         assert!(text.starts_with(&want), "{text}");
         assert!(!text.contains(".radargen-"), "{text}");
+    }
+
+    #[test]
+    fn write_new_writes_a_new_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("radar.csv");
+        write_new(&path, b"name\n").expect("writes");
+        assert_eq!(fs::read(&path).expect("reads"), b"name\n");
+        assert_eq!(listing(dir.path()), ["radar.csv"]);
+    }
+
+    /// FR-99: the likeliest file at the path is the author's radar.
+    #[test]
+    fn write_new_never_replaces_a_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("radar.csv");
+        fs::write(&path, b"mine").expect("seeds");
+        let error = write_new(&path, b"template").expect_err("refuses");
+        assert!(matches!(error, Fatal::TemplateExists { .. }), "{error}");
+        assert_eq!(fs::read(&path).expect("reads"), b"mine");
+        assert_eq!(listing(dir.path()), ["radar.csv"], "no temp file left");
+    }
+
+    #[test]
+    fn write_new_into_a_missing_directory_is_unwritable() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("nope").join("radar.csv");
+        let error = write_new(&path, b"template").expect_err("refuses");
+        assert!(matches!(error, Fatal::TemplateUnwritable { .. }), "{error}");
+        assert!(!dir.path().join("nope").exists());
     }
 
     /// Clears a file's read-only flag when dropped, so the tempdir can go.

@@ -83,7 +83,7 @@ pub enum Status {
 
 impl Status {
     /// Every value, so the vocabulary is written once, in [`Status::label`].
-    const ALL: [Self; 4] = [Self::New, Self::MovedIn, Self::MovedOut, Self::NoChange];
+    pub(crate) const ALL: [Self; 4] = [Self::New, Self::MovedIn, Self::MovedOut, Self::NoChange];
 
     /// The canonical spelling: what a legend row and the detail panel show
     /// (FR-26, FR-74), and what a cell matches under FR-76.

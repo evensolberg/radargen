@@ -2,8 +2,8 @@
 //! the contract rather than spawning a process.
 
 use clap::Parser;
-use radargen::cli::clean_flag;
 use radargen::cli::{Cli, OutputFormat, Theme};
+use radargen::cli::{Task, clean_flag, format};
 use radargen::diagnostics::{Fatal, Flag, RowKind, Warning, Warnings};
 use radargen::rings::{RingsError, parse_rings};
 
@@ -20,8 +20,14 @@ fn no_arguments_is_a_usage_error() {
 #[test]
 fn a_csv_path_and_an_output_are_enough() {
     let cli = parse(&["entries.csv", "-o", "edition.html"]).expect("parses");
-    assert_eq!(cli.csv_path.to_str(), Some("entries.csv"));
-    assert_eq!(cli.output.to_str(), Some("edition.html"));
+    assert_eq!(
+        cli.csv_path.as_deref().and_then(|p| p.to_str()),
+        Some("entries.csv")
+    );
+    assert_eq!(
+        cli.output.as_deref().and_then(|p| p.to_str()),
+        Some("edition.html")
+    );
 }
 
 #[test]
@@ -41,14 +47,20 @@ fn exactly_one_csv_is_accepted() {
 #[test]
 fn html_is_inferred_from_the_output_extension() {
     let cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
-    assert_eq!(cli.format().expect("recognised"), OutputFormat::Html);
+    assert_eq!(
+        format(cli.output.as_deref().expect("-o")).expect("recognised"),
+        OutputFormat::Html
+    );
 }
 
 #[test]
 fn extension_matching_ignores_case() {
     // FR-52 extends this courtesy explicitly; `.HTML` is the v1.0 case.
     let cli = parse(&["in.csv", "-o", "e.HTML"]).expect("parses");
-    assert_eq!(cli.format().expect("recognised"), OutputFormat::Html);
+    assert_eq!(
+        format(cli.output.as_deref().expect("-o")).expect("recognised"),
+        OutputFormat::Html
+    );
 }
 
 #[test]
@@ -60,7 +72,7 @@ fn png_and_svg_say_not_in_this_version_rather_than_unrecognised() {
     for ext in ["png", "svg", "PNG"] {
         let path = format!("e.{ext}");
         let cli = parse(&["in.csv", "-o", &path]).expect("parses");
-        match cli.format() {
+        match format(cli.output.as_deref().expect("-o")) {
             // NFR-10: an output-path error names the path.
             Err(Fatal::FormatNotInThisVersion {
                 path: named,
@@ -79,7 +91,7 @@ fn png_and_svg_say_not_in_this_version_rather_than_unrecognised() {
 fn an_unrecognised_or_absent_extension_is_a_different_error() {
     for path in ["e.jpg", "e", "e."] {
         let cli = parse(&["in.csv", "-o", path]).expect("parses");
-        match cli.format() {
+        match format(cli.output.as_deref().expect("-o")) {
             Err(Fatal::UnrecognisedExtension { path: named }) => assert_eq!(named, path),
             other => panic!("{path} should be unrecognised, not deferred: {other:?}"),
         }
@@ -140,7 +152,10 @@ fn every_flag_has_a_short_form() {
         "2026-09",
     ])
     .expect("short forms parse");
-    assert_eq!(cli.output.to_str(), Some("e.html"));
+    assert_eq!(
+        cli.output.as_deref().and_then(|p| p.to_str()),
+        Some("e.html")
+    );
     assert_eq!(cli.rings.as_deref(), Some("Adopt,Trial"));
     assert_eq!(cli.title.as_deref(), Some("Radar"));
     assert_eq!(cli.subtitle.as_deref(), Some("2026-09"));
@@ -313,4 +328,54 @@ fn help_says_case_does_not_matter() {
     use clap::CommandFactory;
     let help = Cli::command().render_long_help().to_string();
     assert!(help.contains("any case"), "--help:\n{help}");
+}
+
+// ---- FR-99: --create-template, given alone
+
+#[test]
+fn create_template_stands_alone() {
+    let cli = parse(&["--create-template", "radar.csv"]).expect("parses");
+    assert_eq!(
+        cli.create_template.as_deref().and_then(|p| p.to_str()),
+        Some("radar.csv")
+    );
+    assert!(cli.csv_path.is_none() && cli.output.is_none());
+}
+
+#[test]
+fn create_template_with_anything_else_is_a_usage_error() {
+    for extra in [
+        &["in.csv"][..],
+        &["-o", "e.html"],
+        &["in.csv", "-o", "e.html"],
+        &["-t", "Radar"],
+        &["-T", "dark"],
+    ] {
+        let args: Vec<&str> = ["--create-template", "radar.csv"]
+            .into_iter()
+            .chain(extra.iter().copied())
+            .collect();
+        assert!(parse(&args).is_err(), "{args:?}");
+    }
+}
+
+#[test]
+fn a_render_still_needs_both_paths() {
+    assert!(parse(&["-o", "e.html"]).is_err());
+}
+
+#[test]
+fn the_task_is_a_render_or_a_template() {
+    let cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
+    assert!(matches!(cli.task(), Ok(Task::Render { .. })));
+    let cli = parse(&["--create-template", "radar.csv"]).expect("parses");
+    assert!(matches!(cli.task(), Ok(Task::Template(_))));
+}
+
+/// A `Cli` built by hand, which clap would have refused, asks for nothing.
+#[test]
+fn a_cli_with_neither_task_is_an_error() {
+    let mut cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
+    cli.output = None;
+    assert!(matches!(cli.task(), Err(Fatal::NoTask)));
 }

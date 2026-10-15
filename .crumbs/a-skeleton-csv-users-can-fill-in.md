@@ -1,7 +1,7 @@
 ---
 id: rg-l4h
 title: A skeleton CSV users can fill in
-status: blocked
+status: in_progress
 type: feature
 priority: 2
 tags:
@@ -10,8 +10,6 @@ tags:
 - onboarding
 created: 2026-10-12
 updated: 2026-10-15
-blocked_by:
-- rg-6zu
 phase: v1.0
 ---
 
@@ -29,3 +27,5 @@ Considerations: Excel round trip (Excel mis-decodes UTF-8 without a BOM; FR-2 st
 [2026-10-12] Maintainer prefers the command: the tool writes the seed CSV (e.g. radargen --create-template radar.csv), not a separately shipped file.
 
 [2026-10-15] Maintainer ruling 2026-10-15: do it before the 1.0.0 tag, as a command. PRD requirement lands with the implementing PR.
+
+[start] 2026-10-15 16:08:02
