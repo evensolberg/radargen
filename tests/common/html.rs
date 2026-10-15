@@ -16,11 +16,10 @@ pub const PAGE_ELEMENTS: [&str; 27] = [
 ];
 
 /// Every attribute the page may write on any of its own elements.
-const PAGE_ATTRIBUTES: [&str; 15] = [
+const PAGE_ATTRIBUTES: [&str; 14] = [
     "aria-label",
     "type",
     "hidden",
-    "aria-pressed",
     "lang",
     "charset",
     "name",

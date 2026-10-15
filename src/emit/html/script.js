@@ -30,7 +30,8 @@
     tableView: 'table-view',
     narrowQuery: 'data-narrow-query',
     theme: 'data-theme',
-    pressed: 'aria-pressed',
+    toDark: 'Switch to dark theme',
+    toLight: 'Switch to light theme',
     js: 'js',
     toggle: 'theme-toggle',
     skip: 'skip',
@@ -279,19 +280,22 @@
     if (!event.relatedTarget) hover(null);
   });
 
-  // FR-56: dark while pressed; until pressed, the viewer's preference.
+  // FR-56: the viewer's preference until a press chooses; the label says
+  // what the next press does.
   const toggle = document.querySelector('.' + N.toggle);
   const prefersDark = matchMedia('(prefers-color-scheme: dark)');
   const dark = () => {
     const chosen = root.getAttribute(N.theme);
     return chosen ? chosen === 'dark' : prefersDark.matches;
   };
-  const pressed = () => toggle.setAttribute(N.pressed, String(dark()));
+  const label = () => {
+    toggle.textContent = dark() ? N.toLight : N.toDark;
+  };
   toggle.addEventListener('click', () => {
     root.setAttribute(N.theme, dark() ? 'light' : 'dark');
-    pressed();
+    label();
   });
-  prefersDark.addEventListener('change', pressed);
+  prefersDark.addEventListener('change', label);
 
   // FR-98: past the markers to the legend of the arrangement shown.
   const skip = document.querySelector('.' + N.skip);
@@ -310,5 +314,5 @@
   toggle.hidden = false;
   // With nothing plotted there is no legend to skip to.
   skip.hidden = !document.querySelector('[' + N.legend + ']');
-  pressed();
+  label();
 })();

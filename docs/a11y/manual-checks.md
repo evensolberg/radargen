@@ -11,7 +11,7 @@ created_date: 2026-10-13
 synopsis: "What only a person with a screen reader, a real browser's zoom or a keyboard on a real machine can judge, step by step, with the announcement to expect at each step and a results table to fill in before tagging 1.0.0. The automated audit (scripts/a11y-audit.mjs) covers everything a browser can measure; this covers the rest."
 status: draft
 type: Guide
-revision: "1.0"
+revision: "1.1"
 review_date:
 reviewed_by: []
 completed_date:
@@ -61,8 +61,9 @@ The expected names come from `three-quadrant.csv`.
    - *Expect:* "Skip to the legend, button".
    - *Expect:* on Enter, focus on "1. …" in the legend.
 8. **The toggle.** Tab to it.
-   - *Expect:* "Dark theme" as a toggle button, with its state: "not pressed" (or "pressed" if the system is dark). VoiceOver words a toggle's state its own way; accept the state in any form.
-   - *Expect:* Enter flips it, and the page's colours change.
+   - *Expect:* "Switch to dark theme, button" ("Switch to light theme" if the system is dark), with no pressed state.
+   - *Expect:* Enter changes the page's colours, and the label becomes the other one.
+   - *Record:* whether the new label is announced after the press, or only when focus returns to the button.
 9. **The table** (`interaction.html`). Open *The table* and browse into it.
    - *Expect:* "Every item, region", then a table with its row and column counts.
    - *Expect:* moving across a row reads each cell with its column header; moving down a column reads the row header (the name).
@@ -96,3 +97,4 @@ The expected names come from `three-quadrant.csv`.
 | Revision | Date | Change |
 | --- | --- | --- |
 | 1.0 | 2026-10-13 | First version, for 1.0.0. |
+| 1.1 | 2026-10-15 | Step 8: the toggle is named by what a press does, with no pressed state (rg-nuy). |
