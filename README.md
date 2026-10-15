@@ -13,6 +13,14 @@ radargen entries.csv -o 2026-09-01.html
 radargen entries.csv -o edition.html --rings "Hold, Assess, Trial, Adopt"
 ```
 
+## Install
+
+Release binaries come in 1.0.x. Until then, install from source with a [Rust toolchain](https://rustup.rs):
+
+```sh
+cargo install --git https://github.com/evensolberg/radargen --tag v1.0.0
+```
+
 ## Starting a radar
 
 ```sh
