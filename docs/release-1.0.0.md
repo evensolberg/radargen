@@ -77,7 +77,7 @@ These came out of PR 15c's reviews and its audit. Each needs an answer before th
    - the README half of SC-22 is not covered by `cargo test`;
    - markers meet WCAG 2.5.8 through its Equivalent exception (D-81);
    - SC-8's cross-platform check waits for 1.0.x (D-82);
-   - no release binaries yet: install with `cargo install --git https://github.com/evensolberg/radargen --tag v1.0.0`, which needs a Rust toolchain (D-84).
+   - no release binaries yet: install with `cargo install --locked --git https://github.com/evensolberg/radargen --tag v1.0.0`, which needs a Rust toolchain (D-84).
 4. [ ] Close `rg-6zu`.
 
 ## Revisions
