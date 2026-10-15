@@ -3,7 +3,9 @@
 //!
 //! An arrangement reads each block's size and renders it at a placement; it
 //! never lays a block out again, so both arrangements hold the same items,
-//! numbers and treatments by construction (architecture §4).
+//! numbers and treatments by construction (architecture §4). The key is
+//! the one block with variants: the arrangement picks its columns for the
+//! width its rule spans, from widths measured once (rg-zb9).
 
 use std::num::NonZeroUsize;
 

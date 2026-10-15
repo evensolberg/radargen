@@ -150,22 +150,26 @@ impl KeyBlock {
         }
     }
 
-    /// The most columns, at most one per entry, whose entries fit within
-    /// `width` at scale 1; one when even a single column does not.
+    /// The columns for `width` at scale 1: the fewest rows that fit, made
+    /// with the fewest columns that hold them, so no row is left short when
+    /// a fuller one would do (no 4 + 1). One when even one does not fit.
     #[must_use]
     pub fn columns_within(&self, width: f64) -> NonZeroUsize {
         (1..=ROWS.len())
-            .rev()
-            .filter_map(NonZeroUsize::new)
-            .find(|&columns| self.grid(columns).entries_width() <= width)
+            .filter_map(|rows| NonZeroUsize::new(ROWS.len().div_ceil(rows)))
+            .find(|&columns| self.grid(columns).size(1.0).width <= width)
             .unwrap_or(NonZeroUsize::MIN)
     }
 
-    /// The key laid out in `columns`, entries filling each row in turn so
-    /// the reading order is the entries' order.
+    /// The key laid out in `columns`, at most one per entry, entries filling
+    /// each row in turn so the reading order is the entries' order.
     #[must_use]
-    pub const fn grid(&self, columns: NonZeroUsize) -> KeyGrid<'_> {
-        KeyGrid { key: self, columns }
+    pub fn grid(&self, columns: NonZeroUsize) -> KeyGrid<'_> {
+        let most = NonZeroUsize::new(ROWS.len()).unwrap_or(NonZeroUsize::MIN);
+        KeyGrid {
+            key: self,
+            columns: columns.min(most),
+        }
     }
 }
 
@@ -177,66 +181,52 @@ pub struct KeyGrid<'a> {
 }
 
 impl KeyGrid<'_> {
-    /// Each column's scale-1 width: its widest entry.
-    fn column_widths(self) -> Vec<f64> {
+    /// Each column's start from the key's left edge and its width, at
+    /// scale 1: its widest entry, `KEY_COLUMN_GAP` after the one before.
+    fn columns(self) -> Vec<(f64, f64)> {
+        let mut x = 0.0;
         (0..self.columns.get())
             .map(|column| {
-                self.key
+                let width = self
+                    .key
                     .entries
                     .iter()
                     .skip(column)
                     .step_by(self.columns.get())
-                    .fold(0.0, |widest, &w| f64::max(widest, w))
+                    .copied()
+                    .fold(0.0, f64::max);
+                let start = x;
+                x += width + KEY_COLUMN_GAP;
+                (start, width)
             })
             .collect()
-    }
-
-    /// Where each column starts from the key's left edge, at scale 1.
-    fn column_starts(self) -> Vec<f64> {
-        self.column_widths()
-            .iter()
-            .scan(0.0, |x, width| {
-                let start = *x;
-                *x += width + KEY_COLUMN_GAP;
-                Some(start)
-            })
-            .collect()
-    }
-
-    /// The entries' scale-1 width: the columns and the gaps between them.
-    fn entries_width(self) -> f64 {
-        let widths = self.column_widths();
-        #[expect(
-            clippy::cast_precision_loss,
-            clippy::as_conversions,
-            reason = "a column count is at most five, so the conversion is exact"
-        )]
-        let gaps = (widths.len() - 1) as f64 * KEY_COLUMN_GAP;
-        widths.iter().sum::<f64>() + gaps
-    }
-
-    /// The grid rows the entries take.
-    const fn rows(self) -> usize {
-        ROWS.len().div_ceil(self.columns.get())
     }
 }
 
 impl Block for KeyGrid<'_> {
     fn size(&self, scale: f64) -> Size {
+        let entries = self
+            .columns()
+            .last()
+            .map_or(0.0, |(start, width)| start + width);
+        let rows = ROWS.len().div_ceil(self.columns.get());
         Size {
-            width: self.entries_width().max(self.key.heading),
-            height: sample_centre(self.rows() - 1, 0.0).y + KEY_BOTTOM,
+            width: entries.max(self.key.heading),
+            height: sample_centre(rows - 1, 0.0).y + KEY_BOTTOM,
         }
         .scaled(scale)
     }
 
     fn render(&self, at: Placement) -> Node {
-        let starts = self.column_starts();
-        let columns = self.columns.get();
-        let rows = ROWS.iter().enumerate().flat_map(|(index, row)| {
-            let column_x = starts.get(index % columns).copied().unwrap_or_default();
-            row_nodes(index / columns, column_x, *row, at.scale)
-        });
+        let columns = self.columns();
+        let rows = ROWS
+            .chunks(self.columns.get())
+            .enumerate()
+            .flat_map(|(index, row)| {
+                row.iter()
+                    .zip(&columns)
+                    .flat_map(move |(entry, (start, _))| row_nodes(index, *start, *entry, at.scale))
+            });
         let children = std::iter::once(heading_node(at.scale))
             .chain(rows)
             .collect();
@@ -566,8 +556,11 @@ mod tests {
             .collect()
     }
 
-    fn width_at(widths: &[f64], i: usize) -> f64 {
-        *widths.get(i).expect("an entry")
+    /// The widest of entries `of`: a column's width at scale 1.
+    fn widest(widths: &[f64], of: &[usize]) -> f64 {
+        of.iter()
+            .map(|&i| *widths.get(i).expect("an entry"))
+            .fold(0.0, f64::max)
     }
 
     /// rg-zb9: as many columns as fit, at least one, at most one per entry.
@@ -576,14 +569,8 @@ mod tests {
         let key = KeyBlock::new(fonts());
         let w = entry_widths();
         // Two columns, filled row by row: entries 0, 2, 4 and 1, 3.
-        let first = [0, 2, 4]
-            .map(|i| width_at(&w, i))
-            .into_iter()
-            .fold(0.0, f64::max);
-        let second = [1, 3]
-            .map(|i| width_at(&w, i))
-            .into_iter()
-            .fold(0.0, f64::max);
+        let first = widest(&w, &[0, 2, 4]);
+        let second = widest(&w, &[1, 3]);
         let two = first + KEY_COLUMN_GAP + second;
         assert_eq!(key.columns_within(two).get(), 2);
         assert_eq!(key.columns_within(two - 0.01).get(), 1);
@@ -595,14 +582,28 @@ mod tests {
         assert_eq!(key.columns_within(380.0).get(), 1);
     }
 
+    /// The fewest rows that fit, then the fewest columns that make them, so
+    /// no row is left with one entry when a fuller one would do (no 4 + 1).
+    #[test]
+    fn the_columns_fill_their_rows_evenly() {
+        let key = KeyBlock::new(fonts());
+        let mut seen = Vec::new();
+        for width in (0..2000).map(f64::from) {
+            let n = key.columns_within(width).get();
+            let rows = ROWS.len().div_ceil(n);
+            assert_eq!(n, ROWS.len().div_ceil(rows), "{width}: {n} columns");
+            if !seen.contains(&n) {
+                seen.push(n);
+            }
+        }
+        assert_eq!(seen, [1, 2, 3, 5]);
+    }
+
     #[test]
     fn two_columns_run_in_reading_order() {
         let nodes = rendered_in(2, 1.0);
         let w = entry_widths();
-        let first = [0, 2, 4]
-            .map(|i| width_at(&w, i))
-            .into_iter()
-            .fold(0.0, f64::max);
+        let first = widest(&w, &[0, 2, 4]);
         let second_x = first + KEY_COLUMN_GAP;
         for (i, x, y) in [
             (0, 0.0, 40.0),
@@ -631,10 +632,7 @@ mod tests {
             );
         }
         let size = KeyBlock::new(fonts()).grid(columns(2)).size(1.0);
-        let second = [1, 3]
-            .map(|i| width_at(&w, i))
-            .into_iter()
-            .fold(0.0, f64::max);
+        let second = widest(&w, &[1, 3]);
         assert!(close(size.width, second_x + second), "{size:?}");
         assert!(close(size.height, 88.0 + KEY_BOTTOM), "{size:?}");
     }
