@@ -22,43 +22,65 @@ pub enum OutputFormat {
 }
 
 /// The parsed command line: one CSV in, one file out (D-28, §6.6).
+//
+// clap shows every `///` comment below as `--help` text, so those speak to
+// the person running the tool. The reasoning behind each flag lives in the
+// `//` comments, which clap ignores; a test keeps requirement numbers out of
+// the help.
 #[derive(Debug, Parser)]
-#[command(name = "radargen", version, about, long_about = None)]
+#[command(
+    name = "radargen",
+    version,
+    about = "Render a technology radar from a CSV file to a self-contained HTML page.",
+    long_about = None
+)]
 pub struct Cli {
-    /// Path to the input CSV (§6.1). Exactly one; there is no glob or
-    /// multi-file form (FR-60).
+    // §6.1; exactly one file, with no glob or multi-file form (FR-60).
+    /// The CSV file to read: a header row, then one row per item, with at
+    /// least name, quadrant, ring and description columns.
     pub csv_path: PathBuf,
 
-    /// Output path; format inferred from the extension (FR-52).
+    // FR-52: the format comes from the extension, matched ignoring case.
+    /// Where to write the radar. The extension picks the format: .html
+    /// (PNG and SVG arrive in version 1.1).
     #[arg(short, long)]
     pub output: PathBuf,
 
-    /// Edge-to-centre ordered ring list (FR-12–FR-15). Absent yields the
-    /// FR-13 default.
+    // FR-12 to FR-15: the list is edge-to-centre and replaces the default
+    // set (FR-13, `rings::DEFAULT_RINGS`); a test checks the help names it.
+    /// The rings, outermost first, separated by commas, for example
+    /// "Hold,Assess,Trial,Adopt". The list replaces the default set, which is
+    /// Assess, Trial, Adopt, Retire. A row whose ring is not in the list is
+    /// left off the radar and listed in the table, with a warning.
     #[arg(short, long)]
     pub rings: Option<String>,
 
-    /// Rendered above the radar in the shared document (FR-65). Omitted
-    /// renders nothing at all — no placeholder, no reserved space.
+    // FR-65: omitted renders nothing at all, with no placeholder or space.
+    /// A title shown above the radar. Without one, no title is shown.
     #[arg(short, long)]
     pub title: Option<String>,
 
-    /// Second line of the title block (FR-65). The tool attaches no meaning
-    /// to it and never supplies one (D-24).
+    // FR-65, D-24: the tool attaches no meaning to it and never supplies one.
+    /// A second line under the title, such as the edition's date.
     #[arg(short, long)]
     pub subtitle: Option<String>,
 
-    /// Resolves a static snapshot's colours at generation time (FR-56).
-    /// `ignore_case` gives `--theme Dark` the same courtesy FR-52 extends
-    /// to `.PNG`.
-    /// `-T` rather than `-t`, which goes to `--title`: both appear together
-    /// in §6.6's canonical PNG invocation, so both earn a short form (OQ-2).
+    // FR-56: resolves a static snapshot's colours at generation time; HTML
+    // carries both palettes and ignores it. `ignore_case` gives `--theme Dark`
+    // the courtesy FR-52 gives `.PNG`. `-T`, not `-t`, which is `--title`:
+    // both appear in §6.6's canonical PNG invocation, so both earn a short
+    // form (OQ-2).
+    /// The colour theme for PNG and SVG output (version 1.1). An HTML page
+    /// carries both themes and follows the reader's setting, with a button to
+    /// switch.
     #[arg(short = 'T', long, value_enum, default_value_t = Theme::Light, ignore_case = true)]
     pub theme: Theme,
 
-    /// Output width in pixels (FR-57). Height is always computed from the
-    /// document's own aspect ratio and is never a second flag. Range per
-    /// FR-64, enforced by clap so the message is standard usage output.
+    // FR-57: the height always follows the document's aspect ratio and is
+    // never a second flag. The range is FR-64's, enforced by clap so the
+    // message is standard usage output. HTML ignores it.
+    /// The width in pixels of PNG and SVG output (version 1.1), from 320 to
+    /// 10000; the height follows. An HTML page fits the reader's window.
     #[arg(short, long, value_parser = clap::value_parser!(u32).range(320..=10_000))]
     pub width: Option<u32>,
 }

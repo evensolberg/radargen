@@ -250,3 +250,36 @@ fn a_bidi_override_is_removed_from_a_title() {
     );
     assert_eq!(warnings.as_slice().len(), 1);
 }
+
+/// `--help` is for the person running the tool: no requirement numbers,
+/// PRD sections or open questions, which belong in the code's comments.
+#[test]
+fn help_speaks_to_users() {
+    use clap::CommandFactory;
+    let help = Cli::command().render_long_help().to_string();
+    for reference in [
+        "FR-", "NFR-", "§", "OQ-", "D-1", "D-2", "D-3", "D-4", "D-5", "D-6", "D-7", "D-8", "D-9",
+    ] {
+        assert!(!help.contains(reference), "{reference} in --help:\n{help}");
+    }
+    assert!(
+        !help
+            .lines()
+            .next()
+            .is_some_and(|about| about.contains("PNG") || about.contains("SVG")),
+        "the about line promises only what this version writes:\n{help}"
+    );
+}
+
+/// `--rings` names the rings used without it, from the same list the tool
+/// uses, so the two cannot drift apart.
+#[test]
+fn rings_help_names_the_default_rings() {
+    use clap::CommandFactory;
+    let help = Cli::command().render_long_help().to_string();
+    let defaults = radargen::rings::DEFAULT_RINGS.join(", ");
+    assert!(
+        help.contains(&defaults),
+        "--help must name {defaults}:\n{help}"
+    );
+}
