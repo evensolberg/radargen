@@ -1,7 +1,8 @@
 //! Command-line surface (§6.6).
 //!
 //! Argument *behaviour* is fixed by the PRD; exact spelling is OQ-2. There is
-//! no subcommand (D-28): one CSV in, one file out.
+//! no subcommand (D-28): one CSV in, one file out, or `--create-template`
+//! alone to write a CSV to start from (FR-99).
 
 use clap::Parser;
 use std::path::{Path, PathBuf};

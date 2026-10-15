@@ -35,7 +35,7 @@ This writes a CSV with every column radargen reads and five example rows. Replac
 | `status` | no | `New`, `Moved In`, `Moved Out` or `No Change` | How the marker is drawn, a note on its legend row except for `No Change`, and the detail panel |
 | `link` | no | An `http://` or `https://` address | A link in the detail panel and the table |
 
-Values are matched in any case. A blank optional cell leaves that field off the page. Any other column is kept: it is shown, as written, in the table view, and is not an error. Save the file as UTF-8; in Excel, use Save As "CSV UTF-8".
+The table view shows every column. Values are matched in any case. A blank optional cell leaves that field off the page. Any other column is kept: it is shown, as written, in the table view, and is not an error. Save the file as UTF-8; in Excel, use Save As "CSV UTF-8".
 
 ## Status
 
