@@ -1,15 +1,16 @@
 //! The encoding key (FR-66): what the marker shapes and status rings mean.
 //! Its content is fixed whatever the dataset uses (D-25).
 
-use std::num::NonZeroU8;
+use std::num::{NonZeroU8, NonZeroUsize};
 
 use crate::layout::block::{Block, Placement, Size};
 use crate::layout::marker::{Glyph, StatusMark};
 use crate::model::Qualifier;
 use crate::palette::{Neutral, Role};
 use crate::style::{
-    KEY_BOTTOM, KEY_FIRST_ROW, KEY_HEADING, KEY_HEADING_BASELINE, KEY_LABEL, KEY_LABEL_DROP,
-    KEY_LABEL_X, KEY_MARKER_RADIUS, KEY_ROW, KEY_SAMPLE_X, KEY_STATUS_MARKER_RADIUS, TextStyle,
+    KEY_BOTTOM, KEY_COLUMN_GAP, KEY_FIRST_ROW, KEY_HEADING, KEY_HEADING_BASELINE, KEY_LABEL,
+    KEY_LABEL_DROP, KEY_LABEL_X, KEY_MARKER_RADIUS, KEY_ROW, KEY_SAMPLE_X,
+    KEY_STATUS_MARKER_RADIUS, TextStyle,
 };
 use crate::svg::{Anchor, Group, Node, Point, Scale, Semantics, TextRun};
 use crate::text::Fonts;
@@ -69,15 +70,19 @@ const HEADING_LEVEL: NonZeroU8 = match NonZeroU8::new(2) {
 
 const SAMPLE_INK: Role = Role::Neutral(Neutral::TextMuted);
 
-/// The centre of row `index`'s sample, at scale 1.
-const fn sample_centre(index: usize) -> Point {
+/// The centre of the sample in grid row `index`, at scale 1, for an entry
+/// in the column starting `column_x` from the key's left edge.
+const fn sample_centre(index: usize, column_x: f64) -> Point {
     #[expect(
         clippy::cast_precision_loss,
         clippy::as_conversions,
         reason = "a row index is at most four, so the conversion is exact"
     )]
     let y = KEY_FIRST_ROW + (index as f64) * KEY_ROW;
-    Point { x: KEY_SAMPLE_X, y }
+    Point {
+        x: column_x + KEY_SAMPLE_X,
+        y,
+    }
 }
 
 /// A text node of one line, muted or primary.
@@ -93,9 +98,10 @@ fn text(label: &str, origin: Point, style: TextStyle, ink: Neutral, scale: f64) 
     .node(Scale::uniform(scale))
 }
 
-/// One row: its decorative sample, then its label.
-fn row_nodes(index: usize, row: Row, scale: f64) -> [Node; 2] {
-    let centre = sample_centre(index);
+/// One entry: its decorative sample, then its label, in grid row `index`
+/// and the column starting `column_x`.
+fn row_nodes(index: usize, column_x: f64, row: Row, scale: f64) -> [Node; 2] {
+    let centre = sample_centre(index, column_x);
     let glyph = Glyph {
         centre,
         radius: row.radius,
@@ -105,7 +111,7 @@ fn row_nodes(index: usize, row: Row, scale: f64) -> [Node; 2] {
     }
     .draw(Scale::uniform(scale));
     let origin = Point {
-        x: KEY_LABEL_X,
+        x: column_x + KEY_LABEL_X,
         y: centre.y + KEY_LABEL_DROP,
     };
     [
@@ -124,45 +130,113 @@ fn heading_node(scale: f64) -> Node {
     Node::Group(Group::new(Point::ORIGIN, vec![node]).with(Semantics::Heading(HEADING_LEVEL)))
 }
 
-/// The scale-1 size: the widest label (after its indent) or the heading.
-fn measure(fonts: &Fonts) -> Size {
-    let width_of = |style: TextStyle, label: &str| style.measure(label, fonts);
-    let labels = ROWS
-        .iter()
-        .map(|row| KEY_LABEL_X + width_of(KEY_LABEL, row.label));
-    let width = labels.fold(width_of(KEY_HEADING, HEADING), f64::max);
-    Size {
-        width,
-        height: sample_centre(ROWS.len() - 1).y + KEY_BOTTOM,
-    }
-}
-
-/// The key to the markers (FR-66): a heading and five fixed rows.
+/// The key to the markers (FR-66): a heading and five fixed entries,
+/// measured once and laid out in as many columns as the arrangement's
+/// width holds (rg-zb9).
 #[derive(Debug, Clone, PartialEq)]
 pub struct KeyBlock {
-    size: Size,
+    /// Each entry's scale-1 width: its indent and its label's layout width.
+    entries: [f64; ROWS.len()],
+    heading: f64,
 }
 
 impl KeyBlock {
-    /// The key, its width measured with `fonts`.
+    /// The key, its entries measured with `fonts`.
     #[must_use]
     pub fn new(fonts: &Fonts) -> Self {
         Self {
-            size: measure(fonts),
+            entries: ROWS.map(|row| KEY_LABEL_X + KEY_LABEL.measure(row.label, fonts)),
+            heading: KEY_HEADING.measure(HEADING, fonts),
         }
+    }
+
+    /// The most columns, at most one per entry, whose entries fit within
+    /// `width` at scale 1; one when even a single column does not.
+    #[must_use]
+    pub fn columns_within(&self, width: f64) -> NonZeroUsize {
+        (1..=ROWS.len())
+            .rev()
+            .filter_map(NonZeroUsize::new)
+            .find(|&columns| self.grid(columns).entries_width() <= width)
+            .unwrap_or(NonZeroUsize::MIN)
+    }
+
+    /// The key laid out in `columns`, entries filling each row in turn so
+    /// the reading order is the entries' order.
+    #[must_use]
+    pub const fn grid(&self, columns: NonZeroUsize) -> KeyGrid<'_> {
+        KeyGrid { key: self, columns }
     }
 }
 
-impl Block for KeyBlock {
+/// The key in a given number of columns, as the arrangement places it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct KeyGrid<'a> {
+    key: &'a KeyBlock,
+    columns: NonZeroUsize,
+}
+
+impl KeyGrid<'_> {
+    /// Each column's scale-1 width: its widest entry.
+    fn column_widths(self) -> Vec<f64> {
+        (0..self.columns.get())
+            .map(|column| {
+                self.key
+                    .entries
+                    .iter()
+                    .skip(column)
+                    .step_by(self.columns.get())
+                    .fold(0.0, |widest, &w| f64::max(widest, w))
+            })
+            .collect()
+    }
+
+    /// Where each column starts from the key's left edge, at scale 1.
+    fn column_starts(self) -> Vec<f64> {
+        self.column_widths()
+            .iter()
+            .scan(0.0, |x, width| {
+                let start = *x;
+                *x += width + KEY_COLUMN_GAP;
+                Some(start)
+            })
+            .collect()
+    }
+
+    /// The entries' scale-1 width: the columns and the gaps between them.
+    fn entries_width(self) -> f64 {
+        let widths = self.column_widths();
+        #[expect(
+            clippy::cast_precision_loss,
+            clippy::as_conversions,
+            reason = "a column count is at most five, so the conversion is exact"
+        )]
+        let gaps = (widths.len() - 1) as f64 * KEY_COLUMN_GAP;
+        widths.iter().sum::<f64>() + gaps
+    }
+
+    /// The grid rows the entries take.
+    const fn rows(self) -> usize {
+        ROWS.len().div_ceil(self.columns.get())
+    }
+}
+
+impl Block for KeyGrid<'_> {
     fn size(&self, scale: f64) -> Size {
-        self.size.scaled(scale)
+        Size {
+            width: self.entries_width().max(self.key.heading),
+            height: sample_centre(self.rows() - 1, 0.0).y + KEY_BOTTOM,
+        }
+        .scaled(scale)
     }
 
     fn render(&self, at: Placement) -> Node {
-        let rows = ROWS
-            .iter()
-            .enumerate()
-            .flat_map(|(index, row)| row_nodes(index, *row, at.scale));
+        let starts = self.column_starts();
+        let columns = self.columns.get();
+        let rows = ROWS.iter().enumerate().flat_map(|(index, row)| {
+            let column_x = starts.get(index % columns).copied().unwrap_or_default();
+            row_nodes(index / columns, column_x, *row, at.scale)
+        });
         let children = std::iter::once(heading_node(at.scale))
             .chain(rows)
             .collect();
@@ -176,18 +250,30 @@ mod tests {
     use crate::layout::block::{at, close, fonts};
     use crate::layout::geometry::polar;
     use crate::layout::test_support::{self, assert_inside, fill};
-    use crate::style::{STATUS_RING_GAP, STATUS_RING_STROKE};
+    use crate::style::{KEY_COLUMN_GAP, STATUS_RING_GAP, STATUS_RING_STROKE};
     use crate::svg::Paint;
     use crate::svg::PathCommand;
     use crate::svg::TextPaint;
 
     const UNIT: Scale = Scale::uniform(1.0);
 
-    fn rendered(scale: f64) -> Vec<Node> {
-        let Node::Group(group) = KeyBlock::new(fonts()).render(at(scale)) else {
+    const fn columns(n: usize) -> NonZeroUsize {
+        match NonZeroUsize::new(n) {
+            Some(n) => n,
+            None => panic!("a column count is not zero"),
+        }
+    }
+
+    fn rendered_in(n: usize, scale: f64) -> Vec<Node> {
+        let Node::Group(group) = KeyBlock::new(fonts()).grid(columns(n)).render(at(scale)) else {
             panic!("the key renders a group");
         };
         group.children
+    }
+
+    /// One column: the key as it was before rg-zb9, so these tests pin it.
+    fn rendered(scale: f64) -> Vec<Node> {
+        rendered_in(1, scale)
     }
 
     fn child(nodes: &[Node], i: usize) -> &Node {
@@ -400,7 +486,7 @@ mod tests {
             assert_eq!(*style, KEY_LABEL);
             assert_eq!(ink, fill(Neutral::TextMuted));
         }
-        let size = KeyBlock::new(fonts()).size(1.0);
+        let size = KeyBlock::new(fonts()).grid(columns(1)).size(1.0);
         assert!(close(size.height, 146.0));
         // Measured at a literal 11 and no spacing, not through KEY_LABEL, so
         // the test pins the label size independently of the constant; plus
@@ -422,7 +508,7 @@ mod tests {
         let ink = Role::Neutral(Neutral::TextMuted);
         for (i, row) in ROWS.iter().enumerate() {
             let want = Glyph {
-                centre: sample_centre(i),
+                centre: sample_centre(i, 0.0),
                 radius: row.radius,
                 qualifier: row.qualifier,
                 mark: row.mark,
@@ -445,12 +531,16 @@ mod tests {
 
     #[test]
     fn a_placed_key_is_the_origin_key_translated() {
-        crate::layout::block::assert_translates(&KeyBlock::new(fonts()), 1.0);
+        let key = KeyBlock::new(fonts());
+        for n in 1..=ROWS.len() {
+            crate::layout::block::assert_translates(&key.grid(columns(n)), 1.0);
+        }
     }
 
     #[test]
     fn size_scales_linearly() {
-        let b = KeyBlock::new(fonts());
+        let key = KeyBlock::new(fonts());
+        let b = key.grid(columns(2));
         let (one, half) = (b.size(1.0), b.size(0.5));
         assert!(close(half.width, one.width / 2.0));
         assert!(close(half.height, one.height / 2.0));
@@ -460,9 +550,93 @@ mod tests {
     fn everything_drawn_lies_inside_the_size() {
         let fonts = fonts();
         let key = KeyBlock::new(fonts);
-        for scale in [1.0, 0.5] {
-            assert_inside(&key.render(at(scale)), key.size(scale), fonts);
+        for n in 1..=ROWS.len() {
+            let grid = key.grid(columns(n));
+            for scale in [1.0, 0.5] {
+                assert_inside(&grid.render(at(scale)), grid.size(scale), fonts);
+            }
         }
+    }
+
+    /// Each entry's width at scale 1: its indent and its label's layout
+    /// width, D-78's allowance included.
+    fn entry_widths() -> Vec<f64> {
+        ROWS.iter()
+            .map(|row| KEY_LABEL_X + KEY_LABEL.measure(row.label, fonts()))
+            .collect()
+    }
+
+    fn width_at(widths: &[f64], i: usize) -> f64 {
+        *widths.get(i).expect("an entry")
+    }
+
+    /// rg-zb9: as many columns as fit, at least one, at most one per entry.
+    #[test]
+    fn the_key_takes_as_many_columns_as_fit() {
+        let key = KeyBlock::new(fonts());
+        let w = entry_widths();
+        // Two columns, filled row by row: entries 0, 2, 4 and 1, 3.
+        let first = [0, 2, 4]
+            .map(|i| width_at(&w, i))
+            .into_iter()
+            .fold(0.0, f64::max);
+        let second = [1, 3]
+            .map(|i| width_at(&w, i))
+            .into_iter()
+            .fold(0.0, f64::max);
+        let two = first + KEY_COLUMN_GAP + second;
+        assert_eq!(key.columns_within(two).get(), 2);
+        assert_eq!(key.columns_within(two - 0.01).get(), 1);
+        assert_eq!(key.columns_within(f64::INFINITY).get(), ROWS.len());
+        assert_eq!(key.columns_within(0.0).get(), 1, "never fewer than one");
+        // The widths the arrangements give at the smallest radar: the wide
+        // key's rule spans 640 units, the narrow one's 380.
+        assert_eq!(key.columns_within(640.0).get(), 2);
+        assert_eq!(key.columns_within(380.0).get(), 1);
+    }
+
+    #[test]
+    fn two_columns_run_in_reading_order() {
+        let nodes = rendered_in(2, 1.0);
+        let w = entry_widths();
+        let first = [0, 2, 4]
+            .map(|i| width_at(&w, i))
+            .into_iter()
+            .fold(0.0, f64::max);
+        let second_x = first + KEY_COLUMN_GAP;
+        for (i, x, y) in [
+            (0, 0.0, 40.0),
+            (1, second_x, 40.0),
+            (2, 0.0, 64.0),
+            (3, second_x, 64.0),
+            (4, 0.0, 88.0),
+        ] {
+            let row = ROWS.get(i).expect("a row");
+            let want = Glyph {
+                centre: Point {
+                    x: x + KEY_SAMPLE_X,
+                    y,
+                },
+                radius: row.radius,
+                qualifier: row.qualifier,
+                mark: row.mark,
+                ink: SAMPLE_INK,
+            }
+            .draw(UNIT);
+            assert_eq!(sample(&nodes, i), want.as_slice(), "entry {i}");
+            let (origin, ..) = text_parts(label(&nodes, i));
+            assert!(
+                near(origin, x + KEY_LABEL_X, y + KEY_LABEL_DROP),
+                "entry {i}: {origin:?}"
+            );
+        }
+        let size = KeyBlock::new(fonts()).grid(columns(2)).size(1.0);
+        let second = [1, 3]
+            .map(|i| width_at(&w, i))
+            .into_iter()
+            .fold(0.0, f64::max);
+        assert!(close(size.width, second_x + second), "{size:?}");
+        assert!(close(size.height, 88.0 + KEY_BOTTOM), "{size:?}");
     }
 
     #[test]
