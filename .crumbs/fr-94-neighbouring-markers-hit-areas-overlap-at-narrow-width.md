@@ -1,7 +1,7 @@
 ---
 id: rg-frk
 title: 'FR-94: neighbouring markers hit areas overlap at narrow widths'
-status: open
+status: closed
 type: bug
 priority: 2
 tags:
@@ -9,7 +9,8 @@ tags:
 - layout
 - fr-94
 created: 2026-10-13
-updated: 2026-10-13
+updated: 2026-10-15
+closed_reason: 'Maintainer ruling 2026-10-15: markers meet 2.5.8 through the Equivalent exception; recorded in PRD D-81, FR-94, D-66.'
 phase: ''
 ---
 

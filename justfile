@@ -169,7 +169,7 @@ interaction-only:
 
 # WCAG 2.1 AA's automatable criteria in headless Chromium (RG-015C). D-71's
 # fixture is wider than 480 units, so its narrow width is read from FR-95's
-# warning and passed on: the audit bounds that recorded 2.5.8 exception.
+# warning and passed on: the audit bounds D-71's recorded 2.5.8 exception.
 a11y-audit: release-build a11y-audit-only
 
 [private]

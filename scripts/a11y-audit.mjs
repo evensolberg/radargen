@@ -4,7 +4,8 @@
 //
 // The first page is the interaction fixture; the second is D-71's, whose
 // narrow arrangement is wider than 480 units, so its narrow targets fall
-// below 24 px at 320 px by design: the one recorded 2.5.8 exception.
+// below 24 px at 320 px by design: D-71's recorded 2.5.8 exception. Markers meet 2.5.8
+// through its Equivalent exception (PRD D-81).
 //
 // Controls are found from the DOM and then looked up in Chromium's
 // accessibility tree, so a control that lost its role is caught, not
