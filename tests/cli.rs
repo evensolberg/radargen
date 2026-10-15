@@ -250,3 +250,67 @@ fn a_bidi_override_is_removed_from_a_title() {
     );
     assert_eq!(warnings.as_slice().len(), 1);
 }
+
+/// `--help` is for the person running the tool: no requirement numbers,
+/// PRD sections or open questions, which belong in the code's comments.
+#[test]
+fn help_speaks_to_users() {
+    use clap::CommandFactory;
+    let help = Cli::command().render_long_help().to_string();
+    assert!(!help.contains('§'), "a PRD section in --help:\n{help}");
+    // A reference is a capital-letter prefix, a hyphen and a digit: FR-5,
+    // NFR-13, OQ-2, D-28, A-4.
+    for (at, _) in help.match_indices('-') {
+        let before = help.get(..at).unwrap_or_default();
+        let prefix = before.len()
+            - before
+                .trim_end_matches(|c: char| c.is_ascii_uppercase())
+                .len();
+        let digit = help.get(at + 1..).and_then(|rest| rest.chars().next());
+        assert!(
+            prefix == 0 || !digit.is_some_and(|c| c.is_ascii_digit()),
+            "a reference in --help near {:?}:\n{help}",
+            help.get(at - prefix..at + 2)
+        );
+    }
+    assert!(
+        !help
+            .lines()
+            .next()
+            .is_some_and(|about| about.contains("PNG") || about.contains("SVG")),
+        "the about line promises only what this version writes:\n{help}"
+    );
+}
+
+/// `--rings` names the rings used without it, from the same list the tool
+/// uses, so the two cannot drift apart.
+#[test]
+fn rings_help_names_the_default_rings() {
+    use clap::CommandFactory;
+    let help = Cli::command().render_long_help().to_string();
+    let defaults = radargen::rings::DEFAULT_RINGS.join(", ");
+    assert!(
+        help.contains(&defaults),
+        "--help must name {defaults}:\n{help}"
+    );
+}
+
+/// `-h` is the short form: clap takes each comment's first paragraph, so
+/// each flag gets one sentence there, under 120 columns with clap's
+/// defaults, and the rest is left to `--help`.
+#[test]
+fn short_help_is_one_line_per_flag() {
+    use clap::CommandFactory;
+    let help = Cli::command().render_help().to_string();
+    for line in help.lines() {
+        assert!(line.chars().count() <= 120, "a long -h line:\n{line}");
+    }
+}
+
+/// The help says where case does not matter, so no one retypes `.HTML`.
+#[test]
+fn help_says_case_does_not_matter() {
+    use clap::CommandFactory;
+    let help = Cli::command().render_long_help().to_string();
+    assert!(help.contains("any case"), "--help:\n{help}");
+}
