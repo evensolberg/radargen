@@ -129,9 +129,11 @@ async function names(label) {
   // pressed state to decode.
   const toggleNode = await ax(`document.querySelector('.theme-toggle')`);
   const toggleName = toggleNode.name?.value ?? '';
+  // Every run but the dark ones loads the light preference.
+  const action = `Switch to ${label.startsWith('dark') ? 'light' : 'dark'} theme`;
   check(
-    toggleNode.role?.value === 'button' && /^Switch to (dark|light) theme$/.test(toggleName),
-    `${label}: the toggle is a button named by its action: ${toggleNode.role?.value} "${toggleName}"`,
+    toggleNode.role?.value === 'button' && toggleName === action,
+    `${label}: the toggle is a button named "${action}": ${toggleNode.role?.value} "${toggleName}"`,
   );
   check(prop(toggleNode, 'pressed') === undefined, `${label}: the toggle has no pressed state`);
   await openTable(true);
@@ -413,8 +415,8 @@ async function forced(label) {
   const cell = `document.querySelector('tr[data-row="${key}"] > td')`;
   const toggle = `document.querySelector('.theme-toggle')`;
   const before = { marker: await clip(marker), row: await clip(row), cell: await clip(cell), other: await clip(otherIndicator), toggle: await clip(toggle) };
-  // The toggle: forced colours keep the page's colours, so its new label is
-  // what shows a press worked.
+  // The toggle: forced colours override both palettes, so the label is the
+  // only visible sign a press worked.
   await tabTo(toggle);
   const focusedToggle = await clip(toggle);
   await press('Enter');
