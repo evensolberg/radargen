@@ -3,7 +3,11 @@
 //!
 //! An arrangement reads each block's size and renders it at a placement; it
 //! never lays a block out again, so both arrangements hold the same items,
-//! numbers and treatments by construction (architecture §4).
+//! numbers and treatments by construction (architecture §4). The key is
+//! the one block with variants: the arrangement picks its columns for the
+//! width its rule spans, from widths measured once (rg-zb9).
+
+use std::num::NonZeroUsize;
 
 use crate::diagnostics::{RenderKind, Warning, Warnings};
 use crate::layout::block::{Block, Placement};
@@ -90,6 +94,8 @@ pub struct Placements {
     pub rule: Rule,
     /// The key, at scale 1.
     pub key: Placement,
+    /// The key's columns: as many as fit along its rule (rg-zb9).
+    pub key_columns: NonZeroUsize,
     /// The legend panel, at scale 1.
     pub legend: Placement,
 }
@@ -104,7 +110,7 @@ pub fn arrange(arrangement: Arrangement, blocks: &Blocks) -> Document {
         blocks.title.render(at.title),
         blocks.radar.render(at.radar),
         rule_node(at.rule),
-        blocks.key.render(at.key),
+        blocks.key.grid(at.key_columns).render(at.key),
         blocks.legend.render(at.legend),
     ];
     Document {
@@ -170,6 +176,7 @@ fn wide(blocks: &Blocks) -> Placements {
     let radar_right = RADAR_INSET + radar.width;
     let ink_right = radar_right - RADAR_LABEL_PAD;
     let key_y = top + radar.height;
+    let key_columns = blocks.key.columns_within(ink_right - MARGIN);
     let legend = blocks.legend.size(1.0);
     let (legend_at, width) = if legend.is_empty() {
         (
@@ -191,7 +198,9 @@ fn wide(blocks: &Blocks) -> Placements {
     };
     Placements {
         width,
-        height: (key_y + blocks.key.size(1.0).height).max(legend_at.y + legend.height) + MARGIN,
+        height: (key_y + blocks.key.grid(key_columns).size(1.0).height)
+            .max(legend_at.y + legend.height)
+            + MARGIN,
         title: Placement::at(Point {
             x: MARGIN,
             y: DOC_TOP,
@@ -214,6 +223,7 @@ fn wide(blocks: &Blocks) -> Placements {
             x: MARGIN,
             y: key_y,
         }),
+        key_columns,
         legend: Placement::at(legend_at),
     }
 }
@@ -226,7 +236,9 @@ fn narrow(blocks: &Blocks, scale: f64) -> Placements {
     let radar = blocks.radar.size(scale);
     let width = NARROW_WIDTH.max(radar.width + RADAR_INSETS);
     let key_y = top + radar.height;
-    let key_bottom = key_y + blocks.key.size(1.0).height;
+    let rule_end = width - MARGIN;
+    let key_columns = blocks.key.columns_within(rule_end - MARGIN);
+    let key_bottom = key_y + blocks.key.grid(key_columns).size(1.0).height;
     let legend = blocks.legend.size(1.0);
     let legend_y = if legend.is_empty() {
         key_bottom
@@ -253,7 +265,7 @@ fn narrow(blocks: &Blocks, scale: f64) -> Placements {
                 y: key_y,
             },
             to: Point {
-                x: width - MARGIN,
+                x: rule_end,
                 y: key_y,
             },
         },
@@ -261,6 +273,7 @@ fn narrow(blocks: &Blocks, scale: f64) -> Placements {
             x: MARGIN,
             y: key_y,
         }),
+        key_columns,
         legend: Placement::at(Point {
             x: MARGIN - LEGEND_PANEL_INSET_X,
             y: legend_y,
@@ -493,8 +506,9 @@ mod tests {
     fn wide_places_the_legend_beside_the_radar() {
         let b = blocks(PRD_EXAMPLE, TITLED);
         assert!(close(b.title.size(1.0).height, 53.0));
-        assert!(close(b.radar.size(1.0).width, 660.0) && close(b.key.size(1.0).height, 146.0));
         let p = placements(Arrangement::Wide, &b);
+        let key = b.key.grid(p.key_columns);
+        assert!(close(b.radar.size(1.0).width, 660.0) && close(key.size(1.0).height, 98.0));
         assert!(near(p.title.origin, Point { x: 20.0, y: 10.0 }), "{p:?}");
         assert!(near(p.radar.origin, Point { x: 10.0, y: 63.0 }), "{p:?}");
         assert!(near(p.key.origin, Point { x: 20.0, y: 723.0 }), "{p:?}");
@@ -511,9 +525,34 @@ mod tests {
             "{}",
             p.width
         );
-        // The key is the lower: 723 + 146 + 20.
-        assert!(close(p.height, 889.0), "{}", p.height);
-        assert!(69.0 + legend.height + 20.0 < 889.0, "{legend:?}");
+        // The key is the lower: 723 + 98 + 20, its five entries in two
+        // columns of three rows (rg-zb9).
+        assert!(close(p.height, 841.0), "{}", p.height);
+        assert!(69.0 + legend.height + 20.0 < 841.0, "{legend:?}");
+        assert_eq!(p.key_columns.get(), 2);
+    }
+
+    /// rg-zb9: the key takes as many columns as fit along its rule, so it
+    /// never reaches past the rule's end, in either arrangement.
+    #[test]
+    fn the_key_fits_along_its_rule() {
+        for (name, b) in fixtures() {
+            for arrangement in [Arrangement::Wide, Arrangement::Narrow] {
+                let p = placements(arrangement, &b);
+                let key = b.key.grid(p.key_columns).size(1.0);
+                assert!(
+                    p.key.origin.x + key.width <= p.rule.to.x,
+                    "{name} {arrangement:?}: {key:?} past {:?}",
+                    p.rule
+                );
+            }
+            // At the authored width, one column; a narrow document widened
+            // for its radar (D-71) may hold more.
+            let narrow = placements(Arrangement::Narrow, &b);
+            if close(narrow.width, 420.0) {
+                assert_eq!(narrow.key_columns.get(), 1, "{name}");
+            }
+        }
     }
 
     #[test]
@@ -677,13 +716,16 @@ mod tests {
         let b = blocks(&tall(), TITLED);
         let p = placements(Arrangement::Wide, &b);
         let legend = b.legend.size(1.0);
-        assert!(bottom(p.legend, &b.legend) > bottom(p.key, &b.key), "{p:?}");
+        assert!(
+            bottom(p.legend, &b.legend) > bottom(p.key, &b.key.grid(p.key_columns)),
+            "{p:?}"
+        );
         assert!(
             close(p.height, 10.0 + 53.0 + 6.0 + legend.height + 20.0),
             "{}",
             p.height
         );
-        let key_right = p.key.origin.x + b.key.size(1.0).width;
+        let key_right = p.key.origin.x + b.key.grid(p.key_columns).size(1.0).width;
         assert!(key_right < p.legend.origin.x, "{key_right} vs {p:?}");
         assert!(
             p.rule.to.x + KEY_RULE_STROKE / 2.0 < p.legend.origin.x,
@@ -720,7 +762,10 @@ mod tests {
         let wide = placements(Arrangement::Wide, &b);
         assert!(close(wide.width, 680.0), "{}", wide.width);
         for p in [wide, placements(Arrangement::Narrow, &b)] {
-            assert!(close(p.height, bottom(p.key, &b.key) + 20.0), "{p:?}");
+            assert!(
+                close(p.height, bottom(p.key, &b.key.grid(p.key_columns)) + 20.0),
+                "{p:?}"
+            );
         }
         let narrow = placements(Arrangement::Narrow, &b);
         assert!(close(narrow.radar.scale, 400.0 / 660.0), "{narrow:?}");
@@ -747,7 +792,8 @@ mod tests {
     fn columns_hold_their_blocks() {
         for (name, b) in fixtures() {
             let ink = b.radar.size(1.0).width - 20.0;
-            for width in [b.title.size(1.0).width, b.key.size(1.0).width] {
+            let one = NonZeroUsize::MIN;
+            for width in [b.title.size(1.0).width, b.key.grid(one).size(1.0).width] {
                 assert!(width <= 380.0 && width <= ink, "{name}: {width}");
             }
             let legend = b.legend.size(1.0).width;
@@ -780,7 +826,7 @@ mod tests {
             let [title, radar, rule, key, legend] = children(&doc);
             assert_eq!(*title, b.title.render(p.title));
             assert_eq!(*radar, b.radar.render(p.radar));
-            assert_eq!(*key, b.key.render(p.key));
+            assert_eq!(*key, b.key.grid(p.key_columns).render(p.key));
             assert_eq!(*legend, b.legend.render(p.legend));
             let want = Node::Group(
                 Group::new(

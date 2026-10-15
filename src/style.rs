@@ -141,6 +141,9 @@ pub const KEY_ROW: f64 = 24.0;
 pub const KEY_SAMPLE_X: f64 = 10.0;
 /// Where the key labels start.
 pub const KEY_LABEL_X: f64 = 28.0;
+/// Between one key column's widest label and the next column (rg-zb9).
+/// The labels' layout widths already leave D-78's room for spaced text.
+pub const KEY_COLUMN_GAP: f64 = 20.0;
 /// A label's baseline sits this far below its sample's centre.
 pub const KEY_LABEL_DROP: f64 = 4.0;
 /// The key's qualifier samples.

@@ -1,14 +1,15 @@
 ---
 id: rg-n54
 title: Keyboard-scroll the detail panel in Chrome, Firefox and Safari (15c manual)
-status: open
+status: closed
 type: task
 priority: 2
 tags:
 - a11y
 - html
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-15
+closed_reason: Absorbed by docs/a11y/manual-checks.md step 12
 phase: ''
 ---
 

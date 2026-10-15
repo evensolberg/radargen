@@ -234,6 +234,13 @@ pub struct Size { pub width: f64, pub height: f64 }
 pub struct Placement { pub origin: Point, pub scale: f64 }
 ```
 
+**A block may offer variants by width, from measurements taken once.** The key
+(FR-66) lays its entries in as many columns as its rule holds, and its rule is
+each arrangement's own, so `KeyBlock` measures its entries at construction and
+`KeyBlock::grid(columns)` is the `Block` an arrangement renders; `Placements`
+carries the count (rg-zb9). Choosing a variant re-measures nothing, so both
+arrangements still draw the same content.
+
 Scale is applied to coordinates, never as an SVG transform: a block draws at
 the scale it is asked for, so the radar can shrink positions while labels keep
 their size (FR-70); a `Group` only translates.
