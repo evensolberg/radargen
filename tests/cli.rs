@@ -28,6 +28,7 @@ fn a_csv_path_and_an_output_are_enough() {
         cli.output.as_deref().and_then(|p| p.to_str()),
         Some("edition.html")
     );
+    assert!(matches!(cli.task(), Ok(Task::Render { .. })));
 }
 
 #[test]
@@ -340,6 +341,7 @@ fn create_template_stands_alone() {
         Some("radar.csv")
     );
     assert!(cli.csv_path.is_none() && cli.output.is_none());
+    assert!(matches!(cli.task(), Ok(Task::Template(_))));
 }
 
 #[test]
@@ -383,14 +385,6 @@ fn usage_names_both_forms() {
     let help = Cli::command().render_help().to_string();
     assert!(help.contains("radargen <CSV_PATH> -o <OUTPUT>"), "{help}");
     assert!(help.contains("radargen --create-template <PATH>"), "{help}");
-}
-
-#[test]
-fn the_task_is_a_render_or_a_template() {
-    let cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
-    assert!(matches!(cli.task(), Ok(Task::Render { .. })));
-    let cli = parse(&["--create-template", "radar.csv"]).expect("parses");
-    assert!(matches!(cli.task(), Ok(Task::Template(_))));
 }
 
 /// A `Cli` built by hand, which clap would have refused, asking for

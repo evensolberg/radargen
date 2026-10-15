@@ -30,27 +30,26 @@ pub const TEMPLATE: &str = include_str!("template.csv");
 /// [`Fatal::TemplateExists`] when anything is at `path`, and
 /// [`Fatal::TemplateUnwritable`] when it cannot be written.
 pub fn create(path: &Path) -> Result<(), Fatal> {
-    let shown = || path.display().to_string();
+    let unwritable = |source| Fatal::TemplateUnwritable {
+        path: path.display().to_string(),
+        source,
+    };
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(path)
-        .map_err(|source| match source.kind() {
-            io::ErrorKind::AlreadyExists => Fatal::TemplateExists { path: shown() },
-            _ => Fatal::TemplateUnwritable {
-                path: shown(),
-                source,
+        .map_err(|source: io::Error| match source.kind() {
+            io::ErrorKind::AlreadyExists => Fatal::TemplateExists {
+                path: path.display().to_string(),
             },
+            _ => unwritable(source),
         })?;
     file.write_all(TEMPLATE.as_bytes())
         .and_then(|()| file.sync_all())
         .map_err(|source| {
             drop(file);
             let _ = fs::remove_file(path);
-            Fatal::TemplateUnwritable {
-                path: shown(),
-                source,
-            }
+            unwritable(source)
         })
 }
 
@@ -103,11 +102,7 @@ mod tests {
         for status in Status::ALL.map(Some).into_iter().chain([None]) {
             assert!(items.iter().any(|i| i.status == status), "{status:?}");
         }
-        assert!(items.iter().any(|i| i.link.is_some()), "a link");
-        let blank = |kind| {
-            let column = catalogue.column(kind).expect("a column");
-            items.iter().any(|i| i.cell(column).is_none())
-        };
+        // Each optional free-text and date column, both blank and filled.
         for kind in [
             ColumnKind::Domain,
             ColumnKind::Rationale,
@@ -115,13 +110,13 @@ mod tests {
             ColumnKind::ExitDate,
             ColumnKind::Link,
         ] {
-            assert!(blank(kind), "a blank {kind:?}");
-        }
-        let dated = |kind| {
             let column = catalogue.column(kind).expect("a column");
-            items.iter().any(|i| i.cell(column).is_some())
-        };
-        assert!(dated(ColumnKind::LastAffirmed) && dated(ColumnKind::ExitDate));
+            let filled: Vec<bool> = items.iter().map(|i| i.cell(column).is_some()).collect();
+            assert!(
+                filled.contains(&true) && filled.contains(&false),
+                "{kind:?}"
+            );
+        }
     }
 
     #[test]
