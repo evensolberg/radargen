@@ -9,7 +9,7 @@ tags:
 - palette
 - cli
 created: 2026-10-08
-updated: 2026-10-12
+updated: 2026-10-15
 blocked_by:
 - rg-42m
 phase: v1.1
@@ -32,3 +32,5 @@ FR-59 conflicts_with, FR-86/FR-87 file validation; tier-one failure while buildi
 [2026-10-12] From PR 13 (security): every Palette constructor validates FR-86 #RRGGBB before storing a value (consider a HexColour newtype), so a --palette value can never reach an SVG attribute unchecked; a url(...) in fill would be an external paint server. The serialiser's static_paint_is_a_hex_literal test pins the built-in case.
 
 [2026-10-12] From PR 14b: the HTML stylesheet (emit/html/css.rs palettes()) writes Palette values verbatim as custom-property declarations, relying on construction-time validation. A --palette constructor must check FR-86 #RRGGBB before storing, or a value with ; } < reaches the <style> block (NFR-6 context 5).
+
+[2026-10-15] From the rg-nuy review: script.js assumes the theme toggle exists. When --palette omits it, guard or skip the toggle block, or toggle.addEventListener throws before the D-66 loop, the js class and the skip link run, and the page loses its interactive layer.
