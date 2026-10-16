@@ -273,7 +273,7 @@ geometry scales by `s`, labels by `max(s, 1)`, and marks by `max(s, 7/9)`
 The block also carries D-86's growth factor `g`, which multiplies geometry alone
 (`s × g`): `Blocks::new` chooses it once, from the closest pair of markers and
 the wide document's breakpoint, and the narrow arrangement's least scale is
-`0.3 / g`, so a phone draws a grown radar as it would an ungrown one.
+`0.3 / g`, so a phone draws a grown radar at the size it would draw an ungrown one.
 
 **Units become pixels at the SVG's rendered width.** The narrow arrangement's
 px per unit is the rendered width of its SVG over its `viewBox` width, and

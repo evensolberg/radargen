@@ -460,6 +460,18 @@ mod tests {
             ("wide radar", blocks(&wide_radar(), TITLED)),
             ("tall", blocks(&tall(), TITLED)),
             ("empty legend", blocks(HEAD, UNTITLED)),
+            // D-86: grown to 1.25, to 2, held to 1.5 by the laptop bound,
+            // and grown with names that hold the narrow radar at its floor.
+            ("grown", blocks(&overfull(), TITLED)),
+            ("grown twice", blocks(&innermost("Q", 12), TITLED)),
+            (
+                "grown bound",
+                blocks(&innermost(&"W".repeat(30), 5), TITLED),
+            ),
+            (
+                "grown floor",
+                blocks(&innermost("Languages & Frameworks ", 5), TITLED),
+            ),
         ]
     }
 
@@ -576,24 +588,50 @@ mod tests {
             }
         }
         assert!(capped > 0, "some fixture is held by the laptop bound");
+        // D-86's figures: ordinary names reach 2×, 30 × "W" stop at 1.5.
+        assert!(close(
+            blocks(&innermost("Q", 12), UNTITLED).radar.growth(),
+            MAX_GROWTH
+        ));
+        assert!(close(
+            blocks(&innermost(&long, 12), UNTITLED).radar.growth(),
+            1.5
+        ));
     }
 
     /// D-86: the narrow arrangement draws a grown radar at the size it would
     /// draw an ungrown one, so phones see the same document.
     #[test]
     fn narrow_draws_a_grown_radar_as_an_ungrown_one() {
-        let grown = blocks(&overfull(), UNTITLED);
-        let g = grown.radar.growth();
-        assert!(g > 1.0);
-        let mut flat = grown.clone();
-        flat.radar.grow(1.0);
-        let (a, b) = (
-            placements(Arrangement::Narrow, &grown),
-            placements(Arrangement::Narrow, &flat),
+        // Short names fit the column above the floor; Thoughtworks-length
+        // ones hold an ungrown radar at it, so the floor's own growth is
+        // tested too.
+        for stem in ["Q", "Languages & Frameworks "] {
+            let grown = blocks(&innermost(stem, 5), UNTITLED);
+            let g = grown.radar.growth();
+            assert!(g > 1.0, "{stem}");
+            let mut flat = grown.clone();
+            flat.radar.grow(1.0);
+            let (a, b) = (
+                placements(Arrangement::Narrow, &grown),
+                placements(Arrangement::Narrow, &flat),
+            );
+            let drawn = a.radar.scale * g;
+            assert!(
+                (drawn - b.radar.scale).abs() < 1e-9,
+                "{stem}: {a:?} vs {b:?}"
+            );
+            assert!(
+                (a.width - b.width).abs() < 1e-6 && (a.height - b.height).abs() < 1e-6,
+                "{stem}: {a:?} vs {b:?}"
+            );
+        }
+        let floored = blocks(&innermost("Languages & Frameworks ", 5), UNTITLED);
+        let at = placements(Arrangement::Narrow, &floored);
+        assert!(
+            close(at.radar.scale, NARROW_MIN_SCALE / floored.radar.growth()),
+            "the long names reach the floor: {at:?}"
         );
-        let drawn = a.radar.scale * g;
-        assert!((drawn - b.radar.scale).abs() < 1e-9, "{a:?} vs {b:?}");
-        assert!((a.width - b.width).abs() < 1e-6 && (a.height - b.height).abs() < 1e-6);
     }
 
     #[test]
@@ -744,7 +782,15 @@ mod tests {
         for (name, b) in fixtures() {
             // The fixtures with long quadrant names widen; since D-78's
             // spacing allowance, so do Thoughtworks' four.
-            if matches!(name, "thoughtworks" | "widened" | "beyond" | "wide radar") {
+            if matches!(
+                name,
+                "thoughtworks"
+                    | "widened"
+                    | "beyond"
+                    | "wide radar"
+                    | "grown bound"
+                    | "grown floor"
+            ) {
                 continue;
             }
             let p = placements(Arrangement::Narrow, &b);

@@ -121,10 +121,11 @@ struct QuadrantLabel {
     /// half-width `h`. Nothing at 12 and 6 o'clock, half the width at 3 and 9.
     ///
     /// So the name's box, which reaches its ascent (11.625) above the
-    /// baseline, comes no closer to the centre than `300 s − 11.625` for
-    /// `s <= 1`, which clears the outer ring (`260 s` plus half a stroke)
-    /// from `s` of about 0.3 up (`NARROW_MIN_SCALE`, the least scale the
-    /// narrow arrangement draws). Below that a 6 o'clock name touches the
+    /// baseline, comes no closer to the centre than `300 k − 11.625` for a
+    /// drawn geometry `k <= 1`, which clears the outer ring (`260 k` plus
+    /// half a stroke) from `k` of about 0.3 up. The narrow arrangement
+    /// never draws below that: its least scale is `NARROW_MIN_SCALE` over
+    /// the radar's growth (D-86). Below it a 6 o'clock name touches the
     /// ring's stroke whatever its length, unpushed.
     push: Point,
 }
