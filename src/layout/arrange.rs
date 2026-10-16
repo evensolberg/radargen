@@ -123,8 +123,8 @@ pub struct Placements {
     /// The legend panel's width at scale 1: its own in wide, where it sets
     /// the document's width, and the column's in narrow (rg-zch).
     pub legend_width: f64,
-    /// Where the radar block ends on the right: where HTML cuts the wide
-    /// arrangement between radar and legend (D-85).
+    /// Where the radar block ends on the right, at its scale; in wide,
+    /// where HTML cuts the arrangement between radar and legend (D-85).
     pub radar_right: f64,
 }
 

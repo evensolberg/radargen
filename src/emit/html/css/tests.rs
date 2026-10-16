@@ -29,7 +29,7 @@ const LAYOUT: &str = concat!(
     ".wide-radar{grid-row:2;grid-column:1}\n",
     ".wide-key{grid-row:3;grid-column:1}\n",
     ".wide-key svg{width:670px;max-width:100%}\n",
-    ".wide-legend{grid-row:2;grid-column:2;height:0;min-height:100%;box-sizing:border-box;overflow-y:auto;scrollbar-gutter:stable}\n",
+    ".wide-legend{grid-row:2;grid-column:2;height:0;min-height:100%;box-sizing:border-box;overflow-x:hidden;overflow-y:auto;scrollbar-gutter:stable}\n",
     ".wide-legend svg{width:306.817px}\n",
     ".narrow{max-width:420px;margin:0 auto}\n",
     ".narrow{display:none}\n",

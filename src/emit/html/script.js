@@ -157,7 +157,11 @@
   const pad = () => {
     const top = panel.getBoundingClientRect().top;
     const height = panel.offsetHeight;
-    const unders = boxes.map((box) => (panel.hidden ? 0 : box.getBoundingClientRect().bottom - top));
+    // The overlap only: never more than the box, or padding would grow it.
+    const unders = boxes.map((box) => {
+      const r = box.getBoundingClientRect();
+      return panel.hidden ? 0 : r.bottom - Math.max(top, r.top);
+    });
     root.style.scrollPaddingBottom = panel.hidden ? '' : height + 'px';
     boxes.forEach((box, i) => {
       const by = unders[i] > 0 ? unders[i] + 'px' : '';

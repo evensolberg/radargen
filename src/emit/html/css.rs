@@ -168,8 +168,10 @@ const KEY_RULE: &str = "{grid-row:3;grid-column:1}\n";
 /// zero height takes it out of the row's sizing, so the radar alone sets
 /// the row, and the minimum stretches it to fill the row. Its column is
 /// as wide as the legend and a reserved scrollbar gutter, so a classic
-/// scrollbar never narrows the legend.
-const LEGEND_RULE: &str = "{grid-row:2;grid-column:2;height:0;min-height:100%;box-sizing:border-box;overflow-y:auto;scrollbar-gutter:stable}\n";
+/// scrollbar never narrows the legend; where `scrollbar-gutter` is not
+/// supported, the scrollbar clips the legend's right edge rather than
+/// adding a horizontal scrollbar.
+const LEGEND_RULE: &str = "{grid-row:2;grid-column:2;height:0;min-height:100%;box-sizing:border-box;overflow-x:hidden;overflow-y:auto;scrollbar-gutter:stable}\n";
 const SVG_WIDTH_OPEN: &str = " svg{width:";
 /// The legend's width is fixed: its column is sized to it.
 const FIXED_CLOSE: &str = "px}\n";

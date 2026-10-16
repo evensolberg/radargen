@@ -20,7 +20,7 @@ svg{display:block;width:100%;height:auto}
 .wide-radar{grid-row:2;grid-column:1}
 .wide-key{grid-row:3;grid-column:1}
 .wide-key svg{width:670px;max-width:100%}
-.wide-legend{grid-row:2;grid-column:2;height:0;min-height:100%;box-sizing:border-box;overflow-y:auto;scrollbar-gutter:stable}
+.wide-legend{grid-row:2;grid-column:2;height:0;min-height:100%;box-sizing:border-box;overflow-x:hidden;overflow-y:auto;scrollbar-gutter:stable}
 .wide-legend svg{width:355.077px}
 .narrow{max-width:420px;margin:0 auto}
 .narrow{display:none}
@@ -856,7 +856,11 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
   const pad = () => {
     const top = panel.getBoundingClientRect().top;
     const height = panel.offsetHeight;
-    const unders = boxes.map((box) => (panel.hidden ? 0 : box.getBoundingClientRect().bottom - top));
+    // The overlap only: never more than the box, or padding would grow it.
+    const unders = boxes.map((box) => {
+      const r = box.getBoundingClientRect();
+      return panel.hidden ? 0 : r.bottom - Math.max(top, r.top);
+    });
     root.style.scrollPaddingBottom = panel.hidden ? '' : height + 'px';
     boxes.forEach((box, i) => {
       const by = unders[i] > 0 ? unders[i] + 'px' : '';
