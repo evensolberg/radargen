@@ -1,0 +1,186 @@
+## [1.0.0] - 2026-10-16
+
+### 🚀 Features
+
+- *(font)* Swap the stand-in font for Inter Regular and SemiBold (PR 01) (#10)
+- *(diagnostics)* One Fatal/Warning taxonomy with NFR-20 grouping (PR 02) (#11)
+- *(escape, num)* NFR-6 escaping contexts and fmt_coord (PR 03) (#12)
+- *(style, palette)* Layout constants and built-in palettes (PR 04) (#13)
+- *(csv)* PR 05 — csv/decode and csv/parse (#19)
+- *(model)* Model.rs — Item, Catalogue, column validation (PR 06) (#25)
+- *(order)* Order.rs — quadrant and item comparators (PR 07) (#31)
+- *(layout)* Geometry.rs — sectors, bands, placement, capacity (PR 08) (#32)
+- *(text)* Harfrust measurement, a wider Inter subset, a reproducible script (PR 08a) (#34)
+- *(diagnostics)* D-64 wording and a typed Fatal column (PR B) (#37)
+- *(errors)* Group repeated row-level errors, with the padding hint (PR C) (#38)
+- *(csv)* Refuse NULs, skip BOM-only lines, name a quoted separator (PR D) (#39)
+- FR-90 on flag values; json() refuses every float (PR E) (#40)
+- *(diagnostics)* Say that --rings replaces the default set (#41)
+- *(layout)* Block, a first svg::Node, the title block and the key (PR 09) (#43)
+- *(layout)* The radar block's frame (PR 10a) (#44)
+- *(layout)* The radar block's markers (PR 10b) (#45)
+- *(layout)* Long quadrant names clear the outer ring (rg-kic) (#48)
+- *(layout)* The legend block (PR 11) (#49)
+- *(layout)* FR-94 headroom for a narrow document up to 480 (PR 12a, D-71) (#51)
+- *(layout)* The wide and narrow arrangements (PR 12b, FR-68, FR-70, D-71) (#52)
+- *(svg)* The SVG serialiser and the atomic write (PR 13) (#57)
+- The pipeline, end to end (PR 14a) (#59)
+- The full page, both arrangements, themes, inlined font (PR 14b) (#60)
+- The link column and the table view (PR 15a) (#70)
+- *(html)* The script's skeleton, focus by attribute (rg-jri), toggle and skip link (PR 15b-1) (#71)
+- *(html)* The detail panel, selection, hover and keyboard (PR 15b-2) (#73)
+- *(layout)* The key runs in as many columns as fit (#78)
+- *(cli)* --create-template writes a starter CSV to fill in (#80)
+- *(html)* The wide arrangement fills the window (D-85) (#84)
+- *(layout)* The radar grows to fit its markers (D-86) (#85)
+- *(html)* Only the wide radar fills the window; the legend scrolls (#86)
+
+### 🐛 Bug Fixes
+
+- *(crumbs)* Rg-m59 status in-progress → in_progress
+- *(rings)* Report every FR-63 --rings violation, not only the first (#15)
+- *(layout)* Plain arithmetic for the title and key baselines (NFR-4) (#46)
+- *(tooling)* Quality-baseline survives rustqual's float read-back (rg-ksg) (#54)
+- *(csv)* Remove bidi formatting characters with FR-90's set (D-72) (#58)
+- Legend text spacing, with headroom for WCAG 1.4.12 (PR 14c) (#63)
+- *(diagnostics)* I/O reasons read one way; FR-95 names its sources (#64)
+- *(csv)* Line breaks in cells are spaces in labels, newlines in prose (#65)
+- *(emit)* Focus rings and palette in forced colours (#66)
+- *(cli)* Help for the person running the tool (#76)
+- *(html)* The theme button says what a press does (#77)
+- *(layout)* The narrow legend's panel spans the column (#83)
+
+### 📚 Documentation
+
+- *(prd)* V0.36 — a blank qualifier no longer warns
+- *(prd)* V0.37 — output version, quadrant order, non-ASCII ordering
+- *(plans)* Implementation plans for PRs 01–04
+- *(plans)* Fold in five-agent review of PRs 01–04
+- Settle the PR 01–04 review crumbs; adopt shared frontmatter
+- Address review of the PR 01–04 branch
+- Say 'the output cannot display' for FR-90
+- Fold in the local multi-agent review of PR 6
+- Final review fixes on the PR 01–04 branch
+- *(plans)* PR 01–04 plans, review, and PRD v0.38 decisions (#6)
+- Record the pinned toolchain; close rg-q3w
+- *(prd)* V0.39 — a config file and an edition date
+- *(prd)* V0.39 review clarifications for --config and --edition
+- *(prd)* V0.39 second-review wording fixes
+- *(prd)* V0.39 — a config file and an edition date (#9)
+- *(mockup)* Bring the mockup in line with PRs 01–04
+- *(plans)* PR 05 plan — csv/decode and csv/parse (#17)
+- *(prd)* V0.41 — CSV input as Excel writes it (D-59) (#18)
+- *(prd)* V0.42 — declare --rings edge-to-centre (D-60) (#21)
+- *(prd)* V0.43 — unnamed columns, format chars, ring source (D-61) (#22)
+- *(prd)* V0.44 — group repeated row-level hard errors (D-62) (#24)
+- *(plans)* PR 06 plan — model.rs, Item, Catalogue (RG-006) (#23)
+- *(prd)* V0.45 — ordinal tiebreaks compare trimmed values (D-63) (#26)
+- *(prd)* V0.46 — settle sixteen open crumbs (D-64–D-68) (#27)
+- The radar CSV, a guide for authors (#61)
+- *(prd)* Names shown trimmed (D-76); a link column (FR-96, D-77) (#62)
+- *(plans)* RG-015B 1.2 renumbers Part 2's scenarios (#72)
+- *(prd)* Record the rg-frk and rg-isw release decisions (#79)
+- *(prd)* SC-16 is met from 1.0.x (D-84) (#81)
+
+### 🚜 Refactor
+
+- *(plans)* Simplify the PR 02–04 code blocks
+- *(text)* Split text::wrap into small helpers (rg-7mw) (#33)
+- *(layout)* The radar's markers in their own module (#47)
+- *(layout)* A legend row's composition in legend/row.rs (rg-rvh) (#50)
+- *(layout)* One text measure, on TextStyle (rg-5r8) (#55)
+- *(layout)* Split test_support; share the test helpers (rg-aea, rg-4d0) (#56)
+- *(diagnostics)* Row errors apart from Fatal; render once (#67)
+
+### 🎨 Styling
+
+- Apply cargo fmt
+
+### 🧪 Testing
+
+- *(html)* Harden the page tests; focus rules from both trees (#68)
+- *(a11y)* Harden the text-spacing check; a wrapped tail row (#69)
+- *(a11y)* WCAG 2.1 AA audit, scroll cue and 1.0.0 checklists (PR 15c) (#74)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Plan v1.0 and v1.1 as 18 PR-sized crumbs
+- *(crumbs)* Zero-pad single-digit PR numbers
+- Ignore .obsidian/ and add the PDF output crumb
+- Ignore .obsidian/ and add the PDF output crumb (#7)
+- *(lint)* Turn on the pedantic and unsafe-code gate, and add CI
+- Check dependency licences with cargo-deny; review fixes
+- Pin the toolchain, build --locked, drop checkout credentials
+- *(lint)* Pedantic + unsafe-code gate, cargo fmt, and CI (#8)
+- *(lint)* Clear just lint warnings; add the justfile (#14)
+- *(just)* Add `just ci`, with a rustqual regression gate (#20)
+- Pin actions to commit SHAs and add Dependabot (rg-m33) (#28)
+- *(ci)* Bump actions/checkout from 4.4.0 to 7.0.1 (#29)
+- *(lint)* Strict clippy in Cargo.toml, trim ban, SDP markers, shared test helpers (#35)
+- *(lint)* Deny missing_docs, indexing_slicing and as_conversions (rg-hz0) (#36)
+- Add the GPL-3.0 licence text (#42)
+- *(crumbs)* Reopen rg-6ku now its blockers are closed (#53)
+## [0.1.0] - 2026-10-09
+
+### 🚀 Features
+
+- *(spike)* Retire R-1 — text measurement must shape, not sum (v0.19)
+- *(spike)* Retire R-1 — text measurement must shape, not sum advances (v0.19) (#4)
+- *(scaffold)* Cargo crate, CLI surface, --rings validation
+
+### 🐛 Bug Fixes
+
+- *(mockup)* Indicate selection on the marker, not only the legend
+- *(mockup)* Inline legend meta, drop repeated ring, tighten spacing
+
+### 📚 Documentation
+
+- *(prd)* Add Tech Radar Renderer PRD v0.3 and layout mockup
+- *(prd)* Product review of Tech Radar Renderer PRD (v0.3 -> v0.4)
+- *(mockup)* Dual-arrangement layout, in-SVG title and key, N rings
+- *(prd)* Correct the legend-layout decision (v0.4 -> v0.5)
+- *(prd)* Name the tool radargen, closing OQ-1
+- *(prd)* Record the repo rename to radargen
+- *(prd)* Product review — fix numbering/legend contradiction, close coverage gaps (v0.11) (#1)
+- *(prd)* Fix defects the v0.11 pass introduced or left behind (v0.12)
+- *(prd)* Fix v0.12's defects, record the specification gaps (v0.13)
+- *(prd)* Make the spec actionable — gate work on the debt it rests on (v0.14)
+- *(prd)* Audit fixes, recorded specification gaps, and a readiness gate (v0.12–v0.14) (#2)
+- *(prd)* Close six of eight specification-debt items (v0.15)
+- *(prd)* Split NFR-4 by format, pin determinism mechanics (v0.16)
+- *(prd)* Define the built-in palette, closing OQ-12 (v0.17)
+- *(prd)* Keep the palette proof sheet beside the mockup (v0.18)
+- *(prd)* Close the specification debt and define the palette (v0.15–v0.18) (#3)
+- *(prd)* Name the font, ship --palette (v0.20)
+- *(prd)* Publish under GPL-3.0-or-later, closing OQ-7 (v0.21)
+- *(prd)* Fix FR-83's adjacent-repeat overclaim (v0.22)
+- *(prd)* Withdraw the ">8 quadrants" case for --palette (v0.23)
+- *(prd)* Warn above six quadrants, document the range (v0.24)
+- *(prd)* Record why ring bands are never content-sized (v0.25)
+- *(prd)* Specify what an overfull band does (v0.26)
+- *(prd)* Open OQ-16 — marker sized in output pixels (v0.27)
+- *(prd)* Qualify OQ-16's capacity numbers (v0.28)
+- *(prd)* The innermost band interacts with --rings (v0.29)
+- *(prd)* Narrow the ring-set claim to estate radars (v0.30)
+- *(prd)* Recommend curated Adopt, add the In Use ring (v0.31–0.32)
+- *(prd)* The undeclared In Use ring, and its warning cost (v0.33)
+- *(prd)* Summarise repeated warnings instead of a flag (v0.34)
+- *(prd)* Group warnings by class, not by value (v0.35)
+- *(prd)* Close specification debt, define palette, settle geometry and diagnostics (v0.15–v0.35) (#5)
+- *(design)* Architecture, and close OQ-2 and the edition question
+- *(design)* Six-persona review of the architecture
+- *(design)* Second six-persona pass — nine findings applied
+- *(design)* Close the exported-SVG font question
+- Rename PRD.md to radargen-prd.md
+
+### 🎨 Styling
+
+- *(mockup)* Indent legend levels so the grouping reads as structure
+- *(mockup)* Deepen the legend item indent
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Change ID prefix tr -> rg to match the radargen rename
+- *(crumbs)* Record the FR-33 radial-spacing finding (rg-cbx)
+- *(crumbs)* Correct rg-cbx — the FR-33 capacity finding was wrong
+- Drop rust-version, let the edition floor the toolchain
