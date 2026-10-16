@@ -138,14 +138,16 @@ impl OutlinePen for PathSink {
 
 /// Glyph `gid`'s outline in font units, drawn into `pen`.
 fn outline(glyph_outlines: &OutlineGlyphCollection<'_>, gid: u16, pen: &mut impl OutlinePen) {
-    if let Some(glyph) = glyph_outlines.get(GlyphId::from(gid)) {
-        glyph
-            .draw(
-                DrawSettings::unhinted(Size::unscaled(), LocationRef::default()),
-                pen,
-            )
-            .expect("draws");
-    }
+    // skrifa gives an empty glyph an empty outline; None is only an id
+    // the face does not have, which would mean shaper and reader disagree.
+    glyph_outlines
+        .get(GlyphId::from(gid))
+        .expect("the shaped glyph is in the face")
+        .draw(
+            DrawSettings::unhinted(Size::unscaled(), LocationRef::default()),
+            pen,
+        )
+        .expect("draws");
 }
 
 struct Built {

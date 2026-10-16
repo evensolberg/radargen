@@ -135,6 +135,8 @@ does not bite on vendoring a subset inside a tool.
   glyph outlines from `ttf-parser`, a shaping pass it can share with `text.rs`,
   and a distinct-glyph `<defs>` table. The PNG emitter is unaffected — it
   rasterises the `<text>` document through our own `fontdb`.
+- *2026-10-15: `ttf-parser` is unmaintained (RUSTSEC-2026-0192); the tests
+  now read outlines with `skrifa`, and `emit/svg.rs` will too (rg-8im).*
 - **No new dependency.** `ttf-parser` and `rustybuzz` are already direct
   dependencies; `base64` is a new dev-dependency for the `@font-face` test only
   (MIT OR Apache-2.0, so §1's permissive-tree claim holds).

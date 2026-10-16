@@ -29,7 +29,7 @@ sha2 = "0.11.1"
 roxmltree = "0.21"
 # The version usvg reads fonts with, so the tests read them the same way and
 # no second copy builds; it moves with usvg (rg-v3a).
-skrifa = "0.44"
+skrifa = { version = "0.44", default-features = false, features = ["std"] }
 html5ever = "0.39"
 markup5ever_rcdom = "0.39"
 
