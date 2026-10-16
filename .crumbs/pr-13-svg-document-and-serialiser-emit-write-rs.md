@@ -9,11 +9,10 @@ tags:
 - svg
 - output
 created: 2026-10-08
-updated: 2026-10-12
+updated: 2026-10-15
 closed_reason: 'PR 13 (#57): svg::serialise and emit::write_atomic.'
 blocks:
 - rg-f27
-- rg-42m
 - rg-m2l
 blocked_by:
 - rg-ozb

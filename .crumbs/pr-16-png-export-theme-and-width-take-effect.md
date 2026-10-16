@@ -1,7 +1,7 @@
 ---
 id: rg-42m
 title: 'PR 16: PNG export; --theme and --width take effect'
-status: blocked
+status: open
 type: feature
 priority: 2
 tags:
@@ -12,8 +12,6 @@ created: 2026-10-08
 updated: 2026-10-15
 blocks:
 - rg-cdo
-blocked_by:
-- rg-6ku
 phase: v1.1
 ---
 
