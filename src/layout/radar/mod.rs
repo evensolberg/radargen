@@ -170,6 +170,13 @@ pub struct RadarBlock {
 }
 
 impl RadarBlock {
+    /// The radar's accessible name, counting declared rings and plotted
+    /// items (D-75): the group's label, and the exported SVG's `<desc>`.
+    #[must_use]
+    pub fn name(&self) -> String {
+        label(self.quadrants.len(), self.rings.len(), self.markers.len())
+    }
+
     /// The radar for `catalogue`, its quadrants in `plotted`'s FR-10 order,
     /// every declared ring drawn, empty or not (FR-19), and a marker for
     /// every plotted item. Labels are measured once here, at natural size.
@@ -431,9 +438,8 @@ impl Block for RadarBlock {
             .chain(controls)
             .chain(indicators)
             .collect();
-        let name = label(self.quadrants.len(), self.rings.len(), self.markers.len());
         let centred =
-            Node::Group(Group::new(self.centre(r), children).with(Semantics::Group(name)));
+            Node::Group(Group::new(self.centre(r), children).with(Semantics::Group(self.name())));
         Node::Group(Group::new(at.origin, vec![centred]))
     }
 }

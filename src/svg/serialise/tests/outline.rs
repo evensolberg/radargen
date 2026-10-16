@@ -62,7 +62,7 @@ fn file(document: &Document) -> String {
             width: 400.0,
             height: 200.0,
             title: "Radar <&>",
-            desc: Some("Technology radar: 1 quadrant"),
+            desc: "Technology radar: 1 quadrant",
         },
     )
     .expect("outlines")

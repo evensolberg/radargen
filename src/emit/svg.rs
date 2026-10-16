@@ -5,7 +5,7 @@
 use crate::diagnostics::Fatal;
 use crate::emit::{OUTPUT_VERSION, UNTITLED};
 use crate::palette::Palette;
-use crate::svg::{Document, Node, Semantics, Standalone, standalone};
+use crate::svg::{Document, Standalone, standalone};
 use crate::text::Fonts;
 
 /// What one export needs besides the document.
@@ -18,15 +18,18 @@ pub struct Export<'a> {
     pub width: Option<u32>,
     /// FR-65's title, resolved.
     pub title: Option<&'a str>,
+    /// The radar's name (D-75), the root's `<desc>`: `RadarBlock::name`.
+    pub desc: &'a str,
 }
 
 /// FR-57: `requested` wide and the height in proportion, or the
-/// document's own size. Unrounded and unclamped (D-88).
+/// document's own size. Unrounded and unclamped: no pixmap is allocated
+/// (D-88).
 #[must_use]
 pub fn intrinsic_size(document: &Document, requested: Option<u32>) -> (f64, f64) {
     requested.map_or((document.width, document.height), |width| {
         let width = f64::from(width);
-        (width, width * document.height / document.width)
+        (width, document.height_at(width))
     })
 }
 
@@ -34,7 +37,7 @@ pub fn intrinsic_size(document: &Document, requested: Option<u32>) -> (f64, f64)
 ///
 /// # Errors
 ///
-/// [`Fatal::Font`] when a glyph cannot be outlined (Ruling 6).
+/// [`Fatal::Font`] when a glyph cannot be outlined (NFR-15).
 pub fn export(document: &Document, export: &Export<'_>) -> Result<String, Fatal> {
     let (width, height) = intrinsic_size(document, export.width);
     let root = standalone(
@@ -45,24 +48,11 @@ pub fn export(document: &Document, export: &Export<'_>) -> Result<String, Fatal>
             width,
             height,
             title: export.title.unwrap_or(UNTITLED),
-            desc: radar_name(&document.root),
+            desc: export.desc,
         },
     )?;
     // SC-25: the emitter's line, before the root (§6).
     Ok(["<!-- ", OUTPUT_VERSION, " -->\n", &root].concat())
-}
-
-/// The radar's group name (D-75): the first named group, depth first.
-/// The wide arrangement has exactly one, the radar's; an arrangement
-/// with a second would need this to say which.
-fn radar_name(node: &Node) -> Option<&str> {
-    match node {
-        Node::Group(group) => match &group.semantics {
-            Semantics::Group(name) => Some(name),
-            _ => group.children.iter().find_map(radar_name),
-        },
-        _ => None,
-    }
 }
 
 #[cfg(test)]
@@ -73,30 +63,21 @@ mod tests {
     use crate::layout::test_support::{PRD_EXAMPLE, plotted};
     use crate::palette::Theme;
 
-    fn prd(title: Option<&str>) -> Document {
+    fn prd(title: Option<&str>) -> (Document, String) {
         let (catalogue, order) = plotted(PRD_EXAMPLE, None);
         let blocks = Blocks::new(&catalogue, &order, title, None, fonts());
-        arrange(Arrangement::Wide, &blocks)
+        (arrange(Arrangement::Wide, &blocks), blocks.radar.name())
     }
 
-    /// FR-57, D-88: the height follows the width, unrounded.
+    /// FR-57, D-88: the height follows the width, unrounded; by default
+    /// the document's own size, however wide, since nothing is clamped.
     #[test]
     fn the_intrinsic_size_follows_the_width() {
-        let doc = prd(None);
+        let (doc, _) = prd(None);
         assert_eq!(intrinsic_size(&doc, None), (doc.width, doc.height));
         let (w, h) = intrinsic_size(&doc, Some(320));
         assert_eq!(w, 320.0);
         assert_eq!(h, 320.0 * doc.height / doc.width);
-    }
-
-    /// D-88: no clamp; no pixmap is allocated.
-    #[test]
-    fn a_wide_default_is_not_clamped() {
-        let doc = Document {
-            width: 12_500.0,
-            ..prd(None)
-        };
-        assert_eq!(intrinsic_size(&doc, None).0, 12_500.0);
     }
 
     /// SC-25, D-75, D-88: the comment, then the title or Technology Radar,
@@ -104,21 +85,25 @@ mod tests {
     #[test]
     fn the_file_is_named() {
         let palette = Palette::built_in(Theme::Light);
-        let export = |title| Export {
-            palette: &palette,
-            fonts: fonts(),
-            width: None,
-            title,
-        };
-        let titled =
-            super::export(&prd(Some("Q3 & co")), &export(Some("Q3 & co"))).expect("exports");
-        assert!(titled.starts_with(&format!("<!-- {} -->\n<svg ", crate::emit::OUTPUT_VERSION)));
-        assert!(titled.contains("<title>Q3 &amp; co</title>"), "{titled}");
-        let untitled = super::export(&prd(None), &export(None)).expect("exports");
-        assert!(untitled.contains("<title>Technology Radar</title>"));
-        assert!(
-            untitled.contains("<desc>Technology radar: 3 quadrants, "),
-            "{untitled}"
-        );
+        for (title, want) in [
+            (Some("Q3 & co"), "<title>Q3 &amp; co</title>"),
+            (None, "<title>Technology Radar</title>"),
+        ] {
+            let (doc, desc) = prd(title);
+            let export = Export {
+                palette: &palette,
+                fonts: fonts(),
+                width: None,
+                title,
+                desc: &desc,
+            };
+            let svg = super::export(&doc, &export).expect("exports");
+            assert!(svg.starts_with(&format!("<!-- {OUTPUT_VERSION} -->\n<svg ")));
+            assert!(svg.contains(want), "{svg}");
+            assert!(
+                svg.contains("<desc>Technology radar: 3 quadrants, "),
+                "{svg}"
+            );
+        }
     }
 }

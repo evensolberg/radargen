@@ -848,10 +848,9 @@ Three consequences the design carries:
   measures with. No new
   crate — `harfrust` is direct, and `skrifa` (which usvg already builds, and
   the tests read outlines with since rg-8im replaced the unmaintained
-  `ttf-parser`) moves from dev-dependency to direct when `emit/svg.rs`
-  lands — but §14.2's "SVG export … effectively
-  free once rasterisation works" no longer holds, and the file is worth half a
-  day to a day of its own.
+  `ttf-parser`) is now a direct dependency, read only by `text.rs` (D-88) —
+  but §14.2's "SVG export … effectively free once rasterisation works" no
+  longer held: the conversion was worth half a day to a day of its own.
 - **Outlines are deduplicated through `<use>`.** One `<path>` per distinct glyph
   in each face and size in `<defs>`, already at its size, placed by
   `<use xlink:href x= y=>`. The spike's edition is 749 glyph instances over 56

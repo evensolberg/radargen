@@ -9,8 +9,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::text::{Run, ink};
-use super::{Context, attr, coord, paint};
-use crate::num::fmt_coord;
+use super::{Context, attr, coord, paint, point};
 use crate::style::TextStyle;
 use crate::svg::{Anchor, Document, Node, Point, Tail, TextPaint};
 use crate::text::{FontError, Fonts, Segment, Weight};
@@ -164,17 +163,16 @@ fn outlined(key: Key, fonts: &Fonts) -> Result<(Key, String), FontError> {
 /// A glyph's contours as a path's `d`: font units scaled to the size and
 /// flipped into SVG's y-down space, every number through `fmt_coord`.
 fn path(segments: &[Segment], scale: f64) -> String {
-    let point = |&(x, y): &(f32, f32)| {
-        [
-            fmt_coord(f64::from(x) * scale),
-            fmt_coord(-f64::from(y) * scale),
-        ]
-        .join(" ")
+    let at = |&(x, y): &(f32, f32)| {
+        point(Point {
+            x: f64::from(x) * scale,
+            y: -f64::from(y) * scale,
+        })
     };
     let step = |command: &str, points: &[(f32, f32)]| {
         [
             command,
-            &points.iter().map(point).collect::<Vec<_>>().join(" "),
+            &points.iter().map(at).collect::<Vec<_>>().join(" "),
         ]
         .concat()
     };
@@ -245,7 +243,7 @@ pub(super) fn text(
 }
 
 /// The text's name: its lines as one, then its tail. A line broken
-/// mid-token reads with a space there (crumbed).
+/// mid-token reads with a space there (crumb rg-t3p).
 fn words(run: &Run<'_>) -> String {
     let mut name = run.lines.join(" ");
     if let Some(tail) = run.tail {

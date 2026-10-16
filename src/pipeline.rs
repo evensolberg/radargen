@@ -271,6 +271,7 @@ fn render(
                 fonts,
                 width: config.width,
                 title: config.title.as_deref(),
+                desc: &blocks.radar.name(),
             },
         )?
         .into_bytes()),

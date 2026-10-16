@@ -142,8 +142,8 @@ pub struct Standalone<'a> {
     pub height: f64,
     /// The root's `<title>`.
     pub title: &'a str,
-    /// The root's `<desc>`, when there is one.
-    pub desc: Option<&'a str>,
+    /// The root's `<desc>`.
+    pub desc: &'a str,
 }
 
 /// `document` as the exported file's root element, its text outlined and
@@ -175,11 +175,9 @@ pub fn standalone(document: &Document, file: &Standalone<'_>) -> Result<String, 
     out.push_str(">\n<title>");
     out.push_str(&xml_text(file.title));
     out.push_str("</title>\n");
-    if let Some(desc) = file.desc {
-        out.push_str("<desc>");
-        out.push_str(&xml_text(desc));
-        out.push_str("</desc>\n");
-    }
+    out.push_str("<desc>");
+    out.push_str(&xml_text(file.desc));
+    out.push_str("</desc>\n");
     out.push_str(&glyphs.defs());
     out.push_str(&body(document, context));
     out.push_str("</svg>\n");

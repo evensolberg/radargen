@@ -193,8 +193,9 @@ fn prd_example_matches_its_dark_png_golden() {
 
 /// The PRD example, wide, exported in `theme` at its own width, titled
 /// as `prd()` titles it.
-fn prd_svg(theme: Theme) -> String {
-    let doc = arrange(Arrangement::Wide, &prd().blocks);
+pub fn prd_svg(theme: Theme) -> String {
+    let built = prd();
+    let doc = arrange(Arrangement::Wide, &built.blocks);
     let palette = Palette::built_in(theme);
     let fonts = radargen::text::Fonts::embedded().expect("loads");
     radargen::emit::svg::export(
@@ -204,6 +205,7 @@ fn prd_svg(theme: Theme) -> String {
             fonts: &fonts,
             width: None,
             title: Some("Technology Radar"),
+            desc: &built.blocks.radar.name(),
         },
     )
     .expect("exports")

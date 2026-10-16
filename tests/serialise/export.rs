@@ -19,7 +19,7 @@ const ELEMENTS: [&str; 10] = [
 /// The attributes it writes, by local name: the static serialiser's
 /// shapes, groups and controls, and the export's own. No `font-*`, no
 /// `text-anchor`, `letter-spacing` or `style`.
-const ATTRIBUTES: [&str; 28] = [
+const ATTRIBUTES: [&str; 26] = [
     "viewBox",
     "width",
     "height",
@@ -46,8 +46,6 @@ const ATTRIBUTES: [&str; 28] = [
     "aria-label",
     "aria-level",
     "aria-hidden",
-    "visibility",
-    "pointer-events",
 ];
 
 /// The hostile CSV, wide, exported dark at 800.
@@ -63,6 +61,7 @@ fn hostile() -> (Document, String) {
             fonts: &fonts,
             width: Some(800),
             title: Some(TITLE),
+            desc: &built.blocks.radar.name(),
         },
     )
     .expect("exports");
@@ -113,7 +112,7 @@ fn names(node: &Node, in_control: bool, out: &mut Vec<String>) {
 #[test]
 fn the_export_names_every_text_exactly() {
     let (doc, svg) = hostile();
-    let parsed = roxmltree::Document::parse(&svg).expect("well-formed XML");
+    let parsed = super::parse(&svg);
     let mut want = Vec::new();
     names(&doc.root, false, &mut want);
     let got: Vec<&str> = parsed
@@ -166,8 +165,8 @@ fn the_export_names_every_text_exactly() {
 #[test]
 fn the_export_uses_only_its_vocabulary() {
     const XLINK: &str = "http://www.w3.org/1999/xlink";
-    for (_, svg) in [hostile(), prd_export()] {
-        let parsed = roxmltree::Document::parse(&svg).expect("well-formed XML");
+    for svg in [hostile().1, super::golden::prd_svg(Theme::Light)] {
+        let parsed = super::parse(&svg);
         let ids: Vec<&str> = parsed
             .descendants()
             .filter_map(|n| n.attribute("id"))
@@ -178,7 +177,7 @@ fn the_export_uses_only_its_vocabulary() {
             for a in node.attributes() {
                 assert!(ATTRIBUTES.contains(&a.name()), "<{name} {}>", a.name());
                 assert!(
-                    !a.value().contains("url("),
+                    !a.value().contains("url(") && !a.value().contains("var("),
                     "<{name} {}={}>",
                     a.name(),
                     a.value()
@@ -214,23 +213,6 @@ fn the_export_uses_only_its_vocabulary() {
         }
         numbers_are_fmt_coord(&parsed);
     }
-}
-
-fn prd_export() -> (Document, String) {
-    let doc = arrange(Arrangement::Wide, &super::prd().blocks);
-    let palette = Palette::built_in(Theme::Light);
-    let fonts = Fonts::embedded().expect("loads");
-    let svg = export(
-        &doc,
-        &Export {
-            palette: &palette,
-            fonts: &fonts,
-            width: None,
-            title: Some("Technology Radar"),
-        },
-    )
-    .expect("exports");
-    (doc, svg)
 }
 
 /// The attributes that hold numbers, written by `fmt_coord` alone.

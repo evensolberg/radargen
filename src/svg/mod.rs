@@ -186,6 +186,14 @@ pub struct Document {
     pub root: Node,
 }
 
+impl Document {
+    /// FR-57: the height at `width`, following the document's own aspect.
+    #[must_use]
+    pub fn height_at(&self, width: f64) -> f64 {
+        width * self.height / self.width
+    }
+}
+
 /// Children translated together; a group never scales (FR-70).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Group {
