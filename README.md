@@ -55,7 +55,7 @@ radargen radar.csv -o slide.png --theme dark --width 1920
 
 A `.png` output (in any case) draws the wide arrangement: the title, the radar, the key and the full legend, on the theme's background. `--theme light` (the default) or `--theme dark` picks the colours, and `--width` picks the width in pixels, from 320 to 10000, with the height following. Without `--width` the image is the radar's own width. An HTML page ignores both flags: it carries both themes and fits the reader's window.
 
-- **Limits.** A radar wider than 10,000 pixels is drawn 10,000 wide, with a warning. A `--width` small enough that the text can't be read gets a warning naming a width that fixes it. An image past 100 megapixels is refused before any memory is taken; a smaller `--width` fixes it.
+- **Limits.** A radar wider than 10,000 pixels is drawn 10,000 wide, with a warning. A `--width` small enough that the text can't be read gets a warning naming a width that fixes it. An image past 100 megapixels is refused before the image is drawn; a smaller `--width` fixes it.
 - **Long legends.** The legend is drawn in full, so a long one makes a tall image, which a slide then shrinks. A larger `--width`, or splitting the CSV, helps.
 - **Scripts.** The bundled font covers Latin, Greek, Cyrillic and Vietnamese. Names in other scripts, and emoji, draw as boxes in the PNG; the HTML page falls back to the reader's fonts.
 - **Accessibility.** An image has no text alternative. Write alt text where you place the PNG, and link the HTML page or the CSV as the full description.

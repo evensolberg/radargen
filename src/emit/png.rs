@@ -4,11 +4,11 @@
 
 use std::sync::Arc;
 
-use resvg::tiny_skia::{Pixmap, Transform};
+use resvg::tiny_skia::{Color, Pixmap, Transform};
 use resvg::usvg;
 
 use crate::diagnostics::Fatal;
-use crate::palette::Palette;
+use crate::palette::{Neutral, Palette, Role};
 use crate::style::{MAX_EXPORT_WIDTH, MAX_PNG_PIXELS, WIDE_MIN_SCALE};
 use crate::svg::{Document, Target, serialise};
 use crate::text::{FAMILY, REGULAR_TTF, SEMIBOLD_TTF};
@@ -120,6 +120,10 @@ pub fn rasterise(
             size.width, size.height
         ))
     })?;
+    // D-87: the SVG's ground, under it as well, so a last row the height
+    // rounded up into, which the scaled rect only partly covers, is opaque.
+    let [red, green, blue] = palette.rgb(Role::Neutral(Neutral::Surface1));
+    pixmap.fill(Color::from_rgba8(red, green, blue, u8::MAX));
     let scale = narrow(f64::from(size.width) / document.width);
     resvg::render(
         &tree,
@@ -179,7 +183,7 @@ mod tests {
     use crate::layout::arrange::{Arrangement, Blocks, arrange};
     use crate::layout::block::fonts;
     use crate::layout::test_support::{PRD_EXAMPLE, plotted};
-    use crate::palette::{Neutral, Role, Theme};
+    use crate::palette::Theme;
     use crate::svg::serialise::{
         DATA_FOCUS_RING, DATA_HIT, DATA_MARKER_INDICATOR, DATA_ROW_INDICATOR, DATA_SELECTION,
     };
@@ -299,6 +303,23 @@ mod tests {
             Legibility::Small { legible_from: None },
             "past the ceiling"
         );
+    }
+
+    /// D-87: every pixel is opaque, including a last row the height
+    /// rounded up into, which the scaled ground rect only partly covers.
+    /// The PRD example's own width is such a case: 1026 by round(824.74).
+    #[test]
+    fn every_pixel_is_opaque() {
+        let doc = prd();
+        for theme in [Theme::Light, Theme::Dark] {
+            for requested in [None, Some(1920)] {
+                let size = pixel_size(&doc, requested).expect("fits");
+                let png = rasterise(&doc, &Palette::built_in(theme), size).expect("renders");
+                let image = decode(&png);
+                let clear = image.pixels().iter().filter(|p| p.alpha() < 255).count();
+                assert_eq!(clear, 0, "{theme:?} at {requested:?}");
+            }
+        }
     }
 
     #[test]
