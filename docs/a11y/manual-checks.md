@@ -11,7 +11,7 @@ created_date: 2026-10-13
 synopsis: "What only a person with a screen reader, a real browser's zoom or a keyboard on a real machine can judge, step by step, with the announcement to expect at each step and a results table to fill in before tagging 1.0.0. The automated audit (scripts/a11y-audit.mjs) covers everything a browser can measure; this covers the rest."
 status: draft
 type: Guide
-revision: "1.2"
+revision: "1.3"
 review_date:
 reviewed_by: []
 completed_date:
@@ -83,6 +83,11 @@ The expected names come from `three-quadrant.csv`.
     - *Expect, browsing from the title to the legend:* the title heading, the radar's group, the key and the legend, with no extra unnamed "graphic", "image" or "group" between them.
     - *Expect, in Firefox:* Tab from the last marker goes straight to the first legend row, with no stop on the legend's box.
     - *Expect, with `long-legend.csv`:* Tab down the legend scrolls it within its box, and the radar stays where it is.
+15. **The PNG** (D-87, from 1.1.0). Render `three-quadrant.csv` to `light.png`, and again with `--theme dark` to `dark.png`. Open both in an image viewer.
+    - *Expect, in both themes:* the title, the radar, the key and the legend are all present.
+    - *Expect:* no hover, focus or selection marks anywhere.
+    - *Expect:* no missing-glyph boxes for the fixture's names.
+    - *Expect, at the default width and at 100% zoom:* every legend name is readable.
 
 ## Results
 
@@ -96,6 +101,7 @@ The expected names come from `three-quadrant.csv`.
 | Keys scroll the panel: Chrome, Firefox, Safari | | | | |
 | Real zoom 200% and 400%: Chrome, Firefox, Safari | | | | |
 | The wide arrangement's parts: NVDA + Firefox, VoiceOver + Safari | | | | |
+| The PNG, light and dark | | | | |
 
 ## Revisions
 
@@ -104,3 +110,4 @@ The expected names come from `three-quadrant.csv`.
 | 1.0 | 2026-10-13 | First version, for 1.0.0. |
 | 1.1 | 2026-10-15 | Step 8: the toggle is named by what a press does, with no pressed state (rg-nuy). |
 | 1.2 | 2026-10-15 | Step 14: the wide arrangement drawn in four SVGs, the legend scrolling (D-85, rg-swu). |
+| 1.3 | 2026-10-16 | Step 15: the PNG, in both themes (D-87, rg-42m). |
