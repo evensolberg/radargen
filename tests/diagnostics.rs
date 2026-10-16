@@ -746,21 +746,34 @@ fn fatal_messages() {
             Fatal::UnrecognisedExtension {
                 path: "radar.pdf".into(),
             },
-            "error: -o radar.pdf: the output file name must end in .html",
+            "error: -o radar.pdf: the output file name must end in .html or .png",
         ),
         (
             Fatal::UnrecognisedExtension {
                 path: "radar".into(),
             },
-            "error: -o radar: the output file name must end in .html",
+            "error: -o radar: the output file name must end in .html or .png",
         ),
         (
             Fatal::FormatNotInThisVersion {
-                path: "radar.png".into(),
-                ext: "png".into(),
-                arrives_in: "1.1",
+                path: "radar.svg".into(),
+                ext: "svg".into(),
+                arrives_in: "1.2",
             },
-            "error: -o radar.png: .png output arrives in radargen 1.1; this version writes .html",
+            "error: -o radar.svg: .svg output arrives in radargen 1.2; this version writes .html and .png",
+        ),
+        (
+            Fatal::Rasterise {
+                reason: "an encoder failure".into(),
+            },
+            "error: the PNG cannot be drawn: an encoder failure",
+        ),
+        (
+            Fatal::ImageTooLarge {
+                width: 10_000,
+                height: 12_000,
+            },
+            "error: a 10000 by 12000 pixel PNG is too large to draw; pass a smaller --width",
         ),
         (
             Fatal::from(RingsError::EmptyEntry { index: 2 }),
@@ -1040,6 +1053,38 @@ fn a_font_failure_names_the_face() {
         line.starts_with("error: the embedded Inter SemiBold font cannot be read: "),
         "{line}"
     );
+}
+
+/// D-87: the clamp names both widths; the small-text warning names the
+/// width that fixes it, or says none within FR-64 does.
+#[test]
+fn d87_warnings_name_their_widths() {
+    let cases = [
+        (
+            RenderKind::WidthClamped {
+                natural: 18_356,
+                drawn: 10_000,
+            },
+            "the radar is 18356 pixels wide, past --width's limit; the PNG is drawn 10000 wide, or pass --width to choose",
+        ),
+        (
+            RenderKind::PngTextSmall {
+                width: 320,
+                legible_from: Some(821),
+            },
+            "at 320 pixels wide the PNG's text is too small to read; --width 821 or more keeps it legible",
+        ),
+        (
+            RenderKind::PngTextSmall {
+                width: 10_000,
+                legible_from: None,
+            },
+            "at 10000 pixels wide the PNG's text is too small to read, at any --width; fewer or shorter names would help",
+        ),
+    ];
+    for (kind, expected) in cases {
+        assert_eq!(Warning::Render(kind).to_string(), expected);
+    }
 }
 
 /// FR-95 names the label that sets the width, quadrant or ring (D-73),

@@ -12,6 +12,7 @@
 //! checks that.
 
 use radargen::text::{FAMILY, Fonts, Weight};
+use resvg::{tiny_skia, usvg};
 
 #[path = "common/fonts.rs"]
 mod fonts;

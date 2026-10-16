@@ -10,16 +10,15 @@ use std::path::{Path, PathBuf};
 use crate::diagnostics::{Fatal, Flag, RenderKind, Warning, Warnings};
 use crate::escape::remove_undisplayable;
 pub use crate::palette::Theme;
+use crate::style::{MAX_EXPORT_WIDTH, MIN_EXPORT_WIDTH};
 
 /// The output format, inferred from the `-o` extension (FR-52).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputFormat {
     /// `.html`: the shared document the radar is embedded in (FR-52).
     Html,
-    /// `.png`: the raster export, arriving in v1.1 (§14.1).
+    /// `.png`: the wide arrangement as a raster image (FR-55, FR-71).
     Png,
-    /// `.svg`: the bare vector radar, arriving in v1.1 (§14.1).
-    Svg,
 }
 
 /// The parsed command line: one CSV in, one file out (D-28, §6.6).
@@ -32,7 +31,7 @@ pub enum OutputFormat {
 #[command(
     name = "radargen",
     version,
-    about = "Render a technology radar from a CSV file to a self-contained HTML page.",
+    about = "Render a technology radar from a CSV file to a self-contained HTML page or a PNG image.",
     // clap's own usage would show the CSV as optional and leave out -o,
     // since each is required only without --create-template.
     override_usage = "radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]\n       radargen --create-template <PATH>",
@@ -52,8 +51,8 @@ pub struct Cli {
     // FR-52: the format comes from the extension, matched ignoring case.
     /// Where to write the radar.
     ///
-    /// The extension picks the format: .html, in any case (PNG and SVG arrive
-    /// in version 1.1).
+    /// The extension picks the format: .html or .png, in any case (SVG
+    /// arrives in version 1.2).
     #[arg(short, long, required_unless_present = "create_template")]
     pub output: Option<PathBuf>,
 
@@ -83,7 +82,7 @@ pub struct Cli {
     // the courtesy FR-52 gives `.PNG`. `-T`, not `-t`, which is `--title`:
     // both appear in §6.6's canonical PNG invocation, so both earn a short
     // form (OQ-2).
-    /// The theme for PNG and SVG (version 1.1).
+    /// The theme for PNG (SVG in version 1.2).
     ///
     /// Written in any case. An HTML page carries both themes and follows the
     /// reader's setting, with a button to switch.
@@ -93,11 +92,11 @@ pub struct Cli {
     // FR-57: the height always follows the document's aspect ratio and is
     // never a second flag. The range is FR-64's, enforced by clap so the
     // message is standard usage output. HTML ignores it.
-    /// The width in pixels for PNG and SVG (version 1.1).
+    /// The width in pixels for PNG (SVG in version 1.2).
     ///
     /// From 320 to 10000; the height follows. An HTML page fits the reader's
     /// window.
-    #[arg(short, long, value_parser = clap::value_parser!(u32).range(320..=10_000))]
+    #[arg(short, long, value_parser = clap::value_parser!(u32).range(i64::from(MIN_EXPORT_WIDTH)..=i64::from(MAX_EXPORT_WIDTH)))]
     pub width: Option<u32>,
 
     // FR-99, D-83: the tool writes the template, so it always matches the
@@ -145,9 +144,8 @@ impl Cli {
 ///
 /// # Errors
 ///
-/// [`Fatal::FormatNotInThisVersion`] for `.png` and `.svg`, which
-/// v1.1 adds; [`Fatal::UnrecognisedExtension`] for any other or
-/// missing extension.
+/// [`Fatal::FormatNotInThisVersion`] for `.svg`, which 1.2 adds;
+/// [`Fatal::UnrecognisedExtension`] for any other or missing extension.
 pub fn format(output: &Path) -> Result<OutputFormat, Fatal> {
     let ext = output
         .extension()
@@ -156,11 +154,12 @@ pub fn format(output: &Path) -> Result<OutputFormat, Fatal> {
         .to_ascii_lowercase();
     match ext.as_str() {
         "html" => Ok(OutputFormat::Html),
-        // §14.1: v1.0 ships HTML only, and these must not read as typos.
-        "png" | "svg" => Err(Fatal::FormatNotInThisVersion {
+        "png" => Ok(OutputFormat::Png),
+        // §14.1: SVG ships in 1.2, and must not read as a typo.
+        "svg" => Err(Fatal::FormatNotInThisVersion {
             path: output.display().to_string(),
             ext,
-            arrives_in: "1.1",
+            arrives_in: "1.2",
         }),
         _ => Err(Fatal::UnrecognisedExtension {
             path: output.display().to_string(),

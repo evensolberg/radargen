@@ -158,8 +158,8 @@ declarations only and are not listed.
 | `src/emit/html/mod.rs` | Self-contained HTML: both arrangements, FR-69's computed media-query switch, FR-56's theme override, inline JS/CSS and font | v1.0 |
 | `src/emit/html/table.rs` | The table view (FR-41, FR-78) — every CSV row, every declared column | v1.0 |
 | `src/emit/write.rs` | NFR-14's atomic write: temp file in the same directory, flush, rename; `fs::write`'s permissions, a symlink replaced not followed, a read-only target refused | v1.0 |
-| `src/emit/svg.rs` | The document with its text outlined and deduplicated through `<use>` (§11) | v1.1 |
-| `src/emit/png.rs` | `resvg` rasterisation | v1.1 |
+| `src/emit/svg.rs` | The document with its text outlined and deduplicated through `<use>` (§11) | 1.2 |
+| `src/emit/png.rs` | `resvg` rasterisation: the pixel size (FR-57, D-87) and the image. Its `usvg_options` is shared with the oracle tests, so they rasterise as the export does | 1.1 |
 | `assets/` | The vendored font — TTF to measure and rasterise, WOFF2 to inline — and its OFL notice (FR-85, NFR-5), `include_bytes!` into the binary | *exists* |
 
 Six of these are corrections rather than additions, and each has a reason:
@@ -439,6 +439,11 @@ for touch-up, and none of the three can be relied on to resolve a custom propert
 either. The binding is decided by *whether the consumer chooses a theme*, not by
 whether it is a rasteriser.
 
+**The static target also draws a ground** (D-87): a `Surface1` rect over the
+viewBox, first. The page paints its own, so the interactive target has none.
+A transparent dark export would put pale ink on whatever slide it lands on, and
+`Surface1` is the one value FR-82's contrast and the halos assume.
+
 `Role` is an enum for the eight neutrals and an index for the series, since
 FR-87 makes the series count a property of the file rather than a constant.
 
@@ -699,7 +704,7 @@ interface that has not been agreed. Each step is testable when it lands.
 | 4 | `layout/block.rs` and a minimal `svg::Node`, then `layout/{title,radar,legend,key}.rs`, `arrange.rs` | 3, `text.rs` | layout engine |
 | 5 | `svg/`, `emit/write.rs` | 4 | shared SVG generation |
 | 6 | `emit/html/` | 5, `Catalogue` from 2 | HTML output wrapper |
-| 7 | `emit/{svg,png}.rs`, `--palette`, `--theme`/`--width` plumbing | 5, `text.rs` *(svg outlines re-shape)* | PNG + SVG export — **v1.1** |
+| 7 | `emit/{svg,png}.rs`, `--palette`, `--theme`/`--width` plumbing | 5, `text.rs` *(svg outlines re-shape)* | PNG (1.1.0), SVG (1.2.0), `--palette` (1.3.0) — the **v1.1** line |
 
 `Node` is built up with the blocks rather than ahead of them: each block adds the variants it draws, `arrange` (step 4) adds `Document`, and step 5 the serialiser.
 
@@ -812,8 +817,8 @@ the noise.
   the panel's content, so the prose is in the page once and no JSON island or
   template carries a second copy.
 - **`--palette` parsing.** v1.1, and FR-86/FR-87 already fix its rules.
-- **The PNG emitter.** v1.1, and thin: it rasterises the `<text>` document
-  through our own `fontdb`.
+- **The PNG emitter.** 1.1, and thin: it rasterises the `<text>` document
+  through our own `fontdb`, with no href resolved (NFR-5).
 - **The SVG emitter's internals.** v1.1 — and *not* thin, which §12 records.
   How that file carries its font is **closed**, below.
 

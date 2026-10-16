@@ -25,7 +25,7 @@ mod tests;
 
 use crate::escape::xml_attr;
 use crate::num::fmt_coord;
-use crate::palette::Palette;
+use crate::palette::{Neutral, Palette, Role};
 use crate::svg::{Document, Node, Paint, Point};
 
 /// The CSV line of the item an element belongs to (architecture §5).
@@ -101,7 +101,8 @@ impl<'a> Context<'a> {
 /// `document` as one `<svg>` element, one element per line.
 ///
 /// A text keeps its tspans on its own line: whitespace between them would
-/// render as a space in a browser.
+/// render as a space in a browser. A static document opens with its theme's
+/// `Surface1` over the whole viewBox (D-87); the page paints its own.
 #[must_use]
 pub fn serialise(document: &Document, target: Target<'_>) -> String {
     let context = Context::top(target);
@@ -109,6 +110,18 @@ pub fn serialise(document: &Document, target: Target<'_>) -> String {
     attr(&mut out, "xmlns", "http://www.w3.org/2000/svg");
     attr(&mut out, "viewBox", &view_box(document));
     out.push_str(">\n");
+    if !target.interactive() {
+        let ground = Node::Rect {
+            origin: Point::ORIGIN,
+            width: document.width,
+            height: document.height,
+            radius: 0.0,
+            fill: Paint::Role(Role::Neutral(Neutral::Surface1)),
+            stroke: Paint::None,
+            stroke_width: 0.0,
+        };
+        out.push_str(&node(&ground, context));
+    }
     out.push_str(&node(&document.root, context));
     out.push_str("</svg>");
     out

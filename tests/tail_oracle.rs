@@ -20,6 +20,7 @@ use radargen::palette::{Palette, Theme};
 use radargen::style::{LEGEND_META, META_GAP};
 use radargen::svg::{Document, Group, Node, Point, Target, TextPaint, serialise};
 use radargen::text::Fonts;
+use resvg::{tiny_skia, usvg};
 
 /// Names ending in each letter the Rust seat found kerned before a meta.
 const ENDINGS: [&str; 9] = ["A", "L", "T", "V", "Y", "r", "v", "y", "."];

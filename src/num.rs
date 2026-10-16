@@ -7,6 +7,19 @@
 /// rg-tzz), and small enough that `v * 1000` is an exact integer in `i64`.
 const MAX_MAGNITUDE: f64 = 1e12;
 
+/// `v`, already rounded by the caller, as a `u32`: saturating past
+/// `u32::MAX`, and 0 for a negative value or NaN.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::as_conversions,
+    reason = "f64 has no TryFrom to an integer; `as` saturates at both ends and maps NaN to 0, which every caller handles"
+)]
+#[must_use]
+pub const fn saturating_u32(v: f64) -> u32 {
+    v as u32
+}
+
 /// Format `v` to three decimal places, half away from zero, `.` separator, no
 /// exponent, no locale; trailing zeros and a trailing `.` are dropped, and
 /// negative zero prints as `0`.

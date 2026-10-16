@@ -1,13 +1,40 @@
+## [1.1.0] - 2026-10-16
+
+### 🚀 Features
+
+- *(svg)* The static target draws the theme's ground (D-87)
+- *(png)* Size and rasterise a document (FR-55, FR-57, D-87)
+- *(png)* -o radar.png; --theme and --width take effect
+
+### 🐛 Bug Fixes
+
+- *(png)* Every pixel is opaque, including a rounded-up last row
+
+### 📚 Documentation
+
+- *(changelog)* Reconcile 1.0.1's entries with the squashed PR
+- *(plans)* PR 16, PNG export (RG-016B)
+- *(plans)* PR 16 plan revision 1.1, the five plan reviews folded in
+- *(prd)* D-87, the static ground and the PNG's limits
+- *(prd)* Name the release rule plainly
+- *(png)* README, manual checks and architecture for PNG export
+
+### 🚜 Refactor
+
+- *(png)* One ground, mapped exactly; fewer special cases
+
+### 🧪 Testing
+
+- *(png)* Goldens by decoded pixels, and determinism across processes
 ## [1.0.1] - 2026-10-16
 
 ### 🐛 Bug Fixes
 
-- *(style)* A wide document past 10,000 units no longer panics
+- *(style)* A wide document past 10,000 units no longer panics (1.0.1) (#89)
 
 ### ⚙️ Miscellaneous Tasks
 
 - *(release)* Record 1.0.0 as published; close rg-6zu (#88)
-- *(release)* 1.0.1
 ## [1.0.0] - 2026-10-16
 
 ### 🚀 Features

@@ -153,6 +153,21 @@ pub enum RenderKind {
         /// The narrow document's width, rounded up to a whole unit.
         width: u32,
     },
+    /// D-87: the document is wider than FR-64's ceiling and `--width` was
+    /// not given, so the PNG is drawn at the ceiling.
+    WidthClamped {
+        /// The document's own width, rounded up.
+        natural: u32,
+        /// The width drawn.
+        drawn: u32,
+    },
+    /// D-87: the PNG's legend text draws below `MIN_LEGIBLE_PX`.
+    PngTextSmall {
+        /// The width drawn.
+        width: u32,
+        /// The least width that keeps it legible, if one within FR-64 does.
+        legible_from: Option<u32>,
+    },
     /// FR-90 on a flag value: one per flag, however many characters it lost.
     FlagUndisplayable {
         /// The flag whose value lost characters.
@@ -389,6 +404,21 @@ impl RenderKind {
                     "the narrow arrangement is {width} units wide, past the {NARROW_MAX_WIDTH} its legend rows and marker targets are sized for, so on a {NARROW_MIN_VIEWPORT_PX}-pixel screen they fall below {MIN_TARGET_PX} pixels; a shorter name for {fix} would fix it"
                 )
             }
+            Self::WidthClamped { natural, drawn } => format!(
+                "the radar is {natural} pixels wide, past --width's limit; the PNG is drawn {drawn} wide, or pass --width to choose"
+            ),
+            Self::PngTextSmall {
+                width,
+                legible_from: Some(from),
+            } => format!(
+                "at {width} pixels wide the PNG's text is too small to read; --width {from} or more keeps it legible"
+            ),
+            Self::PngTextSmall {
+                width,
+                legible_from: None,
+            } => format!(
+                "at {width} pixels wide the PNG's text is too small to read, at any --width; fewer or shorter names would help"
+            ),
             Self::FlagUndisplayable {
                 flag,
                 first,
@@ -746,7 +776,7 @@ impl fmt::Display for Separator {
 #[derive(Debug, thiserror::Error)]
 pub enum Fatal {
     /// FR-52: the `-o` extension is absent or names a format we do not write.
-    #[error("-o {path}: the output file name must end in .html")]
+    #[error("-o {path}: the output file name must end in .html or .png")]
     UnrecognisedExtension {
         /// The `-o` argument as given.
         path: String,
@@ -754,7 +784,9 @@ pub enum Fatal {
     /// §14.1: the extension is one v1.1 adds, so say that rather than
     /// "unrecognised", which sends the caller hunting for a typo in a path
     /// that is correct.
-    #[error("-o {path}: .{ext} output arrives in radargen {arrives_in}; this version writes .html")]
+    #[error(
+        "-o {path}: .{ext} output arrives in radargen {arrives_in}; this version writes .html and .png"
+    )]
     FormatNotInThisVersion {
         /// The `-o` argument as given.
         path: String,
@@ -802,6 +834,23 @@ pub enum Fatal {
         /// The underlying I/O failure.
         #[source]
         source: std::io::Error,
+    },
+    /// FR-55: resvg could not parse or rasterise the document, or encode
+    /// the image. Nothing at `-o` has changed (NFR-14). The reason is
+    /// resvg's or the encoder's, which name positions and kinds, never the
+    /// document's text.
+    #[error("the PNG cannot be drawn: {reason}")]
+    Rasterise {
+        /// What failed.
+        reason: String,
+    },
+    /// D-87: the image would pass `MAX_PNG_PIXELS`.
+    #[error("a {width} by {height} pixel PNG is too large to draw; pass a smaller --width")]
+    ImageTooLarge {
+        /// The width in pixels.
+        width: u32,
+        /// The height in pixels.
+        height: u32,
     },
     /// FR-60, FR-99: a `Cli` asking for neither a render nor a template, or
     /// both. clap refuses such a command line, so only a `Cli` built by hand

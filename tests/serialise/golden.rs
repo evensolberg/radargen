@@ -2,9 +2,11 @@
 
 use std::path::Path;
 
+use radargen::emit::png::{pixel_size, rasterise};
 use radargen::layout::arrange::{Arrangement, arrange};
 use radargen::palette::{Palette, Theme};
 use radargen::svg::{Target, serialise};
+use resvg::tiny_skia::{Pixmap, PremultipliedColorU8};
 
 use super::prd;
 
@@ -20,20 +22,7 @@ pub fn golden(dir: &str, name: &str, got: &str) {
         .join("tests/golden")
         .join(dir)
         .join(name);
-    if std::env::var_os("UPDATE_GOLDEN").is_some() {
-        assert!(
-            std::env::var_os("CI").is_none(),
-            "UPDATE_GOLDEN is refused under CI"
-        );
-        std::fs::write(&path, got).expect("writes");
-        panic!("blessed {}; unset UPDATE_GOLDEN and re-run", path.display());
-    }
-    let want = std::fs::read_to_string(&path).unwrap_or_else(|_| {
-        panic!(
-            "{} is missing: run with UPDATE_GOLDEN=1, then read it by eye",
-            path.display()
-        )
-    });
+    let want = String::from_utf8(bless_or_read(&path, got.as_bytes())).expect("a golden is UTF-8");
     if want != got {
         let at = want
             .bytes()
@@ -53,6 +42,90 @@ pub fn golden(dir: &str, name: &str, got: &str) {
             around(got)
         );
     }
+}
+
+/// `path`'s bytes. With `UPDATE_GOLDEN=1` (refused under CI) it writes
+/// `got` there instead and fails, so a blessing run is never green.
+fn bless_or_read(path: &Path, got: &[u8]) -> Vec<u8> {
+    if std::env::var_os("UPDATE_GOLDEN").is_some() {
+        assert!(
+            std::env::var_os("CI").is_none(),
+            "UPDATE_GOLDEN is refused under CI"
+        );
+        std::fs::create_dir_all(path.parent().expect("a parent")).expect("creates");
+        std::fs::write(path, got).expect("writes");
+        panic!("blessed {}; unset UPDATE_GOLDEN and re-run", path.display());
+    }
+    std::fs::read(path).unwrap_or_else(|_| {
+        panic!(
+            "{} is missing: run with UPDATE_GOLDEN=1, then check it by eye",
+            path.display()
+        )
+    })
+}
+
+/// D-87: per channel, the most a pixel may differ across platforms.
+const PNG_CHANNEL_TOLERANCE: u8 = 2;
+/// D-87: the share of pixels that may differ at all, in thousandths.
+const PNG_DIFFERING_PER_MILLE: usize = 1;
+
+/// D-40, D-87: compares `got`'s decoded pixels with
+/// `tests/golden/png/{name}`'s, within D-87's tolerance. With
+/// `UPDATE_GOLDEN=1` (refused under CI) it writes the file and fails, so a
+/// blessing run is never green. On a mismatch it writes the image and a
+/// diff, magenta where a pixel differs past the tolerance, under
+/// `target/png-golden/`.
+pub fn golden_png(name: &str, got: &[u8]) {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let want = bless_or_read(&root.join("tests/golden/png").join(name), got);
+    let (want, image) = (decode(&want), decode(got));
+    assert_eq!(
+        (want.width(), want.height()),
+        (image.width(), image.height()),
+        "{name}: size"
+    );
+    let mut diff = image.clone();
+    let mut differing = 0;
+    let mut over = 0;
+    let magenta = PremultipliedColorU8::from_rgba(255, 0, 255, 255).expect("opaque");
+    for ((a, b), d) in want
+        .pixels()
+        .iter()
+        .zip(image.pixels())
+        .zip(diff.pixels_mut())
+    {
+        let (a, b) = (a.demultiply(), b.demultiply());
+        let worst = [
+            a.red().abs_diff(b.red()),
+            a.green().abs_diff(b.green()),
+            a.blue().abs_diff(b.blue()),
+            a.alpha().abs_diff(b.alpha()),
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(0);
+        differing += usize::from(worst > 0);
+        if worst > PNG_CHANNEL_TOLERANCE {
+            over += 1;
+            *d = magenta;
+        }
+    }
+    let allowed = want.pixels().len() * PNG_DIFFERING_PER_MILLE / 1000;
+    if over > 0 || differing > allowed {
+        let out = root.join("target/png-golden");
+        std::fs::create_dir_all(&out).expect("creates");
+        std::fs::write(out.join(name), got).expect("writes");
+        diff.save_png(out.join(format!("diff-{name}")))
+            .expect("writes");
+        panic!(
+            "{name}: {differing} pixels differ (at most {allowed}), {over} past {PNG_CHANNEL_TOLERANCE} per channel; see {}",
+            out.display()
+        );
+    }
+}
+
+fn decode(png: &[u8]) -> Pixmap {
+    Pixmap::decode_png(png).expect("a PNG")
 }
 
 /// `blocks`, wide, light, for the interactive or static target.
@@ -96,4 +169,24 @@ fn a_grown_radar_matches_its_golden() {
         "grown-wide-light.svg",
         &wide(&grown.blocks, false),
     );
+}
+
+/// The PRD example, wide, in `theme`, at its own width.
+fn prd_png(theme: Theme) -> Vec<u8> {
+    let doc = arrange(Arrangement::Wide, &prd().blocks);
+    let size = pixel_size(&doc, None).expect("fits");
+    rasterise(&doc, &Palette::built_in(theme), size).expect("renders")
+}
+
+/// FR-55: the PRD example as a light PNG. One test per golden, since a
+/// blessing run stops at the first.
+#[test]
+fn prd_example_matches_its_light_png_golden() {
+    golden_png("prd-light.png", &prd_png(Theme::Light));
+}
+
+/// FR-55, FR-56: the same, dark.
+#[test]
+fn prd_example_matches_its_dark_png_golden() {
+    golden_png("prd-dark.png", &prd_png(Theme::Dark));
 }

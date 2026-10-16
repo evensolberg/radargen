@@ -17,6 +17,8 @@ use skrifa::{FontRef as OutlineFont, GlyphId, MetadataProvider};
 
 use radargen::num::fmt_coord;
 use radargen::text::{FAMILY, REGULAR_TTF as TTF};
+use resvg::usvg::fontdb;
+use resvg::{tiny_skia, usvg};
 
 const WOFF2: &[u8] = include_bytes!("../assets/Inter-Regular.woff2");
 const SIZE: f64 = 12.5;

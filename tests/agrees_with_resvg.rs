@@ -11,6 +11,7 @@
 //! read the advance straight off it, with no sentinel and no bearing algebra.
 
 use radargen::text::{FAMILY, Fonts, Weight};
+use resvg::usvg;
 
 #[path = "common/fonts.rs"]
 mod fonts;
