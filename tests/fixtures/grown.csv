@@ -1,0 +1,11 @@
+name,quadrant,ring,description
+Kubernetes,Platforms,Adopt,Container orchestration.
+Terraform,Tools,Adopt,Infrastructure as code.
+Pair programming,Techniques,Trial,Two people at one keyboard.
+Rust,Languages,Trial,Systems language.
+Mainframe batch,Platforms,Retire,Overnight jobs on the mainframe.
+Shared database,Platforms,Retire,One schema for every service.
+Manual deploys,Platforms,Retire,Releases by hand.
+Snowflake servers,Platforms,Retire,Servers configured by hand.
+Big-bang releases,Platforms,Retire,Everything ships at once.
+Perl scripts,Tools,Retire,Glue scripts nobody owns.

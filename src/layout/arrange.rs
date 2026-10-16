@@ -11,6 +11,7 @@ use std::num::NonZeroUsize;
 
 use crate::diagnostics::{RenderKind, Warning, Warnings};
 use crate::layout::block::{Block, Placement};
+use crate::layout::geometry::growth_steps;
 use crate::layout::key::KeyBlock;
 use crate::layout::legend::LegendBlock;
 use crate::layout::radar::RadarBlock;
@@ -22,6 +23,7 @@ use crate::style::{
     COLUMN_GAP, DOC_TOP, KEY_RULE_STROKE, KEY_TO_LEGEND, LEGEND_PANEL_INSET_X,
     LEGEND_PANEL_INSETS_X, LEGEND_WIDE_DROP, MARGIN, NARROW_MAX_WIDTH, NARROW_MIN_SCALE,
     NARROW_RADAR_COLUMN, NARROW_WIDTH, RADAR_INSET, RADAR_INSETS, RADAR_LABEL_PAD,
+    wide_shows_on_laptops,
 };
 use crate::svg::{Document, Group, Node, Paint, Point, Semantics};
 use crate::text::Fonts;
@@ -42,7 +44,8 @@ pub struct Blocks {
 
 impl Blocks {
     /// The four blocks for `catalogue` in `plotted`'s order, each laid out
-    /// once (architecture §4). `title` and `subtitle` are FR-65's values.
+    /// once (architecture §4), the radar grown to fit its markers (D-86).
+    /// `title` and `subtitle` are FR-65's values.
     #[must_use]
     pub fn new(
         catalogue: &Catalogue,
@@ -51,11 +54,29 @@ impl Blocks {
         subtitle: Option<&str>,
         fonts: &Fonts,
     ) -> Self {
-        Self {
+        let mut blocks = Self {
             title: TitleBlock::new(title, subtitle, fonts),
             radar: RadarBlock::new(catalogue, plotted, fonts),
             key: KeyBlock::new(fonts),
             legend: LegendBlock::new(catalogue, plotted, fonts),
+        };
+        blocks.grow_within(blocks.radar.needed_growth());
+        blocks
+    }
+
+    /// D-86: grows the radar by the largest step up to `needed` at which the
+    /// wide arrangement still shows on a `WIDE_MIN_VIEWPORT_PX` screen. The
+    /// steps end at 1, so when none shows the radar is left ungrown.
+    ///
+    /// Growth widens the wide document, which raises FR-69's breakpoint, so
+    /// the bound is measured on the placed document: labels and the legend
+    /// add width that does not grow.
+    fn grow_within(&mut self, needed: f64) {
+        for g in growth_steps().rev().filter(|&g| g <= needed) {
+            self.radar.set_growth(g);
+            if wide_shows_on_laptops(wide(self).width) {
+                return;
+            }
         }
     }
 }
@@ -166,7 +187,16 @@ fn rule_node(rule: Rule) -> Node {
 pub fn placements(arrangement: Arrangement, blocks: &Blocks) -> Placements {
     match arrangement {
         Arrangement::Wide => wide(blocks),
-        Arrangement::Narrow => narrow(blocks, narrow_scale(&blocks.radar, NARROW_RADAR_COLUMN)),
+        // D-70's floor is on the radar's drawn size, so a grown radar may
+        // shrink further: it draws on a phone as an ungrown one would (D-86).
+        Arrangement::Narrow => narrow(
+            blocks,
+            narrow_scale(
+                &blocks.radar,
+                NARROW_RADAR_COLUMN,
+                NARROW_MIN_SCALE / blocks.radar.growth(),
+            ),
+        ),
     }
 }
 
@@ -289,27 +319,28 @@ fn narrow(blocks: &Blocks, scale: f64) -> Placements {
     }
 }
 
-/// Halvings of [`NARROW_MIN_SCALE`, 1]: past f64 resolution after about 54;
+/// Halvings of [least, 1]: past f64 resolution after about 54;
 /// the count is fixed so every machine gets the same bits (NFR-4).
 const BISECTIONS: u32 = 60;
 
-/// The largest scale in [`NARROW_MIN_SCALE`, 1] at which `radar` is at most
-/// `column` wide, or `NARROW_MIN_SCALE` when none is (D-71).
+/// The largest scale in [`least`, 1] at which `radar` is at most `column`
+/// wide, or `least` when none is (D-71). `least` is `NARROW_MIN_SCALE` on
+/// an ungrown radar, and less on a grown one (D-86).
 ///
 /// Only scales that passed the test are returned, so the result fits when
 /// any scale does; it is the largest because the radar's size is
 /// non-decreasing in the scale. A radar block is at least
 /// `MIN_RADAR_WIDTH` (660) wide at 1, wider than any column, so it never
 /// takes the first return; only blocks that fit at natural size do.
-fn narrow_scale(radar: &impl Block, column: f64) -> f64 {
+fn narrow_scale(radar: &impl Block, column: f64, least: f64) -> f64 {
     let fits = |scale: f64| radar.size(scale).width <= column;
     if fits(1.0) {
         return 1.0;
     }
-    if !fits(NARROW_MIN_SCALE) {
-        return NARROW_MIN_SCALE;
+    if !fits(least) {
+        return least;
     }
-    let (mut lo, mut hi) = (NARROW_MIN_SCALE, 1.0);
+    let (mut lo, mut hi) = (least, 1.0);
     for _ in 0..BISECTIONS {
         let mid = f64::midpoint(lo, hi);
         if fits(mid) {
@@ -326,6 +357,7 @@ mod tests {
     use super::*;
     use crate::diagnostics::Binding;
     use crate::layout::block::{Size, close, fonts};
+    use crate::layout::geometry::{growth, place};
     use crate::layout::test_support::{
         HEAD, NAME_THREE_LINES, PRD_EXAMPLE, Rect, assert_finite, assert_inside, bounds, csv_of,
         groups, near, plotted,
@@ -333,6 +365,7 @@ mod tests {
     use crate::model::Catalogue;
     use crate::order::Plotted;
     use crate::rings::RingSource;
+    use crate::style::{GROWTH_STEP, MAX_GROWTH};
     use crate::svg::ItemKey;
 
     /// The title and subtitle a fixture is built with.
@@ -428,6 +461,18 @@ mod tests {
             ("wide radar", blocks(&wide_radar(), TITLED)),
             ("tall", blocks(&tall(), TITLED)),
             ("empty legend", blocks(HEAD, UNTITLED)),
+            // D-86: grown to 1.25, to 2, held to 1.5 by the laptop bound,
+            // and grown with names that hold the narrow radar at its floor.
+            ("grown", blocks(&innermost("Q", 3), TITLED)),
+            ("grown twice", blocks(&innermost("Q", 12), TITLED)),
+            (
+                "grown bound",
+                blocks(&innermost(&"W".repeat(30), 5), TITLED),
+            ),
+            (
+                "grown floor",
+                blocks(&innermost("Languages & Frameworks ", 5), TITLED),
+            ),
         ]
     }
 
@@ -464,24 +509,154 @@ mod tests {
     #[test]
     fn narrow_scale_finds_the_largest_fit() {
         let block = Linear(1000.0);
-        assert!(close(narrow_scale(&block, 400.0), 0.4));
+        assert!(close(narrow_scale(&block, 400.0, NARROW_MIN_SCALE), 0.4));
         for column in [300.0, 333.3, 399.999] {
-            let scale = narrow_scale(&block, column);
+            let scale = narrow_scale(&block, column, NARROW_MIN_SCALE);
             assert!(block.size(scale).width <= column, "{column}: {scale}");
         }
+    }
+
+    /// `count` items in the first quadrant's innermost band and one in each
+    /// other's, the quadrants named `stem` and a digit. Four quadrants'
+    /// innermost band holds two at natural size (FR-89), so three overflow.
+    fn innermost(stem: &str, count: usize) -> String {
+        let names: Vec<String> = std::iter::repeat_n(0, count)
+            .chain(1..=3)
+            .map(|q| format!("{stem}{q}"))
+            .collect();
+        let names: Vec<&str> = names.iter().map(String::as_str).collect();
+        csv_of(&names, "Retire")
+    }
+
+    /// The growth `csv`'s markers need, before the laptop bound (D-86).
+    fn needed(csv: &str) -> f64 {
+        let (catalogue, order) = plotted(csv, None);
+        growth(&place(&catalogue, &order))
+    }
+
+    /// rg-06b: a radar whose markers already clear does not grow, so its
+    /// documents are what they were.
+    #[test]
+    fn a_radar_that_fits_does_not_grow() {
+        for csv in [PRD_EXAMPLE.to_owned(), thoughtworks(), widened()] {
+            assert!(close(blocks(&csv, UNTITLED).radar.growth(), 1.0), "{csv}");
+        }
+    }
+
+    /// D-86: an overfull band grows the radar by the least step that clears
+    /// every pair of markers.
+    #[test]
+    fn an_overfull_band_grows_the_radar() {
+        let want = needed(&innermost("Q", 3));
+        assert!(want > 1.0, "the fixture overflows at natural size");
+        assert!(close(
+            blocks(&innermost("Q", 3), UNTITLED).radar.growth(),
+            want
+        ));
+    }
+
+    /// D-86: the radar grows no further than keeps the wide arrangement
+    /// showing on a `WIDE_MIN_VIEWPORT_PX` screen, and stops short of what
+    /// it needs only where one more step would hide it. Ordinary names
+    /// reach 2× within the bound; quadrant names of 30 × "W" hold it to
+    /// 1.5.
+    #[test]
+    fn growth_keeps_the_wide_arrangement_on_laptops() {
+        let mut capped = 0;
+        let long = "W".repeat(30);
+        for (stem, count) in ["Q", long.as_str()]
+            .into_iter()
+            .flat_map(|stem| (3..=12).map(move |count| (stem, count)))
+        {
+            let csv = innermost(stem, count);
+            let b = blocks(&csv, UNTITLED);
+            let g = b.radar.growth();
+            let want = needed(&csv);
+            assert!(g <= want && g <= MAX_GROWTH, "{stem} {count}: {g}");
+            assert!(
+                wide_shows_on_laptops(placements(Arrangement::Wide, &b).width),
+                "{stem} {count}: {g}"
+            );
+            if g < want {
+                capped += 1;
+                let mut next = b.clone();
+                next.radar.set_growth(g + GROWTH_STEP);
+                assert!(
+                    !wide_shows_on_laptops(placements(Arrangement::Wide, &next).width),
+                    "{stem} {count}: {g} stopped short"
+                );
+            }
+        }
+        assert!(capped > 0, "some fixture is held by the laptop bound");
+        // D-86's figures: ordinary names reach 2×, 30 × "W" stop at 1.5.
+        assert!(close(
+            blocks(&innermost("Q", 12), UNTITLED).radar.growth(),
+            MAX_GROWTH
+        ));
+        assert!(close(
+            blocks(&innermost(&long, 12), UNTITLED).radar.growth(),
+            1.5
+        ));
+    }
+
+    /// D-86: the narrow arrangement draws a grown radar at the size it would
+    /// draw an ungrown one, so phones see the same document.
+    #[test]
+    fn narrow_draws_a_grown_radar_as_an_ungrown_one() {
+        // Short names fit the column above the floor; Thoughtworks-length
+        // ones hold an ungrown radar at it, so the floor's own growth is
+        // tested too.
+        for stem in ["Q", "Languages & Frameworks "] {
+            let grown = blocks(&innermost(stem, 5), UNTITLED);
+            let g = grown.radar.growth();
+            assert!(g > 1.0, "{stem}");
+            let mut flat = grown.clone();
+            flat.radar.set_growth(1.0);
+            let (a, b) = (
+                placements(Arrangement::Narrow, &grown),
+                placements(Arrangement::Narrow, &flat),
+            );
+            let drawn = a.radar.scale * g;
+            assert!(
+                (drawn - b.radar.scale).abs() < 1e-9,
+                "{stem}: {a:?} vs {b:?}"
+            );
+            assert!(
+                (a.width - b.width).abs() < 1e-6 && (a.height - b.height).abs() < 1e-6,
+                "{stem}: {a:?} vs {b:?}"
+            );
+        }
+        let floored = blocks(&innermost("Languages & Frameworks ", 5), UNTITLED);
+        let at = placements(Arrangement::Narrow, &floored);
+        assert!(
+            close(at.radar.scale, NARROW_MIN_SCALE / floored.radar.growth()),
+            "the long names reach the floor: {at:?}"
+        );
     }
 
     #[test]
     fn narrow_scale_boundaries() {
         // Fits at natural size, inclusively: never enlarged.
-        assert!(close(narrow_scale(&Linear(400.0), 400.0), 1.0));
-        assert!(close(narrow_scale(&Linear(300.0), 400.0), 1.0));
+        assert!(close(
+            narrow_scale(&Linear(400.0), 400.0, NARROW_MIN_SCALE),
+            1.0
+        ));
+        assert!(close(
+            narrow_scale(&Linear(300.0), 400.0, NARROW_MIN_SCALE),
+            1.0
+        ));
         // Fits exactly at the floor, and misses it by one ulp.
         let wide = Linear(2000.0);
         let at_floor = wide.size(NARROW_MIN_SCALE).width;
-        assert!(close(narrow_scale(&wide, at_floor), NARROW_MIN_SCALE));
+        assert!(close(
+            narrow_scale(&wide, at_floor, NARROW_MIN_SCALE),
+            NARROW_MIN_SCALE
+        ));
         let below = f64::from_bits(at_floor.to_bits() - 1);
-        assert!(close(narrow_scale(&wide, below), NARROW_MIN_SCALE));
+        assert!(close(
+            narrow_scale(&wide, below, NARROW_MIN_SCALE),
+            NARROW_MIN_SCALE
+        ));
     }
 
     /// NFR-4: the search runs to the last ulp, the largest double with
@@ -489,7 +664,7 @@ mod tests {
     /// about 54 would stop below it.
     #[test]
     fn narrow_scale_is_bit_stable() {
-        let scale = narrow_scale(&Linear(1000.0), 400.0);
+        let scale = narrow_scale(&Linear(1000.0), 400.0, NARROW_MIN_SCALE);
         assert_eq!(scale.to_bits(), GOLDEN_LINEAR_BITS, "{scale}");
     }
 
@@ -500,12 +675,12 @@ mod tests {
     fn narrow_scale_of_the_radar() {
         // Zero quadrants: the 660 · s floor sets the width.
         let floor = radar(HEAD);
-        let scale = narrow_scale(&floor, NARROW_RADAR_COLUMN);
+        let scale = narrow_scale(&floor, NARROW_RADAR_COLUMN, NARROW_MIN_SCALE);
         assert!(close(scale, 400.0 / 660.0), "{scale}");
         // The PRD example's labels set it: it fills the column, and a hair
         // more scale does not fit (valid off a plateau, as here).
         let prd = radar(PRD_EXAMPLE);
-        let scale = narrow_scale(&prd, NARROW_RADAR_COLUMN);
+        let scale = narrow_scale(&prd, NARROW_RADAR_COLUMN, NARROW_MIN_SCALE);
         assert!(close(prd.size(scale).width, 400.0), "{scale}");
         assert!(prd.size(scale + 1e-6).width > 400.0, "{scale}");
     }
@@ -607,7 +782,15 @@ mod tests {
         for (name, b) in fixtures() {
             // The fixtures with long quadrant names widen; since D-78's
             // spacing allowance, so do Thoughtworks' four.
-            if matches!(name, "thoughtworks" | "widened" | "beyond" | "wide radar") {
+            if matches!(
+                name,
+                "thoughtworks"
+                    | "widened"
+                    | "beyond"
+                    | "wide radar"
+                    | "grown bound"
+                    | "grown floor"
+            ) {
                 continue;
             }
             let p = placements(Arrangement::Narrow, &b);

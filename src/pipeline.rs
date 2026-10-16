@@ -207,7 +207,6 @@ fn render(
     warnings: &mut Warnings,
 ) -> String {
     let plotted = resolve(catalogue);
-    warn_crowding(catalogue, &plotted, warnings);
     let blocks = Blocks::new(
         catalogue,
         &plotted,
@@ -215,6 +214,9 @@ fn render(
         config.subtitle.as_deref(),
         fonts,
     );
+    // FR-89 at the growth the radar is drawn with (D-86): only what still
+    // overlaps is reported.
+    warn_crowding(catalogue, &plotted, blocks.radar.growth(), warnings);
     warn_narrow(&blocks, warnings);
     page(&Page {
         wide: &arrange(Arrangement::Wide, &blocks),

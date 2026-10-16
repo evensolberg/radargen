@@ -20,7 +20,7 @@ mod reach;
 
 use crate::diagnostics::{Binding, plural};
 use crate::layout::block::{Block, Placement, Size};
-use crate::layout::geometry::{Geometry, polar};
+use crate::layout::geometry::{Geometry, growth, polar};
 use crate::model::Catalogue;
 use crate::order::Plotted;
 use crate::palette::{Neutral, Role};
@@ -39,10 +39,11 @@ const MIN_RADAR_HALF: f64 = MIN_RADAR_WIDTH / 2.0;
 /// How far a ring name's halo reaches past its glyphs.
 const HALO_REACH: f64 = LABEL_HALO / 2.0;
 
-/// FR-70's three scales for one radar scale `s`.
+/// FR-70's three scales for one radar scale `s` on a radar grown by
+/// `growth` (D-86).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RadarScale {
-    /// For positions and radii: `s`.
+    /// For positions and radii: `s × growth`.
     pub geometry: f64,
     /// For label text and hit areas: `max(s, 1)`, so neither shrinks below
     /// natural size.
@@ -53,17 +54,19 @@ pub struct RadarScale {
 }
 
 impl RadarScale {
-    /// `geometry` = s, `labels` = max(s, 1), `marks` = max(s, `RADAR_FLOOR`).
+    /// `geometry` = s × growth, `labels` = max(s, 1), `marks` =
+    /// max(s, `RADAR_FLOOR`): growth moves things apart and enlarges
+    /// nothing drawn.
     ///
     /// # Panics
     ///
     /// In debug builds, if `s` is not finite and positive: a NaN would
     /// otherwise vanish into `max` and leave only the floors.
     #[must_use]
-    pub fn of(s: f64) -> Self {
+    pub fn of(s: f64, growth: f64) -> Self {
         debug_assert!(s.is_finite() && s > 0.0, "radar scale {s}");
         Self {
-            geometry: s,
+            geometry: s * growth,
             labels: s.max(1.0),
             marks: s.max(RADAR_FLOOR),
         }
@@ -118,10 +121,11 @@ struct QuadrantLabel {
     /// half-width `h`. Nothing at 12 and 6 o'clock, half the width at 3 and 9.
     ///
     /// So the name's box, which reaches its ascent (11.625) above the
-    /// baseline, comes no closer to the centre than `300 s − 11.625` for
-    /// `s <= 1`, which clears the outer ring (`260 s` plus half a stroke)
-    /// from `s` of about 0.3 up (`NARROW_MIN_SCALE`, the least scale the
-    /// narrow arrangement draws). Below that a 6 o'clock name touches the
+    /// baseline, comes no closer to the centre than `300 k − 11.625` for a
+    /// drawn geometry `k <= 1`, which clears the outer ring (`260 k` plus
+    /// half a stroke) from `k` of about 0.3 up. The narrow arrangement
+    /// never draws below that: its least scale is `NARROW_MIN_SCALE` over
+    /// the radar's growth (D-86). Below it a 6 o'clock name touches the
     /// ring's stroke whatever its length, unpushed.
     push: Point,
 }
@@ -160,6 +164,9 @@ pub struct RadarBlock {
     ring_source: RingSource,
     /// In FR-34's order.
     markers: Vec<Marker>,
+    /// How much the geometry has grown to fit the markers (D-86): 1 until
+    /// `Blocks::new` chooses otherwise.
+    growth: f64,
 }
 
 impl RadarBlock {
@@ -210,7 +217,33 @@ impl RadarBlock {
             rings,
             ring_source: catalogue.ring_source,
             markers: markers(catalogue, plotted),
+            growth: 1.0,
         }
+    }
+
+    /// How much the geometry has grown (D-86).
+    #[must_use]
+    pub const fn growth(&self) -> f64 {
+        self.growth
+    }
+
+    /// Sets the geometry's growth to `growth`, one of D-86's steps.
+    pub(crate) const fn set_growth(&mut self, growth: f64) {
+        self.growth = growth;
+    }
+
+    /// The least growth step at which every two markers clear (D-86),
+    /// from the markers' natural-size centres.
+    #[must_use]
+    pub fn needed_growth(&self) -> f64 {
+        let centres: Vec<Point> = self.markers.iter().map(|m| m.at).collect();
+        growth(&centres)
+    }
+
+    /// FR-70's three scales at radar scale `s`, with this radar's growth.
+    #[must_use]
+    pub fn scale(&self, s: f64) -> RadarScale {
+        RadarScale::of(s, self.growth)
     }
 
     /// How far each label reaches left or right of the centre, with its
@@ -248,7 +281,7 @@ impl RadarBlock {
     /// `rings.rs` rules out by refusing an empty ring list.
     #[must_use]
     pub fn binding_label(&self, scale: f64) -> Option<Binding> {
-        self.reaches_x(RadarScale::of(scale))
+        self.reaches_x(self.scale(scale))
             .reduce(|best, next| if next.0 > best.0 { next } else { best })
             .map(|(_, ring, text)| {
                 let name = text.to_owned();
@@ -365,7 +398,7 @@ impl RadarBlock {
 impl Block for RadarBlock {
     // qual:allow(complexity, magic_numbers) reason: "a box centred on its centre spans twice the centre offset"
     fn size(&self, scale: f64) -> Size {
-        let centre = self.centre(RadarScale::of(scale));
+        let centre = self.centre(self.scale(scale));
         Size {
             width: 2.0 * centre.x,
             height: 2.0 * centre.y,
@@ -373,7 +406,7 @@ impl Block for RadarBlock {
     }
 
     fn render(&self, at: Placement) -> Node {
-        let r = RadarScale::of(at.scale);
+        let r = self.scale(at.scale);
         let frame = self
             .ring_circles(r)
             .chain(self.dividers(r))
@@ -422,11 +455,12 @@ mod tests {
     use crate::layout::block::{assert_translates, at, close, fonts};
     use crate::layout::geometry::place;
     use crate::layout::test_support::{
-        HEAD, HEAD_META, PRD_EXAMPLE, Rect, assert_finite, bounds, csv_of, fill, near, plotted,
-        plus,
+        HEAD, HEAD_META, PRD_EXAMPLE, Rect, assert_finite, bounds, csv_of, fill, groups, near,
+        plotted, plus,
     };
     use crate::style::{
-        BAND_OUTER_RADIUS, HIT_RADIUS, INDICATOR_REACH, NARROW_MIN_SCALE, RADAR_LABEL_PAD,
+        BAND_OUTER_RADIUS, HIT_RADIUS, INDICATOR_REACH, MARKER_RADIUS, NARROW_MIN_SCALE,
+        RADAR_LABEL_PAD,
     };
     use crate::svg::TextPaint;
     use crate::text::{TEXT_ASCENT, TEXT_DESCENT, Weight};
@@ -492,7 +526,15 @@ mod tests {
             ("assess", assess(fonts)),
             ("crowded", crowded(fonts)),
             ("marked", block(fonts, &marked_csv(), None)),
+            ("grown", grown(block(fonts, &marked_csv(), None))),
+            ("grown crowded", grown(crowded(fonts))),
         ]
+    }
+
+    /// `b` at D-86's largest growth.
+    fn grown(mut b: RadarBlock) -> RadarBlock {
+        b.set_growth(crate::style::MAX_GROWTH);
+        b
     }
 
     /// The centring group's children, inside the root: the frame, then the
@@ -650,7 +692,7 @@ mod tests {
     #[test]
     fn radar_scale() {
         let is = |s: f64, [geometry, labels, marks]: [f64; 3]| {
-            let r = RadarScale::of(s);
+            let r = RadarScale::of(s, 1.0);
             assert!(
                 close(r.geometry, geometry) && close(r.labels, labels) && close(r.marks, marks),
                 "{s}: ({}, {}, {})",
@@ -664,6 +706,93 @@ mod tests {
         is(RADAR_FLOOR, [7.0 / 9.0, 1.0, 7.0 / 9.0]);
         is(0.5, [0.5, 1.0, 7.0 / 9.0]);
         is(1.5, [1.5, 1.5, 1.5]);
+    }
+
+    /// rg-06b, D-86: growth scales the radar's geometry and nothing else.
+    #[test]
+    fn growth_scales_geometry_only() {
+        let mut b = block(fonts(), &marked_csv(), None);
+        assert!(close(b.growth(), 1.0));
+        b.set_growth(2.0);
+        assert!(close(b.growth(), 2.0));
+        for s in [0.15, 0.5, RADAR_FLOOR, 1.0] {
+            let r = b.scale(s);
+            assert!(
+                close(r.geometry, 2.0 * s)
+                    && close(r.labels, s.max(1.0))
+                    && close(r.marks, s.max(RADAR_FLOOR)),
+                "{s}: {r:?}"
+            );
+        }
+    }
+
+    /// Every leaf node in `b` drawn at 1.
+    fn leaves(b: &RadarBlock) -> Vec<Node> {
+        let root = b.render(at(1.0));
+        groups(&root)
+            .into_iter()
+            .flat_map(|g| g.children.iter().filter(|n| !matches!(n, Node::Group(_))))
+            .cloned()
+            .collect()
+    }
+
+    /// Every hit area in `b` drawn at 1, with its radius.
+    fn hit_areas(b: &RadarBlock) -> Vec<(Point, f64)> {
+        leaves(b)
+            .into_iter()
+            .filter_map(|n| match n {
+                Node::HitArea { centre, radius, .. } => Some((centre, radius)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Markers spread apart as the radar grows but keep their size: each
+    /// hit area sits `g` times as far out, as large as before, and every
+    /// marker's circle keeps its radius.
+    #[test]
+    fn markers_keep_their_size_as_the_radar_grows() {
+        let ungrown = block(fonts(), &marked_csv(), None);
+        let mut grown = ungrown.clone();
+        grown.set_growth(1.5);
+        let (before, after) = (hit_areas(&ungrown), hit_areas(&grown));
+        assert!(!before.is_empty() && before.len() == after.len());
+        for ((c0, r0), (c1, r1)) in before.iter().zip(&after) {
+            assert!(near(c0.scaled(1.5), *c1), "{c0:?} grows to {c1:?}");
+            assert!(close(*r0, *r1), "the hit radius stays {r0}, got {r1}");
+        }
+        let markers = |b: &RadarBlock| {
+            leaves(b)
+                .iter()
+                .filter(
+                    |n| matches!(n, Node::Circle { radius, .. } if close(*radius, MARKER_RADIUS)),
+                )
+                .count()
+        };
+        assert_eq!(markers(&ungrown), markers(&grown));
+        assert!(markers(&grown) > 0);
+    }
+
+    /// The rings grow with the geometry, so a grown block is wider, while
+    /// its labels keep their natural size.
+    #[test]
+    fn a_grown_radar_is_larger_and_its_labels_are_not() {
+        let ungrown = block(fonts(), PRD_EXAMPLE, None);
+        let mut grown = ungrown.clone();
+        grown.set_growth(2.0);
+        assert!(grown.size(1.0).width > ungrown.size(1.0).width);
+        let sizes = |b: &RadarBlock| -> Vec<f64> {
+            quadrant_labels(&frame_at(b, 1.0))
+                .iter()
+                .map(|t| t.style.size)
+                .collect()
+        };
+        let (before, after) = (sizes(&ungrown), sizes(&grown));
+        assert!(!before.is_empty() && before.len() == after.len());
+        assert!(
+            before.iter().zip(&after).all(|(a, b)| close(*a, *b)),
+            "{before:?} vs {after:?}"
+        );
     }
 
     #[test]
@@ -1020,12 +1149,12 @@ mod tests {
                     drawn.fits(size),
                     "{name} at {s}: {drawn:?} outside {size:?}"
                 );
-                let r = RadarScale::of(s);
+                let r = b.scale(s);
                 let pad = RADAR_LABEL_PAD * r.labels;
-                let floor = MIN_RADAR_HALF * s;
+                let floor = MIN_RADAR_HALF * r.geometry;
                 // How far the rings and dividers can reach: below about
                 // s = 0.15 they can pass the labels without passing the floor.
-                let grid = DIVIDER_RADIUS * s + f64::midpoint(0.0, GRID_STROKE * r.marks);
+                let grid = DIVIDER_RADIUS * r.geometry + f64::midpoint(0.0, GRID_STROKE * r.marks);
                 // Per axis: the labels' reach, the hit areas' and the
                 // indicators', and the drawing's nearest gap to the block's
                 // edge. Where the labels set the size and reach past the
@@ -1074,7 +1203,7 @@ mod tests {
         let points = place(&catalogue, &order);
         let b = RadarBlock::new(&catalogue, &order, fonts);
         let s = 0.1;
-        let r = RadarScale::of(s);
+        let r = b.scale(s);
         let x = points.iter().map(|p| p.x.abs()).fold(0.0, f64::max);
         let size = b.size(s);
         // The labels and the floor alone give 66 wide.
@@ -1090,7 +1219,7 @@ mod tests {
         // No markers, no marker term.
         let none = block(fonts, HEAD, None);
         let s = 0.02;
-        let r = RadarScale::of(s);
+        let r = none.scale(s);
         assert!(close(none.hit_half_width(r), 0.0) && close(none.hit_half_height(r), 0.0));
         let size = none.size(s);
         let width = 2.0 * (MIN_RADAR_HALF * s).max(none.label_half_width(r) + RADAR_LABEL_PAD);
@@ -1158,8 +1287,8 @@ mod tests {
             let names: Vec<&str> = names.iter().map(String::as_str).collect();
             let b = block(fonts, &csv_of(&names, "Adopt"), None);
             for s in [1.0, 0.576, 0.4, 0.31] {
-                let ring = BAND_OUTER_RADIUS * s
-                    + f64::midpoint(0.0, GRID_STROKE * RadarScale::of(s).marks);
+                let ring =
+                    BAND_OUTER_RADIUS * s + f64::midpoint(0.0, GRID_STROKE * b.scale(s).marks);
                 let nodes = frame_at(&b, s);
                 let labels: Vec<&Node> = nodes
                     .iter()

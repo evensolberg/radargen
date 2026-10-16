@@ -270,6 +270,10 @@ against. The radar block therefore has to know the scale it is being drawn at,
 and — because it has three scales, not one — its box is not `size(1.0) * k`:
 geometry scales by `s`, labels by `max(s, 1)`, and marks by `max(s, 7/9)`
 (D-69). Both facts are in the signature rather than in a comment somebody has to find.
+The block also carries D-86's growth factor `g`, which multiplies geometry alone
+(`s × g`): `Blocks::new` chooses it once, from the closest pair of markers and
+the wide document's breakpoint, and the narrow arrangement's least scale is
+`0.3 / g`, so a phone draws a grown radar at the size it would draw an ungrown one.
 
 **Units become pixels at the SVG's rendered width.** The narrow arrangement's
 px per unit is the rendered width of its SVG over its `viewBox` width, and

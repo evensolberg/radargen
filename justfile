@@ -148,12 +148,12 @@ text-spacing-only:
     #!/usr/bin/env bash
     set -euo pipefail
     out="$(mktemp -d)"
-    for f in text-spacing three-quadrant; do
+    for f in text-spacing three-quadrant grown; do
         ./target/release/radargen "tests/fixtures/$f.csv" -o "$out/$f.html" --title "Technology Radar" 2>/dev/null
     done
     ./target/release/radargen tests/fixtures/text-spacing-rtl.csv -o "$out/rtl.html" 2>/dev/null
     ./target/release/radargen tests/fixtures/table-wide.csv -o "$out/table-wide.html" --title "Technology Radar" 2>/dev/null
-    node scripts/text-spacing.mjs "$out" "$out/text-spacing.html:6" "$out/three-quadrant.html:5" "$out/table-wide.html:scroll"
+    node scripts/text-spacing.mjs "$out" "$out/text-spacing.html:6" "$out/three-quadrant.html:5" "$out/table-wide.html:scroll" "$out/grown.html"
     echo "screenshots in $out (rtl.html is for a look, not checked)"
 
 # The interactive layer, driven in headless Chromium (RG-015B).
@@ -190,10 +190,10 @@ screenshots: release-build
     set -euo pipefail
     out="${SCREENSHOTS:-$(mktemp -d)}"
     mkdir -p "$out"
-    for f in interaction three-quadrant d71-wide; do
+    for f in interaction three-quadrant d71-wide grown; do
         ./target/release/radargen "tests/fixtures/$f.csv" -o "$out/$f.html" --title "Technology Radar" 2>/dev/null
     done
-    node scripts/screenshots.mjs "$out" "$out/interaction.html" "$out/three-quadrant.html" "$out/d71-wide.html"
+    node scripts/screenshots.mjs "$out" "$out/interaction.html" "$out/three-quadrant.html" "$out/d71-wide.html" "$out/grown.html"
 
 # rg-jri: style recalculation per Tab on a 300-marker radar, in Chromium.
 focus-cost: release-build

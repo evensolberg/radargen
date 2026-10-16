@@ -8,7 +8,7 @@
 use crate::diagnostics::{RenderKind, Warning, Warnings};
 use crate::model::Catalogue;
 use crate::order::Plotted;
-use crate::style::{BAND_OUTER_RADIUS, MARKER_RADIUS};
+use crate::style::{BAND_OUTER_RADIUS, GROWTH_STEP, GROWTH_STEPS, MARKER_RADIUS, MAX_GROWTH};
 
 pub use crate::svg::Point;
 
@@ -152,26 +152,30 @@ impl Geometry {
     }
 
     /// FR-89: whether `n` plain markers in ring `ring`'s band, placed by
-    /// FR-33, keep every two centres at least one marker diameter apart.
-    /// Placement is the same in every sector, so sector 0 stands for all.
+    /// FR-33 on a radar grown by `growth` (D-86), keep every two centres at
+    /// least one marker diameter apart. Placement is the same in every
+    /// sector, so sector 0 stands for all.
     #[must_use]
-    pub fn fits(self, ring: usize, n: usize) -> bool {
+    pub fn fits(self, ring: usize, n: usize, growth: f64) -> bool {
         let points: Vec<Point> = (0..n).map(|j| self.marker(0, ring, j, n)).collect();
         points.iter().enumerate().all(|(i, a)| {
             points
                 .iter()
                 .skip(i + 1)
-                .all(|b| far_enough((a.x - b.x).hypot(a.y - b.y)))
+                .all(|b| far_enough(distance(*a, *b) * growth))
         })
     }
 
-    /// FR-89: the largest `n`, up to `limit`, for which the band fits —
+    /// FR-89: the largest `n`, up to `limit`, for which the band fits at
+    /// `growth` —
     /// searched upward and stopping at the first failure, which is the
     /// largest because fitting is monotone in `n`. A band of one always
     /// fits, so this is at least 1 when `limit` is.
     #[must_use]
-    pub fn capacity(self, ring: usize, limit: usize) -> usize {
-        (1..=limit).take_while(|&n| self.fits(ring, n)).count()
+    pub fn capacity(self, ring: usize, limit: usize, growth: f64) -> usize {
+        (1..=limit)
+            .take_while(|&n| self.fits(ring, n, growth))
+            .count()
     }
 }
 
@@ -218,9 +222,48 @@ pub fn place(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Point> {
     points
 }
 
+/// D-86's growth factors, smallest first: 1, then a `GROWTH_STEP` more
+/// each, up to `MAX_GROWTH`.
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+)]
+pub fn growth_steps() -> impl DoubleEndedIterator<Item = f64> {
+    (0..=GROWTH_STEPS).map(|step| 1.0 + real(step) * GROWTH_STEP)
+}
+
+/// D-86: the least growth step at which every two of `points` are a marker
+/// diameter apart.
+///
+/// `points` are marker centres at natural size; past the last step this is
+/// `MAX_GROWTH`. Every FR-33 position is proportional to the radius, so
+/// growing by `g` moves every pair `g` times as far apart.
+///
+/// Any two markers, not only two in one band: across a divider, two
+/// sectors' markers can be closer than any pair inside a band.
+#[must_use]
+pub fn growth(points: &[Point]) -> f64 {
+    let closest = points
+        .iter()
+        .enumerate()
+        .flat_map(|(i, &a)| points.iter().skip(i + 1).map(move |&b| distance(a, b)))
+        .fold(f64::INFINITY, f64::min);
+    growth_steps()
+        .find(|&g| far_enough(closest * g))
+        .unwrap_or(MAX_GROWTH)
+}
+
+/// How far apart two points are.
+fn distance(a: Point, b: Point) -> f64 {
+    (a.x - b.x).hypot(a.y - b.y)
+}
+
 /// FR-88 and FR-89: one warning when the quadrant count passes A-5's six,
-/// then one per overfull band in FR-34's order. Both concern the render
-/// as a whole, so NFR-11 prints them before every row warning.
+/// then one per band still overfull, in FR-34's order.
+///
+/// Bands are judged on a radar grown by `growth` (D-86). Both warnings
+/// concern the render as a whole, so NFR-11 prints them before every row
+/// warning.
 ///
 /// Capacity stops at the first failure, so a band of any size costs at
 /// most its capacity's checks; this relies on the monotonicity that
@@ -231,7 +274,12 @@ pub fn place(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Point> {
 /// If `plotted` was not built from `catalogue`, so a run names a quadrant
 /// or ring the catalogue lacks.
 // qual:allow(complexity, error_handling) reason: "the documented # Panics: a Plotted from another catalogue is a caller bug"
-pub fn warn_crowding(catalogue: &Catalogue, plotted: &Plotted, warnings: &mut Warnings) {
+pub fn warn_crowding(
+    catalogue: &Catalogue,
+    plotted: &Plotted,
+    growth: f64,
+    warnings: &mut Warnings,
+) {
     let geometry = Geometry::of(catalogue);
     if geometry.quadrants > COMFORTABLE_QUADRANTS {
         warnings.push(Warning::Render(RenderKind::QuadrantCount {
@@ -240,7 +288,7 @@ pub fn warn_crowding(catalogue: &Catalogue, plotted: &Plotted, warnings: &mut Wa
     }
     for run in plotted.runs(catalogue) {
         let count = run.items.len();
-        let fits = geometry.capacity(run.ring, count);
+        let fits = geometry.capacity(run.ring, count, growth);
         if fits < count {
             warnings.push(Warning::Render(RenderKind::OverfullBand {
                 quadrant: catalogue
@@ -444,10 +492,62 @@ mod tests {
         }
     }
 
+    /// The two points `d` apart along the x axis.
+    fn pair(d: f64) -> [Point; 2] {
+        [Point::ORIGIN, Point { x: d, y: 0.0 }]
+    }
+
+    /// rg-06b: a radar whose markers already clear, or that has fewer than
+    /// two, does not grow.
+    #[test]
+    fn growth_is_one_when_every_pair_clears() {
+        let apart = pair(2.0 * MARKER_RADIUS);
+        assert!(close(growth(&apart), 1.0));
+        assert!(close(growth(apart.get(..1).expect("one point")), 1.0));
+        assert!(close(growth(&[]), 1.0));
+    }
+
+    /// The least step at which the closest pair clears: 20/13 is 1.54, so
+    /// 1.75; 16 clears at exactly 1.25; past the cap, the cap.
+    #[test]
+    fn growth_is_the_least_step_that_clears() {
+        assert!(close(growth(&pair(13.0)), 1.75));
+        assert!(close(growth(&pair(16.0)), 1.25));
+        assert!(close(growth(&pair(19.0)), 1.25));
+        assert!(close(growth(&pair(1.0)), MAX_GROWTH));
+        let steps: Vec<f64> = growth_steps().collect();
+        assert_eq!(steps, [1.0, 1.25, 1.5, 1.75, 2.0]);
+    }
+
+    /// The closest pair is any two markers, not two in one band: at eight
+    /// quadrants, one item in each innermost band fits its band, but
+    /// neighbours across a divider are 18.9 apart.
+    #[test]
+    fn growth_counts_pairs_across_a_divider() {
+        let g = geometry(8, 4);
+        let points: Vec<Point> = (0..8).map(|p| g.marker(p, 3, 0, 1)).collect();
+        assert!(g.fits(3, 1, 1.0));
+        assert!(close(growth(&points), 1.25));
+        let far = pair(30.0);
+        let near = [far[0], far[1], Point { x: 0.0, y: 15.0 }];
+        assert!(close(growth(&near), 1.5), "the closest of three pairs");
+    }
+
+    /// FR-89 at a growth factor: a band that overflows at 1 fits once grown
+    /// far enough, and capacity rises with it.
+    #[test]
+    fn a_grown_band_holds_more() {
+        let g = geometry(4, 4);
+        assert_eq!(g.capacity(3, 100, 1.0), 2);
+        assert!(!g.fits(3, 3, 1.0));
+        assert!(g.fits(3, 3, 1.25));
+        assert!(g.capacity(3, 100, 2.0) > g.capacity(3, 100, 1.0));
+    }
+
     /// Each band's capacity, outermost first, with no practical limit.
     fn capacities(quadrants: usize, rings: usize) -> Vec<usize> {
         let g = geometry(quadrants, rings);
-        (0..rings).map(|ring| g.capacity(ring, 1000)).collect()
+        (0..rings).map(|ring| g.capacity(ring, 1000, 1.0)).collect()
     }
 
     /// FR-89 against every figure the PRD and crumb `rg-cbx` quote, for
@@ -481,10 +581,10 @@ mod tests {
     #[test]
     fn capacity_is_at_least_one_and_at_most_the_limit() {
         let g = geometry(8, 6);
-        assert!(g.fits(5, 1));
-        assert_eq!(g.capacity(5, 1), 1);
-        assert_eq!(g.capacity(0, 3), 3);
-        assert_eq!(g.capacity(0, 0), 0);
+        assert!(g.fits(5, 1, 1.0));
+        assert_eq!(g.capacity(5, 1, 1.0), 1);
+        assert_eq!(g.capacity(0, 3, 1.0), 3);
+        assert_eq!(g.capacity(0, 0, 1.0), 0);
     }
 
     /// FR-89's "largest n" is the first failure's predecessor only because
@@ -496,14 +596,14 @@ mod tests {
             for rings in 2..=6 {
                 let g = geometry(quadrants, rings);
                 for ring in 0..rings {
-                    let cap = g.capacity(ring, 200);
+                    let cap = g.capacity(ring, 200, 1.0);
                     assert!(
                         cap < 200,
                         "N={quadrants} rings={rings} ring={ring}: capacity reached the search limit"
                     );
                     for n in cap + 1..=cap + 20 {
                         assert!(
-                            !g.fits(ring, n),
+                            !g.fits(ring, n, 1.0),
                             "N={quadrants} rings={rings} ring={ring} n={n}"
                         );
                     }

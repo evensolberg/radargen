@@ -368,6 +368,28 @@ const _: () = assert!(
     NARROW_MIN_SCALE > RADAR_MONOTONE_FROM && NARROW_MIN_SCALE <= 1.0,
     "D-71: the narrow scale's floor must lie in the radar's monotone range"
 );
+/// rg-06b, D-86: the radar's geometry grows in steps of this much, so an
+/// edition redraws every marker only when it crosses a step.
+pub const GROWTH_STEP: f64 = 0.25;
+/// How many steps past natural size the radar may grow.
+pub const GROWTH_STEPS: usize = 4;
+/// The most the radar's geometry grows: 2×.
+pub const MAX_GROWTH: f64 = 2.0;
+const _: () = assert!(
+    1.0 + 4.0 * GROWTH_STEP == MAX_GROWTH && GROWTH_STEPS == 4,
+    "D-86: the steps end at MAX_GROWTH"
+);
+// D-86: a grown radar's narrow scale goes down to NARROW_MIN_SCALE /
+// growth, which must stay in the radar's monotone range too.
+const _: () = assert!(
+    NARROW_MIN_SCALE / MAX_GROWTH > RADAR_MONOTONE_FROM,
+    "D-86: the grown narrow floor must lie in the radar's monotone range"
+);
+/// D-86: the narrowest viewport that must still show the wide arrangement.
+///
+/// Growth widens the wide document, and FR-69's breakpoint with it, so the
+/// radar grows no further than keeps the breakpoint at or below this.
+pub const WIDE_MIN_VIEWPORT_PX: u32 = 1440;
 /// Where the radar block sits from the document's left edge.
 ///
 /// Its widest label's ink then lands on the margin, as the legend's content
@@ -473,6 +495,16 @@ pub fn breakpoint_px(wide_width: f64) -> u32 {
     )]
     let px = (wide_width * MIN_LEGIBLE_PX / LEGEND_NAME.size).round() as u32;
     px
+}
+
+/// D-86: whether a wide document `wide_width` units wide still shows on a
+/// `WIDE_MIN_VIEWPORT_PX` screen.
+///
+/// A width `breakpoint_px` would refuse, past `MAX_WIDTH` or not a number,
+/// does not, and is never handed to it.
+#[must_use]
+pub fn wide_shows_on_laptops(wide_width: f64) -> bool {
+    (1.0..=MAX_WIDTH).contains(&wide_width) && breakpoint_px(wide_width) <= WIDE_MIN_VIEWPORT_PX
 }
 
 #[cfg(test)]
@@ -686,5 +718,14 @@ mod tests {
     #[test]
     fn indicator_reach_is_19() {
         assert!((INDICATOR_REACH - 19.0).abs() < 1e-12, "{INDICATOR_REACH}");
+    }
+
+    /// D-86: a width past `MAX_WIDTH`, or none at all, never shows, and is
+    /// never handed to `breakpoint_px`, which would panic on it.
+    #[test]
+    fn a_document_past_max_width_does_not_show_on_laptops() {
+        assert!(!wide_shows_on_laptops(MAX_WIDTH + 1.0));
+        assert!(!wide_shows_on_laptops(f64::NAN));
+        assert!(wide_shows_on_laptops(1000.0));
     }
 }

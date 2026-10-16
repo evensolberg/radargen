@@ -1,0 +1,219 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1572.619 1424">
+<g>
+<g transform="translate(10 10)">
+<g transform="translate(660 660)" role="group" aria-label="Technology radar: 4 quadrants, 4 rings, 10 items">
+<circle cx="0" cy="0" r="520" fill="none" stroke="#7E858F" stroke-width="1"/>
+<circle cx="0" cy="0" r="390" fill="none" stroke="#7E858F" stroke-width="1"/>
+<circle cx="0" cy="0" r="260" fill="none" stroke="#7E858F" stroke-width="1"/>
+<circle cx="0" cy="0" r="130" fill="none" stroke="#7E858F" stroke-width="1"/>
+<line x1="0" y1="0" x2="0" y2="-524" stroke="#848B96" stroke-width="1"/>
+<line x1="0" y1="0" x2="524" y2="0" stroke="#848B96" stroke-width="1"/>
+<line x1="0" y1="0" x2="0" y2="524" stroke="#848B96" stroke-width="1"/>
+<line x1="0" y1="0" x2="-524" y2="0" stroke="#848B96" stroke-width="1"/>
+<text x="444.453" y="-444.453" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.48" text-anchor="middle" fill="#16191F">Languages</text>
+<text x="442.367" y="442.367" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.48" text-anchor="middle" fill="#16191F">Platforms</text>
+<text x="-445.8" y="445.8" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.48" text-anchor="middle" fill="#16191F">Techniques</text>
+<text x="-434.377" y="-434.377" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.48" text-anchor="middle" fill="#16191F">Tools</text>
+<text x="0" y="-455" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round" aria-hidden="true">Assess</text>
+<text x="0" y="-325" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round" aria-hidden="true">Trial</text>
+<text x="0" y="-195" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round" aria-hidden="true">Adopt</text>
+<text x="0" y="-65" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round" aria-hidden="true">Retire</text>
+<text x="0" y="-455" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="#585F6B">Assess</text>
+<text x="0" y="-325" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="#585F6B">Trial</text>
+<text x="0" y="-195" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="#585F6B">Adopt</text>
+<text x="0" y="-65" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="#585F6B">Retire</text>
+<g role="img" aria-label="1. Rust; Languages quadrant, Trial ring">
+<title>1. Rust</title>
+<circle cx="218.779" cy="-218.779" r="10" fill="#0072B2" stroke="#FFFFFF" stroke-width="2"/>
+<text x="218.779" y="-215.505" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">1</text>
+</g>
+<g role="img" aria-label="2. Kubernetes; Platforms quadrant, Adopt ring">
+<title>2. Kubernetes</title>
+<circle cx="126.855" cy="126.855" r="10" fill="#C25400" stroke="#FFFFFF" stroke-width="2"/>
+<text x="126.855" y="130.129" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">2</text>
+</g>
+<g role="img" aria-label="3. Big-bang releases; Platforms quadrant, Retire ring">
+<title>3. Big-bang releases</title>
+<circle cx="46.48" cy="16.734" r="10" fill="#C25400" stroke="#FFFFFF" stroke-width="2"/>
+<text x="46.48" y="20.008" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">3</text>
+</g>
+<g role="img" aria-label="4. Mainframe batch; Platforms quadrant, Retire ring">
+<title>4. Mainframe batch</title>
+<circle cx="74.639" cy="47.367" r="10" fill="#C25400" stroke="#FFFFFF" stroke-width="2"/>
+<text x="74.639" y="50.641" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">4</text>
+</g>
+<g role="img" aria-label="5. Manual deploys; Platforms quadrant, Retire ring">
+<title>5. Manual deploys</title>
+<circle cx="34.931" cy="34.931" r="10" fill="#C25400" stroke="#FFFFFF" stroke-width="2"/>
+<text x="34.931" y="38.205" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">5</text>
+</g>
+<g role="img" aria-label="6. Shared database; Platforms quadrant, Retire ring">
+<title>6. Shared database</title>
+<circle cx="47.367" cy="74.639" r="10" fill="#C25400" stroke="#FFFFFF" stroke-width="2"/>
+<text x="47.367" y="77.913" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">6</text>
+</g>
+<g role="img" aria-label="7. Snowflake servers; Platforms quadrant, Retire ring">
+<title>7. Snowflake servers</title>
+<circle cx="16.734" cy="46.48" r="10" fill="#C25400" stroke="#FFFFFF" stroke-width="2"/>
+<text x="16.734" y="49.753" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">7</text>
+</g>
+<g role="img" aria-label="8. Pair programming; Techniques quadrant, Trial ring">
+<title>8. Pair programming</title>
+<circle cx="-218.779" cy="218.779" r="10" fill="#00857A" stroke="#FFFFFF" stroke-width="2"/>
+<text x="-218.779" y="222.053" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">8</text>
+</g>
+<g role="img" aria-label="9. Terraform; Tools quadrant, Adopt ring">
+<title>9. Terraform</title>
+<circle cx="-126.855" cy="-126.855" r="10" fill="#787832" stroke="#FFFFFF" stroke-width="2"/>
+<text x="-126.855" y="-123.581" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">9</text>
+</g>
+<g role="img" aria-label="10. Perl scripts; Tools quadrant, Retire ring">
+<title>10. Perl scripts</title>
+<circle cx="-34.931" cy="-34.931" r="10" fill="#787832" stroke="#FFFFFF" stroke-width="2"/>
+<text x="-34.931" y="-31.657" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">10</text>
+</g>
+</g>
+</g>
+<g aria-hidden="true">
+<line x1="20" y1="1330" x2="1320" y2="1330" stroke="#848B96" stroke-width="1"/>
+</g>
+<g transform="translate(20 1330)">
+<g role="heading" aria-level="2">
+<text x="0" y="20" font-family="Inter" font-size="13" font-weight="600" fill="#16191F">Key</text>
+</g>
+<g aria-hidden="true">
+<circle cx="10" cy="40" r="7" fill="#585F6B" stroke="#FFFFFF" stroke-width="2"/>
+</g>
+<text x="28" y="44" font-family="Inter" font-size="11" font-weight="400" fill="#585F6B">Default, or no qualifier — solid marker</text>
+<g aria-hidden="true">
+<circle cx="319.153" cy="40" r="7" fill="#FFFFFF" stroke="#585F6B" stroke-width="3"/>
+</g>
+<text x="337.153" y="44" font-family="Inter" font-size="11" font-weight="400" fill="#585F6B">Conditional — hollow marker</text>
+<g aria-hidden="true">
+<circle cx="667.582" cy="40" r="9" fill="none" stroke="#585F6B" stroke-width="2"/>
+<circle cx="667.582" cy="40" r="5" fill="#585F6B" stroke="#FFFFFF" stroke-width="2"/>
+</g>
+<text x="685.582" y="44" font-family="Inter" font-size="11" font-weight="400" fill="#585F6B">New this edition — full ring</text>
+<g aria-hidden="true">
+<path d="M 10 73 A 9 9 0 0 1 10 55" fill="none" stroke="#585F6B" stroke-width="2"/>
+<circle cx="10" cy="64" r="5" fill="#585F6B" stroke="#FFFFFF" stroke-width="2"/>
+</g>
+<text x="28" y="68" font-family="Inter" font-size="11" font-weight="400" fill="#585F6B">Moved in — half-ring facing the centre</text>
+<g aria-hidden="true">
+<path d="M 319.153 55 A 9 9 0 0 1 319.153 73" fill="none" stroke="#585F6B" stroke-width="2"/>
+<circle cx="319.153" cy="64" r="5" fill="#585F6B" stroke="#FFFFFF" stroke-width="2"/>
+</g>
+<text x="337.153" y="68" font-family="Inter" font-size="11" font-weight="400" fill="#585F6B">Moved out — half-ring facing the outer edge</text>
+</g>
+<g transform="translate(1336 16)">
+<rect x="0" y="0" width="228.619" height="592" rx="8" fill="#F4F5F7" stroke="none"/>
+<g transform="translate(12 8)">
+<g role="heading" aria-level="2">
+<text x="0" y="14" font-family="Inter" font-size="13" font-weight="600" fill="#16191F">Legend</text>
+</g>
+<g aria-hidden="true">
+<circle cx="5" cy="32" r="5" fill="#0072B2" stroke="none"/>
+</g>
+<g role="heading" aria-level="3">
+<text x="16" y="36" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.36" fill="#16191F">Languages</text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="54" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="#585F6B">Trial</text>
+</g>
+<g role="img" aria-label="1. Rust; Languages quadrant, Trial ring">
+<rect x="38" y="58" width="170.619" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
+<circle cx="52" cy="76" r="8" fill="#0072B2" stroke="#0072B2" stroke-width="1.5"/>
+<text x="52" y="79.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">1</text>
+<text x="68" y="76.5" font-family="Inter" font-size="12.5" font-weight="400" fill="#16191F">Rust</text>
+</g>
+<g aria-hidden="true">
+<circle cx="5" cy="110" r="5" fill="#C25400" stroke="none"/>
+</g>
+<g role="heading" aria-level="3">
+<text x="16" y="114" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.36" fill="#16191F">Platforms</text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="132" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="#585F6B">Adopt</text>
+</g>
+<g role="img" aria-label="2. Kubernetes; Platforms quadrant, Adopt ring">
+<rect x="38" y="136" width="170.619" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
+<circle cx="52" cy="154" r="8" fill="#C25400" stroke="#C25400" stroke-width="1.5"/>
+<text x="52" y="157.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">2</text>
+<text x="68" y="154.5" font-family="Inter" font-size="12.5" font-weight="400" fill="#16191F">Kubernetes</text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="184" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="#585F6B">Retire</text>
+</g>
+<g role="img" aria-label="3. Big-bang releases; Platforms quadrant, Retire ring">
+<rect x="38" y="188" width="170.619" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
+<circle cx="52" cy="206" r="8" fill="#C25400" stroke="#C25400" stroke-width="1.5"/>
+<text x="52" y="209.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">3</text>
+<text x="68" y="206.5" font-family="Inter" font-size="12.5" font-weight="400" fill="#16191F">Big-bang releases</text>
+</g>
+<g role="img" aria-label="4. Mainframe batch; Platforms quadrant, Retire ring">
+<rect x="38" y="224" width="170.619" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
+<circle cx="52" cy="242" r="8" fill="#C25400" stroke="#C25400" stroke-width="1.5"/>
+<text x="52" y="245.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">4</text>
+<text x="68" y="242.5" font-family="Inter" font-size="12.5" font-weight="400" fill="#16191F">Mainframe batch</text>
+</g>
+<g role="img" aria-label="5. Manual deploys; Platforms quadrant, Retire ring">
+<rect x="38" y="260" width="170.619" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
+<circle cx="52" cy="278" r="8" fill="#C25400" stroke="#C25400" stroke-width="1.5"/>
+<text x="52" y="281.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">5</text>
+<text x="68" y="278.5" font-family="Inter" font-size="12.5" font-weight="400" fill="#16191F">Manual deploys</text>
+</g>
+<g role="img" aria-label="6. Shared database; Platforms quadrant, Retire ring">
+<rect x="38" y="296" width="170.619" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
+<circle cx="52" cy="314" r="8" fill="#C25400" stroke="#C25400" stroke-width="1.5"/>
+<text x="52" y="317.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">6</text>
+<text x="68" y="314.5" font-family="Inter" font-size="12.5" font-weight="400" fill="#16191F">Shared database</text>
+</g>
+<g role="img" aria-label="7. Snowflake servers; Platforms quadrant, Retire ring">
+<rect x="38" y="332" width="170.619" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
+<circle cx="52" cy="350" r="8" fill="#C25400" stroke="#C25400" stroke-width="1.5"/>
+<text x="52" y="353.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">7</text>
+<text x="68" y="350.5" font-family="Inter" font-size="12.5" font-weight="400" fill="#16191F">Snowflake servers</text>
+</g>
+<g aria-hidden="true">
+<circle cx="5" cy="384" r="5" fill="#00857A" stroke="none"/>
+</g>
+<g role="heading" aria-level="3">
+<text x="16" y="388" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.36" fill="#16191F">Techniques</text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="406" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="#585F6B">Trial</text>
+</g>
+<g role="img" aria-label="8. Pair programming; Techniques quadrant, Trial ring">
+<rect x="38" y="410" width="170.619" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
+<circle cx="52" cy="428" r="8" fill="#00857A" stroke="#00857A" stroke-width="1.5"/>
+<text x="52" y="431.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">8</text>
+<text x="68" y="428.5" font-family="Inter" font-size="12.5" font-weight="400" fill="#16191F">Pair programming</text>
+</g>
+<g aria-hidden="true">
+<circle cx="5" cy="462" r="5" fill="#787832" stroke="none"/>
+</g>
+<g role="heading" aria-level="3">
+<text x="16" y="466" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.36" fill="#16191F">Tools</text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="484" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="#585F6B">Adopt</text>
+</g>
+<g role="img" aria-label="9. Terraform; Tools quadrant, Adopt ring">
+<rect x="38" y="488" width="170.619" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
+<circle cx="52" cy="506" r="8" fill="#787832" stroke="#787832" stroke-width="1.5"/>
+<text x="52" y="509.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">9</text>
+<text x="68" y="506.5" font-family="Inter" font-size="12.5" font-weight="400" fill="#16191F">Terraform</text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="536" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="#585F6B">Retire</text>
+</g>
+<g role="img" aria-label="10. Perl scripts; Tools quadrant, Retire ring">
+<rect x="38" y="540" width="170.619" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
+<circle cx="52" cy="558" r="8" fill="#787832" stroke="#787832" stroke-width="1.5"/>
+<text x="52" y="561.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">10</text>
+<text x="68" y="558.5" font-family="Inter" font-size="12.5" font-weight="400" fill="#16191F">Perl scripts</text>
+</g>
+</g>
+</g>
+</g>
+</svg>
