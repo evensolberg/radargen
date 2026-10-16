@@ -63,7 +63,7 @@ fn the_scripts_names_are_the_pages() {
         ("toggle", TOGGLE_CLASS),
         ("skip", SKIP_CLASS),
         ("arrangement", ARRANGEMENT_CLASS),
-        ("legendScroll", super::super::css::WIDE_SCROLL),
+        ("legendScroll", super::super::css::WIDE_LEGEND),
     ]
     .into_iter()
     .map(|(k, v)| (k.to_owned(), v.to_owned()))

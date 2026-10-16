@@ -441,14 +441,19 @@ pub const NARROW_MIN_VIEWPORT_PX: f64 = 320.0;
 /// narrow SVG spans the viewport; PR 14 must keep that or change this
 /// constant, since `MIN_PX_PER_UNIT` and `HIT_RADIUS` rest on it.
 pub const NARROW_HORIZONTAL_INSET_PX: f64 = 0.0;
+/// D-85: the least scale HTML draws the wide radar at, by width or height.
+///
+/// Where `LEGEND_NAME`-sized text renders at `MIN_LEGIBLE_PX`: the scale the
+/// whole wide document reached at its breakpoint before the radar was drawn
+/// apart from the legend.
+pub const WIDE_MIN_SCALE: f64 = MIN_LEGIBLE_PX / LEGEND_NAME.size;
 /// The fewest rendered pixels per user unit FR-94 is held to.
 ///
 /// A narrow document `NARROW_MAX_WIDTH` wide at `NARROW_MIN_VIEWPORT_PX`, or
-/// the wide one at its breakpoint, where `LEGEND_NAME` renders at
-/// `MIN_LEGIBLE_PX`; the narrow term binds, at 2/3.
-pub const MIN_PX_PER_UNIT: f64 = ((NARROW_MIN_VIEWPORT_PX - NARROW_HORIZONTAL_INSET_PX)
-    / NARROW_MAX_WIDTH)
-    .min(MIN_LEGIBLE_PX / LEGEND_NAME.size);
+/// the wide radar at `WIDE_MIN_SCALE`, its least by width or height (D-85),
+/// beside a legend at full size; the narrow term binds, at 2/3.
+pub const MIN_PX_PER_UNIT: f64 =
+    ((NARROW_MIN_VIEWPORT_PX - NARROW_HORIZONTAL_INSET_PX) / NARROW_MAX_WIDTH).min(WIDE_MIN_SCALE);
 /// FR-94's hit-area radius at scale 1, in user units.
 ///
 /// 18 renders at least `MIN_TARGET_PX` across at `MIN_PX_PER_UNIT` (asserted
@@ -467,13 +472,6 @@ const _: () = assert!(
 /// How far an indicator reaches from its marker's centre at scale 1: the
 /// marker, the focus ring's gap and half the ring's stroke (D-66).
 pub const INDICATOR_REACH: f64 = MARKER_RADIUS + FOCUS_RING_GAP + FOCUS_RING_STROKE / 2.0;
-
-/// D-85: the least scale HTML draws the wide radar at, by width or height.
-///
-/// Where `LEGEND_NAME`-sized text renders at `MIN_LEGIBLE_PX`: the scale the
-/// whole wide document reached at its breakpoint before the radar was drawn
-/// apart from the legend.
-pub const WIDE_MIN_SCALE: f64 = MIN_LEGIBLE_PX / LEGEND_NAME.size;
 
 /// FR-64's widest output, as a bound on any document width layout produces.
 const MAX_WIDTH: f64 = 10_000.0;

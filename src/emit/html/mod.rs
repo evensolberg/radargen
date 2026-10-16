@@ -108,8 +108,8 @@ pub fn page(input: &Page<'_>) -> String {
 }
 
 /// The wide arrangement's parts in reading order (FR-68): title, radar,
-/// key, then the legend in its scrolling box. The stylesheet's grid puts
-/// the legend beside the radar (D-85).
+/// key, then the legend, its container scrolling. The stylesheet's grid
+/// puts the legend beside the radar (D-85).
 fn wide_parts(parts: &WideParts, target: Target<'_>) -> String {
     let part = |class: &str, document: &Document| {
         [
@@ -125,12 +125,14 @@ fn wide_parts(parts: &WideParts, target: Target<'_>) -> String {
         part(css::WIDE_TITLE, &parts.title),
         part(css::WIDE_RADAR, &parts.radar),
         part(css::WIDE_KEY, &parts.key),
+        // Out of the tab order: its rows are focusable and scroll it, and
+        // Firefox would otherwise stop on the box itself, unnamed.
         [
             DIV_OPEN,
             css::WIDE_LEGEND,
-            "\">\n",
-            &part(css::WIDE_SCROLL, &parts.legend),
-            "</div>\n",
+            "\" tabindex=\"-1\">\n",
+            &serialise(&parts.legend, target),
+            DIV_CLOSE,
         ]
         .concat(),
     ]

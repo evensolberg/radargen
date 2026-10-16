@@ -21,7 +21,7 @@ const WIDE_OPEN: &str = "<div class=\"arrangement wide\">\n";
 const NARROW_OPEN: &str = "<div class=\"arrangement narrow\">\n";
 /// The wide arrangement's parts with their SVGs taken out (D-85): title,
 /// radar, key, then the legend in its scrolling box.
-const WIDE_PARTS: &str = "<div class=\"wide-title\">\n\n</div>\n<div class=\"wide-radar\">\n\n</div>\n<div class=\"wide-key\">\n\n</div>\n<div class=\"wide-legend\">\n<div class=\"wide-scroll\">\n\n</div>\n</div>\n";
+const WIDE_PARTS: &str = "<div class=\"wide-title\">\n\n</div>\n<div class=\"wide-radar\">\n\n</div>\n<div class=\"wide-key\">\n\n</div>\n<div class=\"wide-legend\" tabindex=\"-1\">\n\n</div>\n";
 /// The two inks a number on a solid marker takes, as literals in every
 /// format, since the series do not change with theme (architecture §5).
 const NUMBER_INKS: [&str; 2] = ["#FFFFFF", "#16191F"];
@@ -145,12 +145,11 @@ fn one_arrangement_at_a_time() {
     let query = breakpoint_px(width, wide.radar.width) - 1;
     for rule in [
         format!(
-            ".wide{{display:grid;grid-template-columns:minmax(0,max({f}px,calc((100vh - {t}px)*{r}/{h}))) {l}px;justify-content:center}}",
+            ".wide{{display:grid;grid-template-columns:minmax(0,max({f}px,calc((100vh - {t}px)*{r}/{h}))) max-content;justify-content:center}}",
             f = fmt_coord(wide.radar.width * 0.8),
             r = fmt_coord(wide.radar.width),
             t = fmt_coord(wide.title.height),
             h = fmt_coord(wide.radar.height),
-            l = fmt_coord(wide.legend.width)
         ),
         format!(
             ".narrow{{max-width:{}px;margin:0 auto}}",

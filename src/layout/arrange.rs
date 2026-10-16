@@ -75,7 +75,7 @@ impl Blocks {
         for g in growth_steps().rev().filter(|&g| g <= needed) {
             self.radar.set_growth(g);
             let at = wide(self);
-            if wide_shows_on_laptops(at.width, at.radar.origin.x + self.radar.size(1.0).width) {
+            if wide_shows_on_laptops(at.width, at.radar_right) {
                 return;
             }
         }
@@ -123,6 +123,9 @@ pub struct Placements {
     /// The legend panel's width at scale 1: its own in wide, where it sets
     /// the document's width, and the column's in narrow (rg-zch).
     pub legend_width: f64,
+    /// Where the radar block ends on the right: where HTML cuts the wide
+    /// arrangement between radar and legend (D-85).
+    pub radar_right: f64,
 }
 
 /// `blocks` drawn in `arrangement`, in document order: title, radar, the
@@ -168,7 +171,7 @@ pub struct WideParts {
 pub fn wide_parts(blocks: &Blocks) -> WideParts {
     let at = placements(Arrangement::Wide, blocks);
     let top = at.radar.origin.y;
-    let radar_right = at.radar.origin.x + blocks.radar.size(1.0).width;
+    let radar_right = at.radar_right;
     // The cut runs half a rule above the rule, so its stroke is the key's.
     let cut = at.rule.from.y - KEY_RULE_STROKE / 2.0;
     let key = blocks.key.grid(at.key_columns);
@@ -330,6 +333,7 @@ fn wide(blocks: &Blocks) -> Placements {
         key_columns,
         legend: Placement::at(legend_at),
         legend_width: legend.width,
+        radar_right,
     }
 }
 
@@ -387,6 +391,7 @@ fn narrow(blocks: &Blocks, scale: f64) -> Placements {
         }),
         // Twice the inset, as two subtractions: NFR-4 keeps mul_add out.
         legend_width: width - legend_x - legend_x,
+        radar_right: RADAR_INSET + radar.width,
     }
 }
 
@@ -601,8 +606,8 @@ mod tests {
 
     /// Whether `b`'s wide arrangement shows on a laptop (D-86).
     fn shows(b: &Blocks) -> bool {
-        let parts = wide_parts(b);
-        wide_shows_on_laptops(parts.radar.width + parts.legend.width, parts.radar.width)
+        let at = placements(Arrangement::Wide, b);
+        wide_shows_on_laptops(at.width, at.radar_right)
     }
 
     /// The growth `csv`'s markers need, before the laptop bound (D-86).

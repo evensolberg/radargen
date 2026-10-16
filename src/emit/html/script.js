@@ -36,7 +36,7 @@
     toggle: 'theme-toggle',
     skip: 'skip',
     arrangement: 'arrangement',
-    legendScroll: 'wide-scroll',
+    legendScroll: 'wide-legend',
   };
 
   const root = document.documentElement;
@@ -145,15 +145,26 @@
   };
 
   // The sticky panel must never hide what has focus (WCAG 2.4.11): not on
-  // the page, nor in the wide legend's own scrolling box (D-85), whose
-  // bottom can sit under the panel.
+  // the page, nor in the wide legend's own scrolling box (D-85). The box is
+  // padded by as much of it as the panel covers, so a row focused in it is
+  // scrolled within it, above the panel, rather than the page moving and
+  // taking the radar with it. Scroll padding adds no room to scroll into,
+  // so the box gets that much real padding too, or its last rows could
+  // never clear the panel.
+  const boxes = [...document.querySelectorAll('.' + N.legendScroll)];
   const pad = () => {
-    const by = panel.hidden ? '' : panel.offsetHeight + 'px';
-    for (const box of [root, ...document.querySelectorAll('.' + N.legendScroll)]) {
+    root.style.scrollPaddingBottom = panel.hidden ? '' : panel.offsetHeight + 'px';
+    const top = panel.getBoundingClientRect().top;
+    for (const box of boxes) {
+      const under = panel.hidden ? 0 : box.getBoundingClientRect().bottom - top;
+      const by = under > 0 ? under + 'px' : '';
       box.style.scrollPaddingBottom = by;
+      box.style.paddingBottom = by;
     }
   };
   new ResizeObserver(pad).observe(panel);
+  addEventListener('scroll', pad, { passive: true });
+  addEventListener('resize', pad);
 
   // Every element of an item that matches `own`: its controls, its table
   // row and button, and its marker's indicators.

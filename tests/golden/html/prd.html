@@ -14,14 +14,14 @@
 @media (forced-colors: active){:root,:root[data-theme]{--surface-1:Canvas;--surface-2:Canvas;--text-primary:CanvasText;--text-muted:CanvasText;--stroke-ring:CanvasText;--stroke-divider:CanvasText;--marker-hollow:Canvas;--focus:Highlight;}}
 body{margin:0;line-height:1.4;font-family:"Inter";background:var(--surface-1);color:var(--text-primary)}
 svg{display:block;width:100%;height:auto}
-.wide{display:grid;grid-template-columns:minmax(0,max(536px,calc((100vh - 46px)*670/659.5))) 355.077px;justify-content:center}
-.wide-title{grid-row:1;grid-column:1/-1}
+.wide{display:grid;grid-template-columns:minmax(0,max(536px,calc((100vh - 46px)*670/659.5))) max-content;justify-content:center}
+.wide-title{grid-row:1;grid-column:1/-1;contain:inline-size}
 .wide-title svg{width:1025.077px;max-width:100%}
 .wide-radar{grid-row:2;grid-column:1}
 .wide-key{grid-row:3;grid-column:1}
 .wide-key svg{width:670px;max-width:100%}
-.wide-legend{grid-row:2;grid-column:2;position:relative}
-.wide-scroll{position:absolute;inset:0;overflow-y:auto}
+.wide-legend{grid-row:2;grid-column:2;height:0;min-height:100%;box-sizing:border-box;overflow-y:auto;scrollbar-gutter:stable}
+.wide-legend svg{width:355.077px}
 .narrow{max-width:420px;margin:0 auto}
 .narrow{display:none}
 @media (max-width: 890px){.wide{display:none}.narrow{display:block}}
@@ -272,8 +272,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 </g>
 </svg>
 </div>
-<div class="wide-legend">
-<div class="wide-scroll">
+<div class="wide-legend" tabindex="-1">
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 355.077 432">
 <g transform="translate(-670 -46)">
 <g transform="translate(676 52)">
@@ -391,7 +390,6 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 </g>
 </g>
 </svg>
-</div>
 </div>
 
 </div>
@@ -737,7 +735,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
     toggle: 'theme-toggle',
     skip: 'skip',
     arrangement: 'arrangement',
-    legendScroll: 'wide-scroll',
+    legendScroll: 'wide-legend',
   };
 
   const root = document.documentElement;
@@ -846,15 +844,26 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
   };
 
   // The sticky panel must never hide what has focus (WCAG 2.4.11): not on
-  // the page, nor in the wide legend's own scrolling box (D-85), whose
-  // bottom can sit under the panel.
+  // the page, nor in the wide legend's own scrolling box (D-85). The box is
+  // padded by as much of it as the panel covers, so a row focused in it is
+  // scrolled within it, above the panel, rather than the page moving and
+  // taking the radar with it. Scroll padding adds no room to scroll into,
+  // so the box gets that much real padding too, or its last rows could
+  // never clear the panel.
+  const boxes = [...document.querySelectorAll('.' + N.legendScroll)];
   const pad = () => {
-    const by = panel.hidden ? '' : panel.offsetHeight + 'px';
-    for (const box of [root, ...document.querySelectorAll('.' + N.legendScroll)]) {
+    root.style.scrollPaddingBottom = panel.hidden ? '' : panel.offsetHeight + 'px';
+    const top = panel.getBoundingClientRect().top;
+    for (const box of boxes) {
+      const under = panel.hidden ? 0 : box.getBoundingClientRect().bottom - top;
+      const by = under > 0 ? under + 'px' : '';
       box.style.scrollPaddingBottom = by;
+      box.style.paddingBottom = by;
     }
   };
   new ResizeObserver(pad).observe(panel);
+  addEventListener('scroll', pad, { passive: true });
+  addEventListener('resize', pad);
 
   // Every element of an item that matches `own`: its controls, its table
   // row and button, and its marker's indicators.

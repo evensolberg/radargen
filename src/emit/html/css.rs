@@ -32,13 +32,11 @@ pub(super) const HIDDEN_BOX: &str = "{position:absolute;width:1px;height:1px;mar
 /// The end of a focus outline rule, after its colour: page chrome outlines
 /// sit 2px out, so they never touch the control.
 pub(super) const OUTLINE_CLOSE: &str = ");outline-offset:2px}\n";
-/// The wide arrangement's parts' containers (D-85), and the legend's
-/// scrolling box inside its container.
+/// The wide arrangement's parts' containers (D-85); the legend's scrolls.
 pub(super) const WIDE_TITLE: &str = "wide-title";
 pub(super) const WIDE_RADAR: &str = "wide-radar";
 pub(super) const WIDE_KEY: &str = "wide-key";
 pub(super) const WIDE_LEGEND: &str = "wide-legend";
-pub(super) const WIDE_SCROLL: &str = "wide-scroll";
 
 const CAP_FLOOR: &str = "max(";
 const CAP_HEIGHT: &str = "px,calc((100vh - ";
@@ -161,16 +159,20 @@ const BODY_GROUND: &str = "\";background:var(";
 const BODY_INK: &str = ");color:var(";
 const SVG_RULE: &str = ")}\nsvg{display:block;width:100%;height:auto}\n";
 const GRID_OPEN: &str = ".wide{display:grid;grid-template-columns:minmax(0,";
-const GRID_LEGEND: &str = ") ";
-const GRID_CLOSE: &str = "px;justify-content:center}\n";
-const TITLE_RULE: &str = "{grid-row:1;grid-column:1/-1}\n";
+const GRID_CLOSE: &str = ") max-content;justify-content:center}\n";
+/// The title spans both columns, its size contained so its width never
+/// widens the legend's column, which is sized to its content.
+const TITLE_RULE: &str = "{grid-row:1;grid-column:1/-1;contain:inline-size}\n";
 const RADAR_RULE: &str = "{grid-row:2;grid-column:1}\n";
 const KEY_RULE: &str = "{grid-row:3;grid-column:1}\n";
-const LEGEND_RULE: &str = "{grid-row:2;grid-column:2;position:relative}\n";
-/// The legend scrolls in a box as tall as the radar beside it (D-85): its
-/// own height is taken out of the grid's sizing, so the radar alone sets
-/// the row.
-const SCROLL_RULE: &str = "{position:absolute;inset:0;overflow-y:auto}\n";
+/// The legend scrolls in a box as tall as the radar beside it (D-85): a
+/// zero height takes it out of the row's sizing, so the radar alone sets
+/// the row, and the minimum stretches it to fill the row. Its column is
+/// as wide as the legend and a reserved scrollbar gutter, so a classic
+/// scrollbar never narrows the legend.
+const LEGEND_RULE: &str = "{grid-row:2;grid-column:2;height:0;min-height:100%;box-sizing:border-box;overflow-y:auto;scrollbar-gutter:stable}\n";
+const FIXED_OPEN: &str = " svg{width:";
+const FIXED_CLOSE: &str = "px}\n";
 const NATURAL_OPEN: &str = " svg{width:";
 const NATURAL_CLOSE: &str = "px;max-width:100%}\n";
 const NARROW_CAP: &str = ".narrow{max-width:";
@@ -318,8 +320,6 @@ pub(super) fn layout(wide: &Wide, narrow_width: f64) -> String {
         SVG_RULE,
         GRID_OPEN,
         &wide.radar_cap(),
-        GRID_LEGEND,
-        &fmt_coord(wide.legend_width),
         GRID_CLOSE,
         &class(WIDE_TITLE, TITLE_RULE),
         &natural(WIDE_TITLE, wide.width()),
@@ -327,7 +327,14 @@ pub(super) fn layout(wide: &Wide, narrow_width: f64) -> String {
         &class(WIDE_KEY, KEY_RULE),
         &natural(WIDE_KEY, wide.radar_width),
         &class(WIDE_LEGEND, LEGEND_RULE),
-        &class(WIDE_SCROLL, SCROLL_RULE),
+        &[
+            ".",
+            WIDE_LEGEND,
+            FIXED_OPEN,
+            &fmt_coord(wide.legend_width),
+            FIXED_CLOSE,
+        ]
+        .concat(),
         NARROW_CAP,
         &fmt_coord(narrow_width),
         PX,
