@@ -1,31 +1,35 @@
+## [unreleased]
+
+### 🚀 Features
+
+- *(text)* Shape, place and outline glyphs for the SVG export
+- *(svg)* Outlined text and the standalone root (D-88)
+- *(svg)* -o radar.svg writes the standalone export (FR-54)
+
+### 🐛 Bug Fixes
+
+- *(svg)* The final review's fixes: fmt, rustqual, two doc gaps
+
+### 📚 Documentation
+
+- *(plan)* PR 17, SVG export with outlined text (draft)
+- *(plan)* PR 17 rev 1.1, the five plan reviews folded in
+- *(prd)* D-88, the exported SVG (v0.73)
+- *(svg)* README's SVG section and manual check 16
+
+### 🚜 Refactor
+
+- *(emit)* UNTITLED is every output's, not the page's
+- *(svg)* Simplify pass over the export
+
+### 🧪 Testing
+
+- *(svg)* Goldens, the binary against them, two-process determinism
 ## [1.1.0] - 2026-10-16
 
 ### 🚀 Features
 
-- *(svg)* The static target draws the theme's ground (D-87)
-- *(png)* Size and rasterise a document (FR-55, FR-57, D-87)
-- *(png)* -o radar.png; --theme and --width take effect
-
-### 🐛 Bug Fixes
-
-- *(png)* Every pixel is opaque, including a rounded-up last row
-
-### 📚 Documentation
-
-- *(changelog)* Reconcile 1.0.1's entries with the squashed PR
-- *(plans)* PR 16, PNG export (RG-016B)
-- *(plans)* PR 16 plan revision 1.1, the five plan reviews folded in
-- *(prd)* D-87, the static ground and the PNG's limits
-- *(prd)* Name the release rule plainly
-- *(png)* README, manual checks and architecture for PNG export
-
-### 🚜 Refactor
-
-- *(png)* One ground, mapped exactly; fewer special cases
-
-### 🧪 Testing
-
-- *(png)* Goldens by decoded pixels, and determinism across processes
+- *(png)* PNG export; --theme and --width take effect (1.1.0) (#90)
 ## [1.0.1] - 2026-10-16
 
 ### 🐛 Bug Fixes

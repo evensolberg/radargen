@@ -10,9 +10,9 @@ crumb_id: rg-m2l
 document_title: "PR 17 — SVG export with outlined, deduplicated text: Implementation Plan"
 created_date: 2026-10-16
 synopsis: "-o radar.svg writes the wide arrangement (FR-71) as a standalone SVG: literal colours for --theme (FR-56) over D-87's ground, every text drawn as glyph outlines defined once per face and size in <defs> and placed with <use xlink:href> (architecture §11), so no font is referenced (SC-15) and other applications draw it as resvg does. --width sets the intrinsic size, the height following (FR-57). The file carries <!-- radargen 1.2 --> (SC-25), a <title> and <desc>, and names every outlined text for a screen reader opening it directly. Ships as 1.2.0."
-status: draft
+status: complete
 type: Plan
-revision: "1.1"
+revision: "1.2"
 review_date: 2026-10-16
 reviewed_by:
   - "Rust (subagent; compiled the plan's code in a scratch copy)"
@@ -20,8 +20,8 @@ reviewed_by:
   - "Architecture (subagent)"
   - "Security (subagent)"
   - "Accessibility and visual design (subagent)"
-completed_date:
-comments: "1.1 folds in the five plan reviews; every finding and its ruling is in the Review rulings table. Awaits the maintainer's confirmation of D-88 and of keeping the PR whole (Ruling 9)."
+completed_date: 2026-10-16
+comments: "1.1 folds in the five plan reviews; every finding and its ruling is in the Review rulings table. The maintainer confirmed D-88 and keeping the PR whole on 2026-10-16. 1.2 records completion; MAX_DELTA was set to 64 rather than the measured 56, for another platform's antialiasing."
 ---
 # PR 17 — SVG export with outlined, deduplicated text: Implementation Plan
 
@@ -210,13 +210,13 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 - Modify: `docs/design/architecture.md` (§3, §5, §10, §11, §12)
 - Modify: `docs/spikes/svg-font.md` (a superseded note)
 
-- [ ] **Step 1: Add D-88 after D-87**
+- [x] **Step 1: Add D-88 after D-87**
 
 ```markdown
 | **D-88** | **The exported SVG outlines its text, names it, and takes its size from `--width` unclamped** (FR-54, FR-57, NFR-1, SC-15, SC-25, §14.1). | *Added by the PR 17 plan, crumb `rg-m2l`.* **Outlines:** every text is drawn as glyph outlines, defined once per face and size in `<defs>` and placed by `<use xlink:href x y>` (architecture §11, `docs/spikes/svg-font.md`): no `<text>`, no `font-family`, no `@font-face`, so other applications draw it as resvg does. `xlink:href` rather than SVG 2's bare `href`, which SVG 1.1 consumers do not read. Glyph ids are local to the file: two exports pasted inline into one page would share them, which the README says. **Size:** `width` and `height` on the root are `--width` and the height in proportion, unrounded, or the document's own size by default; neither is clamped, capped or warned about, because no pixmap is allocated and a vector scales without loss (D-87's limits are the PNG's). The file grows by about 50 bytes per drawn glyph. **Names:** the root carries a `<title>` (the title, or D-75's *Technology Radar*) and a `<desc>` (the radar's group name), and is not `role="img"`, which would flatten its headings and markers. Every filled text outside a control is `role="img"` named by its words, so headings keep their names and labels stay readable; halos stay hidden, and a control's own name covers its text. With no title there is no level-1 heading; the root's `<title>` names the document. Author data is read under `xml:lang="en"`, as in the HTML. These names reach a reader who opens the file directly; placed in a page or a slide, the placement's alt text is what is read. NFR-1 stays scoped to the HTML, and text cannot be selected or searched, as the spike decided. **Errors:** with `.svg` written, no extension FR-52 names is deferred, so §14.1's "not supported in this version" message has no trigger and is removed. Ships as 1.2.0. |
 ```
 
-- [ ] **Step 2: FR-54, §14.1, revision row and frontmatter**
+- [x] **Step 2: FR-54, §14.1, revision row and frontmatter**
 
 - **FR-54:** "the shared document (FR-44) written directly, no rasterisation" becomes "the shared document (FR-44) converted directly, its text outlined (D-88), no rasterisation".
 - **§14.1:** after the paragraph requiring the "not supported in this version" message, add: "From 1.2 every format FR-52 names ships, so the message has no trigger and was removed (D-88)."
@@ -227,7 +227,7 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 | 0.73 | 2026-10-16 | **The exported SVG** (D-88; FR-54, §14.1 amended; rg-m2l): outlined text deduplicated through `<use xlink:href>`, an unclamped intrinsic size from `--width`, a `<title>` and `<desc>` on a root that is not an image, every outlined text named for a reader opening the file. SVG ships as 1.2.0. |
 ```
 
-- [ ] **Step 3: Architecture and the spike**
+- [x] **Step 3: Architecture and the spike**
 
 - **§3, the `text.rs` row:** add "shaping, placing and outlining glyphs (D-88); the only module that reads `skrifa`."
 - **§3, the `svg/serialise/` row:** add "its `TextMode` (`<text>` or outlines) and `standalone`, the exported file's root."
@@ -245,7 +245,7 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 - **§12, the `emit/svg.rs` row:** "Bounded to one file in v1.1" becomes "Bounded to `text.rs`'s glyph reading, `svg/serialise/outline.rs` and a thin `emit/svg.rs` (D-88)". Rewrite the "exactly two" row to Ruling 8's test.
 - **The spike, under "Consequences":** add "*Superseded, 2026-10-16: the converter is a text mode of the serialiser, and `emit/svg.rs` is thin (D-88).*"
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/product/radargen-prd.md docs/design/architecture.md docs/spikes/svg-font.md
@@ -272,7 +272,7 @@ git commit -m "docs(prd): D-88, the exported SVG (v0.73)"
   - `Weight` derives `PartialOrd, Ord`.
 - `measure` keeps its signature and its bits.
 
-- [ ] **Step 1: Pin `measure`'s bits first, on the current code**
+- [x] **Step 1: Pin `measure`'s bits first, on the current code**
 
 Add to `src/text.rs`'s tests module:
 
@@ -308,7 +308,7 @@ fn measure_keeps_its_bits() {
 Run it once with `const RECORDED: [u64; 8] = [0; 8];` and read the `got` values from the failure. Paste them in as `RECORDED`, with a comment naming the commit they were taken at, and run again.
 Expected: PASS, on the unchanged `measure`.
 
-- [ ] **Step 2: Move skrifa**
+- [x] **Step 2: Move skrifa**
 
 In `Cargo.toml`, delete the `skrifa` entry and its comment from `[dev-dependencies]`, and add to `[dependencies]`:
 
@@ -322,7 +322,7 @@ skrifa = { version = "0.44", default-features = false, features = ["std"] }
 Run: `cargo tree -d -e normal | rg -v miniz_oxide`
 Expected: no duplicate crates beyond `miniz_oxide`, which `clippy.toml` allows.
 
-- [ ] **Step 3: Write the failing tests**
+- [x] **Step 3: Write the failing tests**
 
 ```rust
 /// Placing and measuring share one shaping pass: the pen ends where
@@ -380,12 +380,12 @@ fn shaped_glyphs_outline() {
 }
 ```
 
-- [ ] **Step 4: Run them to verify they fail**
+- [x] **Step 4: Run them to verify they fail**
 
 Run: `cargo test --lib text::tests 2>&1 | tail -5`
 Expected: compile errors: `shape`, `place`, `outline`, `units_per_em` and `Segment` are not found.
 
-- [ ] **Step 5: Implement**
+- [x] **Step 5: Implement**
 
 In `FontMetrics`, add `face: &'static str` and `upem: f64`, set in `load`:
 
@@ -568,12 +568,12 @@ let boundaries = shaped
 
 `measure` now allocates the shaped `Vec`. Layout calls it once per wrap prefix, and an export of `grown.csv` still takes about 10 ms (Rust review), so the cost is accepted.
 
-- [ ] **Step 6: Run the tests to verify they pass, and that no bit moved**
+- [x] **Step 6: Run the tests to verify they pass, and that no bit moved**
 
 Run: `cargo test --lib text::tests && cargo test --test serialise && cargo test --test measure --test wrap --test agrees_with_resvg --test tail_oracle`
 Expected: all pass. `measure_keeps_its_bits` and the byte-exact HTML goldens are the guard: the oracles allow 0.01.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add Cargo.toml Cargo.lock src/text.rs
@@ -621,7 +621,7 @@ pub fn standalone(document: &Document, file: &Standalone<'_>) -> Result<String, 
 
 - `serialise(document, target)` keeps its signature and its bytes.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `src/svg/serialise/tests/outline.rs`:
 
@@ -871,12 +871,12 @@ fn serialise_still_writes_text() {
 
 Register it with `mod outline;` in `src/svg/serialise/tests/mod.rs`.
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cargo test --lib serialise::tests::outline 2>&1 | tail -5`
 Expected: compile error: `Standalone` and `standalone` are not found.
 
-- [ ] **Step 3: The text mode in `Context`**
+- [x] **Step 3: The text mode in `Context`**
 
 In `src/svg/serialise/mod.rs`:
 
@@ -904,7 +904,7 @@ match context.text {
 
 `node` is the function's `&Node` parameter. The function does not recurse by name, so it does not shadow anything that matters. Make `text::ink` `pub(super)`.
 
-- [ ] **Step 4: `src/svg/serialise/outline.rs`**
+- [x] **Step 4: `src/svg/serialise/outline.rs`**
 
 ```rust
 //! Text as glyph outlines, for the exported SVG (architecture §11, D-88).
@@ -1154,7 +1154,7 @@ fn uses(text: &str, style: TextStyle, at: Point, outlined: Outlined<'_>) -> Stri
 
 The writer walks only what `node()` reaches, which is what `collect` walks: both skip `is_interactive_only` nodes, and both read text through `runs`. The `expect` is therefore an invariant, and Task 4's `every_drawn_glyph_is_in_the_table` exercises it over every fixture. If clippy's `expect_used` is enabled, it is not today, so do not add an allow.
 
-- [ ] **Step 5: The standalone root**
+- [x] **Step 5: The standalone root**
 
 In `src/svg/serialise/mod.rs`, split `serialise` so its ground and body are shared:
 
@@ -1209,12 +1209,12 @@ pub fn standalone(document: &Document, file: &Standalone<'_>) -> Result<String, 
 
 `defs` is private to `outline`. Expose it as `pub(super) fn defs`, or have `outline` provide a `pub(super) fn defs(glyphs: &Glyphs) -> String`; whichever reads better. `xml:lang="en"` matches the page's `lang="en"`: the file's own words are English. Re-export `Standalone` and `standalone` from `src/svg/mod.rs` beside `Target` and `serialise`.
 
-- [ ] **Step 6: Run the tests to verify they pass, and that the old bytes did not move**
+- [x] **Step 6: Run the tests to verify they pass, and that the old bytes did not move**
 
 Run: `cargo test --lib serialise && cargo test --test serialise && cargo clippy --all-targets -- -D warnings`
 Expected: all pass, the serialiser and HTML goldens included, so `serialise` writes what it wrote before. Clippy is clean, since the table now has its consumer.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/svg/
@@ -1228,14 +1228,14 @@ git commit -m "feat(svg): outlined text and the standalone root (D-88)"
 **Files:**
 - Modify: `src/emit/mod.rs`, `src/emit/html/mod.rs`, and every importer of `emit::html::UNTITLED` (`rg -n UNTITLED src tests`)
 
-- [ ] **Step 1: Move it**
+- [x] **Step 1: Move it**
 
 Move `pub const UNTITLED: &str = "Technology Radar";` and its doc to `src/emit/mod.rs`, beside `OUTPUT_VERSION`, with the doc "D-75: what names an untitled output: the page's tab and hidden heading, the exported SVG's `<title>`." Point every importer at `crate::emit::UNTITLED`. This is a move only.
 
 Run: `cargo test --test serialise && cargo clippy --all-targets -- -D warnings`
 Expected: all pass, and the bytes are unchanged.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/ tests/
@@ -1260,7 +1260,7 @@ git commit -m "refactor(emit): UNTITLED is every output's, not the page's"
   - `emit::svg::intrinsic_size(document: &Document, requested: Option<u32>) -> (f64, f64)`;
   - `emit::svg::export(document: &Document, export: &Export<'_>) -> Result<String, Fatal>`, with `pub struct Export<'a> { pub palette: &'a Palette, pub fonts: &'a Fonts, pub width: Option<u32>, pub title: Option<&'a str> }`.
 
-- [ ] **Step 1: Write the failing unit tests in `src/emit/svg.rs`**
+- [x] **Step 1: Write the failing unit tests in `src/emit/svg.rs`**
 
 Create the file with only its tests module:
 
@@ -1312,7 +1312,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Write the failing integration tests**
+- [x] **Step 2: Write the failing integration tests**
 
 **`tests/svg_matches_png.rs`:**
 
@@ -1732,7 +1732,7 @@ Check the row-error CSV and the header-only `HEAD` against what `tests/run.rs` a
 - Delete the `FormatNotInThisVersion` row.
 - The two `UnrecognisedExtension` rows (`radar.pdf`, `radar`) expect `…must end in .html, .png or .svg`.
 
-- [ ] **Step 3: Run each target to verify it fails for the right reason**
+- [x] **Step 3: Run each target to verify it fails for the right reason**
 
 Run each separately, since one target's compile error hides another's runtime failures:
 - `cargo test --lib emit::svg 2>&1 | tail -3`
@@ -1747,7 +1747,7 @@ Expected:
 - `run` compiles, and each new SVG test fails on its exact message or on the missing file. None passes;
 - `diagnostics` fails on the changed message.
 
-- [ ] **Step 4: Implement `src/emit/svg.rs`**
+- [x] **Step 4: Implement `src/emit/svg.rs`**
 
 Above the tests module:
 
@@ -1822,7 +1822,7 @@ fn radar_name(node: &Node) -> Option<&str> {
 
 Add `pub mod svg;` to `src/emit/mod.rs`.
 
-- [ ] **Step 5: CLI, diagnostics and pipeline**
+- [x] **Step 5: CLI, diagnostics and pipeline**
 
 - **`src/cli.rs`:**
   - `OutputFormat` gains `/// FR-54: the standalone SVG.` `Svg,`.
@@ -1848,7 +1848,7 @@ OutputFormat::Svg => Ok(svg::export(
 .into_bytes()),
 ```
 
-- [ ] **Step 6: Measure the residue, set the criteria, and verify**
+- [x] **Step 6: Measure the residue, set the criteria, and verify**
 
 1. Run `cargo test --test svg_matches_png the_svg_draws_what_the_png_draws -- --nocapture 2>&1 | rg ppm`, with `BUDGET_PPM` and `MAX_DELTA` still 0, so every case prints.
 2. **Ledger** each case's ppm and worst channel.
@@ -1869,7 +1869,7 @@ Then run:
 
 Expected: all pass, including `the_comparison_catches_a_dropped_glyph`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/ tests/
@@ -1886,7 +1886,7 @@ git commit -m "feat(svg): -o radar.svg writes the standalone export (FR-54)"
 - Modify: `tests/run.rs` (the binary against the goldens)
 - Modify: `tests/determinism.rs`
 
-- [ ] **Step 1: Write the golden tests, and watch them fail**
+- [x] **Step 1: Write the golden tests, and watch them fail**
 
 In `tests/serialise/golden.rs`:
 
@@ -1926,7 +1926,7 @@ fn prd_example_matches_its_dark_svg_golden() {
 Run: `cargo test --test serialise golden::prd_example_matches_its_light_svg_golden`
 Expected: FAIL, because the golden is missing.
 
-- [ ] **Step 2: Bless, and look**
+- [x] **Step 2: Bless, and look**
 
 Run each, one per command:
 - `UPDATE_GOLDEN=1 cargo test --test serialise golden::prd_example_matches_its_light_svg_golden`
@@ -1941,7 +1941,7 @@ Open both goldens in a browser and compare them with `tests/golden/png/prd-{ligh
 
 Task 0's §11 figures are filled in from these numbers, in the same commit.
 
-- [ ] **Step 3: The binary writes the goldens; two processes write the same bytes**
+- [x] **Step 3: The binary writes the goldens; two processes write the same bytes**
 
 In `tests/run.rs`:
 
@@ -1986,7 +1986,7 @@ fn two_processes_write_the_same_svg() {
 Run: `cargo test --test run the_cli_writes_the_golden_exports && cargo test --test determinism`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/ docs/design/architecture.md
@@ -2007,7 +2007,7 @@ git commit -m "test(svg): goldens, the binary against them, two-process determin
 - Move: `docs/plans/pr-17-svg.md` to `docs/plans/done/`
 - Crumbs: create two (Step 5)
 
-- [ ] **Step 1: README**
+- [x] **Step 1: README**
 
 - **Line 4:** "…to a self-contained HTML page, a PNG image or an SVG file. One binary, no runtime, no network."
 - **Status (line 66):** "1.2 writes HTML, PNG and SVG."
@@ -2022,7 +2022,7 @@ A `.svg` output draws the same wide arrangement as the PNG, as vectors: sharp at
 - **Pasting inline.** Two exports pasted inline into one web page share their glyph names and draw each other's text. Place each as an image (`<img src>`) instead.
 ```
 
-- [ ] **Step 2: Manual check 16**
+- [x] **Step 2: Manual check 16**
 
 ```markdown
 16. **The SVG** (D-88, from 1.2.0). Render `three-quadrant.csv` with `--title "Technology Radar"` to `light.svg`, and again with `--theme dark` to `dark.svg`.
@@ -2047,7 +2047,7 @@ A `.svg` output draws the same wide arrangement as the PNG, as vectors: sharp at
 
 Add three results rows: "The SVG: NVDA + Firefox, NVDA + Chrome, VoiceOver + Safari", "The SVG: PowerPoint, light and dark", and "The SVG: Figma or Illustrator, light and dark". Add the revision row `| 1.4 | 2026-10-16 | Step 16: the exported SVG (D-88, rg-m2l). |`, and bump the frontmatter revision to match.
 
-- [ ] **Step 3: Version, description, goldens**
+- [x] **Step 3: Version, description, goldens**
 
 `Cargo.toml`: `version = "1.2.0"`. The description reads "…to a self-contained HTML page, a PNG image or an SVG file."
 
@@ -2059,12 +2059,12 @@ Run each:
 
 Then `git diff tests/golden`. Expected: each file's diff is the version line alone (`radargen 1.1` → `1.2`). Run `cargo test` afterwards; `the_cli_writes_the_golden_exports` passes against the re-blessed files.
 
-- [ ] **Step 4: Full check**
+- [x] **Step 4: Full check**
 
 Run: `just ci 2>&1 | tail -30`
 Expected: green, except the known browser check "a long legend scrolls beside the radar". It fails identically on `main` on this machine, from macOS overlay scrollbars, and has its own crumb. Name it in the PR body.
 
-- [ ] **Step 5: Crumbs, changelog, plan**
+- [x] **Step 5: Crumbs, changelog, plan**
 
 ```bash
 CRUMBS=/Users/evensolberg/.cargo/bin/crumbs
