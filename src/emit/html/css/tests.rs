@@ -103,8 +103,9 @@ fn the_layout_is_exact() {
 }
 
 /// rg-18x: the wide arrangement fills the window's width or its height,
-/// whichever runs out first, and never draws below one CSS pixel per unit;
-/// page chrome is capped with it, so its edges stay with the radar's.
+/// whichever runs out first, and its cap never falls below its own width;
+/// page chrome is capped with it. `the wide arrangement fills the window`
+/// in scripts/interaction.mjs checks the rendered width.
 #[test]
 fn the_wide_cap_fills_the_window() {
     let cap = "max(976.817px,calc(100vh*976.817/800.5))";

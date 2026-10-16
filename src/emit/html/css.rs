@@ -32,32 +32,40 @@ pub(super) const HIDDEN_BOX: &str = "{position:absolute;width:1px;height:1px;mar
 /// sit 2px out, so they never touch the control.
 pub(super) const OUTLINE_CLOSE: &str = ");outline-offset:2px}\n";
 
+const CAP_FLOOR: &str = "max(";
+const CAP_HEIGHT: &str = "px,calc(100vh*";
+const CAP_OVER: &str = "/";
+const CAP_END: &str = "))";
 const INSET_WIDTH: &str = "max-width:";
 const INSET_REST: &str = ";margin-inline:auto;padding-inline:";
 const INSET_CLOSE: &str = "px;box-sizing:border-box}\n";
 
-/// The wide arrangement's cap (rg-18x): the window's width or its height,
-/// whichever runs out first, but never below one CSS pixel per unit, which
-/// is where the breakpoint keeps the legend legible (FR-69). The height
-/// term is the width at which a `wide_width` × `wide_height` document is
-/// exactly as tall as the viewport.
+/// The wide arrangement's cap (rg-18x, D-85): the window's width or the
+/// width at which a `wide_width` × `wide_height` document is exactly as tall
+/// as the viewport, whichever is smaller, but never less than the
+/// document's own width. The floor matters on a short, wide window: without
+/// it the height term would shrink the radar below what the width alone
+/// gives, while FR-69's breakpoint, which reads only the width, kept the
+/// wide arrangement showing.
 pub(super) fn wide_cap(wide_width: f64, wide_height: f64) -> String {
     let width = fmt_coord(wide_width);
     [
-        "max(",
+        CAP_FLOOR,
         &width,
-        "px,calc(100vh*",
+        CAP_HEIGHT,
         &width,
-        "/",
+        CAP_OVER,
         &fmt_coord(wide_height),
-        "))",
+        CAP_END,
     ]
     .concat()
 }
 
 /// `open`, a selector and its rule's opening declarations, capped as the
 /// wide arrangement is and inset by its margin, so page chrome lines up
-/// with the radar's content edge.
+/// with the radar's content edge at one pixel per unit. Drawn larger, the
+/// radar's margin grows and the inset does not, so the chrome's edges sit a
+/// few pixels outside the radar's; accepted.
 pub(super) fn capped(open: &str, wide_width: f64, wide_height: f64) -> String {
     [
         open,
