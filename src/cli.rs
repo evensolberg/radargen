@@ -19,8 +19,6 @@ pub enum OutputFormat {
     Html,
     /// `.png`: the wide arrangement as a raster image (FR-55, FR-71).
     Png,
-    /// `.svg`: the bare vector radar, arriving in 1.2 (§14.1).
-    Svg,
 }
 
 /// The parsed command line: one CSV in, one file out (D-28, §6.6).

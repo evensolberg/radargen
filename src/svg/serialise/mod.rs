@@ -111,15 +111,16 @@ pub fn serialise(document: &Document, target: Target<'_>) -> String {
     attr(&mut out, "viewBox", &view_box(document));
     out.push_str(">\n");
     if !target.interactive() {
-        out.push_str("<rect");
-        coord(&mut out, "width", document.width);
-        coord(&mut out, "height", document.height);
-        attr(
-            &mut out,
-            "fill",
-            target.palette().value(Role::Neutral(Neutral::Surface1)),
-        );
-        out.push_str("/>\n");
+        let ground = Node::Rect {
+            origin: Point::ORIGIN,
+            width: document.width,
+            height: document.height,
+            radius: 0.0,
+            fill: Paint::Role(Role::Neutral(Neutral::Surface1)),
+            stroke: Paint::None,
+            stroke_width: 0.0,
+        };
+        out.push_str(&node(&ground, context));
     }
     out.push_str(&node(&document.root, context));
     out.push_str("</svg>");

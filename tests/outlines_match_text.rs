@@ -17,6 +17,8 @@ use skrifa::{FontRef as OutlineFont, GlyphId, MetadataProvider};
 
 use radargen::num::fmt_coord;
 use radargen::text::{FAMILY, REGULAR_TTF as TTF};
+use resvg::usvg::fontdb;
+use resvg::{tiny_skia, usvg};
 
 const WOFF2: &[u8] = include_bytes!("../assets/Inter-Regular.woff2");
 const SIZE: f64 = 12.5;
@@ -249,26 +251,22 @@ fn build() -> Built {
     }
 }
 
-fn render(svg: &str, w: u32, h: u32) -> resvg::tiny_skia::Pixmap {
-    let mut db = resvg::usvg::fontdb::Database::new();
+fn render(svg: &str, w: u32, h: u32) -> tiny_skia::Pixmap {
+    let mut db = fontdb::Database::new();
     db.load_font_data(TTF.to_vec());
-    let opt = resvg::usvg::Options {
+    let opt = usvg::Options {
         fontdb: Arc::new(db),
         font_family: FAMILY.to_string(),
-        ..resvg::usvg::Options::default()
+        ..usvg::Options::default()
     };
-    let tree = resvg::usvg::Tree::from_str(svg, &opt).expect("usvg parses");
-    let mut pm = resvg::tiny_skia::Pixmap::new(w, h).expect("pixmap");
-    resvg::render(
-        &tree,
-        resvg::tiny_skia::Transform::identity(),
-        &mut pm.as_mut(),
-    );
+    let tree = usvg::Tree::from_str(svg, &opt).expect("usvg parses");
+    let mut pm = tiny_skia::Pixmap::new(w, h).expect("pixmap");
+    resvg::render(&tree, tiny_skia::Transform::identity(), &mut pm.as_mut());
     pm
 }
 
 /// Differing subpixels, and the worst single-channel delta.
-fn compare(a: &resvg::tiny_skia::Pixmap, b: &resvg::tiny_skia::Pixmap) -> (usize, u8) {
+fn compare(a: &tiny_skia::Pixmap, b: &tiny_skia::Pixmap) -> (usize, u8) {
     let differing = a
         .data()
         .iter()

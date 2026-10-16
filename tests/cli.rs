@@ -311,6 +311,17 @@ fn rings_help_names_the_default_rings() {
     );
 }
 
+/// clap's derive cannot put a constant in a doc comment, so the help's
+/// range is written out; this keeps it FR-64's.
+#[test]
+fn width_help_names_the_range() {
+    use clap::CommandFactory;
+    use radargen::style::{MAX_EXPORT_WIDTH, MIN_EXPORT_WIDTH};
+    let help = Cli::command().render_long_help().to_string();
+    let range = format!("From {MIN_EXPORT_WIDTH} to {MAX_EXPORT_WIDTH}");
+    assert!(help.contains(&range), "--help must say {range}:\n{help}");
+}
+
 /// `-h` is the short form: clap takes each comment's first paragraph, so
 /// each flag gets one sentence there, under 120 columns with clap's
 /// defaults, and the rest is left to `--help`.

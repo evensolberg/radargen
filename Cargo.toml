@@ -59,13 +59,19 @@ disallowed_methods = "deny"
 indexing_slicing = "deny"
 as_conversions = "deny"
 
-# Rasterising in an unoptimised build is many times slower; the PNG
-# tests run on three OSes.
+# Rasterising, encoding and decoding in an unoptimised build is many
+# times slower; the PNG tests run on three OSes.
 [profile.dev.package.resvg]
 opt-level = 3
 [profile.dev.package.usvg]
 opt-level = 3
 [profile.dev.package.tiny-skia]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
 opt-level = 3
 
 [profile.release]

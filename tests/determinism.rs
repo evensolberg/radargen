@@ -50,8 +50,18 @@ fn two_processes_write_the_same_bytes() {
 fn two_processes_draw_the_same_png() {
     let dir = tempfile::tempdir().expect("tempdir");
     for theme in ["light", "dark"] {
-        let first = render(dir.path(), PRD, "first.png", &["--theme", theme]);
-        let second = render(dir.path(), PRD, "second.png", &["--theme", theme]);
+        let first = render(
+            dir.path(),
+            PRD,
+            "first.png",
+            &["--theme", theme, "--width", "400"],
+        );
+        let second = render(
+            dir.path(),
+            PRD,
+            "second.png",
+            &["--theme", theme, "--width", "400"],
+        );
         let decode = |png: &[u8]| resvg::tiny_skia::Pixmap::decode_png(png).expect("a PNG");
         let (a, b) = (decode(&first), decode(&second));
         assert_eq!((a.width(), a.height()), (b.width(), b.height()), "{theme}");

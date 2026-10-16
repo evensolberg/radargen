@@ -22,20 +22,7 @@ pub fn golden(dir: &str, name: &str, got: &str) {
         .join("tests/golden")
         .join(dir)
         .join(name);
-    if std::env::var_os("UPDATE_GOLDEN").is_some() {
-        assert!(
-            std::env::var_os("CI").is_none(),
-            "UPDATE_GOLDEN is refused under CI"
-        );
-        std::fs::write(&path, got).expect("writes");
-        panic!("blessed {}; unset UPDATE_GOLDEN and re-run", path.display());
-    }
-    let want = std::fs::read_to_string(&path).unwrap_or_else(|_| {
-        panic!(
-            "{} is missing: run with UPDATE_GOLDEN=1, then read it by eye",
-            path.display()
-        )
-    });
+    let want = String::from_utf8(bless_or_read(&path, got.as_bytes())).expect("a golden is UTF-8");
     if want != got {
         let at = want
             .bytes()
@@ -57,6 +44,26 @@ pub fn golden(dir: &str, name: &str, got: &str) {
     }
 }
 
+/// `path`'s bytes. With `UPDATE_GOLDEN=1` (refused under CI) it writes
+/// `got` there instead and fails, so a blessing run is never green.
+fn bless_or_read(path: &Path, got: &[u8]) -> Vec<u8> {
+    if std::env::var_os("UPDATE_GOLDEN").is_some() {
+        assert!(
+            std::env::var_os("CI").is_none(),
+            "UPDATE_GOLDEN is refused under CI"
+        );
+        std::fs::create_dir_all(path.parent().expect("a parent")).expect("creates");
+        std::fs::write(path, got).expect("writes");
+        panic!("blessed {}; unset UPDATE_GOLDEN and re-run", path.display());
+    }
+    std::fs::read(path).unwrap_or_else(|_| {
+        panic!(
+            "{} is missing: run with UPDATE_GOLDEN=1, then check it by eye",
+            path.display()
+        )
+    })
+}
+
 /// D-87: per channel, the most a pixel may differ across platforms.
 const PNG_CHANNEL_TOLERANCE: u8 = 2;
 /// D-87: the share of pixels that may differ at all, in thousandths.
@@ -70,22 +77,7 @@ const PNG_DIFFERING_PER_MILLE: usize = 1;
 /// `target/png-golden/`.
 pub fn golden_png(name: &str, got: &[u8]) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let path = root.join("tests/golden/png").join(name);
-    if std::env::var_os("UPDATE_GOLDEN").is_some() {
-        assert!(
-            std::env::var_os("CI").is_none(),
-            "UPDATE_GOLDEN is refused under CI"
-        );
-        std::fs::create_dir_all(path.parent().expect("a parent")).expect("creates");
-        std::fs::write(&path, got).expect("writes");
-        panic!("blessed {}; unset UPDATE_GOLDEN and re-run", path.display());
-    }
-    let want = std::fs::read(&path).unwrap_or_else(|_| {
-        panic!(
-            "{} is missing: run with UPDATE_GOLDEN=1, then look at it",
-            path.display()
-        )
-    });
+    let want = bless_or_read(&root.join("tests/golden/png").join(name), got);
     let (want, image) = (decode(&want), decode(got));
     assert_eq!(
         (want.width(), want.height()),

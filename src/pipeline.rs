@@ -137,8 +137,11 @@ fn config(
     warnings: &mut Warnings,
 ) -> Result<Config, Vec<Fatal>> {
     let format = format(output)
-        .and_then(|format| missing_directory(output).map(|()| format))
-        .and_then(|format| output_is_input(output, input).map(|()| format))
+        .and_then(|format| {
+            missing_directory(output)?;
+            output_is_input(output, input)?;
+            Ok(format)
+        })
         .map_err(|e| vec![e])?;
     let title = resolved(Flag::Title, cli.title.as_deref(), warnings);
     let subtitle = resolved(Flag::Subtitle, cli.subtitle.as_deref(), warnings);
@@ -261,13 +264,6 @@ fn render(
             }
             png::rasterise(&wide, &config.palette, size)
         }
-        // `format()` refuses .svg until PR 17, so this arm is not reached;
-        // it fails loudly rather than write PNG bytes to a .svg file.
-        OutputFormat::Svg => Err(Fatal::FormatNotInThisVersion {
-            path: config.output.display().to_string(),
-            ext: "svg".into(),
-            arrives_in: "1.2",
-        }),
     }
 }
 

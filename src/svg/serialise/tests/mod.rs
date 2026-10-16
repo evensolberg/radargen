@@ -97,7 +97,9 @@ fn the_static_ground_is_the_themes_surface() {
         let fill = palette.value(Role::Neutral(Neutral::Surface1));
         assert_eq!(
             first,
-            format!("<rect width=\"120\" height=\"80.5\" fill=\"{fill}\"/>"),
+            format!(
+                "<rect x=\"0\" y=\"0\" width=\"120\" height=\"80.5\" fill=\"{fill}\" stroke=\"none\"/>"
+            ),
             "{theme:?}"
         );
         let page = serialise(&document, Target::Interactive(&palette));

@@ -235,14 +235,8 @@ pub fn warn_narrow(blocks: &Blocks, warnings: &mut Warnings) {
 }
 
 /// `width` rounded up to a whole unit, as FR-95 reports it.
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::as_conversions,
-    reason = "f64 has no TryFrom to an integer; a document width is positive, and `as` saturates at u32::MAX for any width past it"
-)]
 const fn whole_units(width: f64) -> u32 {
-    width.ceil() as u32
+    crate::num::saturating_u32(width.ceil())
 }
 
 /// The key's rule: decorative, since the key's heading marks the boundary.

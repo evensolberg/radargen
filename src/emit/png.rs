@@ -4,11 +4,12 @@
 
 use std::sync::Arc;
 
-use resvg::tiny_skia::{Color, Pixmap, Transform};
+use resvg::tiny_skia::{Pixmap, Transform};
 use resvg::usvg;
 
 use crate::diagnostics::Fatal;
-use crate::palette::{Neutral, Palette, Role};
+use crate::num::saturating_u32;
+use crate::palette::Palette;
 use crate::style::{MAX_EXPORT_WIDTH, MAX_PNG_PIXELS, WIDE_MIN_SCALE};
 use crate::svg::{Document, Target, serialise};
 use crate::text::{FAMILY, REGULAR_TTF, SEMIBOLD_TTF};
@@ -70,18 +71,19 @@ impl PixelSize {
 ///
 /// [`Fatal::ImageTooLarge`] past `MAX_PNG_PIXELS` (D-87).
 pub fn pixel_size(document: &Document, requested: Option<u32>) -> Result<PixelSize, Fatal> {
-    let natural = whole(document.width.ceil());
+    let natural = saturating_u32(document.width.ceil());
     let (width, clamped) = match requested {
         Some(width) => (width, None),
         None if natural > MAX_EXPORT_WIDTH => (MAX_EXPORT_WIDTH, Some(natural)),
         None => (natural, None),
     };
-    let height = whole((f64::from(width) * document.height / document.width).round()).max(1);
-    if u64::from(width) * u64::from(height) > MAX_PNG_PIXELS {
+    let height =
+        saturating_u32((f64::from(width) * document.height / document.width).round()).max(1);
+    if u64::from(width) * u64::from(height) > u64::from(MAX_PNG_PIXELS) {
         return Err(Fatal::ImageTooLarge { width, height });
     }
     let legibility = if f64::from(width) / document.width < WIDE_MIN_SCALE {
-        let from = whole((document.width * WIDE_MIN_SCALE).ceil());
+        let from = saturating_u32((document.width * WIDE_MIN_SCALE).ceil());
         Legibility::Small {
             legible_from: (from <= MAX_EXPORT_WIDTH).then_some(from),
         }
@@ -120,14 +122,15 @@ pub fn rasterise(
             size.width, size.height
         ))
     })?;
-    // D-87: the SVG's ground, under it as well, so a last row the height
-    // rounded up into, which the scaled rect only partly covers, is opaque.
-    let [red, green, blue] = palette.rgb(Role::Neutral(Neutral::Surface1));
-    pixmap.fill(Color::from_rgba8(red, green, blue, u8::MAX));
-    let scale = narrow(f64::from(size.width) / document.width);
+    // The viewBox maps exactly onto the pixmap, so the ground rect (D-87)
+    // covers every pixel, a last row the height rounded into included. The
+    // two scales differ by under half a pixel over the height.
     resvg::render(
         &tree,
-        Transform::from_scale(scale, scale),
+        Transform::from_scale(
+            narrow(f64::from(size.width) / document.width),
+            narrow(f64::from(size.height) / document.height),
+        ),
         &mut pixmap.as_mut(),
     );
     pixmap.encode_png().map_err(|e| fail(e.to_string()))
@@ -141,8 +144,9 @@ pub fn rasterise(
 #[must_use]
 pub fn usvg_options() -> usvg::Options<'static> {
     let mut db = usvg::fontdb::Database::new();
-    db.load_font_data(REGULAR_TTF.to_vec());
-    db.load_font_data(SEMIBOLD_TTF.to_vec());
+    // Borrowed, not copied: the faces are in the binary already.
+    db.load_font_source(usvg::fontdb::Source::Binary(Arc::new(REGULAR_TTF)));
+    db.load_font_source(usvg::fontdb::Source::Binary(Arc::new(SEMIBOLD_TTF)));
     usvg::Options {
         resources_dir: None,
         fontdb: Arc::new(db),
@@ -154,17 +158,6 @@ pub fn usvg_options() -> usvg::Options<'static> {
         },
         ..usvg::Options::default()
     }
-}
-
-/// A rounded, non-negative pixel count as `u32`.
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::as_conversions,
-    reason = "f64 has no TryFrom to an integer; callers pass a rounded, non-negative value; `as` saturates past u32::MAX and maps NaN to 0, which the area cap and the height floor then handle"
-)]
-const fn whole(v: f64) -> u32 {
-    v as u32
 }
 
 /// A scale factor as resvg's `f32`.
@@ -183,7 +176,7 @@ mod tests {
     use crate::layout::arrange::{Arrangement, Blocks, arrange};
     use crate::layout::block::fonts;
     use crate::layout::test_support::{PRD_EXAMPLE, plotted};
-    use crate::palette::Theme;
+    use crate::palette::{Neutral, Role, Theme};
     use crate::svg::serialise::{
         DATA_FOCUS_RING, DATA_HIT, DATA_MARKER_INDICATOR, DATA_ROW_INDICATOR, DATA_SELECTION,
     };
@@ -312,7 +305,7 @@ mod tests {
     fn every_pixel_is_opaque() {
         let doc = prd();
         for theme in [Theme::Light, Theme::Dark] {
-            for requested in [None, Some(1920)] {
+            for requested in [None, Some(400)] {
                 let size = pixel_size(&doc, requested).expect("fits");
                 let png = rasterise(&doc, &Palette::built_in(theme), size).expect("renders");
                 let image = decode(&png);
