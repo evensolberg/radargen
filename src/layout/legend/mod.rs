@@ -59,8 +59,8 @@ impl LegendBlock {
     /// content where it was: how the narrow arrangement spans its column
     /// (rg-zch). An empty legend stays empty.
     #[must_use]
-    pub const fn spanning(&self, width: f64) -> Spanning<'_> {
-        Spanning {
+    pub const fn spanning(&self, width: f64) -> LegendSpan<'_> {
+        LegendSpan {
             legend: self,
             width,
         }
@@ -95,13 +95,13 @@ impl Block for LegendBlock {
 
 /// A legend whose panel spans a width wider than its content
 /// ([`LegendBlock::spanning`]).
-#[derive(Debug, Clone, Copy)]
-pub struct Spanning<'a> {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LegendSpan<'a> {
     legend: &'a LegendBlock,
     width: f64,
 }
 
-impl Spanning<'_> {
+impl LegendSpan<'_> {
     /// The panel at scale 1: the legend's, widened to `width`.
     fn panel(&self) -> Size {
         let own = self.legend.size;
@@ -116,7 +116,7 @@ impl Spanning<'_> {
     }
 }
 
-impl Block for Spanning<'_> {
+impl Block for LegendSpan<'_> {
     fn size(&self, scale: f64) -> Size {
         self.panel().scaled(scale)
     }

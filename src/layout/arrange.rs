@@ -284,6 +284,7 @@ fn narrow(blocks: &Blocks, scale: f64) -> Placements {
             x: legend_x,
             y: legend_y,
         }),
+        // Twice the inset, as two subtractions: NFR-4 keeps mul_add out.
         legend_width: width - legend_x - legend_x,
     }
 }
@@ -639,6 +640,8 @@ mod tests {
                 "{p:?}"
             );
             assert!(close(p.rule.to.x, p.width - 20.0), "{p:?}");
+            // rg-zch: the panel follows the widened column.
+            assert!(close(p.legend_width, p.width - 16.0), "{p:?}");
         }
     }
 
