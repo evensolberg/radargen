@@ -151,14 +151,14 @@ declarations only and are not listed.
 | `src/layout/key.rs` | Encoding key (FR-66) | v1.0 |
 | `src/layout/arrange.rs` | Wide and narrow placement (FR-68–FR-71) | v1.0 |
 | `src/svg/mod.rs` | `Node`, `Document` — the SVG tree. `Node` arrives with the first block that renders (PR 09) and gains variants with each block; `Document` arrives with `arrange` (PR 12) | v1.0 |
-| `src/svg/serialise/` | `serialise(&Document, Target)`: one `<svg>` element, colours bound late for an interactive or static `Target`, interactive-only nodes dropped for static; every attribute through `escape::xml_attr`, every float through `num::fmt_coord` (PR 13) | v1.0 |
+| `src/svg/serialise/` | `serialise(&Document, Target)`: one `<svg>` element, colours bound late for an interactive or static `Target`, interactive-only nodes dropped for static; every attribute through `escape::xml_attr`, every float through `num::fmt_coord` (PR 13). Its `TextMode` writes text as `<text>` or as outlines, and `standalone` is the exported file's root (D-88) | v1.0 |
 | `src/escape.rs` | NFR-6's five output contexts, one function each | v1.0 |
 | `src/num.rs` | `fmt_coord()` — NFR-17's rounding, used by every emitter | v1.0 |
-| `src/text.rs` | Shaped measurement and FR-79 wrapping, over **both** of FR-85's faces | *exists* |
+| `src/text.rs` | Shaped measurement and FR-79 wrapping, over **both** of FR-85's faces; shaping, placing and outlining glyphs for the exported SVG (D-88), the only module that reads `skrifa` | *exists* |
 | `src/emit/html/mod.rs` | Self-contained HTML: both arrangements, FR-69's computed media-query switch, FR-56's theme override, inline JS/CSS and font | v1.0 |
 | `src/emit/html/table.rs` | The table view (FR-41, FR-78) — every CSV row, every declared column | v1.0 |
 | `src/emit/write.rs` | NFR-14's atomic write: temp file in the same directory, flush, rename; `fs::write`'s permissions, a symlink replaced not followed, a read-only target refused | v1.0 |
-| `src/emit/svg.rs` | The document with its text outlined and deduplicated through `<use>` (§11) | 1.2 |
+| `src/emit/svg.rs` | The SVG export (FR-54, D-88): FR-57's intrinsic size, the `<title>`, `<desc>` and version comment, around `serialise::standalone` | 1.2 |
 | `src/emit/png.rs` | `resvg` rasterisation: the pixel size (FR-57, D-87) and the image. Its `usvg_options` is shared with the oracle tests, so they rasterise as the export does | 1.1 |
 | `assets/` | The vendored font — TTF to measure and rasterise, WOFF2 to inline — and its OFL notice (FR-85, NFR-5), `include_bytes!` into the binary | *exists* |
 
@@ -426,8 +426,12 @@ attribute on the root — and not JavaScript rewriting values. A toggle that
 rewrote values would have to enumerate every role by name, in a second place,
 which is the duplication `Role` exists to prevent.
 
-This is one of two places a single `Document` legitimately serialises differently
-per format (the other is interactive-only omission, below), and it is what makes FR-56's "ignored, not an error, on HTML output" a
+This is one of the places a single `Document` legitimately serialises
+differently per format. The test for any such place is that it needs no new
+`Document` field or node and follows from what the reader can do: choose a theme
+(this colour binding), point and focus (interactive-only omission, below), or
+have the font (the exported SVG's text mode, which writes outlines and the names
+outlining forces, §11, D-88). That is what makes FR-56's "ignored, not an error, on HTML output" a
 structural fact rather than a branch somebody has to remember. It also gives
 FR-86 its error for free — a `--palette` file missing a role fails to bind a
 `Role` the enum enumerates, so "naming the missing role" is `Role`'s own
@@ -466,7 +470,9 @@ DOM, and with the table (FR-78) an item can have four elements. Two consequences
 the `Document` type has to carry, because the emitter is the only stage that
 knows there are two of anything:
 
-- **No node emits an `id`, and nothing references `url(#…)`.** Duplicated ids
+- **No node emits an `id`, and nothing references `url(#…)`.** (The exported
+  SVG's glyph definitions are the one exception, §11: one file, one arrangement,
+  ids only on `<path>`s in `<defs>`, referenced only by `<use>`.) Duplicated ids
   are invalid, and `url(#…)` resolves to the first match in document order — so a
   clip path, symbol or gradient defined in the wide arrangement would silently
   paint the narrow one, which is a class of bug that renders correctly in the
@@ -736,7 +742,7 @@ is on plan, not short.
 | --- | --- | --- |
 | Unit | Pure functions: `normalise`, comparators, geometry, `fmt_coord`, escaping, capacity | Beside the module, `#[cfg(test)]` |
 | Contract | The CLI surface, the diagnostic taxonomy, `--rings` validation | `tests/cli.rs`, `tests/diagnostics.rs`, `tests/model.rs`, `tests/rings.rs` |
-| Oracle | Our measurement against the thing that rasterises it; and §11's outlining against the `<text>` it replaces | `tests/agrees_with_resvg.rs`, `tests/rasterises_within_measurement.rs`, `tests/outlines_match_text.rs` |
+| Oracle | Our measurement against the thing that rasterises it; and §11's outlining against the `<text>` it replaces | `tests/agrees_with_resvg.rs`, `tests/rasterises_within_measurement.rs`, `tests/outlines_match_text.rs`, `tests/svg_matches_png.rs` |
 | Golden | CSV in → exact bytes out, per format and per ring set | `tests/golden/` |
 | Determinism | Two **separate process invocations**, byte-compared | `tests/determinism.rs` |
 | Behaviour | Keyboard operability, focus, panel open/close, selection, hover, breakpoint changes | `scripts/interaction.mjs` in headless Chromium, run by `just browser` in `just ci` |
@@ -819,7 +825,8 @@ the noise.
 - **`--palette` parsing.** v1.1, and FR-86/FR-87 already fix its rules.
 - **The PNG emitter.** 1.1, and thin: it rasterises the `<text>` document
   through our own `fontdb`, with no href resolved (NFR-5).
-- **The SVG emitter's internals.** v1.1 — and *not* thin, which §12 records.
+- **The SVG export.** 1.2 (D-88): a text mode of the serialiser, so
+  `emit/svg.rs` is thin and the conversion is `svg/serialise/outline.rs`.
   How that file carries its font is **closed**, below.
 
 **The exported SVG outlines its text** (`docs/spikes/svg-font.md`). SC-15
@@ -834,8 +841,11 @@ applications we do not control.
 
 Three consequences the design carries:
 
-- **`emit/svg.rs` is a converter, not a serialiser.** It needs glyph outlines
-  from `skrifa` and a shaping pass it shares with `text.rs`. No new
+- **The SVG export is a converter, not a serialiser**, built as a text mode of
+  the one serialiser rather than as a second one, so colour binding, semantics
+  and the dropping of interactive-only nodes are shared (D-88). It reads glyph
+  outlines from `skrifa` through `text.rs`, and shapes with the pass `text.rs`
+  measures with. No new
   crate — `harfrust` is direct, and `skrifa` (which usvg already builds, and
   the tests read outlines with since rg-8im replaced the unmaintained
   `ttf-parser`) moves from dev-dependency to direct when `emit/svg.rs`
@@ -843,10 +853,15 @@ Three consequences the design carries:
   free once rasterisation works" no longer holds, and the file is worth half a
   day to a day of its own.
 - **Outlines are deduplicated through `<use>`.** One `<path>` per distinct glyph
-  in `<defs>`, placed by `<use x= y=>`. A realistic edition is 749 glyph
-  instances over 56 distinct glyphs, so the per-instance form costs nearly seven
-  times as much with Inter — 371 kB against 54 kB, which in turn undercuts
-  embedding the WOFF2 (80 kB). Ids are fine here: §5 bans them because
+  in each face and size in `<defs>`, already at its size, placed by
+  `<use xlink:href x= y=>`. The spike's edition is 749 glyph instances over 56
+  distinct glyphs, so the per-instance form costs nearly seven times as much.
+  Per face and size, the PRD example draws 395 glyphs over 134 definitions
+  (65 per face alone), about 30% more file than one definition per face, a
+  roughly fixed cost, since legend names share one size; `grown.csv` exports
+  at 84 kB. A reference-size definition under `scale()` would be smaller, but
+  its exactness depends on every size being round, and a halo's width would
+  need rescaling (D-88). Ids are fine here: §5 bans them because
   the HTML holds two arrangements in one DOM, and this file holds one.
 - **A tail is placed through `Node::tail_x`.** A text's tail (the legend's
   inline meta, D-78) is written to HTML as a `dx` tspan the browser places; the
@@ -872,10 +887,10 @@ that outlives the measurement behind it.
 | Risk | Response |
 | --- | --- |
 | `Block` sizes are computed from measured text, so a text-metrics bug moves every arrangement (**R-1**, retired) | The spike retired it and its tests came with it; `text.rs` is covered before anything depends on it, and §10's oracle level keeps it covered |
-| One `Document` type shared by three emitters could grow format-specific special cases | §5 admits exactly two — colour binding, and the omission of interactive-only nodes from static formats, because a static image has no pointer or focus — and gives the reason for each. If an emitter needs a *third*, that is the signal the waist is leaking: reject it at review |
+| One `Document` type shared by three emitters could grow format-specific special cases | §5 admits a per-format difference only when it needs no new `Document` field or node and follows from what the reader can do: choose a theme (colour binding), point and focus (interactive-only omission), or have the font (the exported SVG's text mode, D-88). A difference that needs `Document` to change shape is the signal the waist is leaking: reject it at review |
 | Golden files are brittle against innocent refactors | That is what they are *for* (NFR-4), and `UPDATE_GOLDEN=1` makes accepting a change deliberate |
 | The `Catalogue` side-channel could become a second data path that drifts from the graphic (**§2**) | It is read-only and additive — the HTML emitter reads prose and unplotted rows from it, never geometry or numbering. Anything the two could disagree about comes from `Document` |
 | Legend height sets the document height past ~25 items (**R-3**) | Accepted for this version, per the PRD. The `Block` shape is what makes the likely answer — a multi-column legend in the wide arrangement — a change inside `layout/legend/` and nowhere else |
 | The pinned font (**R-7**) | Swapped to Inter before step 4 of §9 (PR 01). Subset sizes are in §3; no Reserved Font Name |
-| `emit/svg.rs` outlines its text, so it is a converter rather than a serialiser and costs more than §14.2 assumed (**§11**) | Accepted — the spike showed the alternative fails in two of the consumers tested, including our own `resvg`. Bounded to one file in v1.1; `Document` and the HTML output are untouched. Illustrator and Figma rest on secondary reports and are worth confirming first-hand while building v1.1, but no decision waits on that |
+| `emit/svg.rs` outlines its text, so it is a converter rather than a serialiser and costs more than §14.2 assumed (**§11**) | Accepted — the spike showed the alternative fails in two of the consumers tested, including our own `resvg`. Bounded to `text.rs`'s glyph reading, `svg/serialise/outline.rs` and a thin `emit/svg.rs` (D-88); `Document` and the HTML output are untouched. Illustrator and Figma rest on secondary reports and are worth confirming first-hand while building v1.1, but no decision waits on that |
 | Both arrangements live in one DOM, so every interactive element exists twice and a breakpoint change can move the focused one out of the tree (**§5**) | No `id`s, identity as `data-row`, selection and focus-return keyed on the item rather than the element. The rule sits in `Document`'s shape, so the interactive layer cannot reintroduce it by forgetting |
