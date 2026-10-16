@@ -135,11 +135,13 @@ does not bite on vendoring a subset inside a tool.
   glyph outlines from `ttf-parser`, a shaping pass it can share with `text.rs`,
   and a distinct-glyph `<defs>` table. The PNG emitter is unaffected — it
   rasterises the `<text>` document through our own `fontdb`.
-- *2026-10-15: `ttf-parser` is unmaintained (RUSTSEC-2026-0192); the tests
-  now read outlines with `skrifa`, and `emit/svg.rs` will too (rg-8im).*
 - **No new dependency.** `ttf-parser` and `rustybuzz` are already direct
   dependencies; `base64` is a new dev-dependency for the `@font-face` test only
   (MIT OR Apache-2.0, so §1's permissive-tree claim holds).
+- *Superseded, 2026-10-15: `rustybuzz` became `harfrust` (D-67), and
+  `ttf-parser`, now unmaintained (RUSTSEC-2026-0192), gave way to `skrifa`,
+  which usvg already builds; the tests read outlines with it, and
+  `emit/svg.rs` will too (rg-8im).*
 - **The estimate moves.** §14.2 costs "PNG + SVG export" at 1–1.5 days with SVG
   "effectively free once rasterisation works". That is no longer true — call the
   SVG half a day to a day on its own. Still v1.1, still small.
