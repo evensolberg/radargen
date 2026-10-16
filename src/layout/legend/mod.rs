@@ -54,6 +54,33 @@ impl LegendBlock {
             layout,
         }
     }
+
+    /// The legend with its panel at least `width` wide at scale 1 and the
+    /// content where it was: how the narrow arrangement spans its column
+    /// (rg-zch). An empty legend stays empty.
+    #[must_use]
+    pub const fn spanning(&self, width: f64) -> Spanning<'_> {
+        Spanning {
+            legend: self,
+            width,
+        }
+    }
+
+    /// The panel at `panel`'s size, then the content inset in it, entries
+    /// in reading order, which is document and Tab order. An empty legend
+    /// is an empty group.
+    fn draw(&self, panel: Size, at: Placement) -> Node {
+        let s = at.scale;
+        let children = if panel.is_empty() {
+            Vec::new()
+        } else {
+            vec![
+                panel_node(panel.scaled(s), s),
+                content_node(&self.layout, s),
+            ]
+        };
+        Node::Group(Group::new(at.origin, children))
+    }
 }
 
 impl Block for LegendBlock {
@@ -61,19 +88,41 @@ impl Block for LegendBlock {
         self.size.scaled(scale)
     }
 
-    /// The panel, then the content inset in it, entries in reading order,
-    /// which is document and Tab order. An empty legend is an empty group.
     fn render(&self, at: Placement) -> Node {
-        let s = at.scale;
-        let children = if self.size.is_empty() {
-            Vec::new()
+        self.draw(self.size, at)
+    }
+}
+
+/// A legend whose panel spans a width wider than its content
+/// ([`LegendBlock::spanning`]).
+#[derive(Debug, Clone, Copy)]
+pub struct Spanning<'a> {
+    legend: &'a LegendBlock,
+    width: f64,
+}
+
+impl Spanning<'_> {
+    /// The panel at scale 1: the legend's, widened to `width`.
+    fn panel(&self) -> Size {
+        let own = self.legend.size;
+        if own.is_empty() {
+            own
         } else {
-            vec![
-                panel_node(self.size.scaled(s), s),
-                content_node(&self.layout, s),
-            ]
-        };
-        Node::Group(Group::new(at.origin, children))
+            Size {
+                width: own.width.max(self.width),
+                ..own
+            }
+        }
+    }
+}
+
+impl Block for Spanning<'_> {
+    fn size(&self, scale: f64) -> Size {
+        self.panel().scaled(scale)
+    }
+
+    fn render(&self, at: Placement) -> Node {
+        self.legend.draw(self.panel(), at)
     }
 }
 
@@ -818,12 +867,36 @@ mod tests {
         assert!(close(size.height, block.layout.height + 16.0), "{size:?}");
     }
 
+    /// rg-zch: the narrow arrangement spans the panel across its column;
+    /// the content stays where it was, and never narrows.
+    #[test]
+    fn spanning_widens_the_panel_not_the_content() {
+        let (_, _, block) = legend(PRD_EXAMPLE);
+        let natural = block.size(1.0);
+        let wider = natural.width + 50.0;
+        for s in [1.0, 0.5] {
+            let spanning = block.spanning(wider);
+            let size = spanning.size(s);
+            assert!(close(size.width, wider * s) && close(size.height, natural.height * s));
+            let root = spanning.render(at(s));
+            let (_, width, height, ..) = rect(child(&group(&root).children, 0));
+            assert!(close(width, size.width) && close(height, size.height));
+            assert_eq!(content(&root), content(&block.render(at(s))));
+        }
+        assert_eq!(block.spanning(10.0).size(1.0), natural);
+    }
+
     #[test]
     fn an_empty_legend_takes_no_space() {
         let catalogue = empty_catalogue();
         let block = LegendBlock::new(&catalogue, &Plotted::default(), fonts());
         assert!(block.size(1.0).is_empty());
         assert_eq!(group(&block.render(at(1.0))).children, Vec::new());
+        assert!(block.spanning(400.0).size(1.0).is_empty());
+        assert_eq!(
+            group(&block.spanning(400.0).render(at(1.0))).children,
+            Vec::new()
+        );
     }
 
     #[test]
