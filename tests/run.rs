@@ -12,6 +12,7 @@ use std::process::Command;
 
 use radargen::layout::geometry::Geometry;
 use radargen::style::MAX_GROWTH;
+use resvg::tiny_skia::Pixmap;
 use tempfile::TempDir;
 
 const PRD: &str = include_str!("fixtures/three-quadrant.csv");
@@ -481,18 +482,18 @@ fn a_hard_link_to_the_input_is_the_input() {
 }
 
 #[test]
-fn bad_extensions_and_v1_1_formats() {
+fn bad_extensions_and_svg() {
     let dir = seeded(&[("radar.csv", PRD)]);
     let before = snapshot(dir.path());
     let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.txt"]);
     assert_eq!(
         ran.lines(),
-        ["error: -o radar.txt: the output file name must end in .html"]
+        ["error: -o radar.txt: the output file name must end in .html or .png"]
     );
-    let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.png"]);
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.svg"]);
     assert!(!ran.ok());
     assert!(
-        ran.stderr.contains("arrives in radargen 1.1"),
+        ran.stderr.contains("arrives in radargen 1.2"),
         "{}",
         ran.stderr
     );
@@ -673,4 +674,231 @@ fn an_unwritable_template_names_its_flag() {
         &ran,
         &["error: --create-template nope/radar.csv: cannot be written: "],
     );
+}
+
+// ---- PNG (FR-55, FR-57, FR-71, D-87)
+
+fn png(dir: &Path, name: &str) -> Pixmap {
+    Pixmap::decode_png(&fs::read(dir.join(name)).expect("written")).expect("a PNG")
+}
+
+/// The chunk types of a PNG file, in order.
+fn chunks(bytes: &[u8]) -> Vec<[u8; 4]> {
+    let mut at = 8;
+    let mut out = Vec::new();
+    while let Some(head) = bytes.get(at..at + 8) {
+        let (len, kind) = head.split_at(4);
+        let len = u32::from_be_bytes(len.try_into().expect("4 bytes"));
+        out.push(kind.try_into().expect("4 bytes"));
+        at += 12 + usize::try_from(len).expect("fits");
+    }
+    out
+}
+
+/// rg-tzz's fixture: a quadrant name so long the wide document passes
+/// 12,500 units, and short enough to draw quickly at 10,000 pixels.
+fn too_wide() -> String {
+    format!("{HEAD}A,{},Adopt,d\nB,Tools,Adopt,d\n", "W".repeat(600))
+}
+
+/// FR-55, FR-57, FR-71: a PNG of the wide arrangement at --width, its
+/// height in proportion.
+#[test]
+fn renders_a_png_at_the_width_asked() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.png", "--width", "1920"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    let image = png(dir.path(), "radar.png");
+    assert_eq!(image.width(), 1920);
+    assert!(
+        image.height() > 1000 && image.height() < 2000,
+        "{}",
+        image.height()
+    );
+}
+
+/// SC-25: no output version, so no text chunk at all.
+#[test]
+fn the_png_has_no_text_chunks() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.png"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    let kinds = chunks(&fs::read(dir.path().join("radar.png")).expect("written"));
+    assert_eq!(kinds.first(), Some(b"IHDR"));
+    for text in [b"tEXt", b"iTXt", b"zTXt"] {
+        assert!(!kinds.contains(text), "{kinds:?}");
+    }
+}
+
+/// FR-56: the dark theme's ground, and the light default's.
+#[test]
+fn the_theme_sets_the_ground() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    for (theme, name) in [("light", "l.png"), ("Dark", "d.png")] {
+        let ran = run_in(dir.path(), &["radar.csv", "-o", name, "--theme", theme]);
+        assert!(ran.ok(), "{}", ran.stderr);
+    }
+    let (l, d) = (png(dir.path(), "l.png"), png(dir.path(), "d.png"));
+    let corner = |p: &Pixmap| p.pixel(0, 0).expect("a pixel").red();
+    assert!(
+        corner(&l) > 200 && corner(&d) < 60,
+        "{} {}",
+        corner(&l),
+        corner(&d)
+    );
+}
+
+/// FR-56, FR-57: HTML ignores both flags: the same page, the same stderr.
+#[test]
+fn html_ignores_theme_and_width() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let plain_run = run_in(dir.path(), &RENDER);
+    assert!(plain_run.ok(), "{}", plain_run.stderr);
+    let plain = read(dir.path(), "radar.html");
+    let ran = run_in(
+        dir.path(),
+        &[
+            "radar.csv",
+            "-o",
+            "radar.html",
+            "--theme",
+            "dark",
+            "--width",
+            "800",
+        ],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert_eq!(read(dir.path(), "radar.html"), plain);
+    assert_eq!(ran.stderr, plain_run.stderr);
+}
+
+/// FR-52: the extension is matched in any case.
+#[test]
+fn an_upper_case_png_extension_renders() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "RADAR.PNG"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert!(png(dir.path(), "RADAR.PNG").width() > 0);
+}
+
+/// D-74 holds for PNG: the input under a .png name is refused, untouched.
+#[test]
+fn a_png_output_that_is_the_input_is_refused() {
+    let dir = seeded(&[("data.png", PRD)]);
+    let before = snapshot(dir.path());
+    let ran = run_in(dir.path(), &["data.png", "-o", "data.png"]);
+    assert_eq!(
+        ran.lines(),
+        ["error: -o data.png: is the input CSV; choose another output path"]
+    );
+    assert_eq!(ran.code, Some(1));
+    assert_eq!(snapshot(dir.path()), before);
+}
+
+/// NFR-14, SC-18: a PNG into a directory that is not there fails cleanly.
+#[test]
+fn a_png_into_a_missing_directory_fails() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let before = snapshot(dir.path());
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "nowhere/radar.png"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        ["error: -o nowhere/radar.png: the directory nowhere does not exist"]
+    );
+    assert_eq!(snapshot(dir.path()), before);
+}
+
+/// D-87, SC-18: an image past the area cap fails, writes nothing, and
+/// leaves the old file byte-identical.
+#[test]
+fn an_image_too_large_fails_and_writes_nothing() {
+    // Measured: 100 items in one band make the wide document about 1494
+    // by 3710 units, so 10,000 wide is about 248 megapixels.
+    const N: usize = 100;
+    let mut rows = String::new();
+    for i in 0..N {
+        writeln!(rows, "Item {i},Tools,Adopt,d").expect("writes to a String");
+    }
+    let dir = seeded(&[
+        ("radar.csv", &format!("{HEAD}{rows}")),
+        ("radar.png", "old"),
+    ]);
+    let before = snapshot(dir.path());
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.png", "--width", "10000"],
+    );
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert!(ran.stderr.contains("too large to draw"), "{}", ran.stderr);
+    assert_eq!(snapshot(dir.path()), before);
+}
+
+/// D-87: a default width past the ceiling is clamped, with a warning, and
+/// the text-size warning with it.
+#[test]
+fn a_default_width_past_the_ceiling_is_clamped() {
+    let dir = seeded(&[("radar.csv", &too_wide())]);
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.png"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert!(
+        ran.stderr.contains("the PNG is drawn 10000 wide"),
+        "{}",
+        ran.stderr
+    );
+    assert!(
+        ran.stderr.contains("too small to read, at any --width"),
+        "{}",
+        ran.stderr
+    );
+    assert_eq!(png(dir.path(), "radar.png").width(), 10_000);
+}
+
+/// D-87: at the floor the PRD example's text is too small, and the warning
+/// names a width that fixes it; at its own width there is no warning.
+#[test]
+fn a_narrow_png_warns_about_small_text() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.png", "--width", "320"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert!(ran.stderr.contains("keeps it legible"), "{}", ran.stderr);
+    let at_own = run_in(dir.path(), &["radar.csv", "-o", "radar.png"]);
+    assert!(at_own.ok(), "{}", at_own.stderr);
+    assert!(!at_own.stderr.contains("too small"), "{}", at_own.stderr);
+}
+
+/// FR-95 concerns the narrow arrangement, which only HTML carries.
+#[test]
+fn a_png_gives_no_narrow_warning() {
+    let dir = seeded(&[("radar.csv", &too_wide())]);
+    let html = run_in(dir.path(), &RENDER);
+    assert!(
+        html.stderr.contains("narrow arrangement is"),
+        "{}",
+        html.stderr
+    );
+    let png_run = run_in(dir.path(), &["radar.csv", "-o", "radar.png"]);
+    assert!(png_run.ok(), "{}", png_run.stderr);
+    assert!(
+        !png_run.stderr.contains("narrow arrangement"),
+        "{}",
+        png_run.stderr
+    );
+}
+
+/// NFR-7: names in scripts Inter lacks still render; the PNG is written.
+#[test]
+fn a_png_of_hostile_text_renders() {
+    let csv =
+        format!("{HEAD}Кафка,Tools,Adopt,d\n東京,Tools,Trial,d\n\"😀 <b>&amp;\",Tools,Assess,d\n");
+    let dir = seeded(&[("radar.csv", &csv)]);
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.png"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert!(png(dir.path(), "radar.png").width() > 0);
 }

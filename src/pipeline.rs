@@ -12,11 +12,12 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::cli::{Cli, Task, clean_flag, format};
+use crate::cli::{Cli, OutputFormat, Task, clean_flag, format};
 use crate::csv::decode;
 use crate::csv::parse::parse;
-use crate::diagnostics::{Fatal, Flag, RowError, Warnings};
+use crate::diagnostics::{Fatal, Flag, RenderKind, RowError, Warning, Warnings};
 use crate::emit::html::{Page, page};
+use crate::emit::png;
 use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
 use crate::errors::render_errors;
@@ -25,15 +26,24 @@ use crate::layout::geometry::warn_crowding;
 use crate::layout::title::shown;
 use crate::model::{Catalogue, build_catalogue};
 use crate::order::resolve;
+use crate::palette::Palette;
 use crate::rings::{RingSet, parse_rings};
 use crate::template;
 use crate::text::Fonts;
 
-/// The resolved run (architecture §7), read-only once built.
+/// The resolved run (architecture §7), read-only once built. The palette
+/// is resolved here, so a bad `--palette` file (PR 18) is a tier-one error.
 #[derive(Debug)]
 pub struct Config {
     /// `-o`, as given.
     pub output: PathBuf,
+    /// FR-52: what `-o`'s extension asks for.
+    pub format: OutputFormat,
+    /// FR-56: the static outputs' colours, for `--theme`. HTML carries both
+    /// themes and reads only the series from it.
+    pub palette: Palette,
+    /// FR-57: `--width`, which HTML ignores.
+    pub width: Option<u32>,
     /// FR-65, resolved: cleaned (FR-90), trimmed, and `None` when empty.
     pub title: Option<String>,
     /// As `title`.
@@ -113,8 +123,8 @@ fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
     let config = config(cli, input, output, warnings).map_err(Failure::Alone)?;
     let fonts = Fonts::embedded().map_err(Fatal::from)?;
     let catalogue = catalogue(&config.input, &config.rings, warnings)?;
-    let html = render(&catalogue, &config, &fonts, warnings);
-    Ok(write_atomic(&config.output, html.as_bytes())?)
+    let bytes = render(&catalogue, &config, &fonts, warnings)?;
+    Ok(write_atomic(&config.output, &bytes)?)
 }
 
 /// NFR-16 tier one, in order: FR-52's extension, FR-62's directory, D-74's
@@ -126,9 +136,9 @@ fn config(
     output: &Path,
     warnings: &mut Warnings,
 ) -> Result<Config, Vec<Fatal>> {
-    format(output)
-        .and_then(|_| missing_directory(output))
-        .and_then(|()| output_is_input(output, input))
+    let format = format(output)
+        .and_then(|format| missing_directory(output).map(|()| format))
+        .and_then(|format| output_is_input(output, input).map(|()| format))
         .map_err(|e| vec![e])?;
     let title = resolved(Flag::Title, cli.title.as_deref(), warnings);
     let subtitle = resolved(Flag::Subtitle, cli.subtitle.as_deref(), warnings);
@@ -140,6 +150,9 @@ fn config(
         .map_err(|errors| errors.into_iter().map(Fatal::from).collect::<Vec<_>>())?;
     Ok(Config {
         output: output.to_path_buf(),
+        format,
+        palette: Palette::built_in(cli.theme),
+        width: cli.width,
         title,
         subtitle,
         rings,
@@ -198,14 +211,15 @@ fn catalogue(path: &Path, rings: &RingSet, warnings: &mut Warnings) -> Result<Ca
     }
 }
 
-/// The order, the render warnings (FR-88, FR-89, FR-95), the blocks built
-/// once, and the page around both arrangements of them (FR-68).
+/// The order, the render warnings (FR-88, FR-89, FR-95, D-87), the blocks
+/// built once, and the output: the page around both arrangements (FR-68),
+/// or the wide arrangement as a PNG (FR-71).
 fn render(
     catalogue: &Catalogue,
     config: &Config,
     fonts: &Fonts,
     warnings: &mut Warnings,
-) -> String {
+) -> Result<Vec<u8>, Fatal> {
     let plotted = resolve(catalogue);
     let blocks = Blocks::new(
         catalogue,
@@ -217,14 +231,44 @@ fn render(
     // FR-89 at the growth the radar is drawn with (D-86): only what still
     // overlaps is reported.
     warn_crowding(catalogue, &plotted, blocks.radar.growth(), warnings);
-    warn_narrow(&blocks, warnings);
-    page(&Page {
-        wide: &wide_parts(&blocks),
-        narrow: &arrange(Arrangement::Narrow, &blocks),
-        catalogue,
-        plotted: &plotted,
-        title: config.title.as_deref(),
-    })
+    match config.format {
+        OutputFormat::Html => {
+            // FR-95 concerns the narrow arrangement, which only HTML carries.
+            warn_narrow(&blocks, warnings);
+            Ok(page(&Page {
+                wide: &wide_parts(&blocks),
+                narrow: &arrange(Arrangement::Narrow, &blocks),
+                catalogue,
+                plotted: &plotted,
+                title: config.title.as_deref(),
+            })
+            .into_bytes())
+        }
+        OutputFormat::Png => {
+            let wide = arrange(Arrangement::Wide, &blocks);
+            let size = png::pixel_size(&wide, config.width)?;
+            if let Some(natural) = size.clamped() {
+                warnings.push(Warning::Render(RenderKind::WidthClamped {
+                    natural,
+                    drawn: size.width(),
+                }));
+            }
+            if let png::Legibility::Small { legible_from } = size.legibility() {
+                warnings.push(Warning::Render(RenderKind::PngTextSmall {
+                    width: size.width(),
+                    legible_from,
+                }));
+            }
+            png::rasterise(&wide, &config.palette, size)
+        }
+        // `format()` refuses .svg until PR 17, so this arm is not reached;
+        // it fails loudly rather than write PNG bytes to a .svg file.
+        OutputFormat::Svg => Err(Fatal::FormatNotInThisVersion {
+            path: config.output.display().to_string(),
+            ext: "svg".into(),
+            arrives_in: "1.2",
+        }),
+    }
 }
 
 #[cfg(test)]

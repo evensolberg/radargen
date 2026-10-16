@@ -784,7 +784,9 @@ pub enum Fatal {
     /// §14.1: the extension is one v1.1 adds, so say that rather than
     /// "unrecognised", which sends the caller hunting for a typo in a path
     /// that is correct.
-    #[error("-o {path}: .{ext} output arrives in radargen {arrives_in}; this version writes .html")]
+    #[error(
+        "-o {path}: .{ext} output arrives in radargen {arrives_in}; this version writes .html and .png"
+    )]
     FormatNotInThisVersion {
         /// The `-o` argument as given.
         path: String,

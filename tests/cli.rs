@@ -6,6 +6,7 @@ use radargen::cli::{Cli, OutputFormat, Theme};
 use radargen::cli::{Task, clean_flag, format};
 use radargen::diagnostics::{Fatal, Flag, RowKind, Warning, Warnings};
 use radargen::rings::{RingsError, parse_rings};
+use std::path::Path;
 
 fn parse(args: &[&str]) -> Result<Cli, clap::Error> {
     Cli::try_parse_from(std::iter::once("radargen").chain(args.iter().copied()))
@@ -65,25 +66,26 @@ fn extension_matching_ignores_case() {
 }
 
 #[test]
-fn png_and_svg_say_not_in_this_version_rather_than_unrecognised() {
-    // §14.1: v1.0 ships HTML only, and UC-1's documented workflow is one HTML
-    // run and one PNG run — so this is a path a maintainer takes on purpose.
-    // "Unrecognised extension" would send them hunting for a typo in a
-    // correct path.
-    for ext in ["png", "svg", "PNG"] {
-        let path = format!("e.{ext}");
-        let cli = parse(&["in.csv", "-o", &path]).expect("parses");
-        match format(cli.output.as_deref().expect("-o")) {
+fn png_is_a_format_and_svg_arrives_in_1_2() {
+    for path in ["r.png", "R.PNG", "r.Png"] {
+        assert!(
+            matches!(format(Path::new(path)), Ok(OutputFormat::Png)),
+            "{path}"
+        );
+    }
+    // §14.1: SVG ships in 1.2.0; "unrecognised extension" would send the
+    // reader hunting for a typo in a correct path.
+    for path in ["e.svg", "e.SVG"] {
+        match format(Path::new(path)) {
             // NFR-10: an output-path error names the path.
             Err(Fatal::FormatNotInThisVersion {
                 path: named,
                 arrives_in,
                 ..
             }) => {
-                assert_eq!(arrives_in, "1.1");
-                assert_eq!(named, path);
+                assert_eq!((named.as_str(), arrives_in), (path, "1.2"));
             }
-            other => panic!("{ext} gave {other:?}"),
+            other => panic!("{path} gave {other:?}"),
         }
     }
 }
@@ -113,7 +115,7 @@ fn width_accepts_its_documented_range() {
 
 #[test]
 fn width_outside_the_range_is_a_usage_error() {
-    for w in ["319", "10001", "0"] {
+    for w in ["319", "10001", "0", "abc", "-5"] {
         assert!(
             parse(&["in.csv", "-o", "e.png", "--width", w]).is_err(),
             "{w}"
@@ -289,11 +291,9 @@ fn help_speaks_to_users() {
             help.get(at - prefix..at + 2)
         );
     }
+    let about = help.lines().next().unwrap_or_default();
     assert!(
-        !help
-            .lines()
-            .next()
-            .is_some_and(|about| about.contains("PNG") || about.contains("SVG")),
+        about.contains("PNG") && !about.contains("SVG"),
         "the about line promises only what this version writes:\n{help}"
     );
 }
