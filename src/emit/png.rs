@@ -298,14 +298,14 @@ mod tests {
         );
     }
 
-    /// D-87: every pixel is opaque, including a last row the height
-    /// rounded up into, which the scaled ground rect only partly covers.
-    /// The PRD example's own width is such a case: 1026 by round(824.74).
+    /// D-87: every pixel is opaque, whichever way the height rounds: the
+    /// PRD example's own width rounds it up (1026 by round(824.74)), and
+    /// 600 rounds it down (round(482.3)).
     #[test]
     fn every_pixel_is_opaque() {
         let doc = prd();
         for theme in [Theme::Light, Theme::Dark] {
-            for requested in [None, Some(400)] {
+            for requested in [None, Some(600)] {
                 let size = pixel_size(&doc, requested).expect("fits");
                 let png = rasterise(&doc, &Palette::built_in(theme), size).expect("renders");
                 let image = decode(&png);
@@ -328,7 +328,7 @@ mod tests {
     }
 
     /// D-87: the corner, where nothing is drawn, is the theme's Surface1,
-    /// parsed here rather than read back through `Palette::rgb`.
+    /// parsed here from the palette's hex.
     #[test]
     fn the_corner_is_the_ground() {
         let doc = prd();

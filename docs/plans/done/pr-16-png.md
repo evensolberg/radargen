@@ -10,7 +10,7 @@ crumb_id: rg-42m
 document_title: "PR 16 — PNG export; --theme and --width take effect: Implementation Plan"
 created_date: 2026-10-16
 synopsis: "-o radar.png writes the wide arrangement (FR-71) as a PNG: the document serialised with literal colours for --theme (FR-56) over the theme's own ground, which the static SVG now carries (D-87), rasterised by resvg through the vendored Inter faces alone (NFR-7), at --width pixels or the document's own width (FR-57), the height following its aspect. The default width is clamped to FR-64's 10,000 with a warning, text drawn below the legible size warns, and an image past 100 megapixels is refused before it is allocated. HTML still ignores both flags. .svg stays refused until PR 17 (1.2.0). Ships as 1.1.0."
-status: draft
+status: complete
 type: Plan
 revision: "1.1"
 review_date: 2026-10-16
@@ -20,12 +20,12 @@ reviewed_by:
   - "Architecture (subagent)"
   - "Security (subagent)"
   - "Accessibility and visual design (subagent)"
-completed_date:
+completed_date: 2026-10-16
 comments: "1.1 folds in the five plan reviews; every finding and its ruling is in the Review rulings table. The maintainer confirmed 1.1.0 and four PRD changes on 2026-10-16: the small-text warning, the ground in the static SVG, a lower area cap, and a golden tolerance. The lower cap is withdrawn (Ruling 3)."
 ---
 # PR 16 — PNG export; --theme and --width take effect: Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Crumb:** `rg-42m` · **Release:** 1.1.0 · **After:** 1.0.1 (#89) · **Then:** PR 17, SVG export, 1.2.0 (`rg-m2l`); PR 18, `--palette`, 1.3.0 (`rg-cdo`)
 
@@ -189,7 +189,7 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 
 **Files:** `docs/product/radargen-prd.md`.
 
-- [ ] **Step 1:** Add **D-87** after D-86, in the table's form:
+- [x] **Step 1:** Add **D-87** after D-86, in the table's form:
 
   > **The static outputs have a ground; the PNG has a clamped default width, a small-text warning, an area cap and a golden tolerance** (FR-55, FR-57, FR-64, NFR-17, SC-11, SC-18). *Added by the PR 16 plan; confirmed by the maintainer 2026-10-16.*
   >
@@ -206,9 +206,9 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
   >   - a 64-megapixel cap, which refuses the PRD example at `--width 10000`;
   >   - exact PNG goldens across platforms.
 
-- [ ] **Step 2:** In §14.1, and wherever "v1.1" names when PNG or SVG ships, say **1.1.0** for PNG and **1.2.0** for SVG, and say that "v1.1" names the release line. Find the places with `rg -n 'v1\.1' docs/product/radargen-prd.md`.
-- [ ] **Step 3:** Add a revision row, `| 0.72 | 2026-10-16 | **The static outputs' ground; the PNG's default width, small-text warning, size cap and golden tolerance** (D-87; rg-42m). PNG ships as 1.1.0, SVG as 1.2.0. |`, and set `Version: 0.72`.
-- [ ] **Step 4:** Commit: `docs(prd): D-87, the static ground and the PNG's limits`.
+- [x] **Step 2:** In §14.1, and wherever "v1.1" names when PNG or SVG ships, say **1.1.0** for PNG and **1.2.0** for SVG, and say that "v1.1" names the release line. Find the places with `rg -n 'v1\.1' docs/product/radargen-prd.md`.
+- [x] **Step 3:** Add a revision row, `| 0.72 | 2026-10-16 | **The static outputs' ground; the PNG's default width, small-text warning, size cap and golden tolerance** (D-87; rg-42m). PNG ships as 1.1.0, SVG as 1.2.0. |`, and set `Version: 0.72`.
+- [x] **Step 4:** Commit: `docs(prd): D-87, the static ground and the PNG's limits`.
 
 ---
 
@@ -220,7 +220,7 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 **Interfaces:**
 - Produces: `Palette::rgb(&self, role: Role) -> [u8; 3]`, and static SVG whose first child is the ground rect.
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
 
   In `src/palette.rs`'s tests:
 
@@ -266,17 +266,17 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 
   If the serialiser's attribute order or number format differs from the literal above (check `attr` and `fmt_coord`), write the expected line in its format. The test pins the line, not this spelling.
 
-- [ ] **Step 2:** Run `cargo test --lib palette::tests::rgb_reads_the_hex svg::serialise`. Expected: FAIL. `rgb` is not defined, and the static output has no rect.
-- [ ] **Step 3: Implement.**
+- [x] **Step 2:** Run `cargo test --lib palette::tests::rgb_reads_the_hex svg::serialise`. Expected: FAIL. `rgb` is not defined, and the static output has no rect.
+- [x] **Step 3: Implement.**
   - **`Palette::rgb`:** the three channels, parsed with `str::get` (`string_slice` is denied) and the same `expect` message `luminance` uses: "palette values are #RRGGBB; PR 18 rejects anything else". `luminance` then takes `[u8; 3]` from `rgb`, not a hex string.
   - **The ground rect:** in `serialise`, after the `<svg …>` line and only when `!target.interactive()`, write the `<rect width height fill>` line. The fill is `palette.value(Role::Neutral(Neutral::Surface1))`, and the width and height go through `fmt_coord`. Add a doc line to `serialise` citing D-87.
-- [ ] **Step 4:** Run `cargo test`. Expected:
+- [x] **Step 4:** Run `cargo test`. Expected:
   - the two serialiser goldens `prd-wide-light.svg` and `grown-wide-light.svg` fail, each by the one added line;
   - `prd-wide-interactive.svg` passes;
   - everything else passes. The tail oracle compares two rasters that now share a ground.
 
   Re-bless with `UPDATE_GOLDEN=1 cargo test --test serialise golden`, then run `git diff --stat tests/golden`. Expected: two files, +1 line each.
-- [ ] **Step 5:** Run `cargo clippy --all-targets -- -D warnings`. Expected: clean. Commit: `feat(svg): the static target draws the theme's ground (D-87)`.
+- [x] **Step 5:** Run `cargo clippy --all-targets -- -D warnings`. Expected: clean. Commit: `feat(svg): the static target draws the theme's ground (D-87)`.
 
 ---
 
@@ -297,7 +297,7 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
   - `Fatal::Rasterise { reason: String }`, `Fatal::ImageTooLarge { width: u32, height: u32 }`
   - `RenderKind::WidthClamped { natural: u32, drawn: u32 }`, `RenderKind::PngTextSmall { width: u32, legible_from: Option<u32> }`
 
-- [ ] **Step 1: Dependencies and build settings.** In `Cargo.toml` `[dependencies]`:
+- [x] **Step 1: Dependencies and build settings.** In `Cargo.toml` `[dependencies]`:
 
   ```toml
   # PNG export (FR-55). Only `text`: no system fonts (NFR-7), no raster
@@ -345,7 +345,7 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 
   Record `ls -l target/release/radargen` after `cargo build --release`, before and after this step, for the PR body.
 
-- [ ] **Step 2: The constants.** In `src/style.rs`, near `MIN_LEGIBLE_PX`:
+- [x] **Step 2: The constants.** In `src/style.rs`, near `MIN_LEGIBLE_PX`:
 
   ```rust
   /// FR-64: the narrowest `--width`, in pixels.
@@ -358,7 +358,7 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 
   In `src/cli.rs`, the `--width` parser becomes `clap::value_parser!(u32).range(i64::from(MIN_EXPORT_WIDTH)..=i64::from(MAX_EXPORT_WIDTH))`. `tests/cli.rs`'s width tests must still pass unchanged.
 
-- [ ] **Step 3: Stubs.** Create `src/emit/png.rs` with the module doc, the types, and `todo!()` bodies, so the tests below compile and fail on their own assertions:
+- [x] **Step 3: Stubs.** Create `src/emit/png.rs` with the module doc, the types, and `todo!()` bodies, so the tests below compile and fail on their own assertions:
 
   ```rust
   //! The PNG export (FR-55, FR-71, NFR-7, D-87): the wide document
@@ -437,7 +437,7 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 
   Add `pub mod png;` to `src/emit/mod.rs`. Add the four diagnostics from Step 6 with their messages. Variants have no behaviour to stub, so they go in now, but their message tests come in Step 6.
 
-- [ ] **Step 4: Failing tests** at the bottom of `src/emit/png.rs`:
+- [x] **Step 4: Failing tests** at the bottom of `src/emit/png.rs`:
 
   ```rust
   #[cfg(test)]
@@ -625,9 +625,9 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 
   `string_slice` is denied, including in tests. So in `the_corner_is_the_ground`, write `palette.value(surface).get(1..).expect("#RRGGBB")` in place of `[1..]`.
 
-- [ ] **Step 5:** Run `cargo test --lib emit::png`. Expected: every test FAILS, panicking at `not yet implemented`, except `the_static_svg_has_no_custom_properties`, `the_static_svg_paints_only_palette_values` and `the_static_prd_document_has_no_interactive_nodes`. Those three pin the serialiser (Task 1, and the existing static target) and pass already. Note that in the ledger. They are guards for this PR's guarantee, not tests of its new code.
+- [x] **Step 5:** Run `cargo test --lib emit::png`. Expected: every test FAILS, panicking at `not yet implemented`, except `the_static_svg_has_no_custom_properties`, `the_static_svg_paints_only_palette_values` and `the_static_prd_document_has_no_interactive_nodes`. Those three pin the serialiser (Task 1, and the existing static target) and pass already. Note that in the ledger. They are guards for this PR's guarantee, not tests of its new code.
 
-- [ ] **Step 6: The diagnostics.** In `src/diagnostics.rs`'s `Fatal`, beside `Unwritable`:
+- [x] **Step 6: The diagnostics.** In `src/diagnostics.rs`'s `Fatal`, beside `Unwritable`:
 
   ```rust
   /// FR-55: resvg could not parse or rasterise the document, or encode
@@ -690,7 +690,7 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
   - change the two `UnrecognisedExtension` rows to ".html or .png";
   - change the `FormatNotInThisVersion` row to `radar.svg`, `ext: "svg"`, `arrives_in: "1.2"`, with the text "this version writes .html and .png". Its `#[error]` changes accordingly in Task 3. Write the row now, so it fails until then.
 
-- [ ] **Step 7: The module.** Replace the stubs:
+- [x] **Step 7: The module.** Replace the stubs:
 
   ```rust
   pub fn pixel_size(document: &Document, requested: Option<u32>) -> Result<PixelSize, Fatal> {
@@ -766,9 +766,9 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 
   Check the closure signatures of `ImageHrefResolver`'s two fields against usvg 0.48's source (`~/.cargo/registry/src/*/usvg-0.48*/src/parser/image.rs`) and match them. Replace the body of `tests/common/fonts.rs`'s `usvg_options` with `radargen::emit::png::usvg_options()`, keeping its doc comment.
 
-- [ ] **Step 8:** Run `cargo test --lib emit::png && cargo test --test diagnostics`. Expected: PASS, except the `FormatNotInThisVersion` row, which waits for Task 3. Then run `cargo test`. Expected: PASS apart from that row. The oracle tests now share the emitter's options.
+- [x] **Step 8:** Run `cargo test --lib emit::png && cargo test --test diagnostics`. Expected: PASS, except the `FormatNotInThisVersion` row, which waits for Task 3. Then run `cargo test`. Expected: PASS apart from that row. The oracle tests now share the emitter's options.
 
-- [ ] **Step 9:** Run `cargo clippy --all-targets -- -D warnings`. Expected: clean. Commit, `feat(png): size and rasterise a document (FR-55, FR-57, D-87)`, noting the pending diagnostics row.
+- [x] **Step 9:** Run `cargo clippy --all-targets -- -D warnings`. Expected: clean. Commit, `feat(png): size and rasterise a document (FR-55, FR-57, D-87)`, noting the pending diagnostics row.
 
 ---
 
@@ -780,7 +780,7 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 - Consumes: `png::{pixel_size, rasterise}`, `PixelSize`'s accessors, `RenderKind::{WidthClamped, PngTextSmall}`.
 - Produces: `Config { format: OutputFormat, palette: Palette, width: Option<u32>, .. }`.
 
-- [ ] **Step 1: Rewrite the tests that pin today's refusal.**
+- [x] **Step 1: Rewrite the tests that pin today's refusal.**
 
   In `tests/cli.rs`, replace `png_and_svg_say_not_in_this_version_rather_than_unrecognised` with:
 
@@ -809,7 +809,7 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
   - the `.txt` line expects "must end in .html or .png";
   - the second run uses `radar.svg` and expects "arrives in radargen 1.2".
 
-- [ ] **Step 2: Failing end-to-end tests** in `tests/run.rs`, using its `seeded`, `run_in`, `snapshot`, `read`, `RENDER`, `HEAD` and `PRD`:
+- [x] **Step 2: Failing end-to-end tests** in `tests/run.rs`, using its `seeded`, `run_in`, `snapshot`, `read`, `RENDER`, `HEAD` and `PRD`:
 
   ```rust
   use resvg::tiny_skia::Pixmap;
@@ -975,11 +975,11 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 
   Match `ran.status` and the D-74 message to `tests/run.rs`'s existing helpers and wording; read the existing D-74 test first. `chunks` uses slice indexing on bytes, which `string_slice` does not cover. If `clippy::indexing_slicing` is denied in tests, use `get` throughout.
 
-- [ ] **Step 3: Measure N.** Write a scratch CSV of 400 items. Run `cargo run -q -- scratch.csv -o x.html` and read the wide document's size from the radar part's `viewBox` plus the legend's. Take the least round count whose wide document is at least as tall as it is wide. Put it in the test as a `const N: usize`, with the measured aspect in its comment.
+- [x] **Step 3: Measure N.** Write a scratch CSV of 400 items. Run `cargo run -q -- scratch.csv -o x.html` and read the wide document's size from the radar part's `viewBox` plus the legend's. Take the least round count whose wide document is at least as tall as it is wide. Put it in the test as a `const N: usize`, with the measured aspect in its comment.
 
-- [ ] **Step 4:** Run `cargo test --test run --test cli`. Expected: FAIL. `.png` is still refused, so every PNG test fails at "arrives in radargen 1.1", and `png_is_a_format_and_svg_arrives_in_1_2` fails too. `html_ignores_theme_and_width` may already pass. If so, note in the ledger that it pins existing behaviour.
+- [x] **Step 4:** Run `cargo test --test run --test cli`. Expected: FAIL. `.png` is still refused, so every PNG test fails at "arrives in radargen 1.1", and `png_is_a_format_and_svg_arrives_in_1_2` fails too. `html_ignores_theme_and_width` may already pass. If so, note in the ledger that it pins existing behaviour.
 
-- [ ] **Step 5: `cli.rs`.**
+- [x] **Step 5: `cli.rs`.**
   - **`format`:** `"png" => Ok(OutputFormat::Png)`, and `"svg" => Err(FormatNotInThisVersion { arrives_in: "1.2", .. })`.
   - **The error text:** the `#[error]` on `FormatNotInThisVersion` says "this version writes .html and .png".
   - **The help text:**
@@ -989,7 +989,7 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
   - **Docs:** update the `OutputFormat::Png` and `OutputFormat::Svg` docs and the `format()` rustdoc. Say 1.2, not v1.1.
   - **Keep passing:** `tests/cli.rs`'s test that keeps requirement numbers out of the help.
 
-- [ ] **Step 6: `pipeline.rs`.**
+- [x] **Step 6: `pipeline.rs`.**
   - `Config` gains `format: OutputFormat`, `palette: Palette`, and `width: Option<u32>`. Its doc cites architecture §7: the palette is resolved here, so PR 18's `--palette` file is a tier-one error.
   - `config()` keeps `format(output)?`'s value, sets `palette: Palette::built_in(cli.theme)`, and copies `cli.width`.
   - `render` becomes:
@@ -1039,8 +1039,8 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 
   `steps` becomes `let bytes = render(...)?; Ok(write_atomic(&config.output, &bytes)?)`. Match `Warnings`' real push method and `Warning`'s real variant name, and read them first.
 
-- [ ] **Step 7:** Run `cargo test`. Expected: PASS, including Task 2's pending diagnostics row.
-- [ ] **Step 8:** Run `cargo clippy --all-targets -- -D warnings`. Expected: clean. Commit: `feat(png): -o radar.png writes the wide arrangement; --theme and --width take effect`.
+- [x] **Step 7:** Run `cargo test`. Expected: PASS, including Task 2's pending diagnostics row.
+- [x] **Step 8:** Run `cargo clippy --all-targets -- -D warnings`. Expected: clean. Commit: `feat(png): -o radar.png writes the wide arrangement; --theme and --width take effect`.
 
 ---
 
@@ -1048,7 +1048,7 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 
 **Files:** `tests/serialise/golden.rs`, `tests/golden/png/`, `tests/determinism.rs`.
 
-- [ ] **Step 1: `golden_png`** in `tests/serialise/golden.rs`, beside `golden`:
+- [x] **Step 1: `golden_png`** in `tests/serialise/golden.rs`, beside `golden`:
 
   ```rust
   /// D-87: per channel, the most a pixel may differ across platforms.
@@ -1117,7 +1117,7 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
   }
   ```
 
-- [ ] **Step 2:** Run `UPDATE_GOLDEN=1 cargo test --test serialise png`, then `cargo test --test serialise png`. Expected: blessed, then PASS. **Open both PNGs and look at them.** Check that:
+- [x] **Step 2:** Run `UPDATE_GOLDEN=1 cargo test --test serialise png`, then `cargo test --test serialise png`. Expected: blessed, then PASS. **Open both PNGs and look at them.** Check that:
   - the title, radar, key and legend are all present (SC-11);
   - the dark ground is dark;
   - no text is black on dark;
@@ -1125,9 +1125,9 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 
   Say what you saw in the commit message. Both files are attached to the PR body (Task 5).
 
-- [ ] **Step 3: Determinism across processes.** In `tests/determinism.rs`, following its existing two-process test, render the PRD example to `.png` in two processes. Assert that their decoded pixels are **exactly** equal, using `Pixmap::decode_png` (NFR-4, D-40: pixels, not bytes, and on one platform no tolerance). The test must also assert that the static SVG strings both processes rasterised are equal. Get them by serialising in-process from each run's inputs, or by having the test run both through the library in two child processes, whichever the file's existing pattern supports. When the pixels differ, that says whether the cause is upstream of resvg.
+- [x] **Step 3: Determinism across processes.** In `tests/determinism.rs`, following its existing two-process test, render the PRD example to `.png` in two processes. Assert that their decoded pixels are **exactly** equal, using `Pixmap::decode_png` (NFR-4, D-40: pixels, not bytes, and on one platform no tolerance). The test must also assert that the static SVG strings both processes rasterised are equal. Get them by serialising in-process from each run's inputs, or by having the test run both through the library in two child processes, whichever the file's existing pattern supports. When the pixels differ, that says whether the cause is upstream of resvg.
 
-- [ ] **Step 4:** Run `cargo test`. Expected: PASS. Commit: `test(png): goldens by decoded pixels within D-87's tolerance, and determinism across processes`.
+- [x] **Step 4:** Run `cargo test`. Expected: PASS. Commit: `test(png): goldens by decoded pixels within D-87's tolerance, and determinism across processes`.
 
 ---
 
@@ -1135,7 +1135,7 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
 
 **Files:** `README.md`, `docs/a11y/manual-checks.md`, `docs/design/architecture.md`, `Cargo.toml`, `Cargo.lock`, `CHANGELOG.md`.
 
-- [ ] **Step 1: README.**
+- [x] **Step 1: README.**
   - **Description and usage:** add PNG to both.
   - **A "PNG" subsection** covering:
     - the flags: `-o radar.png`, `--theme light|dark`, and `--width` from 320 to 10000, with the height following;
@@ -1145,22 +1145,22 @@ All five reviews, 2026-10-16. **Fixed** means the plan below now does it.
     - **scripts:** only Latin, Greek and Cyrillic (what Inter covers) render, and other scripts and emoji appear as boxes. Check the claim against Inter's coverage before writing it;
     - **accessibility:** an image has no text alternative. Write alt text where the PNG is placed, and link the HTML page or the CSV as the long description.
   - **SVG:** say it arrives in 1.2.
-- [ ] **Step 2: `docs/a11y/manual-checks.md`.** Add a PNG section with these checks:
+- [x] **Step 2: `docs/a11y/manual-checks.md`.** Add a PNG section with these checks:
   - both themes;
   - title, key and legend present;
   - no hover, focus or selection marks;
   - no missing-glyph boxes for the fixture's names;
   - text readable at the default width.
-- [ ] **Step 3: Architecture.**
+- [x] **Step 3: Architecture.**
   - §3: mark the `src/emit/png.rs` row as present, not v1.1, and note that `usvg_options` is shared with the oracle tests. The `src/emit/svg.rs` row says 1.2.
   - §5: the static target draws the ground (D-87).
   - §9 step 7: say 1.2.
   - Find any other "v1.1" with `rg -n 'v1\.1' docs/design/architecture.md src`.
-- [ ] **Step 4: Crumbs.**
+- [x] **Step 4: Crumbs.**
   - Create a new crumb: `crumbs create 'Warn when a PNG draws a glyph Inter lacks (tofu)' --type idea --tags png,a11y --phase v1.x`, with a message citing the accessibility review and FR-84's shaping.
   - Append a note to `rg-m2l`: `crumbs append rg-m2l 'PR 16: the ground is in the static serialiser (D-87); SVG needs only FR-57s height rule. Re-bless the HTML goldens for radargen 1.2.'`
-- [ ] **Step 5:** Run `just ci`. Expected: green, browser checks and `deps-features` included.
-- [ ] **Step 6: Release.**
+- [x] **Step 5:** Run `just ci`. Expected: green, browser checks and `deps-features` included.
+- [x] **Step 6: Release.**
   - **Version:** set `version = "1.1.0"` and `description` "… to a self-contained HTML page or a PNG image", then run `cargo update -p radargen`.
   - **Goldens:** re-bless the HTML goldens. The diff must be only the generator line, with `radargen 1.0` becoming `radargen 1.1`.
   - **Changelog:** run `git-cliff --tag v1.1.0 --output CHANGELOG.md`.
