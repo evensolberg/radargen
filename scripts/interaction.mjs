@@ -581,6 +581,26 @@ try {
     check(await panelHidden(), 'no panel opens');
   });
 
+  // rg-18x (D-85): the wide SVG grows to the window's width or height,
+  // whichever runs out first, and the cap never falls below its own width.
+  // Measured, not read from the CSS: a declaration the browser drops as
+  // invalid would leave the string tests passing.
+  await scenario('the wide arrangement fills the window', [1850, 1200], async (width) => {
+    for (const height of [1400, 1000, 500]) {
+      await load(width, { height });
+      const [drawn, want, chrome] = await evaluate(`(() => {
+        const svg = document.querySelector('.arrangement.wide svg');
+        const { width: w, height: h } = svg.viewBox.baseVal;
+        const room = svg.closest('.arrangement').parentElement.clientWidth;
+        const cap = Math.max(w, innerHeight * w / h);
+        const bar = document.querySelector('.page-controls').getBoundingClientRect().width;
+        return [svg.getBoundingClientRect().width, Math.min(room, cap), bar];
+      })()`);
+      check(Math.abs(drawn - want) <= 1, `${width}x${height}: the SVG is ${drawn} px, not ${want}`);
+      check(Math.abs(chrome - drawn) <= 1, `${width}x${height}: the controls share the cap (${chrome} px)`);
+    }
+  });
+
   // P15. Re-activating an item through its hit area keeps focus on its marker.
   await scenario('P15 hit area twice', [WIDE], async (width) => {
     await load(width);

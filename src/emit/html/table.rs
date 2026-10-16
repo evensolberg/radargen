@@ -263,16 +263,16 @@ const TINT_REST: &str = "]>*{background:var(";
 const BUTTON_RESET: &str = ")}\nth button{all:unset;display:block;padding-block:3px;margin-block:-3px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:.2em}\nth button:hover{text-decoration-style:solid}\n";
 const FOCUS_OPEN: &str = "summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focus-visible{outline:2px solid var(";
 
-/// The table view's rules, capped at the wide document's width and inset by
+/// The table view's rules, capped as the wide arrangement is and inset by
 /// its margin, so the table's edge lines up with the radar's content.
 ///
 /// Links take the body text colour, underlined: a browser's default blue is
 /// 1.70:1 on the dark Surface2, while the text colour is checked at 4.5:1 in
 /// both themes, and the underline keeps a link distinct (WCAG 1.4.1). No
 /// height is fixed anywhere, so 1.4.12's spacing clips nothing (D-78).
-pub(super) fn css(wide_width: f64) -> String {
+pub(super) fn css(wide_width: f64, wide_height: f64) -> String {
     [
-        &capped(CAP_OPEN, wide_width),
+        &capped(CAP_OPEN, wide_width, wide_height),
         HEADING_RULE,
         SUMMARY_RULE,
         SCROLL_OPEN,

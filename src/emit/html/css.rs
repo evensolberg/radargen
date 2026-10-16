@@ -32,18 +32,45 @@ pub(super) const HIDDEN_BOX: &str = "{position:absolute;width:1px;height:1px;mar
 /// sit 2px out, so they never touch the control.
 pub(super) const OUTLINE_CLOSE: &str = ");outline-offset:2px}\n";
 
+const CAP_FLOOR: &str = "max(";
+const CAP_HEIGHT: &str = "px,calc(100vh*";
+const CAP_OVER: &str = "/";
+const CAP_END: &str = "))";
 const INSET_WIDTH: &str = "max-width:";
-const INSET_REST: &str = "px;margin-inline:auto;padding-inline:";
+const INSET_REST: &str = ";margin-inline:auto;padding-inline:";
 const INSET_CLOSE: &str = "px;box-sizing:border-box}\n";
 
-/// `open`, a selector and its rule's opening declarations, capped at the
-/// wide document's width and inset by its margin, so page chrome lines up
-/// with the radar's content edge.
-pub(super) fn capped(open: &str, wide_width: f64) -> String {
+/// The wide arrangement's cap (rg-18x, D-85): the window's width or the
+/// width at which a `wide_width` × `wide_height` document is exactly as tall
+/// as the viewport, whichever is smaller, but never less than the
+/// document's own width. The floor matters on a short, wide window: without
+/// it the height term would shrink the radar below what the width alone
+/// gives, while FR-69's breakpoint, which reads only the width, kept the
+/// wide arrangement showing.
+pub(super) fn wide_cap(wide_width: f64, wide_height: f64) -> String {
+    let width = fmt_coord(wide_width);
+    [
+        CAP_FLOOR,
+        &width,
+        CAP_HEIGHT,
+        &width,
+        CAP_OVER,
+        &fmt_coord(wide_height),
+        CAP_END,
+    ]
+    .concat()
+}
+
+/// `open`, a selector and its rule's opening declarations, capped as the
+/// wide arrangement is and inset by its margin, so page chrome lines up
+/// with the radar's content edge at one pixel per unit. Drawn larger, the
+/// radar's margin grows and the inset does not, so the chrome's edges sit a
+/// few pixels outside the radar's; accepted.
+pub(super) fn capped(open: &str, wide_width: f64, wide_height: f64) -> String {
     [
         open,
         INSET_WIDTH,
-        &fmt_coord(wide_width),
+        &wide_cap(wide_width, wide_height),
         INSET_REST,
         &fmt_coord(crate::style::MARGIN),
         INSET_CLOSE,
@@ -74,7 +101,8 @@ const BODY_INK: &str = ");color:var(";
 const SVG_RULE: &str = ")}\nsvg{display:block;width:100%;height:auto}\n";
 const WIDE_CAP: &str = ".wide{max-width:";
 const NARROW_CAP: &str = ".narrow{max-width:";
-const CAP_CLOSE: &str = "px;margin:0 auto}\n";
+const PX: &str = "px";
+const CAP_CLOSE: &str = ";margin:0 auto}\n";
 /// The default: wide shown, narrow hidden. With one query swapping them,
 /// there is no width at which both or neither show (FR-69).
 const NARROW_HIDDEN: &str = ".narrow{display:none}\n@media ";
@@ -195,11 +223,11 @@ fn declarations(palette: &Palette) -> String {
 
 /// The page around the two arrangements (FR-51, FR-69).
 ///
-/// Each SVG fills its container, and each container is capped at its own
-/// document's width, so a large screen draws one CSS pixel per unit rather
-/// than enlarging it. Below that width the narrow one spans the viewport,
-/// which is where FR-94's `NARROW_HORIZONTAL_INSET_PX` of zero is measured.
-pub(super) fn layout(wide_width: f64, narrow_width: f64) -> String {
+/// Each SVG fills its container. The wide container grows with the window
+/// (`wide_cap`); the narrow one is capped at its own document's width,
+/// and below that spans the viewport, which is where FR-94's
+/// `NARROW_HORIZONTAL_INSET_PX` of zero is measured.
+pub(super) fn layout(wide_width: f64, wide_height: f64, narrow_width: f64) -> String {
     [
         BODY_OPEN,
         FAMILY,
@@ -209,10 +237,11 @@ pub(super) fn layout(wide_width: f64, narrow_width: f64) -> String {
         Neutral::TextPrimary.as_str(),
         SVG_RULE,
         WIDE_CAP,
-        &fmt_coord(wide_width),
+        &wide_cap(wide_width, wide_height),
         CAP_CLOSE,
         NARROW_CAP,
         &fmt_coord(narrow_width),
+        PX,
         CAP_CLOSE,
         NARROW_HIDDEN,
         &narrow_query(wide_width),

@@ -141,7 +141,7 @@ fn words_match_whole() {
 /// and its close button and heading show focus (WCAG 2.4.7).
 #[test]
 fn the_panel_sticks_and_shows_focus() {
-    let css = super::css(1000.0);
+    let css = super::css(1000.0, 800.0);
     for rule in [
         ".detail{position:sticky;bottom:.75rem;max-height:min(45vh,28em);overflow:auto;",
         ".detail dd{margin:0 0 .6em;overflow-wrap:anywhere}",
