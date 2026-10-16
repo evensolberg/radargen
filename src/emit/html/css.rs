@@ -43,9 +43,9 @@ const CAP_HEIGHT: &str = "px,calc((100vh - ";
 const CAP_UNDER: &str = "px)*";
 const CAP_OVER: &str = "/";
 const CAP_END: &str = "))";
-const CHROME_OPEN: &str = "calc(";
-const CHROME_PLUS: &str = " + ";
-const CHROME_CLOSE: &str = "px)";
+const SPAN_OPEN: &str = "calc(";
+const SPAN_PLUS: &str = " + ";
+const SPAN_CLOSE: &str = "px)";
 const INSET_WIDTH: &str = "max-width:";
 const INSET_REST: &str = ";margin-inline:auto;padding-inline:";
 const INSET_CLOSE: &str = "px;box-sizing:border-box}\n";
@@ -92,14 +92,13 @@ impl Wide {
     /// breakpoint reads only the width, so without it the height term could
     /// shrink the radar's text past what the breakpoint allows.
     pub(super) fn radar_cap(self) -> String {
-        let width = fmt_coord(self.radar_width);
         [
             CAP_FLOOR,
             &fmt_coord(self.radar_width * WIDE_MIN_SCALE),
             CAP_HEIGHT,
             &fmt_coord(self.title_height),
             CAP_UNDER,
-            &width,
+            &fmt_coord(self.radar_width),
             CAP_OVER,
             &fmt_coord(self.radar_height),
             CAP_END,
@@ -110,11 +109,11 @@ impl Wide {
     /// The whole arrangement's cap: the radar column and the legend.
     fn cap(self) -> String {
         [
-            CHROME_OPEN,
+            SPAN_OPEN,
             &self.radar_cap(),
-            CHROME_PLUS,
+            SPAN_PLUS,
             &fmt_coord(self.legend_width),
-            CHROME_CLOSE,
+            SPAN_CLOSE,
         ]
         .concat()
     }
@@ -171,9 +170,10 @@ const KEY_RULE: &str = "{grid-row:3;grid-column:1}\n";
 /// as wide as the legend and a reserved scrollbar gutter, so a classic
 /// scrollbar never narrows the legend.
 const LEGEND_RULE: &str = "{grid-row:2;grid-column:2;height:0;min-height:100%;box-sizing:border-box;overflow-y:auto;scrollbar-gutter:stable}\n";
-const FIXED_OPEN: &str = " svg{width:";
+const SVG_WIDTH_OPEN: &str = " svg{width:";
+/// The legend's width is fixed: its column is sized to it.
 const FIXED_CLOSE: &str = "px}\n";
-const NATURAL_OPEN: &str = " svg{width:";
+/// The title's and key's shrink with the column when it is narrower.
 const NATURAL_CLOSE: &str = "px;max-width:100%}\n";
 const NARROW_CAP: &str = ".narrow{max-width:";
 const PX: &str = "px";
@@ -307,8 +307,8 @@ fn declarations(palette: &Palette) -> String {
 /// is measured.
 pub(super) fn layout(wide: &Wide, narrow_width: f64) -> String {
     let class = |name: &str, rule: &str| [".", name, rule].concat();
-    let natural = |name: &str, width: f64| {
-        [".", name, NATURAL_OPEN, &fmt_coord(width), NATURAL_CLOSE].concat()
+    let svg_width = |name: &str, width: f64, close: &str| {
+        [".", name, SVG_WIDTH_OPEN, &fmt_coord(width), close].concat()
     };
     [
         BODY_OPEN,
@@ -322,19 +322,12 @@ pub(super) fn layout(wide: &Wide, narrow_width: f64) -> String {
         &wide.radar_cap(),
         GRID_CLOSE,
         &class(WIDE_TITLE, TITLE_RULE),
-        &natural(WIDE_TITLE, wide.width()),
+        &svg_width(WIDE_TITLE, wide.width(), NATURAL_CLOSE),
         &class(WIDE_RADAR, RADAR_RULE),
         &class(WIDE_KEY, KEY_RULE),
-        &natural(WIDE_KEY, wide.radar_width),
+        &svg_width(WIDE_KEY, wide.radar_width, NATURAL_CLOSE),
         &class(WIDE_LEGEND, LEGEND_RULE),
-        &[
-            ".",
-            WIDE_LEGEND,
-            FIXED_OPEN,
-            &fmt_coord(wide.legend_width),
-            FIXED_CLOSE,
-        ]
-        .concat(),
+        &svg_width(WIDE_LEGEND, wide.legend_width, FIXED_CLOSE),
         NARROW_CAP,
         &fmt_coord(narrow_width),
         PX,

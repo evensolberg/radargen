@@ -23,6 +23,10 @@ const DIV_OPEN: &str = "<div class=\"";
 const WIDE_REST: &str = " wide\">\n";
 const NARROW_REST: &str = " narrow\">\n";
 const DIV_CLOSE: &str = "\n</div>\n";
+const OPEN_REST: &str = "\">\n";
+/// The legend's box is out of the tab order: its rows are focusable and
+/// scroll it, and Firefox would otherwise stop on the box itself, unnamed.
+const UNTABBED_REST: &str = "\" tabindex=\"-1\">\n";
 const MAIN_CLOSE: &str = "</main>\n";
 const BODY_CLOSE: &str = "</body>\n</html>\n";
 
@@ -111,30 +115,21 @@ pub fn page(input: &Page<'_>) -> String {
 /// key, then the legend, its container scrolling. The stylesheet's grid
 /// puts the legend beside the radar (D-85).
 fn wide_parts(parts: &WideParts, target: Target<'_>) -> String {
-    let part = |class: &str, document: &Document| {
+    let part = |class: &str, rest: &str, document: &Document| {
         [
             DIV_OPEN,
             class,
-            "\">\n",
+            rest,
             &serialise(document, target),
             DIV_CLOSE,
         ]
         .concat()
     };
     [
-        part(css::WIDE_TITLE, &parts.title),
-        part(css::WIDE_RADAR, &parts.radar),
-        part(css::WIDE_KEY, &parts.key),
-        // Out of the tab order: its rows are focusable and scroll it, and
-        // Firefox would otherwise stop on the box itself, unnamed.
-        [
-            DIV_OPEN,
-            css::WIDE_LEGEND,
-            "\" tabindex=\"-1\">\n",
-            &serialise(&parts.legend, target),
-            DIV_CLOSE,
-        ]
-        .concat(),
+        part(css::WIDE_TITLE, OPEN_REST, &parts.title),
+        part(css::WIDE_RADAR, OPEN_REST, &parts.radar),
+        part(css::WIDE_KEY, OPEN_REST, &parts.key),
+        part(css::WIDE_LEGEND, UNTABBED_REST, &parts.legend),
     ]
     .concat()
 }

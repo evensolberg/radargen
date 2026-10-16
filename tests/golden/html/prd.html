@@ -851,15 +851,18 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
   // so the box gets that much real padding too, or its last rows could
   // never clear the panel.
   const boxes = [...document.querySelectorAll('.' + N.legendScroll)];
+  // Every size is read before any style is written, so a scroll forces
+  // no extra layout.
   const pad = () => {
-    root.style.scrollPaddingBottom = panel.hidden ? '' : panel.offsetHeight + 'px';
     const top = panel.getBoundingClientRect().top;
-    for (const box of boxes) {
-      const under = panel.hidden ? 0 : box.getBoundingClientRect().bottom - top;
-      const by = under > 0 ? under + 'px' : '';
+    const height = panel.offsetHeight;
+    const unders = boxes.map((box) => (panel.hidden ? 0 : box.getBoundingClientRect().bottom - top));
+    root.style.scrollPaddingBottom = panel.hidden ? '' : height + 'px';
+    boxes.forEach((box, i) => {
+      const by = unders[i] > 0 ? unders[i] + 'px' : '';
       box.style.scrollPaddingBottom = by;
       box.style.paddingBottom = by;
-    }
+    });
   };
   new ResizeObserver(pad).observe(panel);
   addEventListener('scroll', pad, { passive: true });

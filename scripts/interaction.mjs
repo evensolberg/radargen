@@ -107,6 +107,8 @@ const SETS = `(() => {
 // Whether the element `selector` matches has computed visibility visible.
 const visible = (selector) => `getComputedStyle(document.querySelector('${selector}')).visibility === 'visible'`;
 const panelHeading = () => evaluate(`document.querySelector('#detail .detail-heading').textContent`);
+// Two pixel sizes within a pixel of each other.
+const near = (a, b) => Math.abs(a - b) <= 1;
 const inView = (element) => evaluate(`(() => { const r = (${element}).getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })()`);
 // The centre of the first element `selector` matches, scrolled into view,
 // with its key.
@@ -625,7 +627,6 @@ try {
       })()`);
       const at = `${width}x${height}`;
       check(await evaluate(`getComputedStyle(document.querySelector('.arrangement.wide')).display !== 'none'`), `${at}: the wide arrangement shows`);
-      const near = (a, b) => Math.abs(a - b) <= 1;
       check(near(m.radar, m.want), `${at}: the radar is ${m.radar} px, not ${m.want}`);
       check(near(m.legend, m.l), `${at}: the legend is ${m.legend} px, not its own ${m.l}`);
       check(near(m.scroller, m.radarHeight), `${at}: the legend's box is ${m.scroller} px tall, the radar ${m.radarHeight}`);
@@ -652,7 +653,7 @@ try {
         };
       })()`);
       check(m.overflows, 'the legend overflows its box, so it scrolls');
-      check(Math.abs(m.box - m.radar) <= 1, `the box is ${m.box} px tall, the radar ${m.radar}`);
+      check(near(m.box, m.radar), `the box is ${m.box} px tall, the radar ${m.radar}`);
       check(Math.abs(m.drawn - m.own) <= 0.5, `the legend draws at ${m.drawn} px, not its own ${m.own}`);
       const first = await centreOf('.arrangement.wide [data-legend-row]');
       await click(first.x, first.y);
