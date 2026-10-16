@@ -16,6 +16,7 @@
 //! [`num::fmt_coord`]: crate::num::fmt_coord
 
 mod group;
+mod outline;
 mod shape;
 mod tail;
 mod text;
@@ -23,10 +24,11 @@ mod text;
 #[cfg(test)]
 mod tests;
 
-use crate::escape::xml_attr;
+use crate::escape::{xml_attr, xml_text};
 use crate::num::fmt_coord;
 use crate::palette::{Neutral, Palette, Role};
 use crate::svg::{Document, Node, Paint, Point};
+use crate::text::{FontError, Fonts};
 
 /// The CSV line of the item an element belongs to (architecture §5).
 pub const DATA_ROW: &str = "data-row";
@@ -81,11 +83,21 @@ enum ControlKind {
     LegendRow,
 }
 
+/// How text is written: as `<text>` for a reader with the font (the page,
+/// and resvg through our own font database), or as outlines for one
+/// without it (the exported SVG, D-88).
+#[derive(Clone, Copy)]
+enum TextMode<'a> {
+    Text,
+    Outlined(outline::Outlined<'a>),
+}
+
 /// What every node's writer reads.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 struct Context<'a> {
     target: Target<'a>,
     control: Option<ControlKind>,
+    text: TextMode<'a>,
 }
 
 impl<'a> Context<'a> {
@@ -94,9 +106,13 @@ impl<'a> Context<'a> {
         Self {
             target,
             control: None,
+            text: TextMode::Text,
         }
     }
 }
+
+const SVG_NS: &str = "http://www.w3.org/2000/svg";
+const XLINK_NS: &str = "http://www.w3.org/1999/xlink";
 
 /// `document` as one `<svg>` element, one element per line.
 ///
@@ -105,12 +121,75 @@ impl<'a> Context<'a> {
 /// `Surface1` over the whole viewBox (D-87); the page paints its own.
 #[must_use]
 pub fn serialise(document: &Document, target: Target<'_>) -> String {
-    let context = Context::top(target);
     let mut out = String::from("<svg");
-    attr(&mut out, "xmlns", "http://www.w3.org/2000/svg");
+    attr(&mut out, "xmlns", SVG_NS);
     attr(&mut out, "viewBox", &view_box(document));
     out.push_str(">\n");
-    if !target.interactive() {
+    out.push_str(&body(document, Context::top(target)));
+    out.push_str("</svg>");
+    out
+}
+
+/// The exported SVG's root around the shared document (D-88).
+pub struct Standalone<'a> {
+    /// The theme's palette (FR-56).
+    pub palette: &'a Palette,
+    /// The faces text is shaped and outlined from.
+    pub fonts: &'a Fonts,
+    /// The root's `width` (FR-57).
+    pub width: f64,
+    /// The root's `height` (FR-57).
+    pub height: f64,
+    /// The root's `<title>`.
+    pub title: &'a str,
+    /// The root's `<desc>`, when there is one.
+    pub desc: Option<&'a str>,
+}
+
+/// `document` as the exported file's root element, its text outlined and
+/// every colour a literal (D-88), ending in one LF. Always static: an
+/// outlined interactive document cannot be built.
+///
+/// # Errors
+///
+/// [`FontError`] when a glyph cannot be outlined.
+pub fn standalone(document: &Document, file: &Standalone<'_>) -> Result<String, FontError> {
+    let glyphs = outline::Glyphs::of(document, file.fonts)?;
+    let context = Context {
+        target: Target::Static(file.palette),
+        control: None,
+        text: TextMode::Outlined(outline::Outlined {
+            fonts: file.fonts,
+            glyphs: &glyphs,
+        }),
+    };
+    let mut out = String::from("<svg");
+    attr(&mut out, "xmlns", SVG_NS);
+    attr(&mut out, "xmlns:xlink", XLINK_NS);
+    coord(&mut out, "width", file.width);
+    coord(&mut out, "height", file.height);
+    attr(&mut out, "viewBox", &view_box(document));
+    // The file's own words (*Technology Radar*, the radar's description)
+    // are English, as the page's `lang` says.
+    attr(&mut out, "xml:lang", "en");
+    out.push_str(">\n<title>");
+    out.push_str(&xml_text(file.title));
+    out.push_str("</title>\n");
+    if let Some(desc) = file.desc {
+        out.push_str("<desc>");
+        out.push_str(&xml_text(desc));
+        out.push_str("</desc>\n");
+    }
+    out.push_str(&glyphs.defs());
+    out.push_str(&body(document, context));
+    out.push_str("</svg>\n");
+    Ok(out)
+}
+
+/// The ground, for a static target (D-87), then the drawing.
+fn body(document: &Document, context: Context<'_>) -> String {
+    let mut out = String::new();
+    if !context.target.interactive() {
         let ground = Node::Rect {
             origin: Point::ORIGIN,
             width: document.width,
@@ -123,7 +202,6 @@ pub fn serialise(document: &Document, target: Target<'_>) -> String {
         out.push_str(&node(&ground, context));
     }
     out.push_str(&node(&document.root, context));
-    out.push_str("</svg>");
     out
 }
 
@@ -154,8 +232,8 @@ fn node(node: &Node, context: Context<'_>) -> String {
             lines,
             leading,
             tail,
-        } => text::text(
-            &text::Run {
+        } => {
+            let run = text::Run {
                 origin: *origin,
                 style: *style,
                 ink: *ink,
@@ -163,9 +241,14 @@ fn node(node: &Node, context: Context<'_>) -> String {
                 lines,
                 leading: *leading,
                 tail: tail.as_ref(),
-            },
-            context,
-        ),
+            };
+            match context.text {
+                TextMode::Text => text::text(&run, context),
+                TextMode::Outlined(outlined) => {
+                    outline::text(&run, node.tail_x(outlined.fonts), outlined, context)
+                }
+            }
+        }
         Node::Circle {
             centre,
             radius,

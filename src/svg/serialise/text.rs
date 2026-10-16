@@ -61,7 +61,7 @@ fn style(out: &mut String, style: TextStyle, anchor: Anchor) {
 
 /// A fill, or a halo: an outline only, hidden from assistive technology so
 /// the filled copy is read once.
-fn ink(out: &mut String, ink: TextPaint, context: Context<'_>) {
+pub(super) fn ink(out: &mut String, ink: TextPaint, context: Context<'_>) {
     match ink {
         TextPaint::Fill(fill) => attr(out, "fill", &paint(fill, context.target)),
         TextPaint::Halo { stroke, width } => {
