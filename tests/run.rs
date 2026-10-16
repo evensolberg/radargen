@@ -171,6 +171,35 @@ fn growth_answers_crowding_before_it_warns() {
     );
 }
 
+/// rg-tzz: a quadrant name so long that the wide document is wider than
+/// any screen still renders. The page is written, the narrow arrangement's
+/// warning (FR-95) names the label, and the run exits 0, as D-71 does for
+/// any layout limit on valid input.
+#[test]
+fn a_quadrant_name_wider_than_any_screen_still_renders() {
+    let csv = format!("{HEAD}A,{},Adopt,d\nB,Tools,Adopt,d\n", "W".repeat(600));
+    let dir = seeded(&[("radar.csv", &csv)]);
+    let ran = run_in(dir.path(), &RENDER);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert!(!ran.stderr.contains("panicked"), "{}", ran.stderr);
+    assert!(
+        ran.stderr.contains("narrow arrangement is"),
+        "{}",
+        ran.stderr
+    );
+    let page = read(dir.path(), "radar.html");
+    assert_eq!(html::svgs(&page).len(), 5, "four wide parts and the narrow");
+    // The case the old 10,000-unit bound refused: the breakpoint, about
+    // 0.8 of the document, lies past it.
+    let query = page
+        .split("(max-width: ")
+        .nth(1)
+        .and_then(|rest| rest.split("px)").next())
+        .and_then(|px| px.parse::<u32>().ok())
+        .expect("a narrow query");
+    assert!(query > 10_000, "the breakpoint is {query} px");
+}
+
 /// A fault, and how to set it up and take it away again.
 struct Fault {
     name: &'static str,

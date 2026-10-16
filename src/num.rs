@@ -2,8 +2,9 @@
 //! (architecture §6). A coordinate cannot be emitted unrounded because there
 //! is no other formatter.
 
-/// Larger than any coordinate a 10 000-px document (FR-64) can produce by a
-/// wide margin, and small enough that `v * 1000` is an exact integer in `i64`.
+/// Far larger than any coordinate layout produces, long labels included
+/// (reaching it would take some 3 × 10¹⁰ characters of quadrant name,
+/// rg-tzz), and small enough that `v * 1000` is an exact integer in `i64`.
 const MAX_MAGNITUDE: f64 = 1e12;
 
 /// Format `v` to three decimal places, half away from zero, `.` separator, no

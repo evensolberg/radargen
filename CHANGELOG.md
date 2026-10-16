@@ -1,3 +1,13 @@
+## [1.0.1] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- *(style)* A wide document past 10,000 units no longer panics
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Record 1.0.0 as published; close rg-6zu (#88)
+- *(release)* 1.0.1
 ## [1.0.0] - 2026-10-16
 
 ### 🚀 Features
@@ -120,6 +130,7 @@
 - *(lint)* Deny missing_docs, indexing_slicing and as_conversions (rg-hz0) (#36)
 - Add the GPL-3.0 licence text (#42)
 - *(crumbs)* Reopen rg-6ku now its blockers are closed (#53)
+- *(release)* 1.0.0 (#87)
 ## [0.1.0] - 2026-10-09
 
 ### 🚀 Features

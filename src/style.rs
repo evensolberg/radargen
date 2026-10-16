@@ -473,9 +473,6 @@ const _: () = assert!(
 /// marker, the focus ring's gap and half the ring's stroke (D-66).
 pub const INDICATOR_REACH: f64 = MARKER_RADIUS + FOCUS_RING_GAP + FOCUS_RING_STROKE / 2.0;
 
-/// FR-64's widest output, as a bound on any document width layout produces.
-const MAX_WIDTH: f64 = 10_000.0;
-
 /// FR-69's media-query breakpoint for a wide document `wide_width` units
 /// wide whose radar part is `radar_width` of them (D-85).
 ///
@@ -485,17 +482,20 @@ const MAX_WIDTH: f64 = 10_000.0;
 /// no smaller than it did before the split, and the legend's at full size.
 ///
 /// Per document, not a constant — the widths grow with the legend and the
-/// radar (§4).
+/// radar (§4). There is no upper bound: quadrant names never wrap (FR-79),
+/// so a long enough one makes the wide document wider than any screen, which
+/// is valid input whose breakpoint simply sits past every screen (rg-tzz).
+/// FR-64's 10,000 bounds `--width` in output pixels, not layout units.
 ///
 /// # Panics
 ///
-/// On a width that is not a finite number from 1 to `MAX_WIDTH` units, or a
-/// radar part outside it: a layout bug, which would otherwise come out as a
+/// On a width that is not a finite number of at least 1 unit, or a radar
+/// part outside it: a layout bug, which would otherwise come out as a
 /// silent `max-width: 0px` media query.
 #[must_use]
 pub fn breakpoint_px(wide_width: f64, radar_width: f64) -> u32 {
     assert!(
-        (1.0..=MAX_WIDTH).contains(&wide_width),
+        wide_width.is_finite() && wide_width >= 1.0,
         "breakpoint_px: {wide_width} is not a document width"
     );
     assert!(
@@ -512,7 +512,7 @@ pub fn breakpoint_px(wide_width: f64, radar_width: f64) -> u32 {
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
         clippy::as_conversions,
-        reason = "f64 has no TryFrom to an integer; bounded by the asserts above, so the result is positive and fits u32"
+        reason = "f64 has no TryFrom to an integer; the asserts above make it positive and finite, and `as` saturates past u32::MAX, a breakpoint no screen reaches either way"
     )]
     let px = (wide_width - shrinks).round() as u32;
     px
@@ -521,11 +521,12 @@ pub fn breakpoint_px(wide_width: f64, radar_width: f64) -> u32 {
 /// D-86: whether a wide document `wide_width` units wide, its radar part
 /// `radar_width`, still shows on a `WIDE_MIN_VIEWPORT_PX` screen.
 ///
-/// A width `breakpoint_px` would refuse, past `MAX_WIDTH` or not a number,
-/// does not, and is never handed to it.
+/// A width `breakpoint_px` would refuse (not finite, or under 1) never
+/// shows, and is never handed to it.
 #[must_use]
 pub fn wide_shows_on_laptops(wide_width: f64, radar_width: f64) -> bool {
-    (1.0..=MAX_WIDTH).contains(&wide_width)
+    wide_width.is_finite()
+        && wide_width >= 1.0
         && (0.0..=wide_width).contains(&radar_width)
         && breakpoint_px(wide_width, radar_width) <= WIDE_MIN_VIEWPORT_PX
 }
@@ -705,8 +706,8 @@ mod tests {
     }
 
     #[test]
-    fn widths_outside_one_to_the_maximum_are_bugs() {
-        for w in [f64::NAN, f64::INFINITY, -100.0, 0.5, MAX_WIDTH + 1.0] {
+    fn widths_that_are_not_document_widths_are_bugs() {
+        for w in [f64::NAN, f64::INFINITY, -100.0, 0.5] {
             assert!(
                 std::panic::catch_unwind(|| breakpoint_px(w, 0.0)).is_err(),
                 "{w}"
@@ -737,6 +738,17 @@ mod tests {
         assert!((rendered - MIN_LEGIBLE_PX).abs() < 0.02, "{rendered}");
     }
 
+    /// rg-tzz: a quadrant name long enough to make the wide document wider
+    /// than any screen is valid input, not a layout bug. Its breakpoint sits
+    /// past every screen, so the narrow arrangement shows, as FR-95 warns.
+    #[test]
+    fn a_document_wider_than_any_screen_has_a_breakpoint() {
+        // A 600-W quadrant name: the long label is in the radar part.
+        assert_eq!(breakpoint_px(18_355.334, 17_944.22), 14_766);
+        // Past what a u32 holds, the breakpoint saturates rather than wraps.
+        assert_eq!(breakpoint_px(5e9, 0.0), u32::MAX);
+    }
+
     #[test]
     #[should_panic(expected = "-unit radar in a")]
     fn a_radar_wider_than_its_document_is_a_bug() {
@@ -756,11 +768,12 @@ mod tests {
         assert!((INDICATOR_REACH - 19.0).abs() < 1e-12, "{INDICATOR_REACH}");
     }
 
-    /// D-86: a width past `MAX_WIDTH`, or none at all, never shows, and is
-    /// never handed to `breakpoint_px`, which would panic on it.
+    /// D-86: a document wider than a laptop, or no width at all, never
+    /// shows, and a non-width is never handed to `breakpoint_px`, which
+    /// would panic on it.
     #[test]
-    fn a_document_past_max_width_does_not_show_on_laptops() {
-        assert!(!wide_shows_on_laptops(MAX_WIDTH + 1.0, 600.0));
+    fn a_document_past_a_laptop_does_not_show_on_laptops() {
+        assert!(!wide_shows_on_laptops(18_355.334, 600.0));
         assert!(!wide_shows_on_laptops(f64::NAN, 600.0));
         assert!(!wide_shows_on_laptops(1000.0, f64::NAN));
         assert!(wide_shows_on_laptops(1000.0, 600.0));
