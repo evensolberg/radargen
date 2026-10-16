@@ -2,12 +2,11 @@
 
 ### 🐛 Bug Fixes
 
-- *(style)* A wide document past 10,000 units no longer panics
+- *(style)* A wide document past 10,000 units no longer panics (1.0.1) (#89)
 
 ### ⚙️ Miscellaneous Tasks
 
 - *(release)* Record 1.0.0 as published; close rg-6zu (#88)
-- *(release)* 1.0.1
 ## [1.0.0] - 2026-10-16
 
 ### 🚀 Features
