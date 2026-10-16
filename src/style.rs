@@ -368,6 +368,22 @@ const _: () = assert!(
     NARROW_MIN_SCALE > RADAR_MONOTONE_FROM && NARROW_MIN_SCALE <= 1.0,
     "D-71: the narrow scale's floor must lie in the radar's monotone range"
 );
+/// rg-06b, D-86: the radar's geometry grows in steps of this much, so an
+/// edition redraws every marker only when it crosses a step.
+pub const GROWTH_STEP: f64 = 0.25;
+/// How many steps past natural size the radar may grow.
+pub const GROWTH_STEPS: usize = 4;
+/// The most the radar's geometry grows: 2×.
+pub const MAX_GROWTH: f64 = 2.0;
+const _: () = assert!(
+    1.0 + 4.0 * GROWTH_STEP == MAX_GROWTH && GROWTH_STEPS == 4,
+    "D-86: the steps end at MAX_GROWTH"
+);
+/// D-86: the narrowest viewport that must still show the wide arrangement.
+///
+/// Growth widens the wide document, and FR-69's breakpoint with it, so the
+/// radar grows no further than keeps the breakpoint at or below this.
+pub const WIDE_MIN_VIEWPORT_PX: u32 = 1440;
 /// Where the radar block sits from the document's left edge.
 ///
 /// Its widest label's ink then lands on the margin, as the legend's content
@@ -473,6 +489,14 @@ pub fn breakpoint_px(wide_width: f64) -> u32 {
     )]
     let px = (wide_width * MIN_LEGIBLE_PX / LEGEND_NAME.size).round() as u32;
     px
+}
+
+/// D-86: whether a wide document `wide_width` units wide still shows on a
+/// `WIDE_MIN_VIEWPORT_PX` screen. A width past `MAX_WIDTH` does not, and is
+/// never handed to `breakpoint_px`.
+#[must_use]
+pub fn wide_shows_on_laptops(wide_width: f64) -> bool {
+    wide_width <= MAX_WIDTH && breakpoint_px(wide_width) <= WIDE_MIN_VIEWPORT_PX
 }
 
 #[cfg(test)]

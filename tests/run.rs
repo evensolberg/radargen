@@ -5,10 +5,13 @@
 #[path = "common/html.rs"]
 mod html;
 
+use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use radargen::layout::geometry::Geometry;
+use radargen::style::MAX_GROWTH;
 use tempfile::TempDir;
 
 const PRD: &str = include_str!("fixtures/three-quadrant.csv");
@@ -123,6 +126,47 @@ fn renders_the_prd_example() {
         page.matches("@font-face").count(),
         2,
         "Regular and SemiBold"
+    );
+}
+
+/// The CSV with `count` items in Q0's innermost band and one in each of
+/// Q1–Q3's.
+fn innermost(count: usize) -> String {
+    std::iter::repeat_n("Q0", count)
+        .chain(["Q1", "Q2", "Q3"])
+        .enumerate()
+        .fold(HEAD.to_owned(), |mut csv, (i, q)| {
+            writeln!(csv, "item {i},{q},Retire,d").expect("writes to a String");
+            csv
+        })
+}
+
+/// D-86: the radar grows before FR-89 warns. Three in four quadrants'
+/// innermost band overlap at natural size and fit at 1.25, so nothing is
+/// reported; twelve overlap even at 2×, and the warning gives how many fit
+/// at the growth the radar is drawn with.
+#[test]
+fn growth_answers_crowding_before_it_warns() {
+    let dir = seeded(&[("radar.csv", &innermost(3))]);
+    let ran = run_in(dir.path(), &RENDER);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert!(!ran.stderr.contains("fit comfortably"), "{}", ran.stderr);
+
+    let dir = seeded(&[("radar.csv", &innermost(12))]);
+    let ran = run_in(dir.path(), &RENDER);
+    assert!(ran.ok(), "{}", ran.stderr);
+    let innermost = Geometry {
+        quadrants: 4,
+        rings: 4,
+    };
+    let fits = innermost.capacity(3, 12, MAX_GROWTH);
+    assert!(fits > innermost.capacity(3, 12, 1.0), "growth holds more");
+    let want =
+        format!("warning: quadrant 'Q0', ring 'Retire': 12 items; about {fits} fit comfortably");
+    assert!(
+        ran.lines().iter().any(|l| l.starts_with(&want)),
+        "{want} in {}",
+        ran.stderr
     );
 }
 

@@ -23,12 +23,13 @@ fn csv(rows: &[(String, String, &str)]) -> String {
     text
 }
 
-/// The catalogue, its resolved order, and only the geometry's warnings.
+/// The catalogue, its resolved order, and only the geometry's warnings,
+/// at natural size: `tests/run.rs` checks them at the growth drawn (D-86).
 fn build(csv: &str) -> (Catalogue, Plotted, Vec<String>) {
     let cat = catalogue::catalogue(csv, None);
     let plotted = resolve(&cat);
     let mut geometry_warnings = Warnings::default();
-    warn_crowding(&cat, &plotted, &mut geometry_warnings);
+    warn_crowding(&cat, &plotted, 1.0, &mut geometry_warnings);
     (cat, plotted, geometry_warnings.render())
 }
 
@@ -238,7 +239,7 @@ fn geometry_warnings_precede_row_warnings() {
     assert!(errs.is_empty(), "{errs:?}");
     let rings = parse_rings(None).expect("default");
     let cat = build_catalogue(&table, &rings, &mut w).expect("builds");
-    warn_crowding(&cat, &resolve(&cat), &mut w);
+    warn_crowding(&cat, &resolve(&cat), 1.0, &mut w);
     let lines = w.render();
     let [crowded, rejected] = lines.as_slice() else {
         panic!("expected 2 lines: {lines:?}")

@@ -77,3 +77,19 @@ fn prd_example_matches_its_static_golden() {
 fn prd_example_matches_its_interactive_golden() {
     golden("serialiser", "prd-wide-interactive.svg", &wide(true));
 }
+
+/// D-86: a radar grown to fit a crowded innermost band, wide and static:
+/// pins the growth chosen and that only geometry grew.
+#[test]
+fn a_grown_radar_matches_its_golden() {
+    let grown = super::build(include_str!("../fixtures/grown.csv"), None, None);
+    let palette = Palette::built_in(Theme::Light);
+    golden(
+        "serialiser",
+        "grown-wide-light.svg",
+        &serialise(
+            &arrange(Arrangement::Wide, &grown.blocks),
+            Target::Static(&palette),
+        ),
+    );
+}
