@@ -10,7 +10,7 @@ created_date: 2026-10-13
 synopsis: "The steps from a green main to the 1.0.0 tag, in order: four decisions only the maintainer can make, the maintainer's testing and sign-off, then the bump, the goldens, the changelog, the PR and the release. The bump lands in its own PR, as PR 15's stated exception to every-PR-is-a-release has allowed since 15a."
 status: draft
 type: Guide
-revision: "1.3"
+revision: "1.4"
 review_date:
 reviewed_by: []
 completed_date:
@@ -64,15 +64,15 @@ These came out of PR 15c's reviews and its audit. Each needs an answer before th
 2. [x] On a new branch from main, set `version = "1.0.0"` in `Cargo.toml`, then run `cargo update -p radargen` to refresh `Cargo.lock`.
 3. [x] Re-bless the HTML goldens locally: `UPDATE_GOLDEN=1 cargo test --test serialise golden`, which matches every golden test. Golden blessing is refused under `CI`. The diff must show only the generator meta line (`radargen 0.1` becoming `radargen 1.0`), and the run must be repeated without `UPDATE_GOLDEN` to pass.
 4. [x] `just changelog`, which writes `CHANGELOG.md` from all of git history with git-cliff's default configuration, `v0.1.0`'s section included. Read it: its 1.0.0 section lists the commits since `v0.1.0`, under their pre-squash subjects, which is expected.
-5. [ ] `just ci` green, browser checks included.
-6. [ ] The PR body cites PR 15's stated exception, as 15a's plan did: the bump lands apart from the PR that earned it, by the maintainer's decision of 2026-10-12. It also notes whether GitHub Actions ran.
-7. [ ] Merge.
+5. [x] `just ci` green, browser checks included.
+6. [x] The PR body cites PR 15's stated exception, as 15a's plan did: the bump lands apart from the PR that earned it, by the maintainer's decision of 2026-10-12. It also notes whether GitHub Actions ran.
+7. [x] Merge.
 
 ## 4. Publish
 
-1. [ ] `git switch main && git pull`.
-2. [ ] `just publish`. It refuses unless main is up to date, checks the tag, tags `v1.0.0` on the merge commit, pushes, and creates the GitHub release with generated notes.
-3. [ ] Add a short section to the release notes saying what 1.0.0 is not:
+1. [x] `git switch main && git pull`.
+2. [x] `just publish`. It refuses unless main is up to date, checks the tag, tags `v1.0.0` on the merge commit, pushes, and creates the GitHub release with generated notes.
+3. [x] Add a short section to the release notes saying what 1.0.0 is not:
    - HTML output only: PNG and SVG come in v1.1, and PDF later (PRD §14.1);
    - SC-3 depends on OQ-4;
    - the browser checks run locally until GitHub Actions works (crumb `rg-3wv`);
@@ -80,7 +80,7 @@ These came out of PR 15c's reviews and its audit. Each needs an answer before th
    - markers meet WCAG 2.5.8 through its Equivalent exception (D-81);
    - SC-8's cross-platform check waits for 1.0.x (D-82);
    - no release binaries yet: install with `cargo install --locked --git https://github.com/evensolberg/radargen --tag v1.0.0`, which needs a Rust toolchain (D-84).
-4. [ ] Close `rg-6zu`.
+4. [x] Close `rg-6zu`.
 
 ## Revisions
 
@@ -90,3 +90,4 @@ These came out of PR 15c's reviews and its audit. Each needs an answer before th
 | 1.1 | 2026-10-15 | The maintainer's answers on SC-8, FR-94 and `rg-l4h`. SC-16 is still open. |
 | 1.2 | 2026-10-15 | SC-16 moves to 1.0.x (D-84); every decision is answered. |
 | 1.3 | 2026-10-15 | The maintainer calls 1.0.0; the manual checks and screenshot review carry to 1.0.x. The changelog is written with `git-cliff --tag v1.0.0`, so its section is labelled 1.0.0 before the tag exists. |
+| 1.4 | 2026-10-16 | Released: PR #87 merged, `v1.0.0` tagged on its merge commit and published with the notes above; `rg-6zu` closed. |
