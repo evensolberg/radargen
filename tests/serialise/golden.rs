@@ -190,3 +190,34 @@ fn prd_example_matches_its_light_png_golden() {
 fn prd_example_matches_its_dark_png_golden() {
     golden_png("prd-dark.png", &prd_png(Theme::Dark));
 }
+
+/// The PRD example, wide, exported in `theme` at its own width, titled
+/// as `prd()` titles it.
+fn prd_svg(theme: Theme) -> String {
+    let doc = arrange(Arrangement::Wide, &prd().blocks);
+    let palette = Palette::built_in(theme);
+    let fonts = radargen::text::Fonts::embedded().expect("loads");
+    radargen::emit::svg::export(
+        &doc,
+        &radargen::emit::svg::Export {
+            palette: &palette,
+            fonts: &fonts,
+            width: None,
+            title: Some("Technology Radar"),
+        },
+    )
+    .expect("exports")
+}
+
+/// FR-54, NFR-4: the PRD example as a light SVG, byte for byte, on every
+/// platform. One test per golden, since a blessing run stops at the first.
+#[test]
+fn prd_example_matches_its_light_svg_golden() {
+    golden("svg", "prd-light.svg", &prd_svg(Theme::Light));
+}
+
+/// FR-54, FR-56: the same, dark.
+#[test]
+fn prd_example_matches_its_dark_svg_golden() {
+    golden("svg", "prd-dark.svg", &prd_svg(Theme::Dark));
+}

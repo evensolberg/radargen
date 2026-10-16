@@ -1042,3 +1042,17 @@ fn an_svg_of_hostile_text_renders() {
     );
     roxmltree::Document::parse(&svg).expect("well-formed");
 }
+
+/// FR-71, FR-56 end to end: the binary's export is the library's golden,
+/// so the CLI arranges wide, binds the theme and passes the title.
+#[test]
+fn the_cli_writes_the_golden_exports() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    for (theme, golden) in [("light", "prd-light.svg"), ("dark", "prd-dark.svg")] {
+        let ran = run_in(dir.path(), &["radar.csv", "-o", golden, "--theme", theme, "--title", "Technology Radar"]);
+        assert!(ran.ok(), "{}", ran.stderr);
+        let want = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/svg").join(golden))
+            .expect("the golden");
+        assert!(read(dir.path(), golden) == want, "{golden}: the binary's export is the golden");
+    }
+}

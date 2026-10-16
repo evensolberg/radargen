@@ -858,8 +858,8 @@ Three consequences the design carries:
   distinct glyphs, so the per-instance form costs nearly seven times as much.
   Per face and size, the PRD example draws 395 glyphs over 134 definitions
   (65 per face alone), about 30% more file than one definition per face, a
-  roughly fixed cost, since legend names share one size; `grown.csv` exports
-  at 84 kB. A reference-size definition under `scale()` would be smaller, but
+  roughly fixed cost, since legend names share one size. The PRD example
+  exports at 85 kB (its goldens), `grown.csv` at 84 kB. A reference-size definition under `scale()` would be smaller, but
   its exactness depends on every size being round, and a halo's width would
   need rescaling (D-88). Ids are fine here: §5 bans them because
   the HTML holds two arrangements in one DOM, and this file holds one.
