@@ -20,7 +20,7 @@ mod reach;
 
 use crate::diagnostics::{Binding, plural};
 use crate::layout::block::{Block, Placement, Size};
-use crate::layout::geometry::{Geometry, polar};
+use crate::layout::geometry::{Geometry, growth, polar};
 use crate::model::Catalogue;
 use crate::order::Plotted;
 use crate::palette::{Neutral, Role};
@@ -227,10 +227,17 @@ impl RadarBlock {
         self.growth
     }
 
-    /// Grows the geometry by `growth`, one of D-86's steps, replacing any
-    /// growth before.
-    pub(crate) const fn grow(&mut self, growth: f64) {
+    /// Sets the geometry's growth to `growth`, one of D-86's steps.
+    pub(crate) const fn set_growth(&mut self, growth: f64) {
         self.growth = growth;
+    }
+
+    /// The least growth step at which every two markers clear (D-86),
+    /// from the markers' natural-size centres.
+    #[must_use]
+    pub fn needed_growth(&self) -> f64 {
+        let centres: Vec<Point> = self.markers.iter().map(|m| m.at).collect();
+        growth(&centres)
     }
 
     /// FR-70's three scales at radar scale `s`, with this radar's growth.
@@ -526,7 +533,7 @@ mod tests {
 
     /// `b` at D-86's largest growth.
     fn grown(mut b: RadarBlock) -> RadarBlock {
-        b.grow(crate::style::MAX_GROWTH);
+        b.set_growth(crate::style::MAX_GROWTH);
         b
     }
 
@@ -706,7 +713,7 @@ mod tests {
     fn growth_scales_geometry_only() {
         let mut b = block(fonts(), &marked_csv(), None);
         assert!(close(b.growth(), 1.0));
-        b.grow(2.0);
+        b.set_growth(2.0);
         assert!(close(b.growth(), 2.0));
         for s in [0.15, 0.5, RADAR_FLOOR, 1.0] {
             let r = b.scale(s);
@@ -719,14 +726,22 @@ mod tests {
         }
     }
 
-    /// Every hit area in `b` drawn at 1, with its radius.
-    fn hit_areas(b: &RadarBlock) -> Vec<(Point, f64)> {
+    /// Every leaf node in `b` drawn at 1.
+    fn leaves(b: &RadarBlock) -> Vec<Node> {
         let root = b.render(at(1.0));
         groups(&root)
             .into_iter()
-            .flat_map(|g| &g.children)
+            .flat_map(|g| g.children.iter().filter(|n| !matches!(n, Node::Group(_))))
+            .cloned()
+            .collect()
+    }
+
+    /// Every hit area in `b` drawn at 1, with its radius.
+    fn hit_areas(b: &RadarBlock) -> Vec<(Point, f64)> {
+        leaves(b)
+            .into_iter()
             .filter_map(|n| match n {
-                Node::HitArea { centre, radius, .. } => Some((*centre, *radius)),
+                Node::HitArea { centre, radius, .. } => Some((centre, radius)),
                 _ => None,
             })
             .collect()
@@ -739,7 +754,7 @@ mod tests {
     fn markers_keep_their_size_as_the_radar_grows() {
         let ungrown = block(fonts(), &marked_csv(), None);
         let mut grown = ungrown.clone();
-        grown.grow(1.5);
+        grown.set_growth(1.5);
         let (before, after) = (hit_areas(&ungrown), hit_areas(&grown));
         assert!(!before.is_empty() && before.len() == after.len());
         for ((c0, r0), (c1, r1)) in before.iter().zip(&after) {
@@ -747,10 +762,8 @@ mod tests {
             assert!(close(*r0, *r1), "the hit radius stays {r0}, got {r1}");
         }
         let markers = |b: &RadarBlock| {
-            let root = b.render(at(1.0));
-            groups(&root)
-                .into_iter()
-                .flat_map(|g| &g.children)
+            leaves(b)
+                .iter()
                 .filter(
                     |n| matches!(n, Node::Circle { radius, .. } if close(*radius, MARKER_RADIUS)),
                 )
@@ -766,7 +779,7 @@ mod tests {
     fn a_grown_radar_is_larger_and_its_labels_are_not() {
         let ungrown = block(fonts(), PRD_EXAMPLE, None);
         let mut grown = ungrown.clone();
-        grown.grow(2.0);
+        grown.set_growth(2.0);
         assert!(grown.size(1.0).width > ungrown.size(1.0).width);
         let sizes = |b: &RadarBlock| -> Vec<f64> {
             quadrant_labels(&frame_at(b, 1.0))
@@ -1190,7 +1203,7 @@ mod tests {
         let points = place(&catalogue, &order);
         let b = RadarBlock::new(&catalogue, &order, fonts);
         let s = 0.1;
-        let r = RadarScale::of(s, 1.0);
+        let r = b.scale(s);
         let x = points.iter().map(|p| p.x.abs()).fold(0.0, f64::max);
         let size = b.size(s);
         // The labels and the floor alone give 66 wide.
@@ -1206,7 +1219,7 @@ mod tests {
         // No markers, no marker term.
         let none = block(fonts, HEAD, None);
         let s = 0.02;
-        let r = RadarScale::of(s, 1.0);
+        let r = none.scale(s);
         assert!(close(none.hit_half_width(r), 0.0) && close(none.hit_half_height(r), 0.0));
         let size = none.size(s);
         let width = 2.0 * (MIN_RADAR_HALF * s).max(none.label_half_width(r) + RADAR_LABEL_PAD);
@@ -1274,8 +1287,8 @@ mod tests {
             let names: Vec<&str> = names.iter().map(String::as_str).collect();
             let b = block(fonts, &csv_of(&names, "Adopt"), None);
             for s in [1.0, 0.576, 0.4, 0.31] {
-                let ring = BAND_OUTER_RADIUS * s
-                    + f64::midpoint(0.0, GRID_STROKE * RadarScale::of(s, 1.0).marks);
+                let ring =
+                    BAND_OUTER_RADIUS * s + f64::midpoint(0.0, GRID_STROKE * b.scale(s).marks);
                 let nodes = frame_at(&b, s);
                 let labels: Vec<&Node> = nodes
                     .iter()

@@ -55,27 +55,35 @@ pub fn golden(dir: &str, name: &str, got: &str) {
     }
 }
 
-/// The PRD example, wide, light, for the interactive or static target.
-fn wide(interactive: bool) -> String {
+/// `blocks`, wide, light, for the interactive or static target.
+fn wide(blocks: &radargen::layout::arrange::Blocks, interactive: bool) -> String {
     let palette = Palette::built_in(Theme::Light);
     let target = if interactive {
         Target::Interactive(&palette)
     } else {
         Target::Static(&palette)
     };
-    serialise(&arrange(Arrangement::Wide, &prd().blocks), target)
+    serialise(&arrange(Arrangement::Wide, blocks), target)
 }
 
 /// The PRD example, wide, light: the static SVG and PNG source.
 #[test]
 fn prd_example_matches_its_static_golden() {
-    golden("serialiser", "prd-wide-light.svg", &wide(false));
+    golden(
+        "serialiser",
+        "prd-wide-light.svg",
+        &wide(&prd().blocks, false),
+    );
 }
 
 /// The same, as HTML inlines it: the widest attribute surface.
 #[test]
 fn prd_example_matches_its_interactive_golden() {
-    golden("serialiser", "prd-wide-interactive.svg", &wide(true));
+    golden(
+        "serialiser",
+        "prd-wide-interactive.svg",
+        &wide(&prd().blocks, true),
+    );
 }
 
 /// D-86: a radar grown to fit a crowded innermost band, wide and static:
@@ -83,13 +91,9 @@ fn prd_example_matches_its_interactive_golden() {
 #[test]
 fn a_grown_radar_matches_its_golden() {
     let grown = super::build(include_str!("../fixtures/grown.csv"), None, None);
-    let palette = Palette::built_in(Theme::Light);
     golden(
         "serialiser",
         "grown-wide-light.svg",
-        &serialise(
-            &arrange(Arrangement::Wide, &grown.blocks),
-            Target::Static(&palette),
-        ),
+        &wide(&grown.blocks, false),
     );
 }

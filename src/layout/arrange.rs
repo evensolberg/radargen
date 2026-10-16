@@ -11,7 +11,7 @@ use std::num::NonZeroUsize;
 
 use crate::diagnostics::{RenderKind, Warning, Warnings};
 use crate::layout::block::{Block, Placement};
-use crate::layout::geometry::{growth, growth_steps, place};
+use crate::layout::geometry::growth_steps;
 use crate::layout::key::KeyBlock;
 use crate::layout::legend::LegendBlock;
 use crate::layout::radar::RadarBlock;
@@ -60,23 +60,22 @@ impl Blocks {
             key: KeyBlock::new(fonts),
             legend: LegendBlock::new(catalogue, plotted, fonts),
         };
-        blocks.grow_within(growth(&place(catalogue, plotted)));
+        blocks.grow_within(blocks.radar.needed_growth());
         blocks
     }
 
     /// D-86: grows the radar by the largest step up to `needed` at which the
-    /// wide arrangement still shows on a `WIDE_MIN_VIEWPORT_PX` screen, or
-    /// not at all when none does. Growth widens the wide document, which
+    /// wide arrangement still shows on a `WIDE_MIN_VIEWPORT_PX` screen. The
+    /// steps end at 1, so when none shows the radar is left ungrown. Growth widens the wide document, which
     /// raises FR-69's breakpoint, so the bound is measured on the placed
     /// document: labels and the legend add width that does not grow.
     fn grow_within(&mut self, needed: f64) {
         for g in growth_steps().rev().filter(|&g| g <= needed) {
-            self.radar.grow(g);
+            self.radar.set_growth(g);
             if wide_shows_on_laptops(wide(self).width) {
                 return;
             }
         }
-        self.radar.grow(1.0);
     }
 }
 
@@ -462,7 +461,7 @@ mod tests {
             ("empty legend", blocks(HEAD, UNTITLED)),
             // D-86: grown to 1.25, to 2, held to 1.5 by the laptop bound,
             // and grown with names that hold the narrow radar at its floor.
-            ("grown", blocks(&overfull(), TITLED)),
+            ("grown", blocks(&innermost("Q", 3), TITLED)),
             ("grown twice", blocks(&innermost("Q", 12), TITLED)),
             (
                 "grown bound",
@@ -515,14 +514,9 @@ mod tests {
         }
     }
 
-    /// Four quadrants, three items in Q0's innermost band, which holds two
-    /// at natural size (FR-89), and one in each other quadrant's.
-    fn overfull() -> String {
-        csv_of(&["Q0", "Q0", "Q0", "Q1", "Q2", "Q3"], "Retire")
-    }
-
     /// `count` items in the first quadrant's innermost band and one in each
-    /// other's, the quadrants named `stem` and a digit.
+    /// other's, the quadrants named `stem` and a digit. Four quadrants'
+    /// innermost band holds two at natural size (FR-89), so three overflow.
     fn innermost(stem: &str, count: usize) -> String {
         let names: Vec<String> = std::iter::repeat_n(0, count)
             .chain(1..=3)
@@ -551,9 +545,12 @@ mod tests {
     /// every pair of markers.
     #[test]
     fn an_overfull_band_grows_the_radar() {
-        let want = needed(&overfull());
+        let want = needed(&innermost("Q", 3));
         assert!(want > 1.0, "the fixture overflows at natural size");
-        assert!(close(blocks(&overfull(), UNTITLED).radar.growth(), want));
+        assert!(close(
+            blocks(&innermost("Q", 3), UNTITLED).radar.growth(),
+            want
+        ));
     }
 
     /// D-86: the radar grows no further than keeps the wide arrangement
@@ -572,15 +569,16 @@ mod tests {
             let csv = innermost(stem, count);
             let b = blocks(&csv, UNTITLED);
             let g = b.radar.growth();
-            assert!(g <= needed(&csv) && g <= MAX_GROWTH, "{stem} {count}: {g}");
+            let want = needed(&csv);
+            assert!(g <= want && g <= MAX_GROWTH, "{stem} {count}: {g}");
             assert!(
                 wide_shows_on_laptops(placements(Arrangement::Wide, &b).width),
                 "{stem} {count}: {g}"
             );
-            if g < needed(&csv) {
+            if g < want {
                 capped += 1;
                 let mut next = b.clone();
-                next.radar.grow(g + GROWTH_STEP);
+                next.radar.set_growth(g + GROWTH_STEP);
                 assert!(
                     !wide_shows_on_laptops(placements(Arrangement::Wide, &next).width),
                     "{stem} {count}: {g} stopped short"
@@ -611,7 +609,7 @@ mod tests {
             let g = grown.radar.growth();
             assert!(g > 1.0, "{stem}");
             let mut flat = grown.clone();
-            flat.radar.grow(1.0);
+            flat.radar.set_growth(1.0);
             let (a, b) = (
                 placements(Arrangement::Narrow, &grown),
                 placements(Arrangement::Narrow, &flat),
