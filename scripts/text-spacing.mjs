@@ -4,7 +4,8 @@
 //
 // For each page, at viewport widths 320, 420, the breakpoint less one, the
 // breakpoint, and 1400, with 1.4.12's four properties injected, it asserts:
-//   - every displayed <text> lies inside its SVG's box (nothing clipped);
+//   - every displayed <text> lies inside its own SVG's box (nothing clipped),
+//     the wide arrangement's parts each counting as one (D-85);
 //   - no two displayed texts overlap, numbers and halos aside;
 //   - every tail starts at or after its name's last character;
 //   - the number of tails per arrangement is <tails>, when given;
@@ -40,22 +41,27 @@ const CHECK = `(() => {
   const shown = [...document.querySelectorAll('.arrangement')]
     .filter((e) => getComputedStyle(e).display !== 'none');
   for (const arrangement of shown) {
-    const svg = arrangement.querySelector('svg');
-    const frame = svg.getBoundingClientRect();
-    // A marker's number is drawn right after its circle and sits on it by
-    // design; a name of digits alone is still checked. This leans on the
-    // emitter drawing each number straight after its circle.
-    const texts = [...svg.querySelectorAll('text')].filter((t) =>
-      t.getNumberOfChars() > 0 &&
-      getComputedStyle(t).visibility !== 'hidden' &&
-      t.getAttribute('aria-hidden') !== 'true' &&
-      t.previousElementSibling?.tagName !== 'circle');
-    const boxes = texts.map((t) => ({ t, r: t.getBoundingClientRect() }));
-    for (const { t, r } of boxes) {
-      if (r.left < frame.left - slack || r.right > frame.right + slack ||
-          r.top < frame.top - slack || r.bottom > frame.bottom + slack) {
-        problems.push('outside: ' + t.textContent.slice(0, 40) + ' ' +
-          JSON.stringify([r.left, r.right, frame.left, frame.right]));
+    // The wide arrangement is drawn in parts (D-85): each text is checked
+    // against its own SVG's box, and for overlap against every other.
+    const boxes = [];
+    for (const svg of arrangement.querySelectorAll('svg')) {
+      const frame = svg.getBoundingClientRect();
+      // A marker's number is drawn right after its circle and sits on it by
+      // design; a name of digits alone is still checked. This leans on the
+      // emitter drawing each number straight after its circle.
+      const texts = [...svg.querySelectorAll('text')].filter((t) =>
+        t.getNumberOfChars() > 0 &&
+        getComputedStyle(t).visibility !== 'hidden' &&
+        t.getAttribute('aria-hidden') !== 'true' &&
+        t.previousElementSibling?.tagName !== 'circle');
+      for (const t of texts) {
+        const r = t.getBoundingClientRect();
+        boxes.push({ t, r });
+        if (r.left < frame.left - slack || r.right > frame.right + slack ||
+            r.top < frame.top - slack || r.bottom > frame.bottom + slack) {
+          problems.push('outside: ' + t.textContent.slice(0, 40) + ' ' +
+            JSON.stringify([r.left, r.right, frame.left, frame.right]));
+        }
       }
     }
     for (let i = 0; i < boxes.length; i++) {
@@ -69,7 +75,7 @@ const CHECK = `(() => {
         }
       }
     }
-    for (const tspan of svg.querySelectorAll('tspan[dx]')) {
+    for (const tspan of arrangement.querySelectorAll('tspan[dx]')) {
       tails++;
       const text = tspan.parentElement;
       const start = text.getNumberOfChars() - tspan.getNumberOfChars();

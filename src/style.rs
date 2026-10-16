@@ -441,14 +441,19 @@ pub const NARROW_MIN_VIEWPORT_PX: f64 = 320.0;
 /// narrow SVG spans the viewport; PR 14 must keep that or change this
 /// constant, since `MIN_PX_PER_UNIT` and `HIT_RADIUS` rest on it.
 pub const NARROW_HORIZONTAL_INSET_PX: f64 = 0.0;
+/// D-85: the least scale HTML draws the wide radar at, by width or height.
+///
+/// Where `LEGEND_NAME`-sized text renders at `MIN_LEGIBLE_PX`: the scale the
+/// whole wide document reached at its breakpoint before the radar was drawn
+/// apart from the legend.
+pub const WIDE_MIN_SCALE: f64 = MIN_LEGIBLE_PX / LEGEND_NAME.size;
 /// The fewest rendered pixels per user unit FR-94 is held to.
 ///
 /// A narrow document `NARROW_MAX_WIDTH` wide at `NARROW_MIN_VIEWPORT_PX`, or
-/// the wide one at its breakpoint, where `LEGEND_NAME` renders at
-/// `MIN_LEGIBLE_PX`; the narrow term binds, at 2/3.
-pub const MIN_PX_PER_UNIT: f64 = ((NARROW_MIN_VIEWPORT_PX - NARROW_HORIZONTAL_INSET_PX)
-    / NARROW_MAX_WIDTH)
-    .min(MIN_LEGIBLE_PX / LEGEND_NAME.size);
+/// the wide radar at `WIDE_MIN_SCALE`, its least by width or height (D-85),
+/// beside a legend at full size; the narrow term binds, at 2/3.
+pub const MIN_PX_PER_UNIT: f64 =
+    ((NARROW_MIN_VIEWPORT_PX - NARROW_HORIZONTAL_INSET_PX) / NARROW_MAX_WIDTH).min(WIDE_MIN_SCALE);
 /// FR-94's hit-area radius at scale 1, in user units.
 ///
 /// 18 renders at least `MIN_TARGET_PX` across at `MIN_PX_PER_UNIT` (asserted
@@ -471,40 +476,58 @@ pub const INDICATOR_REACH: f64 = MARKER_RADIUS + FOCUS_RING_GAP + FOCUS_RING_STR
 /// FR-64's widest output, as a bound on any document width layout produces.
 const MAX_WIDTH: f64 = 10_000.0;
 
-/// FR-69's media-query breakpoint for a wide document `wide_width` units wide:
-/// the viewport width at which `LEGEND_NAME` renders at `MIN_LEGIBLE_PX`.
+/// FR-69's media-query breakpoint for a wide document `wide_width` units
+/// wide whose radar part is `radar_width` of them (D-85).
 ///
-/// Per document, not a constant — the wide width grows with the legend (§4).
+/// HTML draws the radar to fill the window and everything else at one pixel
+/// per unit, so as the viewport narrows only the radar shrinks. The
+/// breakpoint is where it reaches `WIDE_MIN_SCALE`: the radar's text draws
+/// no smaller than it did before the split, and the legend's at full size.
+///
+/// Per document, not a constant — the widths grow with the legend and the
+/// radar (§4).
 ///
 /// # Panics
 ///
-/// On a width that is not a finite number from 1 to `MAX_WIDTH` units: a layout
-/// bug, which would otherwise come out as a silent `max-width: 0px` media
-/// query.
+/// On a width that is not a finite number from 1 to `MAX_WIDTH` units, or a
+/// radar part outside it: a layout bug, which would otherwise come out as a
+/// silent `max-width: 0px` media query.
 #[must_use]
-pub fn breakpoint_px(wide_width: f64) -> u32 {
+pub fn breakpoint_px(wide_width: f64, radar_width: f64) -> u32 {
     assert!(
         (1.0..=MAX_WIDTH).contains(&wide_width),
         "breakpoint_px: {wide_width} is not a document width"
     );
+    assert!(
+        (0.0..=wide_width).contains(&radar_width),
+        "breakpoint_px: a {radar_width}-unit radar in a {wide_width}-unit document"
+    );
+    // How much the radar shrinks by the floor; the rest keeps its size.
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    let shrinks = radar_width - radar_width * WIDE_MIN_SCALE;
     #[expect(
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
         clippy::as_conversions,
-        reason = "f64 has no TryFrom to an integer; bounded by the assert above, so the result is positive and fits u32"
+        reason = "f64 has no TryFrom to an integer; bounded by the asserts above, so the result is positive and fits u32"
     )]
-    let px = (wide_width * MIN_LEGIBLE_PX / LEGEND_NAME.size).round() as u32;
+    let px = (wide_width - shrinks).round() as u32;
     px
 }
 
-/// D-86: whether a wide document `wide_width` units wide still shows on a
-/// `WIDE_MIN_VIEWPORT_PX` screen.
+/// D-86: whether a wide document `wide_width` units wide, its radar part
+/// `radar_width`, still shows on a `WIDE_MIN_VIEWPORT_PX` screen.
 ///
 /// A width `breakpoint_px` would refuse, past `MAX_WIDTH` or not a number,
 /// does not, and is never handed to it.
 #[must_use]
-pub fn wide_shows_on_laptops(wide_width: f64) -> bool {
-    (1.0..=MAX_WIDTH).contains(&wide_width) && breakpoint_px(wide_width) <= WIDE_MIN_VIEWPORT_PX
+pub fn wide_shows_on_laptops(wide_width: f64, radar_width: f64) -> bool {
+    (1.0..=MAX_WIDTH).contains(&wide_width)
+        && (0.0..=wide_width).contains(&radar_width)
+        && breakpoint_px(wide_width, radar_width) <= WIDE_MIN_VIEWPORT_PX
 }
 
 #[cfg(test)]
@@ -663,29 +686,33 @@ mod tests {
     /// 900.
     #[test]
     fn breakpoint_is_computed_from_the_wide_width() {
-        assert_eq!(breakpoint_px(1148.0), 918);
-        assert_eq!(breakpoint_px(1250.0), 1000);
-        // D-56: a full-width 380 legend gives 660 + 28 + 380 + 20.
-        assert_eq!(breakpoint_px(1088.0), 870);
+        // A document that is all radar breaks where it did before the split.
+        assert_eq!(breakpoint_px(1148.0, 1148.0), 918);
+        assert_eq!(breakpoint_px(1250.0, 1250.0), 1000);
         // 1150.625 × 10 / 12.5 is exactly 920.5, which rounds away from zero.
-        assert_eq!(breakpoint_px(1150.625), 921);
+        assert_eq!(breakpoint_px(1150.625, 1150.625), 921);
+        // D-56: a full-width 380 legend beside a 670-unit radar part keeps
+        // its 418 units whole, so 1088 breaks at 1088 − 0.2 × 670.
+        assert_eq!(breakpoint_px(1088.0, 670.0), 954);
+        // With nothing to shrink, the document never fits a narrower window.
+        assert_eq!(breakpoint_px(400.0, 0.0), 400);
     }
 
     #[test]
     #[should_panic(expected = "is not a document width")]
     fn a_zero_width_is_a_bug_not_a_breakpoint() {
-        let _ = breakpoint_px(0.0);
+        let _ = breakpoint_px(0.0, 0.0);
     }
 
     #[test]
     fn widths_outside_one_to_the_maximum_are_bugs() {
         for w in [f64::NAN, f64::INFINITY, -100.0, 0.5, MAX_WIDTH + 1.0] {
             assert!(
-                std::panic::catch_unwind(|| breakpoint_px(w)).is_err(),
+                std::panic::catch_unwind(|| breakpoint_px(w, 0.0)).is_err(),
                 "{w}"
             );
         }
-        assert_eq!(breakpoint_px(1.0), 1);
+        assert_eq!(breakpoint_px(1.0, 1.0), 1);
     }
 
     /// The focus ring clears the status ring by at least 2 units of surface, so
@@ -700,11 +727,20 @@ mod tests {
         );
     }
 
+    /// D-85: at the breakpoint the radar part draws at the scale the whole
+    /// document did before the split, and the rest keeps its natural size.
     #[test]
-    fn breakpoint_puts_legend_text_at_the_floor() {
-        let w = 1400.0;
-        let rendered = LEGEND_NAME.size * f64::from(breakpoint_px(w)) / w;
-        assert!((rendered - MIN_LEGIBLE_PX).abs() < 0.01, "{rendered}");
+    fn breakpoint_puts_the_radar_at_the_floor() {
+        let (w, r) = (1400.0, 900.0);
+        let radar_scale = (f64::from(breakpoint_px(w, r)) - (w - r)) / r;
+        let rendered = LEGEND_NAME.size * radar_scale;
+        assert!((rendered - MIN_LEGIBLE_PX).abs() < 0.02, "{rendered}");
+    }
+
+    #[test]
+    #[should_panic(expected = "-unit radar in a")]
+    fn a_radar_wider_than_its_document_is_a_bug() {
+        let _ = breakpoint_px(1000.0, 1000.5);
     }
 
     #[test]
@@ -724,8 +760,9 @@ mod tests {
     /// never handed to `breakpoint_px`, which would panic on it.
     #[test]
     fn a_document_past_max_width_does_not_show_on_laptops() {
-        assert!(!wide_shows_on_laptops(MAX_WIDTH + 1.0));
-        assert!(!wide_shows_on_laptops(f64::NAN));
-        assert!(wide_shows_on_laptops(1000.0));
+        assert!(!wide_shows_on_laptops(MAX_WIDTH + 1.0, 600.0));
+        assert!(!wide_shows_on_laptops(f64::NAN, 600.0));
+        assert!(!wide_shows_on_laptops(1000.0, f64::NAN));
+        assert!(wide_shows_on_laptops(1000.0, 600.0));
     }
 }

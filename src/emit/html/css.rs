@@ -11,9 +11,10 @@
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 
+use crate::layout::arrange::WideParts;
 use crate::num::fmt_coord;
 use crate::palette::{Neutral, Palette, Theme};
-use crate::style::{FOCUS_RING_STROKE, breakpoint_px};
+use crate::style::{FOCUS_RING_STROKE, WIDE_MIN_SCALE, breakpoint_px};
 use crate::svg::serialise::{
     DATA_FOCUS_RING, DATA_HIT, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR,
     DATA_ROW_INDICATOR, DATA_SELECTION,
@@ -31,34 +32,91 @@ pub(super) const HIDDEN_BOX: &str = "{position:absolute;width:1px;height:1px;mar
 /// The end of a focus outline rule, after its colour: page chrome outlines
 /// sit 2px out, so they never touch the control.
 pub(super) const OUTLINE_CLOSE: &str = ");outline-offset:2px}\n";
+/// The wide arrangement's parts' containers (D-85); the legend's scrolls.
+pub(super) const WIDE_TITLE: &str = "wide-title";
+pub(super) const WIDE_RADAR: &str = "wide-radar";
+pub(super) const WIDE_KEY: &str = "wide-key";
+pub(super) const WIDE_LEGEND: &str = "wide-legend";
 
 const CAP_FLOOR: &str = "max(";
-const CAP_HEIGHT: &str = "px,calc(100vh*";
+const CAP_HEIGHT: &str = "px,calc((100vh - ";
+const CAP_UNDER: &str = "px)*";
 const CAP_OVER: &str = "/";
 const CAP_END: &str = "))";
+const SPAN_OPEN: &str = "calc(";
+const SPAN_PLUS: &str = " + ";
+const SPAN_CLOSE: &str = "px)";
 const INSET_WIDTH: &str = "max-width:";
 const INSET_REST: &str = ";margin-inline:auto;padding-inline:";
 const INSET_CLOSE: &str = "px;box-sizing:border-box}\n";
 
-/// The wide arrangement's cap (rg-18x, D-85): the window's width or the
-/// width at which a `wide_width` × `wide_height` document is exactly as tall
-/// as the viewport, whichever is smaller, but never less than the
-/// document's own width. The floor matters on a short, wide window: without
-/// it the height term would shrink the radar below what the width alone
-/// gives, while FR-69's breakpoint, which reads only the width, kept the
-/// wide arrangement showing.
-pub(super) fn wide_cap(wide_width: f64, wide_height: f64) -> String {
-    let width = fmt_coord(wide_width);
-    [
-        CAP_FLOOR,
-        &width,
-        CAP_HEIGHT,
-        &width,
-        CAP_OVER,
-        &fmt_coord(wide_height),
-        CAP_END,
-    ]
-    .concat()
+/// What the stylesheet reads of HTML's wide arrangement (D-85): the sizes
+/// of its parts, in user units, which are CSS pixels at natural size.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) struct Wide {
+    /// The title part's height; it spans the whole width.
+    pub(super) title_height: f64,
+    /// The radar part's width, which the key's part shares.
+    pub(super) radar_width: f64,
+    /// The radar part's height.
+    pub(super) radar_height: f64,
+    /// The legend part's width.
+    pub(super) legend_width: f64,
+}
+
+impl Wide {
+    /// The sizes `parts` were cut to.
+    pub(super) const fn of(parts: &WideParts) -> Self {
+        Self {
+            title_height: parts.title.height,
+            radar_width: parts.radar.width,
+            radar_height: parts.radar.height,
+            legend_width: parts.legend.width,
+        }
+    }
+
+    /// The whole wide document's width.
+    pub(super) fn width(self) -> f64 {
+        self.radar_width + self.legend_width
+    }
+
+    /// FR-69's breakpoint, where the radar draws at the legibility floor
+    /// beside a natural-size legend.
+    pub(super) fn breakpoint(self) -> u32 {
+        breakpoint_px(self.width(), self.radar_width)
+    }
+
+    /// The radar column's cap: the width at which the radar is as tall as
+    /// the viewport below the title, but never less than `WIDE_MIN_SCALE`
+    /// of its own width. The floor matters on a short window: FR-69's
+    /// breakpoint reads only the width, so without it the height term could
+    /// shrink the radar's text past what the breakpoint allows.
+    pub(super) fn radar_cap(self) -> String {
+        [
+            CAP_FLOOR,
+            &fmt_coord(self.radar_width * WIDE_MIN_SCALE),
+            CAP_HEIGHT,
+            &fmt_coord(self.title_height),
+            CAP_UNDER,
+            &fmt_coord(self.radar_width),
+            CAP_OVER,
+            &fmt_coord(self.radar_height),
+            CAP_END,
+        ]
+        .concat()
+    }
+
+    /// The whole arrangement's cap: the radar column and the legend.
+    fn cap(self) -> String {
+        [
+            SPAN_OPEN,
+            &self.radar_cap(),
+            SPAN_PLUS,
+            &fmt_coord(self.legend_width),
+            SPAN_CLOSE,
+        ]
+        .concat()
+    }
 }
 
 /// `open`, a selector and its rule's opening declarations, capped as the
@@ -66,11 +124,11 @@ pub(super) fn wide_cap(wide_width: f64, wide_height: f64) -> String {
 /// with the radar's content edge at one pixel per unit. Drawn larger, the
 /// radar's margin grows and the inset does not, so the chrome's edges sit a
 /// few pixels outside the radar's; accepted.
-pub(super) fn capped(open: &str, wide_width: f64, wide_height: f64) -> String {
+pub(super) fn capped(open: &str, wide: &Wide) -> String {
     [
         open,
         INSET_WIDTH,
-        &wide_cap(wide_width, wide_height),
+        &wide.cap(),
         INSET_REST,
         &fmt_coord(crate::style::MARGIN),
         INSET_CLOSE,
@@ -99,7 +157,26 @@ const BODY_OPEN: &str = "body{margin:0;line-height:1.4;font-family:\"";
 const BODY_GROUND: &str = "\";background:var(";
 const BODY_INK: &str = ");color:var(";
 const SVG_RULE: &str = ")}\nsvg{display:block;width:100%;height:auto}\n";
-const WIDE_CAP: &str = ".wide{max-width:";
+const GRID_OPEN: &str = ".wide{display:grid;grid-template-columns:minmax(0,";
+const GRID_CLOSE: &str = ") max-content;justify-content:center}\n";
+/// The title spans both columns, its size contained so its width never
+/// widens the legend's column, which is sized to its content.
+const TITLE_RULE: &str = "{grid-row:1;grid-column:1/-1;contain:inline-size}\n";
+const RADAR_RULE: &str = "{grid-row:2;grid-column:1}\n";
+const KEY_RULE: &str = "{grid-row:3;grid-column:1}\n";
+/// The legend scrolls in a box as tall as the radar beside it (D-85): a
+/// zero height takes it out of the row's sizing, so the radar alone sets
+/// the row, and the minimum stretches it to fill the row. Its column is
+/// as wide as the legend and a reserved scrollbar gutter, so a classic
+/// scrollbar never narrows the legend; where `scrollbar-gutter` is not
+/// supported, the scrollbar clips the legend's right edge rather than
+/// adding a horizontal scrollbar.
+const LEGEND_RULE: &str = "{grid-row:2;grid-column:2;height:0;min-height:100%;box-sizing:border-box;overflow-x:hidden;overflow-y:auto;scrollbar-gutter:stable}\n";
+const SVG_WIDTH_OPEN: &str = " svg{width:";
+/// The legend's width is fixed: its column is sized to it.
+const FIXED_CLOSE: &str = "px}\n";
+/// The title's and key's shrink with the column when it is narrower.
+const NATURAL_CLOSE: &str = "px;max-width:100%}\n";
 const NARROW_CAP: &str = ".narrow{max-width:";
 const PX: &str = "px";
 const CAP_CLOSE: &str = ";margin:0 auto}\n";
@@ -221,13 +298,20 @@ fn declarations(palette: &Palette) -> String {
         .collect()
 }
 
-/// The page around the two arrangements (FR-51, FR-69).
+/// The page around the two arrangements (FR-51, FR-69, D-85).
 ///
-/// Each SVG fills its container. The wide container grows with the window
-/// (`wide_cap`); the narrow one is capped at its own document's width,
-/// and below that spans the viewport, which is where FR-94's
-/// `NARROW_HORIZONTAL_INSET_PX` of zero is measured.
-pub(super) fn layout(wide_width: f64, wide_height: f64, narrow_width: f64) -> String {
+/// The wide arrangement is a grid of its parts: the title across the top,
+/// the radar's column growing with the window (`Wide::radar_cap`), the key
+/// under it and the legend beside it, scrolling. Only the radar fills its
+/// column; the title, key and legend draw at one pixel per unit. The
+/// narrow SVG is capped at its own document's width, and below that spans
+/// the viewport, which is where FR-94's `NARROW_HORIZONTAL_INSET_PX` of zero
+/// is measured.
+pub(super) fn layout(wide: &Wide, narrow_width: f64) -> String {
+    let class = |name: &str, rule: &str| [".", name, rule].concat();
+    let svg_width = |name: &str, width: f64, close: &str| {
+        [".", name, SVG_WIDTH_OPEN, &fmt_coord(width), close].concat()
+    };
     [
         BODY_OPEN,
         FAMILY,
@@ -236,15 +320,22 @@ pub(super) fn layout(wide_width: f64, wide_height: f64, narrow_width: f64) -> St
         BODY_INK,
         Neutral::TextPrimary.as_str(),
         SVG_RULE,
-        WIDE_CAP,
-        &wide_cap(wide_width, wide_height),
-        CAP_CLOSE,
+        GRID_OPEN,
+        &wide.radar_cap(),
+        GRID_CLOSE,
+        &class(WIDE_TITLE, TITLE_RULE),
+        &svg_width(WIDE_TITLE, wide.width(), NATURAL_CLOSE),
+        &class(WIDE_RADAR, RADAR_RULE),
+        &class(WIDE_KEY, KEY_RULE),
+        &svg_width(WIDE_KEY, wide.radar_width, NATURAL_CLOSE),
+        &class(WIDE_LEGEND, LEGEND_RULE),
+        &svg_width(WIDE_LEGEND, wide.legend_width, FIXED_CLOSE),
         NARROW_CAP,
         &fmt_coord(narrow_width),
         PX,
         CAP_CLOSE,
         NARROW_HIDDEN,
-        &narrow_query(wide_width),
+        &narrow_query(wide),
         SWAP,
     ]
     .concat()
@@ -258,11 +349,11 @@ pub(super) fn layout(wide_width: f64, wide_height: f64, narrow_width: f64) -> St
 /// between `B - 1` and `B` at fractional zoom but drops the whole rule in
 /// Safari before 16.4. The gap shows the wide arrangement, the safe side. A
 /// classic scrollbar counts towards the width, so at exactly `B` the wide
-/// legend draws a little under `MIN_LEGIBLE_PX`; accepted.
-pub(super) fn narrow_query(wide_width: f64) -> String {
+/// radar draws a little under the floor; accepted.
+pub(super) fn narrow_query(wide: &Wide) -> String {
     [
         "(max-width: ",
-        &breakpoint_px(wide_width).saturating_sub(1).to_string(),
+        &wide.breakpoint().saturating_sub(1).to_string(),
         "px)",
     ]
     .concat()

@@ -7,20 +7,33 @@ use super::*;
 use crate::palette::{Palette, Theme};
 use crate::text::{FAMILY, Weight};
 
-/// The PRD example's wide and narrow widths, and the wide height.
-const WIDE: f64 = 976.817;
-const WIDE_HEIGHT: f64 = 800.5;
+/// A wide arrangement's parts, the PRD example's widths: a 976.817-unit
+/// document whose radar part is 670 wide, under a 53-unit title.
+const WIDE: Wide = Wide {
+    title_height: 53.0,
+    radar_width: 670.0,
+    radar_height: 640.5,
+    legend_width: 306.817,
+};
 const NARROW: f64 = 420.0;
 
-/// `layout(WIDE, WIDE_HEIGHT, NARROW)` in full: the body, the SVGs, both
-/// caps, the default and the one query (FR-51, FR-69).
+/// `layout(&WIDE, NARROW)` in full: the body, the SVGs, the wide grid and
+/// its parts, the narrow cap, the default and the one query (FR-51, FR-69,
+/// D-85).
 const LAYOUT: &str = concat!(
     "body{margin:0;line-height:1.4;font-family:\"Inter\";background:var(--surface-1);color:var(--text-primary)}\n",
     "svg{display:block;width:100%;height:auto}\n",
-    ".wide{max-width:max(976.817px,calc(100vh*976.817/800.5));margin:0 auto}\n",
+    ".wide{display:grid;grid-template-columns:minmax(0,max(536px,calc((100vh - 53px)*670/640.5))) max-content;justify-content:center}\n",
+    ".wide-title{grid-row:1;grid-column:1/-1;contain:inline-size}\n",
+    ".wide-title svg{width:976.817px;max-width:100%}\n",
+    ".wide-radar{grid-row:2;grid-column:1}\n",
+    ".wide-key{grid-row:3;grid-column:1}\n",
+    ".wide-key svg{width:670px;max-width:100%}\n",
+    ".wide-legend{grid-row:2;grid-column:2;height:0;min-height:100%;box-sizing:border-box;overflow-x:hidden;overflow-y:auto;scrollbar-gutter:stable}\n",
+    ".wide-legend svg{width:306.817px}\n",
     ".narrow{max-width:420px;margin:0 auto}\n",
     ".narrow{display:none}\n",
-    "@media (max-width: 780px){.wide{display:none}.narrow{display:block}}\n",
+    "@media (max-width: 842px){.wide{display:none}.narrow{display:block}}\n",
 );
 
 /// The text between `start` and the next `end`, for each occurrence.
@@ -93,42 +106,49 @@ fn palettes_override_in_order() {
 
 #[test]
 fn the_layout_is_exact() {
-    assert_eq!(layout(WIDE, WIDE_HEIGHT, NARROW), LAYOUT);
-    assert_eq!(narrow_query(WIDE), "(max-width: 780px)");
+    assert_eq!(layout(&WIDE, NARROW), LAYOUT);
+    assert_eq!(narrow_query(&WIDE), "(max-width: 842px)");
     assert_eq!(
-        crate::style::breakpoint_px(WIDE),
-        781,
-        "the query is one below the breakpoint"
+        WIDE.breakpoint(),
+        843,
+        "the query is one below the breakpoint: 976.817 − 0.2 × 670"
     );
 }
 
-/// rg-18x: the wide arrangement fills the window's width or its height,
-/// whichever runs out first, and its cap never falls below its own width;
-/// page chrome is capped with it. `the wide arrangement fills the window`
-/// in scripts/interaction.mjs checks the rendered width.
+/// D-85: the radar's column fills the window's width or the height under
+/// the title, whichever runs out first, never below 0.8 of the radar's own
+/// width, the scale the breakpoint allows;
+/// page chrome is capped at that column and the legend beside it.
+/// `the wide arrangement fills the window` in scripts/interaction.mjs
+/// checks the rendered sizes.
 #[test]
 fn the_wide_cap_fills_the_window() {
-    let cap = "max(976.817px,calc(100vh*976.817/800.5))";
-    assert_eq!(wide_cap(WIDE, WIDE_HEIGHT), cap);
+    let radar = "max(536px,calc((100vh - 53px)*670/640.5))";
+    assert_eq!(WIDE.radar_cap(), radar);
     assert_eq!(
-        capped(".x{", WIDE, WIDE_HEIGHT),
+        capped(".x{", &WIDE),
         format!(
-            ".x{{max-width:{cap};margin-inline:auto;padding-inline:20px;box-sizing:border-box}}\n"
+            ".x{{max-width:calc({radar} + 306.817px);margin-inline:auto;padding-inline:20px;box-sizing:border-box}}\n"
         )
     );
 }
 
-/// FR-69: only the default and the query set `display` on an arrangement,
-/// and nothing hides one any other way.
+/// FR-69: only the defaults and the query set `display` on an arrangement,
+/// and nothing hides one any other way. The wide default is its grid
+/// (D-85).
 #[test]
 fn only_the_breakpoint_rule_sets_display() {
-    let css = layout(WIDE, WIDE_HEIGHT, NARROW);
+    let css = layout(&WIDE, NARROW);
     let displays: Vec<&str> = css
         .match_indices("display:")
         .filter_map(|(at, _)| css.get(..at))
         .filter_map(|before| before.rsplit(['{', '}', '\n']).nth(1))
         .collect();
-    assert_eq!(displays, ["svg", ".narrow", ".wide", ".narrow"], "{css}");
+    assert_eq!(
+        displays,
+        ["svg", ".wide", ".narrow", ".wide", ".narrow"],
+        "{css}"
+    );
     for hide in ["visibility", "opacity"] {
         assert!(!css.contains(hide), "{hide}");
     }
@@ -185,7 +205,7 @@ fn the_stylesheet_requests_nothing_but_fonts() {
     let css = [
         font_faces(),
         palettes(),
-        layout(WIDE, WIDE_HEIGHT, NARROW),
+        layout(&WIDE, NARROW),
         indicators(),
         [VISUALLY_HIDDEN, HIDDEN_BOX].concat(),
     ]

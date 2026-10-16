@@ -1,0 +1,41 @@
+name,quadrant,ring,description
+Kubernetes,Tools,Assess,A short description of Kubernetes.
+Terraform,Platforms,Assess,A short description of Terraform.
+Rust,Techniques,Assess,A short description of Rust.
+Go,Languages,Assess,A short description of Go.
+Kafka,Tools,Trial,A short description of Kafka.
+Postgres,Platforms,Trial,A short description of Postgres.
+Redis,Techniques,Trial,A short description of Redis.
+GraphQL,Languages,Trial,A short description of GraphQL.
+gRPC,Tools,Adopt,A short description of gRPC.
+Vault,Platforms,Adopt,A short description of Vault.
+Istio,Techniques,Adopt,A short description of Istio.
+Linkerd,Languages,Adopt,A short description of Linkerd.
+Argo CD,Tools,Assess,A short description of Argo CD.
+Flux,Platforms,Assess,A short description of Flux.
+Helm,Techniques,Assess,A short description of Helm.
+Pulumi,Languages,Assess,A short description of Pulumi.
+Ansible,Tools,Trial,A short description of Ansible.
+Grafana,Platforms,Trial,A short description of Grafana.
+Prometheus,Techniques,Trial,A short description of Prometheus.
+Loki,Languages,Trial,A short description of Loki.
+Tempo,Tools,Adopt,A short description of Tempo.
+OpenTelemetry,Platforms,Adopt,A short description of OpenTelemetry.
+Jaeger,Techniques,Adopt,A short description of Jaeger.
+Envoy,Languages,Adopt,A short description of Envoy.
+NATS,Tools,Assess,A short description of NATS.
+RabbitMQ,Platforms,Assess,A short description of RabbitMQ.
+Elasticsearch,Techniques,Assess,A short description of Elasticsearch.
+OpenSearch,Languages,Assess,A short description of OpenSearch.
+ClickHouse,Tools,Trial,A short description of ClickHouse.
+DuckDB,Platforms,Trial,A short description of DuckDB.
+Snowflake,Techniques,Trial,A short description of Snowflake.
+dbt,Languages,Trial,A short description of dbt.
+Airflow,Tools,Adopt,A short description of Airflow.
+Dagster,Platforms,Adopt,A short description of Dagster.
+Spark,Techniques,Adopt,A short description of Spark.
+Flink,Languages,Adopt,A short description of Flink.
+Trino,Tools,Retire,A short description of Trino.
+Iceberg,Platforms,Retire,A short description of Iceberg.
+Delta Lake,Techniques,Retire,A short description of Delta Lake.
+MLflow,Languages,Retire,A short description of MLflow.

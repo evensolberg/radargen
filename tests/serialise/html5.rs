@@ -9,7 +9,7 @@
 use html5ever::tendril::TendrilSink;
 use html5ever::{LocalName, Namespace, ParseOpts, ns, parse_document};
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
-use radargen::layout::arrange::{Arrangement, arrange};
+use radargen::layout::arrange::{Arrangement, arrange, wide_parts};
 
 use super::build;
 use super::hostile::{RING, Strings, TITLE, csv};
@@ -214,7 +214,7 @@ fn hostile_text_survives_an_html5_parser() {
     ]
     .concat();
     let built = build(&csv, Some(&format!("{RING},Adopt")), Some(TITLE));
-    let wide = arrange(Arrangement::Wide, &built.blocks);
+    let wide = wide_parts(&built.blocks);
     let narrow = arrange(Arrangement::Narrow, &built.blocks);
     let html = built.page_of(&wide, &narrow, Some(TITLE));
 
@@ -286,9 +286,18 @@ fn hostile_text_survives_an_html5_parser() {
         .iter()
         .filter(|n| name_of(n) == (ns!(svg), LocalName::from("svg")))
         .collect();
-    let [got_wide, got_narrow] = svgs.as_slice() else {
-        panic!("two arrangements");
+    // The wide arrangement's four parts in reading order (D-85), then the
+    // narrow arrangement.
+    let [title, radar, key, legend, got_narrow] = svgs.as_slice() else {
+        panic!("four wide parts and the narrow arrangement");
     };
-    assert_eq!(strings_in(got_wide), Strings::of(&wide.root, true));
+    for (got, want) in [
+        (title, &wide.title),
+        (radar, &wide.radar),
+        (key, &wide.key),
+        (legend, &wide.legend),
+    ] {
+        assert_eq!(strings_in(got), Strings::of(&want.root, true));
+    }
     assert_eq!(strings_in(got_narrow), Strings::of(&narrow.root, true));
 }

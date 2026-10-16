@@ -5,7 +5,7 @@
 use std::collections::BTreeSet;
 
 use radargen::emit::OUTPUT_VERSION;
-use radargen::layout::arrange::{Arrangement, arrange};
+use radargen::layout::arrange::{Arrangement, WideParts, arrange, wide_parts};
 use radargen::num::fmt_coord;
 use radargen::style::breakpoint_px;
 use radargen::svg::Document;
@@ -19,15 +19,18 @@ const VIEWPORT: &str = r#"<meta name="viewport" content="width=device-width, ini
 const VISUALLY_HIDDEN: &str = ".visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}";
 const WIDE_OPEN: &str = "<div class=\"arrangement wide\">\n";
 const NARROW_OPEN: &str = "<div class=\"arrangement narrow\">\n";
+/// The wide arrangement's parts with their SVGs taken out (D-85): title,
+/// radar, key, then the legend in its scrolling box.
+const WIDE_PARTS: &str = "<div class=\"wide-title\">\n\n</div>\n<div class=\"wide-radar\">\n\n</div>\n<div class=\"wide-key\">\n\n</div>\n<div class=\"wide-legend\" tabindex=\"-1\">\n\n</div>\n";
 /// The two inks a number on a solid marker takes, as literals in every
 /// format, since the series do not change with theme (architecture §5).
 const NUMBER_INKS: [&str; 2] = ["#FFFFFF", "#16191F"];
 
-/// The PRD example's two documents.
-fn documents() -> (Document, Document) {
+/// The PRD example's wide parts and narrow document.
+fn documents() -> (WideParts, Document) {
     let built = prd();
     (
-        arrange(Arrangement::Wide, &built.blocks),
+        wide_parts(&built.blocks),
         arrange(Arrangement::Narrow, &built.blocks),
     )
 }
@@ -65,7 +68,7 @@ fn the_page_is_minimal_and_valid() {
     let around = outside(&html);
     assert!(
         around.contains(&format!(
-            "{WIDE_OPEN}\n</div>\n{NARROW_OPEN}\n</div>\n<section id=\"detail\""
+            "{WIDE_OPEN}{WIDE_PARTS}\n</div>\n{NARROW_OPEN}\n</div>\n<section id=\"detail\""
         )),
         "the panel, then the table view, follow both arrangements: {around}"
     );
@@ -122,14 +125,15 @@ fn a_hostile_title_is_escaped() {
     );
 }
 
-/// Review Focus 1 (FR-69): two arrangements, the wide first, the narrow
-/// capped at its own width and the wide growing to fill the window
-/// (rg-18x), and one query swapping them below the breakpoint.
+/// Review Focus 1 (FR-69): two arrangements, the wide first, in its four
+/// parts with the radar's column growing to fill the window (D-85), the
+/// narrow capped at its own width, and one query swapping them below the
+/// breakpoint.
 #[test]
 fn one_arrangement_at_a_time() {
     let (wide, narrow) = documents();
     let html = prd().page_of(&wide, &narrow, None);
-    assert_eq!(svgs(&html).len(), 2);
+    assert_eq!(svgs(&html).len(), 5, "four wide parts and the narrow");
     let around = outside(&html);
     let (w, n) = (
         around.find(WIDE_OPEN).expect("a wide container"),
@@ -137,12 +141,15 @@ fn one_arrangement_at_a_time() {
     );
     assert!(w < n, "the wide arrangement comes first");
     let css = style(&html);
-    let query = breakpoint_px(wide.width) - 1;
+    let width = wide.radar.width + wide.legend.width;
+    let query = breakpoint_px(width, wide.radar.width) - 1;
     for rule in [
         format!(
-            ".wide{{max-width:max({w}px,calc(100vh*{w}/{h}));margin:0 auto}}",
-            w = fmt_coord(wide.width),
-            h = fmt_coord(wide.height)
+            ".wide{{display:grid;grid-template-columns:minmax(0,max({f}px,calc((100vh - {t}px)*{r}/{h}))) max-content;justify-content:center}}",
+            f = fmt_coord(wide.radar.width * 0.8),
+            r = fmt_coord(wide.radar.width),
+            t = fmt_coord(wide.title.height),
+            h = fmt_coord(wide.radar.height),
         ),
         format!(
             ".narrow{{max-width:{}px;margin:0 auto}}",
@@ -175,9 +182,11 @@ fn both_are_interactive() {
             values(svg, "data-marker").into_iter().collect()
         })
         .collect();
-    let [wide, narrow] = keys.as_slice() else {
-        panic!("two arrangements");
+    // The wide arrangement's markers are all in its radar part (D-85).
+    let [title, wide, key, legend, narrow] = keys.as_slice() else {
+        panic!("four wide parts and the narrow arrangement");
     };
+    assert!(title.is_empty() && key.is_empty() && legend.is_empty());
     assert!(!wide.is_empty());
     assert_eq!(wide, narrow, "the same items in both");
 }

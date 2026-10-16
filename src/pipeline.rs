@@ -20,7 +20,7 @@ use crate::emit::html::{Page, page};
 use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
 use crate::errors::render_errors;
-use crate::layout::arrange::{Arrangement, Blocks, arrange, warn_narrow};
+use crate::layout::arrange::{Arrangement, Blocks, arrange, warn_narrow, wide_parts};
 use crate::layout::geometry::warn_crowding;
 use crate::layout::title::shown;
 use crate::model::{Catalogue, build_catalogue};
@@ -219,7 +219,7 @@ fn render(
     warn_crowding(catalogue, &plotted, blocks.radar.growth(), warnings);
     warn_narrow(&blocks, warnings);
     page(&Page {
-        wide: &arrange(Arrangement::Wide, &blocks),
+        wide: &wide_parts(&blocks),
         narrow: &arrange(Arrangement::Narrow, &blocks),
         catalogue,
         plotted: &plotted,

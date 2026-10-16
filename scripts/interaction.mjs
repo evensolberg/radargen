@@ -1,6 +1,6 @@
 // The interactive layer, driven in a browser (plan RG-015B).
 //
-// Usage: node scripts/interaction.mjs <page.html>
+// Usage: node scripts/interaction.mjs <page.html> [<long-legend.html>]
 //
 // Each scenario loads the page afresh, at the widths it names, and drives
 // it with trusted input only (Input.dispatchKeyEvent and
@@ -16,12 +16,14 @@ import { KEYS, connect, poll } from './cdp.mjs';
 const WIDE = 1400;
 const NARROW = 400;
 
-const [file] = process.argv.slice(2);
+const [file, longFile] = process.argv.slice(2);
 if (!file) {
-  console.error('usage: node scripts/interaction.mjs <page.html>');
+  console.error('usage: node scripts/interaction.mjs <page.html> [<long-legend.html>]');
   process.exit(2);
 }
 const url = pathToFileURL(resolve(file)).href;
+// A page whose legend is taller than its radar, so the wide legend scrolls.
+const longUrl = longFile && pathToFileURL(resolve(longFile)).href;
 
 const { send, on, close, evaluate, navigate, press } = await connect();
 const thrown = [];
@@ -46,12 +48,12 @@ const resize = (width, height = 900) =>
 
 // A fresh page at `width`, with the colour scheme and script switch set
 // before it loads, so the script's start-up reads them.
-async function load(width, { scheme = 'light', script = true, height = 900 } = {}) {
+async function load(width, { scheme = 'light', script = true, height = 900, page = url } = {}) {
   await send('Emulation.setScriptExecutionDisabled', { value: !script });
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
   await resize(width, height);
   requests.length = 0;
-  await navigate(url);
+  await navigate(page);
 }
 
 // What the focused element is, as the scenarios compare it.
@@ -105,6 +107,8 @@ const SETS = `(() => {
 // Whether the element `selector` matches has computed visibility visible.
 const visible = (selector) => `getComputedStyle(document.querySelector('${selector}')).visibility === 'visible'`;
 const panelHeading = () => evaluate(`document.querySelector('#detail .detail-heading').textContent`);
+// Two pixel sizes within a pixel of each other.
+const near = (a, b) => Math.abs(a - b) <= 1;
 const inView = (element) => evaluate(`(() => { const r = (${element}).getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })()`);
 // The centre of the first element `selector` matches, scrolled into view,
 // with its key.
@@ -491,6 +495,12 @@ try {
     check(await inView(`document.querySelector('.arrangement.wide [data-marker="${m.marker}"]')`), 'the selected marker stays on screen');
     const pad = await evaluate(`[document.documentElement.style.scrollPaddingBottom, document.getElementById('detail').offsetHeight + 'px']`);
     check(pad[0] === pad[1], `scroll padding is the panel's height: ${pad}`);
+    const legendPad = await evaluate(`(() => {
+      const box = document.querySelector('.wide-legend');
+      const under = box.getBoundingClientRect().bottom - document.getElementById('detail').getBoundingClientRect().top;
+      return [parseFloat(box.style.scrollPaddingBottom) || 0, Math.max(0, under)];
+    })()`);
+    check(Math.abs(legendPad[0] - legendPad[1]) < 0.01, `the legend's box is padded by what the panel covers (D-85): ${legendPad}`);
     for (let i = 0; i < 4; i++) {
       await press('ShiftTab');
       const hidden = await evaluate(`(() => {
@@ -581,25 +591,90 @@ try {
     check(await panelHidden(), 'no panel opens');
   });
 
-  // rg-18x (D-85): the wide SVG grows to the window's width or height,
-  // whichever runs out first, and the cap never falls below its own width.
-  // Measured, not read from the CSS: a declaration the browser drops as
-  // invalid would leave the string tests passing.
-  await scenario('the wide arrangement fills the window', [1850, 1200], async (width) => {
+  // D-85: the wide radar's column grows to the window's width or to the
+  // height under the title, whichever runs out first, never below 0.8 of
+  // its own width; the title, key and legend keep their natural size, and
+  // the legend scrolls in a box as tall as the radar. Measured, not read
+  // from the CSS: a declaration the browser drops as invalid would leave
+  // the string tests passing.
+  // 830 lies between the interaction fixture's breakpoint (about 758) and
+  // its width (892), where the radar is narrower than its own size and the
+  // title and key shrink with its column.
+  await scenario('the wide arrangement fills the window', [1850, 1200, 830], async (width) => {
     for (const height of [1400, 1000, 500]) {
       await load(width, { height });
-      const [drawn, want, chrome] = await evaluate(`(() => {
-        const svg = document.querySelector('.arrangement.wide svg');
-        const { width: w, height: h } = svg.viewBox.baseVal;
-        const room = svg.closest('.arrangement').parentElement.clientWidth;
-        const cap = Math.max(w, innerHeight * w / h);
-        const bar = document.querySelector('.page-controls').getBoundingClientRect().width;
-        return [svg.getBoundingClientRect().width, Math.min(room, cap), bar];
+      const m = await evaluate(`(() => {
+        const part = (name) => document.querySelector('.arrangement.wide .' + name + ' svg');
+        const size = (svg) => svg.viewBox.baseVal;
+        const [title, radar, key, legend] = ['wide-title', 'wide-radar', 'wide-key', 'wide-legend'].map(part);
+        const room = radar.closest('.arrangement').clientWidth;
+        const { width: r, height: h } = size(radar);
+        const l = size(legend).width;
+        // The legend's column: its natural width and any scrollbar gutter.
+        const column = document.querySelector('.wide-legend').getBoundingClientRect().width;
+        const cap = Math.max(0.8 * r, (innerHeight - size(title).height) * r / h);
+        const want = Math.min(room - column, cap);
+        const box = (svg) => svg.getBoundingClientRect();
+        return {
+          radar: box(radar).width, want,
+          radarHeight: box(radar).height, scroller: document.querySelector('.wide-legend').clientHeight,
+          legend: box(legend).width, l,
+          title: box(title).width, titleWant: Math.min(size(title).width, want + column),
+          key: box(key).width, keyWant: Math.min(size(key).width, want),
+          chrome: document.querySelector('.page-controls').getBoundingClientRect().width,
+          chromeWant: Math.min(room, cap + l),
+        };
       })()`);
-      check(Math.abs(drawn - want) <= 1, `${width}x${height}: the SVG is ${drawn} px, not ${want}`);
-      check(Math.abs(chrome - drawn) <= 1, `${width}x${height}: the controls share the cap (${chrome} px)`);
+      const at = `${width}x${height}`;
+      check(await evaluate(`getComputedStyle(document.querySelector('.arrangement.wide')).display !== 'none'`), `${at}: the wide arrangement shows`);
+      check(near(m.radar, m.want), `${at}: the radar is ${m.radar} px, not ${m.want}`);
+      check(near(m.legend, m.l), `${at}: the legend is ${m.legend} px, not its own ${m.l}`);
+      check(near(m.scroller, m.radarHeight), `${at}: the legend's box is ${m.scroller} px tall, the radar ${m.radarHeight}`);
+      check(near(m.title, m.titleWant), `${at}: the title is ${m.title} px, not ${m.titleWant}`);
+      check(near(m.key, m.keyWant), `${at}: the key is ${m.key} px, not ${m.keyWant}`);
+      check(near(m.chrome, m.chromeWant), `${at}: the controls are ${m.chrome} px, not ${m.chromeWant}`);
     }
   });
+
+  // D-85: a legend taller than its radar scrolls in its own box beside it.
+  // The box is as tall as the radar, a scrollbar does not shrink the legend,
+  // Shift+Tab back into it from the panel lands on a row the panel does not
+  // cover, and choosing that row, the last, leaves its marker on screen.
+  if (longUrl) {
+    await scenario('a long legend scrolls beside the radar', [1850], async (width) => {
+      await load(width, { page: longUrl });
+      const m = await evaluate(`(() => {
+        const box = document.querySelector('.wide-legend');
+        const svg = box.querySelector('svg');
+        const radar = document.querySelector('.wide-radar svg').getBoundingClientRect();
+        return {
+          overflows: box.scrollHeight > box.clientHeight + 1, box: box.clientHeight, radar: radar.height,
+          drawn: svg.getBoundingClientRect().width, own: svg.viewBox.baseVal.width,
+          gutter: box.offsetWidth - box.clientWidth,
+        };
+      })()`);
+      check(m.overflows, 'the legend overflows its box, so it scrolls');
+      check(near(m.box, m.radar), `the box is ${m.box} px tall, the radar ${m.radar}`);
+      check(m.gutter > 0, `a classic scrollbar takes room (${m.gutter} px), so the next check means something`);
+      check(Math.abs(m.drawn - m.own) <= 0.5, `the legend draws at ${m.drawn} px, not its own ${m.own}`);
+      const first = await centreOf('.arrangement.wide [data-legend-row]');
+      await click(first.x, first.y);
+      await eventually(async () => !(await panelHidden()), 'the panel opens');
+      const a = await tabTo((x) => x.legend !== null, 'a legend row', 'ShiftTab');
+      const last = await evaluate(`(() => { const r = document.querySelectorAll('.arrangement.wide [data-legend-row]'); return r[r.length - 1].getAttribute('data-legend-row'); })()`);
+      check(a.legend === last, `Shift+Tab from the panel reaches the last row: ${JSON.stringify(a)}`);
+      const covered = await evaluate(`(() => {
+        const r = document.activeElement.getBoundingClientRect();
+        const p = document.getElementById('detail').getBoundingClientRect();
+        const b = document.querySelector('.wide-legend').getBoundingClientRect();
+        return { under: r.bottom > p.top + 0.5 && r.top < p.bottom, outside: r.top < b.top - 0.5 || r.bottom > b.bottom + 0.5 };
+      })()`);
+      check(!covered.under, 'the focused row is not under the panel');
+      check(!covered.outside, 'the focused row is scrolled into its box');
+      await press('Enter');
+      check(await inView(`document.querySelector('.arrangement.wide [data-marker="${last}"]')`), "the last row's marker is on screen");
+    });
+  }
 
   // P15. Re-activating an item through its hit area keeps focus on its marker.
   await scenario('P15 hit area twice', [WIDE], async (width) => {

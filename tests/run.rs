@@ -120,8 +120,9 @@ fn renders_the_prd_example() {
         " role=\"group\" aria-label=\"Technology radar: 3 quadrants, 4 rings, 6 items\""
     ));
     html::assert_requests_nothing(&page);
-    // PR 14b: both arrangements and the two inlined faces.
-    assert_eq!(html::svgs(&page).len(), 2, "wide and narrow");
+    // PR 14b: both arrangements, the wide in its four parts (D-85), and the
+    // two inlined faces.
+    assert_eq!(html::svgs(&page).len(), 5, "four wide parts and the narrow");
     assert_eq!(
         page.matches("@font-face").count(),
         2,

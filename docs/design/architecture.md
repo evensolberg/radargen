@@ -313,10 +313,18 @@ the wide arrangement's 12.5-unit legend text renders at `12.5 × V / W` px, wher
 FR-79 sizes from the longest measured line. A constant breakpoint therefore
 means a different rendered text size for every radar, and FR-70 exists precisely
 because that number going small is what SC-6 fails on. So the switch is emitted
-per document, at `W × (MIN_LEGIBLE_PX / LEGEND_SIZE_PX)` rounded to an integer,
-with the floor living in `style.rs` beside the type scale it is a floor for. The
-narrow arrangement's own width bounds it from below. D-71's widening does not
-disturb this: the wide width is at least the radar at scale 1 plus its insets,
+per document, with the floor living in `style.rs` beside the type scale it is a
+floor for. Since D-85, HTML draws the wide arrangement as four SVGs
+(`arrange::wide_parts`, cut from the one document at the radar's right edge and
+the key's rule) and only the radar scales with the viewport; the title, key and
+legend stay at one pixel per unit and the legend scrolls beside the radar. The
+switch is therefore where the radar alone reaches `WIDE_MIN_SCALE`
+(`MIN_LEGIBLE_PX / LEGEND_NAME.size`, 0.8): `W − (1 − 0.8) × R` rounded to an
+integer, for a radar part `R` wide. PNG and SVG keep the one document. The
+narrow arrangement is never wider than the wide one, though since D-85 the
+breakpoint can fall a few pixels below the narrow document's width, where the
+narrow SVG simply spans the viewport. D-71's widening does not disturb the
+first: the wide width is at least the radar at scale 1 plus its insets,
 and the widest narrow document is the radar at 0.3 plus the same insets, so
 the wide document is never the narrower of the two.
 
