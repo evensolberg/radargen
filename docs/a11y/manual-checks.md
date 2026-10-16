@@ -11,7 +11,7 @@ created_date: 2026-10-13
 synopsis: "What only a person with a screen reader, a real browser's zoom or a keyboard on a real machine can judge, step by step, with the announcement to expect at each step and a results table to fill in before tagging 1.0.0. The automated audit (scripts/a11y-audit.mjs) covers everything a browser can measure; this covers the rest."
 status: draft
 type: Guide
-revision: "1.3"
+revision: "1.4"
 review_date:
 reviewed_by: []
 completed_date:
@@ -88,6 +88,24 @@ The expected names come from `three-quadrant.csv`.
     - *Expect:* no hover, focus or selection marks anywhere.
     - *Expect:* no missing-glyph boxes for the fixture's names.
     - *Expect, at the default width and at 100% zoom:* every legend name is readable.
+16. **The SVG** (D-88, from 1.2.0). Render `three-quadrant.csv` with `--title "Technology Radar"` to `light.svg`, and again with `--theme dark` to `dark.svg`.
+    - *Expect, opened in a browser:* each looks like its PNG (step 15), in Inter, with every legend name readable at 100% zoom. Text that cannot be selected is expected, not a fail.
+    - *Expect, with NVDA + Firefox, NVDA + Chrome and VoiceOver + Safari, opening the file directly:*
+      - the document is named "Technology Radar", and its description reads "Technology radar: 3 quadrants, …";
+      - browse mode moves into the drawing rather than stopping at one graphic;
+      - the headings list holds: level 1 "Technology Radar"; level 2 "Key" and "Legend"; level 3 each quadrant;
+      - ring labels read outermost first, as in the page;
+      - each marker reads once, by its full name ("1. …; … quadrant, … ring"), never its number alone;
+      - each legend row reads once;
+      - no label reads twice, no halo is read, and nothing reads as an unnamed "graphic" or "group".
+      - Record whether a marker's tooltip is read again as a description.
+    - *Expect, in PowerPoint (Insert ▸ Pictures), and in Figma or Illustrator if available, in both themes:*
+      - the text is the theme's colour, not black;
+      - ring labels show no dark smudge behind them, which would be a halo drawn filled;
+      - the drawing can be ungrouped, and each glyph is a shape.
+      - Record the alt text PowerPoint assigns.
+      - A black or smudged result is a fail. The fallback is paint on each `<use>` (plan Ruling 12).
+    - *Expect, without `--title`:* the document is named "Technology Radar", and no level-1 heading exists.
 
 ## Results
 
@@ -102,6 +120,9 @@ The expected names come from `three-quadrant.csv`.
 | Real zoom 200% and 400%: Chrome, Firefox, Safari | | | | |
 | The wide arrangement's parts: NVDA + Firefox, VoiceOver + Safari | | | | |
 | The PNG, light and dark | | | | |
+| The SVG: NVDA + Firefox, NVDA + Chrome, VoiceOver + Safari | | | | |
+| The SVG: PowerPoint, light and dark | | | | |
+| The SVG: Figma or Illustrator, light and dark | | | | |
 
 ## Revisions
 
@@ -111,3 +132,4 @@ The expected names come from `three-quadrant.csv`.
 | 1.1 | 2026-10-15 | Step 8: the toggle is named by what a press does, with no pressed state (rg-nuy). |
 | 1.2 | 2026-10-15 | Step 14: the wide arrangement drawn in four SVGs, the legend scrolling (D-85, rg-swu). |
 | 1.3 | 2026-10-16 | Step 15: the PNG, in both themes (D-87, rg-42m). |
+| 1.4 | 2026-10-16 | Step 16: the exported SVG (D-88, rg-m2l). |

@@ -710,7 +710,7 @@ interface that has not been agreed. Each step is testable when it lands.
 | 4 | `layout/block.rs` and a minimal `svg::Node`, then `layout/{title,radar,legend,key}.rs`, `arrange.rs` | 3, `text.rs` | layout engine |
 | 5 | `svg/`, `emit/write.rs` | 4 | shared SVG generation |
 | 6 | `emit/html/` | 5, `Catalogue` from 2 | HTML output wrapper |
-| 7 | `emit/{svg,png}.rs`, `--palette`, `--theme`/`--width` plumbing | 5, `text.rs` *(svg outlines re-shape)* | PNG (1.1.0), SVG (1.2.0), `--palette` (1.3.0) — the **v1.1** line |
+| 7 | `emit/{svg,png}.rs`, `--palette`, `--theme`/`--width` plumbing | 5, `text.rs` *(svg outlines re-shape)* | PNG (1.1.0) and SVG (1.2.0) **done**; `--palette` (1.3.0) — the **v1.1** line |
 
 `Node` is built up with the blocks rather than ahead of them: each block adds the variants it draws, `arrange` (step 4) adds `Document`, and step 5 the serialiser.
 
