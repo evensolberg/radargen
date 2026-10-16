@@ -66,7 +66,7 @@ pub(super) fn ring_reach_y(mid: f64, r: RadarScale) -> f64 {
 /// reaches furthest of everything a marker draws (`INDICATOR_REACH`, 19, at
 /// `marks`, past the status ring's 15 and any number under six digits), and
 /// it never passes `max(floor, hit reach)`. For a marker `|p|` from the
-/// centre on an axis: below `RADAR_FLOOR` it reaches `|p| s + 19 · 7/9`,
+/// centre on an axis: at a radar scale below `RADAR_FLOOR` it reaches `|p| s + 19 · 7/9`,
 /// under the hit area's `|p| s + HIT_RADIUS` because `INDICATOR_REACH * RADAR_FLOOR
 /// <= HIT_RADIUS`; from `RADAR_FLOOR` up it reaches `(|p| + 19) s`, under
 /// the floor's `330 s` because `|p| < BAND_OUTER_RADIUS` and
@@ -78,13 +78,13 @@ pub(super) fn ring_reach_y(mid: f64, r: RadarScale) -> f64 {
 /// `RADAR_MONOTONE_FROM` (0.0034) over the growth up, since every term
 /// depends on the scale only through `geometry`, `labels` and `marks`, each
 /// non-decreasing in it. A quadrant label's pushed centre is `300 s` plus a push at
-/// `max(s, 1)` along the same direction, so its distance from the centre on
+/// `max(scale, 1)` along the same direction, so its distance from the centre on
 /// each axis never falls. The only decreasing term is a below-centre quadrant label's
 /// ascent, at most 11.625, since its push only lowers the baseline; the
 /// outermost ring name's reach, at least `130 * s + 11.19`,
 /// outgrows it from there. That relies on at least one ring, which
 /// `rings.rs` guarantees by rejecting an empty list. The hit term, `|p| s +
-/// HIT_RADIUS · max(s, 1)`, is increasing.
+/// HIT_RADIUS · max(scale, 1)`, is increasing.
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"

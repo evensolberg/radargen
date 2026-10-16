@@ -66,9 +66,11 @@ impl Blocks {
 
     /// D-86: grows the radar by the largest step up to `needed` at which the
     /// wide arrangement still shows on a `WIDE_MIN_VIEWPORT_PX` screen. The
-    /// steps end at 1, so when none shows the radar is left ungrown. Growth widens the wide document, which
-    /// raises FR-69's breakpoint, so the bound is measured on the placed
-    /// document: labels and the legend add width that does not grow.
+    /// steps end at 1, so when none shows the radar is left ungrown.
+    ///
+    /// Growth widens the wide document, which raises FR-69's breakpoint, so
+    /// the bound is measured on the placed document: labels and the legend
+    /// add width that does not grow.
     fn grow_within(&mut self, needed: f64) {
         for g in growth_steps().rev().filter(|&g| g <= needed) {
             self.radar.set_growth(g);
