@@ -643,6 +643,11 @@ try {
   if (longUrl) {
     await scenario('a long legend scrolls beside the radar', [1850], async (width) => {
       await load(width, { page: longUrl });
+      // macOS Chromium follows the system's "show scroll bars" setting, so
+      // its scrollbars may overlay and take no room. A styled scrollbar is
+      // always a classic one, so the gutter checks below hold on any machine.
+      await evaluate(`document.head.insertAdjacentHTML('beforeend',
+        '<style>.wide-legend::-webkit-scrollbar { width: 15px; }</style>')`);
       const m = await evaluate(`(() => {
         const box = document.querySelector('.wide-legend');
         const svg = box.querySelector('svg');
