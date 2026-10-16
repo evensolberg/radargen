@@ -6,15 +6,13 @@ mod css;
 mod table;
 
 use crate::emit::OUTPUT_VERSION;
+use crate::emit::UNTITLED;
 use crate::escape::xml_text;
 use crate::layout::arrange::WideParts;
 use crate::model::Catalogue;
 use crate::order::Plotted;
 use crate::palette::{Palette, Theme};
 use crate::svg::{Document, Target, serialise};
-
-/// The tab title and hidden heading of a page with no title (FR-65, D-75).
-pub const UNTITLED: &str = "Technology Radar";
 
 const HEAD_OPEN: &str = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"generator\" content=\"";
 const BODY_OPEN: &str = "</style>\n</head>\n<body>\n";
