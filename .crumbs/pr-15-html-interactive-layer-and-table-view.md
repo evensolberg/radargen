@@ -1,7 +1,7 @@
 ---
 id: rg-6zu
 title: 'PR 15: HTML interactive layer and table view'
-status: in_progress
+status: closed
 type: feature
 priority: 1
 tags:
@@ -10,6 +10,7 @@ tags:
 - a11y
 created: 2026-10-08
 updated: 2026-10-15
+closed_reason: Released in v1.0.0
 blocks:
 - rg-9ay
 blocked_by:
