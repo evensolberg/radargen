@@ -7,6 +7,7 @@
 ### ⚙️ Miscellaneous Tasks
 
 - *(release)* Record 1.0.0 as published; close rg-6zu (#88)
+- *(release)* 1.0.1
 ## [1.0.0] - 2026-10-16
 
 ### 🚀 Features

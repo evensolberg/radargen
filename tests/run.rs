@@ -189,6 +189,15 @@ fn a_quadrant_name_wider_than_any_screen_still_renders() {
     );
     let page = read(dir.path(), "radar.html");
     assert_eq!(html::svgs(&page).len(), 5, "four wide parts and the narrow");
+    // The case the old 10,000-unit bound refused: the breakpoint, about
+    // 0.8 of the document, lies past it.
+    let query = page
+        .split("(max-width: ")
+        .nth(1)
+        .and_then(|rest| rest.split("px)").next())
+        .and_then(|px| px.parse::<u32>().ok())
+        .expect("a narrow query");
+    assert!(query > 10_000, "the breakpoint is {query} px");
 }
 
 /// A fault, and how to set it up and take it away again.

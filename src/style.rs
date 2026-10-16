@@ -521,8 +521,8 @@ pub fn breakpoint_px(wide_width: f64, radar_width: f64) -> u32 {
 /// D-86: whether a wide document `wide_width` units wide, its radar part
 /// `radar_width`, still shows on a `WIDE_MIN_VIEWPORT_PX` screen.
 ///
-/// A width `breakpoint_px` would refuse, not a number or under 1, does
-/// not, and is never handed to it.
+/// A width `breakpoint_px` would refuse (not finite, or under 1) never
+/// shows, and is never handed to it.
 #[must_use]
 pub fn wide_shows_on_laptops(wide_width: f64, radar_width: f64) -> bool {
     wide_width.is_finite()
@@ -743,7 +743,8 @@ mod tests {
     /// past every screen, so the narrow arrangement shows, as FR-95 warns.
     #[test]
     fn a_document_wider_than_any_screen_has_a_breakpoint() {
-        assert_eq!(breakpoint_px(18_355.334, 600.0), 18_235);
+        // A 600-W quadrant name: the long label is in the radar part.
+        assert_eq!(breakpoint_px(18_355.334, 17_944.22), 14_766);
         // Past what a u32 holds, the breakpoint saturates rather than wraps.
         assert_eq!(breakpoint_px(5e9, 0.0), u32::MAX);
     }
