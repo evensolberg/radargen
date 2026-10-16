@@ -491,6 +491,8 @@ try {
     check(await inView(`document.querySelector('.arrangement.wide [data-marker="${m.marker}"]')`), 'the selected marker stays on screen');
     const pad = await evaluate(`[document.documentElement.style.scrollPaddingBottom, document.getElementById('detail').offsetHeight + 'px']`);
     check(pad[0] === pad[1], `scroll padding is the panel's height: ${pad}`);
+    const legendPad = await evaluate(`document.querySelector('.wide-scroll').style.scrollPaddingBottom`);
+    check(legendPad === pad[1], `and the legend's box's too (D-85): ${legendPad}`);
     for (let i = 0; i < 4; i++) {
       await press('ShiftTab');
       const hidden = await evaluate(`(() => {
@@ -581,23 +583,41 @@ try {
     check(await panelHidden(), 'no panel opens');
   });
 
-  // rg-18x (D-85): the wide SVG grows to the window's width or height,
-  // whichever runs out first, and the cap never falls below its own width.
-  // Measured, not read from the CSS: a declaration the browser drops as
-  // invalid would leave the string tests passing.
+  // D-85: the wide radar's column grows to the window's width or to the
+  // height under the title, whichever runs out first, never below 0.8 of
+  // its own width; the title, key and legend keep their natural size, and
+  // the legend scrolls in a box as tall as the radar. Measured, not read
+  // from the CSS: a declaration the browser drops as invalid would leave
+  // the string tests passing.
   await scenario('the wide arrangement fills the window', [1850, 1200], async (width) => {
     for (const height of [1400, 1000, 500]) {
       await load(width, { height });
-      const [drawn, want, chrome] = await evaluate(`(() => {
-        const svg = document.querySelector('.arrangement.wide svg');
-        const { width: w, height: h } = svg.viewBox.baseVal;
-        const room = svg.closest('.arrangement').parentElement.clientWidth;
-        const cap = Math.max(w, innerHeight * w / h);
-        const bar = document.querySelector('.page-controls').getBoundingClientRect().width;
-        return [svg.getBoundingClientRect().width, Math.min(room, cap), bar];
+      const m = await evaluate(`(() => {
+        const part = (name) => document.querySelector('.arrangement.wide .' + name + ' svg');
+        const size = (svg) => svg.viewBox.baseVal;
+        const [title, radar, key, legend] = ['wide-title', 'wide-radar', 'wide-key', 'wide-scroll'].map(part);
+        const room = radar.closest('.arrangement').clientWidth;
+        const { width: r, height: h } = size(radar);
+        const l = size(legend).width;
+        const cap = Math.max(0.8 * r, (innerHeight - size(title).height) * r / h);
+        const box = (svg) => svg.getBoundingClientRect();
+        return {
+          radar: box(radar).width, want: Math.min(room - l, cap),
+          radarHeight: box(radar).height, scroller: document.querySelector('.wide-scroll').clientHeight,
+          legend: box(legend).width, l,
+          title: box(title).width, titleWant: Math.min(size(title).width, room, Math.min(room - l, cap) + l),
+          key: box(key).width, keyWant: Math.min(size(key).width, Math.min(room - l, cap)),
+          chrome: document.querySelector('.page-controls').getBoundingClientRect().width,
+        };
       })()`);
-      check(Math.abs(drawn - want) <= 1, `${width}x${height}: the SVG is ${drawn} px, not ${want}`);
-      check(Math.abs(chrome - drawn) <= 1, `${width}x${height}: the controls share the cap (${chrome} px)`);
+      const at = `${width}x${height}`;
+      const near = (a, b) => Math.abs(a - b) <= 1;
+      check(near(m.radar, m.want), `${at}: the radar is ${m.radar} px, not ${m.want}`);
+      check(near(m.legend, m.l), `${at}: the legend is ${m.legend} px, not its own ${m.l}`);
+      check(near(m.scroller, m.radarHeight), `${at}: the legend's box is ${m.scroller} px tall, the radar ${m.radarHeight}`);
+      check(near(m.title, m.titleWant), `${at}: the title is ${m.title} px, not ${m.titleWant}`);
+      check(near(m.key, m.keyWant), `${at}: the key is ${m.key} px, not ${m.keyWant}`);
+      check(near(m.chrome, m.radar + m.legend), `${at}: the controls are ${m.chrome} px, not the radar and legend's ${m.radar + m.legend}`);
     }
   });
 

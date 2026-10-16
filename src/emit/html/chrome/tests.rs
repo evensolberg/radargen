@@ -63,6 +63,7 @@ fn the_scripts_names_are_the_pages() {
         ("toggle", TOGGLE_CLASS),
         ("skip", SKIP_CLASS),
         ("arrangement", ARRANGEMENT_CLASS),
+        ("legendScroll", super::super::css::WIDE_SCROLL),
     ]
     .into_iter()
     .map(|(k, v)| (k.to_owned(), v.to_owned()))
@@ -141,7 +142,12 @@ fn words_match_whole() {
 /// and its close button and heading show focus (WCAG 2.4.7).
 #[test]
 fn the_panel_sticks_and_shows_focus() {
-    let css = super::css(1000.0, 800.0);
+    let css = super::css(&super::super::css::Wide {
+        title_height: 53.0,
+        radar_width: 670.0,
+        radar_height: 640.0,
+        legend_width: 330.0,
+    });
     for rule in [
         ".detail{position:sticky;bottom:.75rem;max-height:min(45vh,28em);overflow:auto;",
         ".detail dd{margin:0 0 .6em;overflow-wrap:anywhere}",

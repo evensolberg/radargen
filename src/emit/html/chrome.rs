@@ -6,10 +6,9 @@
 //! `svg::serialise`, and a test holds the script's names block to them.
 //! Rule fragments are module constants, as in `css.rs`.
 
-use super::css::{HIDDEN_BOX, OUTLINE_CLOSE, capped, narrow_query};
+use super::css::{HIDDEN_BOX, OUTLINE_CLOSE, Wide, capped, narrow_query};
 use crate::escape::html_attr;
 use crate::palette::Neutral;
-use crate::style::breakpoint_px;
 
 /// The interactive layer, inlined (NFR-5).
 pub(super) const SCRIPT: &str = include_str!("script.js");
@@ -141,10 +140,10 @@ const GRID_OPEN: &str = "@media (min-width: ";
 const GRID_RULE: &str = "px){.detail dl{display:grid;grid-template-columns:max-content 1fr;column-gap:1.5em;align-items:baseline}.detail dt{grid-column:1}.detail dd{grid-column:2}}\n";
 
 /// The controls' rules, capped and inset like the table view.
-pub(super) fn css(wide_width: f64, wide_height: f64) -> String {
+pub(super) fn css(wide: &Wide) -> String {
     [
         HIDDEN_RULE,
-        &capped(BAR_OPEN, wide_width, wide_height),
+        &capped(BAR_OPEN, wide),
         BUTTON_OPEN,
         Neutral::StrokeDivider.as_str(),
         BUTTON_GROUND,
@@ -157,7 +156,7 @@ pub(super) fn css(wide_width: f64, wide_height: f64) -> String {
         FOCUS_OPEN,
         Neutral::Focus.as_str(),
         OUTLINE_CLOSE,
-        &capped(PANEL_CAP, wide_width, wide_height),
+        &capped(PANEL_CAP, wide),
         PANEL_OPEN,
         Neutral::Surface2.as_str(),
         PANEL_EDGE,
@@ -168,10 +167,10 @@ pub(super) fn css(wide_width: f64, wide_height: f64) -> String {
         Neutral::TextMuted.as_str(),
         PANEL_CLOSE,
         SHEET_OPEN,
-        &narrow_query(wide_width),
+        &narrow_query(wide),
         SHEET_RULE,
         GRID_OPEN,
-        &breakpoint_px(wide_width).to_string(),
+        &wide.breakpoint().to_string(),
         GRID_RULE,
     ]
     .concat()

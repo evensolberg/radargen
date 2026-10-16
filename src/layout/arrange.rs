@@ -74,7 +74,8 @@ impl Blocks {
     fn grow_within(&mut self, needed: f64) {
         for g in growth_steps().rev().filter(|&g| g <= needed) {
             self.radar.set_growth(g);
-            if wide_shows_on_laptops(wide(self).width) {
+            let at = wide(self);
+            if wide_shows_on_laptops(at.width, at.radar.origin.x + self.radar.size(1.0).width) {
                 return;
             }
         }
@@ -141,6 +142,76 @@ pub fn arrange(arrangement: Arrangement, blocks: &Blocks) -> Document {
         width: at.width,
         height: at.height,
         root: Node::Group(Group::new(Point::ORIGIN, children)),
+    }
+}
+
+/// The wide arrangement as HTML draws it (D-85): four documents.
+///
+/// The radar can then grow to fill the window while the title, key and
+/// legend keep their natural size. Each is the wide document's own drawing,
+/// cut at the radar's right edge and at the key's top rule.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WideParts {
+    /// The title block, across the whole width.
+    pub title: Document,
+    /// The radar, from the left edge to its block's right edge.
+    pub radar: Document,
+    /// The key and its rule, under the radar and as wide.
+    pub key: Document,
+    /// The legend panel, from the radar's right edge to the document's.
+    pub legend: Document,
+}
+
+/// `blocks` in the wide arrangement, cut into [`WideParts`]. The parts
+/// draw what [`arrange`] draws, each translated to its own origin.
+#[must_use]
+pub fn wide_parts(blocks: &Blocks) -> WideParts {
+    let at = placements(Arrangement::Wide, blocks);
+    let top = at.radar.origin.y;
+    let radar_right = at.radar.origin.x + blocks.radar.size(1.0).width;
+    // The cut runs half a rule above the rule, so its stroke is the key's.
+    let cut = at.rule.from.y - KEY_RULE_STROKE / 2.0;
+    let key = blocks.key.grid(at.key_columns);
+    let legend = blocks.legend.spanning(at.legend_width);
+    let part = |width: f64, height: f64, origin: Point, children: Vec<Node>| Document {
+        width,
+        height,
+        root: Node::Group(Group::new(
+            Point {
+                x: -origin.x,
+                y: -origin.y,
+            },
+            children,
+        )),
+    };
+    WideParts {
+        title: part(
+            at.width,
+            top,
+            Point::ORIGIN,
+            vec![blocks.title.render(at.title)],
+        ),
+        radar: part(
+            radar_right,
+            cut - top,
+            Point { x: 0.0, y: top },
+            vec![blocks.radar.render(at.radar)],
+        ),
+        key: part(
+            radar_right,
+            at.key.origin.y + key.size(1.0).height + MARGIN - cut,
+            Point { x: 0.0, y: cut },
+            vec![rule_node(at.rule), key.render(at.key)],
+        ),
+        legend: part(
+            at.width - radar_right,
+            at.legend.origin.y + legend.size(1.0).height + MARGIN - top,
+            Point {
+                x: radar_right,
+                y: top,
+            },
+            vec![legend.render(at.legend)],
+        ),
     }
 }
 
@@ -366,7 +437,7 @@ mod tests {
     use crate::order::Plotted;
     use crate::rings::RingSource;
     use crate::style::{GROWTH_STEP, MAX_GROWTH};
-    use crate::svg::ItemKey;
+    use crate::svg::{ItemKey, Semantics};
 
     /// The title and subtitle a fixture is built with.
     #[derive(Clone, Copy)]
@@ -461,7 +532,7 @@ mod tests {
             ("wide radar", blocks(&wide_radar(), TITLED)),
             ("tall", blocks(&tall(), TITLED)),
             ("empty legend", blocks(HEAD, UNTITLED)),
-            // D-86: grown to 1.25, to 2, held to 1.5 by the laptop bound,
+            // D-86: grown to 1.25, to 2, held to 1.25 by the laptop bound,
             // and grown with names that hold the narrow radar at its floor.
             ("grown", blocks(&innermost("Q", 3), TITLED)),
             ("grown twice", blocks(&innermost("Q", 12), TITLED)),
@@ -528,6 +599,12 @@ mod tests {
         csv_of(&names, "Retire")
     }
 
+    /// Whether `b`'s wide arrangement shows on a laptop (D-86).
+    fn shows(b: &Blocks) -> bool {
+        let parts = wide_parts(b);
+        wide_shows_on_laptops(parts.radar.width + parts.legend.width, parts.radar.width)
+    }
+
     /// The growth `csv`'s markers need, before the laptop bound (D-86).
     fn needed(csv: &str) -> f64 {
         let (catalogue, order) = plotted(csv, None);
@@ -559,7 +636,7 @@ mod tests {
     /// showing on a `WIDE_MIN_VIEWPORT_PX` screen, and stops short of what
     /// it needs only where one more step would hide it. Ordinary names
     /// reach 2× within the bound; quadrant names of 30 × "W" hold it to
-    /// 1.5.
+    /// 1.25.
     #[test]
     fn growth_keeps_the_wide_arrangement_on_laptops() {
         let mut capped = 0;
@@ -573,29 +650,23 @@ mod tests {
             let g = b.radar.growth();
             let want = needed(&csv);
             assert!(g <= want && g <= MAX_GROWTH, "{stem} {count}: {g}");
-            assert!(
-                wide_shows_on_laptops(placements(Arrangement::Wide, &b).width),
-                "{stem} {count}: {g}"
-            );
+            assert!(shows(&b), "{stem} {count}: {g}");
             if g < want {
                 capped += 1;
                 let mut next = b.clone();
                 next.radar.set_growth(g + GROWTH_STEP);
-                assert!(
-                    !wide_shows_on_laptops(placements(Arrangement::Wide, &next).width),
-                    "{stem} {count}: {g} stopped short"
-                );
+                assert!(!shows(&next), "{stem} {count}: {g} stopped short");
             }
         }
         assert!(capped > 0, "some fixture is held by the laptop bound");
-        // D-86's figures: ordinary names reach 2×, 30 × "W" stop at 1.5.
+        // D-86's figures: ordinary names reach 2×, 30 × "W" stop at 1.25.
         assert!(close(
             blocks(&innermost("Q", 12), UNTITLED).radar.growth(),
             MAX_GROWTH
         ));
         assert!(close(
             blocks(&innermost(&long, 12), UNTITLED).radar.growth(),
-            1.5
+            1.25
         ));
     }
 
@@ -1102,6 +1173,78 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Every node in `node`'s tree that is not a group.
+    fn leaves(node: &Node) -> usize {
+        groups(node)
+            .iter()
+            .flat_map(|g| &g.children)
+            .filter(|n| !matches!(n, Node::Group(_)))
+            .count()
+    }
+
+    /// rg-swu (D-85): HTML's wide arrangement in four documents. The radar
+    /// and the legend tile the wide document's width, the title spans it,
+    /// the key sits under the radar, and together they draw every node the
+    /// one document draws, each inside its own part.
+    #[test]
+    fn the_wide_parts_tile_the_wide_document() {
+        for (name, b) in fixtures() {
+            let whole = arrange(Arrangement::Wide, &b);
+            let parts = wide_parts(&b);
+            let WideParts {
+                title,
+                radar,
+                key,
+                legend,
+            } = &parts;
+            assert!(close(radar.width + legend.width, whole.width), "{name}");
+            assert!(
+                close(title.width, whole.width) && close(key.width, radar.width),
+                "{name}"
+            );
+            let left = title.height + radar.height + key.height;
+            let right = title.height + legend.height;
+            assert!(
+                close(left.max(right), whole.height),
+                "{name}: {left}, {right} against {}",
+                whole.height
+            );
+            for (part, doc) in [
+                ("title", title),
+                ("radar", radar),
+                ("key", key),
+                ("legend", legend),
+            ] {
+                let size = Size {
+                    width: doc.width,
+                    height: doc.height,
+                };
+                assert!(doc.width > 0.0 && doc.height > 0.0, "{name} {part}");
+                assert_finite(&doc.root);
+                assert_inside(&doc.root, size, fonts());
+            }
+            let drawn: usize = [title, radar, key, legend]
+                .iter()
+                .map(|d| leaves(&d.root))
+                .sum();
+            assert_eq!(drawn, leaves(&whole.root), "{name}");
+        }
+    }
+
+    /// The markers are in the radar's part and the legend rows in the
+    /// legend's, which the page writes after the key (FR-68's order).
+    #[test]
+    fn markers_and_rows_land_in_their_parts() {
+        let parts = wide_parts(&blocks(PRD_EXAMPLE, TITLED));
+        let has = |doc: &Document, want: fn(&Semantics) -> bool| {
+            groups(&doc.root).iter().any(|g| want(&g.semantics))
+        };
+        let marker = |s: &Semantics| matches!(s, Semantics::Marker(_));
+        let row = |s: &Semantics| matches!(s, Semantics::LegendRow(_));
+        assert!(has(&parts.radar, marker) && !has(&parts.legend, marker));
+        assert!(has(&parts.legend, row) && !has(&parts.radar, row));
     }
 
     /// `a` ends at or before `b` begins, give or take float noise.

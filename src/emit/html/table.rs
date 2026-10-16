@@ -8,7 +8,7 @@
 //! constants, as in `css.rs`.
 
 use super::chrome::DATA_SELECTED;
-use super::css::{OUTLINE_CLOSE, capped};
+use super::css::{OUTLINE_CLOSE, Wide, capped};
 use crate::escape::{html_attr, xml_text};
 use crate::model::{Catalogue, ColumnKind, Item, Link, NOT_ON_THE_RADAR};
 use crate::order::Plotted;
@@ -270,9 +270,9 @@ const FOCUS_OPEN: &str = "summary:focus-visible,.table-scroll:focus-visible,a:fo
 /// 1.70:1 on the dark Surface2, while the text colour is checked at 4.5:1 in
 /// both themes, and the underline keeps a link distinct (WCAG 1.4.1). No
 /// height is fixed anywhere, so 1.4.12's spacing clips nothing (D-78).
-pub(super) fn css(wide_width: f64, wide_height: f64) -> String {
+pub(super) fn css(wide: &Wide) -> String {
     [
-        &capped(CAP_OPEN, wide_width, wide_height),
+        &capped(CAP_OPEN, wide),
         HEADING_RULE,
         SUMMARY_RULE,
         SCROLL_OPEN,

@@ -36,6 +36,7 @@
     toggle: 'theme-toggle',
     skip: 'skip',
     arrangement: 'arrangement',
+    legendScroll: 'wide-scroll',
   };
 
   const root = document.documentElement;
@@ -143,9 +144,14 @@
     empty.hidden = !list.hidden;
   };
 
-  // The sticky panel must never hide what has focus (WCAG 2.4.11).
+  // The sticky panel must never hide what has focus (WCAG 2.4.11): not on
+  // the page, nor in the wide legend's own scrolling box (D-85), whose
+  // bottom can sit under the panel.
   const pad = () => {
-    root.style.scrollPaddingBottom = panel.hidden ? '' : panel.offsetHeight + 'px';
+    const by = panel.hidden ? '' : panel.offsetHeight + 'px';
+    for (const box of [root, ...document.querySelectorAll('.' + N.legendScroll)]) {
+      box.style.scrollPaddingBottom = by;
+    }
   };
   new ResizeObserver(pad).observe(panel);
 

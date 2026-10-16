@@ -14,10 +14,17 @@
 @media (forced-colors: active){:root,:root[data-theme]{--surface-1:Canvas;--surface-2:Canvas;--text-primary:CanvasText;--text-muted:CanvasText;--stroke-ring:CanvasText;--stroke-divider:CanvasText;--marker-hollow:Canvas;--focus:Highlight;}}
 body{margin:0;line-height:1.4;font-family:"Inter";background:var(--surface-1);color:var(--text-primary)}
 svg{display:block;width:100%;height:auto}
-.wide{max-width:max(1025.077px,calc(100vh*1025.077/824));margin:0 auto}
+.wide{display:grid;grid-template-columns:minmax(0,max(536px,calc((100vh - 46px)*670/659.5))) 355.077px;justify-content:center}
+.wide-title{grid-row:1;grid-column:1/-1}
+.wide-title svg{width:1025.077px;max-width:100%}
+.wide-radar{grid-row:2;grid-column:1}
+.wide-key{grid-row:3;grid-column:1}
+.wide-key svg{width:670px;max-width:100%}
+.wide-legend{grid-row:2;grid-column:2;position:relative}
+.wide-scroll{position:absolute;inset:0;overflow-y:auto}
 .narrow{max-width:420px;margin:0 auto}
 .narrow{display:none}
-@media (max-width: 819px){.wide{display:none}.narrow{display:block}}
+@media (max-width: 890px){.wide{display:none}.narrow{display:block}}
 [data-legend-row][data-hovered]>[data-row-indicator]{visibility:visible}
 [data-legend-row][data-hovered]>[data-row-indicator]>rect{stroke:var(--text-muted);stroke-width:1px;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
 [data-legend-row][data-selected]>[data-selection]{visibility:visible}
@@ -35,7 +42,7 @@ svg{display:block;width:100%;height:auto}
 [data-marker-indicator][data-selected] [data-selection]>rect{stroke:var(--text-primary);stroke-dasharray:none}
 [data-hit],[role=button]{cursor:pointer}
 .visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
-.table-heading,.table-view{max-width:max(1025.077px,calc(100vh*1025.077/824));margin-inline:auto;padding-inline:20px;box-sizing:border-box}
+.table-heading,.table-view{max-width:calc(max(536px,calc((100vh - 46px)*670/659.5)) + 355.077px);margin-inline:auto;padding-inline:20px;box-sizing:border-box}
 .table-heading{margin-block:1.5em .25em;font-size:1rem;font-weight:600}
 .table-view{margin-block-end:1.5em}
 summary{cursor:pointer;width:fit-content;padding-block:.5em;font-weight:600}
@@ -56,13 +63,13 @@ th button{all:unset;display:block;padding-block:3px;margin-block:-3px;cursor:poi
 th button:hover{text-decoration-style:solid}
 summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 [hidden]{display:none!important}
-.page-controls{display:flex;max-width:max(1025.077px,calc(100vh*1025.077/824));margin-inline:auto;padding-inline:20px;box-sizing:border-box}
+.page-controls{display:flex;max-width:calc(max(536px,calc((100vh - 46px)*670/659.5)) + 355.077px);margin-inline:auto;padding-inline:20px;box-sizing:border-box}
 .page-controls button,.detail-close{margin-block:.5em;font:inherit;padding:.4em .8em;border-radius:6px;cursor:pointer;border:1px solid var(--stroke-divider);background:var(--surface-2);color:var(--text-primary)}
 .skip{margin-inline-end:auto}
 .theme-toggle{margin-inline-start:auto}
 .skip:not(:focus){position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
 .page-controls button:focus-visible,.detail-close:focus-visible,.detail-heading:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.detail{max-width:max(1025.077px,calc(100vh*1025.077/824));margin-inline:auto;padding-inline:20px;box-sizing:border-box}
+.detail{max-width:calc(max(536px,calc((100vh - 46px)*670/659.5)) + 355.077px);margin-inline:auto;padding-inline:20px;box-sizing:border-box}
 .detail{position:sticky;bottom:.75rem;max-height:min(45vh,28em);overflow:auto;margin-block:1em;padding-block:1em;border-radius:8px;box-shadow:0 2px 12px rgb(0 0 0 / .14);background:var(--surface-2);border:1px solid var(--stroke-divider)}
 .detail-head{display:flex;justify-content:space-between;align-items:center;gap:1em}
 .detail-heading{margin:0;font-size:1.0625rem;font-weight:600}
@@ -71,21 +78,28 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 .detail dd.prose{white-space:pre-line;max-width:70ch}
 .detail dt{font-size:.75rem;font-weight:600;color:var(--text-muted)}
 .detail-empty{color:var(--text-muted)}
-@media (max-width: 819px){.detail{bottom:0;margin-block-end:0;border-inline:0;border-radius:8px 8px 0 0}}
-@media (min-width: 820px){.detail dl{display:grid;grid-template-columns:max-content 1fr;column-gap:1.5em;align-items:baseline}.detail dt{grid-column:1}.detail dd{grid-column:2}}
+@media (max-width: 890px){.detail{bottom:0;margin-block-end:0;border-inline:0;border-radius:8px 8px 0 0}}
+@media (min-width: 891px){.detail dl{display:grid;grid-template-columns:max-content 1fr;column-gap:1.5em;align-items:baseline}.detail dt{grid-column:1}.detail dd{grid-column:2}}
 </style>
 </head>
 <body>
-<main data-narrow-query="(max-width: 819px)">
+<main data-narrow-query="(max-width: 890px)">
 <div class="page-controls"><button type="button" class="skip" hidden="">Skip to the legend</button><button type="button" class="theme-toggle" hidden="">Switch to dark theme</button></div>
 <div class="arrangement wide">
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1025.077 824">
+<div class="wide-title">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1025.077 46">
 <g>
 <g transform="translate(20 10)">
 <g role="heading" aria-level="1">
 <text x="0" y="22" font-family="Inter" font-size="17" font-weight="600" fill="var(--text-primary)">Technology Radar</text>
 </g>
 </g>
+</g>
+</svg>
+</div>
+<div class="wide-radar">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 670 659.5">
+<g transform="translate(0 -46)">
 <g transform="translate(10 46)">
 <g transform="translate(330 330)" role="group" aria-label="Technology radar: 3 quadrants, 4 rings, 6 items">
 <circle cx="0" cy="0" r="260" fill="none" stroke="var(--stroke-ring)" stroke-width="1"/>
@@ -218,6 +232,12 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 </g>
 </g>
 </g>
+</g>
+</svg>
+</div>
+<div class="wide-key">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 670 118.5">
+<g transform="translate(0 -705.5)">
 <g aria-hidden="true">
 <line x1="20" y1="706" x2="660" y2="706" stroke="var(--stroke-divider)" stroke-width="1"/>
 </g>
@@ -249,6 +269,13 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 </g>
 <text x="28" y="92" font-family="Inter" font-size="11" font-weight="400" fill="var(--text-muted)">Moved out — half-ring facing the outer edge</text>
 </g>
+</g>
+</svg>
+</div>
+<div class="wide-legend">
+<div class="wide-scroll">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 355.077 432">
+<g transform="translate(-670 -46)">
 <g transform="translate(676 52)">
 <rect x="0" y="0" width="341.077" height="406" rx="8" fill="var(--surface-2)" stroke="none"/>
 <g transform="translate(12 8)">
@@ -364,6 +391,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 </g>
 </g>
 </svg>
+</div>
+</div>
+
 </div>
 <div class="arrangement narrow">
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 974.629">
@@ -707,6 +737,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
     toggle: 'theme-toggle',
     skip: 'skip',
     arrangement: 'arrangement',
+    legendScroll: 'wide-scroll',
   };
 
   const root = document.documentElement;
@@ -814,9 +845,14 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
     empty.hidden = !list.hidden;
   };
 
-  // The sticky panel must never hide what has focus (WCAG 2.4.11).
+  // The sticky panel must never hide what has focus (WCAG 2.4.11): not on
+  // the page, nor in the wide legend's own scrolling box (D-85), whose
+  // bottom can sit under the panel.
   const pad = () => {
-    root.style.scrollPaddingBottom = panel.hidden ? '' : panel.offsetHeight + 'px';
+    const by = panel.hidden ? '' : panel.offsetHeight + 'px';
+    for (const box of [root, ...document.querySelectorAll('.' + N.legendScroll)]) {
+      box.style.scrollPaddingBottom = by;
+    }
   };
   new ResizeObserver(pad).observe(panel);
 

@@ -7,6 +7,7 @@ mod table;
 
 use crate::emit::OUTPUT_VERSION;
 use crate::escape::xml_text;
+use crate::layout::arrange::WideParts;
 use crate::model::Catalogue;
 use crate::order::Plotted;
 use crate::palette::{Palette, Theme};
@@ -26,12 +27,12 @@ const MAIN_CLOSE: &str = "</main>\n";
 const BODY_CLOSE: &str = "</body>\n</html>\n";
 
 /// Everything the page is written from: the two arrangements of one
-/// `Blocks` (FR-68), and the catalogue and its order, which the table view
-/// reads (FR-78).
+/// `Blocks` (FR-68), the wide one in its parts (D-85), and the catalogue
+/// and its order, which the table view reads (FR-78).
 #[derive(Debug, Clone, Copy)]
 pub struct Page<'a> {
-    /// The wide arrangement.
-    pub wide: &'a Document,
+    /// The wide arrangement, in the parts HTML lays out (D-85).
+    pub wide: &'a WideParts,
     /// The narrow arrangement.
     pub narrow: &'a Document,
     /// Every row, as the model read it.
@@ -63,6 +64,7 @@ pub fn page(input: &Page<'_>) -> String {
         title,
     } = *input;
     let target = Target::Interactive(&Palette::built_in(Theme::Light));
+    let sizes = css::Wide::of(wide);
     let heading = if title.is_some() {
         String::new()
     } else {
@@ -76,20 +78,20 @@ pub fn page(input: &Page<'_>) -> String {
         "</title>\n<style>\n",
         &css::font_faces(),
         &css::palettes(),
-        &css::layout(wide.width, wide.height, narrow.width),
+        &css::layout(&sizes, narrow.width),
         &css::indicators(),
         css::VISUALLY_HIDDEN,
         css::HIDDEN_BOX,
-        &table::css(wide.width, wide.height),
-        &chrome::css(wide.width, wide.height),
+        &table::css(&sizes),
+        &chrome::css(&sizes),
         BODY_OPEN,
-        &chrome::main_open(&css::narrow_query(wide.width)),
+        &chrome::main_open(&css::narrow_query(&sizes)),
         &chrome::controls(),
         &heading,
         DIV_OPEN,
         chrome::ARRANGEMENT_CLASS,
         WIDE_REST,
-        &serialise(wide, target),
+        &wide_parts(wide, target),
         DIV_CLOSE,
         DIV_OPEN,
         chrome::ARRANGEMENT_CLASS,
@@ -101,6 +103,36 @@ pub fn page(input: &Page<'_>) -> String {
         MAIN_CLOSE,
         &chrome::script(),
         BODY_CLOSE,
+    ]
+    .concat()
+}
+
+/// The wide arrangement's parts in reading order (FR-68): title, radar,
+/// key, then the legend in its scrolling box. The stylesheet's grid puts
+/// the legend beside the radar (D-85).
+fn wide_parts(parts: &WideParts, target: Target<'_>) -> String {
+    let part = |class: &str, document: &Document| {
+        [
+            DIV_OPEN,
+            class,
+            "\">\n",
+            &serialise(document, target),
+            DIV_CLOSE,
+        ]
+        .concat()
+    };
+    [
+        part(css::WIDE_TITLE, &parts.title),
+        part(css::WIDE_RADAR, &parts.radar),
+        part(css::WIDE_KEY, &parts.key),
+        [
+            DIV_OPEN,
+            css::WIDE_LEGEND,
+            "\">\n",
+            &part(css::WIDE_SCROLL, &parts.legend),
+            "</div>\n",
+        ]
+        .concat(),
     ]
     .concat()
 }
