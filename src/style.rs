@@ -433,6 +433,13 @@ pub const MIN_RADAR_WIDTH: f64 = 660.0;
 /// Smaller legend styles go proportionally lower; this is not a floor for them.
 pub const MIN_LEGIBLE_PX: f64 = 10.0;
 
+/// FR-64: the narrowest `--width`, in pixels.
+pub const MIN_EXPORT_WIDTH: u32 = 320;
+/// FR-64: the widest `--width`, and the clamp for a default past it (D-87).
+pub const MAX_EXPORT_WIDTH: u32 = 10_000;
+/// D-87: the largest image drawn, `MAX_EXPORT_WIDTH` squared.
+pub const MAX_PNG_PIXELS: u64 = 100_000_000;
+
 /// WCAG 2.5.8's minimum target, in CSS pixels (FR-94).
 pub const MIN_TARGET_PX: f64 = 24.0;
 /// The narrowest viewport the narrow arrangement is held to (D-66).

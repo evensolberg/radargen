@@ -5,3 +5,7 @@ disallowed-methods = [
     { path = "str::trim_start", reason = "FR-76 (D-61): use radargen::trim" },
     { path = "str::trim_end", reason = "FR-76 (D-61): use radargen::trim" },
 ]
+
+# png 0.18 depends on miniz_oxide 0.8 directly and 0.9 through flate2;
+# neither is ours to unify (rg-42m).
+allowed-duplicate-crates = ["miniz_oxide"]

@@ -18,14 +18,19 @@ mod fonts;
 const SIZE: f64 = 12.5;
 
 /// Right edge of the laid-out advance for `text`, laid out by usvg at x=0.
-fn usvg_advance(text: &str, weight: Weight, letter_spacing: f64, opt: &usvg::Options) -> f64 {
+fn usvg_advance(
+    text: &str,
+    weight: Weight,
+    letter_spacing: f64,
+    opt: &resvg::usvg::Options,
+) -> f64 {
     let svg = format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="200">
              <text x="0" y="100" font-family="{FAMILY}" font-weight="{}" font-size="{SIZE}" letter-spacing="{letter_spacing}">{text}</text>
            </svg>"#,
         weight.css()
     );
-    let tree = usvg::Tree::from_str(&svg, opt).expect("usvg parses");
+    let tree = resvg::usvg::Tree::from_str(&svg, opt).expect("usvg parses");
     f64::from(tree.root().abs_bounding_box().right())
 }
 

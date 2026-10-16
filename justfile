@@ -236,9 +236,15 @@ focus-cost: release-build
     just lint
     cargo test --locked
     cargo deny check licenses advisories
+    just deps-features
     jq -e '.version == 2 and (.quality_score | type == "number")' rustqual-baseline.json > /dev/null
     rustqual . --compare rustqual-baseline.json --fail-on-regression --no-fail
     just browser
+
+# NFR-5, NFR-7: resvg must not pull system fonts, memmap, image decoders
+# or svgz into the build (rg-42m).
+@deps-features:
+    ! cargo tree -e features -i resvg | rg 'system-fonts|memmap|raster-images|svgz|fontconfig'
 
 # Records the current rustqual score as the baseline `just ci` compares to,
 # refusing a lower score. The baseline is from rustqual 1.8.3 (pinned in

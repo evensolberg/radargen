@@ -26,11 +26,11 @@ fn rightmost_inked_column(text: &str, weight: Weight) -> u32 {
            </svg>"#,
         weight.css()
     );
-    let tree = usvg::Tree::from_str(&svg, &opt).expect("usvg parses");
-    let mut pixmap = tiny_skia::Pixmap::new(900, 80).expect("pixmap");
+    let tree = resvg::usvg::Tree::from_str(&svg, &opt).expect("usvg parses");
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(900, 80).expect("pixmap");
     resvg::render(
         &tree,
-        tiny_skia::Transform::identity(),
+        resvg::tiny_skia::Transform::identity(),
         &mut pixmap.as_mut(),
     );
 

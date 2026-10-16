@@ -44,7 +44,7 @@ impl OutlinePen for Commands {
 /// "Inter" would silently fall back to Regular in resvg.
 #[test]
 fn both_faces_register_as_family_inter_with_their_weights() {
-    let mut db = fontdb::Database::new();
+    let mut db = resvg::usvg::fontdb::Database::new();
     db.load_font_data(REGULAR.to_vec());
     db.load_font_data(SEMIBOLD.to_vec());
     let mut seen: Vec<(String, u16)> = db

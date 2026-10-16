@@ -144,9 +144,13 @@ fn the_themes_differ_only_in_paint() {
 /// The centre pixel of `document` rendered by resvg for `target`.
 fn centre(document: &Document, target: Target<'_>) -> (u8, u8, u8) {
     let markup = serialise(document, target);
-    let tree = usvg::Tree::from_str(&markup, &fonts::usvg_options()).expect("parses");
-    let mut pixmap = tiny_skia::Pixmap::new(10, 10).expect("a pixmap");
-    resvg::render(&tree, tiny_skia::Transform::default(), &mut pixmap.as_mut());
+    let tree = resvg::usvg::Tree::from_str(&markup, &fonts::usvg_options()).expect("parses");
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(10, 10).expect("a pixmap");
+    resvg::render(
+        &tree,
+        resvg::tiny_skia::Transform::default(),
+        &mut pixmap.as_mut(),
+    );
     let pixel = pixmap.pixel(5, 5).expect("in range");
     (pixel.red(), pixel.green(), pixel.blue())
 }
@@ -177,13 +181,13 @@ fn static_colours_are_what_resvg_paints() {
     assert_eq!(centre(&document, Target::Interactive(&palette)), (0, 0, 0));
 }
 
-fn texts_in(group: &usvg::Group) -> usize {
+fn texts_in(group: &resvg::usvg::Group) -> usize {
     group
         .children()
         .iter()
         .map(|child| match child {
-            usvg::Node::Group(g) => texts_in(g),
-            usvg::Node::Text(_) => 1,
+            resvg::usvg::Node::Group(g) => texts_in(g),
+            resvg::usvg::Node::Text(_) => 1,
             _ => 0,
         })
         .sum()
@@ -199,7 +203,7 @@ fn resvg_reads_every_text_of_the_static_output() {
             &arrange(arrangement, &built.blocks),
             Target::Static(&palette),
         );
-        let tree = usvg::Tree::from_str(&markup, &fonts::usvg_options()).expect("parses");
+        let tree = resvg::usvg::Tree::from_str(&markup, &fonts::usvg_options()).expect("parses");
         let ours = parse(&markup)
             .descendants()
             .filter(|n| n.has_tag_name("text"))

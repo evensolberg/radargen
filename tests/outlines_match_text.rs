@@ -249,22 +249,26 @@ fn build() -> Built {
     }
 }
 
-fn render(svg: &str, w: u32, h: u32) -> tiny_skia::Pixmap {
-    let mut db = fontdb::Database::new();
+fn render(svg: &str, w: u32, h: u32) -> resvg::tiny_skia::Pixmap {
+    let mut db = resvg::usvg::fontdb::Database::new();
     db.load_font_data(TTF.to_vec());
-    let opt = usvg::Options {
+    let opt = resvg::usvg::Options {
         fontdb: Arc::new(db),
         font_family: FAMILY.to_string(),
-        ..usvg::Options::default()
+        ..resvg::usvg::Options::default()
     };
-    let tree = usvg::Tree::from_str(svg, &opt).expect("usvg parses");
-    let mut pm = tiny_skia::Pixmap::new(w, h).expect("pixmap");
-    resvg::render(&tree, tiny_skia::Transform::identity(), &mut pm.as_mut());
+    let tree = resvg::usvg::Tree::from_str(svg, &opt).expect("usvg parses");
+    let mut pm = resvg::tiny_skia::Pixmap::new(w, h).expect("pixmap");
+    resvg::render(
+        &tree,
+        resvg::tiny_skia::Transform::identity(),
+        &mut pm.as_mut(),
+    );
     pm
 }
 
 /// Differing subpixels, and the worst single-channel delta.
-fn compare(a: &tiny_skia::Pixmap, b: &tiny_skia::Pixmap) -> (usize, u8) {
+fn compare(a: &resvg::tiny_skia::Pixmap, b: &resvg::tiny_skia::Pixmap) -> (usize, u8) {
     let differing = a
         .data()
         .iter()

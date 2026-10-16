@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use crate::diagnostics::{Fatal, Flag, RenderKind, Warning, Warnings};
 use crate::escape::remove_undisplayable;
 pub use crate::palette::Theme;
+use crate::style::{MAX_EXPORT_WIDTH, MIN_EXPORT_WIDTH};
 
 /// The output format, inferred from the `-o` extension (FR-52).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -97,7 +98,7 @@ pub struct Cli {
     ///
     /// From 320 to 10000; the height follows. An HTML page fits the reader's
     /// window.
-    #[arg(short, long, value_parser = clap::value_parser!(u32).range(320..=10_000))]
+    #[arg(short, long, value_parser = clap::value_parser!(u32).range(i64::from(MIN_EXPORT_WIDTH)..=i64::from(MAX_EXPORT_WIDTH)))]
     pub width: Option<u32>,
 
     // FR-99, D-83: the tool writes the template, so it always matches the

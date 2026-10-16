@@ -107,10 +107,10 @@ fn split(node: &Node, fonts: &Fonts, shift: f64) -> Node {
     }
 }
 
-fn raster(document: &Document) -> tiny_skia::Pixmap {
+fn raster(document: &Document) -> resvg::tiny_skia::Pixmap {
     let palette = Palette::built_in(Theme::Light);
     let markup = serialise(document, Target::Static(&palette));
-    let tree = usvg::Tree::from_str(&markup, &fonts::usvg_options()).expect("parses");
+    let tree = resvg::usvg::Tree::from_str(&markup, &fonts::usvg_options()).expect("parses");
     let size = tree.size();
     #[expect(
         clippy::cast_possible_truncation,
@@ -122,17 +122,17 @@ fn raster(document: &Document) -> tiny_skia::Pixmap {
         (size.width() * ZOOM).ceil() as u32,
         (size.height() * ZOOM).ceil() as u32,
     );
-    let mut pixmap = tiny_skia::Pixmap::new(w, h).expect("a pixmap");
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(w, h).expect("a pixmap");
     resvg::render(
         &tree,
-        tiny_skia::Transform::from_scale(ZOOM, ZOOM),
+        resvg::tiny_skia::Transform::from_scale(ZOOM, ZOOM),
         &mut pixmap.as_mut(),
     );
     pixmap
 }
 
 /// How many pixels differ between two rasters of the same size.
-fn differing(a: &tiny_skia::Pixmap, b: &tiny_skia::Pixmap) -> usize {
+fn differing(a: &resvg::tiny_skia::Pixmap, b: &resvg::tiny_skia::Pixmap) -> usize {
     assert_eq!(
         (a.width(), a.height()),
         (b.width(), b.height()),
