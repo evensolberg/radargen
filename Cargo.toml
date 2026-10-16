@@ -23,13 +23,14 @@ unicode-properties = { version = "0.1.4", default-features = false, features = [
 # image decoders, no svgz. usvg sees only the font database the emitter
 # builds.
 resvg = { version = "0.48", default-features = false, features = ["text"] }
+# SVG export (D-88): glyph outlines, read only by text.rs. The version usvg
+# reads fonts with, sharing read-fonts with harfrust, so no second copy
+# builds (rg-v3a).
+skrifa = { version = "0.44", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 sha2 = "0.11.1"
 roxmltree = "0.21"
-# The version usvg reads fonts with, so the tests read them the same way and
-# no second copy builds; it moves with usvg (rg-v3a).
-skrifa = { version = "0.44", default-features = false, features = ["std"] }
 html5ever = "0.39"
 markup5ever_rcdom = "0.39"
 

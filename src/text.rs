@@ -36,7 +36,7 @@ pub const NUMBER_CENTRING: f64 = f64::midpoint(TEXT_ASCENT, -TEXT_DESCENT);
 
 /// FR-85 pins exactly two weights; FR-35 separates the legend's levels with
 /// them plus size, letter-spacing and indentation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Weight {
     /// Inter Regular, 400.
     Regular,
@@ -101,9 +101,80 @@ impl Fonts {
 /// One face, ready to shape. Measurement goes through `harfrust`, the shaper
 /// `resvg` 0.48 lays text out with, so FR-79's wrap points agree with the
 /// rasterised output by construction (FR-84, D-67).
+///
+/// The exported SVG places and outlines its glyphs from the same face (D-88).
 pub struct FontMetrics<'a> {
     font: FontRef<'a>,
     data: ShaperData,
+    face: &'static str,
+    upem: f64,
+}
+
+/// One glyph as the shaper lays it out, in font units (FR-84).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShapedGlyph {
+    /// The glyph's id in its face.
+    pub id: u32,
+    /// The character cluster it belongs to; a letter-spacing gap falls
+    /// between clusters, never inside one.
+    pub cluster: u32,
+    /// How far the pen moves past it.
+    pub x_advance: i32,
+    /// How far it sits right of the pen.
+    pub x_offset: i32,
+    /// How far it sits above the baseline.
+    pub y_offset: i32,
+}
+
+/// Where one glyph is drawn: user units from its line's start, y down.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Placed {
+    /// The glyph's id in its face.
+    pub glyph: u32,
+    /// From the line's start.
+    pub x: f64,
+    /// From the baseline, down.
+    pub y: f64,
+}
+
+/// One step of a glyph's contours, in font units, y up (D-88).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Segment {
+    /// Start a contour.
+    MoveTo(f32, f32),
+    /// A straight edge.
+    LineTo(f32, f32),
+    /// A quadratic curve: control point, end.
+    QuadTo(f32, f32, f32, f32),
+    /// A cubic curve: two control points, end.
+    CurveTo(f32, f32, f32, f32, f32, f32),
+    /// Close the contour.
+    Close,
+}
+
+/// Collects skrifa's pen calls, so skrifa stays private to this module.
+struct Segments(Vec<Segment>);
+
+impl skrifa::outline::OutlinePen for Segments {
+    fn move_to(&mut self, x: f32, y: f32) {
+        self.0.push(Segment::MoveTo(x, y));
+    }
+
+    fn line_to(&mut self, x: f32, y: f32) {
+        self.0.push(Segment::LineTo(x, y));
+    }
+
+    fn quad_to(&mut self, cx: f32, cy: f32, x: f32, y: f32) {
+        self.0.push(Segment::QuadTo(cx, cy, x, y));
+    }
+
+    fn curve_to(&mut self, c1x: f32, c1y: f32, c2x: f32, c2y: f32, x: f32, y: f32) {
+        self.0.push(Segment::CurveTo(c1x, c1y, c2x, c2y, x, y));
+    }
+
+    fn close(&mut self) {
+        self.0.push(Segment::Close);
+    }
 }
 
 impl<'a> FontMetrics<'a> {
@@ -119,21 +190,22 @@ impl<'a> FontMetrics<'a> {
             reason: e.to_string(),
         })?;
         let data = ShaperData::new(&font);
-        Ok(Self { font, data })
+        let upem = f64::from(data.shaper(&font).build().units_per_em());
+        Ok(Self {
+            font,
+            data,
+            face,
+            upem,
+        })
     }
 
-    /// Advance width of `text` in pixels at `size_px`, with `letter_spacing_px`
-    /// applied between clusters, as resvg applies it.
-    ///
-    /// Shaped, not summed from raw `hmtx` advances: the naive sum ignores
-    /// GPOS kerning, which the rasteriser applies (D-42). The buffer is set
-    /// up as `usvg` sets it up — left to right (A-4 keeps input out of
-    /// right-to-left scripts), segment properties guessed, default options —
-    /// so the two shape identically.
+    /// `text` shaped as `usvg` shapes it: left to right (A-4 keeps input out
+    /// of right-to-left scripts), segment properties guessed, default
+    /// options, so the two shape identically.
     #[must_use]
-    pub fn measure(&self, text: &str, size_px: f64, letter_spacing_px: f64) -> f64 {
+    pub fn shape(&self, text: &str) -> Vec<ShapedGlyph> {
         if text.is_empty() {
-            return 0.0;
+            return Vec::new();
         }
         // A built shaper borrows the font and its data, so it is built per
         // call rather than stored; `usvg` does the same.
@@ -143,12 +215,39 @@ impl<'a> FontMetrics<'a> {
         buffer.set_direction(Direction::LeftToRight);
         buffer.guess_segment_properties();
         let output = shaper.shape(buffer, ShapeOptions::new());
-        let units: i32 = output.glyph_positions().iter().map(|p| p.x_advance).sum();
+        output
+            .glyph_infos()
+            .iter()
+            .zip(output.glyph_positions())
+            .map(|(info, position)| ShapedGlyph {
+                id: info.glyph_id,
+                cluster: info.cluster,
+                x_advance: position.x_advance,
+                x_offset: position.x_offset,
+                y_offset: position.y_offset,
+            })
+            .collect()
+    }
+
+    /// The face's units per em.
+    #[must_use]
+    pub const fn units_per_em(&self) -> f64 {
+        self.upem
+    }
+
+    /// Advance width of `text` in pixels at `size_px`, with `letter_spacing_px`
+    /// applied between clusters, as resvg applies it.
+    ///
+    /// Shaped, not summed from raw `hmtx` advances: the naive sum ignores
+    /// GPOS kerning, which the rasteriser applies (D-42).
+    #[must_use]
+    pub fn measure(&self, text: &str, size_px: f64, letter_spacing_px: f64) -> f64 {
+        let shaped = self.shape(text);
+        let units: i32 = shaped.iter().map(|g| g.x_advance).sum();
         // FR-84: one gap between clusters, none after the last, as resvg
         // applies letter-spacing. A combining mark that stays a separate glyph
         // shares its base's cluster and earns no gap of its own.
-        let boundaries = output
-            .glyph_infos()
+        let boundaries = shaped
             .windows(2)
             .filter(|pair| matches!(pair, [a, b] if a.cluster != b.cluster))
             .count();
@@ -158,13 +257,70 @@ impl<'a> FontMetrics<'a> {
             reason = "usize has no lossless conversion to f64, and f64 holds every integer up to 2^53 exactly; a cluster count is far below that"
         )]
         let gaps = boundaries as f64;
-        let upem = f64::from(shaper.units_per_em());
         #[expect(
             clippy::suboptimal_flops,
             reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
         )]
-        let width = f64::from(units) * size_px / upem + gaps * letter_spacing_px;
+        let width = f64::from(units) * size_px / self.upem + gaps * letter_spacing_px;
         width
+    }
+
+    /// Where each glyph of `text` is drawn at `size_px`, with
+    /// `letter_spacing_px` between clusters as [`Self::measure`] counts it
+    /// (D-88).
+    #[must_use]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    pub fn place(&self, text: &str, size_px: f64, letter_spacing_px: f64) -> Vec<Placed> {
+        let scale = size_px / self.upem;
+        let mut pen = 0.0;
+        let mut previous = None;
+        self.shape(text)
+            .into_iter()
+            .map(|glyph| {
+                if previous.is_some_and(|cluster| cluster != glyph.cluster) {
+                    pen += letter_spacing_px;
+                }
+                previous = Some(glyph.cluster);
+                let placed = Placed {
+                    glyph: glyph.id,
+                    x: pen + f64::from(glyph.x_offset) * scale,
+                    y: -f64::from(glyph.y_offset) * scale,
+                };
+                pen += f64::from(glyph.x_advance) * scale;
+                placed
+            })
+            .collect()
+    }
+
+    /// Glyph `glyph`'s contours in font units, y up, unhinted.
+    ///
+    /// # Errors
+    ///
+    /// [`FontError`] when the face has no such glyph or cannot draw it:
+    /// the shaper produced an id its own face does not hold (NFR-15).
+    pub fn outline(&self, glyph: u32) -> Result<Vec<Segment>, FontError> {
+        use skrifa::MetadataProvider as _;
+        use skrifa::instance::{LocationRef, Size};
+        use skrifa::outline::DrawSettings;
+        let fail = |reason: String| FontError {
+            face: self.face,
+            reason,
+        };
+        let outlines = self.font.outline_glyphs();
+        let found = outlines
+            .get(skrifa::GlyphId::new(glyph))
+            .ok_or_else(|| fail(format!("glyph {glyph} is not in the face")))?;
+        let mut segments = Segments(Vec::new());
+        found
+            .draw(
+                DrawSettings::unhinted(Size::unscaled(), LocationRef::default()),
+                &mut segments,
+            )
+            .map_err(|e| fail(format!("glyph {glyph} cannot be outlined: {e}")))?;
+        Ok(segments.0)
     }
 }
 
@@ -314,5 +470,121 @@ mod tests {
             assert!((m.descent + 494.0).abs() < f32::EPSILON, "{}", m.descent);
             assert!(m.leading.abs() < f32::EPSILON, "{}", m.leading);
         }
+    }
+
+    /// The corpus `measure_keeps_its_bits` pins: both weights, the sizes the
+    /// layout uses, spacings binary cannot represent exactly, a no-break
+    /// space, a combining mark, and kerned pairs.
+    const PINNED: [(Weight, &str, f64, f64); 8] = [
+        (Weight::Regular, "Kubernetes", 12.5, 0.0),
+        (Weight::SemiBold, "PLATFORMS", 11.0, 0.8),
+        (Weight::Regular, "AV Wa. To", 17.0, 0.0),
+        (Weight::Regular, "\u{a0}· New", 10.5, 0.2),
+        (Weight::SemiBold, "Technology Radar", 17.0, 0.0),
+        (Weight::Regular, "Cafe\u{301} Zu\u{308}rich", 12.0, 0.3),
+        (Weight::SemiBold, "12", 9.0, 0.0),
+        (Weight::Regular, "Infrastructure as Code", 12.5, 0.1),
+    ];
+
+    /// The pre-rebuild `measure`'s bits for [`PINNED`], recorded at deb1852.
+    const RECORDED: [u64; 8] = [
+        4_634_466_971_641_970_688,
+        4_634_866_547_911_399_834,
+        4_635_472_646_824_263_680,
+        4_629_752_025_263_898_624,
+        4_639_433_018_988_036_096,
+        4_634_562_869_671_755_776,
+        4_621_488_714_344_824_832,
+        4_638_939_875_997_070_131,
+    ];
+
+    /// D-88: rebuilding `measure` on `shape` moves no bit of any width, so
+    /// no wrap point and no golden moves.
+    #[test]
+    fn measure_keeps_its_bits() {
+        let fonts = Fonts::embedded().expect("loads");
+        let got: Vec<u64> = PINNED
+            .iter()
+            .map(|&(w, text, size, spacing)| fonts.face(w).measure(text, size, spacing).to_bits())
+            .collect();
+        assert_eq!(got, RECORDED, "{got:?}");
+    }
+
+    /// Placing and measuring share one shaping pass: the pen ends where
+    /// `measure` says the line does, to well under NFR-17's precision. Not
+    /// bit-equal: `place` adds spacing gap by gap, `measure` all at once.
+    #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    fn place_ends_where_measure_does() {
+        let fonts = Fonts::embedded().expect("loads");
+        for &(weight, text, size, spacing) in &PINNED {
+            let face = fonts.face(weight);
+            let shaped = face.shape(text);
+            let placed = face.place(text, size, spacing);
+            let (last, glyph) = (
+                placed.last().expect("glyphs"),
+                shaped.last().expect("glyphs"),
+            );
+            let scale = size / face.units_per_em();
+            let end =
+                last.x - f64::from(glyph.x_offset) * scale + f64::from(glyph.x_advance) * scale;
+            let measured = face.measure(text, size, spacing);
+            assert!(
+                (end - measured).abs() < 1e-9,
+                "{text:?} at {size}: {end} vs {measured}"
+            );
+        }
+    }
+
+    /// Spacing falls between clusters, not after the last, and never inside
+    /// one (FR-84).
+    #[test]
+    fn spacing_falls_between_clusters() {
+        let fonts = Fonts::embedded().expect("loads");
+        let face = fonts.face(Weight::Regular);
+        let tight = face.place("AB", 12.0, 0.0);
+        let loose = face.place("AB", 12.0, 2.0);
+        assert_eq!(
+            tight.first().map(|g| g.x),
+            Some(0.0),
+            "the first glyph starts the line"
+        );
+        let second = |p: &[Placed]| p.get(1).expect("two glyphs").x;
+        assert!(
+            (second(&loose) - second(&tight) - 2.0).abs() < 1e-12,
+            "one gap before B"
+        );
+        assert!(
+            (face.measure("AB", 12.0, 2.0) - face.measure("AB", 12.0, 0.0) - 2.0).abs() < 1e-12,
+            "none after B"
+        );
+        // e + U+0301 is one cluster: when the mark stays its own glyph, it
+        // gains no gap of its own.
+        if face.shape("e\u{301}x").len() == 3 {
+            let marked = face.place("e\u{301}x", 12.0, 2.0);
+            let plain = face.place("e\u{301}x", 12.0, 0.0);
+            let mark = |p: &[Placed]| p.get(1).expect("the mark").x;
+            assert!(
+                (mark(&marked) - mark(&plain)).abs() < 1e-12,
+                "no gap inside a cluster"
+            );
+        }
+    }
+
+    /// A shaped glyph has contours; a space has none; an id the face lacks
+    /// is an error.
+    #[test]
+    fn shaped_glyphs_outline() {
+        let fonts = Fonts::embedded().expect("loads");
+        let face = fonts.face(Weight::SemiBold);
+        let [k, space] = face.shape("K ").try_into().expect("two glyphs");
+        let ink = face.outline(k.id).expect("draws");
+        assert!(matches!(ink.first(), Some(Segment::MoveTo(..))), "{ink:?}");
+        assert!(matches!(ink.last(), Some(Segment::Close)), "{ink:?}");
+        assert_eq!(face.outline(space.id).expect("draws"), []);
+        assert!(face.outline(u32::MAX).is_err(), "no such glyph");
     }
 }
