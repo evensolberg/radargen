@@ -71,3 +71,19 @@ fn two_processes_draw_the_same_png() {
         );
     }
 }
+
+/// NFR-4, SC-8 for SVG: two processes write the same bytes, in both
+/// themes, at a width, and over the hostile case. Written after the
+/// export, so a regression lock rather than a first failing test.
+#[test]
+fn two_processes_write_the_same_svg() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    for (csv, args) in [
+        (PRD, &["--theme", "dark", "--width", "1200"][..]),
+        (HOSTILE, &["--title", "</title><svg onload=x>"][..]),
+    ] {
+        let first = render(dir.path(), csv, "first.svg", args);
+        let second = render(dir.path(), csv, "second.svg", args);
+        assert!(first == second, "NFR-4: two processes, one SVG");
+    }
+}

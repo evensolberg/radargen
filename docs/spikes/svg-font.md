@@ -142,6 +142,8 @@ does not bite on vendoring a subset inside a tool.
   `ttf-parser`, now unmaintained (RUSTSEC-2026-0192), gave way to `skrifa`,
   which usvg already builds; the tests read outlines with it, and
   `emit/svg.rs` will too (rg-8im).*
+- *Superseded, 2026-10-16: the converter is a text mode of the serialiser,
+  and `emit/svg.rs` is thin (D-88).*
 - **The estimate moves.** §14.2 costs "PNG + SVG export" at 1–1.5 days with SVG
   "effectively free once rasterisation works". That is no longer true — call the
   SVG half a day to a day on its own. Still v1.1, still small.

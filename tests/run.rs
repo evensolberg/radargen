@@ -482,20 +482,13 @@ fn a_hard_link_to_the_input_is_the_input() {
 }
 
 #[test]
-fn bad_extensions_and_svg() {
+fn bad_extensions() {
     let dir = seeded(&[("radar.csv", PRD)]);
     let before = snapshot(dir.path());
     let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.txt"]);
     assert_eq!(
         ran.lines(),
-        ["error: -o radar.txt: the output file name must end in .html or .png"]
-    );
-    let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.svg"]);
-    assert!(!ran.ok());
-    assert!(
-        ran.stderr.contains("arrives in radargen 1.2"),
-        "{}",
-        ran.stderr
+        ["error: -o radar.txt: the output file name must end in .html, .png or .svg"]
     );
     assert_eq!(snapshot(dir.path()), before);
 }
@@ -784,32 +777,42 @@ fn an_upper_case_png_extension_renders() {
     assert!(png(dir.path(), "RADAR.PNG").width() > 0);
 }
 
-/// D-74 holds for PNG: the input under a .png name is refused, untouched.
+/// D-74 for the static formats: the input under a .png or .svg name is
+/// refused, untouched.
 #[test]
-fn a_png_output_that_is_the_input_is_refused() {
-    let dir = seeded(&[("data.png", PRD)]);
-    let before = snapshot(dir.path());
-    let ran = run_in(dir.path(), &["data.png", "-o", "data.png"]);
-    assert_eq!(
-        ran.lines(),
-        ["error: -o data.png: is the input CSV; choose another output path"]
-    );
-    assert_eq!(ran.code, Some(1));
-    assert_eq!(snapshot(dir.path()), before);
+fn a_static_output_that_is_the_input_is_refused() {
+    for name in ["data.png", "data.svg"] {
+        let dir = seeded(&[(name, PRD)]);
+        let before = snapshot(dir.path());
+        let ran = run_in(dir.path(), &[name, "-o", name]);
+        assert_eq!(
+            ran.lines(),
+            [format!(
+                "error: -o {name}: is the input CSV; choose another output path"
+            )]
+        );
+        assert_eq!(ran.code, Some(1));
+        assert_eq!(snapshot(dir.path()), before);
+    }
 }
 
-/// NFR-14, SC-18: a PNG into a directory that is not there fails cleanly.
+/// NFR-14, SC-18, FR-62: a PNG or SVG into a directory that is not there
+/// fails cleanly, with its exact line.
 #[test]
-fn a_png_into_a_missing_directory_fails() {
-    let dir = seeded(&[("radar.csv", PRD)]);
-    let before = snapshot(dir.path());
-    let ran = run_in(dir.path(), &["radar.csv", "-o", "nowhere/radar.png"]);
-    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
-    assert_eq!(
-        ran.lines(),
-        ["error: -o nowhere/radar.png: the directory nowhere does not exist"]
-    );
-    assert_eq!(snapshot(dir.path()), before);
+fn a_static_output_into_a_missing_directory_fails() {
+    for name in ["nowhere/radar.png", "nowhere/radar.svg"] {
+        let dir = seeded(&[("radar.csv", PRD)]);
+        let before = snapshot(dir.path());
+        let ran = run_in(dir.path(), &["radar.csv", "-o", name]);
+        assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+        assert_eq!(
+            ran.lines(),
+            [format!(
+                "error: -o {name}: the directory nowhere does not exist"
+            )]
+        );
+        assert_eq!(snapshot(dir.path()), before);
+    }
 }
 
 /// D-87, SC-18: an image past the area cap fails, writes nothing, and
@@ -901,4 +904,155 @@ fn a_png_of_hostile_text_renders() {
     let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.png"]);
     assert!(ran.ok(), "{}", ran.stderr);
     assert!(png(dir.path(), "radar.png").width() > 0);
+}
+
+// ---- SVG (FR-54, FR-57, FR-71, D-88)
+
+/// The root's `width`, parsed.
+fn root_width(svg: &str) -> f64 {
+    let parsed = roxmltree::Document::parse(svg).expect("well-formed");
+    parsed
+        .root_element()
+        .attribute("width")
+        .expect("a width")
+        .parse()
+        .expect("a number")
+}
+
+/// FR-54, FR-57, D-88: a standalone SVG at --width, its height in proportion.
+#[test]
+fn renders_an_svg_at_the_width_asked() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let ran = run_in(
+        dir.path(),
+        &[
+            "radar.csv",
+            "-o",
+            "radar.SVG",
+            "--width",
+            "1920",
+            "--theme",
+            "dark",
+        ],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    let svg = read(dir.path(), "radar.SVG");
+    assert!(
+        svg.starts_with("<!-- radargen 1."),
+        "{}",
+        svg.lines().next().unwrap_or_default()
+    );
+    assert_eq!(root_width(&svg), 1920.0);
+    assert!(!svg.contains("<text") && svg.ends_with("</svg>\n"));
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "max.svg", "--width", "10000"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert_eq!(ran.lines(), [FR17], "only the example's own warning");
+    assert_eq!(root_width(&read(dir.path(), "max.svg")), 10_000.0);
+}
+
+/// D-88: the PNG's clamp and small-text warnings are not the SVG's.
+#[test]
+fn an_svg_gives_no_png_warnings() {
+    let dir = seeded(&[("radar.csv", &too_wide())]);
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "wide.svg"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert!(ran.lines().is_empty(), "no warning: {}", ran.stderr);
+    assert!(
+        root_width(&read(dir.path(), "wide.svg")) > 12_500.0,
+        "not clamped"
+    );
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "narrow.svg", "--width", "320"],
+    );
+    assert!(ran.ok() && ran.lines().is_empty(), "{}", ran.stderr);
+}
+
+/// SC-18: a run that fails after `-o` exists leaves it byte-identical.
+#[test]
+fn a_failed_svg_run_leaves_the_old_file() {
+    let dir = seeded(&[("radar.csv", PRD), ("bad.csv", ROW_ERRORS)]);
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.svg"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    let before = snapshot(dir.path());
+    let ran = run_in(dir.path(), &["bad.csv", "-o", "radar.svg"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert_eq!(snapshot(dir.path()), before);
+}
+
+/// The edges: a header-only CSV, and a subtitle with no title.
+#[test]
+fn an_empty_or_subtitled_svg_renders() {
+    let dir = seeded(&[("empty.csv", HEAD), ("radar.csv", PRD)]);
+    let ran = run_in(dir.path(), &["empty.csv", "-o", "empty.svg"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    roxmltree::Document::parse(&read(dir.path(), "empty.svg")).expect("well-formed");
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "sub.svg", "--subtitle", "Edition 2026.2"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    let svg = read(dir.path(), "sub.svg");
+    assert!(
+        svg.contains("<title>Technology Radar</title>"),
+        "D-75's fallback"
+    );
+    assert!(
+        svg.contains("aria-label=\"Edition 2026.2\""),
+        "the subtitle is named"
+    );
+}
+
+/// NFR-7: names in scripts Inter lacks still export, escaped.
+#[test]
+fn an_svg_of_hostile_text_renders() {
+    let csv =
+        format!("{HEAD}Кафка,Tools,Adopt,d\n東京,Tools,Trial,d\n\"😀 <b>&amp;\",Tools,Assess,d\n");
+    let dir = seeded(&[("radar.csv", &csv)]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.svg", "--title", "</title>]]>"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    let svg = read(dir.path(), "radar.svg");
+    assert!(
+        svg.contains("<title>&lt;/title&gt;]]&gt;</title>"),
+        "escaped"
+    );
+    roxmltree::Document::parse(&svg).expect("well-formed");
+}
+
+/// FR-71, FR-56 end to end: the binary's export is the library's golden,
+/// so the CLI arranges wide, binds the theme and passes the title.
+#[test]
+fn the_cli_writes_the_golden_exports() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    for (theme, golden) in [("light", "prd-light.svg"), ("dark", "prd-dark.svg")] {
+        let ran = run_in(
+            dir.path(),
+            &[
+                "radar.csv",
+                "-o",
+                golden,
+                "--theme",
+                theme,
+                "--title",
+                "Technology Radar",
+            ],
+        );
+        assert!(ran.ok(), "{}", ran.stderr);
+        let want = fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/golden/svg")
+                .join(golden),
+        )
+        .expect("the golden");
+        assert!(
+            read(dir.path(), golden) == want,
+            "{golden}: the binary's export is the golden"
+        );
+    }
 }

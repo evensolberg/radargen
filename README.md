@@ -1,7 +1,7 @@
 # radargen
 
-Render a technology radar from a CSV to a self-contained HTML page or a PNG
-image; SVG arrives in 1.2. One binary, no runtime, no network.
+Render a technology radar from a CSV to a self-contained HTML page, a PNG
+image or an SVG file. One binary, no runtime, no network.
 
 Two things distinguish it from the industry-standard renderer: an **arbitrary
 number of quadrants** rather than a hardcoded four, and a **configurable ring
@@ -51,20 +51,27 @@ The table view shows every column. Values are matched in any case. A blank optio
 ```sh
 radargen radar.csv -o radar.png
 radargen radar.csv -o slide.png --theme dark --width 1920
+radargen radar.csv -o radar.svg --theme dark
 ```
 
 A `.png` output (in any case) draws the wide arrangement: the title, the radar, the key and the full legend, on the theme's background. `--theme light` (the default) or `--theme dark` picks the colours, and `--width` picks the width in pixels, from 320 to 10000, with the height following. Without `--width` the image is the radar's own width. An HTML page ignores both flags: it carries both themes and fits the reader's window.
 
 - **Limits.** A radar wider than 10,000 pixels is drawn 10,000 wide, with a warning. A `--width` small enough that the text can't be read gets a warning naming a width that fixes it. An image past 100 megapixels is refused before the image is drawn; a smaller `--width` fixes it.
 - **Long legends.** The legend is drawn in full, so a long one makes a tall image, which a slide then shrinks. A larger `--width`, or splitting the CSV, helps.
-- **Scripts.** The bundled font covers Latin, Greek, Cyrillic and Vietnamese. Names in other scripts, and emoji, draw as boxes in the PNG; the HTML page falls back to the reader's fonts.
+- **Scripts.** The bundled font covers Latin, Greek, Cyrillic and Vietnamese. Names in other scripts, and emoji, draw as boxes in the PNG and the SVG; the HTML page falls back to the reader's fonts.
 - **Accessibility.** An image has no text alternative. Write alt text where you place the PNG, and link the HTML page or the CSV as the full description.
+
+A `.svg` output draws the same wide arrangement as the PNG, as vectors: sharp at any size, and editable in PowerPoint, Figma or Illustrator. `--theme` picks its colours, and `--width` sets its size, with the height following.
+
+- **Text as shapes.** The text is drawn as outlines, so the file needs no font and looks the same everywhere; its words cannot be selected or searched.
+- **Accessibility.** Opened directly in a browser, a screen reader reads its title, its headings and each label. Placed in a page or a slide, it is an image: give it alt text there, and link the HTML page or the CSV as the full description.
+- **The background.** The theme's background is part of the drawing. Deleting it in an editor puts dark-theme text on whatever lies behind.
+- **Pasting inline.** Two exports pasted inline into one web page share their glyph names and draw each other's text. Place each as an image (`<img src>`) instead.
 
 ## Status
 
 The specification is in [`docs/product/radargen-prd.md`](docs/product/radargen-prd.md).
-1.1 writes HTML and PNG. SVG arrives in 1.2, and a `-o` naming `.svg` fails
-with a message saying so.
+1.2 writes HTML, PNG and SVG.
 
 ## Documentation
 

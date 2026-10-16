@@ -9,7 +9,7 @@ use std::num::NonZeroU8;
 pub mod serialise;
 mod tail;
 
-pub use serialise::{Target, serialise};
+pub use serialise::{Standalone, Target, serialise, standalone};
 pub use tail::Tail;
 
 use crate::palette::{Neutral, Role};
@@ -186,6 +186,14 @@ pub struct Document {
     pub root: Node,
 }
 
+impl Document {
+    /// FR-57: the height at `width`, following the document's own aspect.
+    #[must_use]
+    pub fn height_at(&self, width: f64) -> f64 {
+        width * self.height / self.width
+    }
+}
+
 /// Children translated together; a group never scales (FR-70).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Group {
@@ -304,11 +312,10 @@ pub enum Node {
 
 impl Node {
     /// Where a text's tail is drawn: the last line's drawn end plus the gap,
-    /// as a browser places the `dx` tspan at default spacing. PR 17's
-    /// outliner, which has no browser, places tails here. `None` for
+    /// as a browser places the `dx` tspan at default spacing. The exported
+    /// SVG's outliner, which has no browser, places tails here (D-88). `None` for
     /// anything without a tail.
     #[must_use]
-    // qual:api — PR 17's outliner is its first production caller
     pub fn tail_x(&self, fonts: &Fonts) -> Option<f64> {
         let Self::Text {
             origin,

@@ -746,21 +746,13 @@ fn fatal_messages() {
             Fatal::UnrecognisedExtension {
                 path: "radar.pdf".into(),
             },
-            "error: -o radar.pdf: the output file name must end in .html or .png",
+            "error: -o radar.pdf: the output file name must end in .html, .png or .svg",
         ),
         (
             Fatal::UnrecognisedExtension {
                 path: "radar".into(),
             },
-            "error: -o radar: the output file name must end in .html or .png",
-        ),
-        (
-            Fatal::FormatNotInThisVersion {
-                path: "radar.svg".into(),
-                ext: "svg".into(),
-                arrives_in: "1.2",
-            },
-            "error: -o radar.svg: .svg output arrives in radargen 1.2; this version writes .html and .png",
+            "error: -o radar: the output file name must end in .html, .png or .svg",
         ),
         (
             Fatal::Rasterise {

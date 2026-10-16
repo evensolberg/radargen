@@ -1,7 +1,7 @@
 ---
 id: rg-m2l
 title: 'PR 17: SVG export with outlined, deduplicated text'
-status: blocked
+status: closed
 type: feature
 priority: 2
 tags:
@@ -10,6 +10,7 @@ tags:
 - output
 created: 2026-10-08
 updated: 2026-10-16
+closed_reason: 'PR 17: SVG export (1.2.0)'
 blocks:
 - rg-5uf
 blocked_by:
@@ -28,3 +29,7 @@ Architecture §11: a converter, not a serialiser. Glyph outlines via ttf-parser,
 [2026-10-12] From PR 14c (D-78): Node::Text may carry a tail (the legend inline meta). The HTML writes it as a dx tspan; the outliner has no browser, so place the tail at Node::tail_x (last line advance + gap), and shape the tail text (it opens with U+00A0) in its own style.
 
 [2026-10-16] PR 16 (1.1.0): the ground is in the static serialiser (D-87), so SVG needs only FR-57s height rule; pixel_size in emit::png also clamps and caps, which are PNG-only. Re-bless the HTML goldens for radargen 1.2.
+
+[start] 2026-10-16 10:57:55  PR 17 plan
+
+[stop]  2026-10-16 13:12:23  2h 14m 28s

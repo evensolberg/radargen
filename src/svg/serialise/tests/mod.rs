@@ -2,6 +2,7 @@
 //! is part of NFR-4's byte identity.
 
 mod group;
+mod outline;
 mod paint;
 mod semantics;
 mod shape;

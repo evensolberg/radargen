@@ -2,6 +2,7 @@
 
 pub mod html;
 pub mod png;
+pub mod svg;
 pub mod write;
 
 pub use write::write_atomic;
@@ -15,3 +16,7 @@ pub const OUTPUT_VERSION: &str = concat!(
     ".",
     env!("CARGO_PKG_VERSION_MINOR")
 );
+
+/// D-75: what names an untitled output: the page's tab and hidden heading,
+/// the exported SVG's `<title>`.
+pub const UNTITLED: &str = "Technology Radar";

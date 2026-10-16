@@ -77,8 +77,7 @@ pub fn pixel_size(document: &Document, requested: Option<u32>) -> Result<PixelSi
         None if natural > MAX_EXPORT_WIDTH => (MAX_EXPORT_WIDTH, Some(natural)),
         None => (natural, None),
     };
-    let height =
-        saturating_u32((f64::from(width) * document.height / document.width).round()).max(1);
+    let height = saturating_u32(document.height_at(f64::from(width)).round()).max(1);
     if u64::from(width) * u64::from(height) > u64::from(MAX_PNG_PIXELS) {
         return Err(Fatal::ImageTooLarge { width, height });
     }
@@ -122,18 +121,22 @@ pub fn rasterise(
             size.width, size.height
         ))
     })?;
-    // The viewBox maps exactly onto the pixmap, so the ground rect (D-87)
-    // covers every pixel, a last row the height rounded into included. The
-    // two scales differ by under half a pixel over the height.
-    resvg::render(
-        &tree,
-        Transform::from_scale(
-            narrow(f64::from(size.width) / document.width),
-            narrow(f64::from(size.height) / document.height),
-        ),
-        &mut pixmap.as_mut(),
-    );
+    resvg::render(&tree, transform(document, size), &mut pixmap.as_mut());
     pixmap.encode_png().map_err(|e| fail(e.to_string()))
+}
+
+/// The viewBox onto a pixmap of `size`, exactly.
+///
+/// The ground rect (D-87) then covers every pixel, a last row the height
+/// rounded into included; the two scales differ by under half a pixel
+/// over the height. Public so the SVG oracle draws the export at the
+/// PNG's scale.
+#[must_use]
+pub fn transform(document: &Document, size: PixelSize) -> Transform {
+    Transform::from_scale(
+        narrow(f64::from(size.width) / document.width),
+        narrow(f64::from(size.height) / document.height),
+    )
 }
 
 /// `usvg` options that load only the vendored faces and read no file.

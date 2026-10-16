@@ -19,6 +19,9 @@ pub enum OutputFormat {
     Html,
     /// `.png`: the wide arrangement as a raster image (FR-55, FR-71).
     Png,
+    /// `.svg`: the wide arrangement as a standalone SVG, its text outlined
+    /// (FR-54, D-88).
+    Svg,
 }
 
 /// The parsed command line: one CSV in, one file out (D-28, §6.6).
@@ -31,7 +34,7 @@ pub enum OutputFormat {
 #[command(
     name = "radargen",
     version,
-    about = "Render a technology radar from a CSV file to a self-contained HTML page or a PNG image.",
+    about = "Render a technology radar from a CSV file to a self-contained HTML page, a PNG image or an SVG file.",
     // clap's own usage would show the CSV as optional and leave out -o,
     // since each is required only without --create-template.
     override_usage = "radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]\n       radargen --create-template <PATH>",
@@ -51,8 +54,7 @@ pub struct Cli {
     // FR-52: the format comes from the extension, matched ignoring case.
     /// Where to write the radar.
     ///
-    /// The extension picks the format: .html or .png, in any case (SVG
-    /// arrives in version 1.2).
+    /// The extension picks the format: .html, .png or .svg, in any case.
     #[arg(short, long, required_unless_present = "create_template")]
     pub output: Option<PathBuf>,
 
@@ -82,7 +84,7 @@ pub struct Cli {
     // the courtesy FR-52 gives `.PNG`. `-T`, not `-t`, which is `--title`:
     // both appear in §6.6's canonical PNG invocation, so both earn a short
     // form (OQ-2).
-    /// The theme for PNG (SVG in version 1.2).
+    /// The theme for PNG and SVG.
     ///
     /// Written in any case. An HTML page carries both themes and follows the
     /// reader's setting, with a button to switch.
@@ -92,7 +94,7 @@ pub struct Cli {
     // FR-57: the height always follows the document's aspect ratio and is
     // never a second flag. The range is FR-64's, enforced by clap so the
     // message is standard usage output. HTML ignores it.
-    /// The width in pixels for PNG (SVG in version 1.2).
+    /// The width in pixels for PNG and SVG.
     ///
     /// From 320 to 10000; the height follows. An HTML page fits the reader's
     /// window.
@@ -144,7 +146,6 @@ impl Cli {
 ///
 /// # Errors
 ///
-/// [`Fatal::FormatNotInThisVersion`] for `.svg`, which 1.2 adds;
 /// [`Fatal::UnrecognisedExtension`] for any other or missing extension.
 pub fn format(output: &Path) -> Result<OutputFormat, Fatal> {
     let ext = output
@@ -155,12 +156,7 @@ pub fn format(output: &Path) -> Result<OutputFormat, Fatal> {
     match ext.as_str() {
         "html" => Ok(OutputFormat::Html),
         "png" => Ok(OutputFormat::Png),
-        // §14.1: SVG ships in 1.2, and must not read as a typo.
-        "svg" => Err(Fatal::FormatNotInThisVersion {
-            path: output.display().to_string(),
-            ext,
-            arrives_in: "1.2",
-        }),
+        "svg" => Ok(OutputFormat::Svg),
         _ => Err(Fatal::UnrecognisedExtension {
             path: output.display().to_string(),
         }),

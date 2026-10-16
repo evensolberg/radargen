@@ -66,27 +66,18 @@ fn extension_matching_ignores_case() {
 }
 
 #[test]
-fn png_is_a_format_and_svg_arrives_in_1_2() {
+fn png_and_svg_are_formats() {
     for path in ["r.png", "R.PNG", "r.Png"] {
         assert!(
             matches!(format(Path::new(path)), Ok(OutputFormat::Png)),
             "{path}"
         );
     }
-    // §14.1: SVG ships in 1.2.0; "unrecognised extension" would send the
-    // reader hunting for a typo in a correct path.
-    for path in ["e.svg", "e.SVG"] {
-        match format(Path::new(path)) {
-            // NFR-10: an output-path error names the path.
-            Err(Fatal::FormatNotInThisVersion {
-                path: named,
-                arrives_in,
-                ..
-            }) => {
-                assert_eq!((named.as_str(), arrives_in), (path, "1.2"));
-            }
-            other => panic!("{path} gave {other:?}"),
-        }
+    for path in ["e.svg", "E.SVG", "e.Svg"] {
+        assert!(
+            matches!(format(Path::new(path)), Ok(OutputFormat::Svg)),
+            "{path}"
+        );
     }
 }
 
@@ -96,7 +87,7 @@ fn an_unrecognised_or_absent_extension_is_a_different_error() {
         let cli = parse(&["in.csv", "-o", path]).expect("parses");
         match format(cli.output.as_deref().expect("-o")) {
             Err(Fatal::UnrecognisedExtension { path: named }) => assert_eq!(named, path),
-            other => panic!("{path} should be unrecognised, not deferred: {other:?}"),
+            other => panic!("{path} should be unrecognised: {other:?}"),
         }
     }
 }
@@ -293,7 +284,7 @@ fn help_speaks_to_users() {
     }
     let about = help.lines().next().unwrap_or_default();
     assert!(
-        about.contains("PNG") && !about.contains("SVG"),
+        about.contains("PNG") && about.contains("SVG"),
         "the about line promises only what this version writes:\n{help}"
     );
 }
