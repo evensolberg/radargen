@@ -58,7 +58,7 @@ A `.png` output (in any case) draws the wide arrangement: the title, the radar, 
 
 - **Limits.** A radar wider than 10,000 pixels is drawn 10,000 wide, with a warning. A `--width` small enough that the text can't be read gets a warning naming a width that fixes it. An image past 100 megapixels is refused before the image is drawn; a smaller `--width` fixes it.
 - **Long legends.** The legend is drawn in full, so a long one makes a tall image, which a slide then shrinks. A larger `--width`, or splitting the CSV, helps.
-- **Scripts.** The bundled font covers Latin, Greek, Cyrillic and Vietnamese. Names in other scripts, and emoji, draw as boxes in the PNG; the HTML page falls back to the reader's fonts.
+- **Scripts.** The bundled font covers Latin, Greek, Cyrillic and Vietnamese. Names in other scripts, and emoji, draw as boxes in the PNG and the SVG; the HTML page falls back to the reader's fonts.
 - **Accessibility.** An image has no text alternative. Write alt text where you place the PNG, and link the HTML page or the CSV as the full description.
 
 A `.svg` output draws the same wide arrangement as the PNG, as vectors: sharp at any size, and editable in PowerPoint, Figma or Illustrator. `--theme` picks its colours, and `--width` sets its size, with the height following.

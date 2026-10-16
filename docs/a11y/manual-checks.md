@@ -93,7 +93,7 @@ The expected names come from `three-quadrant.csv`.
     - *Expect, with NVDA + Firefox, NVDA + Chrome and VoiceOver + Safari, opening the file directly:*
       - the document is named "Technology Radar", and its description reads "Technology radar: 3 quadrants, …";
       - browse mode moves into the drawing rather than stopping at one graphic;
-      - the headings list holds: level 1 "Technology Radar"; level 2 "Key" and "Legend"; level 3 each quadrant;
+      - the headings list holds: level 1 "Technology Radar"; level 2 "Key" and "Legend"; level 3 each quadrant; level 4 each ring under it, as in step 11;
       - ring labels read outermost first, as in the page;
       - each marker reads once, by its full name ("1. …; … quadrant, … ring"), never its number alone;
       - each legend row reads once;

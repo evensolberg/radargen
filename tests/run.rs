@@ -777,32 +777,42 @@ fn an_upper_case_png_extension_renders() {
     assert!(png(dir.path(), "RADAR.PNG").width() > 0);
 }
 
-/// D-74 holds for PNG: the input under a .png name is refused, untouched.
+/// D-74 for the static formats: the input under a .png or .svg name is
+/// refused, untouched.
 #[test]
-fn a_png_output_that_is_the_input_is_refused() {
-    let dir = seeded(&[("data.png", PRD)]);
-    let before = snapshot(dir.path());
-    let ran = run_in(dir.path(), &["data.png", "-o", "data.png"]);
-    assert_eq!(
-        ran.lines(),
-        ["error: -o data.png: is the input CSV; choose another output path"]
-    );
-    assert_eq!(ran.code, Some(1));
-    assert_eq!(snapshot(dir.path()), before);
+fn a_static_output_that_is_the_input_is_refused() {
+    for name in ["data.png", "data.svg"] {
+        let dir = seeded(&[(name, PRD)]);
+        let before = snapshot(dir.path());
+        let ran = run_in(dir.path(), &[name, "-o", name]);
+        assert_eq!(
+            ran.lines(),
+            [format!(
+                "error: -o {name}: is the input CSV; choose another output path"
+            )]
+        );
+        assert_eq!(ran.code, Some(1));
+        assert_eq!(snapshot(dir.path()), before);
+    }
 }
 
-/// NFR-14, SC-18: a PNG into a directory that is not there fails cleanly.
+/// NFR-14, SC-18, FR-62: a PNG or SVG into a directory that is not there
+/// fails cleanly, with its exact line.
 #[test]
-fn a_png_into_a_missing_directory_fails() {
-    let dir = seeded(&[("radar.csv", PRD)]);
-    let before = snapshot(dir.path());
-    let ran = run_in(dir.path(), &["radar.csv", "-o", "nowhere/radar.png"]);
-    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
-    assert_eq!(
-        ran.lines(),
-        ["error: -o nowhere/radar.png: the directory nowhere does not exist"]
-    );
-    assert_eq!(snapshot(dir.path()), before);
+fn a_static_output_into_a_missing_directory_fails() {
+    for name in ["nowhere/radar.png", "nowhere/radar.svg"] {
+        let dir = seeded(&[("radar.csv", PRD)]);
+        let before = snapshot(dir.path());
+        let ran = run_in(dir.path(), &["radar.csv", "-o", name]);
+        assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+        assert_eq!(
+            ran.lines(),
+            [format!(
+                "error: -o {name}: the directory nowhere does not exist"
+            )]
+        );
+        assert_eq!(snapshot(dir.path()), before);
+    }
 }
 
 /// D-87, SC-18: an image past the area cap fails, writes nothing, and
@@ -961,34 +971,6 @@ fn an_svg_gives_no_png_warnings() {
     assert!(ran.ok() && ran.lines().is_empty(), "{}", ran.stderr);
 }
 
-/// FR-62 for SVG, its exact line.
-#[test]
-fn an_svg_into_a_missing_directory_fails() {
-    let dir = seeded(&[("radar.csv", PRD)]);
-    let before = snapshot(dir.path());
-    let ran = run_in(dir.path(), &["radar.csv", "-o", "nowhere/radar.svg"]);
-    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
-    assert_eq!(
-        ran.lines(),
-        ["error: -o nowhere/radar.svg: the directory nowhere does not exist"]
-    );
-    assert_eq!(snapshot(dir.path()), before);
-}
-
-/// D-74 for SVG: the input under a .svg name is refused, untouched.
-#[test]
-fn an_svg_output_that_is_the_input_is_refused() {
-    let dir = seeded(&[("data.svg", PRD)]);
-    let before = snapshot(dir.path());
-    let ran = run_in(dir.path(), &["data.svg", "-o", "data.svg"]);
-    assert_eq!(ran.code, Some(1));
-    assert_eq!(
-        ran.lines(),
-        ["error: -o data.svg: is the input CSV; choose another output path"]
-    );
-    assert_eq!(snapshot(dir.path()), before);
-}
-
 /// SC-18: a run that fails after `-o` exists leaves it byte-identical.
 #[test]
 fn a_failed_svg_run_leaves_the_old_file() {
@@ -1049,10 +1031,28 @@ fn an_svg_of_hostile_text_renders() {
 fn the_cli_writes_the_golden_exports() {
     let dir = seeded(&[("radar.csv", PRD)]);
     for (theme, golden) in [("light", "prd-light.svg"), ("dark", "prd-dark.svg")] {
-        let ran = run_in(dir.path(), &["radar.csv", "-o", golden, "--theme", theme, "--title", "Technology Radar"]);
+        let ran = run_in(
+            dir.path(),
+            &[
+                "radar.csv",
+                "-o",
+                golden,
+                "--theme",
+                theme,
+                "--title",
+                "Technology Radar",
+            ],
+        );
         assert!(ran.ok(), "{}", ran.stderr);
-        let want = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/svg").join(golden))
-            .expect("the golden");
-        assert!(read(dir.path(), golden) == want, "{golden}: the binary's export is the golden");
+        let want = fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/golden/svg")
+                .join(golden),
+        )
+        .expect("the golden");
+        assert!(
+            read(dir.path(), golden) == want,
+            "{golden}: the binary's export is the golden"
+        );
     }
 }

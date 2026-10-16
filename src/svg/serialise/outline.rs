@@ -6,8 +6,7 @@
 //! arrangement, not two. Collecting and writing read text through one
 //! function, [`runs`], so the table holds every glyph the writer places.
 
-use std::collections::BTreeMap;
-use std::fmt::Write as _;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::text::{Run, ink};
 use super::{Context, attr, coord, paint};
@@ -78,15 +77,21 @@ impl Glyphs {
     ///
     /// # Errors
     ///
-    /// [`FontError`] when a shaped glyph cannot be outlined (Ruling 6).
+    /// [`FontError`] when a shaped glyph cannot be outlined (NFR-15).
     pub(super) fn of(document: &Document, fonts: &Fonts) -> Result<Self, FontError> {
-        let mut sizes = BTreeMap::new();
-        collect(&document.root, fonts, &mut sizes);
+        let outlines = keys(&document.root, fonts)
+            .into_iter()
+            .map(|key| outlined(key, fonts))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self::numbered(outlines))
+    }
+
+    /// The table from each glyph's `d`: an empty one is blank, the rest
+    /// numbered in key order.
+    fn numbered(outlines: Vec<(Key, String)>) -> Self {
         let mut entries = BTreeMap::new();
         let mut paths = Vec::new();
-        for (key, size) in sizes {
-            let face = fonts.face(key.weight);
-            let d = path(&face.outline(key.glyph)?, size / face.units_per_em());
+        for (key, d) in outlines {
             let entry = if d.is_empty() {
                 Entry::Blank
             } else {
@@ -95,7 +100,7 @@ impl Glyphs {
             };
             entries.insert(key, entry);
         }
-        Ok(Self { entries, paths })
+        Self { entries, paths }
     }
 
     /// `<defs>` with one path per inked glyph, or nothing when none inks.
@@ -125,60 +130,71 @@ impl Glyphs {
     }
 }
 
-/// Each glyph `node` draws, keyed, with the size it is drawn at.
-fn collect(node: &Node, fonts: &Fonts, sizes: &mut BTreeMap<Key, f64>) {
-    if node.is_interactive_only() {
-        return;
-    }
+/// Each glyph `node` draws, keyed by face, size and id.
+fn keys(node: &Node, fonts: &Fonts) -> BTreeSet<Key> {
     match node {
-        Node::Group(group) => {
-            for child in &group.children {
-                collect(child, fonts, sizes);
-            }
-        }
+        _ if node.is_interactive_only() => BTreeSet::new(),
+        Node::Group(group) => group
+            .children
+            .iter()
+            .flat_map(|child| keys(child, fonts))
+            .collect(),
         Node::Text {
             style, lines, tail, ..
-        } => {
-            for (style, text) in runs(*style, lines, tail.as_ref()) {
-                for glyph in fonts.face(style.weight).shape(text) {
-                    sizes.insert(Key::new(style, glyph.id), style.size);
-                }
-            }
-        }
-        _ => {}
+        } => runs(*style, lines, tail.as_ref())
+            .flat_map(|(style, text)| {
+                fonts
+                    .face(style.weight)
+                    .shape(text)
+                    .into_iter()
+                    .map(move |glyph| Key::new(style, glyph.id))
+            })
+            .collect(),
+        _ => BTreeSet::new(),
     }
+}
+
+/// A glyph's key and its path at its size.
+fn outlined(key: Key, fonts: &Fonts) -> Result<(Key, String), FontError> {
+    let face = fonts.face(key.weight);
+    let scale = f64::from_bits(key.size) / face.units_per_em();
+    Ok((key, path(&face.outline(key.glyph)?, scale)))
 }
 
 /// A glyph's contours as a path's `d`: font units scaled to the size and
 /// flipped into SVG's y-down space, every number through `fmt_coord`.
 fn path(segments: &[Segment], scale: f64) -> String {
-    let mut d = String::new();
-    let mut push = |command: char, points: &[(f32, f32)]| {
-        d.push(command);
-        for (i, &(x, y)) in points.iter().enumerate() {
-            let separator = if i == 0 { "" } else { " " };
-            write!(
-                d,
-                "{separator}{} {}",
-                fmt_coord(f64::from(x) * scale),
-                fmt_coord(-f64::from(y) * scale)
-            )
-            .expect("a String accepts writes");
-        }
+    let point = |&(x, y): &(f32, f32)| {
+        [
+            fmt_coord(f64::from(x) * scale),
+            fmt_coord(-f64::from(y) * scale),
+        ]
+        .join(" ")
     };
-    for &segment in segments {
-        match segment {
-            Segment::MoveTo(x, y) => push('M', &[(x, y)]),
-            Segment::LineTo(x, y) => push('L', &[(x, y)]),
-            Segment::QuadTo(cx, cy, x, y) => push('Q', &[(cx, cy), (x, y)]),
+    let step = |command: &str, points: &[(f32, f32)]| {
+        [
+            command,
+            &points.iter().map(point).collect::<Vec<_>>().join(" "),
+        ]
+        .concat()
+    };
+    segments
+        .iter()
+        .map(|&segment| match segment {
+            Segment::MoveTo(x, y) => step("M", &[(x, y)]),
+            Segment::LineTo(x, y) => step("L", &[(x, y)]),
+            Segment::QuadTo(cx, cy, x, y) => step("Q", &[(cx, cy), (x, y)]),
             Segment::CurveTo(c1x, c1y, c2x, c2y, x, y) => {
-                push('C', &[(c1x, c1y), (c2x, c2y), (x, y)]);
+                step("C", &[(c1x, c1y), (c2x, c2y), (x, y)])
             }
-            Segment::Close => push('Z', &[]),
-        }
-    }
-    d
+            Segment::Close => "Z".to_owned(),
+        })
+        .collect()
 }
+
+/// How much of its advance a middle-anchored line starts before its
+/// origin. A power of two, so it is exactly the `/ 2.0` resvg's anchor is.
+const CENTRED: f64 = 0.5;
 
 /// A text as a group of placed glyphs: its paint on the group, each line
 /// at its baseline, its tail at `tail_x` (D-78). Filled and outside a
@@ -208,7 +224,7 @@ pub(super) fn text(
         baseline = run.origin.y + f64::from(i) * run.leading;
         let x = match run.anchor {
             Anchor::Start => run.origin.x,
-            Anchor::Middle => run.origin.x - run.style.advance(line, outlined.fonts) / 2.0,
+            Anchor::Middle => run.origin.x - run.style.advance(line, outlined.fonts) * CENTRED,
         };
         out.push_str(&uses(line, run.style, Point { x, y: baseline }, outlined));
     }
@@ -229,7 +245,7 @@ pub(super) fn text(
 }
 
 /// The text's name: its lines as one, then its tail. A line broken
-/// mid-token reads with a space there (crumbed; Review rulings 20).
+/// mid-token reads with a space there (crumbed).
 fn words(run: &Run<'_>) -> String {
     let mut name = run.lines.join(" ");
     if let Some(tail) = run.tail {

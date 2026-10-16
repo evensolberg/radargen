@@ -204,9 +204,6 @@ impl<'a> FontMetrics<'a> {
     /// options, so the two shape identically.
     #[must_use]
     pub fn shape(&self, text: &str) -> Vec<ShapedGlyph> {
-        if text.is_empty() {
-            return Vec::new();
-        }
         // A built shaper borrows the font and its data, so it is built per
         // call rather than stored; `usvg` does the same.
         let shaper = self.data.shaper(&self.font).build();
