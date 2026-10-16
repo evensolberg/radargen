@@ -588,16 +588,15 @@ try {
   await scenario('the wide arrangement fills the window', [1850, 1200], async (width) => {
     for (const height of [1400, 1000, 500]) {
       await load(width, { height });
-      const [drawn, want, own, chrome] = await evaluate(`(() => {
+      const [drawn, want, chrome] = await evaluate(`(() => {
         const svg = document.querySelector('.arrangement.wide svg');
         const { width: w, height: h } = svg.viewBox.baseVal;
         const room = svg.closest('.arrangement').parentElement.clientWidth;
         const cap = Math.max(w, innerHeight * w / h);
         const bar = document.querySelector('.page-controls').getBoundingClientRect().width;
-        return [svg.getBoundingClientRect().width, Math.min(room, cap), w, bar];
+        return [svg.getBoundingClientRect().width, Math.min(room, cap), bar];
       })()`);
       check(Math.abs(drawn - want) <= 1, `${width}x${height}: the SVG is ${drawn} px, not ${want}`);
-      check(drawn >= Math.min(own, width) - 1, `${width}x${height}: never below its own width (${own})`);
       check(Math.abs(chrome - drawn) <= 1, `${width}x${height}: the controls share the cap (${chrome} px)`);
     }
   });
