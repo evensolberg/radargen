@@ -98,6 +98,9 @@ pub struct Placements {
     pub key_columns: NonZeroUsize,
     /// The legend panel, at scale 1.
     pub legend: Placement,
+    /// The legend panel's width at scale 1: its own in wide, where it sets
+    /// the document's width, and the column's in narrow (rg-zch).
+    pub legend_width: f64,
 }
 
 /// `blocks` drawn in `arrangement`, in document order: title, radar, the
@@ -111,7 +114,7 @@ pub fn arrange(arrangement: Arrangement, blocks: &Blocks) -> Document {
         blocks.radar.render(at.radar),
         rule_node(at.rule),
         blocks.key.grid(at.key_columns).render(at.key),
-        blocks.legend.render(at.legend),
+        blocks.legend.spanning(at.legend_width).render(at.legend),
     ];
     Document {
         width: at.width,
@@ -225,6 +228,7 @@ fn wide(blocks: &Blocks) -> Placements {
         }),
         key_columns,
         legend: Placement::at(legend_at),
+        legend_width: legend.width,
     }
 }
 
@@ -245,6 +249,8 @@ fn narrow(blocks: &Blocks, scale: f64) -> Placements {
     } else {
         key_bottom + KEY_TO_LEGEND
     };
+    // The panel starts its inset before the rule and ends as far past it.
+    let legend_x = MARGIN - LEGEND_PANEL_INSET_X;
     Placements {
         width,
         height: legend_y + legend.height + MARGIN,
@@ -275,9 +281,11 @@ fn narrow(blocks: &Blocks, scale: f64) -> Placements {
         }),
         key_columns,
         legend: Placement::at(Point {
-            x: MARGIN - LEGEND_PANEL_INSET_X,
+            x: legend_x,
             y: legend_y,
         }),
+        // Twice the inset, as two subtractions: NFR-4 keeps mul_add out.
+        legend_width: width - legend_x - legend_x,
     }
 }
 
@@ -530,6 +538,8 @@ mod tests {
         assert!(close(p.height, 841.0), "{}", p.height);
         assert!(69.0 + legend.height + 20.0 < 841.0, "{legend:?}");
         assert_eq!(p.key_columns.get(), 2);
+        // The wide legend's panel is its own width: it sets the document's.
+        assert!(close(p.legend_width, legend.width), "{p:?}");
     }
 
     /// rg-zb9: the key takes as many columns as fit along its rule, so it
@@ -586,6 +596,9 @@ mod tests {
         );
         assert!(near(p.rule.from, Point { x: 20.0, y: key_y }), "{p:?}");
         assert!(near(p.rule.to, Point { x: 400.0, y: key_y }), "{p:?}");
+        // rg-zch: the panel spans the column, as far past the rule's end
+        // as it starts before the rule's start.
+        assert!(close(p.legend_width, 404.0), "{p:?}");
     }
 
     /// FR-94's premise (D-71): realistic radars keep the 420 width.
@@ -627,6 +640,8 @@ mod tests {
                 "{p:?}"
             );
             assert!(close(p.rule.to.x, p.width - 20.0), "{p:?}");
+            // rg-zch: the panel follows the widened column.
+            assert!(close(p.legend_width, p.width - 16.0), "{p:?}");
         }
     }
 
@@ -827,7 +842,7 @@ mod tests {
             assert_eq!(*title, b.title.render(p.title));
             assert_eq!(*radar, b.radar.render(p.radar));
             assert_eq!(*key, b.key.grid(p.key_columns).render(p.key));
-            assert_eq!(*legend, b.legend.render(p.legend));
+            assert_eq!(*legend, b.legend.spanning(p.legend_width).render(p.legend));
             let want = Node::Group(
                 Group::new(
                     Point::ORIGIN,

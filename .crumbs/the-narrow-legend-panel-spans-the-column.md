@@ -1,14 +1,15 @@
 ---
 id: rg-7gi
 title: The narrow legend panel spans the column
-status: open
+status: closed
 type: idea
 priority: 4
 tags:
 - layout
 - ui
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-15
+closed_reason: 'Done in rg-zch: the narrow legend panel spans the column.'
 phase: ''
 ---
 
