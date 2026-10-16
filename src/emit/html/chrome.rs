@@ -141,10 +141,10 @@ const GRID_OPEN: &str = "@media (min-width: ";
 const GRID_RULE: &str = "px){.detail dl{display:grid;grid-template-columns:max-content 1fr;column-gap:1.5em;align-items:baseline}.detail dt{grid-column:1}.detail dd{grid-column:2}}\n";
 
 /// The controls' rules, capped and inset like the table view.
-pub(super) fn css(wide_width: f64) -> String {
+pub(super) fn css(wide_width: f64, wide_height: f64) -> String {
     [
         HIDDEN_RULE,
-        &capped(BAR_OPEN, wide_width),
+        &capped(BAR_OPEN, wide_width, wide_height),
         BUTTON_OPEN,
         Neutral::StrokeDivider.as_str(),
         BUTTON_GROUND,
@@ -157,7 +157,7 @@ pub(super) fn css(wide_width: f64) -> String {
         FOCUS_OPEN,
         Neutral::Focus.as_str(),
         OUTLINE_CLOSE,
-        &capped(PANEL_CAP, wide_width),
+        &capped(PANEL_CAP, wide_width, wide_height),
         PANEL_OPEN,
         Neutral::Surface2.as_str(),
         PANEL_EDGE,

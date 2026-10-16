@@ -122,8 +122,9 @@ fn a_hostile_title_is_escaped() {
     );
 }
 
-/// Review Focus 1 (FR-69): two arrangements, the wide first, each capped at
-/// its own width, and one query swapping them below the breakpoint.
+/// Review Focus 1 (FR-69): two arrangements, the wide first, the narrow
+/// capped at its own width and the wide growing to fill the window
+/// (rg-18x), and one query swapping them below the breakpoint.
 #[test]
 fn one_arrangement_at_a_time() {
     let (wide, narrow) = documents();
@@ -139,8 +140,9 @@ fn one_arrangement_at_a_time() {
     let query = breakpoint_px(wide.width) - 1;
     for rule in [
         format!(
-            ".wide{{max-width:{}px;margin:0 auto}}",
-            fmt_coord(wide.width)
+            ".wide{{max-width:max({w}px,calc(100vh*{w}/{h}));margin:0 auto}}",
+            w = fmt_coord(wide.width),
+            h = fmt_coord(wide.height)
         ),
         format!(
             ".narrow{{max-width:{}px;margin:0 auto}}",
