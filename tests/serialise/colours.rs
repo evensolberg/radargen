@@ -1,7 +1,7 @@
 //! Late binding as the document and resvg see it (architecture §5).
 
 use radargen::layout::arrange::{Arrangement, arrange};
-use radargen::palette::{Palette, Role, Theme};
+use radargen::palette::{Neutral, Palette, Role, Theme};
 use radargen::svg::serialise::{
     DATA_HIT, DATA_MARKER_INDICATOR, DATA_ROW_INDICATOR, DATA_SELECTION,
 };
@@ -109,7 +109,12 @@ fn colours_bind_late_across_the_document() {
             let inter = serialise(&document, Target::Interactive(&palette));
             let fixed = serialise(&document, Target::Static(&palette));
             let (inter, fixed) = (parse(&inter), parse(&fixed));
-            let (a, b) = (elements(&inter, true), elements(&fixed, false));
+            let (a, mut b) = (elements(&inter, true), elements(&fixed, false));
+            // D-87: the static root's first child is its ground, which the
+            // page paints instead.
+            let ground = b.remove(1);
+            let surface = palette.value(Role::Neutral(Neutral::Surface1));
+            assert_eq!((ground.tag, ground.fill), ("rect", Some(surface)));
             assert_eq!(a.len(), b.len());
             for (i, s) in a.into_iter().zip(b) {
                 assert_eq!((i.tag, &i.rest, i.text), (s.tag, &s.rest, s.text));

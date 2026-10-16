@@ -112,14 +112,20 @@ const DARK: [&str; 8] = [
 const INK_LIGHT: &str = "#FFFFFF";
 const INK_DARK: &str = "#16191F";
 
-/// WCAG 2.x relative luminance of a `#RRGGBB` value.
-// qual:allow(complexity, error_handling) reason: "palette values are #RRGGBB; PR 18 rejects anything else"
-fn luminance(hex: &str) -> f64 {
+/// A `#RRGGBB` value's three channels.
+// qual:allow(error_handling) reason: "palette values are #RRGGBB; PR 18 rejects anything else"
+fn rgb(hex: &str) -> [u8; 3] {
     let channel = |i: usize| {
-        let v = hex
-            .get(i..i + 2)
+        hex.get(i..i + 2)
             .and_then(|d| u8::from_str_radix(d, 16).ok())
-            .expect("palette values are #RRGGBB; PR 18 rejects anything else");
+            .expect("palette values are #RRGGBB; PR 18 rejects anything else")
+    };
+    [channel(1), channel(3), channel(5)]
+}
+
+/// WCAG 2.x relative luminance of a `#RRGGBB` value.
+fn luminance(hex: &str) -> f64 {
+    let linear = |v: u8| {
         let c = f64::from(v) / 255.0;
         if c <= 0.040_45 {
             c / 12.92
@@ -127,11 +133,12 @@ fn luminance(hex: &str) -> f64 {
             ((c + 0.055) / 1.055).powf(2.4)
         }
     };
+    let [r, g, b] = rgb(hex);
     #[expect(
         clippy::suboptimal_flops,
         reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
     )]
-    let y = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+    let y = 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
     y
 }
 
@@ -227,6 +234,13 @@ impl Palette {
                 .get(i)
                 .expect("`bind` reduced the index modulo the series length"),
         }
+    }
+
+    /// The literal value's channels, for a consumer that needs numbers
+    /// rather than `#RRGGBB` (D-87).
+    #[must_use]
+    pub fn rgb(&self, role: Role) -> [u8; 3] {
+        rgb(self.value(role))
     }
 
     /// A `var()` reference — HTML, which declares both themes and lets the
@@ -504,5 +518,23 @@ mod tests {
             .chain((1..=8).map(|i| format!("--series-{i}")))
             .collect();
         assert_eq!(names, expected);
+    }
+
+    /// D-87: the ground's channels, from the literal hex.
+    #[test]
+    fn rgb_reads_the_hex() {
+        let light = Palette::built_in(Theme::Light);
+        let dark = Palette::built_in(Theme::Dark);
+        let surface = Role::Neutral(Neutral::Surface1);
+        assert_eq!(light.rgb(surface), hex(light.value(surface)));
+        assert_eq!(dark.rgb(surface), hex(dark.value(surface)));
+        assert_ne!(light.rgb(surface), dark.rgb(surface));
+    }
+
+    /// An independent parse, so `rgb` is not its own oracle.
+    fn hex(value: &str) -> [u8; 3] {
+        let digits = value.strip_prefix('#').expect("#RRGGBB");
+        let [_, red, green, blue] = u32::from_str_radix(digits, 16).expect("hex").to_be_bytes();
+        [red, green, blue]
     }
 }

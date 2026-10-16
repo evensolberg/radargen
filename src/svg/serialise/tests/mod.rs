@@ -74,8 +74,33 @@ fn the_root_carries_the_view_box() {
         height: 100.0,
         root: group(Point::ORIGIN, Vec::new()),
     };
+    // Interactive: the static target adds its ground (D-87), tested below.
     assert_eq!(
-        serialise(&document, Target::Static(&palette)),
+        serialise(&document, Target::Interactive(&palette)),
         "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 420.5 100\">\n</svg>"
     );
+}
+
+/// D-87: a static document opens with a Surface1 rect over the whole
+/// viewBox; an interactive one has none (the page paints its own).
+#[test]
+fn the_static_ground_is_the_themes_surface() {
+    let document = Document {
+        width: 120.0,
+        height: 80.5,
+        root: group(Point::ORIGIN, Vec::new()),
+    };
+    for theme in [Theme::Light, Theme::Dark] {
+        let palette = Palette::built_in(theme);
+        let svg = serialise(&document, Target::Static(&palette));
+        let first = svg.lines().nth(1).expect("a first child");
+        let fill = palette.value(Role::Neutral(Neutral::Surface1));
+        assert_eq!(
+            first,
+            format!("<rect width=\"120\" height=\"80.5\" fill=\"{fill}\"/>"),
+            "{theme:?}"
+        );
+        let page = serialise(&document, Target::Interactive(&palette));
+        assert!(!page.contains("<rect"), "{page}");
+    }
 }
