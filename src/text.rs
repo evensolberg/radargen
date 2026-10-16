@@ -285,24 +285,34 @@ impl Column<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ttf_parser::Face;
+    use skrifa::instance::{LocationRef, Size};
+    use skrifa::{FontRef, MetadataProvider};
+
+    /// A vendored face's metrics in font units.
+    fn metrics(bytes: &[u8]) -> skrifa::metrics::Metrics {
+        let face = FontRef::new(bytes).expect("the vendored face parses");
+        face.metrics(Size::unscaled(), LocationRef::default())
+    }
 
     #[test]
     fn number_centring_is_half_inters_cap_height() {
         assert!((NUMBER_CENTRING - 1490.0 / 4096.0).abs() < 1e-12);
-        let face = Face::parse(REGULAR_TTF, 0).expect("the vendored face parses");
-        let cap = f64::from(face.capital_height().expect("Inter has a cap height"));
+        let cap = f64::from(
+            metrics(REGULAR_TTF)
+                .cap_height
+                .expect("Inter has a cap height"),
+        );
         assert!((NUMBER_CENTRING - cap / 4096.0).abs() < 1e-12);
     }
 
     #[test]
     fn text_metrics_match_the_vendored_faces() {
         for bytes in [REGULAR_TTF, SEMIBOLD_TTF] {
-            let face = Face::parse(bytes, 0).expect("the vendored face parses");
-            assert_eq!(face.units_per_em(), 2048);
-            assert_eq!(face.ascender(), 1984);
-            assert_eq!(face.descender(), -494);
-            assert_eq!(face.line_gap(), 0);
+            let m = metrics(bytes);
+            assert_eq!(m.units_per_em, 2048);
+            assert!((m.ascent - 1984.0).abs() < f32::EPSILON, "{}", m.ascent);
+            assert!((m.descent + 494.0).abs() < f32::EPSILON, "{}", m.descent);
+            assert!(m.leading.abs() < f32::EPSILON, "{}", m.leading);
         }
     }
 }

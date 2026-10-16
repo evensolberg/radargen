@@ -72,12 +72,19 @@ fn letter_spacing_applies_between_glyphs_not_after() {
 /// the subsetter: if GPOS kerning were dropped, this would stop diverging.
 #[test]
 fn kerned_pairs_are_not_the_raw_advance_sum() {
-    let face = ttf_parser::Face::parse(FONT, 0).expect("face parses");
-    let upem = f64::from(face.units_per_em());
+    use skrifa::instance::{LocationRef, Size};
+    use skrifa::{FontRef, MetadataProvider};
+    let face = FontRef::new(FONT).expect("face parses");
+    let upem = f64::from(
+        face.metrics(Size::unscaled(), LocationRef::default())
+            .units_per_em,
+    );
+    let charmap = face.charmap();
+    let advances = face.glyph_metrics(Size::unscaled(), LocationRef::default());
     let raw_sum = |text: &str| -> f64 {
         text.chars()
-            .filter_map(|c| face.glyph_index(c))
-            .filter_map(|g| face.glyph_hor_advance(g))
+            .filter_map(|c| charmap.map(c))
+            .filter_map(|g| advances.advance_width(g))
             .map(f64::from)
             .sum::<f64>()
             * 12.5

@@ -11,7 +11,9 @@ use std::fmt::Write as _;
 use std::sync::Arc;
 
 use harfrust::{Direction, FontRef, ShapeOptions, ShaperData, UnicodeBuffer};
-use ttf_parser::{Face as ParseFace, GlyphId, OutlineBuilder};
+use skrifa::instance::{LocationRef, Size};
+use skrifa::outline::{DrawSettings, OutlineGlyphCollection, OutlinePen};
+use skrifa::{FontRef as OutlineFont, GlyphId, MetadataProvider};
 
 use radargen::num::fmt_coord;
 use radargen::text::{FAMILY, REGULAR_TTF as TTF};
@@ -98,7 +100,7 @@ impl PathSink {
     }
 }
 
-impl OutlineBuilder for PathSink {
+impl OutlinePen for PathSink {
     fn move_to(&mut self, x: f32, y: f32) {
         write!(self.d, "M{} {}", self.x(x), self.y(y)).expect("String write");
     }
@@ -134,6 +136,20 @@ impl OutlineBuilder for PathSink {
     }
 }
 
+/// Glyph `gid`'s outline in font units, drawn into `pen`.
+fn outline(glyph_outlines: &OutlineGlyphCollection<'_>, gid: u16, pen: &mut impl OutlinePen) {
+    // skrifa gives an empty glyph an empty outline; None is only an id
+    // the face does not have, which would mean shaper and reader disagree.
+    glyph_outlines
+        .get(GlyphId::from(gid))
+        .expect("the shaped glyph is in the face")
+        .draw(
+            DrawSettings::unhinted(Size::unscaled(), LocationRef::default()),
+            pen,
+        )
+        .expect("draws");
+}
+
 struct Built {
     text: String,
     outlined: String,
@@ -146,8 +162,13 @@ fn build() -> Built {
     let font = FontRef::from_index(TTF, 0).expect("shaping face");
     let data = ShaperData::new(&font);
     let shaper = data.shaper(&font).build();
-    let parse = ParseFace::parse(TTF, 0).expect("parse face");
-    let upem = f64::from(parse.units_per_em());
+    let parse = OutlineFont::new(TTF).expect("parse face");
+    let upem = f64::from(
+        parse
+            .metrics(Size::unscaled(), LocationRef::default())
+            .units_per_em,
+    );
+    let glyph_outlines = parse.outline_glyphs();
     let scale = SIZE / upem;
 
     let mut text = String::new();
@@ -184,7 +205,7 @@ fn build() -> Built {
                 dx: gx,
                 dy: gy,
             };
-            parse.outline_glyph(GlyphId(gid), &mut sink);
+            outline(&glyph_outlines, gid, &mut sink);
             run.push_str(&sink.d);
             write!(
                 placements,
@@ -210,7 +231,7 @@ fn build() -> Built {
             dx: 0.0,
             dy: 0.0,
         };
-        parse.outline_glyph(GlyphId(*gid), &mut sink);
+        outline(&glyph_outlines, *gid, &mut sink);
         write!(defs, r#"<path id="g{gid}" d="{}"/>"#, sink.d).expect("String write");
     }
 
