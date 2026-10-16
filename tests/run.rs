@@ -482,20 +482,13 @@ fn a_hard_link_to_the_input_is_the_input() {
 }
 
 #[test]
-fn bad_extensions_and_svg() {
+fn bad_extensions() {
     let dir = seeded(&[("radar.csv", PRD)]);
     let before = snapshot(dir.path());
     let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.txt"]);
     assert_eq!(
         ran.lines(),
-        ["error: -o radar.txt: the output file name must end in .html or .png"]
-    );
-    let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.svg"]);
-    assert!(!ran.ok());
-    assert!(
-        ran.stderr.contains("arrives in radargen 1.2"),
-        "{}",
-        ran.stderr
+        ["error: -o radar.txt: the output file name must end in .html, .png or .svg"]
     );
     assert_eq!(snapshot(dir.path()), before);
 }
@@ -901,4 +894,151 @@ fn a_png_of_hostile_text_renders() {
     let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.png"]);
     assert!(ran.ok(), "{}", ran.stderr);
     assert!(png(dir.path(), "radar.png").width() > 0);
+}
+
+// ---- SVG (FR-54, FR-57, FR-71, D-88)
+
+/// The root's `width`, parsed.
+fn root_width(svg: &str) -> f64 {
+    let parsed = roxmltree::Document::parse(svg).expect("well-formed");
+    parsed
+        .root_element()
+        .attribute("width")
+        .expect("a width")
+        .parse()
+        .expect("a number")
+}
+
+/// FR-54, FR-57, D-88: a standalone SVG at --width, its height in proportion.
+#[test]
+fn renders_an_svg_at_the_width_asked() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let ran = run_in(
+        dir.path(),
+        &[
+            "radar.csv",
+            "-o",
+            "radar.SVG",
+            "--width",
+            "1920",
+            "--theme",
+            "dark",
+        ],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    let svg = read(dir.path(), "radar.SVG");
+    assert!(
+        svg.starts_with("<!-- radargen 1."),
+        "{}",
+        svg.lines().next().unwrap_or_default()
+    );
+    assert_eq!(root_width(&svg), 1920.0);
+    assert!(!svg.contains("<text") && svg.ends_with("</svg>\n"));
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "max.svg", "--width", "10000"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert_eq!(ran.lines(), [FR17], "only the example's own warning");
+    assert_eq!(root_width(&read(dir.path(), "max.svg")), 10_000.0);
+}
+
+/// D-88: the PNG's clamp and small-text warnings are not the SVG's.
+#[test]
+fn an_svg_gives_no_png_warnings() {
+    let dir = seeded(&[("radar.csv", &too_wide())]);
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "wide.svg"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert!(ran.lines().is_empty(), "no warning: {}", ran.stderr);
+    assert!(
+        root_width(&read(dir.path(), "wide.svg")) > 12_500.0,
+        "not clamped"
+    );
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "narrow.svg", "--width", "320"],
+    );
+    assert!(ran.ok() && ran.lines().is_empty(), "{}", ran.stderr);
+}
+
+/// FR-62 for SVG, its exact line.
+#[test]
+fn an_svg_into_a_missing_directory_fails() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let before = snapshot(dir.path());
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "nowhere/radar.svg"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        ["error: -o nowhere/radar.svg: the directory nowhere does not exist"]
+    );
+    assert_eq!(snapshot(dir.path()), before);
+}
+
+/// D-74 for SVG: the input under a .svg name is refused, untouched.
+#[test]
+fn an_svg_output_that_is_the_input_is_refused() {
+    let dir = seeded(&[("data.svg", PRD)]);
+    let before = snapshot(dir.path());
+    let ran = run_in(dir.path(), &["data.svg", "-o", "data.svg"]);
+    assert_eq!(ran.code, Some(1));
+    assert_eq!(
+        ran.lines(),
+        ["error: -o data.svg: is the input CSV; choose another output path"]
+    );
+    assert_eq!(snapshot(dir.path()), before);
+}
+
+/// SC-18: a run that fails after `-o` exists leaves it byte-identical.
+#[test]
+fn a_failed_svg_run_leaves_the_old_file() {
+    let dir = seeded(&[("radar.csv", PRD), ("bad.csv", ROW_ERRORS)]);
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.svg"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    let before = snapshot(dir.path());
+    let ran = run_in(dir.path(), &["bad.csv", "-o", "radar.svg"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert_eq!(snapshot(dir.path()), before);
+}
+
+/// The edges: a header-only CSV, and a subtitle with no title.
+#[test]
+fn an_empty_or_subtitled_svg_renders() {
+    let dir = seeded(&[("empty.csv", HEAD), ("radar.csv", PRD)]);
+    let ran = run_in(dir.path(), &["empty.csv", "-o", "empty.svg"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    roxmltree::Document::parse(&read(dir.path(), "empty.svg")).expect("well-formed");
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "sub.svg", "--subtitle", "Edition 2026.2"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    let svg = read(dir.path(), "sub.svg");
+    assert!(
+        svg.contains("<title>Technology Radar</title>"),
+        "D-75's fallback"
+    );
+    assert!(
+        svg.contains("aria-label=\"Edition 2026.2\""),
+        "the subtitle is named"
+    );
+}
+
+/// NFR-7: names in scripts Inter lacks still export, escaped.
+#[test]
+fn an_svg_of_hostile_text_renders() {
+    let csv =
+        format!("{HEAD}Кафка,Tools,Adopt,d\n東京,Tools,Trial,d\n\"😀 <b>&amp;\",Tools,Assess,d\n");
+    let dir = seeded(&[("radar.csv", &csv)]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.svg", "--title", "</title>]]>"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    let svg = read(dir.path(), "radar.svg");
+    assert!(
+        svg.contains("<title>&lt;/title&gt;]]&gt;</title>"),
+        "escaped"
+    );
+    roxmltree::Document::parse(&svg).expect("well-formed");
 }

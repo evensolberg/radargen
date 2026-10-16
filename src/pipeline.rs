@@ -17,9 +17,9 @@ use crate::csv::decode;
 use crate::csv::parse::parse;
 use crate::diagnostics::{Fatal, Flag, RenderKind, RowError, Warning, Warnings};
 use crate::emit::html::{Page, page};
-use crate::emit::png;
 use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
+use crate::emit::{png, svg};
 use crate::errors::render_errors;
 use crate::layout::arrange::{Arrangement, Blocks, arrange, warn_narrow, wide_parts};
 use crate::layout::geometry::warn_crowding;
@@ -216,7 +216,7 @@ fn catalogue(path: &Path, rings: &RingSet, warnings: &mut Warnings) -> Result<Ca
 
 /// The order, the render warnings (FR-88, FR-89, FR-95, D-87), the blocks
 /// built once, and the output: the page around both arrangements (FR-68),
-/// or the wide arrangement as a PNG (FR-71).
+/// or the wide arrangement as a PNG or an SVG (FR-71).
 fn render(
     catalogue: &Catalogue,
     config: &Config,
@@ -264,6 +264,16 @@ fn render(
             }
             png::rasterise(&wide, &config.palette, size)
         }
+        OutputFormat::Svg => Ok(svg::export(
+            &arrange(Arrangement::Wide, &blocks),
+            &svg::Export {
+                palette: &config.palette,
+                fonts,
+                width: config.width,
+                title: config.title.as_deref(),
+            },
+        )?
+        .into_bytes()),
     }
 }
 

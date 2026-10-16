@@ -2,6 +2,7 @@
 
 pub mod html;
 pub mod png;
+pub mod svg;
 pub mod write;
 
 pub use write::write_atomic;

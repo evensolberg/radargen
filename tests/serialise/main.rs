@@ -11,6 +11,7 @@ mod fonts;
 mod html;
 
 mod colours;
+mod export;
 mod golden;
 mod hostile;
 mod html5;

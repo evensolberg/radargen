@@ -776,24 +776,10 @@ impl fmt::Display for Separator {
 #[derive(Debug, thiserror::Error)]
 pub enum Fatal {
     /// FR-52: the `-o` extension is absent or names a format we do not write.
-    #[error("-o {path}: the output file name must end in .html or .png")]
+    #[error("-o {path}: the output file name must end in .html, .png or .svg")]
     UnrecognisedExtension {
         /// The `-o` argument as given.
         path: String,
-    },
-    /// §14.1: the extension is one v1.1 adds, so say that rather than
-    /// "unrecognised", which sends the caller hunting for a typo in a path
-    /// that is correct.
-    #[error(
-        "-o {path}: .{ext} output arrives in radargen {arrives_in}; this version writes .html and .png"
-    )]
-    FormatNotInThisVersion {
-        /// The `-o` argument as given.
-        path: String,
-        /// The extension, without its dot.
-        ext: String,
-        /// The release that adds the format (§14.1).
-        arrives_in: &'static str,
     },
     /// FR-63, NFR-16 tier one.
     #[error("--rings: {0}")]
