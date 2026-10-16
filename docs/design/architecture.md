@@ -818,9 +818,11 @@ applications we do not control.
 Three consequences the design carries:
 
 - **`emit/svg.rs` is a converter, not a serialiser.** It needs glyph outlines
-  from `ttf-parser` and a shaping pass it shares with `text.rs`. No new
-  crate — `harfrust` is direct, and `ttf-parser` returns from dev-dependency
-  to direct when `emit/svg.rs` lands — but §14.2's "SVG export … effectively
+  from `skrifa` and a shaping pass it shares with `text.rs`. No new
+  crate — `harfrust` is direct, and `skrifa` (which usvg already builds, and
+  the tests read outlines with since rg-8im replaced the unmaintained
+  `ttf-parser`) moves from dev-dependency to direct when `emit/svg.rs`
+  lands — but §14.2's "SVG export … effectively
   free once rasterisation works" no longer holds, and the file is worth half a
   day to a day of its own.
 - **Outlines are deduplicated through `<use>`.** One `<path>` per distinct glyph

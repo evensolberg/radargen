@@ -7,12 +7,36 @@
 )]
 
 use radargen::text::{REGULAR_TTF as REGULAR, SEMIBOLD_TTF as SEMIBOLD};
-use ttf_parser::Face;
+use skrifa::instance::{LocationRef, Size};
+use skrifa::outline::{DrawSettings, OutlinePen};
+use skrifa::{FontRef, GlyphId, MetadataProvider};
 
 /// Both shipped faces, parsed, with a name for assertion messages.
-fn faces() -> [(&'static str, Face<'static>); 2] {
+fn faces() -> [(&'static str, FontRef<'static>); 2] {
     [("Regular", REGULAR), ("SemiBold", SEMIBOLD)]
-        .map(|(name, data)| (name, Face::parse(data, 0).expect("face parses")))
+        .map(|(name, data)| (name, FontRef::new(data).expect("face parses")))
+}
+
+/// Counts the path commands an outline draws.
+#[derive(Default)]
+struct Commands(usize);
+
+impl OutlinePen for Commands {
+    fn move_to(&mut self, _: f32, _: f32) {
+        self.0 += 1;
+    }
+    fn line_to(&mut self, _: f32, _: f32) {
+        self.0 += 1;
+    }
+    fn quad_to(&mut self, _: f32, _: f32, _: f32, _: f32) {
+        self.0 += 1;
+    }
+    fn curve_to(&mut self, _: f32, _: f32, _: f32, _: f32, _: f32, _: f32) {
+        self.0 += 1;
+    }
+    fn close(&mut self) {
+        self.0 += 1;
+    }
 }
 
 /// `pyftsubset` drops name IDs 16/17 unless told otherwise, and `SemiBold` then
@@ -58,7 +82,7 @@ fn subset_covers_what_it_promises() {
             .chain("ΑαΒβΓγΔδΛλΣσςΩωάέήίόύώἀἄῶ".chars())
             .chain("АаБбЖжЩщЫыЭэЮюЯяЁёЇїҐґЄєЎў".chars())
             .chain("\u{0306}\u{0313}\u{0342}".chars())
-            .filter(|c| face.glyph_index(*c).is_none())
+            .filter(|c| face.charmap().map(*c).is_none())
             .collect();
         assert!(missing.is_empty(), "{name} lacks {missing:?}");
     }
@@ -78,7 +102,7 @@ fn subset_leaves_out_what_the_prd_says_it_does() {
     ];
     for (name, face) in faces() {
         for (c, what) in absent {
-            assert!(face.glyph_index(c).is_none(), "{name}: has {what}");
+            assert!(face.charmap().map(c).is_none(), "{name}: has {what}");
         }
     }
 }
@@ -89,10 +113,19 @@ fn subset_leaves_out_what_the_prd_says_it_does() {
 #[test]
 fn notdef_keeps_its_outline() {
     for (name, face) in faces() {
-        assert!(
-            face.glyph_bounding_box(ttf_parser::GlyphId(0)).is_some(),
-            "{name}: .notdef has no outline"
-        );
+        // skrifa gives an empty glyph a zero bounding box, not none, so
+        // count what the outline draws instead.
+        let notdef = face.outline_glyphs().get(GlyphId::NOTDEF);
+        let mut commands = Commands::default();
+        if let Some(glyph) = notdef {
+            glyph
+                .draw(
+                    DrawSettings::unhinted(Size::unscaled(), LocationRef::default()),
+                    &mut commands,
+                )
+                .expect("draws");
+        }
+        assert!(commands.0 > 0, "{name}: .notdef has no outline");
     }
 }
 

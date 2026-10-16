@@ -234,7 +234,7 @@ focus-cost: release-build
     cargo clippy --locked --all-targets -- -D warnings
     just lint
     cargo test --locked
-    cargo deny check licenses
+    cargo deny check licenses advisories
     jq -e '.version == 2 and (.quality_score | type == "number")' rustqual-baseline.json > /dev/null
     rustqual . --compare rustqual-baseline.json --fail-on-regression --no-fail
     just browser
