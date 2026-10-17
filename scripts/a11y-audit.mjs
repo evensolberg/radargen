@@ -294,10 +294,12 @@ async function reflow(label) {
     const button = document.querySelector('.theme-toggle');
     if (!button) return true;
     const o = button.getBoundingClientRect();
-    const i = ${SHOWN_ICON}.getBoundingClientRect();
+    const icon = ${SHOWN_ICON};
+    if (!icon) return false;
+    const i = icon.getBoundingClientRect();
     return i.left >= o.left && i.right <= o.right && i.top >= o.top && i.bottom <= o.bottom;
   })()`);
-  check(iconFits, `${label}: the toggle's icon stays inside its button`);
+  check(iconFits, `${label}: the toggle shows an icon, inside its button`);
   await openTable(false);
 }
 
@@ -435,7 +437,7 @@ async function forced(label) {
   const focusedToggle = await clip(toggle);
   await press('Enter');
   check((await clip(toggle)) !== focusedToggle, `${label}: a press repaints the toggle's icon`);
-  painted("the toggle's icon", await evaluate(`getComputedStyle(${SHOWN_ICON}).stroke`));
+  painted("the toggle's icon", await evaluate(`(() => { const icon = ${SHOWN_ICON}; return icon ? getComputedStyle(icon).stroke : 'no icon shown'; })()`));
   // Focus: a marker's ring.
   await tabTo(marker);
   check((await clip(marker)) !== before.marker, `${label}: a focused marker's ring is painted`);

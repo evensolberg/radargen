@@ -233,7 +233,8 @@ const FILE_OPEN: &str = ":root{color-scheme:";
 /// dark when the viewer prefers it unless the page is set light, and dark
 /// when the page is set dark; the theme toggle sets `data-theme` on
 /// `<html>`, and each block says which of its icons shows (rg-1ru). From a
-/// `--palette` file: that one set, with no preference and no toggle (§6.6). Forced colours apply to both (rg-min, Ruling 5).
+/// `--palette` file: that one set, with no preference and no toggle
+/// (§6.6). Forced colours apply to both (rg-min, Ruling 5).
 ///
 /// Values are written as `Palette` holds them, each a `Hex`, which admits
 /// only `#RRGGBB` (NFR-6 context 5).
