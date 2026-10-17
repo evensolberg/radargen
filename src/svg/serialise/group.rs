@@ -11,7 +11,7 @@ use crate::svg::{Control, Group, Node, Semantics};
 /// writes nothing (the empty title block; static output's hit and
 /// indicator layers).
 pub(super) fn group(group: &Group, context: Context<'_>) -> String {
-    let inner = within(&group.semantics, context);
+    let inner = within(group, context);
     let children: String = group
         .children
         .iter()
@@ -29,17 +29,17 @@ pub(super) fn group(group: &Group, context: Context<'_>) -> String {
 }
 
 /// The context for a group's children: inside a control once one opens,
-/// and inside a heading once one does.
-const fn within<'a>(semantics: &Semantics, context: Context<'a>) -> Context<'a> {
-    let control = match semantics {
+/// and named by their heading when [`heading_name`] names it, so the two
+/// halves of one rule cannot disagree about which text carries the name.
+fn within<'a>(group: &Group, context: Context<'a>) -> Context<'a> {
+    let control = match group.semantics {
         Semantics::Marker(_) => Some(ControlKind::Marker),
         Semantics::LegendRow(_) => Some(ControlKind::LegendRow),
         _ => context.control,
     };
-    let heading = context.heading || matches!(semantics, Semantics::Heading(_));
     Context {
         control,
-        heading,
+        named: heading_name(group, context).is_some(),
         ..context
     }
 }

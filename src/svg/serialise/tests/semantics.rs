@@ -119,6 +119,14 @@ fn plain_text_broken_mid_word_is_named_by_its_words() {
             target,
         );
         assert!(!text_is_image(&row), "{row}");
+        let mut halo = broken();
+        if let Node::Text { ink, .. } = &mut halo {
+            *ink = TextPaint::Halo {
+                stroke: MUTED,
+                width: 3.0,
+            };
+        }
+        assert!(!text_is_image(&one(&halo, target)), "a halo is hidden");
     }
 }
 

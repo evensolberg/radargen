@@ -19,6 +19,16 @@ pub(super) struct Run<'a> {
 }
 
 impl Run<'_> {
+    /// The text's name: its words as written, then its tail. Not its lines
+    /// joined, which would read a token broken mid-word as two.
+    pub(super) fn name(&self) -> String {
+        let mut name = self.words.to_owned();
+        if let Some(tail) = self.tail {
+            name.push_str(&tail.text);
+        }
+        name
+    }
+
     /// Wrapped by breaking a token: its lines, one space apart, are not its
     /// words, as they are when every break falls between words.
     fn broken_mid_word(&self) -> bool {
@@ -45,13 +55,13 @@ pub(super) fn text(run: &Run<'_>, context: Context<'_>) -> String {
     ink(&mut out, run.ink, context);
     if matches!(run.ink, TextPaint::Fill(_))
         && context.control.is_none()
-        && !context.heading
+        && !context.named
         && run.broken_mid_word()
     {
         // Read as text, each tspan would be a fragment of the broken token;
         // as an image it is read once, by its words (rg-zl6, D-88).
         attr(&mut out, "role", "img");
-        attr(&mut out, "aria-label", run.words);
+        attr(&mut out, "aria-label", &run.name());
     }
     if context.target.interactive() && context.control.is_some() {
         // A click on a number or name reaches its control (FR-37).

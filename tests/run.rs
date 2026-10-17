@@ -1017,7 +1017,10 @@ fn an_html_subtitle_broken_mid_word_is_named_as_written() {
     let broken = "Platformengineeringcapabilitiesoverviewforthewholeorganisation Q3";
     let between = "Apache Kafka Streams With Exactly Once Delivery Semantics Enabled";
     let dir = seeded(&[("radar.csv", PRD)]);
-    for (subtitle, image) in [(broken, true), (between, false)] {
+    for (subtitle, image, fragment) in [
+        (broken, true, ">rganisation Q3</tspan>"),
+        (between, false, ">Semantics Enabled</tspan>"),
+    ] {
         let ran = run_in(
             dir.path(),
             &["radar.csv", "-o", "radar.html", "-s", subtitle],
@@ -1025,6 +1028,10 @@ fn an_html_subtitle_broken_mid_word_is_named_as_written() {
         assert!(ran.ok(), "{}", ran.stderr);
         let page = read(dir.path(), "radar.html");
         let named = format!("role=\"img\" aria-label=\"{subtitle}\"");
+        assert!(
+            page.contains(fragment),
+            "{subtitle:?} wraps as the case needs"
+        );
         assert_eq!(page.contains(&named), image, "{subtitle:?}");
     }
 }
