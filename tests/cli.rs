@@ -400,10 +400,10 @@ fn a_render_still_needs_both_paths() {
     assert!(parse(&["in.csv"]).is_err());
 }
 
-/// The usage names both forms; clap's own would show the CSV as optional
+/// The usage names every form; clap's own would show the CSV as optional
 /// and leave out -o.
 #[test]
-fn usage_names_both_forms() {
+fn usage_names_every_form() {
     use clap::CommandFactory;
     let help = Cli::command().render_help().to_string();
     assert!(help.contains("radargen <CSV_PATH> -o <OUTPUT>"), "{help}");
@@ -411,10 +411,10 @@ fn usage_names_both_forms() {
     assert!(help.contains("radargen --create-palette <PATH>"), "{help}");
 }
 
-/// A `Cli` built by hand, which clap would have refused, asking for
-/// neither task or for both.
+/// A `Cli` built by hand, which clap would have refused, asking for no
+/// task or for several.
 #[test]
-fn a_cli_with_neither_task_or_both_is_an_error() {
+fn a_cli_asking_for_no_task_or_several_is_an_error() {
     let mut cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
     cli.create_template = Some("radar.csv".into());
     assert!(matches!(cli.task(), Err(Fatal::NoTask)));

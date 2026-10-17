@@ -10,6 +10,9 @@ use std::fmt;
 
 pub mod file;
 
+mod hex;
+pub use hex::Hex;
+
 /// FR-101: the file `--create-palette` writes.
 ///
 /// It is the built-in light palette as one `:root` rule, each neutral's dark
@@ -17,8 +20,6 @@ pub mod file;
 /// because it is this file; `tests/palette.rs` holds it to
 /// [`Palette::built_in`].
 pub const SAMPLE: &str = include_str!("../../docs/product/palette.sample.css");
-mod hex;
-pub use hex::Hex;
 
 /// FR-82's eight neutral roles, in the PRD's order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

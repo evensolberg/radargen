@@ -137,9 +137,9 @@ pub struct Cli {
     // with --theme would make this the one aside not given alone.
     /// Write a palette file to edit for --palette, and render nothing.
     ///
-    /// It holds the built-in light colours, with each one's dark value in a
-    /// comment beside it. An existing file is never replaced. Give this flag
-    /// alone.
+    /// It holds the built-in light colours, with the dark theme's value in a
+    /// comment beside each colour the themes do not share. An existing file
+    /// is never replaced. Give this flag alone.
     #[arg(long, value_name = "PATH", exclusive = true)]
     pub create_palette: Option<PathBuf>,
 }

@@ -3,9 +3,7 @@
 //! its dark value, so an author copying it gets exactly what the tool draws.
 
 use radargen::palette::file::parse;
-use radargen::palette::{Neutral, Palette, Role, Theme};
-
-const SAMPLE: &str = include_str!("../docs/product/palette.sample.css");
+use radargen::palette::{Neutral, Palette, Role, SAMPLE, Theme};
 
 /// A line's text after its indentation.
 fn unindented(line: &str) -> &str {
@@ -46,12 +44,13 @@ fn declarations_are_in_fr_101_order() {
 }
 
 /// The header names no requirement and no flag a release lacks (plan
-/// RG-018A, Ruling 9), says where the guide is, and the file is LF only
-/// (NFR-17).
+/// RG-018A, Ruling 9), says where the guide is, and the file is LF only with
+/// no byte-order mark (NFR-17).
 #[test]
 fn the_sample_reads_as_a_users_file() {
     assert!(!SAMPLE.contains("FR-") && !SAMPLE.contains("--create-palette"));
     assert!(!SAMPLE.contains('\r') && SAMPLE.ends_with("}\n"));
+    assert!(!SAMPLE.starts_with('\u{feff}'), "no byte-order mark");
     assert!(SAMPLE.contains("https://github.com/evensolberg/radargen/blob/main/docs/palette.md"));
 }
 
