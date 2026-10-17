@@ -39,6 +39,12 @@ pub(super) const WIDE_TITLE: &str = "wide-title";
 pub(super) const WIDE_RADAR: &str = "wide-radar";
 pub(super) const WIDE_KEY: &str = "wide-key";
 pub(super) const WIDE_LEGEND: &str = "wide-legend";
+/// The containers for the narrow arrangement's parts (RG-102). They add no
+/// rule of their own: both SVGs are as wide as the narrow document and span
+/// `.narrow`'s capped column (`svg{width:100%}`), so they draw at one scale
+/// and stack into the one document.
+pub(super) const NARROW_BODY: &str = "narrow-body";
+pub(super) const NARROW_LEGEND: &str = "narrow-legend";
 
 const CAP_FLOOR: &str = "max(";
 const CAP_HEIGHT: &str = "px,calc((100vh - ";
@@ -319,9 +325,9 @@ fn declarations(palette: &Palette) -> String {
 /// the radar's column growing with the window (`Wide::radar_cap`), the key
 /// under it and the legend beside it, scrolling. Only the radar fills its
 /// column; the title, key and legend draw at one pixel per unit. The
-/// narrow SVG is capped at its own document's width, and below that spans
-/// the viewport, which is where FR-94's `NARROW_HORIZONTAL_INSET_PX` of zero
-/// is measured.
+/// narrow arrangement's two SVGs are capped together at their document's
+/// width, and below that span the viewport, which is where FR-94's
+/// `NARROW_HORIZONTAL_INSET_PX` of zero is measured.
 pub(super) fn layout(wide: &Wide, narrow_width: f64) -> String {
     let class = |name: &str, rule: &str| [".", name, rule].concat();
     let svg_width = |name: &str, width: f64, close: &str| {

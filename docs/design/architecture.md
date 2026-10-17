@@ -328,10 +328,16 @@ switch is therefore where the radar alone reaches `WIDE_MIN_SCALE`
 integer, for a radar part `R` wide. PNG and SVG keep the one document. The
 narrow arrangement is never wider than the wide one, though since D-85 the
 breakpoint can fall a few pixels below the narrow document's width, where the
-narrow SVG simply spans the viewport. D-71's widening does not disturb the
+narrow SVGs simply span the viewport. D-71's widening does not disturb the
 first: the wide width is at least the radar at scale 1 plus its insets,
 and the widest narrow document is the radar at 0.3 plus the same insets, so
 the wide document is never the narrower of the two.
+
+HTML draws the narrow arrangement as two SVGs too (`arrange::narrow_parts`,
+RG-102): the body (title, radar, key and the gap under it) and the legend,
+cut at the legend panel's top edge, so the legend can be hidden without
+leaving its space. Both are the narrow document's width and span one capped
+column, so they draw at one scale and stack into the one document.
 
 `Blocks` is a struct of four concrete fields — title, radar, legend, key — not a
 `Vec<Box<dyn Block>>`. The trait exists to *impose a shape* on four types, not to

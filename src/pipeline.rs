@@ -22,7 +22,7 @@ use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
 use crate::emit::{png, svg};
 use crate::errors::render_errors;
-use crate::layout::arrange::{Arrangement, Blocks, arrange, warn_narrow, wide_parts};
+use crate::layout::arrange::{Arrangement, Blocks, arrange, narrow_parts, warn_narrow, wide_parts};
 use crate::layout::geometry::warn_crowding;
 use crate::layout::title::shown;
 use crate::model::{Catalogue, build_catalogue};
@@ -268,7 +268,7 @@ fn render(
             warn_narrow(&blocks, warnings);
             Ok(page(&Page {
                 wide: &wide_parts(&blocks),
-                narrow: &arrange(Arrangement::Narrow, &blocks),
+                narrow: &narrow_parts(&blocks),
                 catalogue,
                 plotted: &plotted,
                 title: config.title.as_deref(),

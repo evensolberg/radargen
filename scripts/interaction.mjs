@@ -599,6 +599,18 @@ try {
     check(await panelHidden(), 'no panel opens');
   });
 
+  // RG-102: the narrow parts stack with no seam: the legend's SVG starts
+  // where the body's ends, at the same width and left edge. 600 lies between
+  // the narrow document's width and the breakpoint, where the column is
+  // capped and centred.
+  await scenario('narrow parts stack', [600, NARROW, 320], async (width) => {
+    await load(width);
+    const [body, legend] = await evaluate(`['.narrow-body svg', '.narrow-legend svg'].map((s) => { const r = document.querySelector(s).getBoundingClientRect(); return [r.left, r.top, r.bottom, r.width]; })`);
+    check(body[3] > 0 && legend[3] > 0, `both parts are drawn: ${body[3]}, ${legend[3]}`);
+    check(Math.abs(legend[1] - body[2]) <= 0.5, `the legend starts at the body's end: ${body[2]} -> ${legend[1]}`);
+    check(near(body[3], legend[3]) && near(body[0], legend[0]), 'one column, one width');
+  });
+
   // D-85: the wide radar's column grows to the window's width or to the
   // height under the title, whichever runs out first, never below 0.8 of
   // its own width; the title, key and legend keep their natural size, and

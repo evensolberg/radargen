@@ -27,11 +27,12 @@ mod table;
 mod vocabulary;
 
 use radargen::emit::html::{Page, page};
-use radargen::layout::arrange::{Arrangement, Blocks, WideParts, arrange, wide_parts};
+use radargen::layout::arrange::{
+    Arrangement, Blocks, NarrowParts, WideParts, narrow_parts, wide_parts,
+};
 use radargen::model::Catalogue;
 use radargen::order::{Plotted, resolve};
 use radargen::palette::{Colours, Palette, Theme};
-use radargen::svg::Document;
 use radargen::svg::Target;
 use radargen::text::Fonts;
 
@@ -47,7 +48,7 @@ struct Built {
 
 impl Built {
     /// The page for `wide` and `narrow`, with this catalogue's table.
-    fn page_of(&self, wide: &WideParts, narrow: &Document, title: Option<&str>) -> String {
+    fn page_of(&self, wide: &WideParts, narrow: &NarrowParts, title: Option<&str>) -> String {
         self.page_in(wide, narrow, title, &Colours::BuiltIn(Theme::Light))
     }
 
@@ -55,7 +56,7 @@ impl Built {
     fn page_in(
         &self,
         wide: &WideParts,
-        narrow: &Document,
+        narrow: &NarrowParts,
         title: Option<&str>,
         colours: &Colours,
     ) -> String {
@@ -73,7 +74,7 @@ impl Built {
     fn page_with(&self, colours: &Colours) -> String {
         self.page_in(
             &wide_parts(&self.blocks),
-            &arrange(Arrangement::Narrow, &self.blocks),
+            &narrow_parts(&self.blocks),
             None,
             colours,
         )
@@ -83,7 +84,7 @@ impl Built {
     fn page(&self, title: Option<&str>) -> String {
         self.page_of(
             &wide_parts(&self.blocks),
-            &arrange(Arrangement::Narrow, &self.blocks),
+            &narrow_parts(&self.blocks),
             title,
         )
     }

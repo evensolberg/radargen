@@ -131,7 +131,7 @@ fn renders_the_prd_example() {
     html::assert_requests_nothing(&page);
     // PR 14b: both arrangements, the wide in its four parts (D-85), and the
     // two inlined faces.
-    assert_eq!(html::svgs(&page).len(), 5, "four wide parts and the narrow");
+    assert_eq!(html::svgs(&page).len(), 6, "four wide parts and two narrow");
     assert_eq!(
         page.matches("@font-face").count(),
         2,
@@ -197,7 +197,7 @@ fn a_quadrant_name_wider_than_any_screen_still_renders() {
         ran.stderr
     );
     let page = read(dir.path(), "radar.html");
-    assert_eq!(html::svgs(&page).len(), 5, "four wide parts and the narrow");
+    assert_eq!(html::svgs(&page).len(), 6, "four wide parts and two narrow");
     // The case the old 10,000-unit bound refused: the breakpoint, about
     // 0.8 of the document, lies past it.
     let query = page

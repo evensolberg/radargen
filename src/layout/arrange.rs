@@ -134,17 +134,40 @@ pub struct Placements {
 #[must_use]
 pub fn arrange(arrangement: Arrangement, blocks: &Blocks) -> Document {
     let at = placements(arrangement, blocks);
-    let children = vec![
+    part(
+        at.width,
+        at.height,
+        Point::ORIGIN,
+        nodes(&at, blocks).into(),
+    )
+}
+
+/// What [`arrange`] draws at `at`, in document order: title, radar, the
+/// key's rule, key, legend. [`narrow_parts`] splits these same nodes, so its
+/// parts cannot drift from the document.
+fn nodes(at: &Placements, blocks: &Blocks) -> [Node; 5] {
+    [
         blocks.title.render(at.title),
         blocks.radar.render(at.radar),
         rule_node(at.rule),
         blocks.key.grid(at.key_columns).render(at.key),
         blocks.legend.spanning(at.legend_width).render(at.legend),
-    ];
+    ]
+}
+
+/// A part of a document: `children`, drawn in the document's coordinates,
+/// translated so the part's top-left corner is `origin`.
+fn part(width: f64, height: f64, origin: Point, children: Vec<Node>) -> Document {
     Document {
-        width: at.width,
-        height: at.height,
-        root: Node::Group(Group::new(Point::ORIGIN, children)),
+        width,
+        height,
+        root: Node::Group(Group::new(
+            Point {
+                x: -origin.x,
+                y: -origin.y,
+            },
+            children,
+        )),
     }
 }
 
@@ -176,17 +199,6 @@ pub fn wide_parts(blocks: &Blocks) -> WideParts {
     let cut = at.rule.from.y - KEY_RULE_STROKE / 2.0;
     let key = blocks.key.grid(at.key_columns);
     let legend = blocks.legend.spanning(at.legend_width);
-    let part = |width: f64, height: f64, origin: Point, children: Vec<Node>| Document {
-        width,
-        height,
-        root: Node::Group(Group::new(
-            Point {
-                x: -origin.x,
-                y: -origin.y,
-            },
-            children,
-        )),
-    };
     WideParts {
         title: part(
             at.width,
@@ -214,6 +226,40 @@ pub fn wide_parts(blocks: &Blocks) -> WideParts {
                 y: top,
             },
             vec![legend.render(at.legend)],
+        ),
+    }
+}
+
+/// The narrow arrangement as HTML draws it (RG-102): two documents, so the
+/// legend can be hidden without leaving its space.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NarrowParts {
+    /// The title, radar, key rule and key, and the gap under the key.
+    pub body: Document,
+    /// The legend panel.
+    pub legend: Document,
+}
+
+/// `blocks` in the narrow arrangement, cut into [`NarrowParts`].
+///
+/// The cut is at the legend panel's top edge, so the body keeps the gap
+/// under the key, and without the legend the page does not butt against
+/// the key. With no legend at all the cut falls at the key's bottom and the
+/// legend part is only the bottom margin; there is then nothing to hide. The
+/// parts split [`arrange`]'s own nodes, the legend last, each translated to
+/// its own origin, as [`wide_parts`] does.
+#[must_use]
+pub fn narrow_parts(blocks: &Blocks) -> NarrowParts {
+    let at = placements(Arrangement::Narrow, blocks);
+    let cut = at.legend.origin.y;
+    let [title, radar, rule, key, legend] = nodes(&at, blocks);
+    NarrowParts {
+        body: part(at.width, cut, Point::ORIGIN, vec![title, radar, rule, key]),
+        legend: part(
+            at.width,
+            at.height - cut,
+            Point { x: 0.0, y: cut },
+            vec![legend],
         ),
     }
 }
@@ -1230,6 +1276,58 @@ mod tests {
                 .sum();
             assert_eq!(drawn, leaves(&whole.root), "{name}");
         }
+    }
+
+    /// RG-102: HTML's narrow arrangement in two documents, cut at the
+    /// legend panel's top edge. Both are as wide as the narrow document,
+    /// their heights add up to its height, together they draw every node it
+    /// draws, and the legend part starts at its panel.
+    #[test]
+    fn the_narrow_parts_stack_into_the_narrow_document() {
+        for (name, b) in fixtures() {
+            let whole = arrange(Arrangement::Narrow, &b);
+            let NarrowParts { body, legend } = narrow_parts(&b);
+            assert!(
+                close(body.width, whole.width) && close(legend.width, whole.width),
+                "{name}"
+            );
+            assert!(close(body.height + legend.height, whole.height), "{name}");
+            for (part, doc) in [("body", &body), ("legend", &legend)] {
+                let size = Size {
+                    width: doc.width,
+                    height: doc.height,
+                };
+                assert!(doc.width > 0.0 && doc.height > 0.0, "{name} {part}");
+                assert_finite(&doc.root);
+                assert_inside(&doc.root, size, fonts());
+            }
+            assert_eq!(
+                leaves(&body.root) + leaves(&legend.root),
+                leaves(&whole.root),
+                "{name}"
+            );
+            if let Some(top) = bounds(&legend.root, fonts()).map(|r| r.top) {
+                assert!(
+                    (-1e-9..1.0).contains(&top),
+                    "{name}: the legend part starts at its panel, not {top}"
+                );
+            }
+        }
+    }
+
+    /// The markers are in the narrow body and the legend rows in the legend
+    /// part.
+    #[test]
+    fn narrow_markers_and_rows_land_in_their_parts() {
+        let b = blocks(PRD_EXAMPLE, TITLED);
+        let parts = narrow_parts(&b);
+        let has = |doc: &Document, want: fn(&Semantics) -> bool| {
+            groups(&doc.root).iter().any(|g| want(&g.semantics))
+        };
+        let marker = |s: &Semantics| matches!(s, Semantics::Marker(_));
+        let row = |s: &Semantics| matches!(s, Semantics::LegendRow(_));
+        assert!(has(&parts.body, marker) && !has(&parts.legend, marker));
+        assert!(has(&parts.legend, row) && !has(&parts.body, row));
     }
 
     /// The markers are in the radar's part and the legend rows in the

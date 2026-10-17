@@ -5,10 +5,9 @@
 use std::collections::BTreeSet;
 
 use radargen::emit::OUTPUT_VERSION;
-use radargen::layout::arrange::{Arrangement, WideParts, arrange, wide_parts};
+use radargen::layout::arrange::{NarrowParts, WideParts, narrow_parts, wide_parts};
 use radargen::num::fmt_coord;
 use radargen::style::breakpoint_px;
-use radargen::svg::Document;
 
 use super::golden::golden;
 use super::html::{assert_requests_nothing, outside, style, svgs};
@@ -22,17 +21,18 @@ const NARROW_OPEN: &str = "<div class=\"arrangement narrow\">\n";
 /// The wide arrangement's parts with their SVGs taken out (D-85): title,
 /// radar, key, then the legend in its scrolling box.
 const WIDE_PARTS: &str = "<div class=\"wide-title\">\n\n</div>\n<div class=\"wide-radar\">\n\n</div>\n<div class=\"wide-key\">\n\n</div>\n<div class=\"wide-legend\" tabindex=\"-1\">\n\n</div>\n";
+/// The narrow arrangement's parts with their SVGs taken out (RG-102): the
+/// body, then the legend.
+const NARROW_PARTS: &str =
+    "<div class=\"narrow-body\">\n\n</div>\n<div class=\"narrow-legend\">\n\n</div>\n";
 /// The two inks a number on a solid marker takes, as literals in every
 /// format, since the series do not change with theme (architecture §5).
 const NUMBER_INKS: [&str; 2] = ["#FFFFFF", "#16191F"];
 
-/// The PRD example's wide parts and narrow document.
-fn documents() -> (WideParts, Document) {
+/// The PRD example's wide and narrow parts.
+fn documents() -> (WideParts, NarrowParts) {
     let built = prd();
-    (
-        wide_parts(&built.blocks),
-        arrange(Arrangement::Narrow, &built.blocks),
-    )
+    (wide_parts(&built.blocks), narrow_parts(&built.blocks))
 }
 
 fn prd_page(title: Option<&str>) -> String {
@@ -68,7 +68,7 @@ fn the_page_is_minimal_and_valid() {
     let around = outside(&html);
     assert!(
         around.contains(&format!(
-            "{WIDE_OPEN}{WIDE_PARTS}\n</div>\n{NARROW_OPEN}\n</div>\n<section id=\"detail\""
+            "{WIDE_OPEN}{WIDE_PARTS}\n</div>\n{NARROW_OPEN}{NARROW_PARTS}\n</div>\n<section id=\"detail\""
         )),
         "the panel, then the table view, follow both arrangements: {around}"
     );
@@ -133,7 +133,7 @@ fn a_hostile_title_is_escaped() {
 fn one_arrangement_at_a_time() {
     let (wide, narrow) = documents();
     let html = prd().page_of(&wide, &narrow, None);
-    assert_eq!(svgs(&html).len(), 5, "four wide parts and the narrow");
+    assert_eq!(svgs(&html).len(), 6, "four wide parts and two narrow");
     let around = outside(&html);
     let (w, n) = (
         around.find(WIDE_OPEN).expect("a wide container"),
@@ -153,7 +153,7 @@ fn one_arrangement_at_a_time() {
         ),
         format!(
             ".narrow{{max-width:{}px;margin:0 auto}}",
-            fmt_coord(narrow.width)
+            fmt_coord(narrow.body.width)
         ),
         format!(
             ".narrow{{display:none}}\n@media (max-width: {query}px){{.wide{{display:none}}.narrow{{display:block}}}}"
@@ -183,12 +183,12 @@ fn both_are_interactive() {
         })
         .collect();
     // The wide arrangement's markers are all in its radar part (D-85).
-    let [title, wide, key, legend, narrow] = keys.as_slice() else {
-        panic!("four wide parts and the narrow arrangement");
+    let [title, wide, key, legend, narrow_body, narrow_legend] = keys.as_slice() else {
+        panic!("four wide parts and two narrow");
     };
-    assert!(title.is_empty() && key.is_empty() && legend.is_empty());
+    assert!(title.is_empty() && key.is_empty() && legend.is_empty() && narrow_legend.is_empty());
     assert!(!wide.is_empty());
-    assert_eq!(wide, narrow, "the same items in both");
+    assert_eq!(wide, narrow_body, "the same items in both");
 }
 
 /// The generated focus rules match the tree they style: a selector that
