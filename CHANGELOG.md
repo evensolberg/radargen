@@ -3,37 +3,7 @@
 ### 🚀 Features
 
 - *(html)* Draw the narrow arrangement in two parts (rg-3gc) (#115)
-- *(cli)* --legend shown|hidden; warn for PNG and SVG (rg-3gc)
-- *(html)* A page can start with its legend hidden (rg-3gc)
-- *(html)* The legend button and its icons (rg-3gc)
-- *(html)* The legend button's script; the skip link follows (rg-3gc)
-
-### 🐛 Bug Fixes
-
-- *(html)* Legend review fixes; skip link drawn over every page (rg-3gc)
-
-### 📚 Documentation
-
-- *(design)* Spec for showing and hiding the legend (RG-102, rg-3gc)
-- *(plans)* Legend toggle implementation plan (RG-103, rg-3gc)
-- Revise legend spec and plan after the five-agent review (rg-3gc)
-- The legend button and --legend (FR-103, rg-3gc)
-
-### 🚜 Refactor
-
-- *(html)* One legend-hidden attribute, one focus check (rg-3gc)
-
-### 🧪 Testing
-
-- *(browser)* The legend button in Chromium (rg-3gc)
-- *(browser)* Legend focus on click in Firefox and WebKit (rg-3gc)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(crumbs)* Close rg-u5q; config warning crumb (rg-3gc)
-- *(html)* Final-review tidy-ups for the legend button (rg-3gc)
-- *(crumbs)* Close rg-3gc; the legend plan is done
-- *(release)* 1.6.0
+- *(html)* A button shows and hides the legend; --legend (1.6.0) (#116)
 ## [1.5.0] - 2026-10-17
 
 ### 🚀 Features
