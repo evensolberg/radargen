@@ -118,6 +118,7 @@ pub fn icons(page: &str) -> Vec<&str> {
         .collect()
 }
 
+/// Every `<svg>` to `</svg>`, drawings and icons, in document order.
 fn every_svg(page: &str) -> Vec<&str> {
     let mut found = Vec::new();
     let mut rest = page;

@@ -256,6 +256,7 @@ try {
       async () => (await evaluate(LABEL)) === TO_LIGHT || undefined,
       'the label follows a live change of preference',
     );
+    check((await evaluate(ICON)) === 'theme-sun', 'and the sun shows');
     const ground = () => evaluate(`getComputedStyle(document.body).backgroundColor`);
     const before = await ground();
     await press('Tab');

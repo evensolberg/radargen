@@ -142,7 +142,8 @@ const BUTTON_CLOSE: &str = ")}\n";
 /// otherwise; the toggle keeps the end.
 const SKIP_RULE: &str =
     ".skip{margin-inline-end:auto}\n.theme-toggle{margin-inline-start:auto}\n.skip:not(:focus)";
-/// The icon toggle is square, its padding all round (rg-1ru): at the
+/// The icon toggle is square, its padding all round (rg-1ru), under
+/// `.page-controls` to outrank the controls' own padding: at the
 /// page's 16 px text it is about 35 px a side, past WCAG 2.5.8's 24. Its
 /// `display:block` would show both icons but for `HIDDEN_RULE`'s
 /// `!important`, which the swap relies on.
@@ -174,6 +175,7 @@ pub(super) const SKIP_OVER_PAGE: &str =
 /// The controls' and panel's rules; `toggle` as for [`controls`].
 pub(super) fn css(wide: &Wide, toggle: bool) -> String {
     let skip = if toggle { "" } else { SKIP_OVER_PAGE };
+    let icon = if toggle { TOGGLE_ICON_RULE } else { "" };
     [
         HIDDEN_RULE,
         &capped(BAR_OPEN, wide),
@@ -186,7 +188,7 @@ pub(super) fn css(wide: &Wide, toggle: bool) -> String {
         BUTTON_CLOSE,
         SKIP_RULE,
         HIDDEN_BOX,
-        TOGGLE_ICON_RULE,
+        icon,
         FOCUS_OPEN,
         Neutral::Focus.as_str(),
         OUTLINE_CLOSE,

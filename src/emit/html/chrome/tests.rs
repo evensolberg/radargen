@@ -173,6 +173,7 @@ fn the_panel_sticks_and_shows_focus() {
 #[test]
 fn a_palette_page_has_no_toggle() {
     assert!(!controls(false).contains(TOGGLE_CLASS));
+    assert!(!controls(false).contains("<svg"), "no icons either");
     assert!(controls(false).contains(SKIP_CLASS));
     assert_eq!(
         controls(true),
@@ -206,7 +207,9 @@ fn the_toggle_is_an_icon_named_by_what_a_press_does() {
     assert!(SUN_ICON.starts_with(&["<svg class=\"", SUN_CLASS, "\""].concat()));
     assert!(!MOON_ICON.contains("hidden=\"\""), "the moon shows first");
     assert!(SUN_ICON.contains(" hidden=\"\""), "the sun waits for dark");
-    assert!(toggle.contains("<span class=\"visually-hidden\">Switch to dark theme</span>"));
+    // The words carry the class the script finds them by (`N.words`).
+    let hidden = super::super::css::VISUALLY_HIDDEN.trim_start_matches('.');
+    assert!(toggle.contains(&["<span class=\"", hidden, "\">", TO_DARK, "</span>"].concat()));
     let css = super::css(
         &super::super::css::Wide {
             title_height: 53.0,
@@ -239,5 +242,9 @@ fn a_palette_page_draws_the_skip_link_over_the_page() {
         legend_width: 306.817,
     };
     assert!(super::css(&wide, false).ends_with(SKIP_OVER_PAGE));
+    assert!(
+        !super::css(&wide, false).contains(".theme-toggle svg"),
+        "no icon rule"
+    );
     assert!(!super::css(&wide, true).contains(SKIP_OVER_PAGE));
 }

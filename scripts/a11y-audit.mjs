@@ -290,6 +290,14 @@ async function reflow(label) {
   // and the theme toggle shows an icon, its words visually hidden (rg-1ru).
   const spills = await evaluate(`(${SPILLS})('h2, summary, thead th', 0.5)`);
   check(spills.length === 0, `${label}: text spills its box: ${spills}`);
+  const iconFits = await evaluate(`(() => {
+    const button = document.querySelector('.theme-toggle');
+    if (!button) return true;
+    const o = button.getBoundingClientRect();
+    const i = button.querySelector('svg:not([hidden])').getBoundingClientRect();
+    return i.left >= o.left && i.right <= o.right && i.top >= o.top && i.bottom <= o.bottom;
+  })()`);
+  check(iconFits, `${label}: the toggle's icon stays inside its button`);
   await openTable(false);
 }
 

@@ -233,13 +233,10 @@ fn hostile_text_survives_an_html5_parser() {
         name_of(n) == (ns!(svg), LocalName::from("svg"))
             && attribute(n, "class").is_some_and(|c| c.starts_with("theme-"))
     };
-    let icon_nodes: Vec<Handle> = all.iter().filter(is_icon).flat_map(elements).collect();
+    let icons: Vec<&Handle> = all.iter().filter(is_icon).collect();
+    assert_eq!(icons.len(), 2, "the moon and the sun");
+    let icon_nodes: Vec<Handle> = icons.into_iter().flat_map(elements).collect();
     let inside_an_icon = |n: &Handle| icon_nodes.iter().any(|i| Rc::ptr_eq(i, n));
-    assert_eq!(
-        all.iter().filter(is_icon).count(),
-        2,
-        "the moon and the sun"
-    );
     for node in &all {
         let (namespace, local) = name_of(node);
         let pairs = attribute_pairs(node);
