@@ -1,13 +1,20 @@
+## [1.4.2] - 2026-10-17
+
+### 📚 Documentation
+
+- *(readme)* Rewrite as a guide to what radargen does
+- *(changelog)* 1.4.2
+- *(readme)* Which warnings wait for which errors
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Unplotted rings; choosing what the page table shows
+- *(release)* 1.4.2
 ## [1.4.1] - 2026-10-17
 
 ### 🧪 Testing
 
-- *(golden)* Hold a version placeholder, not the version
-- *(golden)* Tidy from review; a pasteable install placeholder
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* 1.4.1
+- *(golden)* Hold a version placeholder, not the version (1.4.1) (#112)
 ## [1.4.0] - 2026-10-17
 
 ### 🚀 Features
