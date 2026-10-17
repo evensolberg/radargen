@@ -786,7 +786,7 @@ try {
   });
 
   // D-85: the wide radar's column grows to the window's width or to the
-  // height under the title, whichever runs out first, never below 0.8 of
+  // height under the controls and the title, whichever runs out first, never below 0.8 of
   // its own width; the title, key and legend keep their natural size, and
   // the legend scrolls in a box as tall as the radar. Measured, not read
   // from the CSS: a declaration the browser drops as invalid would leave
