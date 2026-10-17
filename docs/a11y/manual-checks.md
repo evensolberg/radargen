@@ -11,7 +11,7 @@ created_date: 2026-10-13
 synopsis: "What only a person with a screen reader, a real browser's zoom or a keyboard on a real machine can judge, step by step, with the announcement to expect at each step and a results table to fill in before tagging 1.0.0. The automated audit (scripts/a11y-audit.mjs) covers everything a browser can measure; this covers the rest."
 status: draft
 type: Guide
-revision: "1.9"
+revision: "1.10"
 review_date:
 reviewed_by: []
 completed_date:
@@ -64,6 +64,8 @@ The expected names come from `three-quadrant.csv`.
    - *Expect:* "Switch to dark theme, button" ("Switch to light theme" if the system is dark), with no pressed state, and nothing read for the icon.
    - *Expect:* Enter changes the page's colours, and the label becomes the other one.
    - *Expect (sighted):* a moon while the page is light, a sun while it is dark.
+   - *Expect (sighted, mouse):* hovering shows the name as a tooltip. After a press, move the pointer off the button and back on: it shows the other name (browsers hide a tooltip on a click until the pointer moves).
+   - *Expect:* the name is read once, with no description or delayed hint repeating it.
    - *Record:* whether the new label is announced after the press, or only when focus returns to the button.
 9. **The legend button** (RG-102). Tab to it; it is between the skip link and the theme toggle (alone at the end on a `--palette` page, step 18).
    - *Expect:* "Hide legend, button", with no pressed state, and nothing read for the icon.
@@ -73,6 +75,8 @@ The expected names come from `three-quadrant.csv`.
    - *Expect, with the legend still hidden:* reload and press Tab once: "Skip to the legend, button" again, since nothing is remembered. Hide the legend, Shift+Tab to the skip link: "Skip to the table, button", and on Enter, focus on the table's toggle.
    - *Expect, with `--legend hidden`:* on the first visit the button reads "Show legend, button" and the skip link "Skip to the table, button".
    - *Expect (sighted, narrow window):* with the legend below the fold, the icon changes on each press.
+   - *Expect (sighted, mouse):* hovering shows "Hide legend" as a tooltip. After a press, move the pointer off the button and back on: it shows "Show legend".
+   - *Expect:* the name is read once, with no description or delayed hint repeating it.
 10. **The table** (`interaction.html`). Open *The table* and browse into it.
    - *Expect:* "Every item, region", then a table with its row and column counts.
    - *Expect:* moving across a row reads each cell with its column header; moving down a column reads the row header (the name).
@@ -161,3 +165,4 @@ The expected names come from `three-quadrant.csv`.
 | 1.7 | 2026-10-17 | Step 14: the narrow arrangement's two SVGs, body and legend (RG-102). |
 | 1.8 | 2026-10-17 | New step 9: the legend button; step 7 adds the skip link with the legend hidden; later steps renumbered (RG-102). |
 | 1.9 | 2026-10-17 | Step 9 covers browse mode, a hidden start, the narrow icon change and a fail rule for silent renames; the skip-link-to-table check moves there from step 7 (RG-102 review). |
+| 1.10 | 2026-10-17 | Steps 8 and 9: the icon buttons' hover tooltips (rg-7gd). |

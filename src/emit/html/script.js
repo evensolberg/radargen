@@ -338,10 +338,12 @@
       const chosen = root.getAttribute(N.theme);
       return chosen ? chosen === 'dark' : prefersDark.matches;
     };
-    // The hidden words name the button; the stylesheet picks its icon.
+    // The hidden words name the button and its title repeats them as a hover
+    // tooltip for a sighted mouse user, who sees only the icon (rg-7gd); the
+    // stylesheet picks the icon.
     const words = toggle.querySelector('.' + N.words);
     const label = () => {
-      words.textContent = dark() ? N.toLight : N.toDark;
+      toggle.title = words.textContent = dark() ? N.toLight : N.toDark;
     };
     toggle.addEventListener('click', () => {
       root.setAttribute(N.theme, dark() ? 'light' : 'dark');
@@ -368,7 +370,8 @@
   const legendWords = legendToggle.querySelector('.' + N.words);
   const showLegendState = () => {
     const hidden = isLegendHidden();
-    legendWords.textContent = hidden ? N.showLegend : N.hideLegend;
+    // The name, and its hover tooltip, as for the theme toggle (rg-7gd).
+    legendToggle.title = legendWords.textContent = hidden ? N.showLegend : N.hideLegend;
     skip.textContent = hidden ? N.skipTable : N.skipLegend;
   };
   legendToggle.addEventListener('click', () => {

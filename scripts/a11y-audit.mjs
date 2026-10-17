@@ -145,6 +145,17 @@ async function names(label) {
     `${label}: the legend button is a button named "Hide legend": ${legendNode.role?.value} "${legendNode.name?.value}"`,
   );
   check(prop(legendNode, 'pressed') === undefined, `${label}: the legend button has no pressed state`);
+  // rg-7gd: each button's title repeats its name as a hover tooltip. The
+  // name comes from its words and nothing is read twice as a description.
+  // Chromium lists a superseded title source on every button, title or
+  // not, and gives no value for it, so the title itself is read from the
+  // page.
+  for (const [what, selector, node] of [['the toggle', '.theme-toggle', toggleNode], ['the legend button', '.legend-toggle', legendNode]]) {
+    const fromWords = node.name?.sources?.find((source) => source.type === 'contents')?.value?.value === node.name?.value;
+    const title = await evaluate(`document.querySelector('${selector}').title`);
+    const description = node.description?.value ?? '';
+    check(fromWords && title === node.name?.value && description === '', `${label}: ${what} is named once, by its words, its tooltip the same: ${node.name?.value} / title "${title}" / description "${description}"`);
+  }
   await openTable(true);
   const rows = await evaluate(`document.querySelectorAll('tr[data-row] button').length`);
   check(rows > 0, `${label}: the table has buttons`);
@@ -546,6 +557,7 @@ try {
       await press('Enter');
       const button = await ax(`document.querySelector('.legend-toggle')`);
       check(button.name?.value === 'Show legend' && prop(button, 'pressed') === undefined, `@${width} hidden: the button is named "Show legend", unpressed: "${button.name?.value}"`);
+      check((button.description?.value ?? '') === '', `@${width} hidden: the renamed button's tooltip is not read as a description: "${button.description?.value}"`);
       const row = await ax(`${SHOWN}.querySelector('[data-legend-row]')`);
       check(row.ignored === true, `@${width} hidden: a legend row is out of the accessibility tree`);
       const skip = await ax(`document.querySelector('.skip')`);
