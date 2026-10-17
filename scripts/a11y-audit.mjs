@@ -145,6 +145,16 @@ async function names(label) {
     `${label}: the legend button is a button named "Hide legend": ${legendNode.role?.value} "${legendNode.name?.value}"`,
   );
   check(prop(legendNode, 'pressed') === undefined, `${label}: the legend button has no pressed state`);
+  // rg-7gd: each button's title repeats its name as a hover tooltip. The
+  // name comes from its words, the title is superseded, and nothing is read
+  // twice as a description.
+  for (const [what, node] of [['the toggle', toggleNode], ['the legend button', legendNode]]) {
+    const sources = node.name?.sources ?? [];
+    const fromWords = sources.find((source) => source.type === 'contents')?.value?.value === node.name?.value;
+    const titleSuperseded = sources.find((source) => source.attribute === 'title')?.superseded === true;
+    const description = node.description?.value ?? '';
+    check(fromWords && titleSuperseded && description === '', `${label}: ${what} is named once, by its words: ${node.name?.value} / description "${description}"`);
+  }
   await openTable(true);
   const rows = await evaluate(`document.querySelectorAll('tr[data-row] button').length`);
   check(rows > 0, `${label}: the table has buttons`);
