@@ -41,6 +41,30 @@ fn headings_and_decoration_in_both_targets() {
     }
 }
 
+/// rg-g0c: a heading named from its content would join its tspans with
+/// nothing between, so one wrapped onto several lines is named by its
+/// words; a one-line heading is left to its content.
+#[test]
+fn a_wrapped_heading_is_named_by_its_words() {
+    let palette = light();
+    let level = NonZeroU8::MIN;
+    let fill = TextPaint::Fill(MUTED);
+    for target in [Target::Interactive(&palette), Target::Static(&palette)] {
+        let wrapped = vec![text(&["Distributed", "Streaming"], Anchor::Start, fill)];
+        let heading = one(&semantic(Semantics::Heading(level), wrapped), target);
+        assert_eq!(
+            first_line(&heading),
+            "<g role=\"heading\" aria-level=\"1\" aria-label=\"Distributed Streaming\">"
+        );
+        let single = vec![text(&["Streaming"], Anchor::Start, fill)];
+        let heading = one(&semantic(Semantics::Heading(level), single), target);
+        assert_eq!(
+            first_line(&heading),
+            "<g role=\"heading\" aria-level=\"1\">"
+        );
+    }
+}
+
 /// rg-eae: a named group reads the same in both targets.
 #[test]
 fn a_named_group_in_both_targets() {

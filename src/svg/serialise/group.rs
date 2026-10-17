@@ -5,7 +5,7 @@ use super::{
     DATA_ROW, DATA_ROW_INDICATOR, DATA_SELECTION, Target, attr, node, point, shows,
 };
 use crate::escape::xml_text;
-use crate::svg::{Control, Group, Semantics};
+use crate::svg::{Control, Group, Node, Semantics};
 
 /// The group, its children written first: a group with nothing to show
 /// writes nothing (the empty title block; static output's hit and
@@ -57,9 +57,24 @@ fn open(group: &Group, context: Context<'_>) -> String {
         );
     }
     semantics(&mut out, &group.semantics, context);
+    if matches!(group.semantics, Semantics::Heading(_))
+        && let Some(words) = wrapped(&group.children)
+    {
+        attr(&mut out, "aria-label", words);
+    }
     out.push_str(">\n");
     out.push_str(&title(&group.semantics));
     out
+}
+
+/// The words of a heading's text wrapped onto several lines. Named from
+/// its content, the heading would join the lines' tspans with nothing
+/// between and read the words either side of a break as one (rg-g0c).
+fn wrapped(children: &[Node]) -> Option<&str> {
+    match children {
+        [Node::Text { lines, words, .. }] if lines.len() > 1 => Some(words),
+        _ => None,
+    }
 }
 
 fn semantics(out: &mut String, semantics: &Semantics, context: Context<'_>) {

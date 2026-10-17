@@ -994,6 +994,22 @@ fn a_wrapped_svg_text_is_named_as_written() {
     assert!(names.contains(&subtitle), "{names:?}");
 }
 
+/// A legend heading wrapped between words is named with the space a
+/// browser's name-from-content would drop between its tspans (rg-g0c).
+#[test]
+fn a_wrapped_heading_is_named_as_written() {
+    let quadrant = "Languages And Frameworks For Distributed Streaming Workloads";
+    let dir = seeded(&[("radar.csv", &format!("{HEAD}Kafka,{quadrant},Adopt,x\n"))]);
+    let ran = run_in(dir.path(), &RENDER);
+    assert!(ran.ok(), "{}", ran.stderr);
+    let page = read(dir.path(), "radar.html");
+    let named = format!("role=\"heading\" aria-level=\"3\" aria-label=\"{quadrant}\"");
+    assert!(
+        page.contains(&named),
+        "no wrapped heading named {quadrant:?}"
+    );
+}
+
 /// SC-18: a run that fails after `-o` exists leaves it byte-identical.
 #[test]
 fn a_failed_svg_run_leaves_the_old_file() {
