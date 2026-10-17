@@ -23,6 +23,9 @@ pub(super) fn css_trim(s: &str) -> &str {
 /// Whitespace CSS does not trim, such as a no-break space, is escaped
 /// (`\u{a0}`), as NFR-10 shows an invisible character: printed raw, it
 /// looks like a space the trim removed, and the value looks valid (rg-8xm).
+/// Control and format (Cf) characters are not escaped here: every stderr
+/// line passes through `diagnostics::escape_controls`, which escapes them,
+/// so this covers only the whitespace CSS does not trim.
 pub(super) fn excerpt(text: &str) -> String {
     // Split by hand rather than with `lines()`, which ignores a lone CR,
     // and FR-102 ends a line there too.

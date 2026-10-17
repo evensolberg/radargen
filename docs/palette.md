@@ -45,10 +45,10 @@ error: --palette brand.css: --series-4 is missing; number series entries from --
 
 A missing colour has no line, since it is not in the file.
 
-A forgotten `;` runs a value onto the next line, so radargen reports that value with the likely cause, and does not also report the colour it swallowed as missing:
+A forgotten `;` runs a value onto the next line, so radargen reports that value, says to end it with `;`, and does not also report the colour it swallowed as missing:
 
 ```text
-error: --palette brand.css, line 35: --surface-1: '#FFFFFF…' is not a #RRGGBB colour; it runs onto the next line, so a ; is likely missing
+error: --palette brand.css, line 35: --surface-1: '#FFFFFF…' is not a #RRGGBB colour; it runs onto the next line, so end it with ;
 ```
 
 A character you cannot see in a value, such as a no-break space, is shown escaped, as in `'\u{a0}#0B5FA5'`: delete it and type an ordinary space, or none.

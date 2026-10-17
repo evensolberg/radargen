@@ -23,9 +23,9 @@ pub const MAX_BYTES: usize = 1 << 20;
 /// the cap from one beyond it.
 const READ_CAP: u64 = (1 << 20) + 1;
 
-/// The likely cause [`PaletteError::NotHex`] adds when its value runs onto
-/// another line.
-const RUNS_ON: &str = "; it runs onto the next line, so a ; is likely missing";
+/// What [`PaletteError::NotHex`] adds when its value swallowed the next
+/// declaration.
+const RUNS_ON: &str = "; it runs onto the next line, so end it with ;";
 
 /// The properties a palette may declare, as an unknown-property message
 /// lists them.
@@ -107,8 +107,8 @@ pub enum PaletteError {
         name: String,
         /// The value, quoted by [`excerpt`].
         value: String,
-        /// The value holds a line break, which a forgotten `;` leaves: the
-        /// next declaration is read as the rest of this value (rg-8xm).
+        /// The value swallowed a declaration on a later line, as a forgotten
+        /// `;` leaves it (rg-8xm).
         runs_on: bool,
     },
     /// FR-86: a role the accepted rule does not declare.
@@ -414,12 +414,13 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
         };
         let hex = Hex::parse(d.value);
         if hex.is_none() {
+            let before = swallowed.len();
             swallowed.extend(swallowed_names(d.value));
             errors.push(PaletteError::NotHex {
                 line: d.line,
                 name: d.name.into(),
                 value: excerpt(d.value),
-                runs_on: d.value.contains(['\n', '\r']),
+                runs_on: swallowed.len() > before,
             });
         }
         match slot {
@@ -431,6 +432,13 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
             Property::Series(index) => {
                 series.insert(index, hex);
             }
+        }
+    }
+    // A swallowed series entry is declared, if not valid: no gap, and no
+    // palette either.
+    for name in &swallowed {
+        if let Some(Property::Series(index)) = property(name) {
+            series.entry(index).or_insert(None);
         }
     }
     for role in Neutral::ALL {
@@ -447,14 +455,15 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
     Palette::new(neutrals, series.into_values().collect::<Option<_>>()?)
 }
 
-/// The name of each declaration on a value's later lines: what a forgotten
-/// `;` ran it into.
+/// The name of each custom-property declaration on a value's later lines:
+/// what a forgotten `;` ran it into.
 fn swallowed_names(value: &str) -> impl Iterator<Item = &str> {
     value
         .split(['\n', '\r'])
         .skip(1)
         .filter_map(|line| line.split_once(':'))
         .map(|(name, _)| css_trim(name))
+        .filter(|name| name.starts_with("--"))
 }
 
 /// FR-87's gaps in the declared series indices, in ascending order: one

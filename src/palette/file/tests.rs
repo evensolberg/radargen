@@ -550,7 +550,7 @@ fn the_read_cap_is_one_past_the_limit() {
 }
 
 /// rg-8xm: a value that runs onto the next line is a forgotten `;`, and the
-/// message says so.
+/// message says how to end it.
 #[test]
 fn a_value_on_two_lines_hints_at_a_missing_semicolon() {
     let shown = PaletteError::NotHex {
@@ -562,7 +562,7 @@ fn a_value_on_two_lines_hints_at_a_missing_semicolon() {
     .to_string();
     assert_eq!(
         shown,
-        "--surface-1: '#FFFFFF…' is not a #RRGGBB colour; it runs onto the next line, so a ; is likely missing"
+        "--surface-1: '#FFFFFF…' is not a #RRGGBB colour; it runs onto the next line, so end it with ;"
     );
     let one_line = PaletteError::NotHex {
         line: 2,
@@ -575,7 +575,7 @@ fn a_value_on_two_lines_hints_at_a_missing_semicolon() {
 }
 
 /// rg-8xm: the role a forgotten `;` swallowed is in the file, so it is not
-/// reported missing as well; one the value does not hold still is.
+/// reported missing as well.
 #[test]
 fn a_role_swallowed_by_a_forgotten_semicolon_is_not_missing() {
     let text = file("  --series-1: #000001;\n").replacen("#FFFFFF;", "#FFFFFF", 1);
@@ -588,15 +588,65 @@ fn a_role_swallowed_by_a_forgotten_semicolon_is_not_missing() {
             runs_on: true
         }]
     );
-    let text = file("  --series-1: #000001;\n").replacen("--focus", "--focus-ring", 1);
-    let text = text.replacen("#FFFFFF;", "#FFFFFF", 1);
-    let all = errors(&text);
-    assert!(
-        all.contains(&PaletteError::MissingRole {
-            role: Neutral::Focus
-        }),
-        "{all:?}"
+}
+
+/// rg-8xm: a swallowed name counts only when it is the role's name exactly,
+/// so `--focus-ring` swallowed by `--marker-hollow` leaves `--focus` missing.
+#[test]
+fn a_swallowed_name_matches_a_role_exactly() {
+    let text = file("  --series-1: #000001;\n")
+        .replacen("--marker-hollow: #FFFFFF;", "--marker-hollow: #FFFFFF", 1)
+        .replacen("--focus", "--focus-ring", 1);
+    assert_eq!(
+        errors(&text),
+        [
+            PaletteError::NotHex {
+                line: 8,
+                name: "--marker-hollow".into(),
+                value: "#FFFFFF…".into(),
+                runs_on: true
+            },
+            PaletteError::MissingRole {
+                role: Neutral::Focus
+            },
+        ]
     );
+}
+
+/// rg-8xm: a series entry a forgotten `;` swallowed is no gap, and the file
+/// is still refused.
+#[test]
+fn a_series_entry_swallowed_by_a_forgotten_semicolon_is_no_gap() {
+    let text = file("  --series-1: #000001\n  --series-2: #000002;\n  --series-3: #000003;\n");
+    assert_eq!(
+        errors(&text),
+        [PaletteError::NotHex {
+            line: 10,
+            name: "--series-1".into(),
+            value: "#000001…".into(),
+            runs_on: true
+        }]
+    );
+}
+
+/// rg-8xm: a value on two lines that swallowed no declaration gets no hint
+/// at a `;`.
+#[test]
+fn a_value_on_two_lines_with_no_declaration_gets_no_hint() {
+    for (value, shown) in [
+        ("rgb(0,\n    0, 0)", "rgb(0,…"),
+        ("#0072B2\n    !important", "#0072B2…"),
+    ] {
+        assert_eq!(
+            errors(&file(&format!("  --series-1: {value};\n"))),
+            [PaletteError::NotHex {
+                line: 10,
+                name: "--series-1".into(),
+                value: shown.into(),
+                runs_on: false
+            }]
+        );
+    }
 }
 
 /// rg-8xm: a no-break space is not CSS whitespace, so it stays in the value;
