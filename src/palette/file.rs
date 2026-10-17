@@ -347,8 +347,9 @@ fn declarations<'a>(
     out
 }
 
-/// The declarations in `text`, one `;`-ended segment, trimmed, starting at
-/// byte `at` of the file.
+/// Reads the declarations in `text`, one trimmed `;`-ended segment
+/// starting at byte `at` of the file, into `out`, and what is wrong with
+/// them into `errors`.
 ///
 /// A later line of a value that declares a custom property is a forgotten
 /// `;` (rg-8xm): the value ends there, and reading resumes at that line, so
@@ -379,9 +380,13 @@ fn segment<'a>(
         let value_at = at + name_len + 1;
         let next = lines
             .starting_in(value_at..value_at + value.len())
-            .map(|(_, from)| from)
-            .find(|&from| value.get(from - value_at..).is_some_and(declares_property));
-        let Some(from) = next else {
+            .find_map(|(_, from)| {
+                value
+                    .split_at_checked(from - value_at)
+                    .filter(|(_, after)| declares_property(after))
+                    .map(|(before, after)| (from, before, after))
+            });
+        let Some((from, before, after)) = next else {
             out.push(Declaration {
                 line,
                 name,
@@ -393,15 +398,13 @@ fn segment<'a>(
             line,
             name: excerpt(name),
         });
-        let (before, after) = value.split_at(from - value_at);
         out.push(Declaration {
             line,
             name,
             value: css_trim(before),
         });
-        let lead = after.len() - after.trim_start_matches(css_space).len();
-        at = from + lead;
-        text = after.get(lead..).unwrap_or_default();
+        text = after.trim_start_matches(css_space);
+        at = from + (after.len() - text.len());
     }
 }
 
