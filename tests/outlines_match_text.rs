@@ -76,6 +76,18 @@ fn corpus() -> Vec<String> {
     {
         v.push(format!("{}. {name}", i + 1));
     }
+    // Combining marks, as tests/agrees_with_resvg.rs types them: the shaper
+    // gives these glyphs a non-zero offset, so `place` applying it is checked
+    // against resvg (the Latin rows above all have zero offsets).
+    v.extend(
+        [
+            "Tie\u{0302}\u{0301}ng Vie\u{0323}\u{0302}t",
+            "За\u{0301}мок",
+            "i\u{0307}x α\u{0313}\u{0301}",
+            "q\u{0301}u\u{0308}\u{0301}",
+        ]
+        .map(String::from),
+    );
     v
 }
 
@@ -222,6 +234,11 @@ fn compare(a: &tiny_skia::Pixmap, b: &tiny_skia::Pixmap) -> (usize, u8) {
     (differing, worst)
 }
 
+/// The largest channel difference antialiasing leaves (64 today). A glyph
+/// drawn in the wrong place differs by up to 255 in a handful of subpixels,
+/// too few for the ppm bound alone to notice.
+const WORST_CHANNEL: u8 = 128;
+
 /// Outlining is *visually* identical to `<text>`, not bit-identical. The
 /// residue is a scattering of antialiasing edge cases, one or two subpixels per
 /// scanline and never clustered — see the spike for the precision sweep that
@@ -243,6 +260,10 @@ fn outlining_matches_text_to_within_antialiasing() {
         differing * 10_000 < total,
         "{differing} of {total} subpixels differ — over 100 ppm, which is no longer antialiasing"
     );
+    assert!(
+        worst < WORST_CHANNEL,
+        "a channel differs by {worst}, which is no longer antialiasing"
+    );
 }
 
 #[test]
@@ -255,6 +276,7 @@ fn deduplicating_glyphs_preserves_the_rendering() {
         differing * 10_000 < total,
         "{differing} of {total} subpixels differ"
     );
+    assert!(worst < WORST_CHANNEL, "a channel differs by {worst}");
 }
 
 /// The size argument, which did not decide it — see the spike. Recorded
