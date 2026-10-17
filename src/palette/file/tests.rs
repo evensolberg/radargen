@@ -764,7 +764,7 @@ fn a_swallowed_name_repeats_an_earlier_declaration() {
 /// rg-4id: and a later declaration repeats the swallowed one.
 #[test]
 fn a_later_declaration_repeats_a_swallowed_name() {
-    for end in ["\n", "\r\n"] {
+    for end in ["\n", "\r\n", "\r"] {
         let text = file(&format!(
             "  --series-1: #000001{end}  --series-2: #000002;{end}  --series-2: #000003;{end}"
         ));
@@ -786,4 +786,42 @@ fn a_later_declaration_repeats_a_swallowed_name() {
             "{end:?}"
         );
     }
+}
+
+/// rg-4id: an empty value's successor is on the next line, and is located
+/// there.
+#[test]
+fn a_name_an_empty_value_swallowed_is_located_on_its_own_line() {
+    let text = file("  --series-1:\n  --series-2: #000002;\n  --series-2: #000003;\n");
+    assert_eq!(
+        errors(&text),
+        [
+            PaletteError::NotHex {
+                line: 10,
+                name: "--series-1".into(),
+                value: "--series-2: #000002".into(),
+                runs_on: true
+            },
+            PaletteError::Duplicate {
+                line: 12,
+                name: "--series-2".into(),
+                first: 11
+            },
+        ]
+    );
+}
+
+/// rg-4id: a value that starts with a declaration on its own line is not a
+/// forgotten `;` at a line end, so it swallows nothing.
+#[test]
+fn a_declaration_on_the_same_line_is_not_swallowed() {
+    assert_eq!(
+        errors(&file("  --series-1: --series-1: #000001;\n")),
+        [PaletteError::NotHex {
+            line: 10,
+            name: "--series-1".into(),
+            value: "--series-1: #000001".into(),
+            runs_on: false
+        }]
+    );
 }

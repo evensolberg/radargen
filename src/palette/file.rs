@@ -483,8 +483,9 @@ fn first_declaration<'a>(
 }
 
 /// The byte offset in `value` and the name of each custom-property
-/// declaration in it: what a forgotten `;` ran it into. A first line that is
-/// one is an empty value's swallowed successor.
+/// declaration on a line after its first: what a forgotten `;` ran it into.
+/// The first line is the rest of the declaration's own, so an empty value's
+/// successor is on the second.
 fn swallowed_names(value: &str) -> impl Iterator<Item = (usize, &str)> {
     value
         .split(['\n', '\r'])
@@ -493,6 +494,7 @@ fn swallowed_names(value: &str) -> impl Iterator<Item = (usize, &str)> {
             *from += line.len() + 1;
             Some((at, line))
         })
+        .skip(1)
         .filter_map(|(at, line)| Some((at, css_trim(line.split_once(':')?.0))))
         .filter(|(_, name)| name.starts_with("--"))
 }
