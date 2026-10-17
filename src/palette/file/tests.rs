@@ -771,7 +771,7 @@ fn escapes_count_towards_the_quote_length() {
     );
 }
 
-/// rg-8xm: a value on two lines that swallowed no declaration gets no hint
+/// rg-8xm: a value on two lines that runs into no declaration gets no hint
 /// at a `;`.
 #[test]
 fn a_value_on_two_lines_with_no_declaration_gets_no_hint() {
@@ -881,9 +881,9 @@ fn a_declaration_after_an_empty_value_is_located_on_its_own_line() {
 }
 
 /// rg-4id: a value that starts with a declaration on the same line is not a
-/// forgotten `;` at a line end, so it swallows nothing.
+/// forgotten `;` at a line end, so it ends at nothing.
 #[test]
-fn a_declaration_on_the_same_line_is_not_swallowed() {
+fn a_declaration_on_the_same_line_does_not_end_the_value() {
     assert_eq!(
         errors(&file("  --series-1: --series-1: #000001;\n")),
         [PaletteError::NotHex {
@@ -905,6 +905,33 @@ fn lines_starting_in_a_span() {
     // A line starting at the span's first byte or its end is left out.
     assert_eq!(starts(2..7), [(3, 5)]);
     assert_eq!(starts(4..4), []);
+}
+
+/// Plan RG-018A R3, rg-p9a: and still linear when a long run of whitespace,
+/// or a comment, which becomes whitespace, follows them before the `}`:
+/// the segment is trimmed once, not once per forgotten `;`.
+#[test]
+fn forgotten_semicolons_before_a_long_tail_are_read_in_linear_time() {
+    let lines = 1 << 16;
+    let text = [
+        ":root {",
+        &"--a:x\n".repeat(lines),
+        &" ".repeat(600_000),
+        "}",
+    ]
+    .concat();
+    let start = std::time::Instant::now();
+    let found = errors(&text);
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(5),
+        "{:?}",
+        start.elapsed()
+    );
+    let missing = found
+        .iter()
+        .filter(|e| matches!(e, PaletteError::MissingSemicolon { .. }))
+        .count();
+    assert_eq!(missing, lines - 1);
 }
 
 /// rg-p9a: each forgotten `;` in a row is its own error, and the last

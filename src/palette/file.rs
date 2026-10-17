@@ -328,74 +328,81 @@ fn declarations<'a>(
 ) -> Vec<Declaration<'a>> {
     let mut out = Vec::new();
     let mut offset = 0;
-    // Where the current `;` or `{` is, body-relative. A forgotten `;`
-    // resumes reading before it (rg-p9a), so it is kept rather than
-    // searched for again from each line: that would be quadratic in a file
-    // of such lines (plan RG-018A R3).
-    let mut stop = None;
     while let Some(rest) = body.get(offset..).filter(|rest| !rest.is_empty()) {
-        let at_stop = match stop {
-            Some(at) if at >= offset => at,
-            _ => offset + rest.find([';', '{']).unwrap_or(rest.len()),
-        };
-        stop = Some(at_stop);
-        let end = at_stop - offset;
+        let end = rest.find([';', '{']).unwrap_or(rest.len());
         let (part, from_end) = rest.split_at(end);
         let lead = part.len() - part.trim_start_matches(css_space).len();
         let at = start + offset + lead;
-        let line = lines.at(at);
         let text = css_trim(part);
         if from_end.starts_with('{') {
-            errors.push(other_rule(line, text));
+            errors.push(other_rule(lines.at(at), text));
             // The outer rule closed, so every block inside it closes too.
             let inner = from_end.get(1..).unwrap_or_default();
             offset += end + 1 + block_len(inner).unwrap_or(inner.len()) + 1;
             continue;
         }
         offset += end + 1;
-        if text.is_empty() {
-            continue;
-        }
-        match text
-            .split_once(':')
-            .map(|(name, value)| (css_trim(name), name.len(), value))
-        {
-            Some((name, name_len, value)) if !name.is_empty() => {
-                // `value` starts one past the colon, which is ASCII.
-                let value_at = at + name_len + 1;
-                // A later line of the value that declares a property is a
-                // forgotten `;` (rg-8xm): the value ends there, and reading
-                // resumes at that line, so what it declares is checked in
-                // this pass like any other declaration (rg-p9a).
-                let next = lines
-                    .starting_in(value_at..value_at + value.len())
-                    .map(|(_, from)| from)
-                    .find(|&from| {
-                        value
-                            .get(from - value_at..)
-                            .is_some_and(|rest| swallowed_name(rest).is_some())
-                    });
-                let value = next.map_or(value, |from| {
-                    errors.push(PaletteError::MissingSemicolon {
-                        line,
-                        name: excerpt(name),
-                    });
-                    offset = from - start;
-                    value.get(..from - value_at).unwrap_or_default()
-                });
-                out.push(Declaration {
-                    line,
-                    name,
-                    value: css_trim(value),
-                });
-            }
-            _ => errors.push(PaletteError::Malformed {
-                line,
-                text: excerpt(text),
-            }),
-        }
+        segment(text, at, lines, errors, &mut out);
     }
     out
+}
+
+/// The declarations in `text`, one `;`-ended segment, trimmed, starting at
+/// byte `at` of the file.
+///
+/// A later line of a value that declares a custom property is a forgotten
+/// `;` (rg-8xm): the value ends there, and reading resumes at that line, so
+/// what it declares is checked in this pass like any other declaration
+/// (rg-p9a). Each part of the segment is read once, so a file of forgotten
+/// `;`s stays linear (plan RG-018A R3).
+fn segment<'a>(
+    mut text: &'a str,
+    mut at: usize,
+    lines: &Lines,
+    errors: &mut Vec<PaletteError>,
+    out: &mut Vec<Declaration<'a>>,
+) {
+    while !text.is_empty() {
+        let line = lines.at(at);
+        let Some((name, name_len, value)) = text
+            .split_once(':')
+            .map(|(name, value)| (css_trim(name), name.len(), value))
+            .filter(|(name, _, _)| !name.is_empty())
+        else {
+            errors.push(PaletteError::Malformed {
+                line,
+                text: excerpt(text),
+            });
+            return;
+        };
+        // `value` starts one past the colon, which is ASCII.
+        let value_at = at + name_len + 1;
+        let next = lines
+            .starting_in(value_at..value_at + value.len())
+            .map(|(_, from)| from)
+            .find(|&from| value.get(from - value_at..).is_some_and(declares_property));
+        let Some(from) = next else {
+            out.push(Declaration {
+                line,
+                name,
+                value: css_trim(value),
+            });
+            return;
+        };
+        errors.push(PaletteError::MissingSemicolon {
+            line,
+            name: excerpt(name),
+        });
+        let (before, after) = value.split_at(from - value_at);
+        out.push(Declaration {
+            line,
+            name,
+            value: css_trim(before),
+        });
+        let lead = after.len() - after.trim_start_matches(css_space).len();
+        at = from + lead;
+        text = after.get(lead..).unwrap_or_default();
+    }
 }
 
 /// What a property names.
@@ -496,11 +503,13 @@ fn first_declaration<'a>(
     }
 }
 
-/// The custom property a line of a value declares, if it declares one:
-/// what a forgotten `;` ran the value into. `line` runs to the value's end.
-fn swallowed_name(line: &str) -> Option<&str> {
-    let (name, _) = line.split(['\n', '\r']).next()?.split_once(':')?;
-    Some(css_trim(name)).filter(|name| name.starts_with("--"))
+/// Whether `line`, a line of a value running to the value's end, declares
+/// a custom property (`--name:`), which ends the value before it.
+fn declares_property(line: &str) -> bool {
+    line.split(['\n', '\r'])
+        .next()
+        .and_then(|first| first.split_once(':'))
+        .is_some_and(|(name, _)| css_trim(name).starts_with("--"))
 }
 
 /// FR-87's gaps in the declared series indices, in ascending order: one
