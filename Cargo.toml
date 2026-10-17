@@ -1,6 +1,6 @@
 [package]
 name = "radargen"
-version = "1.2.2"
+version = "1.2.3"
 edition = "2024"
 description = "Render a technology radar from CSV to a self-contained HTML page, a PNG image or an SVG file"
 license = "GPL-3.0-or-later"
