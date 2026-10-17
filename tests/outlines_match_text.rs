@@ -10,13 +10,8 @@
 use std::fmt::Write as _;
 use std::sync::Arc;
 
-use harfrust::{Direction, FontRef, ShapeOptions, ShaperData, UnicodeBuffer};
-use skrifa::instance::{LocationRef, Size};
-use skrifa::outline::{DrawSettings, OutlineGlyphCollection, OutlinePen};
-use skrifa::{FontRef as OutlineFont, GlyphId, MetadataProvider};
-
 use radargen::num::fmt_coord;
-use radargen::text::{FAMILY, REGULAR_TTF as TTF};
+use radargen::text::{FAMILY, FontMetrics, REGULAR_TTF as TTF, Segment};
 use resvg::usvg::fontdb;
 use resvg::{tiny_skia, usvg};
 
@@ -81,75 +76,55 @@ fn corpus() -> Vec<String> {
     {
         v.push(format!("{}. {name}", i + 1));
     }
+    // Combining marks, as tests/agrees_with_resvg.rs types them. The first
+    // two compose to precomposed glyphs; the last two shape marks with a
+    // non-zero x_offset, so `place` applying it is checked against resvg
+    // (the Latin rows above all have zero offsets).
+    v.extend(
+        [
+            "Tie\u{0302}\u{0301}ng Vie\u{0323}\u{0302}t",
+            "За\u{0301}мок",
+            "i\u{0307}x α\u{0313}\u{0301}",
+            "q\u{0301}u\u{0308}\u{0301}",
+        ]
+        .map(String::from),
+    );
     v
 }
 
-/// Emits SVG path commands, scaled from font units and flipped into SVG's
-/// y-down space.
-struct PathSink {
-    d: String,
-    scale: f64,
-    dx: f64,
-    dy: f64,
-}
-
-impl PathSink {
-    fn x(&self, v: f32) -> String {
-        fmt_coord(f64::from(v).mul_add(self.scale, self.dx))
-    }
-    fn y(&self, v: f32) -> String {
-        fmt_coord((-f64::from(v)).mul_add(self.scale, self.dy))
-    }
-}
-
-impl OutlinePen for PathSink {
-    fn move_to(&mut self, x: f32, y: f32) {
-        write!(self.d, "M{} {}", self.x(x), self.y(y)).expect("String write");
-    }
-    fn line_to(&mut self, x: f32, y: f32) {
-        write!(self.d, "L{} {}", self.x(x), self.y(y)).expect("String write");
-    }
-    fn quad_to(&mut self, x1: f32, y1: f32, x: f32, y: f32) {
-        write!(
-            self.d,
-            "Q{} {} {} {}",
-            self.x(x1),
-            self.y(y1),
-            self.x(x),
-            self.y(y)
+/// A glyph's contours as a path's `d`: font units scaled by `scale`, flipped
+/// into SVG's y-down space and offset to `(dx, dy)`.
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "mirrors the serialiser's path, whose plain * and + NFR-4 requires; mul_add falls back to a libm fma where the CPU lacks one"
+)]
+fn path(segments: &[Segment], scale: f64, dx: f64, dy: f64) -> String {
+    let at = |&(x, y): &(f32, f32)| {
+        format!(
+            "{} {}",
+            fmt_coord(f64::from(x) * scale + dx),
+            fmt_coord(-f64::from(y) * scale + dy)
         )
-        .expect("String write");
-    }
-    fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
-        write!(
-            self.d,
-            "C{} {} {} {} {} {}",
-            self.x(x1),
-            self.y(y1),
-            self.x(x2),
-            self.y(y2),
-            self.x(x),
-            self.y(y)
-        )
-        .expect("String write");
-    }
-    fn close(&mut self) {
-        self.d.push('Z');
-    }
-}
-
-/// Glyph `gid`'s outline in font units, drawn into `pen`.
-fn outline(glyph_outlines: &OutlineGlyphCollection<'_>, gid: u16, pen: &mut impl OutlinePen) {
-    // skrifa gives an empty glyph an empty outline; None is only an id
-    // the face does not have, which would mean shaper and reader disagree.
-    glyph_outlines
-        .get(GlyphId::from(gid))
-        .expect("the shaped glyph is in the face")
-        .draw(
-            DrawSettings::unhinted(Size::unscaled(), LocationRef::default()),
-            pen,
-        )
-        .expect("draws");
+    };
+    let step = |command: &str, points: &[(f32, f32)]| {
+        [
+            command,
+            &points.iter().map(at).collect::<Vec<_>>().join(" "),
+        ]
+        .concat()
+    };
+    segments
+        .iter()
+        .map(|&segment| match segment {
+            Segment::MoveTo(x, y) => step("M", &[(x, y)]),
+            Segment::LineTo(x, y) => step("L", &[(x, y)]),
+            Segment::QuadTo(cx, cy, x, y) => step("Q", &[(cx, cy), (x, y)]),
+            Segment::CurveTo(c1x, c1y, c2x, c2y, x, y) => {
+                step("C", &[(c1x, c1y), (c2x, c2y), (x, y)])
+            }
+            Segment::Close => "Z".to_owned(),
+        })
+        .collect()
 }
 
 struct Built {
@@ -161,17 +136,15 @@ struct Built {
 }
 
 fn build() -> Built {
-    let font = FontRef::from_index(TTF, 0).expect("shaping face");
-    let data = ShaperData::new(&font);
-    let shaper = data.shaper(&font).build();
-    let parse = OutlineFont::new(TTF).expect("parse face");
-    let upem = f64::from(
-        parse
-            .metrics(Size::unscaled(), LocationRef::default())
-            .units_per_em,
-    );
-    let glyph_outlines = parse.outline_glyphs();
-    let scale = SIZE / upem;
+    let face = FontMetrics::load(TTF, "Inter Regular").expect("font parses");
+    let scale = SIZE / face.units_per_em();
+    // An empty glyph has an empty outline; an error is an id the face does
+    // not have (shaper and reader disagree) or an outline that cannot be
+    // drawn.
+    let outline = |glyph| {
+        face.outline(glyph)
+            .expect("the shaped glyph is in the face and draws")
+    };
 
     let mut text = String::new();
     let mut outlined = String::new();
@@ -187,36 +160,21 @@ fn build() -> Built {
         )
         .expect("String write");
 
-        let mut buf = UnicodeBuffer::new();
-        buf.push_str(s);
-        buf.set_direction(Direction::LeftToRight);
-        buf.guess_segment_properties();
-        let output = shaper.shape(buf, ShapeOptions::new());
         let mut run = String::new();
-        let mut pen = 20.0_f64;
-        for (info, pos) in output.glyph_infos().iter().zip(output.glyph_positions()) {
-            let gid = u16::try_from(info.glyph_id).expect("glyph id fits u16");
-            let gx = f64::from(pos.x_offset).mul_add(scale, pen);
-            let gy = (-f64::from(pos.y_offset)).mul_add(scale, y);
+        for placed in face.place(s, SIZE, 0.0) {
+            let gx = 20.0 + placed.x;
+            let gy = y + placed.y;
             glyphs += 1;
-            distinct.insert(gid);
-
-            let mut sink = PathSink {
-                d: String::new(),
-                scale,
-                dx: gx,
-                dy: gy,
-            };
-            outline(&glyph_outlines, gid, &mut sink);
-            run.push_str(&sink.d);
+            distinct.insert(placed.glyph);
+            run.push_str(&path(&outline(placed.glyph), scale, gx, gy));
             write!(
                 placements,
-                r##"<use href="#g{gid}" x="{}" y="{}"/>"##,
+                r##"<use href="#g{}" x="{}" y="{}"/>"##,
+                placed.glyph,
                 fmt_coord(gx),
                 fmt_coord(gy)
             )
             .expect("String write");
-            pen = f64::from(pos.x_advance).mul_add(scale, pen);
         }
         write!(outlined, r#"<path d="{run}"/>"#).expect("String write");
         y += 22.0;
@@ -227,14 +185,8 @@ fn build() -> Built {
     // arrangements share one DOM.
     let mut defs = String::new();
     for gid in &distinct {
-        let mut sink = PathSink {
-            d: String::new(),
-            scale,
-            dx: 0.0,
-            dy: 0.0,
-        };
-        outline(&glyph_outlines, *gid, &mut sink);
-        write!(defs, r#"<path id="g{gid}" d="{}"/>"#, sink.d).expect("String write");
+        let d = path(&outline(*gid), scale, 0.0, 0.0);
+        write!(defs, r#"<path id="g{gid}" d="{d}"/>"#).expect("String write");
     }
 
     let wrap = |body: &str| {
@@ -283,6 +235,11 @@ fn compare(a: &tiny_skia::Pixmap, b: &tiny_skia::Pixmap) -> (usize, u8) {
     (differing, worst)
 }
 
+/// The largest channel difference antialiasing leaves (64 today). A glyph
+/// drawn in the wrong place differs by up to 255 in a handful of subpixels,
+/// too few for the ppm bound alone to notice.
+const WORST_CHANNEL: u8 = 128;
+
 /// Outlining is *visually* identical to `<text>`, not bit-identical. The
 /// residue is a scattering of antialiasing edge cases, one or two subpixels per
 /// scanline and never clustered — see the spike for the precision sweep that
@@ -304,6 +261,10 @@ fn outlining_matches_text_to_within_antialiasing() {
         differing * 10_000 < total,
         "{differing} of {total} subpixels differ — over 100 ppm, which is no longer antialiasing"
     );
+    assert!(
+        worst < WORST_CHANNEL,
+        "a channel differs by {worst}, which is no longer antialiasing"
+    );
 }
 
 #[test]
@@ -316,6 +277,7 @@ fn deduplicating_glyphs_preserves_the_rendering() {
         differing * 10_000 < total,
         "{differing} of {total} subpixels differ"
     );
+    assert!(worst < WORST_CHANNEL, "a channel differs by {worst}");
 }
 
 /// The size argument, which did not decide it — see the spike. Recorded
