@@ -39,6 +39,11 @@ pub(super) const WIDE_TITLE: &str = "wide-title";
 pub(super) const WIDE_RADAR: &str = "wide-radar";
 pub(super) const WIDE_KEY: &str = "wide-key";
 pub(super) const WIDE_LEGEND: &str = "wide-legend";
+/// The narrow arrangement's parts' containers (RG-102). Each SVG spans the
+/// narrow column and both share the narrow document's width, so they draw
+/// at one scale and stack into the one document.
+pub(super) const NARROW_BODY: &str = "narrow-body";
+pub(super) const NARROW_LEGEND: &str = "narrow-legend";
 
 const CAP_FLOOR: &str = "max(";
 const CAP_HEIGHT: &str = "px,calc((100vh - ";

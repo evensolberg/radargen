@@ -8,7 +8,7 @@ mod table;
 use crate::emit::OUTPUT_VERSION;
 use crate::emit::UNTITLED;
 use crate::escape::xml_text;
-use crate::layout::arrange::WideParts;
+use crate::layout::arrange::{NarrowParts, WideParts};
 use crate::model::Catalogue;
 use crate::order::Plotted;
 use crate::palette::Colours;
@@ -35,8 +35,9 @@ const BODY_CLOSE: &str = "</body>\n</html>\n";
 pub struct Page<'a> {
     /// The wide arrangement, in the parts HTML lays out (D-85).
     pub wide: &'a WideParts,
-    /// The narrow arrangement.
-    pub narrow: &'a Document,
+    /// The narrow arrangement, in the parts the page hides the legend by
+    /// (RG-102).
+    pub narrow: &'a NarrowParts,
     /// Every row, as the model read it.
     pub catalogue: &'a Catalogue,
     /// The catalogue's order and numbers.
@@ -86,7 +87,7 @@ pub fn page(input: &Page<'_>) -> String {
         "</title>\n<style>\n",
         &css::font_faces(),
         &css::palettes(colours),
-        &css::layout(&sizes, narrow.width),
+        &css::layout(&sizes, narrow.body.width),
         &css::indicators(),
         css::VISUALLY_HIDDEN,
         css::HIDDEN_BOX,
@@ -104,7 +105,7 @@ pub fn page(input: &Page<'_>) -> String {
         DIV_OPEN,
         chrome::ARRANGEMENT_CLASS,
         NARROW_REST,
-        &serialise(narrow, target),
+        &narrow_parts(narrow, target),
         DIV_CLOSE,
         &chrome::panel(),
         &table::table(catalogue, plotted),
@@ -134,6 +135,26 @@ fn wide_parts(parts: &WideParts, target: Target<'_>) -> String {
         part(css::WIDE_RADAR, OPEN_REST, &parts.radar),
         part(css::WIDE_KEY, OPEN_REST, &parts.key),
         part(css::WIDE_LEGEND, UNTABBED_REST, &parts.legend),
+    ]
+    .concat()
+}
+
+/// The narrow arrangement's parts in reading order (FR-68): the body, then
+/// the legend.
+fn narrow_parts(parts: &NarrowParts, target: Target<'_>) -> String {
+    let part = |class: &str, document: &Document| {
+        [
+            DIV_OPEN,
+            class,
+            OPEN_REST,
+            &serialise(document, target),
+            DIV_CLOSE,
+        ]
+        .concat()
+    };
+    [
+        part(css::NARROW_BODY, &parts.body),
+        part(css::NARROW_LEGEND, &parts.legend),
     ]
     .concat()
 }

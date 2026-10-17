@@ -608,6 +608,15 @@ try {
   // 830 lies between the interaction fixture's breakpoint (about 758) and
   // its width (892), where the radar is narrower than its own size and the
   // title and key shrink with its column.
+  // RG-102: the narrow parts stack with no seam: the legend's SVG starts
+  // where the body's ends, at the same width.
+  await scenario('narrow parts stack', [NARROW, 320], async (width) => {
+    await load(width);
+    const [body, legend] = await evaluate(`['.narrow-body svg', '.narrow-legend svg'].map((s) => { const r = document.querySelector(s).getBoundingClientRect(); return [r.left, r.top, r.bottom, r.width]; })`);
+    check(Math.abs(legend[1] - body[2]) <= 0.5, `the legend starts at the body's end: ${body[2]} -> ${legend[1]}`);
+    check(near(body[3], legend[3]) && near(body[0], legend[0]), 'one column, one width');
+  });
+
   await scenario('the wide arrangement fills the window', [1850, 1200, 830], async (width) => {
     for (const height of [1400, 1000, 500]) {
       await load(width, { height });
