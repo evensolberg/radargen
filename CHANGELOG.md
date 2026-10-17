@@ -1,22 +1,29 @@
+## [1.4.0] - 2026-10-17
+
+### 🚀 Features
+
+- *(cli)* --create-palette writes a palette file to start from
+
+### 🐛 Bug Fixes
+
+- *(cli)* Say only unshared colours carry a dark value; tidy tests
+
+### 📚 Documentation
+
+- *(palette)* The tests, not one file, hold SAMPLE to the built-ins
+
+### 🚜 Refactor
+
+- *(starter)* One list of starters, one clap group
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.4.0
 ## [1.3.5] - 2026-10-17
 
 ### 🐛 Bug Fixes
 
-- *(palette)* Report a swallowed name that repeats as a duplicate
-- *(palette)* Swallow only declarations after a value's first line
-
-### 🚜 Refactor
-
-- *(palette)* Locate swallowed names with the file's line index
-
-### 🧪 Testing
-
-- *(palette)* Say the same-line case is on the same line
-
-### ⚙️ Miscellaneous Tasks
-
-- *(crumbs)* Widen rg-p9a to the declarations() restructure
-- *(release)* 1.3.5
+- *(palette)* Report a swallowed name that repeats as a duplicate (1.3.5) (#110)
 ## [1.3.4] - 2026-10-17
 
 ### 🧪 Testing
