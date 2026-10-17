@@ -86,8 +86,9 @@ pub struct Cli {
     // form (OQ-2).
     /// The theme for PNG and SVG.
     ///
-    /// Not with --palette, which gives the colours itself. Written in any case. An HTML page carries both themes and follows the
-    /// reader's setting, with a button to switch.
+    /// Not with --palette, which gives the colours itself. Written in any
+    /// case. An HTML page carries both themes and follows the reader's
+    /// setting, with a button to switch.
     #[arg(short = 'T', long, value_enum, default_value_t = Theme::Light, ignore_case = true)]
     pub theme: Theme,
 

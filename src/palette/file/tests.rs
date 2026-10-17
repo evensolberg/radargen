@@ -490,3 +490,44 @@ fn read_names_what_kept_it_from_the_text() {
     std::fs::write(&path, b":root {\n  --focus: #\xFF;\n}\n").expect("writes");
     assert!(matches!(read(&path), Err(ReadError::NotUtf8 { line: 2 })));
 }
+
+/// A block nested inside `:root` is another rule, named by its prelude,
+/// and the declarations around it still count.
+#[test]
+fn a_nested_block_is_another_rule() {
+    let text = file("  --series-1: #000001;\n  @media print { --series-2: #000002; }\n");
+    assert_eq!(
+        errors(&text),
+        [PaletteError::OtherRule {
+            line: 11,
+            selector: "@media print".into()
+        }]
+    );
+}
+
+/// FR-102: a lone CR ends a line in a quote too.
+#[test]
+fn an_excerpt_stops_at_a_lone_cr() {
+    let text = file("  --series-1: #000001\r  --series-2: #000002;\n");
+    assert_eq!(
+        errors(&text),
+        [PaletteError::NotHex {
+            line: 10,
+            name: "--series-1".into(),
+            value: "#000001…".into()
+        }]
+    );
+}
+
+/// An at-rule before `:root` is an at-rule, whether or not a `;` ends it.
+#[test]
+fn an_at_rule_before_root_is_named_as_one() {
+    let text = format!("@media screen\n{}", file("  --series-1: #000001;\n"));
+    assert_eq!(
+        errors(&text),
+        [PaletteError::OtherRule {
+            line: 1,
+            selector: "@media screen".into()
+        }]
+    );
+}

@@ -35,13 +35,13 @@ A contrast ratio says how far apart two colours are in lightness, from 1:1 (the 
 
 | Property | Where it is drawn | Light | Dark | Minimum contrast against |
 | --- | --- | --- | --- | --- |
-| `--surface-1` | The page and the radar's ground; the halo behind ring labels; the thin outline around solid markers; a selected table row | `#FFFFFF` | `#15181D` | — |
+| `--surface-1` | The page and the radar's ground; the halo behind ring labels; the thin outline around solid markers; the backing of the focus ring; a selected table row | `#FFFFFF` | `#15181D` | — |
 | `--surface-2` | The legend, the detail panel, the table, and the page's buttons | `#F4F5F7` | `#1E222A` | — |
-| `--text-primary` | Names, headings, table text and links, and the number in a hollow marker | `#16191F` | `#E8EAEE` | 4.5:1 against `--surface-1`, `--surface-2` and `--marker-hollow` |
+| `--text-primary` | Names, headings, table text and links, the number in a hollow marker, and the marks that show a selected item | `#16191F` | `#E8EAEE` | 4.5:1 against `--surface-1`, `--surface-2` and `--marker-hollow` |
 | `--text-muted` | Ring labels, the subtitle, legend ring headings, the key, column headings, and an item's details | `#585F6B` | `#A6AEBB` | 4.5:1 against `--surface-1` and `--surface-2` |
 | `--stroke-ring` | Ring circles | `#7E858F` | `#6C7480` | 3:1 against `--surface-1` and `--surface-2` |
 | `--stroke-divider` | Quadrant dividers, the line above the key, table rules, and panel and button borders | `#848B96` | `#666E7A` | 3:1 against `--surface-1` and `--surface-2` |
-| `--marker-hollow` | Inside a hollow marker or legend badge; usually the same as `--surface-1` | `#FFFFFF` | `#15181D` | — |
+| `--marker-hollow` | Inside a hollow marker, legend badge or the key's hollow sample; usually the same as `--surface-1` | `#FFFFFF` | `#15181D` | — |
 | `--focus` | The keyboard focus ring, and focus outlines on buttons, links and the table toggle | `#0B5FA5` | `#7FB8E6` | 3:1 against `--surface-1` and `--surface-2` |
 | `--series-1` onward | Each quadrant's markers and legend badges | see below | the same | 3:1 against `--surface-1` and `--surface-2`, and 4.5:1 against white or `#16191F` |
 

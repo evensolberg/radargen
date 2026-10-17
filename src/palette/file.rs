@@ -254,11 +254,7 @@ fn rules<'a>(
         };
         let selector = selector(prelude, pos, lines, errors);
         if !selector.eq_ignore_ascii_case(":root") {
-            let shown = if selector.is_empty() { "{" } else { selector };
-            errors.push(PaletteError::OtherRule {
-                line,
-                selector: excerpt(shown),
-            });
+            errors.push(stray_rule(line, selector));
         } else if root.is_some() {
             errors.push(PaletteError::SecondRoot { line });
         } else {
@@ -300,18 +296,16 @@ fn selector<'a>(
     let (head, tail) = whole.split_at(split);
     let tail = css_trim(tail);
     if tail.eq_ignore_ascii_case(":root") {
-        errors.push(PaletteError::TextOutside {
-            line: lines.at(start),
-            text: excerpt(head),
-        });
+        errors.push(stray(lines.at(start), head));
         tail
     } else {
         whole
     }
 }
 
-/// `body`'s declarations, `body` starting at byte `start` of the file; a
-/// malformed one is pushed to `errors` and left out.
+/// `body`'s declarations, `body` starting at byte `start` of the file. A
+/// malformed one is pushed to `errors` and left out, and so is a block
+/// nested inside the rule, which is another rule (FR-102).
 fn declarations<'a>(
     body: &'a str,
     start: usize,
@@ -319,12 +313,21 @@ fn declarations<'a>(
     errors: &mut Vec<PaletteError>,
 ) -> Vec<Declaration<'a>> {
     let mut out = Vec::new();
-    let mut offset = start;
-    for part in body.split(';') {
+    let mut offset = 0;
+    while let Some(rest) = body.get(offset..).filter(|rest| !rest.is_empty()) {
+        let end = rest.find([';', '{']).unwrap_or(rest.len());
+        let part = rest.get(..end).unwrap_or_default();
         let lead = part.len() - part.trim_start_matches(css_space).len();
-        let line = lines.at(offset + lead);
-        offset += part.len() + 1;
+        let line = lines.at(start + offset + lead);
         let text = css_trim(part);
+        if rest.get(end..).is_some_and(|from| from.starts_with('{')) {
+            errors.push(stray_rule(line, text));
+            // The outer rule closed, so every block inside it closes too.
+            let inner = rest.get(end + 1..).unwrap_or_default();
+            offset += end + 1 + block_len(inner).unwrap_or(inner.len()) + 1;
+            continue;
+        }
+        offset += end + 1;
         if text.is_empty() {
             continue;
         }
@@ -341,6 +344,15 @@ fn declarations<'a>(
         }
     }
     out
+}
+
+/// A rule other than the accepted `:root`, named by its prelude.
+fn stray_rule(line: usize, prelude: &str) -> PaletteError {
+    let shown = if prelude.is_empty() { "{" } else { prelude };
+    PaletteError::OtherRule {
+        line,
+        selector: excerpt(shown),
+    }
 }
 
 /// What a property names.

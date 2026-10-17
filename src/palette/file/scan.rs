@@ -20,11 +20,13 @@ pub(super) fn css_trim(s: &str) -> &str {
 /// `text`'s first line, trimmed, at most [`EXCERPT_CHARS`] characters, with
 /// `…` when anything was left out (Review Focus 5).
 pub(super) fn excerpt(text: &str) -> String {
-    let mut lines = css_trim(text).lines();
-    let first = css_trim(lines.next().unwrap_or_default());
-    let mut chars = first.chars();
+    // Split by hand rather than with `lines()`, which ignores a lone CR,
+    // and FR-102 ends a line there too.
+    let text = css_trim(text);
+    let (first, rest) = text.split_once(['\n', '\r']).unwrap_or((text, ""));
+    let mut chars = css_trim(first).chars();
     let head: String = chars.by_ref().take(EXCERPT_CHARS).collect();
-    if chars.next().is_some() || lines.next().is_some() {
+    if chars.next().is_some() || !css_trim(rest).is_empty() {
         head + "…"
     } else {
         head

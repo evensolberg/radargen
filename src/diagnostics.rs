@@ -5,7 +5,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::columns::ColumnKind;
-use crate::palette::file::PaletteError;
+use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::{RingSource, RingsError};
 use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX};
 use crate::text::FontError;
@@ -822,7 +822,8 @@ pub enum Fatal {
     /// NFR-15, plan RG-018A R4: the `--palette` file passes the cap, so it
     /// is not a palette, or never ends (`/dev/zero`).
     #[error(
-        "--palette {path}: larger than 1 MiB; a palette is a few hundred bytes, so check the path"
+        "--palette {path}: larger than {} MiB; a palette is a few hundred bytes, so check the path",
+        MAX_BYTES >> 20
     )]
     PaletteTooLarge {
         /// The file as the author named it.

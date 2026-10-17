@@ -137,7 +137,7 @@ declarations only and are not listed.
 | `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52). In v1.1, also the `--config` merge under the command-line flags and `{edition}` expansion, both before any other validation (FR-91, FR-92) | *exists* |
 | `src/diagnostics.rs` | `Fatal`, `RowError`, `Warning`, `Warnings` — the taxonomy and NFR-20 grouping | v1.0 |
 | `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17) | *exists* |
-| `src/csv/decode.rs` | Bytes → `String`: BOM, UTF-8, line numbering (FR-1, FR-2, FR-61); `read` is the stage's one file read | v1.0 |
+| `src/csv/decode.rs` | `read`, the CSV stage's one file read (FR-1, FR-61); the bytes become text through `decode.rs` | v1.0 |
 | `src/csv/parse.rs` | String → `Table` (header and records); header, field counts (FR-3, FR-4); removal of undisplayable characters, with a warning, before any other check except the blank-record test (FR-90, FR-3), using `escape::displayable` so both modules share one set | v1.0 |
 | `src/model.rs` | `Item`, `Catalogue`; column validation, quadrant grouping and ring matching (FR-5–FR-29); the named columns in header order and every row's cells (FR-27, FR-78); unnamed columns dropped, with a warning when they hold a value (FR-93); `accessible_name()` (FR-50, FR-75); each row's link (FR-96) | *exists* |
 | `src/link.rs` | `Link`: FR-96's `http`/`https` test, decided once at build time (D-77) | v1.0 |
@@ -711,7 +711,7 @@ interface that has not been agreed. Each step is testable when it lands.
 | # | Step | Unblocked by | §14.2 line |
 | --- | --- | --- | --- |
 | 0 | `text.rs`, `cli.rs`, `rings.rs` | — | spike, scaffold — **done** |
-| 1 | `diagnostics.rs`, `escape.rs`, `num.rs`, `style.rs`, `palette.rs` (built-ins) | nothing — pure, leaf modules | scaffold |
+| 1 | `diagnostics.rs`, `escape.rs`, `num.rs`, `style.rs`, `palette/` (built-ins) | nothing — pure, leaf modules (from 1.3, `diagnostics.rs` also names `palette::file`'s error, which imports nothing back) | scaffold |
 | 2 | `csv/`, `model.rs`, `order.rs` | 1 | CSV parsing and validation |
 | 3 | `layout/geometry.rs` | 1, 2 | layout engine |
 | 4 | `layout/block.rs` and a minimal `svg::Node`, then `layout/{title,radar,legend,key}.rs`, `arrange.rs` | 3, `text.rs` | layout engine |
