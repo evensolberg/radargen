@@ -19,8 +19,7 @@ pub fn golden(dir: &str, name: &str, got: &str) {
         !got.contains('\r') && !got.starts_with('\u{feff}'),
         "NFR-17: LF, no BOM"
     );
-    let got = versionless(got);
-    let got = got.as_str();
+    let got = &*versionless(got);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/golden")
         .join(dir)

@@ -16,10 +16,10 @@ radargen entries.csv -o slide.png --theme dark --width 1920
 
 ## Install
 
-Release binaries come in a later release. Until then, install from source with a recent stable [Rust toolchain](https://rustup.rs) (1.85 or later; on Windows, rustup also asks for the MSVC build tools). Replace `<latest version>` with the newest tag on the [releases page](https://github.com/evensolberg/radargen/releases), in the form `vX.Y.Z`:
+Release binaries come in a later release. Until then, install from source with a recent stable [Rust toolchain](https://rustup.rs) (1.85 or later; on Windows, rustup also asks for the MSVC build tools). Replace `vX.Y.Z` with the newest tag on the [releases page](https://github.com/evensolberg/radargen/releases):
 
 ```sh
-cargo install --locked --git https://github.com/evensolberg/radargen --tag <latest version>
+cargo install --locked --git https://github.com/evensolberg/radargen --tag vX.Y.Z
 ```
 
 ## Starting a radar
