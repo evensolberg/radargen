@@ -3,6 +3,8 @@
 ### 📚 Documentation
 
 - *(readme)* Rewrite as a guide to what radargen does
+- *(changelog)* 1.4.2
+- *(readme)* Which warnings wait for which errors
 
 ### ⚙️ Miscellaneous Tasks
 
