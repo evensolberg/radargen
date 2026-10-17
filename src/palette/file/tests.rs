@@ -736,3 +736,54 @@ fn a_no_break_space_before_a_value_is_shown_escaped() {
         }]
     );
 }
+
+/// rg-4id: a name a forgotten `;` swallowed is declared on its own line, so
+/// it repeats an earlier declaration of that name, and the fix is reported
+/// in one pass (FR-102, NFR-16).
+#[test]
+fn a_swallowed_name_repeats_an_earlier_declaration() {
+    let text = file("  --series-1: #000001;\n  --series-2: #000002\n  --series-1: #000003;\n");
+    assert_eq!(
+        errors(&text),
+        [
+            PaletteError::NotHex {
+                line: 11,
+                name: "--series-2".into(),
+                value: "#000002…".into(),
+                runs_on: true
+            },
+            PaletteError::Duplicate {
+                line: 12,
+                name: "--series-1".into(),
+                first: 10
+            },
+        ]
+    );
+}
+
+/// rg-4id: and a later declaration repeats the swallowed one.
+#[test]
+fn a_later_declaration_repeats_a_swallowed_name() {
+    for end in ["\n", "\r\n"] {
+        let text = file(&format!(
+            "  --series-1: #000001{end}  --series-2: #000002;{end}  --series-2: #000003;{end}"
+        ));
+        assert_eq!(
+            errors(&text),
+            [
+                PaletteError::NotHex {
+                    line: 10,
+                    name: "--series-1".into(),
+                    value: "#000001…".into(),
+                    runs_on: true
+                },
+                PaletteError::Duplicate {
+                    line: 12,
+                    name: "--series-2".into(),
+                    first: 11
+                },
+            ],
+            "{end:?}"
+        );
+    }
+}
