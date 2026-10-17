@@ -6,6 +6,7 @@ use radargen::cli::{Cli, OutputFormat, Theme};
 use radargen::cli::{Task, clean_flag, format};
 use radargen::diagnostics::{Fatal, Flag, RowKind, Warning, Warnings};
 use radargen::rings::{RingsError, parse_rings};
+use radargen::starter::Starter;
 use std::path::Path;
 
 fn parse(args: &[&str]) -> Result<Cli, clap::Error> {
@@ -343,34 +344,53 @@ fn create_template_stands_alone() {
         Some("radar.csv")
     );
     assert!(cli.csv_path.is_none() && cli.output.is_none());
-    assert!(matches!(cli.task(), Ok(Task::Template(_))));
+    assert!(matches!(cli.task(), Ok(Task::Create(Starter::Template, _))));
+}
+
+// ---- FR-101: --create-palette, given alone
+
+#[test]
+fn create_palette_stands_alone() {
+    let cli = parse(&["--create-palette", "brand.css"]).expect("parses");
+    assert_eq!(
+        cli.create_palette.as_deref().and_then(|p| p.to_str()),
+        Some("brand.css")
+    );
+    assert!(cli.csv_path.is_none() && cli.output.is_none());
+    assert!(matches!(cli.task(), Ok(Task::Create(Starter::Palette, _))));
 }
 
 #[test]
-fn create_template_with_anything_else_is_a_usage_error() {
-    for extra in [
-        &["in.csv"][..],
-        &["-o", "e.html"],
-        &["in.csv", "-o", "e.html"],
-        &["-t", "Radar"],
-        &["-T", "dark"],
-        // The default value, given explicitly, is still given.
-        &["-T", "light"],
-        &["-r", "Adopt"],
-        &["-s", "2026-09"],
-        &["-w", "1920"],
-        &["-p", "b.css"],
+fn a_starter_flag_with_anything_else_is_a_usage_error() {
+    for (flag, other) in [
+        ("--create-template", "--create-palette"),
+        ("--create-palette", "--create-template"),
     ] {
-        let args: Vec<&str> = ["--create-template", "radar.csv"]
-            .into_iter()
-            .chain(extra.iter().copied())
-            .collect();
-        let kind = parse(&args).map(|_| ()).map_err(|e| e.kind());
-        assert_eq!(
-            kind,
-            Err(clap::error::ErrorKind::ArgumentConflict),
-            "{args:?}"
-        );
+        for extra in [
+            &["in.csv"][..],
+            &["-o", "e.html"],
+            &["in.csv", "-o", "e.html"],
+            &["-t", "Radar"],
+            &["-T", "dark"],
+            // The default value, given explicitly, is still given.
+            &["-T", "light"],
+            &["-r", "Adopt"],
+            &["-s", "2026-09"],
+            &["-w", "1920"],
+            &["-p", "b.css"],
+            &[other, "x"],
+        ] {
+            let args: Vec<&str> = [flag, "start"]
+                .into_iter()
+                .chain(extra.iter().copied())
+                .collect();
+            let kind = parse(&args).map(|_| ()).map_err(|e| e.kind());
+            assert_eq!(
+                kind,
+                Err(clap::error::ErrorKind::ArgumentConflict),
+                "{args:?}"
+            );
+        }
     }
 }
 
@@ -388,6 +408,7 @@ fn usage_names_both_forms() {
     let help = Cli::command().render_help().to_string();
     assert!(help.contains("radargen <CSV_PATH> -o <OUTPUT>"), "{help}");
     assert!(help.contains("radargen --create-template <PATH>"), "{help}");
+    assert!(help.contains("radargen --create-palette <PATH>"), "{help}");
 }
 
 /// A `Cli` built by hand, which clap would have refused, asking for
@@ -397,8 +418,13 @@ fn a_cli_with_neither_task_or_both_is_an_error() {
     let mut cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
     cli.create_template = Some("radar.csv".into());
     assert!(matches!(cli.task(), Err(Fatal::NoTask)));
-    cli.create_template = None;
+    cli.csv_path = None;
     cli.output = None;
+    cli.create_palette = Some("brand.css".into());
+    assert!(matches!(cli.task(), Err(Fatal::NoTask)));
+    cli.create_template = None;
+    cli.create_palette = None;
+    cli.csv_path = Some("in.csv".into());
     assert!(matches!(cli.task(), Err(Fatal::NoTask)));
 }
 

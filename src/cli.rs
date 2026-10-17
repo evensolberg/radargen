@@ -2,7 +2,8 @@
 //!
 //! Argument *behaviour* is fixed by the PRD; exact spelling is OQ-2. There is
 //! no subcommand (D-28): one CSV in, one file out, or `--create-template`
-//! alone to write a CSV to start from (FR-99).
+//! or `--create-palette` alone to write a file to start from (FR-99,
+//! FR-101).
 
 use clap::Parser;
 use std::path::{Path, PathBuf};
@@ -10,6 +11,7 @@ use std::path::{Path, PathBuf};
 use crate::diagnostics::{Fatal, Flag, RenderKind, Warning, Warnings};
 use crate::escape::remove_undisplayable;
 pub use crate::palette::Theme;
+use crate::starter::Starter;
 use crate::style::{MAX_EXPORT_WIDTH, MIN_EXPORT_WIDTH};
 
 /// The output format, inferred from the `-o` extension (FR-52).
@@ -36,26 +38,27 @@ pub enum OutputFormat {
     version,
     about = "Render a technology radar from a CSV file to a self-contained HTML page, a PNG image or an SVG file.",
     // clap's own usage would show the CSV as optional and leave out -o,
-    // since each is required only without --create-template.
-    override_usage = "radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]\n       radargen --create-template <PATH>",
+    // since each is required only without a --create-* flag.
+    override_usage = "radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]\n       radargen --create-template <PATH>\n       radargen --create-palette <PATH>",
     long_about = None
 )]
 pub struct Cli {
     // §6.1; exactly one file, with no glob or multi-file form (FR-60),
-    // and none at all with --create-template (FR-99).
+    // and none at all with --create-template or --create-palette (FR-99,
+    // FR-101).
     /// The CSV file to read.
     ///
     /// A header row, then one row per item, with at least name, quadrant,
     /// ring and description columns. --create-template writes one to start
     /// from.
-    #[arg(required_unless_present = "create_template")]
+    #[arg(required_unless_present_any = STARTERS)]
     pub csv_path: Option<PathBuf>,
 
     // FR-52: the format comes from the extension, matched ignoring case.
     /// Where to write the radar.
     ///
     /// The extension picks the format: .html, .png or .svg, in any case.
-    #[arg(short, long, required_unless_present = "create_template")]
+    #[arg(short, long, required_unless_present_any = STARTERS)]
     pub output: Option<PathBuf>,
 
     // FR-12 to FR-15: the list is edge-to-centre and replaces the default
@@ -114,7 +117,8 @@ pub struct Cli {
     /// --marker-hollow, --focus and --series-1 onward, each a #RRGGBB colour.
     /// The palette guide explains each one:
     /// <https://github.com/evensolberg/radargen/blob/main/docs/palette.md>.
-    /// Not with --theme; an HTML page drawn with it has no theme button.
+    /// --create-palette writes one to start from. Not with --theme; an HTML
+    /// page drawn with it has no theme button.
     #[arg(short, long, value_name = "FILE", conflicts_with = "theme")]
     pub palette: Option<PathBuf>,
 
@@ -127,13 +131,28 @@ pub struct Cli {
     /// or delete. An existing file is never replaced. Give this flag alone.
     #[arg(long, value_name = "PATH", exclusive = true)]
     pub create_template: Option<PathBuf>,
+
+    // FR-101, D-91: as --create-template, for a --palette file. The
+    // built-in light colours, since a palette is one set; choosing the set
+    // with --theme would make this the one aside not given alone.
+    /// Write a palette file to edit for --palette, and render nothing.
+    ///
+    /// It holds the built-in light colours, with each one's dark value in a
+    /// comment beside it. An existing file is never replaced. Give this flag
+    /// alone.
+    #[arg(long, value_name = "PATH", exclusive = true)]
+    pub create_palette: Option<PathBuf>,
 }
 
-/// What a command line asks for (FR-60, FR-99).
+/// The flags that each stand in for a render (FR-60).
+const STARTERS: [&str; 2] = ["create_template", "create_palette"];
+
+/// What a command line asks for (FR-60, FR-99, FR-101).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Task<'a> {
-    /// `--create-template <path>`: write the starter CSV there.
-    Template(&'a Path),
+    /// `--create-template <path>` or `--create-palette <path>`: write that
+    /// file there.
+    Create(Starter, &'a Path),
     /// Render `input` to `output`.
     Render {
         /// The CSV, as given.
@@ -148,12 +167,18 @@ impl Cli {
     ///
     /// # Errors
     ///
-    /// [`Fatal::NoTask`] when it asks for neither or both, which clap
+    /// [`Fatal::NoTask`] when it asks for none or more than one, which clap
     /// refuses before a `Cli` is built; only one built by hand gets here.
     pub fn task(&self) -> Result<Task<'_>, Fatal> {
-        match (&self.create_template, &self.csv_path, &self.output) {
-            (Some(path), None, None) => Ok(Task::Template(path)),
-            (None, Some(input), Some(output)) => Ok(Task::Render { input, output }),
+        match (
+            &self.create_template,
+            &self.create_palette,
+            &self.csv_path,
+            &self.output,
+        ) {
+            (Some(path), None, None, None) => Ok(Task::Create(Starter::Template, path)),
+            (None, Some(path), None, None) => Ok(Task::Create(Starter::Palette, path)),
+            (None, None, Some(input), Some(output)) => Ok(Task::Render { input, output }),
             _ => Err(Fatal::NoTask),
         }
     }

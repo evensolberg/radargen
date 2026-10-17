@@ -894,24 +894,28 @@ pub enum Fatal {
         /// The height in pixels.
         height: u32,
     },
-    /// FR-60, FR-99: a `Cli` asking for neither a render nor a template, or
-    /// both. clap refuses such a command line, so only a `Cli` built by hand
+    /// FR-60, FR-99, FR-101: a `Cli` asking for no task, or for more than
+    /// one. clap refuses such a command line, so only a `Cli` built by hand
     /// reaches this.
-    #[error("give a CSV and -o to render, or --create-template alone")]
+    #[error("give a CSV and -o to render, or --create-template or --create-palette alone")]
     NoTask,
-    /// FR-99: `--create-template` never replaces a file (D-83).
+    /// FR-99, FR-101: a file to start from never replaces one (D-83, D-91).
     #[error(
-        "--create-template {path}: already exists; radargen never replaces a file, so choose another path"
+        "{flag} {path}: already exists; radargen never replaces a file, so choose another path"
     )]
-    TemplateExists {
-        /// The `--create-template` argument as given.
+    StarterExists {
+        /// The flag, `--create-template` or `--create-palette`.
+        flag: &'static str,
+        /// Its argument as given.
         path: String,
     },
-    /// FR-99: the template cannot be written, for any of the reasons
+    /// FR-99, FR-101: the file cannot be written, for any of the reasons
     /// [`Fatal::Unwritable`] gives `-o`. Nothing at the path has changed.
-    #[error("--create-template {path}: cannot be written: {}", io_reason(source))]
-    TemplateUnwritable {
-        /// The `--create-template` argument as given.
+    #[error("{flag} {path}: cannot be written: {}", io_reason(source))]
+    StarterUnwritable {
+        /// The flag, `--create-template` or `--create-palette`.
+        flag: &'static str,
+        /// Its argument as given.
         path: String,
         /// The underlying I/O failure.
         #[source]
