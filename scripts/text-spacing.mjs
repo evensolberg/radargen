@@ -96,8 +96,11 @@ const CHECK = `(() => {
   }
   // The table view (FR-41): its region may scroll, the page may not, and no
   // cell's text may spill out of the cell's box under 1.4.12's spacing.
-  if (document.documentElement.scrollWidth > innerWidth + slack) {
-    problems.push('the page scrolls sideways: ' + document.documentElement.scrollWidth + ' > ' + innerWidth);
+  // clientWidth, not innerWidth: an engine with classic scrollbars counts
+  // the bar in innerWidth, which would hide an overflow narrower than it.
+  const viewport = document.documentElement.clientWidth;
+  if (document.documentElement.scrollWidth > viewport + slack) {
+    problems.push('the page scrolls sideways: ' + document.documentElement.scrollWidth + ' > ' + viewport);
   }
   const spills = ${SPILLS};
   for (const text of spills('.table-scroll td, .table-scroll th, summary, .detail-heading, .detail dt, .detail dd', slack)) {
@@ -214,9 +217,14 @@ async function main() {
       if ((await checkEngine(name, options, outDir, pages)) > 0) failed.push(name);
     } catch (error) {
       // Playwright follows a missing browser's first line with an install
-      // banner that bypasses the pin, so the hint replaces it.
-      const missing = error.message.includes("Executable doesn't exist") ? "; run 'just browser-setup'" : '';
-      console.log(`FAIL ${name}: ${error.message.split('\n')[0]}${missing}`);
+      // banner that bypasses the pin, so the hint replaces it. Any other
+      // failure keeps its whole message: a launch failure's cause is in the
+      // browser logs after its first line.
+      const message = String(error?.message ?? error);
+      const text = message.includes("Executable doesn't exist")
+        ? `${message.split('\n')[0]}; run 'just browser-setup'`
+        : message;
+      console.log(`FAIL ${name}: ${text}`);
       failed.push(name);
     }
   }

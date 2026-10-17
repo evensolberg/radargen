@@ -144,7 +144,7 @@ browser: release-build text-spacing-only interaction-only a11y-audit-only
 # Playwright's version changes; the checks themselves never download.
 browser-setup:
     npm ci
-    npx playwright install chromium-headless-shell firefox webkit
+    npx --no-install playwright install chromium-headless-shell firefox webkit
 
 # WCAG 1.4.12 text spacing in a browser (plan RG-014C, D-78, rg-497):
 # renders the fixtures and checks every text fits and none overlaps, at five
