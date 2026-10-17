@@ -112,8 +112,8 @@ pub struct Cli {
     /// The file is one :root rule declaring --surface-1, --surface-2,
     /// --text-primary, --text-muted, --stroke-ring, --stroke-divider,
     /// --marker-hollow, --focus and --series-1 onward, each a #RRGGBB colour.
-    /// The palette guide, docs/palette.md in the source repository, explains
-    /// each one. Not with --theme; an HTML page drawn with it has no theme
+    /// The palette guide explains each one:
+    /// https://github.com/evensolberg/radargen/blob/main/docs/palette.md. Not with --theme; an HTML page drawn with it has no theme
     /// button.
     #[arg(short, long, value_name = "FILE", conflicts_with = "theme")]
     pub palette: Option<PathBuf>,

@@ -107,13 +107,17 @@ The expected names come from `three-quadrant.csv`.
       - A black or smudged result is a fail. The fallback is paint on each `<use>` (plan Ruling 12).
     - *Expect, without `--title`:* the document is named "Technology Radar", and no level-1 heading exists.
 
-17. **A `--palette` page** (rg-cdo, from 1.3.0). Write `dark.css`: copy `docs/product/palette.sample.css` and replace each neutral's value with the dark one in its comment. Render `three-quadrant.csv` with `--palette docs/product/palette.sample.css` to `light-palette.html`, and with `--palette dark.css` to `dark-palette.html`.
-    - *Expect, with the system set to light:* `dark-palette.html` stays dark. With macOS "Show scroll bars: Always", the legend's scroll box, the table's scroll area and an open panel have dark scroll bars.
+17. **A `--palette` page** (rg-cdo, from 1.3.0). Write `dark.css`: copy `docs/product/palette.sample.css` and replace each role's value (the eight below the quadrant colours) with the `dark:` value in its comment. Then render:
+    - `radargen tests/fixtures/long-legend.csv -o light-palette.html --palette docs/product/palette.sample.css`
+    - `radargen tests/fixtures/long-legend.csv -o dark-palette.html --palette dark.css`
+
+    The long legend makes the legend's box scroll, so there is a scroll bar to judge.
+    - *Expect, in Safari and Chrome on macOS with the system set to light and "Show scroll bars: Always":* `dark-palette.html` stays dark, and the page's scroll bar and the legend box's are dark.
     - *Expect, with the system set to dark:* `light-palette.html` stays light, with light scroll bars.
-    - *Expect, with NVDA + Firefox and VoiceOver + Safari:* the first Tab says "Skip to the legend, button", and Enter lands on "1. …" in the legend. Shift+Tab back to the skip link, then Tab: the next stop is the first marker, with nothing between. Browse mode finds no stray button where the toggle would be.
+    - *Expect, with NVDA + Firefox and VoiceOver + Safari:* the first Tab says "Skip to the legend, button", and Enter lands on "1. …" in the legend. Reload and press Tab twice: the first stop is the skip link and the second the first marker, with nothing between. Browse mode finds no stray button where the toggle would be.
     - *Expect, on the first Tab:* the skip link appears over the page; the title and radar do not move.
     - *Expect, in Windows high-contrast mode with `dark-palette.html`:* the grounds take the system's Canvas colour and focus its Highlight; the quadrant colours keep the palette's values and stay visible.
-    - *Expect, with a six-quadrant CSV and a palette of five `--series-` entries:* the sixth quadrant reuses `--series-1`, and its label and position still tell it apart.
+    - *Expect, with a six-quadrant CSV (a copy of `three-quadrant.csv` with rows in three more quadrants) and a palette of five `--series-` entries (a copy of the sample without `--series-6` to `--series-8`):* the sixth quadrant reuses `--series-1`, and its label and position still tell it apart.
 
 ## Results
 

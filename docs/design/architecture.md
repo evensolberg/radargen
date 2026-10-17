@@ -422,7 +422,7 @@ role:
 | --- | --- | --- |
 | HTML | `var(--series-1)`, with both palettes in one inline `<style>`: a default block, a `prefers-color-scheme` override, and a `[data-theme]` override the in-page toggle sets. With `--palette`: the file's one set in a single `:root` block, `color-scheme` from whether its ground is darker than its text, the forced-colours block, and no toggle (§6.6, RG-018A) | FR-56: `--theme` is ignored on HTML because the viewer chooses; both palettes must be present at once, and §14.1 puts the toggle in v1.0 |
 | every format, HTML included | a number's ink, `Paint::NumberOn(i)`: `#FFFFFF` or `#16191F`, whichever contrasts more with series entry `i` | series values do not change with theme, so the pick is the same in both palettes and needs no variable; `i` is unreduced, like `Role::Series`, and wraps at bind time |
-| SVG, PNG | the literal value resolved for `--theme` at generation time | FR-56: a static snapshot has no viewer-side choice — and `resvg` does not resolve CSS custom properties, so a `var()` in a rasterised document silently renders **black** — verified, not assumed |
+| SVG, PNG | the literal value resolved for `--theme`, or the `--palette` file's, at generation time | FR-56: a static snapshot has no viewer-side choice — and `resvg` does not resolve CSS custom properties, so a `var()` in a rasterised document silently renders **black** — verified, not assumed |
 
 **Three declarations rather than two, because FR-56 gives the viewer two ways to
 choose.** The media query is the default and the toggle overrides it, so the
@@ -438,9 +438,10 @@ differently per format. The test for any such place is that it needs no new
 have the font (the exported SVG's text mode, which writes outlines and the names
 outlining forces, §11, D-88). That is what makes FR-56's "ignored, not an error, on HTML output" a
 structural fact rather than a branch somebody has to remember. It also gives
-FR-86 its error for free — a `--palette` file missing a role fails to bind a
-`Role` the enum enumerates, so "naming the missing role" is `Role`'s own
-`Display`.
+FR-86's error its name — a `--palette` file missing a role is reported by
+`palette::file` when the file is read, naming the role by `Neutral`'s own
+`Display`, so the message and the stylesheet spell it the same way (1.3,
+RG-018A).
 
 Resolving literals for the **exported SVG** is the same rule reaching a second
 consumer: FR-54 sells that file on opening in PowerPoint, Figma and Illustrator
@@ -643,8 +644,8 @@ own; warnings other stages already pushed still print, before the errors
 (NFR-11).
 
 `Config` is the resolved run: the input path, the `RingSet` (the ring list and its source, FR-17), the
-palette, the theme, the width, the title strings. Only `build_catalogue` reads the `RingSet`; stages below read `Catalogue::rings`. It is built once in
-`pipeline.rs` from `Cli` plus `rings.rs` plus `palette.rs` and is read-only
+colours (`Colours`: the built-in themes and `--theme`'s choice, or a `--palette` file's one set), the width, the title strings. Only `build_catalogue` reads the `RingSet`; stages below read `Catalogue::rings`. It is built once in
+`pipeline.rs` from `Cli` plus `rings.rs` plus `palette/` and is read-only
 thereafter, so no stage below can reinterpret a flag differently from another.
 
 **There is a third failure point below both tiers, and NFR-14 makes it the
@@ -829,7 +830,7 @@ the noise.
   reads the item's table row** (D-80): its cells and their column headings are
   the panel's content, so the prose is in the page once and no JSON island or
   template carries a second copy.
-- **`--palette` parsing.** v1.1, and FR-86/FR-87 already fix its rules.
+- **`--palette` parsing.** 1.3 (RG-018A): `palette/file.rs` reads FR-102's grammar into `Hex` values, every problem reported with its line.
 - **The PNG emitter.** 1.1, and thin: it rasterises the `<text>` document
   through our own `fontdb`, with no href resolved (NFR-5).
 - **The SVG export.** 1.2 (D-88): a text mode of the serialiser, so

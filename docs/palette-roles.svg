@@ -56,6 +56,6 @@
     <text x="610" y="300" stroke="none">--focus</text>
     <line x1="604" y1="296" x2="140" y2="300"/>
     <text x="610" y="396" stroke="none">--stroke-divider</text>
-    <line x1="604" y1="392" x2="300" y2="362"/>
+    <line x1="604" y1="392" x2="300" y2="360"/>
   </g>
 </svg>

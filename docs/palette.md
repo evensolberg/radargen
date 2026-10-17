@@ -15,7 +15,7 @@ revision: "1.0"
 review_date:
 reviewed_by: []
 completed_date:
-comments: "Written for PR 18 (rg-cdo), from PRD FR-81, FR-82, FR-86, FR-87, FR-102 and SC-20."
+comments: "Written for PR 18 (rg-cdo), from PRD FR-81, FR-82, FR-86, FR-87, FR-102, SC-20 and SC-21."
 ---
 # Palettes
 
@@ -23,15 +23,35 @@ comments: "Written for PR 18 (rg-cdo), from PRD FR-81, FR-82, FR-86, FR-87, FR-1
 
 ![Diagram of where each palette colour is drawn; the table below lists the same](palette-roles.svg)
 
+## Quick start
+
+1. Copy `palette.sample.css` to, say, `brand.css`.
+2. Change the colours.
+3. Run `radargen radar.csv -o radar.html --palette brand.css` (or `-p brand.css`), without `--theme`.
+4. Fix anything radargen reports, and run it again.
+5. Check the contrast of every colour you changed (see [Checking contrast](#checking-contrast)).
+
 ## The file
 
-The file is exactly one `:root` rule of CSS custom properties, each a `#RRGGBB` colour, in any case. Comments are allowed anywhere. Anything else is an error that names its line: another rule (such as `[data-theme="dark"]` or `@media`), a property radargen does not know, a property declared twice, or a value such as `rgb(0 114 178)`, `#06C` or `red`. Every problem in the file is reported in one run, and nothing is drawn until the file is fixed.
+The file is one block that starts `:root {` and ends `}`, holding one `--name: #RRGGBB;` line per colour. Values are hex colours, and `#0072b2` and `#0072B2` both work; write the names exactly as the tables below list them, in lower case, since `--Surface-1` is an unknown name. Comments (`/* … */`) are allowed anywhere.
 
-A palette is one set of colours, so `--palette` cannot be combined with `--theme`. An HTML page drawn with a palette has no theme button and does not follow the reader's light or dark setting, so readers who rely on dark mode do not get it there. Windows high-contrast mode still replaces its neutral colours.
+Anything else is an error that names its line: another block (such as `[data-theme="dark"]` or `@media`), a name radargen does not know, a name given twice, or a value such as `rgb(0 114 178)`, `#06C`, `red` or `#0072B2 !important`. Every problem in the file is reported in one run, and nothing is written until the file is fixed, so an earlier output at the same path is left as it was. The messages look like this:
+
+```text
+error: --palette brand.css, line 14: --text-primary: 'red' is not a #RRGGBB colour
+error: --palette brand.css: --focus is missing; a palette defines all eight roles
+error: --palette brand.css: --series-4 is missing; number series entries from --series-1 with no gaps
+```
+
+A missing colour has no line, since it is not in the file.
+
+A palette is one set of colours, so `--palette` cannot be combined with `--theme`; radargen refuses the pair. An HTML page drawn with a palette has no theme button and does not follow the reader's light or dark setting, so readers who rely on dark mode do not get it there. If a reader uses Windows high-contrast mode, Windows still swaps the page's backgrounds, text, lines and focus ring for its own colours, as on a built-in page; your quadrant colours stay.
 
 ## The colours
 
-A contrast ratio says how far apart two colours are in lightness, from 1:1 (the same) to 21:1 (black on white). Any checker that takes two hex values will compute it, [WebAIM's](https://webaim.org/resources/contrastchecker/) for one.
+The file names two kinds of colour. The eight **roles** are the page's own colours: grounds, text, lines and focus. The **series entries**, `--series-1` onward, are the quadrants' colours. Every role is required, and so is `--series-1`.
+
+A contrast ratio says how far apart two colours are in lightness, from 1:1 (the same) to 21:1 (black on white). Any checker that takes two hex values will compute it, for example [WebAIM's contrast checker](https://webaim.org/resources/contrastchecker/).
 
 | Property | Where it is drawn | Light | Dark | Minimum contrast against |
 | --- | --- | --- | --- | --- |
@@ -45,11 +65,18 @@ A contrast ratio says how far apart two colours are in lightness, from 1:1 (the 
 | `--focus` | The keyboard focus ring, and focus outlines on buttons, links and the table toggle | `#0B5FA5` | `#7FB8E6` | 3:1 against `--surface-1` and `--surface-2` |
 | `--series-1` onward | Each quadrant's markers and legend badges | see below | the same | 3:1 against `--surface-1` and `--surface-2`, and 4.5:1 against white or `#16191F` |
 
-All eight roles are required. The dark column is the built-in dark theme: the sample file gives each value in a comment beside its light one, so swapping them all in gives a dark palette.
+The dark column is the built-in dark theme.
+
+## A dark palette
+
+1. In your copy of the sample, replace each role's value with the `dark:` value in its comment.
+2. Keep the quadrant colours: the built-in eight meet 3:1 on the dark grounds too.
+
+When `--surface-1` is darker than `--text-primary`, an HTML page tells the browser it is dark, so its scroll bars and controls match.
 
 ## Quadrant colours
 
-`--series-1`, `--series-2` and on colour the quadrants in their sorted order. With more quadrants than entries, the colours start again from `--series-1`. Number them from 1 with no gaps; there can be as few as one or as many as you like. The built-in eight are:
+`--series-1`, `--series-2` and on colour the quadrants in the legend's order, alphabetical by name and ignoring case. With more quadrants than entries, the colours start again from `--series-1`. Number them from 1 with no gaps; there can be as few as one or as many as you like. The built-in eight are:
 
 | Entry | Colour |
 | --- | --- |
@@ -68,7 +95,7 @@ The number on a solid marker or legend badge is not a property. radargen draws i
 
 ## Checking contrast
 
-radargen checks that the file is complete and well formed, never that its colours are legible. Its WCAG 2.1 AA claim covers its built-in themes. With your palette, keyboard and screen-reader support are unchanged, but colour contrast is yours to check: the table's last column gives each property's minimum. Check too that your quadrant colours stay distinct under colour-vision deficiency, for instance with your browser's vision-deficiency emulation in its developer tools.
+radargen checks that the file is complete and well formed, never that its colours are legible. Its claim to meet WCAG 2.1 AA, the web accessibility standard, covers its built-in themes. With your palette, keyboard and screen-reader support are unchanged, but colour contrast is yours to check: the table's last column gives each property's minimum. Check too that your quadrant colours stay distinct under colour-vision deficiency, for instance with your browser's vision-deficiency emulation in its developer tools.
 
 ## Revisions
 
