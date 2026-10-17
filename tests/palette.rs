@@ -1,59 +1,56 @@
-//! FR-81: `docs/product/palette.sample.css` ships as the `--palette` starting
-//! point, so an author copying it must get exactly what the tool draws.
+//! FR-81, FR-101: `docs/product/palette.sample.css` is a valid `--palette`
+//! file holding the built-in light palette, and each neutral's line names
+//! its dark value, so an author copying it gets exactly what the tool draws.
 
-#![expect(
-    clippy::disallowed_methods,
-    reason = "trims fixture text, not CSV or --rings values"
-)]
+use radargen::palette::file::parse;
+use radargen::palette::{Neutral, Palette, Role, Theme};
 
-use radargen::palette::{Palette, Theme};
+const SAMPLE: &str = include_str!("../docs/product/palette.sample.css");
 
-/// `(name, value)` for every `--x: #hex;` line in the block opened by `opener`.
-fn block(css: &str, opener: &str) -> Vec<(String, String)> {
-    let start = css
-        .find(opener)
-        .unwrap_or_else(|| panic!("no {opener} block"));
-    let (_, from_opener) = css.split_at(start);
-    let (body, _) = from_opener.split_once('}').expect("block closes");
-    body.lines()
-        .map(str::trim)
-        .filter(|l| l.starts_with("--"))
-        .map(|l| {
-            // One declaration per line, or a second one would hide from the check.
-            assert_eq!(l.matches(';').count(), 1, "one declaration per line: {l}");
-            let (name, rest) = l.split_once(':').expect("name: value");
-            let value = rest.split(';').next().expect("value;").trim();
-            (name.trim().to_string(), value.to_string())
-        })
-        .collect()
-}
-
-fn sorted(mut v: Vec<(String, String)>) -> Vec<(String, String)> {
-    v.sort();
-    v
-}
-
-fn ours(theme: Theme) -> Vec<(String, String)> {
-    Palette::built_in(theme)
-        .declarations()
-        .into_iter()
-        .map(|(role, v)| (role.to_string(), v.to_string()))
-        .collect()
+/// A line's text after its indentation.
+fn unindented(line: &str) -> &str {
+    line.trim_start_matches(' ')
 }
 
 #[test]
-fn built_ins_match_palette_sample_css() {
-    let css = include_str!("../docs/product/palette.sample.css");
-    let light = block(css, ":root {");
-    let dark_neutrals = block(css, ":root[data-theme=\"dark\"] {");
-    // The dark block overrides neutrals only; series come from :root (FR-81).
-    let mut dark: Vec<(String, String)> = light
-        .iter()
-        .filter(|(n, _)| n.starts_with("--series-"))
-        .cloned()
-        .collect();
-    dark.extend(dark_neutrals);
+fn the_sample_is_the_built_in_light_palette() {
+    assert_eq!(parse(SAMPLE), Ok(Palette::built_in(Theme::Light)));
+}
 
-    assert_eq!(sorted(ours(Theme::Light)), sorted(light));
-    assert_eq!(sorted(ours(Theme::Dark)), sorted(dark));
+#[test]
+fn each_neutral_line_names_its_dark_value() {
+    let dark = Palette::built_in(Theme::Dark);
+    for role in Neutral::ALL {
+        let opener = format!("{role}:");
+        let line = SAMPLE
+            .lines()
+            .find(|l| unindented(l).starts_with(&opener))
+            .unwrap_or_else(|| panic!("no line declares {role}"));
+        let want = format!("dark: {}", dark.value(Role::Neutral(role)));
+        assert!(line.contains(&want), "{role}: {line}");
+    }
+}
+
+/// FR-101's order: the series first, then FR-82's roles in order.
+#[test]
+fn declarations_are_in_fr_101_order() {
+    let names: Vec<&str> = SAMPLE
+        .lines()
+        .map(unindented)
+        .filter(|l| l.starts_with("--"))
+        .filter_map(|l| l.split_once(':').map(|(name, _)| name))
+        .collect();
+    let mut want: Vec<String> = (1..=8).map(|i| format!("--series-{i}")).collect();
+    want.extend(Neutral::ALL.iter().map(ToString::to_string));
+    assert_eq!(names, want);
+}
+
+/// The header names no requirement and no flag a release lacks (plan
+/// RG-018A, Ruling 9), says where the guide is, and the file is LF only
+/// (NFR-17).
+#[test]
+fn the_sample_reads_as_a_users_file() {
+    assert!(!SAMPLE.contains("FR-") && !SAMPLE.contains("--create-palette"));
+    assert!(!SAMPLE.contains('\r') && SAMPLE.ends_with("}\n"));
+    assert!(SAMPLE.contains("https://github.com/evensolberg/radargen/blob/main/docs/palette.md"));
 }
