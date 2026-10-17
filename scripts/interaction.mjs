@@ -663,8 +663,9 @@ try {
       check(m.gutter > 0, `a classic scrollbar takes room (${m.gutter} px), so the next checks mean something`);
       check(Math.abs(m.drawn - m.own) <= 0.5, `the legend draws at ${m.drawn} px, not its own ${m.own}`);
       // The box clips sideways, so a gutter taken from the legend's own
-      // width would cut its right edge rather than narrow it.
-      check(m.visible >= m.own - 0.5, `the box shows ${m.visible} px of the legend's ${m.own}`);
+      // width would cut its right edge rather than narrow it. clientWidth
+      // is whole pixels, so up to 1 px short of a fractional width.
+      check(m.visible >= m.own - 1, `the box shows ${m.visible} px of the legend's ${m.own}`);
       const first = await centreOf('.arrangement.wide [data-legend-row]');
       await click(first.x, first.y);
       await eventually(async () => !(await panelHidden()), 'the panel opens');
