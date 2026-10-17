@@ -11,7 +11,7 @@
 
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { KEYS, connect, poll } from './cdp.mjs';
+import { KEYS, SHOWN_ICON, connect, poll } from './cdp.mjs';
 
 const WIDE = 1400;
 const NARROW = 400;
@@ -144,6 +144,8 @@ const eventually = (ready, what) => poll(ready, what).catch((e) => void failures
 const LABEL = `document.querySelector('.theme-toggle').textContent`;
 const TO_DARK = 'Switch to dark theme';
 const TO_LIGHT = 'Switch to light theme';
+// rg-1ru: the one icon drawn, which shows the theme a press switches to.
+const ICON = `${SHOWN_ICON}?.getAttribute('class')`;
 async function scenario(name, widths, body) {
   for (const width of widths) {
     const before = failures.length;
@@ -246,12 +248,15 @@ try {
       await load(width, { scheme });
       const text = await evaluate(LABEL);
       check(text === (scheme === 'dark' ? TO_LIGHT : TO_DARK), `${scheme}: the label is "${text}"`);
+      const icon = await evaluate(ICON);
+      check(icon === (scheme === 'dark' ? 'theme-sun' : 'theme-moon'), `${scheme}: the icon is "${icon}"`);
     }
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
     await eventually(
       async () => (await evaluate(LABEL)) === TO_LIGHT || undefined,
       'the label follows a live change of preference',
     );
+    check((await evaluate(ICON)) === 'theme-sun', 'and the sun shows');
     const ground = () => evaluate(`getComputedStyle(document.body).backgroundColor`);
     const before = await ground();
     await press('Tab');
@@ -260,6 +265,7 @@ try {
     await press('Enter');
     check((await evaluate(`document.documentElement.getAttribute('data-theme')`)) === 'light', 'pressing it sets light');
     check((await evaluate(LABEL)) === TO_DARK, 'and the label offers dark again');
+    check((await evaluate(ICON)) === 'theme-moon', 'and the moon shows again');
     check((await ground()) !== before, 'the background changes');
   });
 

@@ -34,6 +34,7 @@
     toLight: 'Switch to light theme',
     js: 'js',
     toggle: 'theme-toggle',
+    words: 'visually-hidden',
     skip: 'skip',
     arrangement: 'arrangement',
     legendScroll: 'wide-legend',
@@ -314,8 +315,10 @@
       const chosen = root.getAttribute(N.theme);
       return chosen ? chosen === 'dark' : prefersDark.matches;
     };
+    // The hidden words name the button; the stylesheet picks its icon.
+    const words = toggle.querySelector('.' + N.words);
     const label = () => {
-      toggle.textContent = dark() ? N.toLight : N.toDark;
+      words.textContent = dark() ? N.toLight : N.toDark;
     };
     toggle.addEventListener('click', () => {
       root.setAttribute(N.theme, dark() ? 'light' : 'dark');

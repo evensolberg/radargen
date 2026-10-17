@@ -11,7 +11,7 @@ created_date: 2026-10-13
 synopsis: "What only a person with a screen reader, a real browser's zoom or a keyboard on a real machine can judge, step by step, with the announcement to expect at each step and a results table to fill in before tagging 1.0.0. The automated audit (scripts/a11y-audit.mjs) covers everything a browser can measure; this covers the rest."
 status: draft
 type: Guide
-revision: "1.5"
+revision: "1.6"
 review_date:
 reviewed_by: []
 completed_date:
@@ -61,8 +61,9 @@ The expected names come from `three-quadrant.csv`.
    - *Expect:* "Skip to the legend, button".
    - *Expect:* on Enter, focus on "1. …" in the legend.
 8. **The toggle.** Tab to it.
-   - *Expect:* "Switch to dark theme, button" ("Switch to light theme" if the system is dark), with no pressed state.
+   - *Expect:* "Switch to dark theme, button" ("Switch to light theme" if the system is dark), with no pressed state, and nothing read for the icon.
    - *Expect:* Enter changes the page's colours, and the label becomes the other one.
+   - *Expect (sighted):* a moon while the page is light, a sun while it is dark.
    - *Record:* whether the new label is announced after the press, or only when focus returns to the button.
 9. **The table** (`interaction.html`). Open *The table* and browse into it.
    - *Expect:* "Every item, region", then a table with its row and column counts.
@@ -147,3 +148,4 @@ The expected names come from `three-quadrant.csv`.
 | 1.3 | 2026-10-16 | Step 15: the PNG, in both themes (D-87, rg-42m). |
 | 1.4 | 2026-10-16 | Step 16: the exported SVG (D-88, rg-m2l). |
 | 1.5 | 2026-10-17 | Step 17: a page drawn with `--palette`, light and dark; step 1 notes it has no toggle (rg-cdo, RG-018A R25). |
+| 1.6 | 2026-10-17 | Step 8: the toggle shows a moon or a sun, the theme a press switches to, and its icon is not announced (rg-1ru). |

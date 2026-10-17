@@ -6,6 +6,8 @@
 //! that parses cleanly here, with only the page's and the serialiser's
 //! elements and the document's own strings, holds no injected markup.
 
+use std::rc::Rc;
+
 use html5ever::tendril::TendrilSink;
 use html5ever::{LocalName, Namespace, ParseOpts, ns, parse_document};
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
@@ -13,7 +15,7 @@ use radargen::layout::arrange::{Arrangement, arrange, wide_parts};
 
 use super::build;
 use super::hostile::{RING, Strings, TITLE, csv};
-use super::html::{PAGE_ELEMENTS, SVG_ELEMENTS, page_attribute};
+use super::html::{ICON_ATTRIBUTES, PAGE_ELEMENTS, SVG_ELEMENTS, page_attribute};
 use super::vocabulary::{EITHER, INTERACTIVE_ONLY};
 
 /// Every element under `node`, itself included, in document order.
@@ -225,6 +227,16 @@ fn hostile_text_survives_an_html5_parser() {
     assert!(dom.errors.borrow().is_empty(), "{:?}", dom.errors.borrow());
 
     let all = elements(&dom.document);
+    // The theme toggle's icons (rg-1ru), every element in them: page
+    // chrome with their own vocabulary, told from the drawings by having no
+    // namespace declaration (`DRAWING_OPEN`).
+    let is_icon = |n: &&Handle| {
+        name_of(n) == (ns!(svg), LocalName::from("svg")) && attribute(n, "xmlns").is_none()
+    };
+    let icons: Vec<&Handle> = all.iter().filter(is_icon).collect();
+    assert_eq!(icons.len(), 2, "the moon and the sun");
+    let icon_nodes: Vec<Handle> = icons.into_iter().flat_map(elements).collect();
+    let inside_an_icon = |n: &Handle| icon_nodes.iter().any(|i| Rc::ptr_eq(i, n));
     for node in &all {
         let (namespace, local) = name_of(node);
         let pairs = attribute_pairs(node);
@@ -234,7 +246,15 @@ fn hostile_text_survives_an_html5_parser() {
             names.iter().all(|n| !n.starts_with("on")),
             "<{local}> {names:?}"
         );
-        if namespace == ns!(svg) {
+        if inside_an_icon(node) {
+            assert!(SVG_ELEMENTS.contains(&&*local), "<svg:{local}> in an icon");
+            for name in &names {
+                assert!(
+                    ICON_ATTRIBUTES.contains(&name.as_str()),
+                    "<svg:{local} {name}> in an icon"
+                );
+            }
+        } else if namespace == ns!(svg) {
             assert!(SVG_ELEMENTS.contains(&&*local), "<svg:{local}>");
             for name in &names {
                 assert!(
@@ -284,7 +304,7 @@ fn hostile_text_survives_an_html5_parser() {
 
     let svgs: Vec<&Handle> = all
         .iter()
-        .filter(|n| name_of(n) == (ns!(svg), LocalName::from("svg")))
+        .filter(|n| name_of(n) == (ns!(svg), LocalName::from("svg")) && !is_icon(n))
         .collect();
     // The wide arrangement's four parts in reading order (D-85), then the
     // narrow arrangement.

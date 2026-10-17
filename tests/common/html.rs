@@ -1,11 +1,18 @@
-//! The HTML page as tests read it: its SVGs, and every tag outside them,
-//! checked against an allowlist (NFR-5: the page requests nothing but its
-//! two inlined fonts).
+//! The HTML page as tests read it: its SVGs, the theme toggle's icons, and
+//! every tag outside them, checked against an allowlist (NFR-5: the page
+//! requests nothing but its two inlined fonts).
 
 /// Every element the serialiser writes (NFR-6).
 pub const SVG_ELEMENTS: [&str; 9] = [
     "svg", "g", "circle", "rect", "line", "path", "text", "tspan", "title",
 ];
+
+/// Every drawing opens with its namespace, as the serialiser writes it;
+/// the theme toggle's icons (rg-1ru) are page chrome and have none.
+pub const DRAWING_OPEN: &str = "<svg xmlns=";
+/// Every attribute an icon may carry: fewer than a drawing's, and none
+/// that fetches.
+pub const ICON_ATTRIBUTES: [&str; 7] = ["class", "viewBox", "aria-hidden", "d", "cx", "cy", "r"];
 
 /// Every element the page itself writes around the SVG, the table view
 /// (FR-41) included.
@@ -85,8 +92,17 @@ pub struct Tag {
     pub attributes: Vec<(String, String)>,
 }
 
-/// The page's SVGs, `<svg>` to `</svg>`, in document order.
+/// The page's drawings, `<svg>` to `</svg>`, in document order: every SVG
+/// but the toggle's icons.
 pub fn svgs(page: &str) -> Vec<&str> {
+    every_svg(page)
+        .into_iter()
+        .filter(|svg| svg.starts_with(DRAWING_OPEN))
+        .collect()
+}
+
+/// Every `<svg>` to `</svg>`, drawings and icons, in document order.
+fn every_svg(page: &str) -> Vec<&str> {
     let mut found = Vec::new();
     let mut rest = page;
     while let Some((_, from)) = rest.split_once("<svg") {
@@ -101,11 +117,11 @@ pub fn svgs(page: &str) -> Vec<&str> {
     found
 }
 
-/// The page with its SVGs and its script's body taken out: the HTML
-/// around them. The script's `<script>` and `</script>` stay, so the tags
-/// are still checked; its code is not markup.
+/// The page with its SVGs, icons included, and its script's body taken
+/// out: the HTML around them. The script's `<script>` and `</script>`
+/// stay, so the tags are still checked; its code is not markup.
 pub fn outside(page: &str) -> String {
-    let markup = svgs(page)
+    let markup = every_svg(page)
         .iter()
         .fold(page.to_owned(), |text, svg| text.replacen(svg, "", 1));
     match markup.split_once("<script>") {
@@ -170,7 +186,8 @@ pub fn assert_requests_nothing(page: &str) {
             );
         }
     }
-    for svg in svgs(page) {
+    for svg in every_svg(page) {
+        let icon = !svg.starts_with(DRAWING_OPEN);
         let doc = roxmltree::Document::parse(svg).unwrap_or_else(|e| panic!("{e}\n{svg}"));
         for node in doc.descendants().filter(roxmltree::Node::is_element) {
             let tag = node.tag_name().name();
@@ -178,6 +195,11 @@ pub fn assert_requests_nothing(page: &str) {
             for a in node.attributes() {
                 assert!(!FETCHING.contains(&a.name()), "{} on <{tag}>", a.name());
                 assert!(!a.value().contains("url("), "{}={}", a.name(), a.value());
+                assert!(
+                    !icon || ICON_ATTRIBUTES.contains(&a.name()),
+                    "{} on an icon's <{tag}>",
+                    a.name()
+                );
             }
         }
     }

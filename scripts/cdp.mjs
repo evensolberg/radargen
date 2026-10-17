@@ -176,6 +176,10 @@ export const KEYS = {
 // Page-side source: the arrangement on show (FR-69 hides the other).
 export const SHOWN = `[...document.querySelectorAll('.arrangement')].find((a) => getComputedStyle(a).display !== 'none')`;
 
+// Page-side source: the theme toggle's icon on show (rg-1ru); the palette
+// blocks pick it, so it is the one the stylesheet displays.
+export const SHOWN_ICON = `[...document.querySelectorAll('.theme-toggle svg')].find((s) => getComputedStyle(s).display !== 'none')`;
+
 // Page-side source: the text of every element `selector` matches whose
 // visible text spills out of the element's box by more than `slack`.
 // Visually hidden text is laid out unwrapped in a 1px box by design, so

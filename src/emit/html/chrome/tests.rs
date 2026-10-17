@@ -61,6 +61,10 @@ fn the_scripts_names_are_the_pages() {
         ("toLight", TO_LIGHT),
         ("js", JS_CLASS),
         ("toggle", TOGGLE_CLASS),
+        (
+            "words",
+            super::super::css::VISUALLY_HIDDEN.trim_start_matches('.'),
+        ),
         ("skip", SKIP_CLASS),
         ("arrangement", ARRANGEMENT_CLASS),
         ("legendScroll", super::super::css::WIDE_LEGEND),
@@ -161,28 +165,64 @@ fn the_panel_sticks_and_shows_focus() {
     }
 }
 
+/// The PRD example's wide parts, for the controls' rules.
+const WIDE: super::super::css::Wide = super::super::css::Wide {
+    title_height: 53.0,
+    radar_width: 670.0,
+    radar_height: 640.5,
+    legend_width: 306.817,
+};
+
 /// §6.6: a page drawn with a `--palette` file has the skip link and no
 /// toggle, and the built-in page's controls keep their bytes.
 #[test]
 fn a_palette_page_has_no_toggle() {
     assert!(!controls(false).contains(TOGGLE_CLASS));
+    assert!(!controls(false).contains("<svg"), "no icons either");
     assert!(controls(false).contains(SKIP_CLASS));
     assert_eq!(
         controls(true),
-        "<div class=\"page-controls\"><button type=\"button\" class=\"skip\" hidden=\"\">Skip to the legend</button><button type=\"button\" class=\"theme-toggle\" hidden=\"\">Switch to dark theme</button></div>\n"
+        [
+            "<div class=\"page-controls\"><button type=\"button\" class=\"skip\" hidden=\"\">Skip to the legend</button>",
+            "<button type=\"button\" class=\"theme-toggle\" hidden=\"\">",
+            "<svg class=\"theme-moon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 14.5A8.5 8.5 0 1 1 9.5 4a7.5 7.5 0 0 0 10.5 10.5z\"/></svg>",
+            "<svg class=\"theme-sun\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"/></svg>",
+            "<span class=\"visually-hidden\">Switch to dark theme</span></button></div>\n",
+        ]
+        .concat()
     );
+}
+
+/// rg-1ru: the toggle's words carry the class the script finds them by
+/// (`N.words`), and each icon shows as the palette block showing says: the
+/// moon under the light palette, the sun under either dark one.
+#[test]
+fn the_toggle_shows_the_icon_its_palette_picks() {
+    let hidden = super::super::css::VISUALLY_HIDDEN.trim_start_matches('.');
+    assert!(
+        controls(true).contains(&["<span class=\"", hidden, "\">", TO_DARK, "</span>"].concat())
+    );
+    let css = super::css(&WIDE, true);
+    for rule in [
+        ".page-controls .theme-toggle{",
+        "padding:.4em}",
+        ".theme-toggle svg{width:1.25em;height:1.25em;",
+        "fill:none;stroke:currentColor;stroke-width:2;",
+        ".theme-toggle .theme-moon{display:var(--theme-moon)}",
+        ".theme-toggle .theme-sun{display:var(--theme-sun)}",
+    ] {
+        assert!(css.contains(rule), "{rule} in {css}");
+    }
 }
 
 /// Plan RG-018A R11: with no toggle to hold the controls bar open, the
 /// focused skip link is drawn over the page, not pushed into its flow.
 #[test]
 fn a_palette_page_draws_the_skip_link_over_the_page() {
-    let wide = super::super::css::Wide {
-        title_height: 53.0,
-        radar_width: 670.0,
-        radar_height: 640.5,
-        legend_width: 306.817,
-    };
-    assert!(super::css(&wide, false).ends_with(SKIP_OVER_PAGE));
-    assert!(!super::css(&wide, true).contains(SKIP_OVER_PAGE));
+    assert!(super::css(&WIDE, false).ends_with(SKIP_OVER_PAGE));
+    assert!(
+        !super::css(&WIDE, false).contains(".theme-toggle svg"),
+        "no icon rule"
+    );
+    assert!(!super::css(&WIDE, true).contains(SKIP_OVER_PAGE));
 }
