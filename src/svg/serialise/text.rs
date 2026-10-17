@@ -1,6 +1,6 @@
 //! Text, its lines and its halo.
 
-use super::{Context, attr, coord, paint, shows};
+use super::{Context, TextMode, attr, coord, paint, shows};
 use crate::escape::xml_text;
 use crate::style::TextStyle;
 use crate::svg::{Anchor, Point, Tail, TextPaint};
@@ -19,9 +19,24 @@ pub(super) struct Run<'a> {
 }
 
 impl Run<'_> {
+    /// D-88's one rule for a text that names itself, as an image: filled
+    /// and outside a control, and then always when outlined, but as
+    /// `<text>` only when a break fell inside a token and no heading names
+    /// it already (rg-g0c), since tspans would read that token as two
+    /// fragments (rg-zl6). `None` leaves the name to the content or to an
+    /// enclosing element.
+    pub(super) fn own_name(&self, context: Context<'_>) -> Option<String> {
+        let speaks = matches!(self.ink, TextPaint::Fill(_)) && context.control.is_none();
+        let needs = match context.text {
+            TextMode::Outlined(_) => true,
+            TextMode::Text => !context.named && self.broken_mid_word(),
+        };
+        (speaks && needs).then(|| self.name())
+    }
+
     /// The text's name: its words as written, then its tail. Not its lines
     /// joined, which would read a token broken mid-word as two.
-    pub(super) fn name(&self) -> String {
+    fn name(&self) -> String {
         let mut name = self.words.to_owned();
         if let Some(tail) = self.tail {
             name.push_str(&tail.text);
@@ -53,15 +68,9 @@ pub(super) fn text(run: &Run<'_>, context: Context<'_>) -> String {
     coord(&mut out, "y", run.origin.y);
     style(&mut out, run.style, run.anchor);
     ink(&mut out, run.ink, context);
-    if matches!(run.ink, TextPaint::Fill(_))
-        && context.control.is_none()
-        && !context.named
-        && run.broken_mid_word()
-    {
-        // Read as text, each tspan would be a fragment of the broken token;
-        // as an image it is read once, by its words (rg-zl6, D-88).
+    if let Some(name) = run.own_name(context) {
         attr(&mut out, "role", "img");
-        attr(&mut out, "aria-label", &run.name());
+        attr(&mut out, "aria-label", &name);
     }
     if context.target.interactive() && context.control.is_some() {
         // A click on a number or name reaches its control (FR-37).

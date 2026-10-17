@@ -11,7 +11,8 @@ use crate::svg::{Control, Group, Node, Semantics};
 /// writes nothing (the empty title block; static output's hit and
 /// indicator layers).
 pub(super) fn group(group: &Group, context: Context<'_>) -> String {
-    let inner = within(group, context);
+    let heading = heading_name(group, context);
+    let inner = within(&group.semantics, heading.is_some(), context);
     let children: String = group
         .children
         .iter()
@@ -25,21 +26,22 @@ pub(super) fn group(group: &Group, context: Context<'_>) -> String {
             ),
         "a control always draws something"
     );
-    enclose(&open(group, context), &children)
+    enclose(&open(group, heading, context), &children)
 }
 
 /// The context for a group's children: inside a control once one opens,
-/// and named by their heading when [`heading_name`] names it, so the two
-/// halves of one rule cannot disagree about which text carries the name.
-fn within<'a>(group: &Group, context: Context<'a>) -> Context<'a> {
-    let control = match group.semantics {
+/// and `named` when the group is a heading [`heading_name`] names, so the
+/// heading and its text cannot both name the text. Not inherited: the
+/// heading names only its sole child, never a deeper text.
+const fn within<'a>(semantics: &Semantics, named: bool, context: Context<'a>) -> Context<'a> {
+    let control = match semantics {
         Semantics::Marker(_) => Some(ControlKind::Marker),
         Semantics::LegendRow(_) => Some(ControlKind::LegendRow),
         _ => context.control,
     };
     Context {
         control,
-        named: heading_name(group, context).is_some(),
+        named,
         ..context
     }
 }
@@ -52,8 +54,9 @@ fn enclose(open: &str, children: &str) -> String {
     }
 }
 
-/// `<g …>` and, for a control with a tooltip, its `<title>` (FR-36).
-fn open(group: &Group, context: Context<'_>) -> String {
+/// `<g …>`, with `heading`'s name, and, for a control with a tooltip, its
+/// `<title>` (FR-36).
+fn open(group: &Group, heading: Option<&str>, context: Context<'_>) -> String {
     let mut out = String::from("<g");
     if shows(group.offset.x) || shows(group.offset.y) {
         attr(
@@ -63,7 +66,7 @@ fn open(group: &Group, context: Context<'_>) -> String {
         );
     }
     semantics(&mut out, &group.semantics, context);
-    if let Some(words) = heading_name(group, context) {
+    if let Some(words) = heading {
         attr(&mut out, "aria-label", words);
     }
     out.push_str(">\n");

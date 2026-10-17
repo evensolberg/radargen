@@ -62,10 +62,7 @@ fn a_wrapped_heading_is_named_by_its_words() {
             first_line(&heading),
             "<g role=\"heading\" aria-level=\"1\">"
         );
-        let mut broken = text(&["Kuber", "netes"], Anchor::Start, fill);
-        if let Node::Text { words, .. } = &mut broken {
-            "Kubernetes".clone_into(words);
-        }
+        let broken = worded(&["Kuber", "netes"], "Kubernetes", fill);
         let heading = one(&semantic(Semantics::Heading(level), vec![broken]), target);
         assert!(heading.contains(" aria-label=\"Kubernetes\">"), "{heading}");
         let plain = vec![text(&["Distributed", "Streaming"], Anchor::Start, fill)];
@@ -82,34 +79,25 @@ fn a_wrapped_heading_is_named_by_its_words() {
 fn plain_text_broken_mid_word_is_named_by_its_words() {
     let palette = light();
     let fill = TextPaint::Fill(MUTED);
-    let broken = || {
-        let mut node = text(
-            &["managedcloudservic", "esextravaganza"],
-            Anchor::Start,
-            fill,
-        );
-        if let Node::Text { words, .. } = &mut node {
-            "managedcloudservicesextravaganza".clone_into(words);
-        }
-        node
+    let lines = ["managedcloudservic", "esextravaganza"];
+    let words = "managedcloudservicesextravaganza";
+    let broken = || worded(&lines, words, fill);
+    // Only the <text> is checked: a static control is an image itself.
+    let text_is_image = |markup: &str| {
+        markup
+            .lines()
+            .any(|l| l.starts_with("<text") && l.contains("role=\"img\""))
     };
     for target in [Target::Interactive(&palette), Target::Static(&palette)] {
         let plain = one(&broken(), target);
         assert!(
-            first_line(&plain)
-                .contains(" role=\"img\" aria-label=\"managedcloudservicesextravaganza\">"),
+            first_line(&plain).contains(&format!(" role=\"img\" aria-label=\"{words}\">")),
             "{plain}"
         );
         let between = one(
             &text(&["Distributed", "Streaming"], Anchor::Start, fill),
             target,
         );
-        // Only the <text> is checked: a static control is an image itself.
-        let text_is_image = |markup: &str| {
-            markup
-                .lines()
-                .any(|l| l.starts_with("<text") && l.contains("role=\"img\""))
-        };
         assert!(!text_is_image(&between), "{between}");
         let level = NonZeroU8::MIN;
         let heading = one(&semantic(Semantics::Heading(level), vec![broken()]), target);
@@ -119,14 +107,12 @@ fn plain_text_broken_mid_word_is_named_by_its_words() {
             target,
         );
         assert!(!text_is_image(&row), "{row}");
-        let mut halo = broken();
-        if let Node::Text { ink, .. } = &mut halo {
-            *ink = TextPaint::Halo {
-                stroke: MUTED,
-                width: 3.0,
-            };
-        }
-        assert!(!text_is_image(&one(&halo, target)), "a halo is hidden");
+        let halo = TextPaint::Halo {
+            stroke: MUTED,
+            width: 3.0,
+        };
+        let halo = one(&worded(&lines, words, halo), target);
+        assert!(!text_is_image(&halo), "a halo is hidden: {halo}");
     }
 }
 
