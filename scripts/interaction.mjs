@@ -691,20 +691,28 @@ try {
   // ignores the system preference, and its skip link moves nothing (plan
   // RG-018A, R11, R12).
   if (paletteUrl) {
-    await scenario('a --palette page has no toggle', [WIDE], async (width) => {
+    await scenario('a --palette page has no toggle', [WIDE, NARROW], async (width) => {
       await load(width, { page: paletteUrl, scheme: 'dark' });
-      check(await evaluate(`document.documentElement.classList.contains('js')`), 'the script ran to its end');
+      check(!(await evaluate(`document.querySelector('.skip').hidden`)), 'the script ran to its end and showed the skip link');
       check(!(await evaluate(`!!document.querySelector('.theme-toggle')`)), 'there is no toggle');
+      // Not the built-in dark ground: the dark preference changed nothing.
       check(
-        (await evaluate(`getComputedStyle(document.body).backgroundColor`)) === 'rgb(255, 255, 255)',
+        (await evaluate(`getComputedStyle(document.body).backgroundColor`)) !== 'rgb(21, 24, 29)',
         'a dark preference leaves the light palette light',
       );
       check((await evaluate(`getComputedStyle(document.documentElement).colorScheme`)) === 'light', "color-scheme is the palette's");
-      const top = `document.querySelector('.arrangement.wide .wide-radar svg').getBoundingClientRect().top`;
+      const shown = width === WIDE ? 'wide' : 'narrow';
+      const top = `document.querySelector('.arrangement.${shown} svg').getBoundingClientRect().top`;
       const before = await evaluate(top);
       await press('Tab');
       check((await active()).cls?.includes('skip'), 'the skip link is the first stop');
       check((await evaluate(top)) === before, 'focusing the skip link moves nothing');
+      const seen = await evaluate(`(() => {
+        const skip = document.querySelector('.skip');
+        const box = skip.getBoundingClientRect();
+        return box.width > 1 && document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === skip;
+      })()`);
+      check(seen, 'the focused skip link is visible, on top of the page');
       await press('Enter');
       check((await active()).legend !== null, 'Enter lands on a legend row');
     });
