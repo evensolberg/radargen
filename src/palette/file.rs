@@ -23,9 +23,6 @@ pub const MAX_BYTES: usize = 1 << 20;
 /// the cap from one beyond it.
 const READ_CAP: u64 = (1 << 20) + 1;
 
-/// What [`PaletteError::NotHex`] adds when its value swallowed the next
-/// declaration.
-const RUNS_ON: &str = "; it runs onto the next line, so add ; at its end";
 
 /// The properties a palette may declare, as an unknown-property message
 /// lists them.
@@ -96,10 +93,7 @@ pub enum PaletteError {
         first: usize,
     },
     /// FR-86: a value that is not `#RRGGBB`.
-    #[error(
-        "{name}: '{value}' is not a #RRGGBB colour{}",
-        if *runs_on { RUNS_ON } else { "" }
-    )]
+    #[error("{name}: '{value}' is not a #RRGGBB colour")]
     NotHex {
         /// Where it is declared.
         line: usize,
@@ -107,9 +101,16 @@ pub enum PaletteError {
         name: String,
         /// The value, quoted by [`excerpt`].
         value: String,
-        /// The value swallowed a declaration on a later line, as a forgotten
-        /// `;` leaves it (rg-8xm).
-        runs_on: bool,
+    },
+    /// A value runs onto a later line that declares a property: a forgotten
+    /// `;` (rg-8xm). The value ends at that line, which is read as the next
+    /// declaration, so it is checked in the same pass (rg-p9a).
+    #[error("{name}: its value runs onto the next line; add ; at its end")]
+    MissingSemicolon {
+        /// Where the declaration missing its `;` is.
+        line: usize,
+        /// Its property.
+        name: String,
     },
     /// FR-86: a role the accepted rule does not declare.
     #[error("{role} is missing; a palette defines all eight roles")]
@@ -145,7 +146,8 @@ impl PaletteError {
             | Self::Malformed { line, .. }
             | Self::Unknown { line, .. }
             | Self::Duplicate { line, .. }
-            | Self::NotHex { line, .. } => Some(*line),
+            | Self::NotHex { line, .. }
+            | Self::MissingSemicolon { line, .. } => Some(*line),
             Self::MissingRole { .. } | Self::MissingSeries { .. } => None,
         }
     }
@@ -222,9 +224,6 @@ struct Declaration<'a> {
     line: usize,
     name: &'a str,
     value: &'a str,
-    /// The line and name of each declaration a forgotten `;` ran the value
-    /// into (rg-8xm), in file order.
-    swallowed: Vec<(usize, &'a str)>,
 }
 
 /// The accepted `:root` rule's declarations, none when the file has no
@@ -355,17 +354,30 @@ fn declarations<'a>(
             Some((name, name_len, value)) if !name.is_empty() => {
                 // `value` starts one past the colon, which is ASCII.
                 let value_at = at + name_len + 1;
-                let swallowed = lines
+                // A later line of the value that declares a property is a
+                // forgotten `;` (rg-8xm): the value ends there, and reading
+                // resumes at that line, so what it declares is checked in
+                // this pass like any other declaration (rg-p9a).
+                let next = lines
                     .starting_in(value_at..value_at + value.len())
-                    .filter_map(|(line, from)| {
-                        Some((line, swallowed_name(value.get(from - value_at..)?)?))
-                    })
-                    .collect();
+                    .map(|(_, from)| from)
+                    .find(|&from| {
+                        value
+                            .get(from - value_at..)
+                            .is_some_and(|rest| swallowed_name(rest).is_some())
+                    });
+                let value = next.map_or(value, |from| {
+                    errors.push(PaletteError::MissingSemicolon {
+                        line,
+                        name: excerpt(name),
+                    });
+                    offset = from - start;
+                    value.get(..from - value_at).unwrap_or_default()
+                });
                 out.push(Declaration {
                     line,
                     name,
                     value: css_trim(value),
-                    swallowed,
                 });
             }
             _ => errors.push(PaletteError::Malformed {
@@ -408,19 +420,7 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
     // reported once, as `NotHex`, and not again as missing.
     let mut seen: BTreeMap<&str, usize> = BTreeMap::new();
     for d in declared {
-        let repeat = !first_declaration(&mut seen, d.line, d.name, errors);
-        // A name a forgotten `;` swallowed is in the file, whatever is wrong
-        // with the declaration that swallowed it (rg-8xm): not missing, and
-        // repeated like any other (rg-4id). A swallowed series entry is no
-        // gap, and no palette either.
-        for &(line, name) in &d.swallowed {
-            if first_declaration(&mut seen, line, name, errors)
-                && let Some(Property::Series(index)) = property(name)
-            {
-                series.entry(index).or_insert(None);
-            }
-        }
-        if repeat {
+        if !first_declaration(&mut seen, d.line, d.name, errors) {
             continue;
         }
         let Some(slot) = property(d.name) else {
@@ -436,7 +436,6 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
                 line: d.line,
                 name: d.name.into(),
                 value: excerpt(d.value),
-                runs_on: !d.swallowed.is_empty(),
             });
         }
         match slot {
