@@ -11,7 +11,7 @@
 
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { KEYS, connect, poll } from './cdp.mjs';
+import { KEYS, SHOWN_ICON, connect, poll } from './cdp.mjs';
 
 const WIDE = 1400;
 const NARROW = 400;
@@ -145,7 +145,7 @@ const LABEL = `document.querySelector('.theme-toggle').textContent`;
 const TO_DARK = 'Switch to dark theme';
 const TO_LIGHT = 'Switch to light theme';
 // rg-1ru: the one icon drawn, which shows the theme a press switches to.
-const ICON = `[...document.querySelectorAll('.theme-toggle svg')].filter((s) => getComputedStyle(s).display !== 'none').map((s) => s.getAttribute('class')).join()`;
+const ICON = `${SHOWN_ICON}?.getAttribute('class')`;
 async function scenario(name, widths, body) {
   for (const width of widths) {
     const before = failures.length;

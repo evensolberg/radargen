@@ -3,9 +3,8 @@ use std::collections::BTreeMap;
 use super::super::table::{PROSE_CLASS, TABLE_VIEW_CLASS};
 use super::{
     ARIA_CONTROLS, ARIA_EXPANDED, ARRANGEMENT_CLASS, CLOSE_CLASS, DATA_FOCUSED, DATA_HOVERED,
-    DATA_NARROW_QUERY, DATA_SELECTED, DATA_THEME, EMPTY_CLASS, HEADING_CLASS, JS_CLASS, MOON_CLASS,
-    MOON_ICON, PANEL_ID, SCRIPT, SKIP_CLASS, SKIP_OVER_PAGE, SUN_CLASS, SUN_ICON, TO_DARK,
-    TO_LIGHT, TOGGLE_CLASS, controls,
+    DATA_NARROW_QUERY, DATA_SELECTED, DATA_THEME, EMPTY_CLASS, HEADING_CLASS, JS_CLASS, PANEL_ID,
+    SCRIPT, SKIP_CLASS, SKIP_OVER_PAGE, TO_DARK, TO_LIGHT, TOGGLE_CLASS, controls,
 };
 use crate::svg::serialise::{
     DATA_HIT, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW,
@@ -62,8 +61,6 @@ fn the_scripts_names_are_the_pages() {
         ("toLight", TO_LIGHT),
         ("js", JS_CLASS),
         ("toggle", TOGGLE_CLASS),
-        ("moon", MOON_CLASS),
-        ("sun", SUN_CLASS),
         (
             "words",
             super::super::css::VISUALLY_HIDDEN.trim_start_matches('.'),
@@ -168,6 +165,14 @@ fn the_panel_sticks_and_shows_focus() {
     }
 }
 
+/// The PRD example's wide parts, for the controls' rules.
+const WIDE: super::super::css::Wide = super::super::css::Wide {
+    title_height: 53.0,
+    radar_width: 670.0,
+    radar_height: 640.5,
+    legend_width: 306.817,
+};
+
 /// §6.6: a page drawn with a `--palette` file has the skip link and no
 /// toggle, and the built-in page's controls keep their bytes.
 #[test]
@@ -180,52 +185,31 @@ fn a_palette_page_has_no_toggle() {
         [
             "<div class=\"page-controls\"><button type=\"button\" class=\"skip\" hidden=\"\">Skip to the legend</button>",
             "<button type=\"button\" class=\"theme-toggle\" hidden=\"\">",
-            MOON_ICON,
-            SUN_ICON,
+            "<svg class=\"theme-moon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 14.5A8.5 8.5 0 1 1 9.5 4a7.5 7.5 0 0 0 10.5 10.5z\"/></svg>",
+            "<svg class=\"theme-sun\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"/></svg>",
             "<span class=\"visually-hidden\">Switch to dark theme</span></button></div>\n",
         ]
         .concat()
     );
 }
 
-/// rg-1ru: the toggle shows the theme a press switches to, the moon while
-/// the light theme shows, and keeps its words as its name (rg-nuy). The
-/// icons are decoration, hidden from assistive technology, and drawn in
-/// the button's text colour so they follow both themes and forced colours.
+/// rg-1ru: the toggle's words carry the class the script finds them by
+/// (`N.words`), and each icon shows as the palette block showing says: the
+/// moon under the light palette, the sun under either dark one.
 #[test]
-fn the_toggle_is_an_icon_named_by_what_a_press_does() {
-    let toggle = controls(true);
-    for icon in [MOON_ICON, SUN_ICON] {
-        assert!(icon.starts_with("<svg class=\""), "{icon}");
-        assert!(
-            icon.contains(" viewBox=\"0 0 24 24\" aria-hidden=\"true\""),
-            "{icon}"
-        );
-        assert!(icon.ends_with("</svg>"), "{icon}");
-    }
-    assert!(MOON_ICON.starts_with(&["<svg class=\"", MOON_CLASS, "\""].concat()));
-    assert!(SUN_ICON.starts_with(&["<svg class=\"", SUN_CLASS, "\""].concat()));
-    assert!(!MOON_ICON.contains("hidden=\"\""), "the moon shows first");
-    assert!(SUN_ICON.contains(" hidden=\"\""), "the sun waits for dark");
-    // The words carry the class the script finds them by (`N.words`).
+fn the_toggle_shows_the_icon_its_palette_picks() {
     let hidden = super::super::css::VISUALLY_HIDDEN.trim_start_matches('.');
-    assert!(toggle.contains(&["<span class=\"", hidden, "\">", TO_DARK, "</span>"].concat()));
-    let css = super::css(
-        &super::super::css::Wide {
-            title_height: 53.0,
-            radar_width: 670.0,
-            radar_height: 640.5,
-            legend_width: 306.817,
-        },
-        true,
+    assert!(
+        controls(true).contains(&["<span class=\"", hidden, "\">", TO_DARK, "</span>"].concat())
     );
+    let css = super::css(&WIDE, true);
     for rule in [
         ".page-controls .theme-toggle{",
         "padding:.4em}",
-        ".theme-toggle svg{display:block;width:1.25em;height:1.25em;",
+        ".theme-toggle svg{width:1.25em;height:1.25em;",
         "fill:none;stroke:currentColor;stroke-width:2;",
-        // The icon swap: a hidden icon stays hidden past `display:block`.
-        "[hidden]{display:none!important}",
+        ".theme-toggle .theme-moon{display:var(--theme-moon)}",
+        ".theme-toggle .theme-sun{display:var(--theme-sun)}",
     ] {
         assert!(css.contains(rule), "{rule} in {css}");
     }
@@ -235,16 +219,10 @@ fn the_toggle_is_an_icon_named_by_what_a_press_does() {
 /// focused skip link is drawn over the page, not pushed into its flow.
 #[test]
 fn a_palette_page_draws_the_skip_link_over_the_page() {
-    let wide = super::super::css::Wide {
-        title_height: 53.0,
-        radar_width: 670.0,
-        radar_height: 640.5,
-        legend_width: 306.817,
-    };
-    assert!(super::css(&wide, false).ends_with(SKIP_OVER_PAGE));
+    assert!(super::css(&WIDE, false).ends_with(SKIP_OVER_PAGE));
     assert!(
-        !super::css(&wide, false).contains(".theme-toggle svg"),
+        !super::css(&WIDE, false).contains(".theme-toggle svg"),
         "no icon rule"
     );
-    assert!(!super::css(&wide, true).contains(SKIP_OVER_PAGE));
+    assert!(!super::css(&WIDE, true).contains(SKIP_OVER_PAGE));
 }

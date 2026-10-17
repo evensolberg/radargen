@@ -39,18 +39,14 @@ pub(super) const DATA_SELECTED: &str = "data-selected";
 pub(super) const JS_CLASS: &str = "js";
 pub(super) const TOGGLE_CLASS: &str = "theme-toggle";
 /// The toggle's icons (rg-1ru): each shows the theme a press switches to,
-/// so the moon shows while the light theme does. The script swaps which is
-/// `hidden`; the page is written with the light theme's, as its label is.
-/// The icons below spell them out; they are named here for the test that
-/// holds the script's names block and the icons to them.
-#[cfg(test)]
+/// so the moon shows while the light palette does and the sun while the
+/// dark one does. The palette blocks pick which (`ICONS_LIGHT`,
+/// `ICONS_DARK`), so the icon follows the palette showing with no script.
 pub(super) const MOON_CLASS: &str = "theme-moon";
-#[cfg(test)]
 pub(super) const SUN_CLASS: &str = "theme-sun";
-/// Decoration only: the toggle's name is its visually hidden label. The
-/// strokes take the button's text colour from the stylesheet.
-pub(super) const MOON_ICON: &str = "<svg class=\"theme-moon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 14.5A8.5 8.5 0 1 1 9.5 4a7.5 7.5 0 0 0 10.5 10.5z\"/></svg>";
-pub(super) const SUN_ICON: &str = "<svg class=\"theme-sun\" viewBox=\"0 0 24 24\" aria-hidden=\"true\" hidden=\"\"><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"/></svg>";
+/// The custom properties the palette blocks set and the icon rule reads.
+pub(super) const ICONS_LIGHT: &str = "--theme-moon:block;--theme-sun:none;";
+pub(super) const ICONS_DARK: &str = "--theme-moon:none;--theme-sun:block;";
 pub(super) const SKIP_CLASS: &str = "skip";
 /// Each arrangement's container (FR-69).
 pub(super) const ARRANGEMENT_CLASS: &str = "arrangement";
@@ -59,6 +55,13 @@ const CONTROLS_OPEN: &str = "<div class=\"page-controls\">";
 const BUTTON_TAG: &str = "<button type=\"button\" class=\"";
 const SKIP_REST: &str = "\" hidden=\"\">Skip to the legend</button>";
 const TOGGLE_REST: &str = "\" hidden=\"\">";
+/// Decoration only: the toggle's name is its visually hidden label. The
+/// strokes take the button's text colour from the stylesheet.
+const ICON_OPEN: &str = "<svg class=\"";
+const ICON_REST: &str = "\" viewBox=\"0 0 24 24\" aria-hidden=\"true\">";
+const MOON_SHAPE: &str =
+    "<path d=\"M20 14.5A8.5 8.5 0 1 1 9.5 4a7.5 7.5 0 0 0 10.5 10.5z\"/></svg>";
+const SUN_SHAPE: &str = "<circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"/></svg>";
 const LABEL_OPEN: &str = "<span class=\"visually-hidden\">";
 const TOGGLE_END: &str = "</span></button>";
 const CONTROLS_CLOSE: &str = "</div>\n";
@@ -78,8 +81,14 @@ pub(super) fn controls(toggle: bool) -> String {
             BUTTON_TAG,
             TOGGLE_CLASS,
             TOGGLE_REST,
-            MOON_ICON,
-            SUN_ICON,
+            ICON_OPEN,
+            MOON_CLASS,
+            ICON_REST,
+            MOON_SHAPE,
+            ICON_OPEN,
+            SUN_CLASS,
+            ICON_REST,
+            SUN_SHAPE,
             LABEL_OPEN,
             TO_DARK,
             TOGGLE_END,
@@ -144,10 +153,12 @@ const SKIP_RULE: &str =
     ".skip{margin-inline-end:auto}\n.theme-toggle{margin-inline-start:auto}\n.skip:not(:focus)";
 /// The icon toggle is square, its padding all round (rg-1ru), under
 /// `.page-controls` to outrank the controls' own padding: at the
-/// page's 16 px text it is about 35 px a side, past WCAG 2.5.8's 24. Its
-/// `display:block` would show both icons but for `HIDDEN_RULE`'s
-/// `!important`, which the swap relies on.
-const TOGGLE_ICON_RULE: &str = ".page-controls .theme-toggle{padding:.4em}\n.theme-toggle svg{display:block;width:1.25em;height:1.25em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}\n";
+/// page's 16 px text it is about 35 px a side, past WCAG 2.5.8's 24. Each
+/// icon shows as its palette block's property says.
+const TOGGLE_ICON_RULE: &str = ".page-controls .theme-toggle{padding:.4em}\n.theme-toggle svg{width:1.25em;height:1.25em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}\n";
+const ICON_SHOWN_OPEN: &str = ".theme-toggle .";
+const MOON_SHOWN: &str = "{display:var(--theme-moon)}\n";
+const SUN_SHOWN: &str = "{display:var(--theme-sun)}\n";
 const FOCUS_OPEN: &str = ".page-controls button:focus-visible,.detail-close:focus-visible,.detail-heading:focus-visible{outline:2px solid var(";
 /// FR-38's panel, sticky at the viewport's bottom while open so the radar
 /// stays in view, and scrolling inside itself past 45% of the screen.
@@ -175,7 +186,20 @@ pub(super) const SKIP_OVER_PAGE: &str =
 /// The controls' and panel's rules; `toggle` as for [`controls`].
 pub(super) fn css(wide: &Wide, toggle: bool) -> String {
     let skip = if toggle { "" } else { SKIP_OVER_PAGE };
-    let icon = if toggle { TOGGLE_ICON_RULE } else { "" };
+    let icon = if toggle {
+        [
+            TOGGLE_ICON_RULE,
+            ICON_SHOWN_OPEN,
+            MOON_CLASS,
+            MOON_SHOWN,
+            ICON_SHOWN_OPEN,
+            SUN_CLASS,
+            SUN_SHOWN,
+        ]
+        .concat()
+    } else {
+        String::new()
+    };
     [
         HIDDEN_RULE,
         &capped(BAR_OPEN, wide),
@@ -188,7 +212,7 @@ pub(super) fn css(wide: &Wide, toggle: bool) -> String {
         BUTTON_CLOSE,
         SKIP_RULE,
         HIDDEN_BOX,
-        icon,
+        &icon,
         FOCUS_OPEN,
         Neutral::Focus.as_str(),
         OUTLINE_CLOSE,

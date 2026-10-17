@@ -20,7 +20,9 @@ use crate::svg::serialise::{
     DATA_ROW_INDICATOR, DATA_SELECTION,
 };
 
-use super::chrome::{DATA_FOCUSED, DATA_HOVERED, DATA_SELECTED, DATA_THEME, JS_CLASS};
+use super::chrome::{
+    DATA_FOCUSED, DATA_HOVERED, DATA_SELECTED, DATA_THEME, ICONS_DARK, ICONS_LIGHT, JS_CLASS,
+};
 use crate::text::{FAMILY, REGULAR_WOFF2, SEMIBOLD_WOFF2, Weight};
 
 /// Hides a heading from sight but not from assistive technology:
@@ -230,8 +232,8 @@ const FILE_OPEN: &str = ":root{color-scheme:";
 /// The page's colours (FR-56, architecture §5). Built in: light by default,
 /// dark when the viewer prefers it unless the page is set light, and dark
 /// when the page is set dark; the theme toggle sets `data-theme` on
-/// `<html>`. From a `--palette` file: that one set, with no preference and
-/// no toggle (§6.6). Forced colours apply to both (rg-min, Ruling 5).
+/// `<html>`, and each block says which of its icons shows (rg-1ru). From a
+/// `--palette` file: that one set, with no preference and no toggle (§6.6). Forced colours apply to both (rg-min, Ruling 5).
 ///
 /// Values are written as `Palette` holds them, each a `Hex`, which admits
 /// only `#RRGGBB` (NFR-6 context 5).
@@ -243,16 +245,19 @@ pub(super) fn palettes(colours: &Colours) -> String {
             [
                 LIGHT_OPEN,
                 &light,
+                ICONS_LIGHT,
                 CLOSE,
                 DARK_PREFERRED_OPEN,
                 DATA_THEME,
                 NOT_LIGHT,
                 &dark,
+                ICONS_DARK,
                 CLOSE_TWICE,
                 DARK_CHOSEN_OPEN,
                 DATA_THEME,
                 DARK_CHOSEN,
                 &dark,
+                ICONS_DARK,
                 CLOSE,
             ]
             .concat()

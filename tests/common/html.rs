@@ -7,21 +7,12 @@ pub const SVG_ELEMENTS: [&str; 9] = [
     "svg", "g", "circle", "rect", "line", "path", "text", "tspan", "title",
 ];
 
-/// The theme toggle's icons (rg-1ru) are page chrome, not drawings: two
-/// constant SVGs with their own, smaller vocabulary, told apart from the
-/// drawings by their class, which the serialiser never writes.
-const ICON_OPEN: &str = "<svg class=\"theme-";
-pub const ICON_ELEMENTS: [&str; 3] = ["svg", "path", "circle"];
-pub const ICON_ATTRIBUTES: [&str; 8] = [
-    "class",
-    "viewBox",
-    "aria-hidden",
-    "hidden",
-    "d",
-    "cx",
-    "cy",
-    "r",
-];
+/// Every drawing opens with its namespace, as the serialiser writes it;
+/// the theme toggle's icons (rg-1ru) are page chrome and have none.
+pub const DRAWING_OPEN: &str = "<svg xmlns=";
+/// Every attribute an icon may carry: fewer than a drawing's, and none
+/// that fetches.
+pub const ICON_ATTRIBUTES: [&str; 7] = ["class", "viewBox", "aria-hidden", "d", "cx", "cy", "r"];
 
 /// Every element the page itself writes around the SVG, the table view
 /// (FR-41) included.
@@ -106,15 +97,7 @@ pub struct Tag {
 pub fn svgs(page: &str) -> Vec<&str> {
     every_svg(page)
         .into_iter()
-        .filter(|svg| !svg.starts_with(ICON_OPEN))
-        .collect()
-}
-
-/// The theme toggle's icons, in document order.
-pub fn icons(page: &str) -> Vec<&str> {
-    every_svg(page)
-        .into_iter()
-        .filter(|svg| svg.starts_with(ICON_OPEN))
+        .filter(|svg| svg.starts_with(DRAWING_OPEN))
         .collect()
 }
 
@@ -203,7 +186,8 @@ pub fn assert_requests_nothing(page: &str) {
             );
         }
     }
-    for svg in svgs(page) {
+    for svg in every_svg(page) {
+        let icon = !svg.starts_with(DRAWING_OPEN);
         let doc = roxmltree::Document::parse(svg).unwrap_or_else(|e| panic!("{e}\n{svg}"));
         for node in doc.descendants().filter(roxmltree::Node::is_element) {
             let tag = node.tag_name().name();
@@ -211,23 +195,8 @@ pub fn assert_requests_nothing(page: &str) {
             for a in node.attributes() {
                 assert!(!FETCHING.contains(&a.name()), "{} on <{tag}>", a.name());
                 assert!(!a.value().contains("url("), "{}={}", a.name(), a.value());
-            }
-        }
-    }
-    let icons = icons(page);
-    assert!(
-        matches!(icons.len(), 0 | 2),
-        "the toggle's two icons, or no toggle: {}",
-        icons.len()
-    );
-    for icon in icons {
-        let doc = roxmltree::Document::parse(icon).unwrap_or_else(|e| panic!("{e}\n{icon}"));
-        for node in doc.descendants().filter(roxmltree::Node::is_element) {
-            let tag = node.tag_name().name();
-            assert!(ICON_ELEMENTS.contains(&tag), "<{tag}> in an icon");
-            for a in node.attributes() {
                 assert!(
-                    ICON_ATTRIBUTES.contains(&a.name()),
+                    !icon || ICON_ATTRIBUTES.contains(&a.name()),
                     "{} on an icon's <{tag}>",
                     a.name()
                 );

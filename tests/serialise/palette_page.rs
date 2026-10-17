@@ -4,7 +4,7 @@
 use radargen::palette::file::parse;
 use radargen::palette::{Colours, Palette, Role, Theme};
 
-use super::html::{icons, style};
+use super::html::{style, svgs};
 use super::palette::{SAMPLE, quadrants, with_series};
 use super::{build, prd};
 
@@ -29,7 +29,11 @@ fn a_palette_page_has_one_set_and_no_toggle() {
         assert!(!css.contains(absent), "{absent}");
     }
     assert!(!html.contains("class=\"theme-toggle\""), "no toggle");
-    assert!(icons(&html).is_empty(), "and none of its icons");
+    assert_eq!(
+        html.matches("<svg").count(),
+        svgs(&html).len(),
+        "and none of its icons: every SVG is a drawing"
+    );
     assert!(html.contains("class=\"skip\""), "the skip link stays");
     assert!(css.contains("@media (forced-colors: active)"));
 }

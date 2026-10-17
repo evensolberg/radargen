@@ -16,7 +16,7 @@
 
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { SHOWN, SPILLS, connect, poll } from './cdp.mjs';
+import { SHOWN, SHOWN_ICON, SPILLS, connect, poll } from './cdp.mjs';
 
 const [page, d71, d71Width] = process.argv.slice(2);
 if (!page || !d71 || !d71Width) {
@@ -294,7 +294,7 @@ async function reflow(label) {
     const button = document.querySelector('.theme-toggle');
     if (!button) return true;
     const o = button.getBoundingClientRect();
-    const i = button.querySelector('svg:not([hidden])').getBoundingClientRect();
+    const i = ${SHOWN_ICON}.getBoundingClientRect();
     return i.left >= o.left && i.right <= o.right && i.top >= o.top && i.bottom <= o.bottom;
   })()`);
   check(iconFits, `${label}: the toggle's icon stays inside its button`);
@@ -435,7 +435,7 @@ async function forced(label) {
   const focusedToggle = await clip(toggle);
   await press('Enter');
   check((await clip(toggle)) !== focusedToggle, `${label}: a press repaints the toggle's icon`);
-  painted("the toggle's icon", await evaluate(`getComputedStyle(${toggle}.querySelector('svg:not([hidden])')).stroke`));
+  painted("the toggle's icon", await evaluate(`getComputedStyle(${SHOWN_ICON}).stroke`));
   // Focus: a marker's ring.
   await tabTo(marker);
   check((await clip(marker)) !== before.marker, `${label}: a focused marker's ring is painted`);

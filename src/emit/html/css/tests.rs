@@ -83,7 +83,10 @@ fn palettes_override_in_order() {
             .collect::<Vec<_>>()
             .concat()
     };
-    let (light, dark) = (declared(Theme::Light), declared(Theme::Dark));
+    // Each block also picks the theme toggle's icon (rg-1ru): the moon
+    // under the light palette, the sun under either dark one.
+    let light = declared(Theme::Light) + "--theme-moon:block;--theme-sun:none;";
+    let dark = declared(Theme::Dark) + "--theme-moon:none;--theme-sun:block;";
     let want = [
         format!(":root{{color-scheme:light;{light}}}\n"),
         format!(

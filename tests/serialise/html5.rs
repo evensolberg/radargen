@@ -15,7 +15,7 @@ use radargen::layout::arrange::{Arrangement, arrange, wide_parts};
 
 use super::build;
 use super::hostile::{RING, Strings, TITLE, csv};
-use super::html::{ICON_ATTRIBUTES, ICON_ELEMENTS, PAGE_ELEMENTS, SVG_ELEMENTS, page_attribute};
+use super::html::{ICON_ATTRIBUTES, PAGE_ELEMENTS, SVG_ELEMENTS, page_attribute};
 use super::vocabulary::{EITHER, INTERACTIVE_ONLY};
 
 /// Every element under `node`, itself included, in document order.
@@ -228,10 +228,10 @@ fn hostile_text_survives_an_html5_parser() {
 
     let all = elements(&dom.document);
     // The theme toggle's icons (rg-1ru), every element in them: page
-    // chrome with their own vocabulary, not drawings.
+    // chrome with their own vocabulary, told from the drawings by having no
+    // namespace declaration (`DRAWING_OPEN`).
     let is_icon = |n: &&Handle| {
-        name_of(n) == (ns!(svg), LocalName::from("svg"))
-            && attribute(n, "class").is_some_and(|c| c.starts_with("theme-"))
+        name_of(n) == (ns!(svg), LocalName::from("svg")) && attribute(n, "xmlns").is_none()
     };
     let icons: Vec<&Handle> = all.iter().filter(is_icon).collect();
     assert_eq!(icons.len(), 2, "the moon and the sun");
@@ -247,7 +247,7 @@ fn hostile_text_survives_an_html5_parser() {
             "<{local}> {names:?}"
         );
         if inside_an_icon(node) {
-            assert!(ICON_ELEMENTS.contains(&&*local), "<svg:{local}> in an icon");
+            assert!(SVG_ELEMENTS.contains(&&*local), "<svg:{local}> in an icon");
             for name in &names {
                 assert!(
                     ICON_ATTRIBUTES.contains(&name.as_str()),
