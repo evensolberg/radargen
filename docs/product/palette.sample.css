@@ -5,9 +5,9 @@
  * be combined with --theme, and why an HTML page drawn with it has no
  * theme button.
  *
- * Every value is a #RRGGBB colour; anything else is an error. Each
- * neutral's comment gives the built-in dark theme's value: swap them all
- * in for a dark palette.
+ * Every value is a #RRGGBB colour; anything else is an error. Each of
+ * the eight roles below the quadrant colours gives the built-in dark
+ * theme's value in its comment: swap them all in for a dark palette.
  *
  * Once you change a colour, its contrast is yours to check. Text needs
  * 4.5:1 against both surfaces, and --text-primary also against
