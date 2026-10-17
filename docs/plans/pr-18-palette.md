@@ -12,11 +12,16 @@ created_date: 2026-10-17
 synopsis: "--palette <file.css> colours every format from one set of colours. The file is read under FR-102's strict grammar into a Palette whose values are a #RRGGBB newtype, so luminance is total and nothing unvalidated reaches an SVG attribute or the <style> block. Every problem in the file is reported in one run. --palette and --theme conflict in clap (FR-59). An HTML page drawn with a palette carries that one set and no theme toggle; the script no longer assumes the toggle exists. palette.sample.css takes FR-101's single-:root form, and docs/palette.md explains each role, with an annotated illustration. Ships as 1.3.0."
 status: draft
 type: Plan
-revision: "1.0"
-review_date:
-reviewed_by: []
+revision: "1.1"
+review_date: 2026-10-17
+reviewed_by:
+  - "Rust (subagent; static only: its worktree lost its shell, so nothing compiled; implementation is the compile check)"
+  - "QA (subagent; built Task 2's parser in a scratch crate and ran its tests and mutations)"
+  - "Architecture (subagent)"
+  - "Security (subagent)"
+  - "Accessibility and visual design (subagent; rendered the illustration)"
 completed_date:
-comments: "Scoped by PRD v0.78 (FR-101, FR-102, D-91, D-92). --create-palette is PR 18b (rg-0fm, 1.4.0)."
+comments: "Scoped by PRD v0.78 (FR-101, FR-102, D-91, D-92). --create-palette is PR 18b (rg-0fm, 1.4.0). 1.1 folds in the five plan reviews: every finding and its ruling is in the Review rulings table, which overrides any task text it contradicts."
 ---
 # PR 18 — `--palette`: Implementation Plan
 
@@ -74,7 +79,7 @@ These are this plan's decisions where the PRD is silent. Reviewers: challenge an
 6. **`-p` is `--palette`'s short form.** It is a render flag, and every render flag has one (OQ-2, settled at implementation planning per §6.6). `-p` is free.
 7. **Palette errors come after `--rings` in tier one**, as the next flag checked. NFR-16 tier one stops at the first failing flag, and within that flag reports every violation, as FR-63 does for `--rings`.
 8. **`docs/palette.md`'s illustration is a hand-drawn SVG**, `docs/palette-roles.svg`, in the built-in light colours, with each role named by a leader line. A render by radargen could not carry callouts. The guide's tables are normative for values; the drawing is explanatory only.
-9. **The sample's header names no flag and no requirement**, so it is true in 1.3.0 and 1.4.0 alike (PRD §13) and reads as a user's file.
+9. **The sample's header names no requirement number and no flag a release lacks** (not `--create-palette`), so it is true in 1.3.0 and 1.4.0 alike (PRD §13) and reads as a user's file.
 
 ## Review Focus
 
@@ -88,7 +93,35 @@ The five inputs the spec implies but no task's tests would otherwise exercise, m
 
 ## Review rulings
 
-*(Filled in when the plan review lands.)*
+Five seats reviewed revision 1.0. **Where a ruling below and a task's code disagree, the ruling wins**; the task code is brought into line during implementation, which is also where the Rust seat's compile and lint findings are confirmed (its worktree could not run a shell).
+
+| # | Seat(s) | Finding | Ruling |
+| --- | --- | --- | --- |
+| R1 | Arch H1, Rust 9 | `file::read` returning `Vec<Fatal>` makes a `diagnostics` ↔ `palette::file` cycle (rustqual counts cycles) and fixes the `--palette` prefix in three variants, which PR 19's `--config` would rework. | **Adopted.** `read` returns `ReadError { Unreadable(io::Error), NotUtf8 { line }, TooLarge, Invalid(Vec<PaletteError>) }` and imports nothing from `diagnostics`. `pipeline::config` maps it to `Fatal`, as it maps `RingsError`. The `Fatal` variants move to the CLI task; their `path` is the string shown, kept apart from the path opened, so PR 19 adds a variant and changes nothing here. |
+| R2 | Arch M2 | `palette::file` importing `csv::decode` points the colour layer at the input stage. | **Adopted.** `decode`, `NotUtf8` and `line_at` move to a crate-root `src/decode.rs`, a pure refactor commit at the start of Task 2; `csv::decode::read` stays as the CSV's file read. Architecture §3 is updated. |
+| R3 | Security 1, Arch M6, QA 15, Rust 14 | `line_at` rescans from byte 0 per rule and declaration, and `seen` is a linear scan: quadratic on a large file. | **Adopted.** A `Lines` index of line starts is built once per parse and looked up with `partition_point`; `line_at` stays the reference its tests check against. `seen` is a `BTreeMap`. A test parses a 1 MiB file of `;` in well under a second. |
+| R4 | Security 2 | `fs::read` is unbounded: `--palette /dev/zero` exhausts memory. | **Adopted.** Read through `take(MAX_PALETTE_BYTES + 1)`, 1 MiB; more is `ReadError::TooLarge`, a runtime failure (`Fatal::PaletteTooLarge`). Not `is_file()`, so `-p <(…)` still works. The CSV's own unbounded read is pre-existing: a crumb. |
+| R5 | Security 3, QA 9, Rust 13 | `Unknown.name`, `Duplicate.name` and `NotHex.value` are echoed whole. | **Adopted.** All three go through `excerpt`, which now trims the first line before cutting it, so a forgotten `;` quotes `#000001…` rather than the blanked comment's spaces. |
+| R6 | Security 4, QA 3, Rust 12, Arch L2 | `next = index + 1` overflows at `--series-18446744073709551615`. | **Adopted.** `saturating_add`; a test expects one `MissingSeries { from: 2, to: usize::MAX - 1 }`. An index past `usize` stays `Unknown`. |
+| R7 | QA 4, Arch M5 | Anything before `:root` (`@charset "UTF-8";`, `@import`, a stray word) becomes its selector, so the rule is lost and every role reported missing. | **Adopted.** A top-level `;` before `{` ends a statement: `OtherRule` when it starts with `@`, otherwise `TextOutside`, and scanning goes on. When a prelude's last line is `:root` and text precedes it, that text is `TextOutside` and the rule is still accepted. Tests assert the full error list for each. |
+| R8 | Arch M1 | The flag landing before HTML honours it would draw built-in colours on `.html` silently. | **Adopted.** Task 4 plumbs `Colours` through `Config`, PNG, SVG and HTML with library-level tests and no flag; Task 5 adds the clap flag and the end-to-end tests. |
+| R9 | Arch H2, QA 2, Rust 6 | The page golden inlines `script.js`, so it changes. | **Adopted.** The HTML task re-blesses `tests/golden/html/prd.html`; the expected diff is the `<script>` block alone. |
+| R10 | QA 1, Rust 5 | `!html.contains("prefers-color-scheme")` fails against a correct page: the inlined script still names it. | **Adopted.** Absence checks run on the `<style>` text (`tests/common/html.rs`'s `style`), and assert `@media (prefers-color-scheme`, `:root:not([data-theme` and `:root[data-theme="dark"]` absent there; `class="theme-toggle"` absent from the page. |
+| R11 | A11y 6 | Without the toggle, focusing the skip link pushes the page down by about 50 px. | **Adopted.** Palette pages only (the built-in bytes stay): `.page-controls{position:relative}.skip:focus{position:absolute;z-index:1}`. The browser scenario checks the radar's top does not move on the first Tab, and that Enter lands on a legend row. |
+| R12 | QA (browser) | The scenario never checks that a palette page ignores the system preference. | **Adopted.** Loaded with `scheme: 'dark'`, the body stays `rgb(255, 255, 255)` and `color-scheme` is `light`. |
+| R13 | Rust 3, 15, Arch L3 | `Colours::File(Palette)` trips `large_enum_variant`; the HTML binding matches `Colours` in three places and clones. | **Adopted.** `File(Box<Palette>)`. `Colours` gains `snapshot() -> Cow<'_, Palette>`, `interactive() -> Cow<'_, Palette>` and `has_toggle()`, so the per-format binding lives in `palette`. `Hex` keeps its `String`: making it `Copy` needs an unchecked `str` view. |
+| R14 | Rust 1, 2, 4, 7, 8, 10, 11, 17 | Duplicate `BUTTON_OPEN`; `ink_is_whichever_contrasts_more_not_a_threshold` passes `&str` to `ink_for`; `built_in` needs `# Panics`; `format_collect` in four test helpers; `ratio` can be `const fn`; `qual:allow` belongs above `fn`; no fmt or rustqual step. | **Adopted, in implementation:** the new tag constant is `BUTTON_TAG`, replacing lines 45–49; the ink test wraps its values in `Hex::parse`; each task runs `cargo fmt` and clippy, and Task 7 runs rustqual against the baseline. |
+| R15 | Rust 16 | `src/palette.rs` beside `src/palette/` mixes module styles. | **Adopted.** `git mv src/palette.rs src/palette/mod.rs`. `file` keeps its name: its call site reads `palette::file::read`. |
+| R16 | Arch M3, Rust 17 | Task 7 leaves architecture and `escape.rs` text false. | **Adopted.** Also updated: §2's one-file-read exception, §3's `escape.rs` row and bullet (four functions; context 5 is `palette::Hex`, by intra-doc link), §3 rows for `palette/hex.rs`, `palette/file.rs` and `decode.rs`, §7's tier-one `Vec<Fatal>`, §8's OQ-6 home, and `escape.rs`'s module doc. |
+| R17 | Arch L1, L2 | Ruling 4 (`color-scheme`) and Ruling 3 (ranged gaps) are observable behaviour the PRD does not state. | **Adopted.** PRD v0.79 in Task 7: §6.6's HTML clause names `color-scheme` from the palette; FR-87 says a gap names "the missing index, or the first and last of a run". |
+| R18 | Arch L4 | The forced-colours selector still names `[data-theme]` on a palette page. | **Kept**, harmless; the plan's "no `[data-theme]` blocks" means no theme blocks. |
+| R19 | Arch L5 | `Cli::theme`'s default hides whether it was given, which PR 19's FR-59-across-sources check needs. | **A crumb for PR 19** (`value_source` or `Option<Theme>`). |
+| R20 | Security 5 | No cap on the number of problems printed. | **Not adopted.** R4's 1 MiB bound limits it; FR-102 promises every problem. |
+| R21 | Security 6 | Defence in depth at the `<style>` emitter. | **Adopted as a test**, not a runtime check: `css/tests.rs` asserts a palette page's colour block holds only `[A-Za-z0-9#:;{}(),@ -]`. A `Hex` doc note says any future serde support must go through `parse`. |
+| R22 | QA 5–8, 10–13, 16 | Weak or missing tests: the sort untested; coincidental line 1s; NUL; CRLF+BOM through `read`; five-entry cycling cannot fail; `#FFF !important` fails for the wrong reason; untested grammar cases; `contains` hiding extra errors; SC-18's fault matrix. | **Adopted**, with QA's fixtures: the six-line broken sample (duplicate, bad value, unknown, second block, two missing); `UnclosedComment` at 12 and `UnclosedRule` at 3; a NUL before a grammar error; CRLF+BOM end to end at line 40; no built-in series value in the five-entry SVG and the 2:1 count; `#0072B2 !important`; `:root, html`, `@media`, an empty name, `--series-0`, an empty file, a comment holding `; } {`, a trailing `}`; `assert_eq!` on full lists; a `Fault` in `FAULTS`. |
+| R23 | A11y 1, 4, 5, 11 | The illustration is not valid XML (`--` in comments); leaders cross and miss; markers in two quadrants share a colour; the label sits where radargen never draws one. | **Adopted.** The seat's corrected drawing replaces Task 6's, checked with `xmllint --noout`, which Task 6 runs. Alt text says the table lists the same. |
+| R24 | A11y 2, 3, 7, 9, 10 | The guide and sample omit contrast minimums FR-82 and SC-20 require (`--focus` and both strokes on both surfaces; marker numbers 4.5:1 against white or `#16191F`), and places each role is drawn; the AA sentence overstates. | **Adopted** in the guide's table and prose and the sample's header, with the seat's wording. The column is "Minimum contrast against". |
+| R25 | A11y 8 | The manual check renders a palette that looks like the built-in theme. | **Adopted.** Steps for a dark palette against a light system (and the reverse, scrollbars), NVDA and VoiceOver on the controls, the skip link, high contrast with a dark palette, and a 6-quadrant, 5-entry palette. |
 
 ## Tasks
 
