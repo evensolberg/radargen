@@ -1,7 +1,7 @@
 ---
 id: rg-3gc
 title: 'HTML: show/hide the legend'
-status: open
+status: in_progress
 type: feature
 priority: 2
 tags:
@@ -32,3 +32,5 @@ Knock-ons:
 - FR-98: the skip link targets the first legend row; hide it or retarget while the legend is hidden.
 - FR-37: marker hover lights the legend row; must not break hidden, and resume when shown.
 - Button label says what a press does (rg-nuy): Hide legend / Show legend. Both arrangements hold a legend, so no single id for aria-controls (as the skip link).
+
+[start] 2026-10-17 13:21:14
