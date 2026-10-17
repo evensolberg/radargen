@@ -371,6 +371,7 @@ impl RadarBlock {
                 ink: Neutral::TextPrimary,
                 anchor: Anchor::Middle,
                 lines: vec![quadrant.label.text.clone()],
+                words: quadrant.label.text.clone(),
                 leading: 0.0,
             }
             .node(scale)
@@ -385,6 +386,7 @@ impl RadarBlock {
             ink: Neutral::TextMuted,
             anchor: Anchor::Middle,
             lines: vec![label.text.clone()],
+            words: label.text.clone(),
             leading: 0.0,
         })
     }

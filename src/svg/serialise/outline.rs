@@ -242,10 +242,10 @@ pub(super) fn text(
     out
 }
 
-/// The text's name: its lines as one, then its tail. A line broken
-/// mid-token reads with a space there (crumb rg-t3p).
+/// The text's name: its words as written, then its tail. Not its lines
+/// joined, which would read a token broken mid-word as two.
 fn words(run: &Run<'_>) -> String {
-    let mut name = run.lines.join(" ");
+    let mut name = run.words.to_owned();
     if let Some(tail) = run.tail {
         name.push_str(&tail.text);
     }

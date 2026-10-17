@@ -355,6 +355,14 @@ pub fn wrap_by(text: &str, max_width: f64, width: &dyn Fn(&str) -> f64) -> Vec<S
     lines
 }
 
+/// `text` as [`wrap_by`] reads it, on one line: its words, one space
+/// apart. A wrapped text's name (D-88), since joining its lines would
+/// put a space inside any token broken mid-word.
+#[must_use]
+pub fn words(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// FR-79's column: a maximum width, and how a line's width is measured.
 struct Column<'w> {
     max_width: f64,

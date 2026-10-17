@@ -42,6 +42,7 @@ fn styled(style: TextStyle) -> Node {
         ink: fill(),
         anchor: Anchor::Start,
         lines: vec!["Tool".to_owned()],
+        words: "Tool".to_owned(),
         leading: 0.0,
         tail: None,
     }
@@ -105,6 +106,7 @@ fn tailed(lines: &[&str], parent: TextStyle, tail: TextStyle, words: &str) -> No
         ink: fill(),
         anchor: Anchor::Start,
         lines: lines.iter().map(|&l| l.to_owned()).collect(),
+        words: lines.join(" "),
         leading: 15.0,
         tail: Some(Tail {
             gap: 5.0,

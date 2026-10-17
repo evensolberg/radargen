@@ -241,6 +241,10 @@ pub enum Node {
         anchor: Anchor,
         /// The lines, already wrapped.
         lines: Vec<String>,
+        /// The text as written, whitespace collapsed: its name for a reader
+        /// (D-88), which the lines cannot give back once a token is broken
+        /// mid-word.
+        words: String,
         /// Distance from one baseline to the next.
         leading: f64,
         /// Text continuing the last line in its own style, or `None`.
@@ -374,6 +378,10 @@ pub struct TextRun {
     pub anchor: Anchor,
     /// The lines, already wrapped.
     pub lines: Vec<String>,
+    /// The text as written, whitespace collapsed: its name for a reader
+    /// (D-88), which the lines cannot give back once a token is broken
+    /// mid-word.
+    pub words: String,
     /// Distance from one baseline to the next.
     pub leading: f64,
 }
@@ -451,6 +459,7 @@ impl TextRun {
             ink,
             anchor: self.anchor,
             lines: self.lines.clone(),
+            words: self.words.clone(),
             leading: self.leading * scale.size,
             tail: None,
         }
@@ -493,6 +502,7 @@ mod tests {
             ink: Neutral::TextMuted,
             anchor,
             lines: vec!["a".to_owned()],
+            words: "a".to_owned(),
             leading: 15.0,
         }
     }
@@ -664,6 +674,7 @@ mod tests {
             ink: TextPaint::Fill(Paint::None),
             anchor: Anchor::Start,
             lines: vec!["a".to_owned()],
+            words: "a".to_owned(),
             leading: 0.0,
             tail: None,
         };
@@ -683,6 +694,7 @@ mod tests {
             ink: Neutral::TextPrimary,
             anchor: Anchor::Start,
             lines: lines.iter().map(|&l| l.to_owned()).collect(),
+            words: lines.join(" "),
             leading: 15.0,
         }
     }

@@ -71,6 +71,7 @@ fn split(node: &Node, fonts: &Fonts, shift: f64) -> Node {
             ink,
             anchor,
             lines,
+            words,
             leading,
             tail: Some(tail),
         } => {
@@ -87,6 +88,7 @@ fn split(node: &Node, fonts: &Fonts, shift: f64) -> Node {
                 ink: *ink,
                 anchor: *anchor,
                 lines: lines.clone(),
+                words: words.clone(),
                 leading: *leading,
                 tail: None,
             };
@@ -99,6 +101,7 @@ fn split(node: &Node, fonts: &Fonts, shift: f64) -> Node {
                 ink: TextPaint::Fill(tail.ink),
                 anchor: *anchor,
                 lines: vec![tail.text.trim_start_matches('\u{a0}').to_owned()],
+                words: tail.text.trim_start_matches('\u{a0}').to_owned(),
                 leading: 0.0,
                 tail: None,
             };

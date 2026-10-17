@@ -35,6 +35,7 @@ fn text_at(
         ink,
         anchor,
         lines: lines.iter().map(|&l| l.to_owned()).collect(),
+        words: lines.join(" "),
         leading: 15.0,
         tail,
     }
@@ -192,6 +193,18 @@ fn a_text_is_an_image_named_by_its_words() {
         svg.matches("<use xlink:href=\"#g").count(),
         "KafkaStreams".len()
     );
+}
+
+/// D-88: the name is the words as written, not the lines joined, so a
+/// token broken mid-word reads whole (crumb rg-t3p).
+#[test]
+fn a_token_broken_mid_word_is_named_whole() {
+    let mut node = text(NAME, &["Kuber", "netes"]);
+    if let Node::Text { words, .. } = &mut node {
+        "Kubernetes".clone_into(words);
+    }
+    let svg = file(&doc(vec![node]));
+    assert!(svg.contains(" aria-label=\"Kubernetes\">"), "{svg}");
 }
 
 /// Each line at its own baseline (FR-46); a start-anchored line at the

@@ -160,6 +160,7 @@ pub fn number_text(
         ink: TextPaint::Fill(paint),
         anchor: Anchor::Middle,
         lines: vec![number.to_string()],
+        words: number.to_string(),
         leading: 0.0,
         tail: None,
     }

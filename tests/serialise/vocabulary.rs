@@ -201,6 +201,7 @@ fn every_kind(v: f64) -> Vec<Node> {
             },
             anchor: Anchor::Start,
             lines: vec!["a".to_owned(), "b".to_owned()],
+            words: "a b".to_owned(),
             leading: v,
             tail: None,
         },
@@ -211,6 +212,7 @@ fn every_kind(v: f64) -> Vec<Node> {
             ink: TextPaint::Fill(paint),
             anchor: Anchor::Start,
             lines: vec!["a".to_owned()],
+            words: "a".to_owned(),
             leading: v,
             tail: Some(Tail {
                 gap: v,

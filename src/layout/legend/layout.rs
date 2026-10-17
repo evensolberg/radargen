@@ -17,7 +17,7 @@ use crate::style::{
     SWATCH_RADIUS, SWATCH_RAISE, TextStyle,
 };
 use crate::svg::{Anchor, Point, TextRun};
-use crate::text::Fonts;
+use crate::text::{Fonts, words};
 
 use super::row::{Numbered, Row};
 
@@ -89,8 +89,9 @@ pub(super) enum Entry {
         /// The quadrant's FR-10 rank: its series index, unreduced (FR-67).
         series: usize,
     },
-    /// One plotted item.
-    Row(Row),
+    /// One plotted item, boxed: a row holds two text runs, so it dwarfs
+    /// the other variants.
+    Row(Box<Row>),
 }
 
 /// The legend for `catalogue`: empty when it has no quadrants (FR-42).
@@ -177,7 +178,7 @@ impl Context<'_> {
         for position in run.items.clone() {
             let row = self.row(position, bottom);
             bottom = row.bottom();
-            entries.push(Entry::Row(row));
+            entries.push(Entry::Row(Box::new(row)));
         }
         bottom
     }
@@ -248,6 +249,7 @@ fn heading(tier: Tier, text: &str, baseline: f64, fonts: &Fonts) -> TextRun {
         ink: tier.ink,
         anchor: Anchor::Start,
         lines: tier.style.wrap(text, LEGEND_WIDTH_MAX - tier.indent, fonts),
+        words: words(text),
         leading: LINE_HEIGHT,
     }
 }
@@ -363,7 +365,7 @@ mod tests {
         l.entries
             .iter()
             .filter_map(|entry| match entry {
-                Entry::Row(row) => Some(row),
+                Entry::Row(row) => Some(row.as_ref()),
                 _ => None,
             })
             .collect()

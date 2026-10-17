@@ -228,6 +228,7 @@ fn node(node: &Node, context: Context<'_>) -> String {
             ink,
             anchor,
             lines,
+            words,
             leading,
             tail,
         } => {
@@ -237,6 +238,7 @@ fn node(node: &Node, context: Context<'_>) -> String {
                 ink: *ink,
                 anchor: *anchor,
                 lines,
+                words,
                 leading: *leading,
                 tail: tail.as_ref(),
             };
