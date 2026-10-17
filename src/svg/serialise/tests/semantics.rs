@@ -62,6 +62,9 @@ fn a_wrapped_heading_is_named_by_its_words() {
             first_line(&heading),
             "<g role=\"heading\" aria-level=\"1\">"
         );
+        let plain = vec![text(&["Distributed", "Streaming"], Anchor::Start, fill)];
+        let group = one(&semantic(Semantics::None, plain), target);
+        assert!(!group.contains("aria-label"), "{group}");
     }
 }
 

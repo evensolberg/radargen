@@ -70,7 +70,8 @@ fn hostile() -> (Document, String) {
 
 /// What the export must name, in document order: each filled text
 /// outside a control by its words (and tail), each control by its
-/// label, and the radar's group by its name.
+/// label, the radar's group by its name, and a heading wrapped onto
+/// several lines by its text's words (rg-g0c).
 fn names(node: &Node, in_control: bool, out: &mut Vec<String>) {
     match node {
         _ if node.is_interactive_only() => {}
@@ -84,6 +85,14 @@ fn names(node: &Node, in_control: bool, out: &mut Vec<String>) {
                     out.push(name.clone());
                     in_control
                 }
+                Semantics::Heading(_) => {
+                    if let [Node::Text { lines, words, .. }] = group.children.as_slice()
+                        && lines.len() > 1
+                    {
+                        out.push(words.clone());
+                    }
+                    in_control
+                }
                 _ => in_control,
             };
             for child in &group.children {
@@ -93,10 +102,11 @@ fn names(node: &Node, in_control: bool, out: &mut Vec<String>) {
         Node::Text {
             ink: TextPaint::Fill(_),
             lines,
+            words,
             tail,
             ..
         } if !in_control && !lines.is_empty() => {
-            let mut name = lines.join(" ");
+            let mut name = words.clone();
             if let Some(tail) = tail {
                 name.push_str(&tail.text);
             }

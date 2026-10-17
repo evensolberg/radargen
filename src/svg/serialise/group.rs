@@ -57,9 +57,7 @@ fn open(group: &Group, context: Context<'_>) -> String {
         );
     }
     semantics(&mut out, &group.semantics, context);
-    if matches!(group.semantics, Semantics::Heading(_))
-        && let Some(words) = wrapped(&group.children)
-    {
+    if let Some(words) = heading_name(group) {
         attr(&mut out, "aria-label", words);
     }
     out.push_str(">\n");
@@ -67,12 +65,16 @@ fn open(group: &Group, context: Context<'_>) -> String {
     out
 }
 
-/// The words of a heading's text wrapped onto several lines. Named from
-/// its content, the heading would join the lines' tspans with nothing
-/// between and read the words either side of a break as one (rg-g0c).
-fn wrapped(children: &[Node]) -> Option<&str> {
-    match children {
-        [Node::Text { lines, words, .. }] if lines.len() > 1 => Some(words),
+/// A heading's name when its only child is a text wrapped onto several
+/// lines: that text's words. Named from its content, the heading would
+/// join the lines' tspans with nothing between and read the words either
+/// side of a break as one (rg-g0c). `None` for any other group, and for a
+/// one-line heading, whose content names it.
+fn heading_name(group: &Group) -> Option<&str> {
+    match (&group.semantics, group.children.as_slice()) {
+        (Semantics::Heading(_), [Node::Text { lines, words, .. }]) if lines.len() > 1 => {
+            Some(words)
+        }
         _ => None,
     }
 }
