@@ -1,22 +1,28 @@
+## [1.6.3] - 2026-10-17
+
+### 🐛 Bug Fixes
+
+- *(palette)* A forgotten ; is its own error (rg-p9a)
+- *(palette)* Stay linear on forgotten semicolons; more cases (rg-p9a)
+
+### 🚜 Refactor
+
+- *(palette)* Read each ;-segment once (rg-p9a)
+- *(palette)* A checked split at a forgotten ; (rg-p9a)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Close rg-p9a and rg-x5g
+- *(release)* 1.6.3
 ## [1.6.2] - 2026-10-17
 
 ### 🐛 Bug Fixes
 
-- *(html)* The radar's height cap allows for the controls (rg-247)
-- *(html)* Cap allowance in rem, held to the buttons; PRD D-85 (rg-247)
+- *(html)* The radar's height cap allows for the page controls (1.6.2) (#118)
 
 ### 📚 Documentation
 
 - *(changelog)* Reconcile 1.6.1 with its squash merge
-
-### 🧪 Testing
-
-- *(html)* Pin the buttons' font for the cap allowance (rg-247)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(crumbs)* Close rg-247
-- *(release)* 1.6.2
 ## [1.6.1] - 2026-10-17
 
 ### 🐛 Bug Fixes
