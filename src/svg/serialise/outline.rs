@@ -214,7 +214,7 @@ pub(super) fn text(
     ink(&mut out, run.ink, context);
     if matches!(run.ink, TextPaint::Fill(_)) && context.control.is_none() {
         attr(&mut out, "role", "img");
-        attr(&mut out, "aria-label", &words(run));
+        attr(&mut out, "aria-label", &name(run));
     }
     out.push_str(">\n");
     let mut baseline = run.origin.y;
@@ -244,7 +244,7 @@ pub(super) fn text(
 
 /// The text's name: its words as written, then its tail. Not its lines
 /// joined, which would read a token broken mid-word as two.
-fn words(run: &Run<'_>) -> String {
+fn name(run: &Run<'_>) -> String {
     let mut name = run.words.to_owned();
     if let Some(tail) = run.tail {
         name.push_str(&tail.text);
