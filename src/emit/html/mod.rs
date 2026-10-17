@@ -119,21 +119,11 @@ pub fn page(input: &Page<'_>) -> String {
 /// key, then the legend, its container scrolling. The stylesheet's grid
 /// puts the legend beside the radar (D-85).
 fn wide_parts(parts: &WideParts, target: Target<'_>) -> String {
-    let part = |class: &str, rest: &str, document: &Document| {
-        [
-            DIV_OPEN,
-            class,
-            rest,
-            &serialise(document, target),
-            DIV_CLOSE,
-        ]
-        .concat()
-    };
     [
-        part(css::WIDE_TITLE, OPEN_REST, &parts.title),
-        part(css::WIDE_RADAR, OPEN_REST, &parts.radar),
-        part(css::WIDE_KEY, OPEN_REST, &parts.key),
-        part(css::WIDE_LEGEND, UNTABBED_REST, &parts.legend),
+        part(css::WIDE_TITLE, OPEN_REST, &parts.title, target),
+        part(css::WIDE_RADAR, OPEN_REST, &parts.radar, target),
+        part(css::WIDE_KEY, OPEN_REST, &parts.key, target),
+        part(css::WIDE_LEGEND, UNTABBED_REST, &parts.legend, target),
     ]
     .concat()
 }
@@ -141,19 +131,22 @@ fn wide_parts(parts: &WideParts, target: Target<'_>) -> String {
 /// The narrow arrangement's parts in reading order (FR-68): the body, then
 /// the legend.
 fn narrow_parts(parts: &NarrowParts, target: Target<'_>) -> String {
-    let part = |class: &str, document: &Document| {
-        [
-            DIV_OPEN,
-            class,
-            OPEN_REST,
-            &serialise(document, target),
-            DIV_CLOSE,
-        ]
-        .concat()
-    };
     [
-        part(css::NARROW_BODY, &parts.body),
-        part(css::NARROW_LEGEND, &parts.legend),
+        part(css::NARROW_BODY, OPEN_REST, &parts.body, target),
+        part(css::NARROW_LEGEND, OPEN_REST, &parts.legend, target),
+    ]
+    .concat()
+}
+
+/// One part's SVG in its container, `class` and the rest of the start tag
+/// (`rest`) naming it.
+fn part(class: &str, rest: &str, document: &Document, target: Target<'_>) -> String {
+    [
+        DIV_OPEN,
+        class,
+        rest,
+        &serialise(document, target),
+        DIV_CLOSE,
     ]
     .concat()
 }

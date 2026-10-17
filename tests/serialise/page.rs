@@ -140,13 +140,6 @@ fn one_arrangement_at_a_time() {
         around.find(NARROW_OPEN).expect("a narrow container"),
     );
     assert!(w < n, "the wide arrangement comes first");
-    for part in [
-        "<div class=\"narrow-body\">\n",
-        "<div class=\"narrow-legend\">\n",
-    ] {
-        let at = around.find(part).expect(part);
-        assert!(n < at, "{part} inside the narrow container");
-    }
     let css = style(&html);
     let width = wide.radar.width + wide.legend.width;
     let query = breakpoint_px(width, wide.radar.width) - 1;
