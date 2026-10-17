@@ -1,3 +1,22 @@
+## [1.6.2] - 2026-10-17
+
+### 🐛 Bug Fixes
+
+- *(html)* The radar's height cap allows for the controls (rg-247)
+- *(html)* Cap allowance in rem, held to the buttons; PRD D-85 (rg-247)
+
+### 📚 Documentation
+
+- *(changelog)* Reconcile 1.6.1 with its squash merge
+
+### 🧪 Testing
+
+- *(html)* Pin the buttons' font for the cap allowance (rg-247)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Close rg-247
+- *(release)* 1.6.2
 ## [1.6.1] - 2026-10-17
 
 ### 🐛 Bug Fixes
