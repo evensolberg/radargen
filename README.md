@@ -71,15 +71,16 @@ A `.svg` output draws the same wide arrangement as the PNG, as vectors: sharp at
 ## Your own colours
 
 ```sh
+radargen --create-palette brand.css
 radargen radar.csv -o radar.png --palette brand.css
 ```
 
-`--palette` (or `-p`) draws the radar in your colours, in every format. Copy [`docs/product/palette.sample.css`](docs/product/palette.sample.css), change the colours, and pass it instead of `--theme`. The [palette guide](docs/palette.md) shows where each colour is drawn and the contrast each needs; radargen checks that the file is complete, not that its colours are legible. An HTML page drawn with a palette has no theme button.
+`--palette` (or `-p`) draws the radar in your colours, in every format. `--create-palette` writes a file to start from, holding the built-in light colours, with the dark theme's value in a comment beside each colour the themes do not share; it never replaces an existing file. Change the colours and pass the file instead of `--theme`. The [palette guide](docs/palette.md) shows where each colour is drawn and the contrast each needs; radargen checks that the file is complete, not that its colours are legible. An HTML page drawn with a palette has no theme button.
 
 ## Status
 
 The specification is in [`docs/product/radargen-prd.md`](docs/product/radargen-prd.md).
-1.3 writes HTML, PNG and SVG, in the built-in themes or your own palette.
+1.4 writes HTML, PNG and SVG, in the built-in themes or your own palette.
 
 ## Documentation
 

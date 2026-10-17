@@ -11,7 +11,7 @@ created_date: 2026-10-17
 synopsis: "How to draw a radar in your own colours with --palette: what the file holds, where each of its colours is drawn, the contrast each needs, and how the quadrant colours cycle."
 status: active
 type: Guide
-revision: "1.1"
+revision: "1.2"
 review_date:
 reviewed_by: []
 completed_date:
@@ -19,13 +19,13 @@ comments: "Written for PR 18 (rg-cdo), from PRD FR-81, FR-82, FR-86, FR-87, FR-1
 ---
 # Palettes
 
-`--palette <file.css>` draws a radar in your colours instead of radargen's built-in themes, in every format. Start from [`docs/product/palette.sample.css`](product/palette.sample.css), which holds the built-in light colours.
+`--palette <file.css>` draws a radar in your colours instead of radargen's built-in themes, in every format. Start from the file `radargen --create-palette brand.css` writes, which holds the built-in light colours. [`docs/product/palette.sample.css`](product/palette.sample.css) holds the same bytes.
 
 ![Diagram of where each palette colour is drawn; the table below lists the same](palette-roles.svg)
 
 ## Quick start
 
-1. Copy `palette.sample.css` to, say, `brand.css`.
+1. Run `radargen --create-palette brand.css`. It never replaces an existing file.
 2. Change the colours.
 3. Run `radargen radar.csv -o radar.html --palette brand.css` (or `-p brand.css`), without `--theme`.
 4. Fix anything radargen reports, and run it again.
@@ -77,7 +77,7 @@ The dark column is the built-in dark theme.
 
 ## A dark palette
 
-1. In your copy of the sample, replace each role's value with the `dark:` value in its comment.
+1. In the file `--create-palette` wrote, replace each role's value with the `dark:` value in its comment.
 2. Keep the quadrant colours: the built-in eight meet 3:1 on the dark grounds too.
 
 When `--surface-1` is darker than `--text-primary`, an HTML page tells the browser it is dark, so its scroll bars and controls match.
@@ -111,3 +111,4 @@ radargen checks that the file is complete and well formed, never that its colour
 | --- | --- | --- |
 | 1.0 | 2026-10-17 | Initial version (PR 18, rg-cdo). |
 | 1.1 | 2026-10-17 | A forgotten `;` and an escaped invisible character in the messages (rg-8xm). |
+| 1.2 | 2026-10-17 | Start from `--create-palette` rather than copying the sample (rg-0fm). |

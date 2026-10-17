@@ -14,6 +14,7 @@ use std::process::Command;
 
 use radargen::layout::geometry::Geometry;
 use radargen::palette::{Palette, Role, Theme};
+use radargen::starter::Starter;
 use radargen::style::MAX_GROWTH;
 
 use palette::{SAMPLE, quadrants, with_series};
@@ -652,32 +653,54 @@ fn the_template_renders_as_written() {
     assert_eq!(ran.stderr, "");
 }
 
-/// FR-99: an existing file is never replaced, and the error names it.
+/// FR-99, FR-101: an existing file is never replaced, and the error names
+/// the flag and the path.
 #[test]
-fn the_template_never_replaces_a_file() {
-    let dir = seeded(&[("radar.csv", "mine\n")]);
-    let before = snapshot(dir.path());
-    let ran = run_in(dir.path(), &["--create-template", "radar.csv"]);
-    assert_eq!(ran.code, Some(1));
-    assert_eq!(
-        ran.lines(),
-        [
-            "error: --create-template radar.csv: already exists; radargen never replaces a file, so choose another path"
-        ]
-    );
-    assert_eq!(snapshot(dir.path()), before);
+fn a_starter_never_replaces_a_file() {
+    for flag in Starter::ALL.map(Starter::flag) {
+        let dir = seeded(&[("mine.txt", "mine\n")]);
+        let before = snapshot(dir.path());
+        let ran = run_in(dir.path(), &[flag, "mine.txt"]);
+        assert_eq!(ran.code, Some(1));
+        assert_eq!(
+            ran.lines(),
+            [format!(
+                "error: {flag} mine.txt: already exists; radargen never replaces a file, so choose another path"
+            )]
+        );
+        assert_eq!(snapshot(dir.path()), before);
+    }
 }
 
-/// FR-99: a template that cannot be written says so, under its own flag.
+/// FR-99, FR-101: a starter that cannot be written says so, under its own
+/// flag.
 #[test]
-fn an_unwritable_template_names_its_flag() {
+fn an_unwritable_starter_names_its_flag() {
+    for flag in Starter::ALL.map(Starter::flag) {
+        let dir = seeded(&[]);
+        let ran = run_in(dir.path(), &[flag, "nope/start.txt"]);
+        assert_eq!(ran.code, Some(1));
+        assert_starts(
+            &ran,
+            &[&format!(
+                "error: {flag} nope/start.txt: cannot be written: "
+            )],
+        );
+    }
+}
+
+/// FR-101, SC-28: the palette is written silently, and is the sample's
+/// bytes on every run, so `the_sample_palette_draws_the_light_theme` holds
+/// for it.
+#[test]
+fn the_written_palette_is_the_sample() {
     let dir = seeded(&[]);
-    let ran = run_in(dir.path(), &["--create-template", "nope/radar.csv"]);
-    assert_eq!(ran.code, Some(1));
-    assert_starts(
-        &ran,
-        &["error: --create-template nope/radar.csv: cannot be written: "],
-    );
+    for css in ["one.css", "two.css"] {
+        let ran = run_in(dir.path(), &["--create-palette", css]);
+        assert!(ran.ok(), "{}", ran.stderr);
+        assert_eq!((ran.stdout.as_str(), ran.stderr.as_str()), ("", ""));
+        assert_eq!(read(dir.path(), css), SAMPLE, "{css}");
+    }
 }
 
 // ---- PNG (FR-55, FR-57, FR-71, D-87)

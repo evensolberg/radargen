@@ -30,7 +30,6 @@ use crate::order::resolve;
 use crate::palette::Colours;
 use crate::palette::file::{self, ReadError};
 use crate::rings::{RingSet, parse_rings};
-use crate::template;
 use crate::text::Fonts;
 
 /// The resolved run (architecture §7), read-only once built. The colours
@@ -119,7 +118,7 @@ pub fn run(cli: &Cli) -> Report {
 /// The stages in order, each stopping the run on failure.
 fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
     let (input, output) = match cli.task()? {
-        Task::Template(path) => return Ok(template::create(path)?),
+        Task::Create(starter, path) => return Ok(starter.create(path)?),
         Task::Render { input, output } => (input, output),
     };
     let config = config(cli, input, output, warnings).map_err(Failure::Alone)?;

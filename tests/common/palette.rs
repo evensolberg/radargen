@@ -4,7 +4,7 @@
 use std::fmt::Write as _;
 
 /// The sample palette, the built-in light colours (FR-81, FR-101).
-pub const SAMPLE: &str = include_str!("../../docs/product/palette.sample.css");
+pub use radargen::palette::SAMPLE;
 
 /// The sample with `series` in place of its eight entries.
 pub fn with_series(series: &[&str]) -> String {

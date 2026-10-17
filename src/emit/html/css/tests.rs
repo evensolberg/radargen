@@ -278,8 +278,9 @@ fn hover_focus_and_selection_differ() {
 
 /// The sample file as a `--palette` file's colours.
 fn sample() -> Colours {
-    let text = include_str!("../../../../docs/product/palette.sample.css");
-    parse(text).expect("the sample parses").into()
+    parse(crate::palette::SAMPLE)
+        .expect("the sample parses")
+        .into()
 }
 
 /// §6.6: one set, no system preference or theme blocks, and forced colours
