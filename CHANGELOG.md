@@ -1,15 +1,28 @@
+## [1.5.0] - 2026-10-17
+
+### 🚀 Features
+
+- *(html)* The theme toggle is a sun/moon icon (rg-1ru)
+
+### 🚜 Refactor
+
+- *(html)* The palette blocks pick the toggle's icon
+
+### 🧪 Testing
+
+- *(html)* Hold the icon swap and the toggle's words to named rules
+- *(html)* Tie the toggle's words to their class; no icons on palettes
+- *(a11y)* Name a missing toggle icon rather than throwing
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Split rg-ek8 into rg-3gc and rg-1ru; close rg-1ru
+- *(release)* 1.5.0
 ## [1.4.2] - 2026-10-17
 
 ### 📚 Documentation
 
-- *(readme)* Rewrite as a guide to what radargen does
-- *(changelog)* 1.4.2
-- *(readme)* Which warnings wait for which errors
-
-### ⚙️ Miscellaneous Tasks
-
-- *(crumbs)* Unplotted rings; choosing what the page table shows
-- *(release)* 1.4.2
+- *(readme)* Rewrite as a guide to what radargen does (1.4.2) (#113)
 ## [1.4.1] - 2026-10-17
 
 ### 🧪 Testing
