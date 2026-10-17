@@ -339,6 +339,13 @@ cut at the legend panel's top edge, so the legend can be hidden without
 leaving its space. Both are the narrow document's width and span one capped
 column, so they draw at one scale and stack into the one document.
 
+While the legend is hidden (FR-103) the wide legend stays in its column,
+`visibility:hidden`, and the radar spans both columns with its cap, so the
+columns, the legend's scrollbar gutter included, never change and nothing
+moves sideways; the narrow legend is removed. The breakpoint does not move
+with it: it is still computed with the legend beside the radar, though the
+wide arrangement would fit narrower windows while it is hidden (rg-dok).
+
 `Blocks` is a struct of four concrete fields — title, radar, legend, key — not a
 `Vec<Box<dyn Block>>`. The trait exists to *impose a shape* on four types, not to
 make them interchangeable at runtime: nothing ever iterates blocks without

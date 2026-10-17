@@ -7,9 +7,9 @@ crumb_id: rg-3gc
 document_title: "Showing and hiding the legend on the HTML page"
 created_date: 2026-10-17
 synopsis: "An icon button on the HTML page shows and hides the legend in both arrangements, and --legend shown|hidden sets where it starts. The narrow arrangement is cut into a body and a legend part so CSS can hide the legend; the key always shows. PNG and SVG are unchanged."
-status: draft
+status: active
 type: Spec
-revision: "1.1"
+revision: "1.2"
 review_date:
 reviewed_by: []
 completed_date:
@@ -94,19 +94,23 @@ whole narrow document and do not change.
 The page writes `data-legend="hidden"` on `<html>` when started hidden; the
 button sets and removes it. The hiding rules apply only under the `js`
 class the script adds, so without script the legend shows, and only on
-screen, so print shows it. A page started hidden may paint its legend
+screen, so print shows it. The narrow legend, last in its column, is removed;
+the wide one is made invisible in place (below). A page started hidden may paint its legend
 before the script runs and then hide it: a brief shift, accepted as the
 cost of FR-98's rule.
 
 ### The wide radar while the legend is hidden
 
-The wide grid becomes one column as wide as the radar and legend were
-together, so the arrangement's box does not change, and the radar's SVG
-keeps its existing cap (as tall as the viewport below the title). The
-radar stays left-aligned with the title, controls and table, and grows only
-where the window was too narrow for radar and legend side by side; on a
-short, wide window it keeps its size and the space to its right is empty,
-under the button that brings the legend back. The title, key, controls bar
+The wide legend turns invisible in place, which also takes its rows out of
+the tab order and the accessibility tree, so the grid's columns, the
+legend's scrollbar gutter included, never change. The radar spans both
+columns, its SVG keeping its existing cap (as tall as the viewport below
+the title). It stays left-aligned with the title, controls and table, and
+grows only where the window was too narrow for radar and legend side by
+side; on a short, wide window it keeps its size and the space to its right
+is empty, under the button that brings the legend back. (A one-column grid
+as wide as radar and legend was tried first; it missed by the scrollbar
+gutter, which CSS cannot know, and moved everything a few pixels.) The title, key, controls bar
 and table keep their positions and widths, so nothing moves sideways or
 shrinks when the legend is toggled.
 
@@ -128,8 +132,9 @@ in this change; recorded as a follow-up crumb.
   focus to the table view's toggle.
 - **Focus**: if what has focus is hidden by a press, focus moves to the
   button, never left on a hidden element. In WebKit and in Firefox on
-  macOS a click does not focus a button, so a focused legend row can be
-  what the press hides.
+  macOS a click does not focus a button, and in WebKit the click first
+  blurs whatever had focus, so the press can leave focus on a row it hid or
+  on the page itself; either way it goes to the button.
 - **Detail panel**: an open panel stays open; it belongs to the item, not
   the legend. If a legend row opened it, closing it returns focus to that
   item's marker.
@@ -198,3 +203,4 @@ apart: no version bump. Then the feature: a minor bump, 1.6.0.
 | --- | --- | --- |
 | 1.0 | 2026-10-17 | Initial version, from the design agreed in conversation (rg-3gc). |
 | 1.1 | 2026-10-17 | After the five-agent review: no short form; a warning for PNG and SVG; the icon shows the state; the skip link retargets to the table; the wide box keeps its width; the narrow cut keeps the key's gap; print shows the legend; nothing plotted writes no state; Chromium plus a Firefox and WebKit focus check; two PRs. |
+| 1.2 | 2026-10-17 | As built: the wide legend is hidden in place, not by a one-column grid, which missed by the scrollbar gutter; focus left on the page by a WebKit click goes to the button too. |
