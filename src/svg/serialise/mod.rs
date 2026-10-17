@@ -97,6 +97,8 @@ enum TextMode<'a> {
 struct Context<'a> {
     target: Target<'a>,
     control: Option<ControlKind>,
+    /// The text here is named by its heading's `aria-label` (rg-g0c).
+    named: bool,
     text: TextMode<'a>,
 }
 
@@ -106,6 +108,7 @@ impl<'a> Context<'a> {
         Self {
             target,
             control: None,
+            named: false,
             text: TextMode::Text,
         }
     }
@@ -156,12 +159,11 @@ pub struct Standalone<'a> {
 pub fn standalone(document: &Document, file: &Standalone<'_>) -> Result<String, FontError> {
     let glyphs = outline::Glyphs::of(document, file.fonts)?;
     let context = Context {
-        target: Target::Static(file.palette),
-        control: None,
         text: TextMode::Outlined(outline::Outlined {
             fonts: file.fonts,
             glyphs: &glyphs,
         }),
+        ..Context::top(Target::Static(file.palette))
     };
     let mut out = String::from("<svg");
     attr(&mut out, "xmlns", SVG_NS);

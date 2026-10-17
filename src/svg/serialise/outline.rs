@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::text::{Run, ink};
 use super::{Context, attr, coord, paint, point};
 use crate::style::TextStyle;
-use crate::svg::{Anchor, Document, Node, Point, Tail, TextPaint};
+use crate::svg::{Anchor, Document, Node, Point, Tail};
 use crate::text::{FontError, Fonts, Segment, Weight};
 
 /// A glyph in one face at one size: one definition.
@@ -212,9 +212,9 @@ pub(super) fn text(
     }
     let mut out = String::from("<g");
     ink(&mut out, run.ink, context);
-    if matches!(run.ink, TextPaint::Fill(_)) && context.control.is_none() {
+    if let Some(name) = run.own_name(context) {
         attr(&mut out, "role", "img");
-        attr(&mut out, "aria-label", &name(run));
+        attr(&mut out, "aria-label", &name);
     }
     out.push_str(">\n");
     let mut baseline = run.origin.y;
@@ -240,16 +240,6 @@ pub(super) fn text(
     }
     out.push_str("</g>\n");
     out
-}
-
-/// The text's name: its words as written, then its tail. Not its lines
-/// joined, which would read a token broken mid-word as two.
-fn name(run: &Run<'_>) -> String {
-    let mut name = run.words.to_owned();
-    if let Some(tail) = run.tail {
-        name.push_str(&tail.text);
-    }
-    name
 }
 
 /// One `<use>` per inked glyph of `text`, from `at`.

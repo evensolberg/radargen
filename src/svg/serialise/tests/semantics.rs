@@ -62,15 +62,57 @@ fn a_wrapped_heading_is_named_by_its_words() {
             first_line(&heading),
             "<g role=\"heading\" aria-level=\"1\">"
         );
-        let mut broken = text(&["Kuber", "netes"], Anchor::Start, fill);
-        if let Node::Text { words, .. } = &mut broken {
-            "Kubernetes".clone_into(words);
-        }
+        let broken = worded(&["Kuber", "netes"], "Kubernetes", fill);
         let heading = one(&semantic(Semantics::Heading(level), vec![broken]), target);
         assert!(heading.contains(" aria-label=\"Kubernetes\">"), "{heading}");
         let plain = vec![text(&["Distributed", "Streaming"], Anchor::Start, fill)];
         let group = one(&semantic(Semantics::None, plain), target);
         assert!(!group.contains("aria-label"), "{group}");
+    }
+}
+
+/// rg-zl6: a plain text whose tspans break a token mid-word would read
+/// as two fragments, so it is an image named by its words. Wrapped only
+/// between words it stays text; a heading (named by its own label) and a
+/// control (named by its own) leave their text alone, as does a halo.
+#[test]
+fn plain_text_broken_mid_word_is_named_by_its_words() {
+    let palette = light();
+    let fill = TextPaint::Fill(MUTED);
+    let lines = ["managedcloudservic", "esextravaganza"];
+    let words = "managedcloudservicesextravaganza";
+    let broken = || worded(&lines, words, fill);
+    // Only the <text> is checked: a static control is an image itself.
+    let text_is_image = |markup: &str| {
+        markup
+            .lines()
+            .any(|l| l.starts_with("<text") && l.contains("role=\"img\""))
+    };
+    for target in [Target::Interactive(&palette), Target::Static(&palette)] {
+        let plain = one(&broken(), target);
+        assert!(
+            first_line(&plain).contains(&format!(" role=\"img\" aria-label=\"{words}\">")),
+            "{plain}"
+        );
+        let between = one(
+            &text(&["Distributed", "Streaming"], Anchor::Start, fill),
+            target,
+        );
+        assert!(!text_is_image(&between), "{between}");
+        let level = NonZeroU8::MIN;
+        let heading = one(&semantic(Semantics::Heading(level), vec![broken()]), target);
+        assert!(!text_is_image(&heading), "{heading}");
+        let row = one(
+            &semantic(Semantics::LegendRow(control(None)), vec![broken()]),
+            target,
+        );
+        assert!(!text_is_image(&row), "{row}");
+        let halo = TextPaint::Halo {
+            stroke: MUTED,
+            width: 3.0,
+        };
+        let halo = one(&worded(&lines, words, halo), target);
+        assert!(!text_is_image(&halo), "a halo is hidden: {halo}");
     }
 }
 

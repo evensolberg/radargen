@@ -52,6 +52,15 @@ fn text(lines: &[&str], anchor: Anchor, ink: TextPaint) -> Node {
     }
 }
 
+/// A text whose name is `words`, as wrap gives a token broken mid-word.
+fn worded(lines: &[&str], words: &str, ink: TextPaint) -> Node {
+    let mut node = text(lines, Anchor::Start, ink);
+    if let Node::Text { words: w, .. } = &mut node {
+        words.clone_into(w);
+    }
+    node
+}
+
 fn group(offset: Point, children: Vec<Node>) -> Node {
     Node::Group(Group::new(offset, children))
 }
