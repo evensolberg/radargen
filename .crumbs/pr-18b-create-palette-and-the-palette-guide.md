@@ -1,7 +1,7 @@
 ---
 id: rg-0fm
 title: 'PR 18b: --create-palette'
-status: blocked
+status: open
 type: feature
 priority: 2
 tags:
@@ -11,8 +11,6 @@ tags:
 - docs
 created: 2026-10-16
 updated: 2026-10-16
-blocked_by:
-- rg-cdo
 phase: v1.1
 ---
 
