@@ -338,10 +338,10 @@
       const chosen = root.getAttribute(N.theme);
       return chosen ? chosen === 'dark' : prefersDark.matches;
     };
-    // The hidden words name the button; the stylesheet picks its icon.
+    // The hidden words name the button and its title repeats them as a hover
+    // tooltip for a sighted mouse user, who sees only the icon (rg-7gd); the
+    // stylesheet picks the icon.
     const words = toggle.querySelector('.' + N.words);
-    // The hidden words name the button; its title repeats them as a hover
-    // tooltip for a sighted mouse user, who sees only the icon (rg-7gd).
     const label = () => {
       toggle.title = words.textContent = dark() ? N.toLight : N.toDark;
     };

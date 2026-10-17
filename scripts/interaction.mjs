@@ -146,7 +146,7 @@ const check = (ok, what) => {
 // `ready` becomes truthy within the timeout, or `what` is a failure.
 const eventually = (ready, what) => poll(ready, what).catch((e) => void failures.push(e.message));
 const LABEL = `document.querySelector('.theme-toggle').textContent`;
-// rg-7gd: each icon button's hover tooltip, kept equal to its name.
+// rg-7gd: the theme toggle's hover tooltip, kept equal to its name.
 const THEME_TITLE = `document.querySelector('.theme-toggle').title`;
 const TO_DARK = 'Switch to dark theme';
 const TO_LIGHT = 'Switch to light theme';
@@ -255,7 +255,8 @@ try {
       const text = await evaluate(LABEL);
       check(text === (scheme === 'dark' ? TO_LIGHT : TO_DARK), `${scheme}: the label is "${text}"`);
       // rg-7gd: the hover tooltip says the same.
-      check((await evaluate(THEME_TITLE)) === text, `${scheme}: the tooltip is "${await evaluate(THEME_TITLE)}"`);
+      const title = await evaluate(THEME_TITLE);
+      check(title === text, `${scheme}: the tooltip is "${title}"`);
       const icon = await evaluate(ICON);
       check(icon === (scheme === 'dark' ? 'theme-sun' : 'theme-moon'), `${scheme}: the icon is "${icon}"`);
     }
@@ -283,6 +284,8 @@ try {
   const allHidden = async () => (seen = legendState(await evaluate(LEGEND_PARTS))) === 'hidden';
   const allShown = async () => (seen = legendState(await evaluate(LEGEND_PARTS))) === 'shown';
   const LEGEND_NAME = `document.querySelector('.legend-toggle').textContent`;
+  // rg-7gd: its hover tooltip, kept equal to its name.
+  const LEGEND_TITLE = `document.querySelector('.legend-toggle').title`;
   const SKIP_NAME = `document.querySelector('.skip').textContent`;
   const LEGEND_ICON = `${shownIcon('.legend-toggle')}?.getAttribute('class')`;
   const STATE = `document.documentElement.getAttribute('data-legend')`;
@@ -295,7 +298,7 @@ try {
     const expect = async (hidden, how) => {
       check(hidden ? await allHidden() : await allShown(), `${how}: both legends ${hidden ? 'hidden' : 'shown'}, saw ${seen}`);
       check((await evaluate(LEGEND_NAME)) === (hidden ? 'Show legend' : 'Hide legend'), `${how}: the name`);
-      check((await evaluate(`document.querySelector('.legend-toggle').title`)) === (hidden ? 'Show legend' : 'Hide legend'), `${how}: the tooltip`);
+      check((await evaluate(LEGEND_TITLE)) === (hidden ? 'Show legend' : 'Hide legend'), `${how}: the tooltip`);
       check((await evaluate(LEGEND_ICON)) === (hidden ? 'legend-off' : 'legend-on'), `${how}: the icon`);
       check((await evaluate(SKIP_NAME)) === (hidden ? 'Skip to the table' : 'Skip to the legend'), `${how}: the skip link`);
       check((await evaluate(STATE)) === (hidden ? 'hidden' : null), `${how}: the attribute`);
@@ -407,6 +410,7 @@ try {
       await load(width, { page: hiddenUrl });
       check(await allHidden(), 'starts hidden');
       check((await evaluate(LEGEND_NAME)) === 'Show legend', 'named Show legend');
+      check((await evaluate(LEGEND_TITLE)) === 'Show legend', 'its tooltip too');
       check((await evaluate(SKIP_NAME)) === 'Skip to the table', 'the skip link goes to the table');
       await clickOn('.legend-toggle');
       check(await allShown(), 'one press shows it');
@@ -911,6 +915,7 @@ try {
       await press('Tab');
       await press('Tab');
       check((await active()).cls?.includes('legend-toggle'), 'the legend button is the second stop');
+      check((await evaluate(`document.querySelector('.legend-toggle').title`)) === 'Hide legend', 'with its tooltip');
       check((await evaluate(`document.querySelector('.legend-toggle').getBoundingClientRect().width`)) > 20, 'and it is visible');
     });
   }

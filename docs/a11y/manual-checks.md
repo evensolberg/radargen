@@ -63,7 +63,9 @@ The expected names come from `three-quadrant.csv`.
 8. **The toggle.** Tab to it.
    - *Expect:* "Switch to dark theme, button" ("Switch to light theme" if the system is dark), with no pressed state, and nothing read for the icon.
    - *Expect:* Enter changes the page's colours, and the label becomes the other one.
-   - *Expect (sighted):* a moon while the page is light, a sun while it is dark; hovering shows the name as a tooltip, and it changes with a press.
+   - *Expect (sighted):* a moon while the page is light, a sun while it is dark.
+   - *Expect (sighted, mouse):* hovering shows the name as a tooltip. After a press, move the pointer off the button and back on: it shows the other name (browsers hide a tooltip on a click until the pointer moves).
+   - *Expect:* the name is read once, with no description or delayed hint repeating it.
    - *Record:* whether the new label is announced after the press, or only when focus returns to the button.
 9. **The legend button** (RG-102). Tab to it; it is between the skip link and the theme toggle (alone at the end on a `--palette` page, step 18).
    - *Expect:* "Hide legend, button", with no pressed state, and nothing read for the icon.
@@ -73,7 +75,8 @@ The expected names come from `three-quadrant.csv`.
    - *Expect, with the legend still hidden:* reload and press Tab once: "Skip to the legend, button" again, since nothing is remembered. Hide the legend, Shift+Tab to the skip link: "Skip to the table, button", and on Enter, focus on the table's toggle.
    - *Expect, with `--legend hidden`:* on the first visit the button reads "Show legend, button" and the skip link "Skip to the table, button".
    - *Expect (sighted, narrow window):* with the legend below the fold, the icon changes on each press.
-   - *Expect (sighted, mouse):* hovering shows "Hide legend" or "Show legend" as a tooltip; a screen reader reads the name once, with no description.
+   - *Expect (sighted, mouse):* hovering shows "Hide legend" as a tooltip. After a press, move the pointer off the button and back on: it shows "Show legend".
+   - *Expect:* the name is read once, with no description or delayed hint repeating it.
 10. **The table** (`interaction.html`). Open *The table* and browse into it.
    - *Expect:* "Every item, region", then a table with its row and column counts.
    - *Expect:* moving across a row reads each cell with its column header; moving down a column reads the row header (the name).
