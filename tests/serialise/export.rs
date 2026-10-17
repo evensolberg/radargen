@@ -70,7 +70,8 @@ fn hostile() -> (Document, String) {
 
 /// What the export must name, in document order: each filled text
 /// outside a control by its words (and tail), each control by its
-/// label, and the radar's group by its name.
+/// label, and the radar's group by its name. A wrapped heading carries
+/// no label of its own: its outlined text already names it (rg-g0c).
 fn names(node: &Node, in_control: bool, out: &mut Vec<String>) {
     match node {
         _ if node.is_interactive_only() => {}
@@ -93,10 +94,11 @@ fn names(node: &Node, in_control: bool, out: &mut Vec<String>) {
         Node::Text {
             ink: TextPaint::Fill(_),
             lines,
+            words,
             tail,
             ..
         } if !in_control && !lines.is_empty() => {
-            let mut name = lines.join(" ");
+            let mut name = words.clone();
             if let Some(tail) = tail {
                 name.push_str(&tail.text);
             }

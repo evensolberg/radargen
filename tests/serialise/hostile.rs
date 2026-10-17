@@ -21,6 +21,9 @@ const HOSTILE: [&str; 9] = [
 ];
 pub const QUADRANT: &str = "<Q & \"q\">";
 pub const RING: &str = "R&<'>";
+/// A quadrant long enough that its legend heading wraps, so the heading is
+/// named by an attribute as well as drawn (rg-g0c).
+const WRAPPED: &str = "Tools & </text> \"q\" for distributed streaming workloads at scale";
 
 /// Each control's label and tooltip, and each text's lines, in order.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -52,6 +55,13 @@ impl Strings {
                             .extend(c.tooltip.iter().filter(|t| !t.is_empty()).cloned());
                     }
                     Semantics::Group(label) => self.labels.push(label.clone()),
+                    Semantics::Heading(_) => {
+                        if let [Node::Text { lines, words, .. }] = group.children.as_slice()
+                            && lines.len() > 1
+                        {
+                            self.labels.push(words.clone());
+                        }
+                    }
                     _ => {}
                 }
                 group
@@ -112,6 +122,7 @@ pub fn csv() -> String {
             all + &row
         })
         + "\"tab\there\",Plain,Adopt,d\n"
+        + &[field("wrapped"), field(WRAPPED), "Adopt,d\n".to_owned()].join(",")
 }
 
 /// A title that would close `<title>` and open an SVG were it not escaped.
@@ -143,6 +154,10 @@ fn hostile_text_round_trips() {
     assert!(
         want.texts.iter().any(|t| t.contains('\n')),
         "a wrapped name exercises the tspans"
+    );
+    assert!(
+        want.labels.iter().any(|l| l == WRAPPED),
+        "a wrapped heading exercises its label"
     );
     for name in HOSTILE.iter().take(8) {
         assert!(

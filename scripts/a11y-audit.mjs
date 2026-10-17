@@ -310,8 +310,11 @@ async function structure(label) {
     const misplaced = [];
     let quadrant = null, ring = null;
     for (const e of shown.querySelectorAll('[role=heading][aria-level="3"], [role=heading][aria-level="4"], [data-legend-row]')) {
-      if (e.getAttribute('aria-level') === '3') { quadrant = e.textContent.trim(); headed.add(quadrant); ring = null; continue; }
-      if (e.getAttribute('aria-level') === '4') { ring = e.textContent.trim(); continue; }
+      // A wrapped heading's tspans join with nothing between; its label
+      // has the spaces (rg-g0c).
+      const named = e.getAttribute('aria-label') ?? e.textContent.trim();
+      if (e.getAttribute('aria-level') === '3') { quadrant = named; headed.add(quadrant); ring = null; continue; }
+      if (e.getAttribute('aria-level') === '4') { ring = named; continue; }
       const label = e.getAttribute('aria-label');
       if (!label.includes('; ' + quadrant + ' quadrant, ' + ring + ' ring')) misplaced.push(label);
     }
