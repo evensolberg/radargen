@@ -11,7 +11,7 @@ created_date: 2026-10-13
 synopsis: "What only a person with a screen reader, a real browser's zoom or a keyboard on a real machine can judge, step by step, with the announcement to expect at each step and a results table to fill in before tagging 1.0.0. The automated audit (scripts/a11y-audit.mjs) covers everything a browser can measure; this covers the rest."
 status: draft
 type: Guide
-revision: "1.4"
+revision: "1.5"
 review_date:
 reviewed_by: []
 completed_date:
@@ -39,7 +39,7 @@ comments: "Part of RG-015C, Task 5. Absorbs crumb rg-n54 (keyboard scrolling of 
 
 The expected names come from `three-quadrant.csv`.
 
-1. **Entering the radar.** Tab past the skip link and the toggle, or browse to the radar.
+1. **Entering the radar.** Tab past the skip link and the toggle (on a built-in page; a `--palette` page has none), or browse to the radar.
    - *Expect:* "Technology radar: 3 quadrants, 4 rings, 6 items, group".
    - *Expect:* nothing else of the drawing (rings, dividers and labels) is read as content.
 2. **A marker.** Tab to the first marker.
@@ -107,6 +107,14 @@ The expected names come from `three-quadrant.csv`.
       - A black or smudged result is a fail. The fallback is paint on each `<use>` (plan Ruling 12).
     - *Expect, without `--title`:* the document is named "Technology Radar", and no level-1 heading exists.
 
+17. **A `--palette` page** (rg-cdo, from 1.3.0). Write `dark.css`: copy `docs/product/palette.sample.css` and replace each neutral's value with the dark one in its comment. Render `three-quadrant.csv` with `--palette docs/product/palette.sample.css` to `light-palette.html`, and with `--palette dark.css` to `dark-palette.html`.
+    - *Expect, with the system set to light:* `dark-palette.html` stays dark. With macOS "Show scroll bars: Always", the legend's scroll box, the table's scroll area and an open panel have dark scroll bars.
+    - *Expect, with the system set to dark:* `light-palette.html` stays light, with light scroll bars.
+    - *Expect, with NVDA + Firefox and VoiceOver + Safari:* the first Tab says "Skip to the legend, button", and Enter lands on "1. …" in the legend. Shift+Tab back to the skip link, then Tab: the next stop is the first marker, with nothing between. Browse mode finds no stray button where the toggle would be.
+    - *Expect, on the first Tab:* the skip link appears over the page; the title and radar do not move.
+    - *Expect, in Windows high-contrast mode with `dark-palette.html`:* the grounds take the system's Canvas colour and focus its Highlight; the quadrant colours keep the palette's values and stay visible.
+    - *Expect, with a six-quadrant CSV and a palette of five `--series-` entries:* the sixth quadrant reuses `--series-1`, and its label and position still tell it apart.
+
 ## Results
 
 | Pair | Version (AT, browser, OS) | Date | Steps passed | Failed steps and notes |
@@ -123,6 +131,7 @@ The expected names come from `three-quadrant.csv`.
 | The SVG: NVDA + Firefox, NVDA + Chrome, VoiceOver + Safari | | | | |
 | The SVG: PowerPoint, light and dark | | | | |
 | The SVG: Figma or Illustrator, light and dark | | | | |
+| A `--palette` page: scroll bars, NVDA + Firefox, VoiceOver + Safari, high contrast | | | | |
 
 ## Revisions
 
@@ -133,3 +142,4 @@ The expected names come from `three-quadrant.csv`.
 | 1.2 | 2026-10-15 | Step 14: the wide arrangement drawn in four SVGs, the legend scrolling (D-85, rg-swu). |
 | 1.3 | 2026-10-16 | Step 15: the PNG, in both themes (D-87, rg-42m). |
 | 1.4 | 2026-10-16 | Step 16: the exported SVG (D-88, rg-m2l). |
+| 1.5 | 2026-10-17 | Step 17: a page drawn with `--palette`, light and dark; step 1 notes it has no toggle (rg-cdo, RG-018A R25). |
