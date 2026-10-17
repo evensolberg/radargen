@@ -137,7 +137,7 @@ release-build:
 # binary). Part of `just ci`, and it fails when a browser is missing rather
 # than skipping: a skipped behaviour check would pass without looking
 # (RG-015B). `just browser-setup` installs them.
-browser: release-build text-spacing-only interaction-only a11y-audit-only
+browser: release-build text-spacing-only interaction-only a11y-audit-only legend-engines-only
 
 # Installs the browser checks' dev dependencies: Playwright, pinned in
 # package-lock.json, and the browsers it drives. Run once, and again after
@@ -164,6 +164,17 @@ text-spacing-only:
     ./target/release/radargen tests/fixtures/table-wide.csv -o "$out/table-wide.html" --title "Technology Radar" 2>/dev/null
     node scripts/text-spacing.mjs "$out" "$out/text-spacing.html:6" "$out/three-quadrant.html:5" "$out/table-wide.html:scroll" "$out/grown.html"
     echo "screenshots in $out (rtl.html is for a look, not checked)"
+
+# RG-102's focus-on-click path in Firefox and WebKit, which the CDP checks
+# never drive: a click need not focus a button there.
+[private]
+legend-engines-only:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out="$(mktemp -d)"
+    trap 'rm -rf "$out"' EXIT
+    ./target/release/radargen tests/fixtures/interaction.csv -o "$out/legend.html" 2>/dev/null
+    node scripts/legend-engines.mjs "$out/legend.html"
 
 # The interactive layer, driven in headless Chromium (RG-015B).
 interaction: release-build interaction-only

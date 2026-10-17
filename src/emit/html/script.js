@@ -371,10 +371,11 @@
     if (isLegendHidden()) root.removeAttribute(N.legendState);
     else root.setAttribute(N.legendState, N.legendHidden);
     showLegendState();
-    // WebKit, and Firefox on macOS, do not focus a clicked button, so what
-    // had focus may be a row this press just hid: never leave focus on an
-    // element that is no longer rendered.
-    if (!isShown(document.activeElement)) legendToggle.focus();
+    // WebKit, and Firefox on macOS, do not focus a clicked button: the
+    // press leaves focus on the body, or on a row it just hid. Either way
+    // the reader's place is lost, so it goes to the button.
+    const now = document.activeElement;
+    if (!now || now === document.body || !isShown(now)) legendToggle.focus();
   });
 
   // D-66: every control says whether its panel is open, and names it.
