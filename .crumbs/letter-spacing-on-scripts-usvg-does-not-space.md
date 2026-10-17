@@ -1,7 +1,7 @@
 ---
 id: rg-rqe
 title: Letter-spacing on scripts usvg does not space
-status: open
+status: closed
 type: bug
 priority: 4
 tags:
@@ -10,6 +10,7 @@ tags:
 - layout
 created: 2026-10-16
 updated: 2026-10-16
+closed_reason: 'Folded into rg-kzl: only observable once a font draws those scripts'
 phase: ''
 ---
 
