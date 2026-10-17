@@ -14,6 +14,18 @@ use crate::order::Plotted;
 use crate::palette::Colours;
 use crate::svg::{Document, Target, serialise};
 
+/// Where the page's legend starts (RG-102). Only HTML reads it: PNG and
+/// SVG always draw the legend.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum Legend {
+    /// The legend shows.
+    #[value(alias = "show")]
+    Shown,
+    /// The legend starts hidden, with a button to show it.
+    #[value(alias = "hide")]
+    Hidden,
+}
+
 const HEAD_OPEN: &str = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"generator\" content=\"";
 const BODY_OPEN: &str = "</style>\n</head>\n<body>\n";
 const HIDDEN_HEADING: &str = "<h1 class=\"visually-hidden\">";

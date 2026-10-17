@@ -531,6 +531,42 @@ fn theme_and_width_are_ignored_on_html() {
     assert_eq!(read(dir.path(), "a.html"), read(dir.path(), "b.html"));
 }
 
+/// RG-102: PNG and SVG always draw the legend; asked to hide it, they
+/// say so once and draw the same bytes. Asked to show it, they say nothing.
+#[test]
+fn legend_hidden_warns_on_png_and_svg_and_changes_nothing() {
+    let dir = seeded(&[("radar.csv", &format!("{HEAD}Kafka,Tool,Adopt,d\n"))]);
+    for ext in ["png", "svg"] {
+        let plain = run_in(dir.path(), &["radar.csv", "-o", &format!("a.{ext}")]);
+        let shown = run_in(
+            dir.path(),
+            &["radar.csv", "-o", &format!("b.{ext}"), "--legend", "shown"],
+        );
+        let hidden = run_in(
+            dir.path(),
+            &["radar.csv", "-o", &format!("c.{ext}"), "--legend", "hidden"],
+        );
+        for ran in [&plain, &shown, &hidden] {
+            assert!(ran.ok(), "{ext}: {}", ran.stderr);
+        }
+        assert_eq!(plain.stderr, shown.stderr, "{ext}: shown is silent");
+        assert_eq!(
+            hidden
+                .stderr
+                .matches(
+                    "--legend hidden applies to HTML pages; PNG and SVG always draw the legend"
+                )
+                .count(),
+            1,
+            "{ext}: {}",
+            hidden.stderr
+        );
+        let bytes =
+            |n: &str| std::fs::read(dir.path().join(format!("{n}.{ext}"))).expect("written");
+        assert_eq!(bytes("a"), bytes("c"), "{ext}");
+    }
+}
+
 /// FR-95 is a render warning, so it prints before the row warnings.
 #[test]
 fn fr95_reaches_stderr() {

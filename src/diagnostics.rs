@@ -156,6 +156,9 @@ pub enum RenderKind {
         /// The narrow document's width, rounded up to a whole unit.
         width: u32,
     },
+    /// RG-102: `--legend hidden` on a PNG or SVG, which always draw the
+    /// legend.
+    LegendStatic,
     /// D-87: the document is wider than FR-64's ceiling and `--width` was
     /// not given, so the PNG is drawn at the ceiling.
     WidthClamped {
@@ -406,6 +409,10 @@ impl RenderKind {
                 format!(
                     "the narrow arrangement is {width} units wide, past the {NARROW_MAX_WIDTH} its legend rows and marker targets are sized for, so on a {NARROW_MIN_VIEWPORT_PX}-pixel screen they fall below {MIN_TARGET_PX} pixels; a shorter name for {fix} would fix it"
                 )
+            }
+            Self::LegendStatic => {
+                "--legend hidden applies to HTML pages; PNG and SVG always draw the legend"
+                    .to_owned()
             }
             Self::WidthClamped { natural, drawn } => format!(
                 "the radar is {natural} pixels wide, past --width's limit; the PNG is drawn {drawn} wide, or pass --width to choose"

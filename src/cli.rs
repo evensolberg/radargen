@@ -9,6 +9,7 @@ use clap::Parser;
 use std::path::{Path, PathBuf};
 
 use crate::diagnostics::{Fatal, Flag, RenderKind, Warning, Warnings};
+pub use crate::emit::html::Legend;
 use crate::escape::remove_undisplayable;
 pub use crate::palette::Theme;
 use crate::starter::Starter;
@@ -94,6 +95,18 @@ pub struct Cli {
     /// setting, with a button to switch.
     #[arg(short = 'T', long, value_enum, default_value_t = Theme::Light, ignore_case = true)]
     pub theme: Theme,
+
+    // RG-102: the HTML page's starting state. PNG and SVG have no button to
+    // bring a hidden legend back, so they keep it and the pipeline warns.
+    // `show` and `hide` read naturally too, so they are accepted without
+    // being advertised. No short form: a page's start is set once per
+    // edition, and FR-100's --legend-columns may want one.
+    /// Where an HTML page's legend starts.
+    ///
+    /// The page has a button to show or hide it either way. PNG and SVG
+    /// always draw the legend. Written in any case.
+    #[arg(long, value_enum, default_value_t = Legend::Shown, ignore_case = true)]
+    pub legend: Legend,
 
     // FR-57: the height always follows the document's aspect ratio and is
     // never a second flag. The range is FR-64's, enforced by clap so the

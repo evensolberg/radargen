@@ -2,7 +2,7 @@
 //! the contract rather than spawning a process.
 
 use clap::Parser;
-use radargen::cli::{Cli, OutputFormat, Theme};
+use radargen::cli::{Cli, Legend, OutputFormat, Theme};
 use radargen::cli::{Task, clean_flag, format};
 use radargen::diagnostics::{Fatal, Flag, RowKind, Warning, Warnings};
 use radargen::rings::{RingsError, parse_rings};
@@ -128,6 +128,48 @@ fn theme_defaults_to_light_and_ignores_case() {
 #[test]
 fn an_unknown_theme_is_a_usage_error() {
     assert!(parse(&["in.csv", "-o", "e.png", "--theme", "sepia"]).is_err());
+}
+
+// ---- --legend: where the HTML page starts; show and hide as hidden aliases
+
+#[test]
+fn legend_defaults_to_shown_and_takes_aliases_in_any_case() {
+    let cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
+    assert_eq!(cli.legend, Legend::Shown);
+    for (given, want) in [
+        ("hidden", Legend::Hidden),
+        ("Hidden", Legend::Hidden),
+        ("hide", Legend::Hidden),
+        ("HIDE", Legend::Hidden),
+        ("shown", Legend::Shown),
+        ("show", Legend::Shown),
+    ] {
+        let cli = parse(&["in.csv", "-o", "e.html", "--legend", given]).expect(given);
+        assert_eq!(cli.legend, want, "{given}");
+    }
+    assert!(parse(&["in.csv", "-o", "e.html", "--legend", "off"]).is_err());
+    // No short form: FR-100's --legend-columns may want one.
+    assert!(parse(&["in.csv", "-o", "e.html", "-l", "hidden"]).is_err());
+}
+
+#[test]
+fn the_legend_help_lists_shown_and_hidden_only() {
+    use clap::CommandFactory;
+    let short = Cli::command().render_help().to_string();
+    let line = short
+        .lines()
+        .find(|l| l.contains("--legend"))
+        .expect("--legend in -h");
+    assert!(line.contains("[possible values: shown, hidden]"), "{line}");
+    let long = Cli::command().render_long_help().to_string();
+    assert!(
+        long.contains("- shown:") && long.contains("- hidden:"),
+        "{long}"
+    );
+    assert!(
+        !long.contains("- show:") && !long.contains("- hide:"),
+        "{long}"
+    );
 }
 
 // ---- OQ-2: short forms where practical. Settled at implementation planning,
