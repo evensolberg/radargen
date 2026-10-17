@@ -76,9 +76,10 @@ fn corpus() -> Vec<String> {
     {
         v.push(format!("{}. {name}", i + 1));
     }
-    // Combining marks, as tests/agrees_with_resvg.rs types them: the shaper
-    // gives these glyphs a non-zero offset, so `place` applying it is checked
-    // against resvg (the Latin rows above all have zero offsets).
+    // Combining marks, as tests/agrees_with_resvg.rs types them. The first
+    // two compose to precomposed glyphs; the last two shape marks with a
+    // non-zero x_offset, so `place` applying it is checked against resvg
+    // (the Latin rows above all have zero offsets).
     v.extend(
         [
             "Tie\u{0302}\u{0301}ng Vie\u{0323}\u{0302}t",
