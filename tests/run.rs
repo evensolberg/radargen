@@ -4,6 +4,8 @@
 
 #[path = "common/html.rs"]
 mod html;
+#[path = "common/palette.rs"]
+mod palette;
 
 use std::fmt::Write as _;
 use std::fs;
@@ -11,7 +13,10 @@ use std::path::Path;
 use std::process::Command;
 
 use radargen::layout::geometry::Geometry;
+use radargen::palette::{Palette, Role, Theme};
 use radargen::style::MAX_GROWTH;
+
+use palette::{SAMPLE, quadrants, with_series};
 use resvg::tiny_skia::Pixmap;
 use tempfile::TempDir;
 
@@ -1130,36 +1135,7 @@ fn the_cli_writes_the_golden_exports() {
 
 // ---- --palette (FR-59, FR-86, FR-87, FR-102, SC-18, SC-21)
 
-const SAMPLE: &str = include_str!("../docs/product/palette.sample.css");
 const TWO_BLOCK: &str = include_str!("fixtures/palette-two-block.css");
-/// FR-81's eight, which no file palette below uses.
-const BUILT_IN_SERIES: [&str; 8] = [
-    "#0072B2", "#C25400", "#00857A", "#787832", "#B5476B", "#2F9626", "#C431B8", "#9D5A43",
-];
-
-/// The sample with `series` in place of its eight entries.
-fn with_series(series: &[&str]) -> String {
-    let mut text = String::from(":root {\n");
-    for (i, value) in series.iter().enumerate() {
-        writeln!(text, "  --series-{}: {value};", i + 1).expect("writes");
-    }
-    for line in SAMPLE.lines() {
-        let declaration = line.trim_start_matches(' ');
-        if declaration.starts_with("--") && !declaration.starts_with("--series-") {
-            writeln!(text, "{line}").expect("writes");
-        }
-    }
-    text + "}\n"
-}
-
-/// A CSV with `count` quadrants, Q01 onward, one item each.
-fn quadrants(count: usize) -> String {
-    let mut csv = String::from(HEAD);
-    for q in 1..=count {
-        writeln!(csv, "Item {q},Q{q:02},Adopt,d").expect("writes");
-    }
-    csv
-}
 
 /// FR-81: the sample draws exactly what the built-in light theme draws,
 /// and warns of nothing of its own.
@@ -1229,7 +1205,9 @@ fn the_series_count_is_the_files() {
         for value in series {
             assert!(svg.contains(value), "{count}: {value} is drawn");
         }
-        for value in BUILT_IN_SERIES {
+        let built_in = Palette::built_in(Theme::Light);
+        for i in 0..built_in.series_len() {
+            let value = built_in.value(Role::Series(i));
             assert!(!svg.contains(value), "{count}: built-in {value}");
         }
         if count == 5 {

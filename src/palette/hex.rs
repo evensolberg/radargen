@@ -34,7 +34,11 @@ impl Hex {
         let [_, r, g, b] = u32::from_str_radix(digits, RADIX).ok()?.to_be_bytes();
         Some(Self {
             rgb: [r, g, b],
-            text: ["#", &digits.to_ascii_uppercase()].concat(),
+            text: {
+                let mut text = ["#", digits].concat();
+                text.make_ascii_uppercase();
+                text
+            },
         })
     }
 

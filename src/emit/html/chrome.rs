@@ -58,20 +58,11 @@ pub(super) fn main_open(query: &str) -> String {
 /// between, the theme toggle (FR-56, §6.6): first in `<main>`, both
 /// `hidden` until the script runs (FR-98's rule).
 pub(super) fn controls(toggle: bool) -> String {
-    let toggle = if toggle {
-        [BUTTON_TAG, TOGGLE_CLASS, TOGGLE_REST, TO_DARK, TOGGLE_END].concat()
-    } else {
-        String::new()
-    };
-    [
-        CONTROLS_OPEN,
-        BUTTON_TAG,
-        SKIP_CLASS,
-        SKIP_REST,
-        &toggle,
-        CONTROLS_CLOSE,
-    ]
-    .concat()
+    let mut out = [CONTROLS_OPEN, BUTTON_TAG, SKIP_CLASS, SKIP_REST].concat();
+    if toggle {
+        out.extend([BUTTON_TAG, TOGGLE_CLASS, TOGGLE_REST, TO_DARK, TOGGLE_END]);
+    }
+    out + CONTROLS_CLOSE
 }
 
 /// The panel's `id`, the one every control's `aria-controls` names; written

@@ -2,7 +2,7 @@ use std::fmt::Write as _;
 
 use super::scan::EXCERPT_CHARS;
 use super::*;
-use crate::decode::{decode, line_at};
+use crate::decode::{NotUtf8, decode, line_at};
 use crate::palette::{Role, Theme};
 
 /// Every role at its built-in light value, one per line (lines 2 to 9),
@@ -488,7 +488,10 @@ fn read_names_what_kept_it_from_the_text() {
     ));
     let path = dir.path().join("latin1.css");
     std::fs::write(&path, b":root {\n  --focus: #\xFF;\n}\n").expect("writes");
-    assert!(matches!(read(&path), Err(ReadError::NotUtf8 { line: 2 })));
+    assert!(matches!(
+        read(&path),
+        Err(ReadError::NotUtf8(NotUtf8 { line: 2 }))
+    ));
 }
 
 /// A block nested inside `:root` is another rule, named by its prelude,
@@ -530,4 +533,11 @@ fn an_at_rule_before_root_is_named_as_one() {
             selector: "@media screen".into()
         }]
     );
+}
+
+/// `READ_CAP` is one byte past `MAX_BYTES`, so a file at the cap reads whole
+/// and one past it is told apart.
+#[test]
+fn the_read_cap_is_one_past_the_limit() {
+    assert_eq!(u64::try_from(MAX_BYTES + 1), Ok(READ_CAP));
 }

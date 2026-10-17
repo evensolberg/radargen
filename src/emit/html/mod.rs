@@ -70,6 +70,7 @@ pub fn page(input: &Page<'_>) -> String {
         colours,
     } = *input;
     let bound = colours.interactive();
+    let toggle = colours.has_toggle();
     let target = Target::Interactive(&bound);
     let sizes = css::Wide::of(wide);
     let heading = if title.is_some() {
@@ -90,10 +91,10 @@ pub fn page(input: &Page<'_>) -> String {
         css::VISUALLY_HIDDEN,
         css::HIDDEN_BOX,
         &table::css(&sizes),
-        &chrome::css(&sizes, colours.has_toggle()),
+        &chrome::css(&sizes, toggle),
         BODY_OPEN,
         &chrome::main_open(&css::narrow_query(&sizes)),
-        &chrome::controls(colours.has_toggle()),
+        &chrome::controls(toggle),
         &heading,
         DIV_OPEN,
         chrome::ARRANGEMENT_CLASS,

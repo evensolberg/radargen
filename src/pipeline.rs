@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use crate::cli::{Cli, OutputFormat, Task, clean_flag, format};
 use crate::csv::decode;
 use crate::csv::parse::parse;
+use crate::decode::NotUtf8;
 use crate::diagnostics::{Fatal, Flag, RenderKind, RowError, Warning, Warnings};
 use crate::emit::html::{Page, page};
 use crate::emit::write::parent_dir;
@@ -155,9 +156,9 @@ fn config(
     // Plan RG-018A Ruling 7: the next flag after --rings, every problem in
     // the file at once (FR-102), each its own line.
     let colours = match &cli.palette {
-        Some(path) => Colours::File(Box::new(
-            file::read(path).map_err(|e| palette_errors(path, e))?,
-        )),
+        Some(path) => file::read(path)
+            .map_err(|e| palette_errors(path, e))?
+            .into(),
         None => Colours::BuiltIn(cli.theme),
     };
     Ok(Config {
@@ -180,7 +181,7 @@ fn palette_errors(path: &Path, error: ReadError) -> Vec<Fatal> {
     match error {
         ReadError::Unreadable(source) => vec![Fatal::PaletteUnreadable { path, source }],
         ReadError::TooLarge => vec![Fatal::PaletteTooLarge { path }],
-        ReadError::NotUtf8 { line } => vec![Fatal::PaletteNotUtf8 { path, line }],
+        ReadError::NotUtf8(NotUtf8 { line }) => vec![Fatal::PaletteNotUtf8 { path, line }],
         ReadError::Invalid(errors) => errors
             .into_iter()
             .map(|error| Fatal::Palette {

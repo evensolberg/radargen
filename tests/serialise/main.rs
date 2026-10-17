@@ -9,6 +9,8 @@ mod catalogue;
 mod fonts;
 #[path = "../common/html.rs"]
 mod html;
+#[path = "../common/palette.rs"]
+mod palette;
 
 mod colours;
 mod export;

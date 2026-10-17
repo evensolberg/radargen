@@ -112,6 +112,12 @@ pub enum Colours {
     File(Box<Palette>),
 }
 
+impl From<Palette> for Colours {
+    fn from(palette: Palette) -> Self {
+        Self::File(Box::new(palette))
+    }
+}
+
 impl Colours {
     /// The palette a PNG or SVG is bound to.
     #[must_use]
@@ -573,7 +579,7 @@ mod tests {
         assert!(dark.has_toggle());
         let series = ["#000001", "#000002"].map(hex);
         let file = Palette::new(light_neutrals(), series.into()).expect("a palette");
-        let colours = Colours::File(Box::new(file.clone()));
+        let colours = Colours::from(file.clone());
         assert_eq!(*colours.snapshot(), file);
         assert_eq!(*colours.interactive(), file);
         assert!(!colours.has_toggle());

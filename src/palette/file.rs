@@ -7,6 +7,7 @@
 //! `Fatal`: the pipeline says where the file came from (plan RG-018A, R1).
 
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 use std::fs::File;
 use std::io::{self, Read as _};
 use std::path::Path;
@@ -18,6 +19,9 @@ use scan::{Lines, block_len, css_space, css_trim, excerpt, uncommented};
 /// The largest file read (plan RG-018A, R4): the sample is 2 kB, and ten
 /// thousand series entries fit in 300 kB.
 pub const MAX_BYTES: usize = 1 << 20;
+/// What [`read`] reads at most: one byte past the cap, to tell a file at
+/// the cap from one beyond it.
+const READ_CAP: u64 = (1 << 20) + 1;
 
 /// The properties a palette may declare, as an unknown-property message
 /// lists them.
@@ -152,11 +156,8 @@ pub enum ReadError {
     Unreadable(io::Error),
     /// The file is larger than [`MAX_BYTES`].
     TooLarge,
-    /// The file is not UTF-8, or holds a NUL, first on `line` (FR-102).
-    NotUtf8 {
-        /// The physical line holding the first bad byte.
-        line: usize,
-    },
+    /// The file is not UTF-8, or holds a NUL (FR-102).
+    NotUtf8(NotUtf8),
     /// The text breaks FR-102, FR-86 or FR-87: every problem, in
     /// [`parse`]'s order.
     Invalid(Vec<PaletteError>),
@@ -172,14 +173,13 @@ pub enum ReadError {
 /// A [`ReadError`] saying what kept the file from being a palette.
 pub fn read(path: &Path) -> Result<Palette, ReadError> {
     let mut bytes = Vec::new();
-    let cap = u64::try_from(MAX_BYTES + 1).unwrap_or(u64::MAX);
     File::open(path)
-        .and_then(|file| file.take(cap).read_to_end(&mut bytes))
+        .and_then(|file| file.take(READ_CAP).read_to_end(&mut bytes))
         .map_err(ReadError::Unreadable)?;
     if bytes.len() > MAX_BYTES {
         return Err(ReadError::TooLarge);
     }
-    let text = decode(&bytes).map_err(|NotUtf8 { line }| ReadError::NotUtf8 { line })?;
+    let text = decode(&bytes).map_err(ReadError::NotUtf8)?;
     parse(&text).map_err(ReadError::Invalid)
 }
 
@@ -198,7 +198,7 @@ pub fn parse(text: &str) -> Result<Palette, Vec<PaletteError>> {
             line: lines.at(open),
         });
     }
-    let declared = rules(&src, &lines, &mut errors).unwrap_or_default();
+    let declared = rules(&src, &lines, &mut errors);
     let palette = resolve(&declared, &mut errors);
     errors.sort_by_key(|e| e.line().unwrap_or(usize::MAX));
     match palette {
@@ -214,21 +214,18 @@ struct Declaration<'a> {
     value: &'a str,
 }
 
-/// The accepted `:root` rule's declarations, every grammar error pushed to
-/// `errors`; `None` when the file has no `:root` rule.
-fn rules<'a>(
-    src: &'a str,
-    lines: &Lines,
-    errors: &mut Vec<PaletteError>,
-) -> Option<Vec<Declaration<'a>>> {
+/// The accepted `:root` rule's declarations, none when the file has no
+/// `:root` rule; every grammar error is pushed to `errors`.
+fn rules<'a>(src: &'a str, lines: &Lines, errors: &mut Vec<PaletteError>) -> Vec<Declaration<'a>> {
     let mut root = None;
     let mut pos = 0;
     loop {
         let rest = src.get(pos..).unwrap_or_default();
-        pos += rest.len() - rest.trim_start_matches(css_space).len();
-        let rest = src.get(pos..).unwrap_or_default();
+        let trimmed = rest.trim_start_matches(css_space);
+        pos += rest.len() - trimmed.len();
+        let rest = trimmed;
         if rest.is_empty() {
-            return root;
+            break;
         }
         let line = lines.at(pos);
         let Some(end) = rest.find(['{', '}', ';']) else {
@@ -236,25 +233,24 @@ fn rules<'a>(
                 line,
                 text: excerpt(rest),
             });
-            return root;
+            break;
         };
         let (prelude, from_end) = rest.split_at(end);
         if !from_end.starts_with('{') {
             // R7: a statement ended by `;` (`@charset`, `@import`), or a
             // stray `}`, is reported, and scanning goes on.
-            let statement = rest.get(..=end).unwrap_or_default();
-            errors.push(stray(line, statement));
+            errors.push(stray(line, rest.get(..=end).unwrap_or_default()));
             pos += end + 1;
             continue;
         }
         let body_start = pos + end + 1;
         let Some(len) = block_len(src.get(body_start..).unwrap_or_default()) else {
             errors.push(PaletteError::UnclosedRule { line });
-            return root;
+            break;
         };
         let selector = selector(prelude, pos, lines, errors);
         if !selector.eq_ignore_ascii_case(":root") {
-            errors.push(stray_rule(line, selector));
+            errors.push(other_rule(line, selector));
         } else if root.is_some() {
             errors.push(PaletteError::SecondRoot { line });
         } else {
@@ -263,15 +259,22 @@ fn rules<'a>(
         }
         pos = body_start + len + 1;
     }
+    root.unwrap_or_default()
+}
+
+/// A rule other than the accepted `:root`, named by its prelude.
+fn other_rule(line: usize, prelude: &str) -> PaletteError {
+    let shown = if prelude.is_empty() { "{" } else { prelude };
+    PaletteError::OtherRule {
+        line,
+        selector: excerpt(shown),
+    }
 }
 
 /// A statement outside every rule: an at-rule when it starts with `@`.
 fn stray(line: usize, statement: &str) -> PaletteError {
     if statement.starts_with('@') {
-        PaletteError::OtherRule {
-            line,
-            selector: excerpt(statement),
-        }
+        other_rule(line, statement)
     } else {
         PaletteError::TextOutside {
             line,
@@ -316,14 +319,14 @@ fn declarations<'a>(
     let mut offset = 0;
     while let Some(rest) = body.get(offset..).filter(|rest| !rest.is_empty()) {
         let end = rest.find([';', '{']).unwrap_or(rest.len());
-        let part = rest.get(..end).unwrap_or_default();
+        let (part, from_end) = rest.split_at(end);
         let lead = part.len() - part.trim_start_matches(css_space).len();
         let line = lines.at(start + offset + lead);
         let text = css_trim(part);
-        if rest.get(end..).is_some_and(|from| from.starts_with('{')) {
-            errors.push(stray_rule(line, text));
+        if from_end.starts_with('{') {
+            errors.push(other_rule(line, text));
             // The outer rule closed, so every block inside it closes too.
-            let inner = rest.get(end + 1..).unwrap_or_default();
+            let inner = from_end.get(1..).unwrap_or_default();
             offset += end + 1 + block_len(inner).unwrap_or(inner.len()) + 1;
             continue;
         }
@@ -331,12 +334,11 @@ fn declarations<'a>(
         if text.is_empty() {
             continue;
         }
-        match text.split_once(':') {
-            Some((name, value)) if !css_trim(name).is_empty() => out.push(Declaration {
-                line,
-                name: css_trim(name),
-                value: css_trim(value),
-            }),
+        match text
+            .split_once(':')
+            .map(|(name, value)| (css_trim(name), css_trim(value)))
+        {
+            Some((name, value)) if !name.is_empty() => out.push(Declaration { line, name, value }),
             _ => errors.push(PaletteError::Malformed {
                 line,
                 text: excerpt(text),
@@ -344,15 +346,6 @@ fn declarations<'a>(
         }
     }
     out
-}
-
-/// A rule other than the accepted `:root`, named by its prelude.
-fn stray_rule(line: usize, prelude: &str) -> PaletteError {
-    let shown = if prelude.is_empty() { "{" } else { prelude };
-    PaletteError::OtherRule {
-        line,
-        selector: excerpt(shown),
-    }
 }
 
 /// What a property names.
@@ -379,21 +372,26 @@ fn property(name: &str) -> Option<Property> {
 /// they hold.
 fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Option<Palette> {
     let mut neutrals: [Option<Hex>; Neutral::ALL.len()] = Default::default();
-    let mut series: BTreeMap<usize, Hex> = BTreeMap::new();
+    // Every series index declared, its colour `None` when the value is bad,
+    // so the gaps are those of the declarations and not of the good values.
+    let mut series: BTreeMap<usize, Option<Hex>> = BTreeMap::new();
     // Every property declared, valid or not, so one with a bad value is
     // reported once, as `NotHex`, and not again as missing.
     let mut seen: BTreeMap<&str, usize> = BTreeMap::new();
-    let mut indices: Vec<usize> = Vec::new();
     for d in declared {
-        if let Some(&first) = seen.get(d.name) {
-            errors.push(PaletteError::Duplicate {
-                line: d.line,
-                name: excerpt(d.name),
-                first,
-            });
-            continue;
+        match seen.entry(d.name) {
+            Entry::Occupied(first) => {
+                errors.push(PaletteError::Duplicate {
+                    line: d.line,
+                    name: excerpt(d.name),
+                    first: *first.get(),
+                });
+                continue;
+            }
+            Entry::Vacant(slot) => {
+                slot.insert(d.line);
+            }
         }
-        seen.insert(d.name, d.line);
         let Some(slot) = property(d.name) else {
             errors.push(PaletteError::Unknown {
                 line: d.line,
@@ -401,21 +399,18 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
             });
             continue;
         };
-        if let Property::Series(index) = slot {
-            indices.push(index);
-        }
-        let Some(hex) = Hex::parse(d.value) else {
+        let hex = Hex::parse(d.value);
+        if hex.is_none() {
             errors.push(PaletteError::NotHex {
                 line: d.line,
                 name: d.name.into(),
                 value: excerpt(d.value),
             });
-            continue;
-        };
+        }
         match slot {
             Property::Neutral(at) => {
                 if let Some(cell) = neutrals.get_mut(at) {
-                    *cell = Some(hex);
+                    *cell = hex;
                 }
             }
             Property::Series(index) => {
@@ -428,21 +423,20 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
             errors.push(PaletteError::MissingRole { role });
         }
     }
-    missing_series_runs(&mut indices, errors);
+    missing_series_runs(series.keys().copied(), errors);
     let neutrals: [Hex; Neutral::ALL.len()] = neutrals
         .into_iter()
         .collect::<Option<Vec<_>>>()?
         .try_into()
         .ok()?;
-    Palette::new(neutrals, series.into_values().collect())
+    Palette::new(neutrals, series.into_values().collect::<Option<_>>()?)
 }
 
-/// FR-87's gaps in the declared series indices, one error per run (Ruling
-/// 3); `--series-1` missing when none is declared.
-fn missing_series_runs(indices: &mut [usize], errors: &mut Vec<PaletteError>) {
-    indices.sort_unstable();
+/// FR-87's gaps in the declared series indices, in ascending order: one
+/// error per run (Ruling 3), and `--series-1` missing when none is declared.
+fn missing_series_runs(indices: impl Iterator<Item = usize>, errors: &mut Vec<PaletteError>) {
     let mut next = 1_usize;
-    for &index in indices.iter() {
+    for index in indices {
         if index > next {
             errors.push(PaletteError::MissingSeries {
                 from: next,
@@ -451,7 +445,7 @@ fn missing_series_runs(indices: &mut [usize], errors: &mut Vec<PaletteError>) {
         }
         next = index.saturating_add(1);
     }
-    if indices.is_empty() {
+    if next == 1 {
         errors.push(PaletteError::MissingSeries { from: 1, to: 1 });
     }
 }

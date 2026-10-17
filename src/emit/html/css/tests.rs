@@ -279,7 +279,7 @@ fn hover_focus_and_selection_differ() {
 /// The sample file as a `--palette` file's colours.
 fn sample() -> Colours {
     let text = include_str!("../../../../docs/product/palette.sample.css");
-    Colours::File(Box::new(parse(text).expect("the sample parses")))
+    parse(text).expect("the sample parses").into()
 }
 
 /// §6.6: one set, no system preference or theme blocks, and forced colours
@@ -305,7 +305,7 @@ fn a_palette_file_gives_one_set() {
 /// Plan RG-018A Ruling 4: a dark palette's page says so.
 #[test]
 fn a_dark_palette_declares_a_dark_scheme() {
-    let dark = Colours::File(Box::new(Palette::built_in(Theme::Dark)));
+    let dark = Colours::from(Palette::built_in(Theme::Dark));
     assert!(palettes(&dark).starts_with(":root{color-scheme:dark;--surface-1:#15181D;"));
 }
 

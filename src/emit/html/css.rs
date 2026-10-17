@@ -236,8 +236,7 @@ const FILE_OPEN: &str = ":root{color-scheme:";
 /// Values are written as `Palette` holds them, each a `Hex`, which admits
 /// only `#RRGGBB` (NFR-6 context 5).
 pub(super) fn palettes(colours: &Colours) -> String {
-    let forced = [FORCED_OPEN, DATA_THEME, FORCED_REST, &forced(), CLOSE_TWICE].concat();
-    match colours {
+    let block = match colours {
         Colours::BuiltIn(_) => {
             let light = declarations(&Palette::built_in(Theme::Light));
             let dark = declarations(&Palette::built_in(Theme::Dark));
@@ -255,15 +254,23 @@ pub(super) fn palettes(colours: &Colours) -> String {
                 DARK_CHOSEN,
                 &dark,
                 CLOSE,
-                &forced,
             ]
             .concat()
         }
         Colours::File(palette) => {
             let scheme = if palette.is_dark() { "dark;" } else { "light;" };
-            [FILE_OPEN, scheme, &declarations(palette), CLOSE, &forced].concat()
+            [FILE_OPEN, scheme, &declarations(palette), CLOSE].concat()
         }
-    }
+    };
+    [
+        &block,
+        FORCED_OPEN,
+        DATA_THEME,
+        FORCED_REST,
+        &forced(),
+        CLOSE_TWICE,
+    ]
+    .concat()
 }
 
 /// Forced colours (Windows high contrast) remap neither SVG paint nor these
