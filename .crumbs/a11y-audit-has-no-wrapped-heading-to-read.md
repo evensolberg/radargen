@@ -1,7 +1,7 @@
 ---
 id: rg-cuj
 title: A11y audit has no wrapped heading to read
-status: open
+status: closed
 type: task
 priority: 4
 tags:
@@ -9,6 +9,7 @@ tags:
 - a11y
 created: 2026-10-16
 updated: 2026-10-16
+closed_reason: Wrapped-heading fixture in the a11y audit; whitespace runs collapse in labels and names (D-89), 1.2.5
 phase: ''
 ---
 

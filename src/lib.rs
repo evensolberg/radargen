@@ -34,11 +34,21 @@ use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
 /// England's, and trimming them would turn every such flag into the same bare
 /// black flag (D-61). Format characters inside a value are content and kept.
 ///
-/// Every display trim uses this too — FR-9's quadrant label, FR-15's ring
-/// name, and the values diagnostics quote — so no site trims differently.
+/// The values diagnostics quote use this too, so no site trims differently;
+/// a label that is shown is [`tidy`], which starts with this.
 #[must_use]
 pub fn trim(value: &str) -> &str {
     value.trim_matches(trimmable)
+}
+
+/// [`trim`], then every run of whitespace inside the value as one space.
+///
+/// That is how a wrapped line joins its words ([`text::words`]), so a label
+/// reads the same wrapped or not (rg-cuj). It is the display form of
+/// FR-76's three trimmed values, and the first step of [`normalise`].
+#[must_use]
+pub fn tidy(value: &str) -> String {
+    text::words(trim(value))
 }
 
 /// `value` with its line breaks as plain newlines: CR LF and a lone CR each
@@ -74,7 +84,7 @@ pub(crate) fn is_untagged_format(c: char) -> bool {
 /// FR-76: **one normalisation rule**, applied to every value read from the CSV
 /// or from `--rings`.
 ///
-/// Both operands of a comparison get [`trim`] and are then folded
+/// Both operands of a comparison get [`tidy`] and are then folded
 /// case-insensitively. Folding is Unicode's default lowercase mapping —
 /// `str::to_lowercase`, not full case folding and not locale-aware (D-53).
 ///
@@ -82,7 +92,7 @@ pub(crate) fn is_untagged_format(c: char) -> bool {
 /// the original.
 #[must_use]
 pub fn normalise(value: &str) -> String {
-    trim(value).to_lowercase()
+    tidy(value).to_lowercase()
 }
 
 #[cfg(test)]
@@ -160,5 +170,20 @@ mod tests {
     #[test]
     fn normalise_folds_after_trimming() {
         assert_eq!(normalise("\u{feff} Name\u{200b}"), "name");
+    }
+
+    /// rg-cuj: a run of whitespace inside a value is one space, the way a
+    /// wrapped line joins its words, so a label reads the same wrapped or
+    /// not. A format character inside is content, as for [`trim`].
+    #[test]
+    fn tidy_collapses_internal_runs_of_whitespace() {
+        assert_eq!(tidy("\u{200b} Tool  \t Kit\u{a0} x "), "Tool Kit x");
+        assert_eq!(tidy("a\u{200d}b"), "a\u{200d}b");
+        assert_eq!(tidy(" \u{feff} "), "");
+    }
+
+    #[test]
+    fn normalise_collapses_internal_runs_too() {
+        assert_eq!(normalise("Tool  Kit"), normalise("tool kit"));
     }
 }

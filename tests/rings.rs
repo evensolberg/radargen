@@ -175,3 +175,15 @@ fn entry_numbers_count_empty_entries() {
         ])
     );
 }
+
+/// rg-cuj: a run of spaces inside a ring name is one space, as its
+/// wrapped band label and legend subheading read it.
+#[test]
+fn internal_whitespace_runs_collapse_in_ring_names() {
+    assert_eq!(
+        parse_rings(Some("Early  Adopt, Trial"))
+            .expect("valid")
+            .rings,
+        vec!["Early Adopt", "Trial"]
+    );
+}

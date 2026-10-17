@@ -197,7 +197,7 @@ fn name_cell(item: &Item, unplotted: bool) -> String {
         "=\"",
         &item.line.to_string(),
         "\">",
-        &xml_text(trim(&item.name)),
+        &xml_text(&item.name),
         &flag,
         "</button></th>",
     ]
