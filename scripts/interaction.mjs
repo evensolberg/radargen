@@ -11,14 +11,14 @@
 
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { KEYS, SHOWN_ICON, connect, poll } from './cdp.mjs';
+import { KEYS, SHOWN, SHOWN_ICON, connect, poll } from './cdp.mjs';
 
 const WIDE = 1400;
 const NARROW = 400;
 
-const [file, longFile, paletteFile] = process.argv.slice(2);
+const [file, longFile, paletteFile, hiddenFile, unplottedFile] = process.argv.slice(2);
 if (!file) {
-  console.error('usage: node scripts/interaction.mjs <page.html> [<long-legend.html> [<palette.html>]]');
+  console.error('usage: node scripts/interaction.mjs <page.html> [<long-legend.html> [<palette.html> [<hidden.html> [<unplotted-hidden.html>]]]]');
   process.exit(2);
 }
 const url = pathToFileURL(resolve(file)).href;
@@ -26,6 +26,9 @@ const url = pathToFileURL(resolve(file)).href;
 const longUrl = longFile && pathToFileURL(resolve(longFile)).href;
 // A page drawn with --palette: one set of colours and no toggle (rg-cdo).
 const paletteUrl = paletteFile && pathToFileURL(resolve(paletteFile)).href;
+// RG-102: a page drawn with --legend hidden, and one with nothing plotted.
+const hiddenUrl = hiddenFile && pathToFileURL(resolve(hiddenFile)).href;
+const unplottedUrl = unplottedFile && pathToFileURL(resolve(unplottedFile)).href;
 
 const { send, on, close, evaluate, navigate, press } = await connect();
 const thrown = [];
@@ -175,7 +178,9 @@ try {
     await press('Tab');
     check((await active()).cls === 'skip', 'first stop is the skip link');
     await press('Tab');
-    check((await active()).cls?.includes('theme-toggle'), 'second stop is the theme toggle');
+    check((await active()).cls?.includes('legend-toggle'), 'second stop is the legend button');
+    await press('Tab');
+    check((await active()).cls?.includes('theme-toggle'), 'third stop is the theme toggle');
     const shown = width === WIDE ? 'wide' : 'narrow';
     const markers = await evaluate(`document.querySelectorAll('.arrangement.${shown} [data-marker]').length`);
     let n = 0;
@@ -230,9 +235,7 @@ try {
   // A reader who left the marker is not pulled back by a later resize.
   await scenario('a resize after leaving a marker', [WIDE], async (width) => {
     await load(width);
-    await press('Tab');
-    await press('Tab');
-    await press('Tab');
+    await tabToMarker(1);
     check((await active()).marker !== null, 'a marker is focused');
     await click(5, 5);
     check((await active()).tag === 'body', 'a click on blank page leaves it');
@@ -259,8 +262,7 @@ try {
     check((await evaluate(ICON)) === 'theme-sun', 'and the sun shows');
     const ground = () => evaluate(`getComputedStyle(document.body).backgroundColor`);
     const before = await ground();
-    await press('Tab');
-    await press('Tab');
+    await tabTo((a) => a.cls?.includes('theme-toggle'), 'the toggle');
     check((await active()).cls?.includes('theme-toggle'), 'the toggle is reached');
     await press('Enter');
     check((await evaluate(`document.documentElement.getAttribute('data-theme')`)) === 'light', 'pressing it sets light');
@@ -268,6 +270,146 @@ try {
     check((await evaluate(ICON)) === 'theme-moon', 'and the moon shows again');
     check((await ground()) !== before, 'the background changes');
   });
+
+  // RG-102: the legend button.
+  // A hidden legend is removed (narrow) or invisible in place (wide).
+  const LEGENDS = `[...document.querySelectorAll('.wide-legend,.narrow-legend')].map((p) => { const s = getComputedStyle(p); return s.display === 'none' || s.visibility === 'hidden'; })`;
+  const allHidden = async () => (await evaluate(LEGENDS)).every(Boolean);
+  const allShown = async () => (await evaluate(LEGENDS)).every((hidden) => !hidden);
+  const LEGEND_NAME = `document.querySelector('.legend-toggle').textContent`;
+  const SKIP_NAME = `document.querySelector('.skip').textContent`;
+  const LEGEND_ICON = `[...document.querySelectorAll('.legend-toggle svg')].find((s) => getComputedStyle(s).display !== 'none')?.getAttribute('class')`;
+  const STATE = `document.documentElement.getAttribute('data-legend')`;
+  const BREAKPOINT = `Number(document.querySelector('main').getAttribute('data-narrow-query').match(/\\d+/)[0]) + 1`;
+
+  // Mouse, Enter and Space each toggle; three presses end hidden, with the
+  // name, icon, skip link and attribute in step every time; the key stays.
+  await scenario('legend toggle', [WIDE, NARROW], async (width) => {
+    await load(width);
+    const expect = async (hidden, how) => {
+      check(hidden ? await allHidden() : await allShown(), `${how}: both legends ${hidden ? 'hidden' : 'shown'}`);
+      check((await evaluate(LEGEND_NAME)) === (hidden ? 'Show legend' : 'Hide legend'), `${how}: the name`);
+      check((await evaluate(LEGEND_ICON)) === (hidden ? 'legend-off' : 'legend-on'), `${how}: the icon`);
+      check((await evaluate(SKIP_NAME)) === (hidden ? 'Skip to the table' : 'Skip to the legend'), `${how}: the skip link`);
+      check((await evaluate(STATE)) === (hidden ? 'hidden' : null), `${how}: the attribute`);
+    };
+    await expect(false, 'at load');
+    await clickOn('.legend-toggle');
+    await expect(true, 'after a click');
+    const key = `${SHOWN}.querySelector('.wide-key svg, .narrow-body svg')`;
+    check((await evaluate(`${key}.getBoundingClientRect().height`)) > 0, 'the key stays drawn');
+    await tabTo((a) => a.cls?.includes('legend-toggle'), 'the legend button');
+    await press('Enter');
+    await expect(false, 'after Enter');
+    await press('Space');
+    await expect(true, 'after Space');
+  });
+
+  // Review Focus 4: nothing moves sideways or shrinks. Title, key, controls
+  // and table keep their left edge and width; the radar's left edge stays
+  // and it never shrinks.
+  await scenario('legend hidden: nothing else moves', [1850, 1200], async (width) => {
+    for (const height of [1000, 500]) {
+      await load(width, { height });
+      const boxes = `['.wide-title svg','.wide-key svg','.page-controls','details.table-view'].map((s) => { const r = document.querySelector(s).getBoundingClientRect(); return [r.left, r.width]; })`;
+      const radar = `(() => { const r = document.querySelector('.wide-radar svg').getBoundingClientRect(); return [r.left, r.width]; })()`;
+      const before = await evaluate(boxes);
+      const radarBefore = await evaluate(radar);
+      await clickOn('.legend-toggle');
+      const after = await evaluate(boxes);
+      const radarAfter = await evaluate(radar);
+      before.forEach(([l, w], i) => check(near(l, after[i][0]) && near(w, after[i][1]), `${width}x${height}: part ${i} moved: ${before[i]} -> ${after[i]}`));
+      check(near(radarBefore[0], radarAfter[0]), `${width}x${height}: the radar's left edge stays`);
+      check(radarAfter[1] >= radarBefore[1] - 1, `${width}x${height}: the radar never shrinks`);
+    }
+  });
+
+  // Just above the breakpoint, the radar takes the legend's width. The
+  // breakpoint is read from the page, so a fixture change cannot move it.
+  await scenario('legend hidden: the wide radar grows', [WIDE], async () => {
+    await load(WIDE);
+    const width = (await evaluate(BREAKPOINT)) + 40;
+    await load(width);
+    const radar = `document.querySelector('.wide-radar svg').getBoundingClientRect().width`;
+    const before = await evaluate(radar);
+    await clickOn('.legend-toggle');
+    check((await evaluate(radar)) > before + 1, `the radar widens from ${before} at ${width}`);
+  });
+
+  // Review Focus 1, in Chromium: a click that does not focus the button,
+  // as in WebKit, leaves a focused row hidden; focus moves to the button.
+  await scenario('legend hidden: focus leaves a row', [WIDE], async (width) => {
+    await load(width);
+    await tabTo((a) => a.legend !== null, 'a legend row');
+    await evaluate(`addEventListener('mousedown', (e) => e.preventDefault(), { capture: true, once: true })`);
+    await clickOn('.legend-toggle');
+    check((await active()).cls?.includes('legend-toggle'), 'focus moves to the button');
+  });
+
+  // Review Focus 2: a panel opened from a row, the legend hidden, the panel
+  // closed: focus returns to the item's marker.
+  await scenario('legend hidden: the panel closes to the marker', [WIDE], async (width) => {
+    await load(width);
+    await tabTo((a) => a.legend !== null, 'a legend row');
+    const key = (await active()).legend;
+    await press('Enter');
+    await clickOn('.legend-toggle');
+    await clickOn('.detail-close');
+    check((await active()).marker === key, `focus on marker ${key}`);
+  });
+
+  // Review Focus 3: the state holds across the breakpoint both ways.
+  for (const [from, to] of [[WIDE, NARROW], [NARROW, WIDE]]) {
+    await scenario(`legend hidden: ${from} to ${to}`, [from], async () => {
+      await load(from);
+      await clickOn('.legend-toggle');
+      await resize(to);
+      const want = to === WIDE ? 'wide' : 'narrow';
+      await eventually(async () => (await evaluate(`${SHOWN}.classList.contains('${want}')`)) || undefined, `the ${want} arrangement shows`);
+      check(await allHidden(), 'its legend is hidden');
+      check((await evaluate(`${SHOWN}.querySelector('.wide-radar svg, .narrow-body svg').getBoundingClientRect().height`)) > 0, 'its radar is');
+      check((await evaluate(SKIP_NAME)) === 'Skip to the table', 'the skip link still goes to the table');
+    });
+  }
+
+  if (hiddenUrl) {
+    // While the legend is hidden, the skip link goes to the table.
+    await scenario('legend hidden: skip to the table', [WIDE], async (width) => {
+      await load(width, { page: hiddenUrl });
+      await press('Tab');
+      check((await active()).cls === 'skip', 'the skip link is first');
+      await press('Enter');
+      check((await active()).tag === 'summary', 'Enter lands on the table toggle');
+    });
+
+    // --legend hidden: starts hidden; one press shows it; a reload starts
+    // where the author set it (nothing remembered); without script the
+    // legend shows and there is no button.
+    await scenario('legend starts hidden', [WIDE, NARROW], async (width) => {
+      await load(width, { page: hiddenUrl });
+      check(await allHidden(), 'starts hidden');
+      check((await evaluate(LEGEND_NAME)) === 'Show legend', 'named Show legend');
+      check((await evaluate(SKIP_NAME)) === 'Skip to the table', 'the skip link goes to the table');
+      await clickOn('.legend-toggle');
+      check(await allShown(), 'one press shows it');
+      await load(width, { page: hiddenUrl });
+      check(await allHidden(), 'a reload starts hidden again: nothing remembered');
+      await load(width, { page: hiddenUrl, script: false });
+      check(await allShown(), 'without script the legend shows');
+      check((await evaluate(`getComputedStyle(document.querySelector('.legend-toggle')).display`)) === 'none', 'and there is no button');
+    });
+  }
+
+  if (unplottedUrl) {
+    // Review Focus 5: nothing plotted, started hidden: no state, no button,
+    // no skip link. `thrown` fails the scenario on any script error.
+    await scenario('legend: nothing plotted', [WIDE], async (width) => {
+      await load(width, { page: unplottedUrl });
+      check((await evaluate(STATE)) === null, 'no data-legend');
+      check(await evaluate(`document.querySelector('.legend-toggle').hidden`), 'no button');
+      check(await evaluate(`document.querySelector('.skip').hidden`), 'no skip link');
+    });
+  }
 
   // FR-98: visible when focused, and it reaches the legend.
   await scenario('skip link', [WIDE, NARROW], async (width) => {
@@ -289,7 +431,7 @@ try {
   // and the table still opens.
   await scenario('no script', [WIDE, NARROW], async (width) => {
     await load(width, { script: false });
-    for (const sel of ['.theme-toggle', '.skip']) {
+    for (const sel of ['.theme-toggle', '.legend-toggle', '.skip']) {
       check((await evaluate(`getComputedStyle(document.querySelector('${sel}')).display`)) === 'none', `${sel} is not rendered`);
     }
     await press('Tab');
@@ -736,6 +878,12 @@ try {
       check(seen, 'the focused skip link is visible, on top of the page');
       await press('Enter');
       check((await active()).legend !== null, 'Enter lands on a legend row');
+      // RG-102: the legend button is on a --palette page too, the second stop.
+      await load(width, { page: paletteUrl });
+      await press('Tab');
+      await press('Tab');
+      check((await active()).cls?.includes('legend-toggle'), 'the legend button is the second stop');
+      check((await evaluate(`document.querySelector('.legend-toggle').getBoundingClientRect().width`)) > 20, 'and it is visible');
     });
   }
 

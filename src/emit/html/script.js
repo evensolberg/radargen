@@ -66,6 +66,10 @@
   const control = (node) =>
     node instanceof Element ? node.closest('[' + N.marker + '],[' + N.legend + ']') : null;
   const kindOf = (el) => (el.hasAttribute(N.marker) ? N.marker : N.legend);
+  // Rendered and visible: a hidden wide legend stays in its track,
+  // invisible, so its rows still have boxes (RG-102).
+  const isShown = (el) =>
+    !!el?.getClientRects().length && getComputedStyle(el).visibility !== 'hidden';
   const keyOf = (el) => el.getAttribute(kindOf(el));
 
   // A marker's focus ring lives in the indicator layer, after every marker,
@@ -202,7 +206,7 @@
   const opener = (key, kind) => {
     const rendered = (k) => {
       const el = shown()?.querySelector(by(k, key));
-      return el?.getClientRects().length ? el : null;
+      return isShown(el) ? el : null;
     };
     if (kind !== TABLE) {
       const el = rendered(kind) ?? rendered(N.marker);
@@ -370,7 +374,7 @@
     // WebKit, and Firefox on macOS, do not focus a clicked button, so what
     // had focus may be a row this press just hid: never leave focus on an
     // element that is no longer rendered.
-    if (!document.activeElement?.getClientRects().length) legendToggle.focus();
+    if (!isShown(document.activeElement)) legendToggle.focus();
   });
 
   // D-66: every control says whether its panel is open, and names it.

@@ -116,7 +116,7 @@ impl Wide {
     }
 
     /// The whole arrangement's cap: the radar column and the legend.
-    pub(super) fn cap(self) -> String {
+    fn cap(self) -> String {
         [
             SPAN_OPEN,
             &self.radar_cap(),
@@ -371,21 +371,27 @@ const STATE_VALUE: &str = "=\"";
 const STATE_CLOSE: &str = "\"]";
 const DESCENDANT: &str = " .";
 const SELECTOR_AND: &str = ",";
+const EVERY_CHILD: &str = " *";
+/// `!important` over the indicators' own `visibility:visible`, which would
+/// otherwise show a hovered or selected row through the hidden legend.
+const INVISIBLE_RULE: &str = "{visibility:hidden!important}\n";
 const HIDE_RULE: &str = "{display:none}\n";
-const ONE_COLUMN_OPEN: &str = " .wide{grid-template-columns:minmax(0,";
-const ONE_COLUMN_CLOSE: &str = ")}\n";
+/// Contained, as the title is, so spanning both tracks does not let the
+/// radar's own size widen them.
+const SPAN_TRACKS_RULE: &str = " .wide-radar{grid-column:1/-1;contain:inline-size}\n";
 const RADAR_KEPT_OPEN: &str = " .wide-radar svg{max-width:";
 const RADAR_KEPT_CLOSE: &str = "}\n";
 
-/// RG-102: while the legend is hidden, both arrangements' legend parts are
-/// hidden.
+/// RG-102: while the legend is hidden, it is gone from both arrangements.
 ///
-/// The wide grid is one column as wide as radar and legend were together,
-/// so the title keeps its size and nothing moves sideways, and the radar's
-/// SVG keeps its cap, left-aligned, so it grows only into width the legend
-/// was holding back. Only under the script's class, since without script
-/// nothing can bring the legend back (FR-98's rule), and only on screen,
-/// since a printout has no button either.
+/// The wide legend turns invisible in place, which also takes its rows out
+/// of the tab order and the accessibility tree, so the grid's tracks, the
+/// legend's scrollbar gutter included, never change and nothing moves
+/// sideways. The radar spans both tracks, its SVG keeping its cap, so it
+/// grows only into width the legend was holding back. The narrow legend,
+/// last in its column, is simply removed. Only under the script's class,
+/// since without script nothing can bring the legend back (FR-98's rule),
+/// and only on screen, since a printout has no button either.
 pub(super) fn legend_hiding(wide: &Wide) -> String {
     let on = [
         STATE_OPEN,
@@ -405,12 +411,15 @@ pub(super) fn legend_hiding(wide: &Wide) -> String {
         SELECTOR_AND,
         on.as_str(),
         DESCENDANT,
+        WIDE_LEGEND,
+        EVERY_CHILD,
+        INVISIBLE_RULE,
+        on.as_str(),
+        DESCENDANT,
         NARROW_LEGEND,
         HIDE_RULE,
         on.as_str(),
-        ONE_COLUMN_OPEN,
-        &wide.cap(),
-        ONE_COLUMN_CLOSE,
+        SPAN_TRACKS_RULE,
         on.as_str(),
         RADAR_KEPT_OPEN,
         &wide.radar_cap(),

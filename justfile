@@ -176,7 +176,10 @@ interaction-only:
     ./target/release/radargen tests/fixtures/interaction.csv -o "$out/interaction.html" 2>/dev/null
     ./target/release/radargen tests/fixtures/long-legend.csv -o "$out/long-legend.html" 2>/dev/null
     ./target/release/radargen tests/fixtures/interaction.csv -o "$out/palette.html" --palette docs/product/palette.sample.css 2>/dev/null
-    node scripts/interaction.mjs "$out/interaction.html" "$out/long-legend.html" "$out/palette.html"
+    ./target/release/radargen tests/fixtures/interaction.csv -o "$out/hidden.html" --legend hidden 2>/dev/null
+    printf 'name,quadrant,ring,description\nLegacy Bus,Tools,Rejected,Retired.\n' > "$out/unplotted.csv"
+    ./target/release/radargen "$out/unplotted.csv" -o "$out/unplotted-hidden.html" --legend hidden 2>/dev/null
+    node scripts/interaction.mjs "$out/interaction.html" "$out/long-legend.html" "$out/palette.html" "$out/hidden.html" "$out/unplotted-hidden.html"
 
 # WCAG 2.1 AA's automatable criteria in headless Chromium (RG-015C). D-71's
 # fixture is wider than 480 units, so its narrow width is read from FR-95's

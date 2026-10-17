@@ -328,10 +328,11 @@ fn a_palette_block_holds_only_safe_characters() {
     );
 }
 
-/// RG-102: on screen, with the script running and the page set hidden, both
-/// legend parts hide; the wide grid is one column as wide as radar and
-/// legend were, so nothing moves sideways; and the radar keeps its cap,
-/// left-aligned. Without the script's class, or in print, none applies.
+/// RG-102: on screen, with the script running and the page set hidden, the
+/// wide legend turns invisible in place, so the grid's tracks, gutter
+/// included, never change and nothing moves; the radar spans both tracks,
+/// keeping its cap, so it grows only into width the legend held. The narrow
+/// legend is removed. Without the script's class, or in print, none applies.
 #[test]
 fn a_hidden_legend_hides_both_parts_on_screen_under_the_script_only() {
     let css = legend_hiding(&WIDE);
@@ -346,13 +347,15 @@ fn a_hidden_legend_hides_both_parts_on_screen_under_the_script_only() {
         "every rule needs the script: {css}"
     );
     for rule in [
-        format!("{on} .wide-legend,{on} .narrow-legend{{display:none}}"),
-        format!(
-            "{on} .wide{{grid-template-columns:minmax(0,{})}}",
-            WIDE.cap()
-        ),
+        format!("{on} .wide-legend,{on} .wide-legend *{{visibility:hidden!important}}"),
+        format!("{on} .narrow-legend{{display:none}}"),
+        format!("{on} .wide-radar{{grid-column:1/-1;contain:inline-size}}"),
         format!("{on} .wide-radar svg{{max-width:{}}}", WIDE.radar_cap()),
     ] {
         assert!(css.contains(&rule), "{rule} in {css}");
     }
+    assert!(
+        !css.contains("grid-template-columns"),
+        "the tracks stay: {css}"
+    );
 }
