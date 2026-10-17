@@ -92,7 +92,7 @@ radargen radar.csv -o radar.html --rings "Hold,Assess,Trial,Adopt"
 ```
 
 - `--rings` replaces the default set rather than adding to it, so list every ring you want.
-- Spaces around each entry are ignored; spaces inside a name are kept (`"Under review, Trial"`).
+- Spaces around each entry are ignored; a name keeps its words, with a run of spaces inside it shown as one (`"Under review, Trial"`).
 - An empty entry or a duplicate is an error.
 - Every declared ring is drawn, even one no row uses.
 - The centre band has the least room: about a tenth of the outer band's. Put the ring with the fewest items there.
@@ -152,7 +152,7 @@ A web address for the item, such as the product's home page: `https://www.terraf
 ## Text in any field
 
 - **A line break inside a cell** (Alt+Enter in Excel) becomes a space in a name, quadrant, ring, qualifier, status or date, and is kept as a line break in a description, domain, rationale or your own columns.
-- **Leading and trailing spaces are ignored** for matching. Names, quadrants, rings and the other short fields (qualifier, status, dates, link) are also shown trimmed; a description, domain, rationale or your own column is shown exactly as written, spaces and blank lines included.
+- **Leading and trailing spaces, and extra spaces inside a value, are ignored** for matching. Names, quadrants and rings are shown trimmed and with single spaces, and the other short fields (qualifier, status, dates, link) are shown trimmed; a description, domain, rationale or your own column is shown exactly as written, spaces and blank lines included.
 - **Characters that cannot be displayed are removed, with a warning naming the line and column.** These are control characters other than tab and line break, and the invisible characters that reverse the direction of text. The same applies to `--title`, `--subtitle` and `--rings`.
 - **Anything else is shown as written.** Characters such as `<`, `&` and `"` are safe and appear literally. Names in Latin, Greek and Cyrillic scripts, including Vietnamese, draw with the built-in font.
 

@@ -34,8 +34,8 @@ use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
 /// England's, and trimming them would turn every such flag into the same bare
 /// black flag (D-61). Format characters inside a value are content and kept.
 ///
-/// Every display trim uses this too — FR-9's quadrant label, FR-15's ring
-/// name, and the values diagnostics quote — so no site trims differently.
+/// The values diagnostics quote use this too, so no site trims differently;
+/// a label that is shown is [`tidy`], which starts with this.
 #[must_use]
 pub fn trim(value: &str) -> &str {
     value.trim_matches(trimmable)
@@ -43,12 +43,12 @@ pub fn trim(value: &str) -> &str {
 
 /// [`trim`], then every run of whitespace inside the value as one space.
 ///
-/// That is how a wrapped line joins its words (`text::words`), so a label
+/// That is how a wrapped line joins its words ([`text::words`]), so a label
 /// reads the same wrapped or not (rg-cuj). It is the display form of
 /// FR-76's three trimmed values, and the first step of [`normalise`].
 #[must_use]
 pub fn tidy(value: &str) -> String {
-    trim(value).split_whitespace().collect::<Vec<_>>().join(" ")
+    text::words(trim(value))
 }
 
 /// `value` with its line breaks as plain newlines: CR LF and a lone CR each

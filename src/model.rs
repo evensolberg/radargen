@@ -192,7 +192,7 @@ impl Catalogue {
     }
 
     /// The ring `item` is shown under: its declared ring's label when it is
-    /// plotted, otherwise its cell trimmed, empty when the cell is (FR-17).
+    /// plotted, otherwise its cell [`tidy`], empty when the cell is (FR-17).
     ///
     /// # Panics
     ///
@@ -200,18 +200,22 @@ impl Catalogue {
     /// from another one.
     #[must_use]
     // qual:allow(complexity, error_handling) reason: "the documented # Panics: an item from another catalogue is a caller bug"
-    pub fn ring_label<'a>(&'a self, item: &'a Item) -> &'a str {
+    pub fn ring_label<'a>(&'a self, item: &'a Item) -> Cow<'a, str> {
         item.ring.map_or_else(
             || {
-                self.column(ColumnKind::Ring)
-                    .and_then(|c| item.cell(c))
-                    .map_or("", trim)
+                Cow::Owned(
+                    self.column(ColumnKind::Ring)
+                        .and_then(|c| item.cell(c))
+                        .map_or_else(String::new, tidy),
+                )
             },
             |r| {
-                self.rings
-                    .get(r)
-                    .expect("item.ring is within this catalogue's rings")
-                    .as_str()
+                Cow::Borrowed(
+                    self.rings
+                        .get(r)
+                        .expect("item.ring is within this catalogue's rings")
+                        .as_str(),
+                )
             },
         )
     }
@@ -582,7 +586,7 @@ impl Builder {
     }
 
     /// FR-8, FR-9: the row's quadrant, added on first sight. The label is
-    /// the ordinally first variant, trimmed, whatever order rows come in.
+    /// the ordinally first variant, tidied, whatever order rows come in.
     fn quadrant(&mut self, value: &str) -> usize {
         let key = normalise(value);
         let label = tidy(value);
@@ -1143,6 +1147,23 @@ mod tests {
             }]
         );
         assert_eq!(cat.items.first().expect("an item").name, "Kafka Streams");
+        // FR-28 matches the tidied name, so the doubled space is a duplicate.
+        let (_, warned) = build(&format!(
+            "{HEAD}Kafka  Streams,T,Adopt,d\nKafka Streams,T,Adopt,d\n"
+        ));
+        assert!(
+            warned.iter().any(|w| w.contains("repeats line 2's name")),
+            "{warned:?}"
+        );
+        // A row's ring matches a declared ring however either is spaced.
+        let (cat, warned) = build_with(&format!("{HEAD}a,T,early adopt,d\n"), Some("Early  Adopt"));
+        let cat = cat.expect("builds");
+        assert_eq!(cat.rings, ["Early Adopt"]);
+        assert_eq!(
+            cat.items.first().expect("an item").ring,
+            Some(0),
+            "{warned:?}"
+        );
     }
 
     /// FR-8: quadrants in order of first appearance; FR-10 orders them later.

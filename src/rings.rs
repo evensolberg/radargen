@@ -80,7 +80,7 @@ pub enum RingsError {
 /// inside is one space ([`tidy`]), so a multi-word ring name keeps its
 /// words. The declared casing is
 /// preserved: it is what appears as a band label and legend subheading, and
-/// FR-76 only ever trims a label, never re-cases one.
+/// FR-76 only ever tidies a label, never re-cases one.
 ///
 /// # Errors
 ///
