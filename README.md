@@ -79,7 +79,7 @@ radargen radar.csv -o radar.png --palette brand.css
 ## Status
 
 The specification is in [`docs/product/radargen-prd.md`](docs/product/radargen-prd.md).
-1.2 writes HTML, PNG and SVG.
+1.3 writes HTML, PNG and SVG, in the built-in themes or your own palette.
 
 ## Documentation
 

@@ -1,7 +1,7 @@
 ---
 id: rg-cdo
 title: 'PR 18: --palette flag, conflict rule and validation'
-status: in_progress
+status: closed
 type: feature
 priority: 2
 tags:
@@ -10,6 +10,7 @@ tags:
 - cli
 created: 2026-10-08
 updated: 2026-10-16
+closed_reason: 'PR 18: --palette (1.3.0)'
 blocks:
 - rg-0fm
 phase: v1.1

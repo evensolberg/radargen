@@ -10,9 +10,9 @@ crumb_id: rg-cdo
 document_title: "PR 18 — --palette: the file, its grammar and validation: Implementation Plan"
 created_date: 2026-10-17
 synopsis: "--palette <file.css> colours every format from one set of colours. The file is read under FR-102's strict grammar into a Palette whose values are a #RRGGBB newtype, so luminance is total and nothing unvalidated reaches an SVG attribute or the <style> block. Every problem in the file is reported in one run. --palette and --theme conflict in clap (FR-59). An HTML page drawn with a palette carries that one set and no theme toggle; the script no longer assumes the toggle exists. palette.sample.css takes FR-101's single-:root form, and docs/palette.md explains each role, with an annotated illustration. Ships as 1.3.0."
-status: draft
+status: complete
 type: Plan
-revision: "1.1"
+revision: "1.2"
 review_date: 2026-10-17
 reviewed_by:
   - "Rust (subagent; static only: its worktree lost its shell, so nothing compiled; implementation is the compile check)"
@@ -20,8 +20,8 @@ reviewed_by:
   - "Architecture (subagent)"
   - "Security (subagent)"
   - "Accessibility and visual design (subagent; rendered the illustration)"
-completed_date:
-comments: "Scoped by PRD v0.78 (FR-101, FR-102, D-91, D-92). --create-palette is PR 18b (rg-0fm, 1.4.0). 1.1 folds in the five plan reviews: every finding and its ruling is in the Review rulings table, which overrides any task text it contradicts."
+completed_date: 2026-10-17
+comments: "Scoped by PRD v0.78 (FR-101, FR-102, D-91, D-92). --create-palette is PR 18b (rg-0fm, 1.4.0). 1.1 folds in the five plan reviews: every finding and its ruling is in the Review rulings table, which overrides any task text it contradicts. 1.2 records completion: the branch review, a local multi-agent review in Copilot's seat and the simplify pass added nested-block, CR and at-rule diagnostics, a quick start and dark-palette step in the guide, and shared test helpers; their crumbs are rg-8xm and rg-u5q."
 ---
 # PR 18 — `--palette`: Implementation Plan
 
@@ -135,7 +135,7 @@ Five seats reviewed revision 1.0. **Where a ruling below and a task's code disag
 **Interfaces:**
 - Produces: `palette::Hex` with `Hex::parse(&str) -> Option<Hex>`, `Hex::as_str(&self) -> &str`, `Hex::rgb(&self) -> [u8; 3]`. `Palette::new(neutrals: [Hex; 8], series: Vec<Hex>) -> Option<Palette>` (`None` for an empty series). `Palette::is_dark(&self) -> bool`. `Palette` keeps `built_in`, `series_len`, `number_ink`, `value`, `var` and `declarations` with their signatures unchanged.
 
-- [ ] **Step 1: Write the failing tests** in `src/palette/hex.rs`:
+- [x] **Step 1: Write the failing tests** in `src/palette/hex.rs`:
 
 ```rust
 //! FR-86: a `#RRGGBB` colour, the one form a palette value takes.
@@ -280,12 +280,12 @@ The existing tests call `contrast(a, b)` with `&str` values. Move `contrast` int
     }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --lib palette 2>&1 | tail -20`
 Expected: compile errors, because `Palette::new`, `is_dark`, `INK_LIGHT_RGB`, `ratio` and `luminance([u8; 3])` do not exist yet.
 
-- [ ] **Step 3: Implement.** In `src/palette.rs`:
+- [x] **Step 3: Implement.** In `src/palette.rs`:
 
 Replace the ink constants, `luminance`, `ink_for` and `contrast` with:
 
@@ -425,12 +425,12 @@ In `number_ink`, the body stays `ink_for(...)` but must pass the `Hex`. Change `
 
 In `src/escape.rs`, delete `CssValueError`, `css_value`, and the tests `css_values_pass_through_when_safe` and `css_values_outside_the_allow_list_are_rejected`. Update the module's doc comment wherever it lists context 5's function to say: "Context 5, a CSS custom-property value, has no function here: `palette::Hex` admits only `#RRGGBB`, checked when a palette is built."
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cargo test --lib 2>&1 | tail -5 && cargo clippy --all-targets -- -D warnings 2>&1 | tail -5`
 Expected: all pass, no warnings. `tests/serialise` goldens are unchanged: the values written are identical.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/palette.rs src/palette/hex.rs src/escape.rs
@@ -451,7 +451,7 @@ git commit -m "refactor(palette): a palette holds Hex values, so luminance is to
 - Consumes: `Hex::parse`, `Palette::new`, `Neutral::ALL` and `Neutral::as_str` (Task 1); `csv::decode::{decode, NotUtf8, line_at}`.
 - Produces: `palette::file::parse(text: &str) -> Result<Palette, Vec<PaletteError>>`; `palette::file::read(path: &Path) -> Result<Palette, Vec<Fatal>>`; `PaletteError` with `line(&self) -> Option<usize>`; `Fatal::Palette { path: String, error: PaletteError }`, `Fatal::PaletteUnreadable { path: String, source: io::Error }`, `Fatal::PaletteNotUtf8 { path: String, line: usize }`.
 
-- [ ] **Step 1: Write the failing tests** at the end of `src/palette/file.rs` (the module's code follows in Step 3):
+- [x] **Step 1: Write the failing tests** at the end of `src/palette/file.rs` (the module's code follows in Step 3):
 
 ```rust
 #[cfg(test)]
@@ -645,12 +645,12 @@ Add to `tests/fixtures/palette-two-block.css` a byte-for-byte copy of today's `d
 cp docs/product/palette.sample.css tests/fixtures/palette-two-block.css
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --lib palette::file 2>&1 | tail -5`
 Expected: compile errors (`parse`, `PaletteError` not defined).
 
-- [ ] **Step 3: Implement** `src/palette/file.rs` above the tests:
+- [x] **Step 3: Implement** `src/palette/file.rs` above the tests:
 
 ```rust
 //! FR-102: a `--palette` file, read into a [`Palette`] (D-92).
@@ -1096,12 +1096,12 @@ fn palette_problem(path: &str, error: &PaletteError) -> String {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cargo test --lib palette 2>&1 | tail -5 && cargo clippy --all-targets -- -D warnings 2>&1 | tail -5`
 Expected: all pass, no warnings. If `rules` or `resolve` trips `too_many_lines` or `cognitive_complexity`, split out the brace handling into a helper. Do not add an `#[expect]`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/palette.rs src/palette/file.rs src/csv/decode.rs src/diagnostics.rs tests/fixtures/palette-two-block.css
@@ -1119,7 +1119,7 @@ git commit -m "feat(palette): read a --palette file under FR-102's grammar"
 **Interfaces:**
 - Consumes: `palette::file::parse` (Task 2), `Palette::built_in`, `Palette::value`, `Neutral::ALL`.
 
-- [ ] **Step 1: Write the failing test.** Replace `tests/palette.rs` with:
+- [x] **Step 1: Write the failing test.** Replace `tests/palette.rs` with:
 
 ```rust
 //! FR-81, FR-101: `docs/product/palette.sample.css` is a valid `--palette`
@@ -1175,12 +1175,12 @@ fn the_sample_reads_as_a_users_file() {
 
 `Result<Palette, Vec<PaletteError>>` needs `PartialEq`; both derive it.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `cargo test --test palette 2>&1 | tail -8`
 Expected: FAIL. `parse` reports `OtherRule` at line 59, and the header test fails.
 
-- [ ] **Step 3: Rewrite `docs/product/palette.sample.css`** to exactly:
+- [x] **Step 3: Rewrite `docs/product/palette.sample.css`** to exactly:
 
 ```css
 /* radargen palette: the built-in light colours, as one set.
@@ -1225,14 +1225,14 @@ Expected: FAIL. `parse` reports `OtherRule` at line 59, and the header test fail
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cargo test --test palette 2>&1 | tail -5`
 Expected: 4 passed.
 
 Check that nothing else reads the old two-block shape: `rg -n "palette.sample" src tests docs/product/mockup.html scripts`. `mockup.html`'s comment only names the file as a source of values, which still holds.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/product/palette.sample.css tests/palette.rs
@@ -1253,7 +1253,7 @@ git commit -m "docs(palette): the sample is one :root set, valid as --palette in
 - Consumes: `palette::file::read` (Task 2).
 - Produces: `Cli::palette: Option<PathBuf>`; `palette::Colours { BuiltIn(Theme), File(Palette) }` with `Colours::snapshot(&self) -> Palette`; `pipeline::Config::colours: Colours`, replacing `Config::palette`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
 In `tests/cli.rs`:
 
@@ -1435,12 +1435,12 @@ fn palette_with_theme_is_refused_by_the_binary() {
 
 The line numbers 39 and 40 in `a_bad_palette_reports_everything_and_writes_nothing` hold for Task 3's sample, where `--focus` is on line 39 (the replacement adds `--surface1` on the line after it). Confirm with `grep -n -- '--focus' docs/product/palette.sample.css`; if Task 3's text changed, adjust both numbers.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --test cli palette 2>&1 | tail -5; cargo test --test run palette 2>&1 | tail -5`
 Expected: compile errors in `tests/cli.rs` (`cli.palette`); `tests/run.rs` fails with clap's "unexpected argument '--palette'".
 
-- [ ] **Step 3: Implement.**
+- [x] **Step 3: Implement.**
 
 `src/palette.rs`, after `Theme`:
 
@@ -1514,12 +1514,12 @@ Update the `theme` field's `///` help: "The theme for PNG and SVG, unless --pale
   and `colours,` in the `Config` literal, in place of `palette: Palette::built_in(cli.theme),`.
 - In `render`, PNG: `png::rasterise(&wide, &config.colours.snapshot(), size)`. SVG: bind `let palette = config.colours.snapshot();` before the `svg::export` call and pass `palette: &palette`.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cargo test 2>&1 | grep -E "^test result|FAILED|panicked" | head -20`
 Expected: every suite passes. `the_cli_writes_the_golden_exports` is unchanged.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/cli.rs src/palette.rs src/pipeline.rs tests/cli.rs tests/run.rs
@@ -1544,7 +1544,7 @@ git commit -m "feat(cli): --palette colours PNG and SVG, and conflicts with --th
 - Consumes: `Colours`, `Palette::is_dark` (Tasks 1, 4).
 - Produces: `emit::html::Page::colours: &'a Colours`; `css::palettes(colours: &Colours) -> String`; `chrome::controls(toggle: bool) -> String`.
 
-- [ ] **Step 1: Write the failing tests** in `tests/run.rs`:
+- [x] **Step 1: Write the failing tests** in `tests/run.rs`:
 
 ```rust
 /// §6.6: a palette page carries the file's one set, follows no system
@@ -1599,12 +1599,12 @@ fn a_palette_page_cycles_over_the_files_series() {
 
 Run the existing page golden too: `tests/serialise` has `prd_page_matches_its_golden`, which must stay byte-identical for built-in colours.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --test run palette_page 2>&1 | tail -8`
 Expected: FAIL. The page still carries both built-in sets and the toggle.
 
-- [ ] **Step 3: Implement.**
+- [x] **Step 3: Implement.**
 
 `src/emit/html/chrome.rs`: split the controls so the toggle is optional, keeping the built-in page's bytes:
 
@@ -1776,12 +1776,12 @@ The scenario fails on any exception the page throws, which is the regression the
 
 and delete the old `node` line.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cargo test 2>&1 | grep -E "^test result|FAILED|panicked" | head -20 && just interaction 2>&1 | tail -8`
 Expected: every suite passes, the page golden is unchanged, and the browser run prints `ok a --palette page has no toggle @1400px`. On this machine, "a long legend scrolls beside the radar" fails on `main` too (macOS overlay scrollbars, its own crumb). Name it in the PR body if it still does.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/emit/html src/pipeline.rs scripts/interaction.mjs justfile tests
@@ -1799,7 +1799,7 @@ git commit -m "feat(html): a --palette page carries one set of colours and no to
 
 **Interfaces:** none. Prose; a test in Step 3 keeps the guide's values equal to the code's.
 
-- [ ] **Step 1: Write the illustration**, `docs/palette-roles.svg`, exactly:
+- [x] **Step 1: Write the illustration**, `docs/palette-roles.svg`, exactly:
 
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" width="760" height="420" font-family="Inter, system-ui, sans-serif" role="img" aria-labelledby="t d">
@@ -1860,7 +1860,7 @@ git commit -m "feat(html): a --palette page carries one set of colours and no to
 
 Open it in a browser and check that each leader line ends on the part it names. Move an endpoint if the drawing reads otherwise; the coordinates above are a starting layout, not a contract.
 
-- [ ] **Step 2: Write `docs/palette.md`**, with the repository's shared frontmatter (`docs/_Common/Frontmatter.md`; `doc_id: RG-PAL`; history in a `## Revisions` table):
+- [x] **Step 2: Write `docs/palette.md`**, with the repository's shared frontmatter (`docs/_Common/Frontmatter.md`; `doc_id: RG-PAL`; history in a `## Revisions` table):
 
 ```markdown
 # Palettes
@@ -1915,7 +1915,7 @@ The number on a solid marker or legend badge is not a property. radargen draws i
 radargen checks that the file is complete and well formed, never that its colours are legible. The built-in themes meet WCAG 2.1 AA; a custom palette meets it only if you check it. The table's last column gives each property's minimum ratio. Any contrast checker that takes two hex values will do.
 ```
 
-- [ ] **Step 3: Pin the guide to the code.** Add to `tests/palette.rs`:
+- [x] **Step 3: Pin the guide to the code.** Add to `tests/palette.rs`:
 
 ```rust
 /// The guide's tables give each value the code draws.
@@ -1942,7 +1942,7 @@ fn the_guide_lists_every_value() {
 
 Run: `cargo test --test palette 2>&1 | tail -5`. Expected: 5 passed.
 
-- [ ] **Step 4: README.** After the SVG section, add:
+- [x] **Step 4: README.** After the SVG section, add:
 
 ```markdown
 ## Your own colours
@@ -1954,7 +1954,7 @@ and add to the Documentation list: ``- [`docs/palette.md`](docs/palette.md) — 
 
 Run: `/Users/evensolberg/.cargo/bin/lychee --offline README.md docs/palette.md`. Expected: no broken links.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/palette.md docs/palette-roles.svg README.md tests/palette.rs
@@ -1973,12 +1973,12 @@ git commit -m "docs(palette): a guide to each colour, where it is drawn and its 
 - Modify: `CHANGELOG.md` (regenerated)
 - Move: `docs/plans/pr-18-palette.md` to `docs/plans/done/`
 
-- [ ] **Step 1: Architecture.**
+- [x] **Step 1: Architecture.**
   - In §5's binding table, the HTML row gains: "With `--palette`: the file's one set in a single `:root` block, `color-scheme` from the palette, the forced-colours block, and no toggle (§6.6, RG-018A)."
   - In §7, `Config`'s palette is now `colours: Colours`, read while `Config` is built (FR-102).
   - In §9 step 7, mark `--palette` (1.3.0) **done**.
 
-- [ ] **Step 2: Manual check.** Add a step to `docs/a11y/manual-checks.md`, numbered after the last, with a results row and a revision row:
+- [x] **Step 2: Manual check.** Add a step to `docs/a11y/manual-checks.md`, numbered after the last, with a results row and a revision row:
 
 ```markdown
 N. **A `--palette` page** (rg-cdo, from 1.3.0). Render `three-quadrant.csv` with `--palette docs/product/palette.sample.css` to `palette.html`.
@@ -1987,19 +1987,19 @@ N. **A `--palette` page** (rg-cdo, from 1.3.0). Render `three-quadrant.csv` with
     - *Expect, in Windows high-contrast mode:* the rings, dividers, text and grounds take the system's colours, as on a built-in page.
 ```
 
-- [ ] **Step 3: Version and goldens.** Run `mise run bump minor`, or set `version = "1.3.0"` in `Cargo.toml` and run `cargo build` to update `Cargo.lock`. Then run each:
+- [x] **Step 3: Version and goldens.** Run `mise run bump minor`, or set `version = "1.3.0"` in `Cargo.toml` and run `cargo build` to update `Cargo.lock`. Then run each:
   - `UPDATE_GOLDEN=1 cargo test --test serialise page::prd_page_matches_its_golden`
   - `UPDATE_GOLDEN=1 cargo test --test serialise golden::prd_example_matches_its_light_svg_golden`
   - `UPDATE_GOLDEN=1 cargo test --test serialise golden::prd_example_matches_its_dark_svg_golden`
 
   Then run `git diff tests/golden`. Expected: each file's diff is the version line alone (`radargen 1.2` → `1.3`).
 
-- [ ] **Step 4: Full check.**
+- [x] **Step 4: Full check.**
 
 Run: `just ci 2>&1 | tail -30`
 Expected: green, except the known browser check "a long legend scrolls beside the radar" if it still fails identically on `main`.
 
-- [ ] **Step 5: Crumbs, changelog, plan.**
+- [x] **Step 5: Crumbs, changelog, plan.**
 
 ```bash
 CRUMBS=/Users/evensolberg/.cargo/bin/crumbs

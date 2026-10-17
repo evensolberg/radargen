@@ -1,22 +1,43 @@
+## [1.3.0] - 2026-10-17
+
+### 🚀 Features
+
+- *(palette)* Read a --palette file under FR-102's grammar
+- *(html)* Colours reach every format as built-in themes or one set
+- *(cli)* -p, --palette colours every format; conflicts with --theme
+
+### 🐛 Bug Fixes
+
+- *(palette)* Name nested blocks, CR-only lines and at-rule preludes
+- *(cli)* The guide's URL in --help is a delimited link
+
+### 📚 Documentation
+
+- *(prd)* A static output's legend in several columns (0.77) (#100)
+- *(prd)* A starter palette and the --palette file's grammar (0.78) (#103)
+- *(plans)* Record PR 15b, 15c, radar-grows and PR 06 as complete (#104)
+- *(plans)* PR 18 plan, --palette and its grammar (RG-018A)
+- *(plans)* RG-018A 1.1 folds in the five plan reviews
+- *(palette)* The sample is one :root set, valid as --palette input
+- *(palette)* A guide to each colour, where it is drawn, its contrast
+- Architecture, manual checks and PRD 0.79 for --palette
+- *(palette)* A quick start, real messages and a dark palette step
+- *(palette)* The sample says role, as the guide and messages do
+
+### 🚜 Refactor
+
+- *(palette)* A palette holds Hex values, so luminance is total
+- *(decode)* Bytes-to-text moves to the crate root
+- *(palette)* Simplify the parser, Colours and the test helpers
+
+### 🧪 Testing
+
+- *(browser)* The palette page's skip link is seen, at both widths
 ## [1.2.6] - 2026-10-17
 
 ### 🐛 Bug Fixes
 
-- *(html)* Plain text broken mid-word is an image named by its words
-- *(html)* The review's follow-ups to text broken mid-word
-
-### 📚 Documentation
-
-- *(prd)* D-88 names HTML text broken mid-word (0.76)
-
-### 🚜 Refactor
-
-- *(svg)* Simplify pass on naming text
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* 1.2.6; close rg-zl6
-- Merge main (1.2.5) into the rg-zl6 branch
+- *(html)* Plain text broken mid-word is an image named by its words (1.2.6) (#102)
 ## [1.2.5] - 2026-10-17
 
 ### 🐛 Bug Fixes

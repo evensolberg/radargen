@@ -695,11 +695,14 @@ try {
       await load(width, { page: paletteUrl, scheme: 'dark' });
       check(!(await evaluate(`document.querySelector('.skip').hidden`)), 'the script ran to its end and showed the skip link');
       check(!(await evaluate(`!!document.querySelector('.theme-toggle')`)), 'there is no toggle');
-      // Not the built-in dark ground: the dark preference changed nothing.
-      check(
-        (await evaluate(`getComputedStyle(document.body).backgroundColor`)) !== 'rgb(21, 24, 29)',
-        'a dark preference leaves the light palette light',
-      );
+      // The page's own --surface-1, whatever the sample holds: the dark
+      // preference changed nothing.
+      const ground = await evaluate(`(() => {
+        const hex = getComputedStyle(document.documentElement).getPropertyValue('--surface-1').trim();
+        const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+        return [getComputedStyle(document.body).backgroundColor, 'rgb(' + r + ', ' + g + ', ' + b + ')'];
+      })()`);
+      check(ground[0] === ground[1], `a dark preference leaves the palette's ground: ${ground}`);
       check((await evaluate(`getComputedStyle(document.documentElement).colorScheme`)) === 'light', "color-scheme is the palette's");
       const shown = width === WIDE ? 'wide' : 'narrow';
       const top = `document.querySelector('.arrangement.${shown} svg').getBoundingClientRect().top`;
