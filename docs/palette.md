@@ -45,7 +45,7 @@ error: --palette brand.css: --series-4 is missing; number series entries from --
 
 A missing colour has no line, since it is not in the file.
 
-A forgotten `;` runs a declaration into the next one. radargen reports it on the first declaration's line and says to add the `;`, then reads the next line as its own declaration and checks it in the same pass, so everything wrong is reported at once:
+A forgotten `;` runs a declaration into the next one. radargen reports it on the first declaration's line and says to add the `;`, then reads the next line as its own declaration and checks it in the same pass, so everything wrong is reported at once. Only a line declaring a custom property (`--name:`) counts; any other line stays part of the value:
 
 ```text
 error: --palette brand.css, line 35: --surface-1: its value runs onto the next line; add ; at its end

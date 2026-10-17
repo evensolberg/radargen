@@ -478,6 +478,27 @@ fn a_large_file_is_read_in_linear_time() {
     );
 }
 
+/// Plan RG-018A R3, rg-p9a: a forgotten `;` on every line is linear too.
+/// Each line ends its value at the next, so reading resumes there, and the
+/// next `;` must not be searched for again from each line.
+#[test]
+fn many_forgotten_semicolons_are_read_in_linear_time() {
+    let lines = 1 << 17;
+    let text = [":root {", &"--a:x\n".repeat(lines), "}"].concat();
+    let start = std::time::Instant::now();
+    let found = errors(&text);
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(5),
+        "{:?}",
+        start.elapsed()
+    );
+    let missing = found
+        .iter()
+        .filter(|e| matches!(e, PaletteError::MissingSemicolon { .. }))
+        .count();
+    assert_eq!(missing, lines - 1, "every line but the last runs on");
+}
+
 /// `Lines` agrees with `decode::line_at`, the reference, at every
 /// offset that is not itself a line break.
 #[test]
@@ -544,6 +565,21 @@ fn a_nested_block_is_another_rule() {
 /// FR-102: a lone CR ends a line in a quote too.
 #[test]
 fn an_excerpt_stops_at_a_lone_cr() {
+    let text = file("  --series-1: rgb(0,\r    0, 0);\n");
+    assert_eq!(
+        errors(&text),
+        [PaletteError::NotHex {
+            line: 10,
+            name: "--series-1".into(),
+            value: "rgb(0,…".into()
+        }]
+    );
+}
+
+/// FR-102, rg-p9a: a lone CR ends a line before a forgotten `;`'s next
+/// declaration too.
+#[test]
+fn a_lone_cr_ends_a_value_before_a_declaration() {
     let text = file("  --series-1: #000001\r  --series-2: #000002;\n");
     assert_eq!(
         errors(&text),
@@ -596,10 +632,10 @@ fn a_value_on_two_lines_hints_at_a_missing_semicolon() {
     assert_eq!(one_line, "--surface-1: 'red' is not a #RRGGBB colour");
 }
 
-/// rg-8xm: the role a forgotten `;` swallowed is in the file, so it is not
+/// rg-8xm, rg-p9a: the role after a forgotten `;` is read as written, so it is not
 /// reported missing as well.
 #[test]
-fn a_role_swallowed_by_a_forgotten_semicolon_is_not_missing() {
+fn a_role_after_a_forgotten_semicolon_is_not_missing() {
     let text = file("  --series-1: #000001;\n").replacen("#FFFFFF;", "#FFFFFF", 1);
     assert_eq!(
         errors(&text),
@@ -613,7 +649,7 @@ fn a_role_swallowed_by_a_forgotten_semicolon_is_not_missing() {
 /// rg-8xm, rg-p9a: a declaration after a forgotten `;` is read as written,
 /// so `--focus-ring` there is unknown and `--focus` is missing.
 #[test]
-fn a_swallowed_name_matches_a_role_exactly() {
+fn a_declaration_after_a_forgotten_semicolon_is_read_as_written() {
     let text = file("  --series-1: #000001;\n")
         .replacen("--marker-hollow: #FFFFFF;", "--marker-hollow: #FFFFFF", 1)
         .replacen("--focus", "--focus-ring", 1);
@@ -635,11 +671,11 @@ fn a_swallowed_name_matches_a_role_exactly() {
     );
 }
 
-/// rg-8xm: a series entry a forgotten `;` swallowed is no gap, and the file
+/// rg-8xm, rg-p9a: a series entry after a forgotten `;` is no gap, and the file
 /// is still refused.
 #[test]
-fn a_series_entry_swallowed_by_a_forgotten_semicolon_is_no_gap() {
-    for end in ["\n", "\r\n"] {
+fn a_series_entry_after_a_forgotten_semicolon_is_no_gap() {
+    for end in ["\n", "\r\n", "\r"] {
         let text = file(&format!(
             "  --series-1: #000001{end}  --series-2: #000002;{end}  --series-3: #000003;{end}"
         ));
@@ -654,10 +690,10 @@ fn a_series_entry_swallowed_by_a_forgotten_semicolon_is_no_gap() {
     }
 }
 
-/// rg-8xm: a role swallowed by a declaration that is refused for its name,
+/// rg-8xm, rg-p9a: a role after a declaration that is refused for its name,
 /// unknown or repeated, is in the file too, so it is not reported missing.
 #[test]
-fn a_role_swallowed_by_any_declaration_is_not_missing() {
+fn a_role_after_any_forgotten_semicolon_is_not_missing() {
     let unknown = file("  --series-1: #000001;\n").replacen(
         "  --surface-1:",
         "  --bogus: #FFFFFF\n  --surface-1:",
@@ -700,7 +736,7 @@ fn a_role_swallowed_by_any_declaration_is_not_missing() {
 /// rg-8xm, rg-p9a: an empty value with a forgotten `;` is both errors, and
 /// the next declaration is read as written.
 #[test]
-fn an_empty_value_swallows_the_next_declaration() {
+fn an_empty_value_before_a_declaration_is_both_errors() {
     let text =
         file("  --series-1: #000001;\n").replacen("--surface-1: #FFFFFF;", "--surface-1:", 1);
     assert_eq!(
@@ -771,11 +807,11 @@ fn a_no_break_space_before_a_value_is_shown_escaped() {
     );
 }
 
-/// rg-4id: a name a forgotten `;` swallowed is declared on its own line, so
+/// rg-4id, rg-p9a: a name after a forgotten `;` is declared on its own line, so
 /// it repeats an earlier declaration of that name, and the fix is reported
 /// in one pass (FR-102, NFR-16).
 #[test]
-fn a_swallowed_name_repeats_an_earlier_declaration() {
+fn a_name_after_a_forgotten_semicolon_repeats_an_earlier_one() {
     let text = file("  --series-1: #000001;\n  --series-2: #000002\n  --series-1: #000003;\n");
     assert_eq!(
         errors(&text),
@@ -793,9 +829,9 @@ fn a_swallowed_name_repeats_an_earlier_declaration() {
     );
 }
 
-/// rg-4id: and a later declaration repeats the swallowed one.
+/// rg-4id: and a later declaration repeats the one after a forgotten `;`.
 #[test]
-fn a_later_declaration_repeats_a_swallowed_name() {
+fn a_later_declaration_repeats_one_after_a_forgotten_semicolon() {
     for end in ["\n", "\r\n", "\r"] {
         let text = file(&format!(
             "  --series-1: #000001{end}  --series-2: #000002;{end}  --series-2: #000003;{end}"
@@ -821,7 +857,7 @@ fn a_later_declaration_repeats_a_swallowed_name() {
 /// rg-4id: an empty value's successor is on the next line, and is located
 /// there.
 #[test]
-fn a_name_an_empty_value_swallowed_is_located_on_its_own_line() {
+fn a_declaration_after_an_empty_value_is_located_on_its_own_line() {
     let text = file("  --series-1:\n  --series-2: #000002;\n  --series-2: #000003;\n");
     assert_eq!(
         errors(&text),
@@ -869,4 +905,63 @@ fn lines_starting_in_a_span() {
     // A line starting at the span's first byte or its end is left out.
     assert_eq!(starts(2..7), [(3, 5)]);
     assert_eq!(starts(4..4), []);
+}
+
+/// rg-p9a: each forgotten `;` in a row is its own error, and the last
+/// declaration needs no `;` before the `}`.
+#[test]
+fn forgotten_semicolons_in_a_row_are_each_reported() {
+    for last in ["#000003;\n", "#000003\n"] {
+        let text = file(&format!(
+            "  --series-1: #000001\n  --series-2: #000002\n  --series-3: {last}"
+        ));
+        assert_eq!(
+            errors(&text),
+            [
+                PaletteError::MissingSemicolon {
+                    line: 10,
+                    name: "--series-1".into()
+                },
+                PaletteError::MissingSemicolon {
+                    line: 11,
+                    name: "--series-2".into()
+                },
+            ],
+            "{last:?}"
+        );
+    }
+}
+
+/// rg-p9a: a line that declares nothing stays in the value, which ends
+/// only at the next declaration, so it is quoted as the bad colour.
+#[test]
+fn a_line_that_declares_nothing_stays_in_the_value() {
+    assert_eq!(
+        errors(&file(
+            "  --series-1: #000001\n  red\n  --series-2: #000002;\n"
+        )),
+        [
+            PaletteError::MissingSemicolon {
+                line: 10,
+                name: "--series-1".into()
+            },
+            PaletteError::NotHex {
+                line: 10,
+                name: "--series-1".into(),
+                value: "#000001…".into()
+            },
+        ]
+    );
+}
+
+/// The rule's body starts straight after `{`: a palette written on one
+/// line is read whole, its first declaration included.
+#[test]
+fn a_palette_on_one_line_is_read_whole() {
+    let light = Palette::built_in(Theme::Light);
+    let mut body = String::new();
+    for role in Neutral::ALL {
+        write!(body, "{role}:{};", light.value(Role::Neutral(role))).expect("writes");
+    }
+    assert!(parse(&format!(":root{{{body}--series-1:#000001}}")).is_ok());
 }

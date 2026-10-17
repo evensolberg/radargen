@@ -23,7 +23,6 @@ pub const MAX_BYTES: usize = 1 << 20;
 /// the cap from one beyond it.
 const READ_CAP: u64 = (1 << 20) + 1;
 
-
 /// The properties a palette may declare, as an unknown-property message
 /// lists them.
 const PROPERTIES: &str = "--series-1, --series-2 and on, --surface-1, --surface-2, --text-primary, --text-muted, --stroke-ring, --stroke-divider, --marker-hollow and --focus";
@@ -329,8 +328,18 @@ fn declarations<'a>(
 ) -> Vec<Declaration<'a>> {
     let mut out = Vec::new();
     let mut offset = 0;
+    // Where the current `;` or `{` is, body-relative. A forgotten `;`
+    // resumes reading before it (rg-p9a), so it is kept rather than
+    // searched for again from each line: that would be quadratic in a file
+    // of such lines (plan RG-018A R3).
+    let mut stop = None;
     while let Some(rest) = body.get(offset..).filter(|rest| !rest.is_empty()) {
-        let end = rest.find([';', '{']).unwrap_or(rest.len());
+        let at_stop = match stop {
+            Some(at) if at >= offset => at,
+            _ => offset + rest.find([';', '{']).unwrap_or(rest.len()),
+        };
+        stop = Some(at_stop);
+        let end = at_stop - offset;
         let (part, from_end) = rest.split_at(end);
         let lead = part.len() - part.trim_start_matches(css_space).len();
         let at = start + offset + lead;
