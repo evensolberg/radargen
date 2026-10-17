@@ -68,16 +68,26 @@ A `.svg` output draws the same wide arrangement as the PNG, as vectors: sharp at
 - **The background.** The theme's background is part of the drawing. Deleting it in an editor puts dark-theme text on whatever lies behind.
 - **Pasting inline.** Two exports pasted inline into one web page share their glyph names and draw each other's text. Place each as an image (`<img src>`) instead.
 
+## Your own colours
+
+```sh
+radargen radar.csv -o radar.png --palette brand.css
+```
+
+`--palette` (or `-p`) draws the radar in your colours, in every format. Copy [`docs/product/palette.sample.css`](docs/product/palette.sample.css), change the colours, and pass it instead of `--theme`. The [palette guide](docs/palette.md) shows where each colour is drawn and the contrast each needs; radargen checks that the file is complete, not that its colours are legible. An HTML page drawn with a palette has no theme button.
+
 ## Status
 
 The specification is in [`docs/product/radargen-prd.md`](docs/product/radargen-prd.md).
-1.2 writes HTML, PNG and SVG.
+1.3 writes HTML, PNG and SVG, in the built-in themes or your own palette.
 
 ## Documentation
 
 - [`docs/product/radargen-prd.md`](docs/product/radargen-prd.md) — requirements, decisions, and
   the reasoning behind both
 - [`docs/product/mockup.html`](docs/product/mockup.html) — layout prototype
+- [`docs/palette.md`](docs/palette.md) — the palette guide: each colour, where
+  it is drawn, and the contrast it needs
 - [`docs/product/palette-proof.html`](docs/product/palette-proof.html) — the
   built-in palette, with contrast and colour-vision verification
 - [`docs/spikes/text-metrics.md`](docs/spikes/text-metrics.md) — why text

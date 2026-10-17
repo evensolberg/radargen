@@ -5,6 +5,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::columns::ColumnKind;
+use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::{RingSource, RingsError};
 use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX};
 use crate::text::FontError;
@@ -454,6 +455,14 @@ fn io_reason(error: &std::io::Error) -> String {
     })
 }
 
+/// A palette problem as stderr shows it: located when it has a line.
+fn palette_problem(path: &str, error: &PaletteError) -> String {
+    error.line().map_or_else(
+        || format!("--palette {path}: {error}"),
+        |line| format!("--palette {path}, line {line}: {error}"),
+    )
+}
+
 /// A column as NFR-10 names it: `column 6 (F)`.
 ///
 /// The 1-based number and the spreadsheet letters, from the 0-based header
@@ -784,6 +793,42 @@ pub enum Fatal {
     /// FR-63, NFR-16 tier one.
     #[error("--rings: {0}")]
     Rings(#[from] RingsError),
+    /// FR-102, FR-86, FR-87: one problem in the `--palette` file; a file
+    /// reports every one (NFR-16 tier one).
+    #[error("{}", palette_problem(path, error))]
+    Palette {
+        /// The file as the author named it.
+        path: String,
+        /// What is wrong, and where.
+        error: PaletteError,
+    },
+    /// NFR-15: the `--palette` file does not exist or cannot be read.
+    #[error("--palette {path}: cannot be read: {}", io_reason(source))]
+    PaletteUnreadable {
+        /// The file as the author named it.
+        path: String,
+        /// The underlying I/O failure.
+        #[source]
+        source: std::io::Error,
+    },
+    /// NFR-15, FR-102: the `--palette` file is not UTF-8, or holds a NUL.
+    #[error("--palette {path}, line {line}: not UTF-8 text; re-save the file as UTF-8")]
+    PaletteNotUtf8 {
+        /// The file as the author named it.
+        path: String,
+        /// The physical line holding the first bad byte.
+        line: usize,
+    },
+    /// NFR-15, plan RG-018A R4: the `--palette` file passes the cap, so it
+    /// is not a palette, or never ends (`/dev/zero`).
+    #[error(
+        "--palette {path}: larger than {} MiB; a palette is a few hundred bytes, so check the path",
+        MAX_BYTES >> 20
+    )]
+    PaletteTooLarge {
+        /// The file as the author named it.
+        path: String,
+    },
     /// FR-62: `-o`'s directory does not exist; the tool does not create it.
     #[error("-o {path}: the directory {dir} does not exist")]
     MissingDirectory {

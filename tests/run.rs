@@ -4,6 +4,8 @@
 
 #[path = "common/html.rs"]
 mod html;
+#[path = "common/palette.rs"]
+mod palette;
 
 use std::fmt::Write as _;
 use std::fs;
@@ -11,7 +13,10 @@ use std::path::Path;
 use std::process::Command;
 
 use radargen::layout::geometry::Geometry;
+use radargen::palette::{Palette, Role, Theme};
 use radargen::style::MAX_GROWTH;
+
+use palette::{SAMPLE, quadrants, with_series};
 use resvg::tiny_skia::Pixmap;
 use tempfile::TempDir;
 
@@ -212,7 +217,13 @@ struct Fault {
 const fn nothing(_: &Path) {}
 
 /// Every failure the matrix runs: tiers one and two, and the write.
-const FAULTS: [Fault; 5] = [
+const FAULTS: [Fault; 6] = [
+    Fault {
+        name: "a --palette that will not parse",
+        args: &["radar.csv", "-o", "radar.html", "-p", "brand.css"],
+        prepare: |dir| fs::write(dir.join("brand.css"), ":root {}\n").expect("seeds"),
+        undo: |dir| fs::remove_file(dir.join("brand.css")).expect("removes"),
+    },
     Fault {
         name: "a malformed --rings",
         args: &["radar.csv", "-o", "radar.html", "--rings", ","],
@@ -1120,4 +1131,228 @@ fn the_cli_writes_the_golden_exports() {
             "{golden}: the binary's export is the golden"
         );
     }
+}
+
+// ---- --palette (FR-59, FR-86, FR-87, FR-102, SC-18, SC-21)
+
+const TWO_BLOCK: &str = include_str!("fixtures/palette-two-block.css");
+
+/// FR-81: the sample draws exactly what the built-in light theme draws,
+/// and warns of nothing of its own.
+#[test]
+fn the_sample_palette_draws_the_light_theme() {
+    let dir = seeded(&[("radar.csv", PRD), ("brand.css", SAMPLE)]);
+    for ext in ["png", "svg"] {
+        let built = format!("built.{ext}");
+        let file = format!("file.{ext}");
+        let plain = run_in(dir.path(), &["radar.csv", "-o", &built]);
+        assert!(plain.ok(), "{}", plain.stderr);
+        let ran = run_in(dir.path(), &["radar.csv", "-o", &file, "-p", "brand.css"]);
+        assert!(ran.ok(), "{}", ran.stderr);
+        assert_eq!(ran.stderr, plain.stderr, "the PRD example's FR-17 alone");
+        assert!(
+            fs::read(dir.path().join(&built)).expect("built")
+                == fs::read(dir.path().join(&file)).expect("file"),
+            "{ext}: byte-identical"
+        );
+    }
+}
+
+/// Review Focus 4: case is not part of a value (FR-102); nor is a Windows
+/// editor's CRLF and BOM.
+#[test]
+fn palette_case_and_line_ends_do_not_change_the_bytes() {
+    let dir = seeded(&[
+        ("radar.csv", PRD),
+        ("upper.css", SAMPLE),
+        ("lower.css", &SAMPLE.to_lowercase()),
+    ]);
+    let windows = [
+        b"\xEF\xBB\xBF".as_slice(),
+        SAMPLE.replace('\n', "\r\n").as_bytes(),
+    ]
+    .concat();
+    fs::write(dir.path().join("windows.css"), windows).expect("seeds");
+    for css in ["upper.css", "lower.css", "windows.css"] {
+        let out = format!("{css}.svg");
+        let ran = run_in(dir.path(), &["radar.csv", "-o", &out, "-p", css]);
+        assert!(ran.ok(), "{css}: {}", ran.stderr);
+    }
+    let upper = read(dir.path(), "upper.css.svg");
+    assert_eq!(upper, read(dir.path(), "lower.css.svg"));
+    assert_eq!(upper, read(dir.path(), "windows.css.svg"));
+}
+
+/// SC-21: five entries cycle at the sixth quadrant, where the built-in
+/// eight are never drawn; twelve are honoured, where the built-in eight
+/// would repeat four.
+#[test]
+fn the_series_count_is_the_files() {
+    let twelve: Vec<String> = (1..=12).map(|i| format!("#1{i:02X}0A0")).collect();
+    let twelve: Vec<&str> = twelve.iter().map(String::as_str).collect();
+    for (count, quads) in [(5, 6), (12, 12)] {
+        let series = twelve.get(..count).expect("enough");
+        let dir = seeded(&[
+            ("radar.csv", &quadrants(quads)),
+            ("brand.css", &with_series(series)),
+        ]);
+        let ran = run_in(
+            dir.path(),
+            &["radar.csv", "-o", "radar.svg", "-p", "brand.css"],
+        );
+        assert!(ran.ok(), "{}", ran.stderr);
+        let svg = read(dir.path(), "radar.svg");
+        for value in series {
+            assert!(svg.contains(value), "{count}: {value} is drawn");
+        }
+        let built_in = Palette::built_in(Theme::Light);
+        for i in 0..built_in.series_len() {
+            let value = built_in.value(Role::Series(i));
+            assert!(!svg.contains(value), "{count}: built-in {value}");
+        }
+        if count == 5 {
+            // Quadrant 6 takes --series-1: one item per quadrant, so the
+            // first colour is drawn twice as often as the second.
+            let drawn = |value: &str| svg.matches(value).count();
+            let (first, second) = (drawn("#1010A0"), drawn("#1020A0"));
+            assert!(second > 0 && first == 2 * second, "{first} vs {second}");
+        }
+    }
+}
+
+/// SC-21, FR-102: every problem in one run, each located and sorted by
+/// line, a rejected rule's declarations counting for nothing; nothing
+/// written (SC-18).
+#[test]
+fn a_bad_palette_reports_everything_and_writes_nothing() {
+    let broken = SAMPLE
+        .replace("--surface-2: #F4F5F7;", "")
+        .replace("--series-3: #00857A;", "--series-2: #000000;")
+        .replace(
+            "--focus: #0B5FA5;",
+            "--focus: rgb(0 114 178);\n  --surface1: #FFFFFF;",
+        )
+        + ":root[data-theme=\"dark\"] {\n  --surface-2: #1E222A;\n}\n";
+    let dir = seeded(&[
+        ("radar.csv", PRD),
+        ("brand.css", &broken),
+        ("radar.html", "old"),
+    ]);
+    let before = snapshot(dir.path());
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.html", "-p", "brand.css"],
+    );
+    assert_eq!(ran.code, Some(1));
+    assert_starts(
+        &ran,
+        &[
+            "error: --palette brand.css, line 28: --series-2 repeats line 27; keep one",
+            "error: --palette brand.css, line 42: --focus: 'rgb(0 114 178)' is not a #RRGGBB colour",
+            "error: --palette brand.css, line 43: --surface1 is not a palette property",
+            "error: --palette brand.css, line 45: ':root[data-theme=\"dark\"]' is not allowed; a palette is one :root rule and nothing else",
+            "error: --palette brand.css: --surface-2 is missing",
+            "error: --palette brand.css: --series-3 is missing",
+        ],
+    );
+    assert_eq!(snapshot(dir.path()), before);
+}
+
+#[test]
+fn the_old_two_block_sample_is_refused_at_its_dark_rule() {
+    let dir = seeded(&[("radar.csv", PRD), ("old.css", TWO_BLOCK)]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.png", "-p", "old.css"],
+    );
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: --palette old.css, line 59: ':root[data-theme=\"dark\"]' is not allowed; a palette is one :root rule and nothing else"
+        ]
+    );
+}
+
+/// Review Focus 3.
+#[test]
+fn an_unreadable_palette_names_its_flag() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    fs::create_dir(dir.path().join("folder.css")).expect("creates");
+    for css in ["missing.css", "folder.css"] {
+        let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.png", "-p", css]);
+        assert_eq!(ran.code, Some(1), "{css}");
+        assert_starts(
+            &ran,
+            &[&format!("error: --palette {css}: cannot be read: ")],
+        );
+        assert!(!dir.path().join("radar.png").exists(), "{css}");
+    }
+}
+
+/// FR-102: a NUL is refused before the grammar is read, naming its line.
+#[test]
+fn a_palette_that_is_not_utf8_says_how_to_fix_it() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    for (bytes, line) in [
+        (b":root {\n  --focus: #\xFF;\n}\n".as_slice(), 2),
+        (
+            b"html {}\n:root {\n  --focus: #00\x0000;\n}\n".as_slice(),
+            3,
+        ),
+    ] {
+        fs::write(dir.path().join("brand.css"), bytes).expect("seeds");
+        let ran = run_in(
+            dir.path(),
+            &["radar.csv", "-o", "radar.png", "-p", "brand.css"],
+        );
+        assert_eq!(
+            ran.lines(),
+            [format!(
+                "error: --palette brand.css, line {line}: not UTF-8 text; re-save the file as UTF-8"
+            )]
+        );
+    }
+}
+
+/// Plan RG-018A R4.
+#[test]
+fn a_palette_past_the_cap_is_refused() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let big = vec![b' '; radargen::palette::file::MAX_BYTES + 1];
+    fs::write(dir.path().join("big.css"), big).expect("seeds");
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.png", "-p", "big.css"],
+    );
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: --palette big.css: larger than 1 MiB; a palette is a few hundred bytes, so check the path"
+        ]
+    );
+}
+
+#[test]
+fn palette_with_theme_is_refused_by_the_binary() {
+    let dir = seeded(&[("radar.csv", PRD), ("brand.css", SAMPLE)]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "r.png", "-p", "brand.css", "-T", "dark"],
+    );
+    assert_eq!(ran.code, Some(2), "clap's usage status");
+    assert!(ran.stderr.contains("cannot be used with"), "{}", ran.stderr);
+}
+
+/// §6.6 end to end: an HTML page drawn with a palette has no toggle.
+#[test]
+fn a_palette_page_from_the_binary_has_no_toggle() {
+    let dir = seeded(&[("radar.csv", PRD), ("brand.css", SAMPLE)]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.html", "-p", "brand.css"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    let page = read(dir.path(), "radar.html");
+    assert!(!page.contains("class=\"theme-toggle\""));
+    assert!(!html::style(&page).contains("prefers-color-scheme"));
 }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="generator" content="radargen 1.2">
+<meta name="generator" content="radargen 1.3">
 <title>Technology Radar</title>
 <style>
 @font-face{font-family:"Inter";font-style:normal;font-weight:400;font-display:block;src:url(data:font/woff2;base64,…) format("woff2")}
@@ -1004,21 +1004,26 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
   });
 
   // FR-56: the viewer's preference until a press chooses; the label says
-  // what the next press does.
+  // what the next press does. A page drawn with --palette has one set of
+  // colours and no toggle, so none of this runs there.
   const toggle = document.querySelector('.' + N.toggle);
-  const prefersDark = matchMedia('(prefers-color-scheme: dark)');
-  const dark = () => {
-    const chosen = root.getAttribute(N.theme);
-    return chosen ? chosen === 'dark' : prefersDark.matches;
-  };
-  const label = () => {
-    toggle.textContent = dark() ? N.toLight : N.toDark;
-  };
-  toggle.addEventListener('click', () => {
-    root.setAttribute(N.theme, dark() ? 'light' : 'dark');
+  if (toggle) {
+    const prefersDark = matchMedia('(prefers-color-scheme: dark)');
+    const dark = () => {
+      const chosen = root.getAttribute(N.theme);
+      return chosen ? chosen === 'dark' : prefersDark.matches;
+    };
+    const label = () => {
+      toggle.textContent = dark() ? N.toLight : N.toDark;
+    };
+    toggle.addEventListener('click', () => {
+      root.setAttribute(N.theme, dark() ? 'light' : 'dark');
+      label();
+    });
+    prefersDark.addEventListener('change', label);
     label();
-  });
-  prefersDark.addEventListener('change', label);
+    toggle.hidden = false;
+  }
 
   // FR-98: past the markers to the legend of the arrangement shown.
   const skip = document.querySelector('.' + N.skip);
@@ -1034,10 +1039,8 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
     el.setAttribute(N.controls, N.panel);
   }
   root.classList.add(N.js);
-  toggle.hidden = false;
   // With nothing plotted there is no legend to skip to.
   skip.hidden = !document.querySelector('[' + N.legend + ']');
-  label();
 })();
 </script>
 </body>

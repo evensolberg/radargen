@@ -1,68 +1,43 @@
-/* radargen — built-in palette, and the starting point for --palette (§6.6, FR-67).
+/* radargen palette: the built-in light colours, as one set.
  *
- * A --palette file is EXACTLY ONE set of colours, not a light/dark pair — which is
- * why --palette is mutually exclusive with --theme (FR-59), and why supplying it on
- * HTML output removes the theme toggle and prefers-color-scheme handling from that
- * build. To use this file as a custom palette, keep :root and delete the
- * [data-theme="dark"] block (or keep that one instead, for a dark-only palette).
+ * Give this file to --palette to draw a radar in these colours, in every
+ * format. It is exactly one set of colours, which is why --palette cannot
+ * be combined with --theme, and why an HTML page drawn with it has no
+ * theme button.
  *
- * Contrast is the author's responsibility for a custom palette: NFR-1's WCAG AA
- * claim is scoped to the built-in themes and does not travel to colours the tool
- * did not choose. The values below are verified — every series entry clears 3:1
- * (WCAG 1.4.11) against both surfaces in both themes, and text clears 4.5:1.
+ * Every value is a #RRGGBB colour; anything else is an error. Each of
+ * the eight roles below the quadrant colours gives the built-in dark
+ * theme's value in its comment: swap them all in for a dark palette.
  *
- * Every value must be a #RRGGBB hex colour (FR-86); anything else is an error.
- * Numbers on solid markers and legend badges are not a role: the tool picks
- * #FFFFFF or #16191F per series entry, whichever contrasts more (FR-82).
+ * Once you change a colour, its contrast is yours to check. Text needs
+ * 4.5:1 against both surfaces, and --text-primary also against
+ * --marker-hollow. Quadrant colours, strokes and --focus need 3:1 against
+ * both surfaces. Each quadrant colour also needs 4.5:1 against white or
+ * #16191F, the two colours its marker numbers are drawn in. The palette
+ * guide shows where each colour is drawn:
+ * https://github.com/evensolberg/radargen/blob/main/docs/palette.md
  */
 
 :root {
-  /* Quadrant series — FR-67 assigns by sorted quadrant index (FR-10), cycling from
-   * the start when quadrants outnumber entries. Order is usage frequency: a
-   * three-quadrant radar uses only series-1..3, so the most separable colours come
-   * first and every prefix is itself a good palette.
-   *
-   * Separability degrades along the list, and this is inherent rather than a poor
-   * choice of hues: one colour set clearing 3:1 on both themes is confined to
-   * relative luminance 0.12–0.30, and dichromats have roughly one usable hue axis.
-   * Measured minimum pairwise ΔE — normal vision / colour-vision deficiency:
-   *   series-1..3   49.2 / 12.9
-   *   series-1..5   46.6 / 11.8
-   *   series-1..7   42.1 /  8.2
-   *   series-1..8   32.1 /  8.2
-   * FR-39 is what makes the tail tolerable: quadrant identity never depends on
-   * colour, so angular position and the sector label always disambiguate.
-   */
-  --series-1: #0072B2;  /* blue       */
-  --series-2: #C25400;  /* vermillion */
-  --series-3: #00857A;  /* teal       */
-  --series-4: #787832;  /* olive      */
-  --series-5: #B5476B;  /* rose       */
-  --series-6: #2F9626;  /* green      */
-  --series-7: #C431B8;  /* magenta    */
-  --series-8: #9D5A43;  /* terracotta */
+  /* Quadrant colours, in the quadrants' sorted order, starting again from
+   * --series-1 when there are more quadrants than entries. Add or remove
+   * entries freely, numbered from --series-1 with no gaps. The first
+   * entries are the most distinct, so a short list stays readable. */
+  --series-1: #0072B2; /* blue */
+  --series-2: #C25400; /* vermillion */
+  --series-3: #00857A; /* teal */
+  --series-4: #787832; /* olive */
+  --series-5: #B5476B; /* rose */
+  --series-6: #2F9626; /* green */
+  --series-7: #C431B8; /* magenta */
+  --series-8: #9D5A43; /* terracotta */
 
-  /* Light theme */
-  --surface-1: #FFFFFF;       /* radar ground                                  */
-  --surface-2: #F4F5F7;       /* legend, detail panel, table                   */
-  --text-primary: #16191F;
-  --text-muted: #585F6B;
-  --stroke-ring: #7E858F;     /* ring circles — informational, so 3:1 applies  */
-  --stroke-divider: #848B96;  /* quadrant dividers                             */
-  --marker-hollow: #FFFFFF;   /* FR-20 conditional fill = the surface behind it */
-  --focus: #0B5FA5;           /* :focus-visible indicator (FR-48)              */
-}
-
-/* Dark theme. Series values are deliberately unchanged — only the neutrals move,
- * which is what lets one series set serve both themes and keeps this file valid
- * as a single-set --palette. */
-:root[data-theme="dark"] {
-  --surface-1: #15181D;
-  --surface-2: #1E222A;
-  --text-primary: #E8EAEE;
-  --text-muted: #A6AEBB;
-  --stroke-ring: #6C7480;
-  --stroke-divider: #666E7A;
-  --marker-hollow: #15181D;
-  --focus: #7FB8E6;
+  --surface-1: #FFFFFF;      /* dark: #15181D, the page and the radar's ground */
+  --surface-2: #F4F5F7;      /* dark: #1E222A, legend, detail panel, table and buttons */
+  --text-primary: #16191F;   /* dark: #E8EAEE, names, headings, the number in a hollow marker */
+  --text-muted: #585F6B;     /* dark: #A6AEBB, ring labels, subtitle, key and details */
+  --stroke-ring: #7E858F;    /* dark: #6C7480, ring circles */
+  --stroke-divider: #848B96; /* dark: #666E7A, quadrant dividers, table rules and borders */
+  --marker-hollow: #FFFFFF;  /* dark: #15181D, inside a hollow marker or badge */
+  --focus: #0B5FA5;          /* dark: #7FB8E6, the keyboard focus ring */
 }

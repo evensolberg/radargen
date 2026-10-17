@@ -166,7 +166,8 @@ interaction-only:
     out="$(mktemp -d)"
     ./target/release/radargen tests/fixtures/interaction.csv -o "$out/interaction.html" 2>/dev/null
     ./target/release/radargen tests/fixtures/long-legend.csv -o "$out/long-legend.html" 2>/dev/null
-    node scripts/interaction.mjs "$out/interaction.html" "$out/long-legend.html"
+    ./target/release/radargen tests/fixtures/interaction.csv -o "$out/palette.html" --palette docs/product/palette.sample.css 2>/dev/null
+    node scripts/interaction.mjs "$out/interaction.html" "$out/long-legend.html" "$out/palette.html"
 
 # WCAG 2.1 AA's automatable criteria in headless Chromium (RG-015C). D-71's
 # fixture is wider than 480 units, so its narrow width is read from FR-95's

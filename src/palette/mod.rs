@@ -5,7 +5,12 @@
 //! literal for SVG and PNG, which are fixed snapshots and whose consumers do
 //! not resolve custom properties.
 
+use std::borrow::Cow;
 use std::fmt;
+
+pub mod file;
+mod hex;
+pub use hex::Hex;
 
 /// FR-82's eight neutral roles, in the PRD's order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,6 +101,52 @@ pub enum Theme {
     Dark,
 }
 
+/// The colours a run draws with (FR-56, FR-59).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Colours {
+    /// The built-in palettes. `--theme` picks the one a PNG or SVG is bound
+    /// to; an HTML page carries both, and a toggle (FR-56).
+    BuiltIn(Theme),
+    /// A `--palette` file: one set for every format, and no toggle (§6.6).
+    /// Boxed: a palette is far larger than a theme.
+    File(Box<Palette>),
+}
+
+impl From<Palette> for Colours {
+    fn from(palette: Palette) -> Self {
+        Self::File(Box::new(palette))
+    }
+}
+
+impl Colours {
+    /// The palette a PNG or SVG is bound to.
+    #[must_use]
+    pub fn snapshot(&self) -> Cow<'_, Palette> {
+        match self {
+            Self::BuiltIn(theme) => Cow::Owned(Palette::built_in(*theme)),
+            Self::File(palette) => Cow::Borrowed(palette),
+        }
+    }
+
+    /// The palette an HTML page names its roles and cycles its series by:
+    /// the built-in light one, whose series both themes share, or the
+    /// file's, with its own length (FR-67, FR-87).
+    #[must_use]
+    pub fn interactive(&self) -> Cow<'_, Palette> {
+        match self {
+            Self::BuiltIn(_) => Cow::Owned(Palette::built_in(Theme::Light)),
+            Self::File(palette) => Cow::Borrowed(palette),
+        }
+    }
+
+    /// Whether an HTML page offers the theme toggle: only with both built-in
+    /// themes to switch between (FR-56, §6.6).
+    #[must_use]
+    pub const fn has_toggle(&self) -> bool {
+        matches!(self, Self::BuiltIn(_))
+    }
+}
+
 /// FR-81: shared by both built-in themes; most-separable first, so every prefix
 /// is itself a good palette.
 const BUILT_IN_SERIES: [&str; 8] = [
@@ -108,18 +159,17 @@ const LIGHT: [&str; 8] = [
 const DARK: [&str; 8] = [
     "#15181D", "#1E222A", "#E8EAEE", "#A6AEBB", "#6C7480", "#666E7A", "#15181D", "#7FB8E6",
 ];
-/// FR-82's two marker-number inks (D-54).
+/// FR-82's two marker-number inks (D-54), as text and as channels.
 const INK_LIGHT: &str = "#FFFFFF";
 const INK_DARK: &str = "#16191F";
+const INK_LIGHT_RGB: [u8; 3] = [0xFF, 0xFF, 0xFF];
+const INK_DARK_RGB: [u8; 3] = [0x16, 0x19, 0x1F];
 
-/// WCAG 2.x relative luminance of a `#RRGGBB` value.
-// qual:allow(complexity, error_handling) reason: "palette values are #RRGGBB; PR 18 rejects anything else"
-fn luminance(hex: &str) -> f64 {
-    let channel = |i: usize| {
-        let v = hex
-            .get(i..i + 2)
-            .and_then(|d| u8::from_str_radix(d, 16).ok())
-            .expect("palette values are #RRGGBB; PR 18 rejects anything else");
+/// WCAG 2.x relative luminance of an sRGB colour. Total: every `[u8; 3]` is
+/// a colour, so nothing here can fail.
+// qual:allow(complexity, magic_numbers) reason: "WCAG 2.x's published sRGB and luminance constants, named by the formula they belong to"
+fn luminance(rgb: [u8; 3]) -> f64 {
+    let channel = |v: u8| {
         let c = f64::from(v) / 255.0;
         if c <= 0.040_45 {
             c / 12.92
@@ -127,51 +177,75 @@ fn luminance(hex: &str) -> f64 {
             ((c + 0.055) / 1.055).powf(2.4)
         }
     };
+    let [r, g, b] = rgb;
     #[expect(
         clippy::suboptimal_flops,
         reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
     )]
-    let y = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+    let y = 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
     y
+}
+
+/// WCAG contrast ratio of two luminances, from 1 to 21.
+// qual:allow(complexity, magic_numbers) reason: "WCAG 2.x's flare term"
+const fn ratio(a: f64, b: f64) -> f64 {
+    (a.max(b) + 0.05) / (a.min(b) + 0.05)
 }
 
 /// Whichever ink contrasts more with `fill`; white on an exact tie (D-54). The
 /// rule is "more contrast", not "white unless it fails 4.5:1", which differ on
 /// a mid grey where both inks fail.
-fn ink_for(fill: &str) -> &'static str {
-    if contrast(fill, INK_LIGHT) >= contrast(fill, INK_DARK) {
+fn ink_for(fill: &Hex) -> &'static str {
+    let y = luminance(fill.rgb());
+    if ratio(y, luminance(INK_LIGHT_RGB)) >= ratio(y, luminance(INK_DARK_RGB)) {
         INK_LIGHT
     } else {
         INK_DARK
     }
 }
 
-/// WCAG contrast ratio, from 1 to 21.
-fn contrast(a: &str, b: &str) -> f64 {
-    let (la, lb) = (luminance(a), luminance(b));
-    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
-}
-
-/// One complete set of colours: eight neutrals and a non-empty series.
+/// One complete set of colours: eight neutrals and a non-empty series, each
+/// a [`Hex`], so every value has passed FR-86's check.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Palette {
-    neutrals: [String; 8],
+    neutrals: [Hex; 8],
     /// Never empty — FR-87 requires `--series-1` — so the modulo below is safe.
-    series: Vec<String>,
+    series: Vec<Hex>,
 }
 
 impl Palette {
+    /// A palette of `neutrals`, in [`Neutral::ALL`]'s order, and `series`;
+    /// `None` when `series` is empty, which FR-87 rules out.
+    #[must_use]
+    pub fn new(neutrals: [Hex; 8], series: Vec<Hex>) -> Option<Self> {
+        (!series.is_empty()).then_some(Self { neutrals, series })
+    }
+
     /// The built-in palette for `theme` (FR-81, FR-82).
+    ///
+    /// # Panics
+    ///
+    /// Never: the values are constants, and a test parses every one.
     #[must_use]
     pub fn built_in(theme: Theme) -> Self {
         let neutrals = match theme {
             Theme::Light => LIGHT,
             Theme::Dark => DARK,
         };
+        let hex = |v: &str| Hex::parse(v).expect("FR-81 and FR-82's values are #RRGGBB");
         Self {
-            neutrals: neutrals.map(str::to_string),
-            series: BUILT_IN_SERIES.map(str::to_string).to_vec(),
+            neutrals: neutrals.map(hex),
+            series: BUILT_IN_SERIES.map(hex).into(),
         }
+    }
+
+    /// Whether the ground is darker than the text (plan RG-018A Ruling 4):
+    /// an HTML page drawn with this palette alone declares
+    /// `color-scheme: dark`.
+    #[must_use]
+    pub fn is_dark(&self) -> bool {
+        let [surface, _, text, ..] = &self.neutrals;
+        luminance(surface.rgb()) < luminance(text.rgb())
     }
 
     /// How many series colours the palette holds (FR-87).
@@ -186,7 +260,7 @@ impl Palette {
     /// values don't change with theme.
     #[must_use]
     pub fn number_ink(&self, index: usize) -> &'static str {
-        ink_for(self.value(Role::Series(index)))
+        ink_for(self.hex(Role::Series(index)))
     }
 
     /// FR-67's cycling, at bind time and nowhere else (architecture §5): a
@@ -206,8 +280,13 @@ impl Palette {
     /// If the palette has no series entries, which FR-87 rules out and no
     /// constructor produces: `bind` then panics on `% 0`, before the lookup.
     #[must_use]
-    // qual:allow(complexity, error_handling) reason: "`series` is never empty (FR-87) and `bind` reduces modulo its length"
     pub fn value(&self, role: Role) -> &str {
+        self.hex(role).as_str()
+    }
+
+    /// The colour `role` binds to, FR-67's cycling applied.
+    // qual:allow(complexity, error_handling) reason: "`series` is never empty (FR-87) and `bind` reduces modulo its length"
+    fn hex(&self, role: Role) -> &Hex {
         match self.bind(role) {
             Role::Neutral(n) => {
                 let [s1, s2, tp, tm, sr, sd, mh, focus] = &self.neutrals;
@@ -486,8 +565,71 @@ mod tests {
     /// white still wins. A "white unless it fails" rule would pick dark.
     #[test]
     fn ink_is_whichever_contrasts_more_not_a_threshold() {
-        assert_eq!(ink_for("#7A7A7A"), "#FFFFFF");
-        assert_eq!(ink_for("#2F9626"), "#16191F");
+        assert_eq!(ink_for(&hex("#7A7A7A")), "#FFFFFF");
+        assert_eq!(ink_for(&hex("#2F9626")), "#16191F");
+    }
+
+    /// FR-56, §6.6: the built-in themes give a snapshot per theme and an HTML
+    /// page both themes and a toggle; a file gives its one set everywhere.
+    #[test]
+    fn colours_bind_per_format() {
+        let dark = Colours::BuiltIn(Theme::Dark);
+        assert_eq!(*dark.snapshot(), Palette::built_in(Theme::Dark));
+        assert_eq!(*dark.interactive(), Palette::built_in(Theme::Light));
+        assert!(dark.has_toggle());
+        let series = ["#000001", "#000002"].map(hex);
+        let file = Palette::new(light_neutrals(), series.into()).expect("a palette");
+        let colours = Colours::from(file.clone());
+        assert_eq!(*colours.snapshot(), file);
+        assert_eq!(*colours.interactive(), file);
+        assert!(!colours.has_toggle());
+    }
+
+    fn hex(value: &str) -> Hex {
+        Hex::parse(value).expect("a colour")
+    }
+
+    /// WCAG contrast ratio of two `#RRGGBB` strings, from 1 to 21.
+    fn contrast(a: &str, b: &str) -> f64 {
+        ratio(luminance(hex(a).rgb()), luminance(hex(b).rgb()))
+    }
+
+    fn light_neutrals() -> [Hex; 8] {
+        LIGHT.map(hex)
+    }
+
+    #[test]
+    fn a_palette_needs_a_series() {
+        assert!(Palette::new(light_neutrals(), Vec::new()).is_none());
+    }
+
+    /// FR-87, SC-21: the count is the palette's own. Five entries cycle at
+    /// the sixth.
+    #[test]
+    fn a_built_palette_cycles_over_its_own_length() {
+        let series = ["#000001", "#000002", "#000003", "#000004", "#000005"].map(hex);
+        let p = Palette::new(light_neutrals(), series.into()).expect("a palette");
+        assert_eq!(p.series_len(), 5);
+        assert_eq!(p.value(Role::Series(5)), "#000001");
+        assert_eq!(p.var(Role::Series(5)), "var(--series-1)");
+    }
+
+    #[test]
+    fn the_built_ins_parse() {
+        // `built_in`'s `expect` cannot fire: every constant is #RRGGBB.
+        for value in BUILT_IN_SERIES.iter().chain(&LIGHT).chain(&DARK) {
+            assert!(Hex::parse(value).is_some(), "{value}");
+        }
+        assert_eq!(hex(INK_LIGHT).rgb(), INK_LIGHT_RGB);
+        assert_eq!(hex(INK_DARK).rgb(), INK_DARK_RGB);
+    }
+
+    /// Plan RG-018A Ruling 4: a palette is dark when its ground is darker
+    /// than its text.
+    #[test]
+    fn darkness_compares_the_ground_with_the_text() {
+        assert!(!Palette::built_in(Theme::Light).is_dark());
+        assert!(Palette::built_in(Theme::Dark).is_dark());
     }
 
     #[test]

@@ -359,6 +359,7 @@ fn create_template_with_anything_else_is_a_usage_error() {
         &["-r", "Adopt"],
         &["-s", "2026-09"],
         &["-w", "1920"],
+        &["-p", "b.css"],
     ] {
         let args: Vec<&str> = ["--create-template", "radar.csv"]
             .into_iter()
@@ -399,4 +400,57 @@ fn a_cli_with_neither_task_or_both_is_an_error() {
     cli.create_template = None;
     cli.output = None;
     assert!(matches!(cli.task(), Err(Fatal::NoTask)));
+}
+
+// ---- FR-59: --palette, and its conflict with --theme
+
+#[test]
+fn palette_takes_a_path_and_a_short_form() {
+    for flag in ["--palette", "-p"] {
+        let cli = parse(&["in.csv", "-o", "e.png", flag, "brand.css"]).expect("parses");
+        assert_eq!(
+            cli.palette.as_deref().and_then(|p| p.to_str()),
+            Some("brand.css")
+        );
+    }
+}
+
+#[test]
+fn palette_with_theme_is_a_usage_error() {
+    // An explicit `light` is still given, though it is the default (FR-59).
+    for theme in ["light", "dark"] {
+        for args in [
+            [
+                "in.csv",
+                "-o",
+                "e.png",
+                "--palette",
+                "b.css",
+                "--theme",
+                theme,
+            ],
+            [
+                "in.csv",
+                "-o",
+                "e.png",
+                "--theme",
+                theme,
+                "--palette",
+                "b.css",
+            ],
+        ] {
+            let kind = parse(&args).map(|_| ()).map_err(|e| e.kind());
+            assert_eq!(
+                kind,
+                Err(clap::error::ErrorKind::ArgumentConflict),
+                "{args:?}"
+            );
+        }
+    }
+}
+
+/// The defaulted theme is not "given": --palette alone parses.
+#[test]
+fn palette_alone_is_not_a_conflict() {
+    assert!(parse(&["in.csv", "-o", "e.png", "-p", "b.css"]).is_ok());
 }

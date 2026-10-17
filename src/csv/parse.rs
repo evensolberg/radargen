@@ -1024,7 +1024,7 @@ mod tests {
         }
     }
 
-    /// `decode::line_at`'s promise, exhaustively: a bad byte where a record
+    /// `crate::decode::line_at`'s promise, exhaustively: a bad byte where a record
     /// starts is reported on the line `parse` gives that record.
     #[test]
     fn decode_and_parse_agree_on_every_small_input() {
@@ -1046,7 +1046,7 @@ mod tests {
             let mut bytes = head.into_bytes();
             bytes.push(0xE9);
             assert_eq!(
-                crate::csv::decode::decode(&bytes).map_err(|e| e.line),
+                crate::decode::decode(&bytes).map_err(|e| e.line),
                 Err(last),
                 "{text:?}"
             );

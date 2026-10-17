@@ -11,7 +11,7 @@ use crate::escape::xml_text;
 use crate::layout::arrange::WideParts;
 use crate::model::Catalogue;
 use crate::order::Plotted;
-use crate::palette::{Palette, Theme};
+use crate::palette::Colours;
 use crate::svg::{Document, Target, serialise};
 
 const HEAD_OPEN: &str = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"generator\" content=\"";
@@ -43,14 +43,17 @@ pub struct Page<'a> {
     pub plotted: &'a Plotted,
     /// FR-65's resolved title; `None` names the page [`UNTITLED`].
     pub title: Option<&'a str>,
+    /// FR-56, §6.6: the built-in themes with a toggle, or a `--palette`
+    /// file's one set without.
+    pub colours: &'a Colours,
 }
 
 /// The page for `input` (FR-68).
 ///
 /// Both are serialised interactive, binding colours to custom properties
-/// the stylesheet declares for both themes (FR-56, architecture §5). The
-/// palette passed only names them and cycles the series, which the two
-/// built-in themes share.
+/// the stylesheet declares (FR-56, architecture §5). The bound palette
+/// names them and cycles the series: the built-in light one, whose series
+/// both themes share, or a `--palette` file's, with its own length.
 ///
 /// `input.title` is FR-65's resolved title, `None` when absent or blank:
 /// the page is then named [`UNTITLED`], with a visually hidden level-1 heading,
@@ -64,8 +67,11 @@ pub fn page(input: &Page<'_>) -> String {
         catalogue,
         plotted,
         title,
+        colours,
     } = *input;
-    let target = Target::Interactive(&Palette::built_in(Theme::Light));
+    let bound = colours.interactive();
+    let toggle = colours.has_toggle();
+    let target = Target::Interactive(&bound);
     let sizes = css::Wide::of(wide);
     let heading = if title.is_some() {
         String::new()
@@ -79,16 +85,16 @@ pub fn page(input: &Page<'_>) -> String {
         &xml_text(title.unwrap_or(UNTITLED)),
         "</title>\n<style>\n",
         &css::font_faces(),
-        &css::palettes(),
+        &css::palettes(colours),
         &css::layout(&sizes, narrow.width),
         &css::indicators(),
         css::VISUALLY_HIDDEN,
         css::HIDDEN_BOX,
         &table::css(&sizes),
-        &chrome::css(&sizes),
+        &chrome::css(&sizes, toggle),
         BODY_OPEN,
         &chrome::main_open(&css::narrow_query(&sizes)),
-        &chrome::controls(),
+        &chrome::controls(toggle),
         &heading,
         DIV_OPEN,
         chrome::ARRANGEMENT_CLASS,

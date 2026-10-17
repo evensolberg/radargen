@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use crate::cli::{Cli, OutputFormat, Task, clean_flag, format};
 use crate::csv::decode;
 use crate::csv::parse::parse;
+use crate::decode::NotUtf8;
 use crate::diagnostics::{Fatal, Flag, RenderKind, RowError, Warning, Warnings};
 use crate::emit::html::{Page, page};
 use crate::emit::write::parent_dir;
@@ -26,22 +27,23 @@ use crate::layout::geometry::warn_crowding;
 use crate::layout::title::shown;
 use crate::model::{Catalogue, build_catalogue};
 use crate::order::resolve;
-use crate::palette::Palette;
+use crate::palette::Colours;
+use crate::palette::file::{self, ReadError};
 use crate::rings::{RingSet, parse_rings};
 use crate::template;
 use crate::text::Fonts;
 
-/// The resolved run (architecture §7), read-only once built. The palette
-/// is resolved here, so a bad `--palette` file (PR 18) is a tier-one error.
+/// The resolved run (architecture §7), read-only once built. The colours
+/// are resolved here, so a bad `--palette` file is a tier-one error
+/// (FR-102).
 #[derive(Debug)]
 pub struct Config {
     /// `-o`, as given.
     pub output: PathBuf,
     /// FR-52: what `-o`'s extension asks for.
     pub format: OutputFormat,
-    /// FR-56: the static outputs' colours, for `--theme`. HTML carries both
-    /// themes and reads only the series from it.
-    pub palette: Palette,
+    /// FR-56, FR-59: the built-in themes, or a `--palette` file's one set.
+    pub colours: Colours,
     /// FR-57: `--width`, which HTML ignores.
     pub width: Option<u32>,
     /// FR-65, resolved: cleaned (FR-90), trimmed, and `None` when empty.
@@ -151,16 +153,43 @@ fn config(
         .map(|rings| clean_flag(Flag::Rings, rings, warnings));
     let rings = parse_rings(declared.as_deref())
         .map_err(|errors| errors.into_iter().map(Fatal::from).collect::<Vec<_>>())?;
+    // Plan RG-018A Ruling 7: the next flag after --rings, every problem in
+    // the file at once (FR-102), each its own line.
+    let colours = match &cli.palette {
+        Some(path) => file::read(path)
+            .map_err(|e| palette_errors(path, e))?
+            .into(),
+        None => Colours::BuiltIn(cli.theme),
+    };
     Ok(Config {
         output: output.to_path_buf(),
         format,
-        palette: Palette::built_in(cli.theme),
+        colours,
         width: cli.width,
         title,
         subtitle,
         rings,
         input: input.to_path_buf(),
     })
+}
+
+/// A `--palette` file's read failure as tier-one errors, named by the flag
+/// (NFR-10). PR 19's `--config` names its key and file instead, so the path
+/// shown is kept apart from the one opened (plan RG-018A, R1).
+fn palette_errors(path: &Path, error: ReadError) -> Vec<Fatal> {
+    let path = path.display().to_string();
+    match error {
+        ReadError::Unreadable(source) => vec![Fatal::PaletteUnreadable { path, source }],
+        ReadError::TooLarge => vec![Fatal::PaletteTooLarge { path }],
+        ReadError::NotUtf8(NotUtf8 { line }) => vec![Fatal::PaletteNotUtf8 { path, line }],
+        ReadError::Invalid(errors) => errors
+            .into_iter()
+            .map(|error| Fatal::Palette {
+                path: path.clone(),
+                error,
+            })
+            .collect(),
+    }
 }
 
 /// FR-62: `-o`'s directory must exist. Only a directory that is not there
@@ -244,6 +273,7 @@ fn render(
                 catalogue,
                 plotted: &plotted,
                 title: config.title.as_deref(),
+                colours: &config.colours,
             })
             .into_bytes())
         }
@@ -262,12 +292,12 @@ fn render(
                     legible_from,
                 }));
             }
-            png::rasterise(&wide, &config.palette, size)
+            png::rasterise(&wide, &config.colours.snapshot(), size)
         }
         OutputFormat::Svg => Ok(svg::export(
             &arrange(Arrangement::Wide, &blocks),
             &svg::Export {
-                palette: &config.palette,
+                palette: &config.colours.snapshot(),
                 fonts,
                 width: config.width,
                 title: config.title.as_deref(),

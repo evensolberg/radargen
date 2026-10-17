@@ -42,9 +42,10 @@ it into a build failure instead.
 ## 2. Pipeline
 
 One direction, no cycles. Each stage is a pure function of its input plus the
-diagnostics it may add. The one exception is `csv::decode::read`, which reads
-the input file so its errors can name the path (NFR-10); `decode` itself is
-pure.
+diagnostics it may add. The exceptions are the two file reads,
+`csv::decode::read` for the input and `palette::file::read` for a `--palette`
+file, so their errors can name the path (NFR-10); `decode::decode`, which both
+call, is pure.
 
 ```text
   bytes                                                       §6.1
@@ -136,13 +137,16 @@ declarations only and are not listed.
 | `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52). In v1.1, also the `--config` merge under the command-line flags and `{edition}` expansion, both before any other validation (FR-91, FR-92) | *exists* |
 | `src/diagnostics.rs` | `Fatal`, `RowError`, `Warning`, `Warnings` — the taxonomy and NFR-20 grouping | v1.0 |
 | `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17) | *exists* |
-| `src/csv/decode.rs` | Bytes → `String`: BOM, UTF-8, line numbering (FR-1, FR-2, FR-61); `read` is the stage's one file read | v1.0 |
+| `src/csv/decode.rs` | `read`, the CSV stage's one file read (FR-1, FR-61); the bytes become text through `decode.rs` | v1.0 |
 | `src/csv/parse.rs` | String → `Table` (header and records); header, field counts (FR-3, FR-4); removal of undisplayable characters, with a warning, before any other check except the blank-record test (FR-90, FR-3), using `escape::displayable` so both modules share one set | v1.0 |
 | `src/model.rs` | `Item`, `Catalogue`; column validation, quadrant grouping and ring matching (FR-5–FR-29); the named columns in header order and every row's cells (FR-27, FR-78); unnamed columns dropped, with a warning when they hold a value (FR-93); `accessible_name()` (FR-50, FR-75); each row's link (FR-96) | *exists* |
 | `src/link.rs` | `Link`: FR-96's `http`/`https` test, decided once at build time (D-77) | v1.0 |
 | `src/order.rs` | `resolve` → `Plotted`: FR-10's quadrant order and rank (`compare_quadrants`, `quadrant_order`), FR-34's item order (`compare_names`, `compare_items`), FR-18's numbers and FR-78's table order | *exists* |
 | `src/style.rs` | Every layout constant: type scale, the legend's three indents (FR-35), marker radius, band label offsets, legend column maximum (FR-79), and the legibility floor FR-69's breakpoint is computed from (§4); `TextStyle::measure` and `TextStyle::wrap`, the one way every block measures and wraps its text | v1.0 |
-| `src/palette.rs` | `Role`; FR-81/FR-82 built-in values; FR-67's quadrant index → series entry, including its cycling; `--palette` parsing and FR-86/FR-87 validation | v1.0 / v1.1 |
+| `src/palette/mod.rs` | `Role`; FR-81/FR-82 built-in values; FR-67's quadrant index → series entry, including its cycling; `Colours`, the built-in themes or a `--palette` file's one set, and how each format binds them | v1.0 / 1.3 |
+| `src/palette/hex.rs` | `Hex`, the one form a palette value takes (`#RRGGBB`, FR-86), so NFR-6's context 5 is enforced by type when a palette is built | 1.3 |
+| `src/palette/file.rs` | FR-102's grammar, FR-86's values and FR-87's series over a `--palette` file, every problem collected with its line; `read`, capped at 1 MiB, returning its own `ReadError` so the pipeline names the flag (RG-018A) | 1.3 |
+| `src/decode.rs` | Bytes to text for every file read: one BOM stripped, UTF-8 required, a NUL refused, CR/LF/CRLF counted once (FR-2, FR-61) | 1.3 |
 | `src/layout/geometry.rs` | `Geometry`: angles, bands, marker placement (FR-30–FR-33, FR-43, FR-77), FR-89's computed band capacity, `place`, and FR-88/FR-89's render warnings (`warn_crowding`); `Point` | *exists* |
 | `src/layout/block.rs` | The `Block` trait, `Size`, `Placement`; nothing domain-specific — arrives with the first block (PR 09), using `geometry::Point` | v1.0 |
 | `src/layout/title.rs` | Title block (FR-65) | v1.0 |
@@ -152,7 +156,7 @@ declarations only and are not listed.
 | `src/layout/arrange.rs` | Wide and narrow placement (FR-68–FR-71) | v1.0 |
 | `src/svg/mod.rs` | `Node`, `Document` — the SVG tree. `Node` arrives with the first block that renders (PR 09) and gains variants with each block; `Document` arrives with `arrange` (PR 12) | v1.0 |
 | `src/svg/serialise/` | `serialise(&Document, Target)`: one `<svg>` element, colours bound late for an interactive or static `Target`, interactive-only nodes dropped for static; every attribute through `escape::xml_attr`, every float through `num::fmt_coord` (PR 13). Its `TextMode` writes text as `<text>` or as outlines, and `standalone` is the exported file's root (D-88) | v1.0 |
-| `src/escape.rs` | NFR-6's five output contexts, one function each | v1.0 |
+| `src/escape.rs` | NFR-6's output contexts 1 to 4, one function each; context 5 is `palette::Hex` | v1.0 |
 | `src/num.rs` | `fmt_coord()` — NFR-17's rounding, used by every emitter | v1.0 |
 | `src/text.rs` | Shaped measurement and FR-79 wrapping, over **both** of FR-85's faces; shaping, placing and outlining glyphs for the exported SVG (D-88), the only module that reads `skrifa` | *exists* |
 | `src/emit/html/mod.rs` | Self-contained HTML: both arrangements, FR-69's computed media-query switch, FR-56's theme override, inline JS/CSS and font | v1.0 |
@@ -164,12 +168,13 @@ declarations only and are not listed.
 
 Six of these are corrections rather than additions, and each has a reason:
 
-- **`escape.rs` and `num.rs` sit at the crate root, not under `svg/`.** Two of
-  NFR-6's five contexts — the JavaScript/JSON island and the CSS custom-property
-  value — never touch an SVG node, and the `</script>` rule that makes context
-  four special is an HTML fact. Filing all five under `svg/` would put the one
-  context most likely to be got wrong in the directory least likely to be
-  consulted for it.
+- **`escape.rs` and `num.rs` sit at the crate root, not under `svg/`.** The
+  JavaScript/JSON island never touches an SVG node, and the `</script>` rule
+  that makes context four special is an HTML fact. Filing it under `svg/` would
+  put the context most likely to be got wrong in the directory least likely to
+  be consulted for it. Context 5, the CSS custom-property value, has no function
+  at all: `palette::Hex` admits only `#RRGGBB`, so no other value can be built
+  into a palette (RG-018A, Ruling 2).
 - **`style.rs` exists so the visual constants have one home.** FR-35's three
   indent steps, FR-79's legend column maximum and the marker radius are each read
   by two or three of `layout/*`; scattered, they become the magic numbers that
@@ -415,9 +420,9 @@ role:
 
 | Emitter | Binding | Why |
 | --- | --- | --- |
-| HTML | `var(--series-1)`, with both palettes in one inline `<style>`: a default block, a `prefers-color-scheme` override, and a `[data-theme]` override the in-page toggle sets | FR-56: `--theme` is ignored on HTML because the viewer chooses; both palettes must be present at once, and §14.1 puts the toggle in v1.0 |
+| HTML | `var(--series-1)`, with both palettes in one inline `<style>`: a default block, a `prefers-color-scheme` override, and a `[data-theme]` override the in-page toggle sets. With `--palette`: the file's one set in a single `:root` block, `color-scheme` from whether its ground is darker than its text, the forced-colours block, and no toggle (§6.6, RG-018A) | FR-56: `--theme` is ignored on HTML because the viewer chooses; both palettes must be present at once, and §14.1 puts the toggle in v1.0 |
 | every format, HTML included | a number's ink, `Paint::NumberOn(i)`: `#FFFFFF` or `#16191F`, whichever contrasts more with series entry `i` | series values do not change with theme, so the pick is the same in both palettes and needs no variable; `i` is unreduced, like `Role::Series`, and wraps at bind time |
-| SVG, PNG | the literal value resolved for `--theme` at generation time | FR-56: a static snapshot has no viewer-side choice — and `resvg` does not resolve CSS custom properties, so a `var()` in a rasterised document silently renders **black** — verified, not assumed |
+| SVG, PNG | the literal value resolved for `--theme`, or the `--palette` file's, at generation time | FR-56: a static snapshot has no viewer-side choice — and `resvg` does not resolve CSS custom properties, so a `var()` in a rasterised document silently renders **black** — verified, not assumed |
 
 **Three declarations rather than two, because FR-56 gives the viewer two ways to
 choose.** The media query is the default and the toggle overrides it, so the
@@ -433,9 +438,10 @@ differently per format. The test for any such place is that it needs no new
 have the font (the exported SVG's text mode, which writes outlines and the names
 outlining forces, §11, D-88). That is what makes FR-56's "ignored, not an error, on HTML output" a
 structural fact rather than a branch somebody has to remember. It also gives
-FR-86 its error for free — a `--palette` file missing a role fails to bind a
-`Role` the enum enumerates, so "naming the missing role" is `Role`'s own
-`Display`.
+FR-86's error its name — a `--palette` file missing a role is reported by
+`palette::file` when the file is read, naming the role by `Neutral`'s own
+`Display`, so the message and the stylesheet spell it the same way (1.3,
+RG-018A).
 
 Resolving literals for the **exported SVG** is the same rule reaching a second
 consumer: FR-54 sells that file on opening in PowerPoint, Figma and Illustrator
@@ -616,7 +622,9 @@ pub fn layout(cat: &Catalogue, cfg: &Config, w: &mut Warnings) -> Blocks;
 `Result<_, Vec<RowError>>` rather than `Result<_, Fatal>` is NFR-16's tier
 two: row-level errors are **collected across the whole file** and reported
 together, so a 200-row export is not fixed one error per run. Tier one — flag
-and file errors — returns a single `Fatal` and aborts, because nothing parsed.
+and file errors — returns a `Vec<Fatal>`, every violation of the one flag or
+file that failed (`--rings`, a `--palette` file), and aborts, because nothing
+parsed.
 The two tiers are separate types, so the grouping code below matches only the
 errors it groups, and a tier-one error cannot reach it.
 
@@ -636,8 +644,8 @@ own; warnings other stages already pushed still print, before the errors
 (NFR-11).
 
 `Config` is the resolved run: the input path, the `RingSet` (the ring list and its source, FR-17), the
-palette, the theme, the width, the title strings. Only `build_catalogue` reads the `RingSet`; stages below read `Catalogue::rings`. It is built once in
-`pipeline.rs` from `Cli` plus `rings.rs` plus `palette.rs` and is read-only
+colours (`Colours`: the built-in themes and `--theme`'s choice, or a `--palette` file's one set), the width, the title strings. Only `build_catalogue` reads the `RingSet`; stages below read `Catalogue::rings`. It is built once in
+`pipeline.rs` from `Cli` plus `rings.rs` plus `palette/` and is read-only
 thereafter, so no stage below can reinterpret a flag differently from another.
 
 **There is a third failure point below both tiers, and NFR-14 makes it the
@@ -687,7 +695,7 @@ because it is two questions.
 | **OQ-9** *(a)* what "case-insensitively" means *(closed, D-53)* | `lib::normalise` | The single folding site — FR-9, FR-16, FR-20, FR-26, FR-28 all compare through it. Unicode's default lowercase mapping, `str::to_lowercase`, which is what it already does |
 | **OQ-9** *(b)* what "ordinally" means above the BMP *(closed, D-53)* | `order::compare_names` | Unicode code point, which is UTF-8 byte order and so plain `str::cmp`. Documented at that site, since it differs from the prototype's UTF-16 order. FR-9's label choice in `model.rs` applies the same rule — a plain `<` on `&str` — without being a second home: it cannot call `order.rs` (a cycle) and cites D-53 |
 | **OQ-17** `--quadrants` *(deferred)* | `order.rs` | FR-10's quadrant order is computed in one place and handed to layout as a list, so an explicit order later replaces the computation rather than the consumers |
-| **OQ-6** `--palette` *(closed)* | `palette.rs` | Parsing and FR-86/FR-87 validation |
+| **OQ-6** `--palette` *(closed)* | `palette/file.rs` | FR-102's grammar and FR-86/FR-87 validation (1.3.0) |
 | **OQ-3** `--strict` | — | Not code. §4 rules it out for this version |
 | **OQ-4** CSV backfill | — | Not code. Gates adoption, runs in parallel |
 
@@ -704,13 +712,13 @@ interface that has not been agreed. Each step is testable when it lands.
 | # | Step | Unblocked by | §14.2 line |
 | --- | --- | --- | --- |
 | 0 | `text.rs`, `cli.rs`, `rings.rs` | — | spike, scaffold — **done** |
-| 1 | `diagnostics.rs`, `escape.rs`, `num.rs`, `style.rs`, `palette.rs` (built-ins) | nothing — pure, leaf modules | scaffold |
+| 1 | `diagnostics.rs`, `escape.rs`, `num.rs`, `style.rs`, `palette/` (built-ins) | nothing — pure, leaf modules (from 1.3, `diagnostics.rs` also names `palette::file`'s error, which imports nothing back) | scaffold |
 | 2 | `csv/`, `model.rs`, `order.rs` | 1 | CSV parsing and validation |
 | 3 | `layout/geometry.rs` | 1, 2 | layout engine |
 | 4 | `layout/block.rs` and a minimal `svg::Node`, then `layout/{title,radar,legend,key}.rs`, `arrange.rs` | 3, `text.rs` | layout engine |
 | 5 | `svg/`, `emit/write.rs` | 4 | shared SVG generation |
 | 6 | `emit/html/` | 5, `Catalogue` from 2 | HTML output wrapper |
-| 7 | `emit/{svg,png}.rs`, `--palette`, `--theme`/`--width` plumbing | 5, `text.rs` *(svg outlines re-shape)* | PNG (1.1.0) and SVG (1.2.0) **done**; `--palette` (1.3.0) — the **v1.1** line |
+| 7 | `emit/{svg,png}.rs`, `--palette`, `--theme`/`--width` plumbing | 5, `text.rs` *(svg outlines re-shape)* | PNG (1.1.0), SVG (1.2.0) and `--palette` (1.3.0) **done**; `--create-palette` (1.4.0) — the **v1.1** line |
 
 `Node` is built up with the blocks rather than ahead of them: each block adds the variants it draws, `arrange` (step 4) adds `Document`, and step 5 the serialiser.
 
@@ -822,7 +830,7 @@ the noise.
   reads the item's table row** (D-80): its cells and their column headings are
   the panel's content, so the prose is in the page once and no JSON island or
   template carries a second copy.
-- **`--palette` parsing.** v1.1, and FR-86/FR-87 already fix its rules.
+- **`--palette` parsing.** 1.3 (RG-018A): `palette/file.rs` reads FR-102's grammar into `Hex` values, every problem reported with its line.
 - **The PNG emitter.** 1.1, and thin: it rasterises the `<text>` document
   through our own `fontdb`, with no href resolved (NFR-5).
 - **The SVG export.** 1.2 (D-88): a text mode of the serialiser, so

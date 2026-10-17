@@ -1,11 +1,16 @@
-//! NFR-6: every CSV-derived string is escaped for the context it lands in, and
-//! the contexts are five — one function each.
+//! NFR-6: every CSV-derived string is escaped for the context it lands in.
+//!
+//! The contexts are five; four have a function each here. Context 5, a CSS
+//! custom-property value, has none: [`crate::palette::Hex`] admits only
+//! `#RRGGBB`, checked when a palette is built, so no other value reaches the
+//! page's `<style>` block (plan RG-018A, Ruling 2).
 //!
 //! A value crossing into a second context is escaped for both, innermost first:
 //! an attribute holding JSON is `html_attr(&json(v)?)`.
 //!
-//! At the crate root rather than under `svg/`: contexts 4 and 5 never touch an
-//! SVG node, and the `</script>` rule is an HTML fact (architecture §3).
+//! At the crate root rather than under `svg/`: context 4, the JSON island,
+//! never touches an SVG node, and the `</script>` rule is an HTML fact
+//! (architecture §3).
 
 /// Why [`json`] refused: a float reached it.
 const RAW_FLOAT: &str = "a raw float reached json(); format coordinates with num::fmt_coord and pass the string (NFR-17)";
@@ -322,39 +327,6 @@ impl serde::Serializer for FloatDetector {
     }
 }
 
-/// A `--palette` value that could break out of its declaration (NFR-6 (5)).
-#[derive(Debug, PartialEq, Eq, thiserror::Error)]
-#[error("'{value}' contains '{found}', which cannot appear in a colour value")]
-pub struct CssValueError {
-    /// The rejected value, as given.
-    pub value: String,
-    /// The first character that could end the declaration.
-    pub found: char,
-}
-
-/// Context 5: a CSS custom-property value. Rejected rather than escaped — no
-/// safe escaping exists for arbitrary text in a CSS value position.
-///
-/// An allow-list, not NFR-6's three characters alone: a comment, an unbalanced
-/// bracket or a trailing backslash would swallow the template's own `;` or `}`,
-/// and `url(` would fetch a remote resource from a file that must be
-/// self-contained. `#` and ASCII letters and digits cover every `#RRGGBB` FR-86
-/// allows; checking that exact shape is `--palette`'s job.
-///
-/// # Errors
-///
-/// [`CssValueError`] naming the first character outside the allow-list.
-pub fn css_value(s: &str) -> Result<&str, CssValueError> {
-    s.chars()
-        .find(|c| !(*c == '#' || c.is_ascii_alphanumeric()))
-        .map_or(Ok(s), |found| {
-            Err(CssValueError {
-                value: s.to_string(),
-                found,
-            })
-        })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -607,45 +579,6 @@ mod tests {
             json(&Ordered).expect("serialises"),
             r#"{"z":"\u003c","a":1}"#
         );
-    }
-
-    #[test]
-    fn css_values_pass_through_when_safe() {
-        assert_eq!(css_value("#0072B2"), Ok("#0072B2"));
-        // Context 5 checks injection only. FR-86's `#RRGGBB` rule is PR 18's
-        // validation, so a well-formed but unsupported value passes here.
-        assert_eq!(css_value("red"), Ok("red"));
-    }
-
-    /// NFR-6 (5): no safe escaping exists for arbitrary text in a CSS value,
-    /// and `;`, `}` and `<` are only the obvious breakouts. A comment, an
-    /// unbalanced bracket or a trailing backslash swallows the template's own
-    /// `;` or `}`; `url(` fetches a remote resource from a file that must be
-    /// self-contained. So anything but `#` and ASCII letters and digits is out.
-    #[test]
-    fn css_values_outside_the_allow_list_are_rejected() {
-        for (s, found) in [
-            ("red; color: x", ';'),
-            ("red}", '}'),
-            ("red</style>", '<'),
-            ("red/*", '/'),
-            ("red\\", '\\'),
-            ("rgb(0 114 178)", '('),
-            ("url(https://x)", '('),
-            ("x{", '{'),
-            ("a&b", '&'),
-            ("\"red", '"'),
-            ("red\n", '\n'),
-        ] {
-            assert_eq!(
-                css_value(s),
-                Err(CssValueError {
-                    value: s.into(),
-                    found
-                }),
-                "{s:?}"
-            );
-        }
     }
 
     /// XML-hostile JSON stays valid if the island ever lands in an XML
