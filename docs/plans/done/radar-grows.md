@@ -9,13 +9,13 @@ crumb_id: rg-06b
 document_title: "The radar grows to fit its items: Implementation Plan"
 created_date: 2026-10-15
 synopsis: "The radar's geometry grows in quarter steps, up to 2×, by the least step that keeps every two markers a diameter apart, and never so far that the wide arrangement stops showing on a 1440-pixel screen. Markers, numbers, strokes and labels keep their natural size. A radar that fits today is unchanged. Supersedes D-48's 'the canvas is not grown' with D-86."
-status: draft
+status: complete
 type: Plan
-revision: "1.1"
+revision: "1.2"
 review_date:
 reviewed_by: []
-completed_date:
-comments: "Option B, chosen by the maintainer on 2026-10-15 over uncapped growth (C) and window-filling alone (A, shipped first as rg-18x, D-85)."
+completed_date: 2026-10-15
+comments: "Option B, chosen by the maintainer on 2026-10-15 over uncapped growth (C) and window-filling alone (A, shipped first as rg-18x, D-85). 1.2 records completion: shipped as #85 (rg-06b)."
 ---
 # The radar grows to fit its items
 
