@@ -219,7 +219,7 @@ pub fn wide_parts(blocks: &Blocks) -> WideParts {
 }
 
 /// The narrow arrangement as HTML draws it (RG-102): two documents, so the
-/// page can hide the legend without leaving its space.
+/// legend can be hidden without leaving its space.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NarrowParts {
     /// The title, radar, key rule and key, and the gap under the key.
@@ -231,23 +231,31 @@ pub struct NarrowParts {
 /// `blocks` in the narrow arrangement, cut into [`NarrowParts`].
 ///
 /// The cut is at the legend panel's top edge, so the body keeps the gap
-/// under the key and, with the legend hidden, the page does not butt
-/// against the key. The parts draw what [`arrange`] draws, each translated
-/// to its own origin, as [`wide_parts`] does.
+/// under the key, and without the legend the page does not butt against
+/// the key. With no legend at all the cut falls at the key's bottom and the
+/// legend part is only the bottom margin; there is then nothing to hide. The
+/// parts draw what [`arrange`] draws, each translated to its own origin, as
+/// [`wide_parts`] does.
 #[must_use]
 pub fn narrow_parts(blocks: &Blocks) -> NarrowParts {
     let at = placements(Arrangement::Narrow, blocks);
     let cut = at.legend.origin.y;
     let legend = blocks.legend.spanning(at.legend_width);
-    let part = |height: f64, top: f64, children: Vec<Node>| Document {
+    let part = |height: f64, origin: Point, children: Vec<Node>| Document {
         width: at.width,
         height,
-        root: Node::Group(Group::new(Point { x: 0.0, y: -top }, children)),
+        root: Node::Group(Group::new(
+            Point {
+                x: -origin.x,
+                y: -origin.y,
+            },
+            children,
+        )),
     };
     NarrowParts {
         body: part(
             cut,
-            0.0,
+            Point::ORIGIN,
             vec![
                 blocks.title.render(at.title),
                 blocks.radar.render(at.radar),
@@ -255,7 +263,11 @@ pub fn narrow_parts(blocks: &Blocks) -> NarrowParts {
                 blocks.key.grid(at.key_columns).render(at.key),
             ],
         ),
-        legend: part(at.height - cut, cut, vec![legend.render(at.legend)]),
+        legend: part(
+            at.height - cut,
+            Point { x: 0.0, y: cut },
+            vec![legend.render(at.legend)],
+        ),
     }
 }
 
@@ -1323,12 +1335,35 @@ mod tests {
         let row = |s: &Semantics| matches!(s, Semantics::LegendRow(_));
         assert!(has(&parts.body, marker) && !has(&parts.legend, marker));
         assert!(has(&parts.legend, row) && !has(&parts.body, row));
-        let at = placements(Arrangement::Narrow, &b);
-        let key = b.key.grid(at.key_columns).render(at.key);
-        assert!(
-            leaves(&parts.body.root) >= leaves(&key),
-            "the key is drawn in the body"
-        );
+    }
+
+    /// The narrow parts draw exactly what the narrow document draws: the
+    /// body holds its first four children (title, radar, rule, key), the
+    /// legend part its fifth, each node unchanged. Anything added to
+    /// `arrange` and not to `narrow_parts` fails here.
+    #[test]
+    fn the_narrow_parts_hold_the_documents_own_nodes() {
+        for (name, b) in fixtures() {
+            let whole = arrange(Arrangement::Narrow, &b);
+            let parts = narrow_parts(&b);
+            let inner = |doc: &Document| -> Vec<Node> {
+                let Node::Group(root) = &doc.root else {
+                    panic!("the root is a group");
+                };
+                root.children.clone()
+            };
+            let [title, radar, rule, key, legend] = children(&whole);
+            assert_eq!(
+                inner(&parts.body),
+                [title, radar, rule, key].map(Clone::clone),
+                "{name}: the body"
+            );
+            assert_eq!(
+                inner(&parts.legend),
+                std::slice::from_ref(legend),
+                "{name}: the legend"
+            );
+        }
     }
 
     /// The markers are in the radar's part and the legend rows in the

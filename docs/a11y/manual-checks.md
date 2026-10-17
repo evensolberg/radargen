@@ -11,7 +11,7 @@ created_date: 2026-10-13
 synopsis: "What only a person with a screen reader, a real browser's zoom or a keyboard on a real machine can judge, step by step, with the announcement to expect at each step and a results table to fill in before tagging 1.0.0. The automated audit (scripts/a11y-audit.mjs) covers everything a browser can measure; this covers the rest."
 status: draft
 type: Guide
-revision: "1.6"
+revision: "1.7"
 review_date:
 reviewed_by: []
 completed_date:
@@ -84,6 +84,7 @@ The expected names come from `three-quadrant.csv`.
     - *Expect, browsing from the title to the legend:* the title heading, the radar's group, the key and the legend, with no extra unnamed "graphic", "image" or "group" between them.
     - *Expect, in Firefox:* Tab from the last marker goes straight to the first legend row, with no stop on the legend's box.
     - *Expect, with `long-legend.csv`:* Tab down the legend scrolls it within its box, and the radar stays where it is.
+    - *Expect, at a narrow window:* the narrow arrangement is two SVGs, its body and its legend (RG-102). Browsing from the key to the legend meets no extra unnamed "graphic", "image" or "group" between them.
 15. **The PNG** (D-87, from 1.1.0). Render `three-quadrant.csv` to `light.png`, and again with `--theme dark` to `dark.png`. Open both in an image viewer.
     - *Expect, in both themes:* the title, the radar, the key and the legend are all present.
     - *Expect:* no hover, focus or selection marks anywhere.
@@ -149,3 +150,4 @@ The expected names come from `three-quadrant.csv`.
 | 1.4 | 2026-10-16 | Step 16: the exported SVG (D-88, rg-m2l). |
 | 1.5 | 2026-10-17 | Step 17: a page drawn with `--palette`, light and dark; step 1 notes it has no toggle (rg-cdo, RG-018A R25). |
 | 1.6 | 2026-10-17 | Step 8: the toggle shows a moon or a sun, the theme a press switches to, and its icon is not announced (rg-1ru). |
+| 1.7 | 2026-10-17 | Step 14: the narrow arrangement's two SVGs, body and legend (RG-102). |

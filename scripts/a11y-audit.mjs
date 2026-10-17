@@ -202,8 +202,10 @@ async function targets(label, { exceptionWidth } = {}) {
   const width = await evaluate('innerWidth');
   const scale = exceptionWidth ? width / exceptionWidth : null;
   const exception = scale !== null && scale < TARGET_PX / TARGET_UNITS;
-  // Below its own width the narrow SVG spans the viewport, with no inset:
+  // Below its own width the narrow SVGs span the viewport, with no inset:
   // FR-94's premise (NARROW_HORIZONTAL_INSET_PX = 0), never measured before.
+  // The body's SVG is measured; the legend's shares its width (RG-102's
+  // 'narrow parts stack' interaction check).
   if (await evaluate(`${SHOWN}.classList.contains('narrow')`)) {
     const [svg, own] = await evaluate(`(() => { const e = ${SHOWN}.querySelector('svg'); return [e.getBoundingClientRect().width, e.viewBox.baseVal.width]; })()`);
     const view = await evaluate('document.documentElement.clientWidth');

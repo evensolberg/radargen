@@ -35,8 +35,7 @@ const BODY_CLOSE: &str = "</body>\n</html>\n";
 pub struct Page<'a> {
     /// The wide arrangement, in the parts HTML lays out (D-85).
     pub wide: &'a WideParts,
-    /// The narrow arrangement, in the parts the page hides the legend by
-    /// (RG-102).
+    /// The narrow arrangement, split so the legend can be hidden (RG-102).
     pub narrow: &'a NarrowParts,
     /// Every row, as the model read it.
     pub catalogue: &'a Catalogue,
