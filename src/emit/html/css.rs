@@ -49,7 +49,12 @@ pub(super) const NARROW_LEGEND: &str = "narrow-legend";
 
 const CAP_FLOOR: &str = "max(";
 const CAP_HEIGHT: &str = "px,calc((100vh - ";
-const CAP_UNDER: &str = "px)*";
+/// The page controls' height, under the title's (rg-247): an icon button,
+/// 1.25em with .4em padding all round and a 1px border (chrome.rs's icon
+/// rules), and the bar's .5em margin above and below. In em, so it follows
+/// the page's text size as the bar does; the skip link is drawn over the
+/// page and adds nothing.
+const CAP_UNDER: &str = "px - 3.05em - 2px)*";
 const CAP_OVER: &str = "/";
 const CAP_END: &str = "))";
 const SPAN_OPEN: &str = "calc(";
@@ -96,7 +101,7 @@ impl Wide {
     }
 
     /// The radar column's cap: the width at which the radar is as tall as
-    /// the viewport below the title, but never less than `WIDE_MIN_SCALE`
+    /// the viewport below the page controls and the title, but never less than `WIDE_MIN_SCALE`
     /// of its own width. The floor matters on a short window: FR-69's
     /// breakpoint reads only the width, so without it the height term could
     /// shrink the radar's text past what the breakpoint allows.
