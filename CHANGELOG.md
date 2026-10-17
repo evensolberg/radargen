@@ -1,23 +1,44 @@
+## [1.6.0] - 2026-10-17
+
+### 🚀 Features
+
+- *(html)* Draw the narrow arrangement in two parts (rg-3gc) (#115)
+- *(cli)* --legend shown|hidden; warn for PNG and SVG (rg-3gc)
+- *(html)* A page can start with its legend hidden (rg-3gc)
+- *(html)* The legend button and its icons (rg-3gc)
+- *(html)* The legend button's script; the skip link follows (rg-3gc)
+
+### 🐛 Bug Fixes
+
+- *(html)* Legend review fixes; skip link drawn over every page (rg-3gc)
+
+### 📚 Documentation
+
+- *(design)* Spec for showing and hiding the legend (RG-102, rg-3gc)
+- *(plans)* Legend toggle implementation plan (RG-103, rg-3gc)
+- Revise legend spec and plan after the five-agent review (rg-3gc)
+- The legend button and --legend (FR-103, rg-3gc)
+
+### 🚜 Refactor
+
+- *(html)* One legend-hidden attribute, one focus check (rg-3gc)
+
+### 🧪 Testing
+
+- *(browser)* The legend button in Chromium (rg-3gc)
+- *(browser)* Legend focus on click in Firefox and WebKit (rg-3gc)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Close rg-u5q; config warning crumb (rg-3gc)
+- *(html)* Final-review tidy-ups for the legend button (rg-3gc)
+- *(crumbs)* Close rg-3gc; the legend plan is done
+- *(release)* 1.6.0
 ## [1.5.0] - 2026-10-17
 
 ### 🚀 Features
 
-- *(html)* The theme toggle is a sun/moon icon (rg-1ru)
-
-### 🚜 Refactor
-
-- *(html)* The palette blocks pick the toggle's icon
-
-### 🧪 Testing
-
-- *(html)* Hold the icon swap and the toggle's words to named rules
-- *(html)* Tie the toggle's words to their class; no icons on palettes
-- *(a11y)* Name a missing toggle icon rather than throwing
-
-### ⚙️ Miscellaneous Tasks
-
-- *(crumbs)* Split rg-ek8 into rg-3gc and rg-1ru; close rg-1ru
-- *(release)* 1.5.0
+- *(html)* The theme toggle is a sun/moon icon (1.5.0) (#114)
 ## [1.4.2] - 2026-10-17
 
 ### 📚 Documentation
