@@ -86,7 +86,7 @@ pub struct Cli {
     // form (OQ-2).
     /// The theme for PNG and SVG.
     ///
-    /// Written in any case. An HTML page carries both themes and follows the
+    /// Not with --palette, which gives the colours itself. Written in any case. An HTML page carries both themes and follows the
     /// reader's setting, with a button to switch.
     #[arg(short = 'T', long, value_enum, default_value_t = Theme::Light, ignore_case = true)]
     pub theme: Theme,
@@ -100,6 +100,22 @@ pub struct Cli {
     /// window.
     #[arg(short, long, value_parser = clap::value_parser!(u32).range(i64::from(MIN_EXPORT_WIDTH)..=i64::from(MAX_EXPORT_WIDTH)))]
     pub width: Option<u32>,
+
+    // FR-59, D-44: one set of colours for every format, so --theme has
+    // nothing to choose between; clap refuses the pair, so the message is
+    // standard usage output. `-p`: a render flag earns a short form (OQ-2,
+    // plan RG-018A Ruling 6). FR-102's grammar is checked when the file is
+    // read, in `pipeline::config`.
+    /// Colours from a CSS file instead of the built-in themes.
+    ///
+    /// The file is one :root rule declaring --surface-1, --surface-2,
+    /// --text-primary, --text-muted, --stroke-ring, --stroke-divider,
+    /// --marker-hollow, --focus and --series-1 onward, each a #RRGGBB colour.
+    /// The palette guide, docs/palette.md in the source repository, explains
+    /// each one. Not with --theme; an HTML page drawn with it has no theme
+    /// button.
+    #[arg(short, long, value_name = "FILE", conflicts_with = "theme")]
+    pub palette: Option<PathBuf>,
 
     // FR-99, D-83: the tool writes the template, so it always matches the
     // parser that reads it. `exclusive`, so it never half-renders; no short

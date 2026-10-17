@@ -27,6 +27,7 @@ use crate::layout::title::shown;
 use crate::model::{Catalogue, build_catalogue};
 use crate::order::resolve;
 use crate::palette::Colours;
+use crate::palette::file::{self, ReadError};
 use crate::rings::{RingSet, parse_rings};
 use crate::template;
 use crate::text::Fonts;
@@ -151,16 +152,43 @@ fn config(
         .map(|rings| clean_flag(Flag::Rings, rings, warnings));
     let rings = parse_rings(declared.as_deref())
         .map_err(|errors| errors.into_iter().map(Fatal::from).collect::<Vec<_>>())?;
+    // Plan RG-018A Ruling 7: the next flag after --rings, every problem in
+    // the file at once (FR-102), each its own line.
+    let colours = match &cli.palette {
+        Some(path) => Colours::File(Box::new(
+            file::read(path).map_err(|e| palette_errors(path, e))?,
+        )),
+        None => Colours::BuiltIn(cli.theme),
+    };
     Ok(Config {
         output: output.to_path_buf(),
         format,
-        colours: Colours::BuiltIn(cli.theme),
+        colours,
         width: cli.width,
         title,
         subtitle,
         rings,
         input: input.to_path_buf(),
     })
+}
+
+/// A `--palette` file's read failure as tier-one errors, named by the flag
+/// (NFR-10). PR 19's `--config` names its key and file instead, so the path
+/// shown is kept apart from the one opened (plan RG-018A, R1).
+fn palette_errors(path: &Path, error: ReadError) -> Vec<Fatal> {
+    let path = path.display().to_string();
+    match error {
+        ReadError::Unreadable(source) => vec![Fatal::PaletteUnreadable { path, source }],
+        ReadError::TooLarge => vec![Fatal::PaletteTooLarge { path }],
+        ReadError::NotUtf8 { line } => vec![Fatal::PaletteNotUtf8 { path, line }],
+        ReadError::Invalid(errors) => errors
+            .into_iter()
+            .map(|error| Fatal::Palette {
+                path: path.clone(),
+                error,
+            })
+            .collect(),
+    }
 }
 
 /// FR-62: `-o`'s directory must exist. Only a directory that is not there

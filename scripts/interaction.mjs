@@ -1,6 +1,6 @@
 // The interactive layer, driven in a browser (plan RG-015B).
 //
-// Usage: node scripts/interaction.mjs <page.html> [<long-legend.html>]
+// Usage: node scripts/interaction.mjs <page.html> [<long-legend.html> [<palette.html>]]
 //
 // Each scenario loads the page afresh, at the widths it names, and drives
 // it with trusted input only (Input.dispatchKeyEvent and
@@ -16,14 +16,16 @@ import { KEYS, connect, poll } from './cdp.mjs';
 const WIDE = 1400;
 const NARROW = 400;
 
-const [file, longFile] = process.argv.slice(2);
+const [file, longFile, paletteFile] = process.argv.slice(2);
 if (!file) {
-  console.error('usage: node scripts/interaction.mjs <page.html> [<long-legend.html>]');
+  console.error('usage: node scripts/interaction.mjs <page.html> [<long-legend.html> [<palette.html>]]');
   process.exit(2);
 }
 const url = pathToFileURL(resolve(file)).href;
 // A page whose legend is taller than its radar, so the wide legend scrolls.
 const longUrl = longFile && pathToFileURL(resolve(longFile)).href;
+// A page drawn with --palette: one set of colours and no toggle (rg-cdo).
+const paletteUrl = paletteFile && pathToFileURL(resolve(paletteFile)).href;
 
 const { send, on, close, evaluate, navigate, press } = await connect();
 const thrown = [];
@@ -682,6 +684,29 @@ try {
       check(!covered.outside, 'the focused row is scrolled into its box');
       await press('Enter');
       check(await inView(`document.querySelector('.arrangement.wide [data-marker="${last}"]')`), "the last row's marker is on screen");
+    });
+  }
+
+  // rg-cdo: a --palette page has no toggle, its script still runs, it
+  // ignores the system preference, and its skip link moves nothing (plan
+  // RG-018A, R11, R12).
+  if (paletteUrl) {
+    await scenario('a --palette page has no toggle', [WIDE], async (width) => {
+      await load(width, { page: paletteUrl, scheme: 'dark' });
+      check(await evaluate(`document.documentElement.classList.contains('js')`), 'the script ran to its end');
+      check(!(await evaluate(`!!document.querySelector('.theme-toggle')`)), 'there is no toggle');
+      check(
+        (await evaluate(`getComputedStyle(document.body).backgroundColor`)) === 'rgb(255, 255, 255)',
+        'a dark preference leaves the light palette light',
+      );
+      check((await evaluate(`getComputedStyle(document.documentElement).colorScheme`)) === 'light', "color-scheme is the palette's");
+      const top = `document.querySelector('.arrangement.wide .wide-radar svg').getBoundingClientRect().top`;
+      const before = await evaluate(top);
+      await press('Tab');
+      check((await active()).cls?.includes('skip'), 'the skip link is the first stop');
+      check((await evaluate(top)) === before, 'focusing the skip link moves nothing');
+      await press('Enter');
+      check((await active()).legend !== null, 'Enter lands on a legend row');
     });
   }
 
