@@ -222,6 +222,9 @@ struct Declaration<'a> {
     line: usize,
     name: &'a str,
     value: &'a str,
+    /// The line and name of each declaration a forgotten `;` ran the value
+    /// into (rg-8xm), in file order.
+    swallowed: Vec<(usize, &'a str)>,
 }
 
 /// The accepted `:root` rule's declarations, none when the file has no
@@ -331,7 +334,8 @@ fn declarations<'a>(
         let end = rest.find([';', '{']).unwrap_or(rest.len());
         let (part, from_end) = rest.split_at(end);
         let lead = part.len() - part.trim_start_matches(css_space).len();
-        let line = lines.at(start + offset + lead);
+        let at = start + offset + lead;
+        let line = lines.at(at);
         let text = css_trim(part);
         if from_end.starts_with('{') {
             errors.push(other_rule(line, text));
@@ -346,9 +350,24 @@ fn declarations<'a>(
         }
         match text
             .split_once(':')
-            .map(|(name, value)| (css_trim(name), css_trim(value)))
+            .map(|(name, value)| (css_trim(name), name.len(), value))
         {
-            Some((name, value)) if !name.is_empty() => out.push(Declaration { line, name, value }),
+            Some((name, name_len, value)) if !name.is_empty() => {
+                // `value` starts one past the colon, which is ASCII.
+                let value_at = at + name_len + 1;
+                let swallowed = lines
+                    .starting_in(value_at..value_at + value.len())
+                    .filter_map(|(line, from)| {
+                        Some((line, swallowed_name(value.get(from - value_at..)?)?))
+                    })
+                    .collect();
+                out.push(Declaration {
+                    line,
+                    name,
+                    value: css_trim(value),
+                    swallowed,
+                });
+            }
             _ => errors.push(PaletteError::Malformed {
                 line,
                 text: excerpt(text),
@@ -388,26 +407,21 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
     // Every property declared, valid or not, so one with a bad value is
     // reported once, as `NotHex`, and not again as missing.
     let mut seen: BTreeMap<&str, usize> = BTreeMap::new();
-    // The names a forgotten `;` swallowed into a value: in the file, so not
-    // reported missing as well, whatever is wrong with the declaration that
-    // swallowed them (rg-8xm).
-    let mut swallowed: Vec<&str> = Vec::new();
     for d in declared {
-        let names: Vec<&str> = swallowed_names(d.value).collect();
-        let runs_on = !names.is_empty();
-        swallowed.extend(names);
-        match seen.entry(d.name) {
-            Entry::Occupied(first) => {
-                errors.push(PaletteError::Duplicate {
-                    line: d.line,
-                    name: excerpt(d.name),
-                    first: *first.get(),
-                });
-                continue;
+        let repeat = !first_declaration(&mut seen, d.line, d.name, errors);
+        // A name a forgotten `;` swallowed is in the file, whatever is wrong
+        // with the declaration that swallowed it (rg-8xm): not missing, and
+        // repeated like any other (rg-4id). A swallowed series entry is no
+        // gap, and no palette either.
+        for &(line, name) in &d.swallowed {
+            if first_declaration(&mut seen, line, name, errors)
+                && let Some(Property::Series(index)) = property(name)
+            {
+                series.entry(index).or_insert(None);
             }
-            Entry::Vacant(slot) => {
-                slot.insert(d.line);
-            }
+        }
+        if repeat {
+            continue;
         }
         let Some(slot) = property(d.name) else {
             errors.push(PaletteError::Unknown {
@@ -422,7 +436,7 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
                 line: d.line,
                 name: d.name.into(),
                 value: excerpt(d.value),
-                runs_on,
+                runs_on: !d.swallowed.is_empty(),
             });
         }
         match slot {
@@ -436,15 +450,8 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
             }
         }
     }
-    // A swallowed series entry is declared, if not valid: no gap, and no
-    // palette either.
-    for name in &swallowed {
-        if let Some(Property::Series(index)) = property(name) {
-            series.entry(index).or_insert(None);
-        }
-    }
     for role in Neutral::ALL {
-        if !seen.contains_key(role.as_str()) && !swallowed.contains(&role.as_str()) {
+        if !seen.contains_key(role.as_str()) {
             errors.push(PaletteError::MissingRole { role });
         }
     }
@@ -457,15 +464,35 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
     Palette::new(neutrals, series.into_values().collect::<Option<_>>()?)
 }
 
-/// The name of each custom-property declaration in a value: what a
-/// forgotten `;` ran it into. The value is trimmed, so a first line that is
-/// one is an empty value's swallowed successor.
-fn swallowed_names(value: &str) -> impl Iterator<Item = &str> {
-    value
-        .split(['\n', '\r'])
-        .filter_map(|line| line.split_once(':'))
-        .map(|(name, _)| css_trim(name))
-        .filter(|name| name.starts_with("--"))
+/// Records `name` at `line` in `seen`; whether it is the first, a repeat
+/// being pushed to `errors` (FR-102).
+fn first_declaration<'a>(
+    seen: &mut BTreeMap<&'a str, usize>,
+    line: usize,
+    name: &'a str,
+    errors: &mut Vec<PaletteError>,
+) -> bool {
+    match seen.entry(name) {
+        Entry::Occupied(first) => {
+            errors.push(PaletteError::Duplicate {
+                line,
+                name: excerpt(name),
+                first: *first.get(),
+            });
+            false
+        }
+        Entry::Vacant(slot) => {
+            slot.insert(line);
+            true
+        }
+    }
+}
+
+/// The custom property a line of a value declares, if it declares one:
+/// what a forgotten `;` ran the value into. `line` runs to the value's end.
+fn swallowed_name(line: &str) -> Option<&str> {
+    let (name, _) = line.split(['\n', '\r']).next()?.split_once(':')?;
+    Some(css_trim(name)).filter(|name| name.starts_with("--"))
 }
 
 /// FR-87's gaps in the declared series indices, in ascending order: one

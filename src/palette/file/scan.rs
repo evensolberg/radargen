@@ -1,6 +1,8 @@
 //! The text a `--palette` file is read as: comments blanked, lines
 //! indexed, blocks matched and quotes cut short (FR-102).
 
+use std::ops::Range;
+
 /// CSS's comment delimiters.
 const COMMENT_OPEN: &str = "/*";
 const COMMENT_CLOSE: &str = "*/";
@@ -103,6 +105,15 @@ impl Lines {
     /// The 1-based line holding byte `offset`.
     pub(super) fn at(&self, offset: usize) -> usize {
         self.0.partition_point(|&start| start <= offset)
+    }
+
+    /// Each line that starts inside `span` after its first byte: its 1-based
+    /// number and its start.
+    pub(super) fn starting_in(&self, span: Range<usize>) -> impl Iterator<Item = (usize, usize)> {
+        let first = self.at(span.start);
+        let last = self.0.partition_point(|&start| start < span.end);
+        let starts = self.0.get(first..last).unwrap_or_default();
+        (first + 1..).zip(starts.iter().copied())
     }
 }
 
