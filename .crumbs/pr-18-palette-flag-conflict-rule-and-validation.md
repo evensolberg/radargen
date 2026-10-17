@@ -10,6 +10,8 @@ tags:
 - cli
 created: 2026-10-08
 updated: 2026-10-16
+blocks:
+- rg-0fm
 phase: v1.1
 ---
 
@@ -32,3 +34,9 @@ FR-59 conflicts_with, FR-86/FR-87 file validation; tier-one failure while buildi
 [2026-10-12] From PR 14b: the HTML stylesheet (emit/html/css.rs palettes()) writes Palette values verbatim as custom-property declarations, relying on construction-time validation. A --palette constructor must check FR-86 #RRGGBB before storing, or a value with ; } < reaches the <style> block (NFR-6 context 5).
 
 [2026-10-15] From the rg-nuy review: script.js assumes the theme toggle exists. When --palette omits it, guard or skip the toggle block, or toggle.addEventListener throws before the D-66 loop, the js class and the skip link run, and the page loses its interactive layer.
+
+[2026-10-16] PRD v0.78: FR-102 / D-92 fix the file grammar — exactly one :root rule, comments allowed, leading BOM ignored; any other selector/at-rule/second :root, an unknown property (not an FR-82 role or --series-N without leading zeros, case-sensitive), or a duplicate is a hard error naming it and its line; all of a file's problems (grammar, FR-86, FR-87) reported together. SC-21 extended. --create-palette is split out to rg-0fm (PR 18b).
+
+[2026-10-16] PRD v0.78 review: PR 18 also rewrites docs/product/palette.sample.css to FR-101's single-:root form (light values; each neutral's dark value in a /* */ comment after its ;) so 1.3.0 never ships a sample FR-102 rejects; replace tests/palette.rs's two-block drift check with: the sample parses through the new parser to Palette::built_in(Light), and its comments carry every DARK value. FR-102 details: comments stripped first (legal anywhere), selector exactly :root ASCII case-insensitive, NUL refused first, duplicate names both lines, values stored uppercased, FR-86/87 checked over the accepted rule only. NFR-15 now covers only unreadable / non-UTF-8 palette files.
+
+[2026-10-16] PRD v0.78 re-review: PR 18 also writes docs/palette.md (the guide the sample header links to: each role, where it is drawn with an annotated illustration, built-in light/dark values, contrast each needs; link from README). The sample header must not name --create-palette. Before rewriting the sample, copy the current two-block file to tests/fixtures/ as the SC-21 second-block fixture. Line numbers in palette diagnostics are those of the file as written; a removed comment counts as whitespace and keeps its line breaks.
