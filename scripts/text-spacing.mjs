@@ -164,7 +164,7 @@ async function checkEngine(name, launchOptions, outDir, pages) {
       // The tail count follows the last colon, so a Windows drive letter
       // stays in the path.
       const [, file, expected, scroll] = arg.match(/^(.*?)(?::(\d+))?(:scroll)?$/);
-      await page.goto(pathToFileURL(resolve(file)).href, { waitUntil: 'load' });
+      await page.goto(pathToFileURL(resolve(file)).href);
       // Open the table view once, before any accessibility snapshot, so
       // opening it is never reported as the tree changing.
       await evaluate(page, `document.querySelectorAll('details').forEach((d) => { d.open = true; })`);
