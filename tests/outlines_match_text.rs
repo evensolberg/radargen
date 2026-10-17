@@ -83,7 +83,7 @@ fn corpus() -> Vec<String> {
 /// into SVG's y-down space and offset to `(dx, dy)`.
 #[expect(
     clippy::suboptimal_flops,
-    reason = "NFR-4: plain * and + as the serialiser writes them; mul_add falls back to a libm fma where the CPU lacks one"
+    reason = "mirrors the serialiser's path, whose plain * and + NFR-4 requires; mul_add falls back to a libm fma where the CPU lacks one"
 )]
 fn path(segments: &[Segment], scale: f64, dx: f64, dy: f64) -> String {
     let at = |&(x, y): &(f32, f32)| {
@@ -125,11 +125,12 @@ struct Built {
 fn build() -> Built {
     let face = FontMetrics::load(TTF, "Inter Regular").expect("shaping face");
     let scale = SIZE / face.units_per_em();
-    // skrifa gives an empty glyph an empty outline; an error is only an id
-    // the face does not have, which would mean shaper and reader disagree.
+    // skrifa gives an empty glyph an empty outline; an error is an id the
+    // face does not have (shaper and reader disagree) or an outline that
+    // cannot be drawn.
     let outline = |glyph| {
         face.outline(glyph)
-            .expect("the shaped glyph is in the face")
+            .expect("the shaped glyph is in the face and draws")
     };
 
     let mut text = String::new();
