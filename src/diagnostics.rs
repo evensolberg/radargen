@@ -856,8 +856,8 @@ pub enum Fatal {
         #[source]
         source: std::io::Error,
     },
-    /// NFR-15, FR-61, rg-w5k: the input passes the cap, so it is not a radar's CSV,
-    /// or never ends (`/dev/zero`).
+    /// NFR-15, FR-61, rg-w5k: the input passes the cap, so it is not a
+    /// radar's CSV, or never ends (`/dev/zero`).
     #[error(
         "{path}: larger than {} MiB; a radar's CSV is usually a few kilobytes, so check the path",
         MAX_CSV_BYTES >> 20
