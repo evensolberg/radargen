@@ -93,6 +93,16 @@ The specification is in [`docs/product/radargen-prd.md`](docs/product/radargen-p
 - [`docs/spikes/text-metrics.md`](docs/spikes/text-metrics.md) — why text
   measurement must shape rather than sum advances
 
+## Development
+
+`just ci` is the local gate. Besides the Rust toolchain and the tools `just install` lists, its browser checks need [Node.js](https://nodejs.org) 22 or later (the Chromium checks use its built-in WebSocket) and [`just`](https://github.com/casey/just). Install the checks' one dependency, [Playwright](https://playwright.dev), and the browsers it drives, once and after each Playwright upgrade:
+
+```sh
+just browser-setup
+```
+
+The text-spacing check (WCAG 1.4.12) runs in Chromium, Firefox and WebKit; the other browser checks run in Chromium. `CHROME` points them at a Chromium binary of your own.
+
 ## Licence
 
 GPL-3.0-or-later; the full text is in [`LICENSE`](LICENSE). The bundled font (Inter, subset to Latin, Greek, Cyrillic and Vietnamese) keeps its own OFL-1.1
