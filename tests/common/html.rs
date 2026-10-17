@@ -213,7 +213,13 @@ pub fn assert_requests_nothing(page: &str) {
             }
         }
     }
-    for icon in icons(page) {
+    let icons = icons(page);
+    assert!(
+        matches!(icons.len(), 0 | 2),
+        "the toggle's two icons, or no toggle: {}",
+        icons.len()
+    );
+    for icon in icons {
         let doc = roxmltree::Document::parse(icon).unwrap_or_else(|e| panic!("{e}\n{icon}"));
         for node in doc.descendants().filter(roxmltree::Node::is_element) {
             let tag = node.tag_name().name();

@@ -143,7 +143,9 @@ const BUTTON_CLOSE: &str = ")}\n";
 const SKIP_RULE: &str =
     ".skip{margin-inline-end:auto}\n.theme-toggle{margin-inline-start:auto}\n.skip:not(:focus)";
 /// The icon toggle is square, its padding all round (rg-1ru): at the
-/// page's 16 px text it is about 35 px a side, past WCAG 2.5.8's 24.
+/// page's 16 px text it is about 35 px a side, past WCAG 2.5.8's 24. Its
+/// `display:block` would show both icons but for `HIDDEN_RULE`'s
+/// `!important`, which the swap relies on.
 const TOGGLE_ICON_RULE: &str = ".page-controls .theme-toggle{padding:.4em}\n.theme-toggle svg{display:block;width:1.25em;height:1.25em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}\n";
 const FOCUS_OPEN: &str = ".page-controls button:focus-visible,.detail-close:focus-visible,.detail-heading:focus-visible{outline:2px solid var(";
 /// FR-38's panel, sticky at the viewport's bottom while open so the radar

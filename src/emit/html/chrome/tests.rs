@@ -64,6 +64,10 @@ fn the_scripts_names_are_the_pages() {
         ("toggle", TOGGLE_CLASS),
         ("moon", MOON_CLASS),
         ("sun", SUN_CLASS),
+        (
+            "words",
+            super::super::css::VISUALLY_HIDDEN.trim_start_matches('.'),
+        ),
         ("skip", SKIP_CLASS),
         ("arrangement", ARRANGEMENT_CLASS),
         ("legendScroll", super::super::css::WIDE_LEGEND),
@@ -217,6 +221,8 @@ fn the_toggle_is_an_icon_named_by_what_a_press_does() {
         "padding:.4em}",
         ".theme-toggle svg{display:block;width:1.25em;height:1.25em;",
         "fill:none;stroke:currentColor;stroke-width:2;",
+        // The icon swap: a hidden icon stays hidden past `display:block`.
+        "[hidden]{display:none!important}",
     ] {
         assert!(css.contains(rule), "{rule} in {css}");
     }
