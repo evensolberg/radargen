@@ -134,13 +134,19 @@ pub struct Placements {
 #[must_use]
 pub fn arrange(arrangement: Arrangement, blocks: &Blocks) -> Document {
     let at = placements(arrangement, blocks);
-    part(at.width, at.height, Point::ORIGIN, nodes(&at, blocks))
+    part(
+        at.width,
+        at.height,
+        Point::ORIGIN,
+        nodes(&at, blocks).into(),
+    )
 }
 
-/// What [`arrange`] draws at `at`, in document order. [`narrow_parts`]
-/// splits this same list, so its parts cannot drift from the document.
-fn nodes(at: &Placements, blocks: &Blocks) -> Vec<Node> {
-    vec![
+/// What [`arrange`] draws at `at`, in document order: title, radar, the
+/// key's rule, key, legend. [`narrow_parts`] splits these same nodes, so its
+/// parts cannot drift from the document.
+fn nodes(at: &Placements, blocks: &Blocks) -> [Node; 5] {
+    [
         blocks.title.render(at.title),
         blocks.radar.render(at.radar),
         rule_node(at.rule),
@@ -246,11 +252,15 @@ pub struct NarrowParts {
 pub fn narrow_parts(blocks: &Blocks) -> NarrowParts {
     let at = placements(Arrangement::Narrow, blocks);
     let cut = at.legend.origin.y;
-    let mut body = nodes(&at, blocks);
-    let legend = body.split_off(body.len() - 1);
+    let [title, radar, rule, key, legend] = nodes(&at, blocks);
     NarrowParts {
-        body: part(at.width, cut, Point::ORIGIN, body),
-        legend: part(at.width, at.height - cut, Point { x: 0.0, y: cut }, legend),
+        body: part(at.width, cut, Point::ORIGIN, vec![title, radar, rule, key]),
+        legend: part(
+            at.width,
+            at.height - cut,
+            Point { x: 0.0, y: cut },
+            vec![legend],
+        ),
     }
 }
 
@@ -1305,8 +1315,8 @@ mod tests {
         }
     }
 
-    /// The markers and the key are in the narrow body, and the legend rows
-    /// in the legend part.
+    /// The markers are in the narrow body and the legend rows in the legend
+    /// part.
     #[test]
     fn narrow_markers_and_rows_land_in_their_parts() {
         let b = blocks(PRD_EXAMPLE, TITLED);
