@@ -171,11 +171,9 @@ interaction-only:
 # WCAG 2.1 AA's automatable criteria in headless Chromium (RG-015C). D-71's
 # fixture is wider than 480 units, so its narrow width is read from FR-95's
 # warning and passed on: the audit bounds D-71's recorded 2.5.8 exception.
-# a11y-audit.csv is interaction.csv plus a row in a ring long enough that its
-# legend heading wraps, declared with a doubled space, so the legend check
-# reads a wrapped heading's label and the tidied name (rg-cuj). A long ring
-# wraps without widening the radar, which a long quadrant would (D-71).
-# interaction.csv itself stays as the interaction checks measure it.
+# The audit page is interaction.csv plus a row in a ring long enough that
+# its legend heading wraps, declared with a doubled space (rg-cuj): a long
+# ring wraps without widening the radar, which a long quadrant would (D-71).
 a11y-audit: release-build a11y-audit-only
 
 [private]
@@ -184,8 +182,9 @@ a11y-audit-only:
     set -euo pipefail
     out="$(mktemp -d)"
     trap 'rm -rf "$out"' EXIT
-    ./target/release/radargen tests/fixtures/a11y-audit.csv -o "$out/a11y-audit.html" 2>/dev/null \
-        --rings 'Assess,Trial,Adopt,Retired  after a careful and lengthy evaluation by the architecture board'
+    ring='Retired  after a careful and lengthy evaluation by the architecture board'
+    { cat tests/fixtures/interaction.csv; printf 'Delta Lake,Platforms,%s,Lakehouse storage.,,,\n' "$ring"; } > "$out/a11y-audit.csv"
+    ./target/release/radargen "$out/a11y-audit.csv" -o "$out/a11y-audit.html" --rings "Assess,Trial,Adopt,$ring" 2>/dev/null
     width="$(./target/release/radargen tests/fixtures/d71-wide.csv -o "$out/d71.html" 2>&1 | sed -n 's/.*narrow arrangement is \([0-9]*\) units wide.*/\1/p')"
     node scripts/a11y-audit.mjs "$out/a11y-audit.html" "$out/d71.html" "$width"
 

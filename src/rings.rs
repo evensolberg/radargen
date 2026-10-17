@@ -112,7 +112,7 @@ pub fn parse_rings(declared: Option<&str>) -> Result<RingSet, Vec<RingsError>> {
         if let Some((_, first)) = seen.iter().find(|(k, _)| *k == key) {
             errors.push(RingsError::Duplicate {
                 index: i + 1,
-                entry: entry.clone(),
+                entry,
                 first_index: *first,
             });
             continue;

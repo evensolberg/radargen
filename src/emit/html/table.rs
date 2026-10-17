@@ -155,7 +155,7 @@ fn cell(catalogue: &Catalogue, column: usize, item: &Item, unplotted: bool) -> S
                 .get(item.quadrant)
                 .map_or("", |q| q.label.as_str()),
         ),
-        ColumnKind::Ring => td(None, &catalogue.ring_label(item)),
+        ColumnKind::Ring => td(None, catalogue.ring_label(item)),
         ColumnKind::Link => link_cell(item.link.as_ref()),
         ColumnKind::Description
         | ColumnKind::Domain

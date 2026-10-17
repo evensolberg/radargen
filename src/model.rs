@@ -192,7 +192,8 @@ impl Catalogue {
     }
 
     /// The ring `item` is shown under: its declared ring's label when it is
-    /// plotted, otherwise its cell [`tidy`], empty when the cell is (FR-17).
+    /// plotted, otherwise its cell, stored [`tidy`], empty when the cell is
+    /// (FR-17).
     ///
     /// # Panics
     ///
@@ -200,22 +201,18 @@ impl Catalogue {
     /// from another one.
     #[must_use]
     // qual:allow(complexity, error_handling) reason: "the documented # Panics: an item from another catalogue is a caller bug"
-    pub fn ring_label<'a>(&'a self, item: &'a Item) -> Cow<'a, str> {
+    pub fn ring_label<'a>(&'a self, item: &'a Item) -> &'a str {
         item.ring.map_or_else(
             || {
-                Cow::Owned(
-                    self.column(ColumnKind::Ring)
-                        .and_then(|c| item.cell(c))
-                        .map_or_else(String::new, tidy),
-                )
+                self.column(ColumnKind::Ring)
+                    .and_then(|c| item.cell(c))
+                    .unwrap_or("")
             },
             |r| {
-                Cow::Borrowed(
-                    self.rings
-                        .get(r)
-                        .expect("item.ring is within this catalogue's rings")
-                        .as_str(),
-                )
+                self.rings
+                    .get(r)
+                    .expect("item.ring is within this catalogue's rings")
+                    .as_str()
             },
         )
     }
@@ -553,7 +550,15 @@ impl Builder {
             .header
             .cell_positions
             .iter()
-            .map(|&p| at(p).to_string())
+            // The ring cell is shown for an unplotted row (FR-17), so it is
+            // stored tidied as the declared rings are (D-89).
+            .map(|&p| {
+                if p == self.at.ring {
+                    tidy(at(p))
+                } else {
+                    at(p).to_string()
+                }
+            })
             .collect();
         self.items.push(Item {
             line: record.line,
