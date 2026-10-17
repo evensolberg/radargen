@@ -195,7 +195,8 @@ const SHOW: &str = "visibility:visible";
 /// Hover's dashes, a pixel wide at any scale: the narrow arrangement shrinks
 /// the SVG, which would thin a scaled stroke below a pixel.
 const DASHED: &str = ";stroke-dasharray:3 2;vector-effect:non-scaling-stroke";
-/// Also how focus's ring ends: solid, whatever hover set before it.
+/// The selected square's stroke, and how focus's ring ends: solid, whatever
+/// hover set before it.
 const SOLID: &str = ";stroke-dasharray:none";
 
 /// Both vendored faces, inlined (NFR-5) under the family the SVG text names
@@ -464,7 +465,7 @@ fn legend_focus() -> String {
                 &var(Neutral::Focus),
                 ";stroke-width:",
                 &fmt_coord(FOCUS_RING_STROKE),
-                "px",
+                PX,
                 SOLID,
             ]
             .concat(),
@@ -475,7 +476,8 @@ fn legend_focus() -> String {
 
 fn marker_focus() -> String {
     let ring = attr(DATA_FOCUS_RING);
-    let focused = [attr(DATA_MARKER_INDICATOR), attr(DATA_FOCUSED)].concat();
+    let indicator = attr(DATA_MARKER_INDICATOR);
+    let focused = [indicator.as_str(), &attr(DATA_FOCUSED)].concat();
     [
         rule(
             &[".", JS_CLASS, " ", &attr(DATA_MARKER), FOCUS_VISIBLE].concat(),
