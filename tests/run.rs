@@ -971,6 +971,29 @@ fn an_svg_gives_no_png_warnings() {
     assert!(ran.ok() && ran.lines().is_empty(), "{}", ran.stderr);
 }
 
+/// D-88: a wrapped text is named as written — no space where a token
+/// broke mid-word, one where lines broke between words (crumb rg-t3p).
+#[test]
+fn a_wrapped_svg_text_is_named_as_written() {
+    let title = "Platformengineeringcapabilitiesoverviewforthewholeorganisation Q3";
+    let subtitle = "Apache Kafka Streams With Exactly Once Delivery Semantics Enabled";
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.svg", "-t", title, "-s", subtitle],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    let svg = read(dir.path(), "radar.svg");
+    let parsed = roxmltree::Document::parse(&svg).expect("well-formed");
+    let names: Vec<&str> = parsed
+        .descendants()
+        .filter(|n| n.attribute("role") == Some("img"))
+        .filter_map(|n| n.attribute("aria-label"))
+        .collect();
+    assert!(names.contains(&title), "{names:?}");
+    assert!(names.contains(&subtitle), "{names:?}");
+}
+
 /// SC-18: a run that fails after `-o` exists leaves it byte-identical.
 #[test]
 fn a_failed_svg_run_leaves_the_old_file() {

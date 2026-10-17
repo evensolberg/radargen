@@ -11,7 +11,7 @@ use crate::style::{
     META_GAP,
 };
 use crate::svg::{Anchor, Control, ItemKey, Paint, Point, Tail, TextRun};
-use crate::text::Fonts;
+use crate::text::{Fonts, words};
 use crate::trim;
 
 /// Between a row's qualifier and status (FR-74).
@@ -76,7 +76,7 @@ impl Row {
         let name = LEGEND_NAME.wrap(trim(&item.name), LEGEND_NAME_COLUMN, fonts);
         let meta = meta_text(item.qualifier, item.status).map(|text| fitted(text, &name, fonts));
         let frame = frame(top, line_count(&name, meta.as_ref()));
-        let name = name_run(name, frame.first_baseline);
+        let name = name_run(trim(&item.name), name, frame.first_baseline);
         let last = name.last_baseline();
         Self {
             top,
@@ -178,6 +178,7 @@ impl Fitted {
                 style: LEGEND_META,
                 ink: Neutral::TextMuted,
                 anchor: Anchor::Start,
+                words: text.clone(),
                 lines: vec![text],
                 leading: LINE_HEIGHT,
             }),
@@ -229,8 +230,8 @@ fn frame(top: f64, lines: usize) -> Frame {
     }
 }
 
-/// A row's wrapped name from `baseline`.
-const fn name_run(lines: Vec<String>, baseline: f64) -> TextRun {
+/// A row's name, wrapped into `lines`, from `baseline`.
+fn name_run(name: &str, lines: Vec<String>, baseline: f64) -> TextRun {
     TextRun {
         origin: Point {
             x: LEGEND_NAME_X,
@@ -240,6 +241,7 @@ const fn name_run(lines: Vec<String>, baseline: f64) -> TextRun {
         ink: Neutral::TextPrimary,
         anchor: Anchor::Start,
         lines,
+        words: words(name),
         leading: LINE_HEIGHT,
     }
 }

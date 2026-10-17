@@ -317,6 +317,7 @@ mod tests {
             ink,
             anchor,
             lines: lines.iter().map(|line| (*line).to_owned()).collect(),
+            words: lines.join(" "),
             leading,
             tail: None,
         }

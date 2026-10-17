@@ -15,6 +15,7 @@ pub(super) fn text_bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
         lines,
         leading,
         tail,
+        ..
     } = node
     else {
         panic!("expected text, got {node:?}");

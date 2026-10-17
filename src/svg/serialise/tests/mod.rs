@@ -46,6 +46,7 @@ fn text(lines: &[&str], anchor: Anchor, ink: TextPaint) -> Node {
         ink,
         anchor,
         lines: lines.iter().map(|&l| l.to_owned()).collect(),
+        words: lines.join(" "),
         leading: 15.0,
         tail: None,
     }

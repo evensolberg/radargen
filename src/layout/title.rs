@@ -10,7 +10,7 @@ use crate::style::{
     TITLE_BOTTOM, TITLE_FIRST_BASELINE, TITLE_LEADING, TITLE_TOP, TextStyle,
 };
 use crate::svg::{Anchor, Group, Node, Point, Scale, Semantics, TextRun};
-use crate::text::Fonts;
+use crate::text::{Fonts, words};
 
 /// The title's heading level: the document's top.
 const TITLE_LEVEL: NonZeroU8 = NonZeroU8::MIN;
@@ -39,6 +39,7 @@ const SUBTITLE_PART: Part = Part {
 #[derive(Debug, Clone, PartialEq)]
 struct Run {
     lines: Vec<String>,
+    words: String,
     first_baseline: f64,
     style: TextStyle,
     ink: Neutral,
@@ -52,6 +53,7 @@ impl Run {
         let width = widest(lines.iter().map(|line| part.style.measure(line, fonts)));
         Self {
             lines,
+            words: words(text),
             first_baseline,
             style: part.style,
             ink: part.ink,
@@ -81,6 +83,7 @@ impl Run {
             ink: self.ink,
             anchor: Anchor::Start,
             lines: self.lines.clone(),
+            words: self.words.clone(),
             leading: self.leading,
         }
         .node(Scale::uniform(scale))

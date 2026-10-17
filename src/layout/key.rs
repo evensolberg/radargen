@@ -93,6 +93,7 @@ fn text(label: &str, origin: Point, style: TextStyle, ink: Neutral, scale: f64) 
         ink,
         anchor: Anchor::Start,
         lines: vec![label.to_owned()],
+        words: label.to_owned(),
         leading: 0.0,
     }
     .node(Scale::uniform(scale))

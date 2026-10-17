@@ -1,3 +1,16 @@
+## [1.2.2] - 2026-10-17
+
+### 🐛 Bug Fixes
+
+- *(svg)* A token broken mid-word is named whole
+
+### 🚜 Refactor
+
+- *(svg)* The outline's name function is name, not words
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.2.2; close rg-t3p, file rg-g0c
 ## [1.2.1] - 2026-10-17
 
 ### 🐛 Bug Fixes

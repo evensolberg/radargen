@@ -13,6 +13,7 @@ pub(super) struct Run<'a> {
     pub(super) ink: TextPaint,
     pub(super) anchor: Anchor,
     pub(super) lines: &'a [String],
+    pub(super) words: &'a str,
     pub(super) leading: f64,
     pub(super) tail: Option<&'a Tail>,
 }
