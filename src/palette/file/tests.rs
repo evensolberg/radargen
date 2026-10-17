@@ -811,7 +811,7 @@ fn a_name_an_empty_value_swallowed_is_located_on_its_own_line() {
     );
 }
 
-/// rg-4id: a value that starts with a declaration on its own line is not a
+/// rg-4id: a value that starts with a declaration on the same line is not a
 /// forgotten `;` at a line end, so it swallows nothing.
 #[test]
 fn a_declaration_on_the_same_line_is_not_swallowed() {
