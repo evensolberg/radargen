@@ -1,13 +1,19 @@
+## [1.2.4] - 2026-10-17
+
+### 🐛 Bug Fixes
+
+- *(html)* A heading wrapped between words is named with the space
+- *(html)* The review's follow-ups to wrapped-heading names
+- *(html)* Only tspan text gets a wrapped heading's label
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.2.4; close rg-g0c, file rg-zl6 and rg-cuj
 ## [1.2.3] - 2026-10-17
 
 ### 🐛 Bug Fixes
 
-- *(test)* The long-legend check catches a gutter cut from the legend
-- *(test)* The legend's visible width allows clientWidth's rounding
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* 1.2.3; close rg-ksn
+- *(test)* The long-legend check catches a gutter cut from the legend (1.2.3) (#97)
 ## [1.2.2] - 2026-10-17
 
 ### 🐛 Bug Fixes
