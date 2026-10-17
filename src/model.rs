@@ -12,7 +12,7 @@ use crate::csv::parse::{Record, Table};
 use crate::diagnostics::{DateColumn, RowError, RowKind, Warning, Warnings, column_label};
 pub use crate::link::Link;
 use crate::rings::{RingSet, RingSource};
-use crate::{normalise, single_line, trim};
+use crate::{normalise, single_line, tidy, trim};
 use std::borrow::Cow;
 use std::sync::Arc;
 
@@ -110,7 +110,7 @@ impl Status {
 pub struct Quadrant {
     /// FR-76's normalised value, which groups the rows.
     pub key: String,
-    /// FR-9: the ordinally first variant, trimmed.
+    /// FR-9: the ordinally first variant, [`tidy`].
     pub label: String,
 }
 
@@ -120,7 +120,8 @@ pub struct Item {
     /// The physical line the record begins on (NFR-10). Lines ascend with
     /// CSV order, so this is also FR-34's last tiebreak.
     pub line: usize,
-    /// As written, after FR-90's removal.
+    /// [`tidy`]: as written after FR-90's removal, trimmed, each run of
+    /// whitespace inside one space, which is how every view shows it (D-76).
     pub name: String,
     /// FR-76's key, computed once so no comparator folds (architecture §6).
     pub name_key: String,
@@ -245,7 +246,7 @@ impl Catalogue {
         debug_assert_eq!(number.is_some(), item.ring.is_some(), "FR-18");
         let ring = self.ring_label(item);
         let row = [
-            Some(trim(&item.name)),
+            Some(item.name.as_str()),
             item.qualifier.map(Qualifier::label),
             item.status.and_then(Status::shown).map(Status::label),
         ]
@@ -552,7 +553,7 @@ impl Builder {
             .collect();
         self.items.push(Item {
             line: record.line,
-            name: name.to_string(),
+            name: tidy(name),
             name_key,
             quadrant,
             ring,
@@ -584,7 +585,7 @@ impl Builder {
     /// the ordinally first variant, trimmed, whatever order rows come in.
     fn quadrant(&mut self, value: &str) -> usize {
         let key = normalise(value);
-        let label = trim(value);
+        let label = tidy(value);
         if let Some((i, q)) = self
             .quadrants
             .iter_mut()
@@ -594,15 +595,12 @@ impl Builder {
             // D-53: "ordinally" is code-point order, which is `str`'s `<`.
             // `order::compare_names` is the same rule; this site
             // cannot call it, since `order.rs` depends on this module.
-            if label < q.label.as_str() {
-                q.label = label.to_string();
+            if label < q.label {
+                q.label = label;
             }
             return i;
         }
-        self.quadrants.push(Quadrant {
-            key,
-            label: label.to_string(),
-        });
+        self.quadrants.push(Quadrant { key, label });
         self.quadrants.len() - 1
     }
 
@@ -1129,6 +1127,24 @@ mod tests {
         );
     }
 
+    /// rg-cuj: a doubled space inside a quadrant or a name is one space, so
+    /// `Tool  Kit` and `Tool Kit` are one quadrant labelled as a wrapped
+    /// heading reads it, and the name shows as its wrapped row reads.
+    #[test]
+    fn internal_whitespace_runs_collapse_in_labels_and_names() {
+        let cat = catalogue(&format!(
+            "{HEAD}Kafka  Streams,Tool  Kit,Adopt,d\nb,Tool Kit,Adopt,d\n"
+        ));
+        assert_eq!(
+            cat.quadrants,
+            [Quadrant {
+                key: "tool kit".into(),
+                label: "Tool Kit".into()
+            }]
+        );
+        assert_eq!(cat.items.first().expect("an item").name, "Kafka Streams");
+    }
+
     /// FR-8: quadrants in order of first appearance; FR-10 orders them later.
     #[test]
     fn quadrants_keep_first_appearance_order() {
@@ -1220,18 +1236,19 @@ mod tests {
             warnings(&format!("{HEAD}Kafka,T,Adopt,d\nKafka\u{1},T,Adopt,d\n")),
             [
                 "warning: line 3, name: removed U+0001, which the output cannot display",
-                "warning: line 3, name: 'Kafka' repeats line 2's name 'Kafka' (names match ignoring case and surrounding spaces); both are drawn, so rename or delete one if they are the same item",
+                "warning: line 3, name: 'Kafka' repeats line 2's name 'Kafka' (names match ignoring case and extra spaces); both are drawn, so rename or delete one if they are the same item",
             ]
         );
         assert_eq!(
             warnings(&format!("{HEAD}Kafka,T,Adopt,d\n\u{200b}Kafka,T,Adopt,d\n")),
             [
-                "warning: line 3, name: 'Kafka' repeats line 2's name 'Kafka' (names match ignoring case and surrounding spaces); both are drawn, so rename or delete one if they are the same item"
+                "warning: line 3, name: 'Kafka' repeats line 2's name 'Kafka' (names match ignoring case and extra spaces); both are drawn, so rename or delete one if they are the same item"
             ]
         );
     }
 
-    /// The name is kept as written; its key is FR-76's, computed once.
+    /// The name is kept tidied, as it is shown; its key is FR-76's,
+    /// computed once.
     #[test]
     fn names_keep_their_text_and_carry_a_key() {
         let cat = catalogue(&format!("{HEAD} Kafka ,T,Adopt,d\n"));
@@ -1240,7 +1257,7 @@ mod tests {
         };
         assert_eq!(
             (item.name.as_str(), item.name_key.as_str()),
-            (" Kafka ", "kafka")
+            ("Kafka", "kafka")
         );
     }
 

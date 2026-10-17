@@ -37,7 +37,7 @@ A starter file with every column filled in is at `radargen-data/radar-template.c
 
 ## The columns
 
-Columns are found by **name, not position**, so their order in the file does not matter. Names are matched ignoring case and surrounding spaces, so `Name`, `name` and ` NAME ` are all the `name` column. The order below is the template's, and a sensible default.
+Columns are found by **name, not position**, so their order in the file does not matter. Names are matched ignoring case and extra spaces, so `Name`, `name` and ` NAME ` are all the `name` column. The order below is the template's, and a sensible default.
 
 | Column | Required | Accepts | Shown as |
 | --- | --- | --- | --- |
@@ -61,19 +61,19 @@ Every row and every column appears in the **table view**, under the *Every item*
 
 ### `name`
 
-The item, as readers should see it. Two rows with the same name, ignoring case and surrounding spaces, are both drawn and you get a warning. The tool never merges them, because they may be different things.
+The item, as readers should see it. Two rows with the same name, ignoring case and extra spaces, are both drawn and you get a warning. The tool never merges them, because they may be different things.
 
 ### `quadrant`
 
 Free text. Every distinct value becomes one sector, so the file decides how many quadrants there are. The radar reads best with **3 to 6**, and more than six draws with a warning.
 
-- Values that differ only in case or surrounding spaces are one quadrant: `Tool`, `tool` and `Tool ` are the same.
+- Values that differ only in case or extra spaces are one quadrant: `Tool`, `tool` and `Tool ` are the same, and so are `Tool Kit` and `Tool  Kit`. The label is shown with single spaces.
 - Values that differ in spelling are not: `Tool` and `Tools` are two quadrants, with no warning. Keep the spelling consistent.
 - Quadrants are placed in alphabetical order, ignoring case. There is no way to reorder them yet.
 
 ### `ring`
 
-Which band the item sits in. The value must be one of the declared rings, matched ignoring case and surrounding spaces.
+Which band the item sits in. The value must be one of the declared rings, matched ignoring case and extra spaces.
 
 A row whose ring is not declared is **not an error**. It is left off the radar, it appears in the table view flagged "not on the radar", and you get a warning naming the declared rings. Usually the value is a typo (`Adpot`), or a ring missing from `--rings`.
 
@@ -110,7 +110,7 @@ The main write-up of what the item is. The column must be in the header. A row m
 | blank, or no column | Solid, and nothing is claimed either way |
 | anything else | Solid, with a warning |
 
-Values are matched ignoring case and surrounding spaces. The qualifier never depends on the ring, so it works the same with any `--rings`.
+Values are matched ignoring case and extra spaces. The qualifier never depends on the ring, so it works the same with any `--rings`.
 
 ### `domain` and `rationale`
 
@@ -139,7 +139,7 @@ How the item changed since the last edition. You set it for each edition; the to
 | blank, or no column | The plain marker, and nothing is stated |
 | anything else | Treated as `No Change`, with a warning |
 
-Values are matched ignoring case and surrounding spaces, so `moved in` works.
+Values are matched ignoring case and extra spaces, so `moved in` works.
 
 ### `link`
 

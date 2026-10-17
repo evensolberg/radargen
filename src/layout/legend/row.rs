@@ -12,7 +12,6 @@ use crate::style::{
 };
 use crate::svg::{Anchor, Control, ItemKey, Paint, Point, Tail, TextRun};
 use crate::text::{Fonts, words};
-use crate::trim;
 
 /// Between a row's qualifier and status (FR-74).
 const META_SEPARATOR: &str = " \u{b7} ";
@@ -73,10 +72,10 @@ impl Row {
         fonts: &Fonts,
     ) -> Self {
         let Numbered { item, number } = numbered;
-        let name = LEGEND_NAME.wrap(trim(&item.name), LEGEND_NAME_COLUMN, fonts);
+        let name = LEGEND_NAME.wrap(&item.name, LEGEND_NAME_COLUMN, fonts);
         let meta = meta_text(item.qualifier, item.status).map(|text| fitted(text, &name, fonts));
         let frame = frame(top, line_count(&name, meta.as_ref()));
-        let name = name_run(trim(&item.name), name, frame.first_baseline);
+        let name = name_run(&item.name, name, frame.first_baseline);
         let last = name.last_baseline();
         Self {
             top,

@@ -109,7 +109,7 @@ fn each_row_kind_has_its_per_row_message() {
                     first_value: " terraform ".into(),
                 },
             ),
-            "line 12, name: 'Terraform' repeats line 4's name 'terraform' (names match ignoring case and surrounding spaces); both are drawn, so rename or delete one if they are the same item",
+            "line 12, name: 'Terraform' repeats line 4's name 'terraform' (names match ignoring case and extra spaces); both are drawn, so rename or delete one if they are the same item",
         ),
     ];
     for (warning, expected) in cases {
@@ -319,7 +319,7 @@ fn forty_rows_and_a_typo_make_one_ring_line_and_a_duplicate_keeps_its_own() {
         w.render(),
         vec![
             "warning: 41 rows use a ring --rings does not declare (Adopt, Trial) — In Use (40, first line 4), Adpot (1, line 37); all appear in the table view; to plot one, add it to --rings",
-            "warning: line 50, name: 'Kafka' repeats line 9's name 'Kafka' (names match ignoring case and surrounding spaces); both are drawn, so rename or delete one if they are the same item",
+            "warning: line 50, name: 'Kafka' repeats line 9's name 'Kafka' (names match ignoring case and extra spaces); both are drawn, so rename or delete one if they are the same item",
         ]
     );
 }
@@ -898,12 +898,12 @@ fn csv_header_and_row_messages() {
     let cases = [
         (
             repeats(2, "Name", "name"),
-            "error: line 1: column 3 (C) 'Name' repeats column 1 (A) 'name'; header names match ignoring case and surrounding spaces, so rename or remove one",
+            "error: line 1: column 3 (C) 'Name' repeats column 1 (A) 'name'; header names match ignoring case and extra spaces, so rename or remove one",
         ),
         // A header is CSV text: a quoted newline in it must not forge a line.
         (
             repeats(1, "a\nerror: forged", "a"),
-            r"error: line 1: column 2 (B) 'a\nerror: forged' repeats column 1 (A) 'a'; header names match ignoring case and surrounding spaces, so rename or remove one",
+            r"error: line 1: column 2 (B) 'a\nerror: forged' repeats column 1 (A) 'a'; header names match ignoring case and extra spaces, so rename or remove one",
         ),
         (
             count(3),
