@@ -1,30 +1,17 @@
-## [unreleased]
-
-### 🚀 Features
-
-- *(text)* Shape, place and outline glyphs for the SVG export
-- *(svg)* Outlined text and the standalone root (D-88)
-- *(svg)* -o radar.svg writes the standalone export (FR-54)
+## [1.2.1] - 2026-10-17
 
 ### 🐛 Bug Fixes
 
-- *(svg)* The final review's fixes: fmt, rustqual, two doc gaps
+- *(test)* Long-legend check no longer depends on macOS scrollbars (#95)
 
-### 📚 Documentation
+### ⚙️ Miscellaneous Tasks
 
-- *(plan)* PR 17, SVG export with outlined text (draft)
-- *(plan)* PR 17 rev 1.1, the five plan reviews folded in
-- *(prd)* D-88, the exported SVG (v0.73)
-- *(svg)* README's SVG section and manual check 16
+- *(release)* 1.2.1
+## [1.2.0] - 2026-10-16
 
-### 🚜 Refactor
+### 🚀 Features
 
-- *(emit)* UNTITLED is every output's, not the page's
-- *(svg)* Simplify pass over the export
-
-### 🧪 Testing
-
-- *(svg)* Goldens, the binary against them, two-process determinism
+- *(svg)* SVG export with outlined, deduplicated text (1.2.0) (#91)
 ## [1.1.0] - 2026-10-16
 
 ### 🚀 Features
