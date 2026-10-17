@@ -97,6 +97,8 @@ enum TextMode<'a> {
 struct Context<'a> {
     target: Target<'a>,
     control: Option<ControlKind>,
+    /// Inside a heading, which names itself (rg-g0c).
+    heading: bool,
     text: TextMode<'a>,
 }
 
@@ -106,6 +108,7 @@ impl<'a> Context<'a> {
         Self {
             target,
             control: None,
+            heading: false,
             text: TextMode::Text,
         }
     }
@@ -158,6 +161,7 @@ pub fn standalone(document: &Document, file: &Standalone<'_>) -> Result<String, 
     let context = Context {
         target: Target::Static(file.palette),
         control: None,
+        heading: false,
         text: TextMode::Outlined(outline::Outlined {
             fonts: file.fonts,
             glyphs: &glyphs,

@@ -1010,6 +1010,25 @@ fn a_wrapped_heading_is_named_as_written() {
     );
 }
 
+/// A subtitle broken mid-word is an image named by its words in the page,
+/// not two fragments; one wrapped between words stays text (rg-zl6).
+#[test]
+fn an_html_subtitle_broken_mid_word_is_named_as_written() {
+    let broken = "Platformengineeringcapabilitiesoverviewforthewholeorganisation Q3";
+    let between = "Apache Kafka Streams With Exactly Once Delivery Semantics Enabled";
+    let dir = seeded(&[("radar.csv", PRD)]);
+    for (subtitle, image) in [(broken, true), (between, false)] {
+        let ran = run_in(
+            dir.path(),
+            &["radar.csv", "-o", "radar.html", "-s", subtitle],
+        );
+        assert!(ran.ok(), "{}", ran.stderr);
+        let page = read(dir.path(), "radar.html");
+        let named = format!("role=\"img\" aria-label=\"{subtitle}\"");
+        assert_eq!(page.contains(&named), image, "{subtitle:?}");
+    }
+}
+
 /// SC-18: a run that fails after `-o` exists leaves it byte-identical.
 #[test]
 fn a_failed_svg_run_leaves_the_old_file() {

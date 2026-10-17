@@ -74,6 +74,54 @@ fn a_wrapped_heading_is_named_by_its_words() {
     }
 }
 
+/// rg-zl6: a plain text whose tspans break a token mid-word would read
+/// as two fragments, so it is an image named by its words. Wrapped only
+/// between words it stays text; a heading (named by its own label) and a
+/// control (named by its own) leave their text alone, as does a halo.
+#[test]
+fn plain_text_broken_mid_word_is_named_by_its_words() {
+    let palette = light();
+    let fill = TextPaint::Fill(MUTED);
+    let broken = || {
+        let mut node = text(
+            &["managedcloudservic", "esextravaganza"],
+            Anchor::Start,
+            fill,
+        );
+        if let Node::Text { words, .. } = &mut node {
+            "managedcloudservicesextravaganza".clone_into(words);
+        }
+        node
+    };
+    for target in [Target::Interactive(&palette), Target::Static(&palette)] {
+        let plain = one(&broken(), target);
+        assert!(
+            first_line(&plain)
+                .contains(" role=\"img\" aria-label=\"managedcloudservicesextravaganza\">"),
+            "{plain}"
+        );
+        let between = one(
+            &text(&["Distributed", "Streaming"], Anchor::Start, fill),
+            target,
+        );
+        // Only the <text> is checked: a static control is an image itself.
+        let text_is_image = |markup: &str| {
+            markup
+                .lines()
+                .any(|l| l.starts_with("<text") && l.contains("role=\"img\""))
+        };
+        assert!(!text_is_image(&between), "{between}");
+        let level = NonZeroU8::MIN;
+        let heading = one(&semantic(Semantics::Heading(level), vec![broken()]), target);
+        assert!(!text_is_image(&heading), "{heading}");
+        let row = one(
+            &semantic(Semantics::LegendRow(control(None)), vec![broken()]),
+            target,
+        );
+        assert!(!text_is_image(&row), "{row}");
+    }
+}
+
 /// rg-eae: a named group reads the same in both targets.
 #[test]
 fn a_named_group_in_both_targets() {

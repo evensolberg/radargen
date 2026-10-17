@@ -18,6 +18,14 @@ pub(super) struct Run<'a> {
     pub(super) tail: Option<&'a Tail>,
 }
 
+impl Run<'_> {
+    /// Wrapped by breaking a token: its lines, one space apart, are not its
+    /// words, as they are when every break falls between words.
+    fn broken_mid_word(&self) -> bool {
+        self.lines.len() > 1 && self.lines.join(" ") != self.words
+    }
+}
+
 /// One line as the content, several as `<tspan>`s at absolute baselines;
 /// no lines, nothing.
 pub(super) fn text(run: &Run<'_>, context: Context<'_>) -> String {
@@ -35,6 +43,16 @@ pub(super) fn text(run: &Run<'_>, context: Context<'_>) -> String {
     coord(&mut out, "y", run.origin.y);
     style(&mut out, run.style, run.anchor);
     ink(&mut out, run.ink, context);
+    if matches!(run.ink, TextPaint::Fill(_))
+        && context.control.is_none()
+        && !context.heading
+        && run.broken_mid_word()
+    {
+        // Read as text, each tspan would be a fragment of the broken token;
+        // as an image it is read once, by its words (rg-zl6, D-88).
+        attr(&mut out, "role", "img");
+        attr(&mut out, "aria-label", run.words);
+    }
     if context.target.interactive() && context.control.is_some() {
         // A click on a number or name reaches its control (FR-37).
         attr(&mut out, "pointer-events", "none");

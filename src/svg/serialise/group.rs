@@ -28,14 +28,20 @@ pub(super) fn group(group: &Group, context: Context<'_>) -> String {
     enclose(&open(group, context), &children)
 }
 
-/// The context for a group's children: inside a control once one opens.
+/// The context for a group's children: inside a control once one opens,
+/// and inside a heading once one does.
 const fn within<'a>(semantics: &Semantics, context: Context<'a>) -> Context<'a> {
     let control = match semantics {
         Semantics::Marker(_) => Some(ControlKind::Marker),
         Semantics::LegendRow(_) => Some(ControlKind::LegendRow),
         _ => context.control,
     };
-    Context { control, ..context }
+    let heading = context.heading || matches!(semantics, Semantics::Heading(_));
+    Context {
+        control,
+        heading,
+        ..context
+    }
 }
 
 fn enclose(open: &str, children: &str) -> String {
