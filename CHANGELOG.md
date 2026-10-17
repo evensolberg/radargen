@@ -1,20 +1,27 @@
-## [1.3.4] - 2026-10-17
+## [1.3.5] - 2026-10-17
+
+### 🐛 Bug Fixes
+
+- *(palette)* Report a swallowed name that repeats as a duplicate
+- *(palette)* Swallow only declarations after a value's first line
 
 ### 🚜 Refactor
 
-- *(a11y)* Drop page.goto's default waitUntil in text-spacing
+- *(palette)* Locate swallowed names with the file's line index
 
 ### 🧪 Testing
 
-- *(a11y)* Run the text-spacing check in Chromium, Firefox and WebKit
-- *(a11y)* Point missing browsers at just browser-setup
-- *(a11y)* Keep launch logs, measure overflow against clientWidth
-- *(a11y)* Launch Firefox on macOS 27; measure SVG text by its fill box
-- *(a11y)* Make Firefox's home inside its own try
+- *(palette)* Say the same-line case is on the same line
 
 ### ⚙️ Miscellaneous Tasks
 
-- *(release)* 1.3.4
+- *(crumbs)* Widen rg-p9a to the declarations() restructure
+- *(release)* 1.3.5
+## [1.3.4] - 2026-10-17
+
+### 🧪 Testing
+
+- *(a11y)* Run the text-spacing check in Chromium, Firefox and WebKit (1.3.4) (#109)
 ## [1.3.3] - 2026-10-17
 
 ### 🧪 Testing
