@@ -1,14 +1,15 @@
 ---
 id: rg-u5q
 title: Draw the skip link over the page on every page, not only palette pages
-status: open
+status: closed
 type: task
 priority: 4
 tags:
 - html
 - a11y
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-17
+closed_reason: 'Done in rg-3gc (PR B): SKIP_OVER_PAGE is emitted on every page; a browser check pins that focusing the skip link moves nothing. The .theme-toggle margin rule still ships on palette pages, harmless.'
 phase: ''
 ---
 
