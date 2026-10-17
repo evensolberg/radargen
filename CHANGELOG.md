@@ -1,16 +1,18 @@
+## [1.2.3] - 2026-10-17
+
+### 🐛 Bug Fixes
+
+- *(test)* The long-legend check catches a gutter cut from the legend
+- *(test)* The legend's visible width allows clientWidth's rounding
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.2.3; close rg-ksn
 ## [1.2.2] - 2026-10-17
 
 ### 🐛 Bug Fixes
 
-- *(svg)* A token broken mid-word is named whole
-
-### 🚜 Refactor
-
-- *(svg)* The outline's name function is name, not words
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* 1.2.2; close rg-t3p, file rg-g0c
+- *(svg)* A token broken mid-word is named whole (1.2.2) (#96)
 ## [1.2.1] - 2026-10-17
 
 ### 🐛 Bug Fixes
