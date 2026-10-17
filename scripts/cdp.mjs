@@ -21,7 +21,7 @@ const SHELLS = {
   'win32-x64': 'chrome-headless-shell-win64',
 };
 const MISSING =
-  "no headless Chromium: set CHROME, or run 'npx playwright install chromium-headless-shell' " +
+  "no headless Chromium: set CHROME, or run 'just browser-setup' " +
   '(Playwright ships no shell for this platform when it is not macOS, linux-x64 or win32-x64)';
 // How long Chromium may take to start, a page to load, or a frame to paint.
 export const TIMEOUT_MS = 15000;

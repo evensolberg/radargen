@@ -103,6 +103,8 @@ just browser-setup
 
 The text-spacing check (WCAG 1.4.12) runs in Chromium, Firefox and WebKit; the other browser checks run in Chromium. `CHROME` points them at a Chromium binary of your own.
 
+On Linux, Firefox and WebKit also need system libraries: `npx playwright install-deps firefox webkit` installs them (it uses `sudo`).
+
 ## Licence
 
 GPL-3.0-or-later; the full text is in [`LICENSE`](LICENSE). The bundled font (Inter, subset to Latin, Greek, Cyrillic and Vietnamese) keeps its own OFL-1.1

@@ -1,7 +1,7 @@
 {
   "name": "radargen-browser-checks",
   "private": true,
-  "description": "Dev-only: the browser that drives radargen's text-spacing check in Chromium, Firefox and WebKit. Not part of the released binary.",
+  "description": "Dev-only: the library that drives radargen's text-spacing check in Chromium, Firefox and WebKit. Not part of the released binary.",
   "engines": {
     "node": ">=22"
   },

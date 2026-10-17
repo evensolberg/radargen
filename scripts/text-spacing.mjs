@@ -15,7 +15,8 @@
 //     panel, both opened first, D-78);
 //   - with :scroll, the table's own region does scroll at 320 px, so the
 //     check above is not vacuous for a table that happens to fit;
-//   - the accessibility tree's roles and names do not change.
+//   - the roles and names in Playwright's ARIA snapshot (and, in Chromium,
+//     in its own accessibility tree) do not change.
 // It writes a screenshot per engine, page and width, and exits non-zero on
 // any failure, in any engine; an engine that will not start is a failure,
 // not a skip (RG-015B).
@@ -212,7 +213,10 @@ async function main() {
     try {
       if ((await checkEngine(name, options, outDir, pages)) > 0) failed.push(name);
     } catch (error) {
-      console.log(`FAIL ${name}: ${error.message.split('\n')[0]}`);
+      // Playwright follows a missing browser's first line with an install
+      // banner that bypasses the pin, so the hint replaces it.
+      const missing = error.message.includes("Executable doesn't exist") ? "; run 'just browser-setup'" : '';
+      console.log(`FAIL ${name}: ${error.message.split('\n')[0]}${missing}`);
       failed.push(name);
     }
   }
