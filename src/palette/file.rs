@@ -348,16 +348,22 @@ fn declarations<'a>(
         if text.is_empty() {
             continue;
         }
-        match text.split_once(':') {
-            Some((name, value)) if !css_trim(name).is_empty() => {
+        match text
+            .split_once(':')
+            .map(|(name, value)| (css_trim(name), name.len(), value))
+        {
+            Some((name, name_len, value)) if !name.is_empty() => {
                 // `value` starts one past the colon, which is ASCII.
-                let value_at = at + name.len() + 1;
-                let swallowed = swallowed_names(value)
-                    .map(|(from, name)| (lines.at(value_at + from), name))
+                let value_at = at + name_len + 1;
+                let swallowed = lines
+                    .starting_in(value_at..value_at + value.len())
+                    .filter_map(|(line, from)| {
+                        Some((line, swallowed_name(value.get(from - value_at..)?)?))
+                    })
                     .collect();
                 out.push(Declaration {
                     line,
-                    name: css_trim(name),
+                    name,
                     value: css_trim(value),
                     swallowed,
                 });
@@ -482,21 +488,11 @@ fn first_declaration<'a>(
     }
 }
 
-/// The byte offset in `value` and the name of each custom-property
-/// declaration on a line after its first: what a forgotten `;` ran it into.
-/// The first line is the rest of the declaration's own, so an empty value's
-/// successor is on the second.
-fn swallowed_names(value: &str) -> impl Iterator<Item = (usize, &str)> {
-    value
-        .split(['\n', '\r'])
-        .scan(0, |from, line| {
-            let at = *from;
-            *from += line.len() + 1;
-            Some((at, line))
-        })
-        .skip(1)
-        .filter_map(|(at, line)| Some((at, css_trim(line.split_once(':')?.0))))
-        .filter(|(_, name)| name.starts_with("--"))
+/// The custom property a line of a value declares, if it declares one:
+/// what a forgotten `;` ran the value into. `line` runs to the value's end.
+fn swallowed_name(line: &str) -> Option<&str> {
+    let (name, _) = line.split(['\n', '\r']).next()?.split_once(':')?;
+    Some(css_trim(name)).filter(|name| name.starts_with("--"))
 }
 
 /// FR-87's gaps in the declared series indices, in ascending order: one
