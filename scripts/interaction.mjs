@@ -655,13 +655,16 @@ try {
         return {
           overflows: box.scrollHeight > box.clientHeight + 1, box: box.clientHeight, radar: radar.height,
           drawn: svg.getBoundingClientRect().width, own: svg.viewBox.baseVal.width,
-          gutter: box.offsetWidth - box.clientWidth,
+          gutter: box.offsetWidth - box.clientWidth, visible: box.clientWidth,
         };
       })()`);
       check(m.overflows, 'the legend overflows its box, so it scrolls');
       check(near(m.box, m.radar), `the box is ${m.box} px tall, the radar ${m.radar}`);
-      check(m.gutter > 0, `a classic scrollbar takes room (${m.gutter} px), so the next check means something`);
+      check(m.gutter > 0, `a classic scrollbar takes room (${m.gutter} px), so the next checks mean something`);
       check(Math.abs(m.drawn - m.own) <= 0.5, `the legend draws at ${m.drawn} px, not its own ${m.own}`);
+      // The box clips sideways, so a gutter taken from the legend's own
+      // width would cut its right edge rather than narrow it.
+      check(m.visible >= m.own - 0.5, `the box shows ${m.visible} px of the legend's ${m.own}`);
       const first = await centreOf('.arrangement.wide [data-legend-row]');
       await click(first.x, first.y);
       await eventually(async () => !(await panelHidden()), 'the panel opens');
