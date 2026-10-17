@@ -5,6 +5,7 @@
 pub mod cli;
 pub mod columns;
 pub mod csv;
+pub mod decode;
 pub mod diagnostics;
 pub mod emit;
 pub mod errors;
