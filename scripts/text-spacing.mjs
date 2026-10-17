@@ -235,11 +235,13 @@ async function main() {
   // macOS gives the Library it creates there a deny-delete ACL, so a fresh
   // folder per run could not be removed. It holds only empty bookkeeping
   // folders, as Playwright still gives Firefox a temporary profile.
+  // It must exist before launch, and is made inside Firefox's own try so a
+  // problem there cannot stop the other engines.
   const firefoxHome = join(tmpdir(), 'radargen-firefox-home');
-  mkdirSync(firefoxHome, { recursive: true });
   const env = { ...process.env, CFFIXED_USER_HOME: firefoxHome };
   for (const [name, options] of ENGINES) {
     try {
+      if (name === 'firefox') mkdirSync(firefoxHome, { recursive: true });
       const launch = name === 'firefox' ? { ...options, env } : options;
       if ((await checkEngine(name, launch, outDir, pages)) > 0) failed.push(name);
     } catch (error) {
