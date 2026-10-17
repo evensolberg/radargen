@@ -17,8 +17,7 @@ pub use hex::Hex;
 ///
 /// It is the built-in light palette as one `:root` rule, each neutral's dark
 /// value in a comment. `docs/product/palette.sample.css` is these bytes
-/// because it is this file; `tests/palette.rs` holds it to
-/// [`Palette::built_in`].
+/// because it is this file; the tests hold it to [`Palette::built_in`].
 pub const SAMPLE: &str = include_str!("../../docs/product/palette.sample.css");
 
 /// FR-82's eight neutral roles, in the PRD's order.
