@@ -1332,6 +1332,24 @@ fn a_palette_past_the_cap_is_refused() {
     );
 }
 
+/// rg-w5k: an input that never ends is refused at the cap, one line naming
+/// it, rather than read until memory runs out; `-o` is left as it was.
+#[cfg(unix)]
+#[test]
+fn a_csv_past_the_cap_is_refused() {
+    let dir = seeded(&[("radar.html", "old")]);
+    let before = snapshot(dir.path());
+    let ran = run_in(dir.path(), &["/dev/zero", "-o", "radar.html"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: /dev/zero: larger than 64 MiB; a radar's CSV is rarely past a megabyte, so check the path"
+        ]
+    );
+    assert_eq!(snapshot(dir.path()), before);
+}
+
 #[test]
 fn palette_with_theme_is_refused_by_the_binary() {
     let dir = seeded(&[("radar.csv", PRD), ("brand.css", SAMPLE)]);
