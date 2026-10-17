@@ -822,6 +822,12 @@ fn csv_file_messages() {
             "error: in.csv: cannot be read: not found",
         ),
         (
+            Fatal::CsvTooLarge {
+                path: "in.csv".into(),
+            },
+            "error: in.csv: larger than 64 MiB; a radar's CSV is usually a few kilobytes, so check the path",
+        ),
+        (
             Fatal::Unwritable {
                 path: "out/radar.html".into(),
                 source: std::io::Error::new(

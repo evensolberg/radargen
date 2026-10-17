@@ -1,38 +1,29 @@
+## [1.3.1] - 2026-10-17
+
+### 🐛 Bug Fixes
+
+- *(csv)* Cap the input read at 64 MiB
+- *(csv)* Tidy the cap's doc comment and cite NFR-15
+
+### 📚 Documentation
+
+- *(architecture)* Record the CSV read cap
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Unblock rg-0fm now rg-cdo (PR 18) has shipped
+- *(crumbs)* Defer rg-v3a and rg-kzl
 ## [1.3.0] - 2026-10-17
 
 ### 🚀 Features
 
-- *(palette)* Read a --palette file under FR-102's grammar
-- *(html)* Colours reach every format as built-in themes or one set
-- *(cli)* -p, --palette colours every format; conflicts with --theme
-
-### 🐛 Bug Fixes
-
-- *(palette)* Name nested blocks, CR-only lines and at-rule preludes
-- *(cli)* The guide's URL in --help is a delimited link
+- --palette, its grammar and validation (1.3.0) (#105)
 
 ### 📚 Documentation
 
 - *(prd)* A static output's legend in several columns (0.77) (#100)
 - *(prd)* A starter palette and the --palette file's grammar (0.78) (#103)
 - *(plans)* Record PR 15b, 15c, radar-grows and PR 06 as complete (#104)
-- *(plans)* PR 18 plan, --palette and its grammar (RG-018A)
-- *(plans)* RG-018A 1.1 folds in the five plan reviews
-- *(palette)* The sample is one :root set, valid as --palette input
-- *(palette)* A guide to each colour, where it is drawn, its contrast
-- Architecture, manual checks and PRD 0.79 for --palette
-- *(palette)* A quick start, real messages and a dark palette step
-- *(palette)* The sample says role, as the guide and messages do
-
-### 🚜 Refactor
-
-- *(palette)* A palette holds Hex values, so luminance is total
-- *(decode)* Bytes-to-text moves to the crate root
-- *(palette)* Simplify the parser, Colours and the test helpers
-
-### 🧪 Testing
-
-- *(browser)* The palette page's skip link is seen, at both widths
 ## [1.2.6] - 2026-10-17
 
 ### 🐛 Bug Fixes

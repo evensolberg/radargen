@@ -5,6 +5,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::columns::ColumnKind;
+use crate::csv::decode::MAX_BYTES as MAX_CSV_BYTES;
 use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::{RingSource, RingsError};
 use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX};
@@ -854,6 +855,16 @@ pub enum Fatal {
         /// The underlying I/O failure.
         #[source]
         source: std::io::Error,
+    },
+    /// NFR-15, FR-61, rg-w5k: the input passes the cap, so it is not a
+    /// radar's CSV, or never ends (`/dev/zero`).
+    #[error(
+        "{path}: larger than {} MiB; a radar's CSV is usually a few kilobytes, so check the path",
+        MAX_CSV_BYTES >> 20
+    )]
+    CsvTooLarge {
+        /// The input path as given.
+        path: String,
     },
     /// NFR-15: the output cannot be written: its directory is missing or
     /// unwritable, the path names a directory or a read-only file, or the

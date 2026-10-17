@@ -2,24 +2,48 @@
 //! the file system. Decoding is [`crate::decode`]'s, shared with the
 //! `--palette` file.
 
+use std::fs::File;
+use std::io::Read as _;
 use std::path::Path;
 
 use crate::decode::{NotUtf8, decode};
 use crate::diagnostics::Fatal;
 
+/// The largest input read (rg-w5k).
+///
+/// A radar's CSV is a few kilobytes. Ten thousand rows with
+/// paragraph-long descriptions, far more than a page can show, come to
+/// about 20 MB, so 64 MiB leaves room. The cap is there so a wrong path —
+/// `/dev/zero`, a disk image, a log — fails with a message rather than
+/// exhausting memory, since the text is held, decoded and parsed whole.
+pub const MAX_BYTES: usize = 64 << 20;
+/// What [`read`] reads at most: one byte past the cap, to tell a file at
+/// the cap from one beyond it.
+const READ_CAP: u64 = (64 << 20) + 1;
+
 /// FR-61: read and decode the input file. The one place the CSV stage
 /// touches the file system (Decisions).
 ///
+/// Read through a cap rather than whole, so `radargen /dev/zero` ends; not
+/// checked to be a regular file, so a process substitution still works.
+///
 /// # Errors
 ///
-/// [`Fatal::Unreadable`] when the file cannot be read; [`Fatal::NotUtf8`]
-/// when it is not UTF-8, or holds a NUL byte (FR-61, D-65).
+/// [`Fatal::Unreadable`] when the file cannot be read; [`Fatal::CsvTooLarge`]
+/// when it is larger than [`MAX_BYTES`]; [`Fatal::NotUtf8`] when it is not
+/// UTF-8, or holds a NUL byte (FR-61, D-65).
 pub fn read(path: &Path) -> Result<String, Fatal> {
     let shown = path.display().to_string();
-    let bytes = std::fs::read(path).map_err(|source| Fatal::Unreadable {
-        path: shown.clone(),
-        source,
-    })?;
+    let mut bytes = Vec::new();
+    File::open(path)
+        .and_then(|file| file.take(READ_CAP).read_to_end(&mut bytes))
+        .map_err(|source| Fatal::Unreadable {
+            path: shown.clone(),
+            source,
+        })?;
+    if bytes.len() > MAX_BYTES {
+        return Err(Fatal::CsvTooLarge { path: shown });
+    }
     decode(&bytes).map_err(|NotUtf8 { line }| Fatal::NotUtf8 { path: shown, line })
 }
 
@@ -87,6 +111,44 @@ mod tests {
             shown.contains(", line 2: not UTF-8 text; re-save the file as UTF-8"),
             "{shown}"
         );
+    }
+
+    /// rg-w5k: a file past the cap is refused before it is decoded, naming
+    /// its path. Sparse files (`set_len`), so no test writes 64 MiB: zeros
+    /// at the cap pass the cap and fail decoding on their NUL instead.
+    #[test]
+    fn a_file_past_the_cap_is_too_large_and_names_its_path() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("big.csv");
+        let file = std::fs::File::create(&path).expect("creates");
+        file.set_len(READ_CAP).expect("grows");
+        let err = read(&path).expect_err("past the cap");
+        assert!(matches!(err, Fatal::CsvTooLarge { .. }), "{err:?}");
+        let shown = err.render();
+        assert!(
+            shown.contains(&format!("{}: larger than 64 MiB", path.display())),
+            "{shown}"
+        );
+        file.set_len(READ_CAP - 1).expect("shrinks");
+        assert!(
+            matches!(read(&path), Err(Fatal::NotUtf8 { line: 1, .. })),
+            "at the cap, the file is read whole and decoded"
+        );
+    }
+
+    /// rg-w5k: `/dev/zero` never ends; the cap ends the read.
+    #[cfg(unix)]
+    #[test]
+    fn a_file_that_never_ends_is_too_large() {
+        let err = read(Path::new("/dev/zero")).expect_err("never ends");
+        assert!(matches!(err, Fatal::CsvTooLarge { .. }), "{err:?}");
+    }
+
+    /// `READ_CAP` is one byte past `MAX_BYTES`, so a file at the cap reads
+    /// whole and one past it is told apart.
+    #[test]
+    fn the_read_cap_is_one_past_the_limit() {
+        assert_eq!(u64::try_from(MAX_BYTES + 1), Ok(READ_CAP));
     }
 
     #[test]
