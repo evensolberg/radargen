@@ -298,7 +298,7 @@ try {
     const expect = async (hidden, how) => {
       check(hidden ? await allHidden() : await allShown(), `${how}: both legends ${hidden ? 'hidden' : 'shown'}, saw ${seen}`);
       check((await evaluate(LEGEND_NAME)) === (hidden ? 'Show legend' : 'Hide legend'), `${how}: the name`);
-      check((await evaluate(LEGEND_TITLE)) === (hidden ? 'Show legend' : 'Hide legend'), `${how}: the tooltip`);
+      check((await evaluate(LEGEND_TITLE)) === (await evaluate(LEGEND_NAME)), `${how}: the tooltip`);
       check((await evaluate(LEGEND_ICON)) === (hidden ? 'legend-off' : 'legend-on'), `${how}: the icon`);
       check((await evaluate(SKIP_NAME)) === (hidden ? 'Skip to the table' : 'Skip to the legend'), `${how}: the skip link`);
       check((await evaluate(STATE)) === (hidden ? 'hidden' : null), `${how}: the attribute`);
@@ -410,7 +410,7 @@ try {
       await load(width, { page: hiddenUrl });
       check(await allHidden(), 'starts hidden');
       check((await evaluate(LEGEND_NAME)) === 'Show legend', 'named Show legend');
-      check((await evaluate(LEGEND_TITLE)) === 'Show legend', 'its tooltip too');
+      check((await evaluate(LEGEND_TITLE)) === (await evaluate(LEGEND_NAME)), 'its tooltip too');
       check((await evaluate(SKIP_NAME)) === 'Skip to the table', 'the skip link goes to the table');
       await clickOn('.legend-toggle');
       check(await allShown(), 'one press shows it');
@@ -915,7 +915,7 @@ try {
       await press('Tab');
       await press('Tab');
       check((await active()).cls?.includes('legend-toggle'), 'the legend button is the second stop');
-      check((await evaluate(`document.querySelector('.legend-toggle').title`)) === 'Hide legend', 'with its tooltip');
+      check((await evaluate(LEGEND_TITLE)) === (await evaluate(LEGEND_NAME)), 'with its tooltip');
       check((await evaluate(`document.querySelector('.legend-toggle').getBoundingClientRect().width`)) > 20, 'and it is visible');
     });
   }
