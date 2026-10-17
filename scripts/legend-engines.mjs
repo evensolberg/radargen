@@ -25,7 +25,6 @@ const playwright = await import('playwright').catch((error) => {
   process.exit(2);
 });
 
-// A hidden legend is removed (narrow) or invisible in place (wide).
 
 // Firefox on macOS needs a home of its own, or it exits with "Could not
 // find profile folder"; text-spacing.mjs explains, and shares the folder.
@@ -48,11 +47,12 @@ for (const name of ['firefox', 'webkit']) {
     const onRow = await page.evaluate(() => document.activeElement?.hasAttribute('data-legend-row'));
     await page.locator('.legend-toggle').click();
     const focused = await page.evaluate(() => document.activeElement?.classList.contains('legend-toggle'));
-    const hidden = legendState(await page.evaluate(LEGEND_PARTS)) === 'hidden';
+    const state = legendState(await page.evaluate(LEGEND_PARTS));
+    const hidden = state === 'hidden';
     for (const [ok, what] of [
       [onRow, 'a legend row had focus before the click'],
       [focused, 'focus moves to the button'],
-      [hidden, 'both legends hide'],
+      [hidden, `both legends hide (saw ${state})`],
       [errors.length === 0, `no script errors: ${errors}`],
     ]) {
       console.log(`${ok ? 'ok' : 'FAIL'} ${name}: ${what}`);

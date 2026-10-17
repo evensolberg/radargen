@@ -272,8 +272,10 @@ try {
   });
 
   // RG-102: the legend button.
-  const allHidden = async () => legendState(await evaluate(LEGEND_PARTS)) === 'hidden';
-  const allShown = async () => legendState(await evaluate(LEGEND_PARTS)) === 'shown';
+  // Each failing check names the state it saw (missing, mixed, ...).
+  let seen = '';
+  const allHidden = async () => (seen = legendState(await evaluate(LEGEND_PARTS))) === 'hidden';
+  const allShown = async () => (seen = legendState(await evaluate(LEGEND_PARTS))) === 'shown';
   const LEGEND_NAME = `document.querySelector('.legend-toggle').textContent`;
   const SKIP_NAME = `document.querySelector('.skip').textContent`;
   const LEGEND_ICON = `${shownIcon('.legend-toggle')}?.getAttribute('class')`;
@@ -285,7 +287,7 @@ try {
   await scenario('legend toggle', [WIDE, NARROW], async (width) => {
     await load(width);
     const expect = async (hidden, how) => {
-      check(hidden ? await allHidden() : await allShown(), `${how}: both legends ${hidden ? 'hidden' : 'shown'}`);
+      check(hidden ? await allHidden() : await allShown(), `${how}: both legends ${hidden ? 'hidden' : 'shown'}, saw ${seen}`);
       check((await evaluate(LEGEND_NAME)) === (hidden ? 'Show legend' : 'Hide legend'), `${how}: the name`);
       check((await evaluate(LEGEND_ICON)) === (hidden ? 'legend-off' : 'legend-on'), `${how}: the icon`);
       check((await evaluate(SKIP_NAME)) === (hidden ? 'Skip to the table' : 'Skip to the legend'), `${how}: the skip link`);

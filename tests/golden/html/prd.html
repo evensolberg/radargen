@@ -840,8 +840,8 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
 
   // A breakpoint change hides the arrangement holding the focus; focus the
   // same item in the one now shown. When the change event fires, Chromium
-  // may not yet have moved focus off the hidden element, so focus counts
-  // as lost on the body or anywhere in an arrangement no longer shown.
+  // may not yet have moved focus off the hidden element, so focus counts as
+  // lost by focusLost(), which that late blur cannot fool.
   matchMedia(main.getAttribute(N.narrowQuery)).addEventListener('change', () => {
     if (!state.focus || !focusLost()) return;
     const { key, kind } = state.focus;
