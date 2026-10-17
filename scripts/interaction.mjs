@@ -12,7 +12,7 @@
 
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { KEYS, SHOWN, SHOWN_ICON, connect, poll } from './cdp.mjs';
+import { KEYS, LEGEND_PARTS, SHOWN, SHOWN_ICON, connect, legendState, poll, shownIcon } from './cdp.mjs';
 
 const WIDE = 1400;
 const NARROW = 400;
@@ -264,7 +264,6 @@ try {
     const ground = () => evaluate(`getComputedStyle(document.body).backgroundColor`);
     const before = await ground();
     await tabTo((a) => a.cls?.includes('theme-toggle'), 'the toggle');
-    check((await active()).cls?.includes('theme-toggle'), 'the toggle is reached');
     await press('Enter');
     check((await evaluate(`document.documentElement.getAttribute('data-theme')`)) === 'light', 'pressing it sets light');
     check((await evaluate(LABEL)) === TO_DARK, 'and the label offers dark again');
@@ -273,15 +272,11 @@ try {
   });
 
   // RG-102: the legend button.
-  // A hidden legend is removed (narrow) or invisible in place (wide).
-  const LEGENDS = `[...document.querySelectorAll('.wide-legend,.narrow-legend')].map((p) => { const s = getComputedStyle(p); return s.display === 'none' || s.visibility === 'hidden'; })`;
-  // Both parts, or the check would pass on a page with neither.
-  const both = (states) => states.length === 2;
-  const allHidden = async () => { const s = await evaluate(LEGENDS); return both(s) && s.every(Boolean); };
-  const allShown = async () => { const s = await evaluate(LEGENDS); return both(s) && s.every((hidden) => !hidden); };
+  const allHidden = async () => legendState(await evaluate(LEGEND_PARTS)) === 'hidden';
+  const allShown = async () => legendState(await evaluate(LEGEND_PARTS)) === 'shown';
   const LEGEND_NAME = `document.querySelector('.legend-toggle').textContent`;
   const SKIP_NAME = `document.querySelector('.skip').textContent`;
-  const LEGEND_ICON = `[...document.querySelectorAll('.legend-toggle svg')].find((s) => getComputedStyle(s).display !== 'none')?.getAttribute('class')`;
+  const LEGEND_ICON = `${shownIcon('.legend-toggle')}?.getAttribute('class')`;
   const STATE = `document.documentElement.getAttribute('data-legend')`;
   const BREAKPOINT = `Number(document.querySelector('main').getAttribute('data-narrow-query').match(/\\d+/)[0]) + 1`;
 
@@ -408,14 +403,13 @@ try {
       check(await allShown(), 'one press shows it');
       await load(width, { page: hiddenUrl });
       check(await allHidden(), 'a reload starts hidden again: nothing remembered');
-      await load(width, { page: hiddenUrl, script: false });
-      check(await allShown(), 'without script the legend shows');
-      check((await evaluate(`getComputedStyle(document.querySelector('.legend-toggle')).display`)) === 'none', 'and there is no button');
       // Printed, the legend shows: a printout has no button.
-      await load(width, { page: hiddenUrl });
       await send('Emulation.setEmulatedMedia', { media: 'print' });
       check(await allShown(), 'printed, the legend shows');
       await send('Emulation.setEmulatedMedia', { media: '' });
+      await load(width, { page: hiddenUrl, script: false });
+      check(await allShown(), 'without script the legend shows');
+      check((await evaluate(`getComputedStyle(document.querySelector('.legend-toggle')).display`)) === 'none', 'and there is no button');
     });
   }
 

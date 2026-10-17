@@ -16,7 +16,7 @@
 
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { SHOWN, SHOWN_ICON, SPILLS, connect, poll } from './cdp.mjs';
+import { SHOWN, SHOWN_ICON, SPILLS, connect, poll, shownIcon } from './cdp.mjs';
 
 const [page, d71, d71Width] = process.argv.slice(2);
 if (!page || !d71 || !d71Width) {
@@ -458,7 +458,7 @@ async function forced(label) {
   await press('Enter');
   check((await clip(toggle)) !== focusedToggle, `${label}: a press repaints the toggle's icon`);
   painted("the toggle's icon", await evaluate(`(() => { const icon = ${SHOWN_ICON}; return icon ? getComputedStyle(icon).stroke : 'no icon shown'; })()`));
-  painted("the legend button's icon", await evaluate(`(() => { const icon = [...document.querySelectorAll('.legend-toggle svg')].find((s) => getComputedStyle(s).display !== 'none'); return icon ? getComputedStyle(icon).stroke : 'no icon shown'; })()`));
+  painted("the legend button's icon", await evaluate(`(() => { const icon = ${shownIcon('.legend-toggle')}; return icon ? getComputedStyle(icon).stroke : 'no icon shown'; })()`));
   // Focus: a marker's ring.
   await tabTo(marker);
   check((await clip(marker)) !== before.marker, `${label}: a focused marker's ring is painted`);

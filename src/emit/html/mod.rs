@@ -27,8 +27,6 @@ pub enum Legend {
 }
 
 const DOCTYPE_OPEN: &str = "<!DOCTYPE html>\n<html lang=\"en\"";
-/// RG-102: written on `<html>` when the page starts with its legend hidden.
-const HIDDEN_START: &str = " data-legend=\"hidden\"";
 const HEAD_OPEN: &str = ">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"generator\" content=\"";
 const BODY_OPEN: &str = "</style>\n</head>\n<body>\n";
 const HIDDEN_HEADING: &str = "<h1 class=\"visually-hidden\">";
@@ -105,13 +103,13 @@ pub fn page(input: &Page<'_>) -> String {
         legend
     };
     let start = if legend == Legend::Hidden {
-        HIDDEN_START
+        [" ", &chrome::legend_hidden_attr()].concat()
     } else {
-        ""
+        String::new()
     };
     [
         DOCTYPE_OPEN,
-        start,
+        &start,
         HEAD_OPEN,
         OUTPUT_VERSION,
         "\">\n<title>",
@@ -183,18 +181,4 @@ fn part(class: &str, rest: &str, document: &Document, target: Target<'_>) -> Str
         DIV_CLOSE,
     ]
     .concat()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{HIDDEN_START, chrome};
-
-    /// The hidden start is the attribute the script and stylesheet read.
-    #[test]
-    fn the_hidden_start_is_the_legend_attribute() {
-        assert_eq!(
-            HIDDEN_START,
-            [" ", chrome::DATA_LEGEND, "=\"", chrome::LEGEND_HIDDEN, "\""].concat()
-        );
-    }
 }

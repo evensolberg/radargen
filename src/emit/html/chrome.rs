@@ -7,7 +7,7 @@
 //! Rule fragments are module constants, as in `css.rs`.
 
 use super::Legend;
-use super::css::{HIDDEN_BOX, OUTLINE_CLOSE, Wide, capped, narrow_query};
+use super::css::{HIDDEN_BOX, NOT_SHOWN, OUTLINE_CLOSE, Wide, attr, capped, narrow_query, rule};
 use crate::escape::html_attr;
 use crate::palette::Neutral;
 
@@ -44,6 +44,12 @@ pub(super) const TOGGLE_CLASS: &str = "theme-toggle";
 /// removes it. Not to be confused with the rows' `data-legend-row`.
 pub(super) const DATA_LEGEND: &str = "data-legend";
 pub(super) const LEGEND_HIDDEN: &str = "hidden";
+
+/// `data-legend="hidden"`, as the page starts with it, the button sets it
+/// and the stylesheet keys on it (RG-102): one spelling for all three.
+pub(super) fn legend_hidden_attr() -> String {
+    [DATA_LEGEND, "=\"", LEGEND_HIDDEN, "\""].concat()
+}
 /// The toggle's icons (rg-1ru): each shows the theme a press switches to,
 /// so the moon shows while the light palette does and the sun while the
 /// dark one does. The palette blocks pick which (`ICONS_LIGHT`,
@@ -211,11 +217,10 @@ const SKIP_RULE: &str =
 /// `.page-controls` to outrank the controls' own padding: at the
 /// page's 16 px text it is about 35 px a side, past WCAG 2.5.8's 24. Each
 /// icon shows as its palette block's property says.
-const PAD_OPEN: &str = ".page-controls .";
-const PAD_RULE: &str = "{padding:.4em}\n";
-const ICON_OPEN_CLASS: &str = ".";
+const PADDED: &str = ".page-controls .";
+const PAD: &str = "padding:.4em";
 /// Both icon buttons' icons, one size and stroke, so they stay the same.
-const ICON_SVG_RULE: &str = " svg{width:1.25em;height:1.25em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}\n";
+const ICON_SVG: &str = "width:1.25em;height:1.25em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round";
 const ICON_SHOWN_OPEN: &str = ".theme-toggle .";
 const MOON_SHOWN: &str = "{display:var(--theme-moon)}\n";
 const SUN_SHOWN: &str = "{display:var(--theme-sun)}\n";
@@ -240,56 +245,32 @@ const GRID_RULE: &str = "px){.detail dl{display:grid;grid-template-columns:max-c
 /// `.page-controls` to outrank the controls' own (rg-1ru, RG-102).
 fn icon_button(class: &str) -> String {
     [
-        PAD_OPEN,
-        class,
-        PAD_RULE,
-        ICON_OPEN_CLASS,
-        class,
-        ICON_SVG_RULE,
+        rule(&[PADDED, class].concat(), PAD),
+        rule(&[".", class, " svg"].concat(), ICON_SVG),
     ]
     .concat()
 }
 
-const START_GROUP: &str = "{margin-inline-start:auto}\n";
-const BESIDE_OPEN: &str = ":not([hidden])~.";
-const BESIDE_RULE: &str = "{margin-inline-start:.5em}\n";
-const STATE_OPEN: &str = ":root[";
-const STATE_VALUE: &str = "=\"";
-const STATE_CLOSE: &str = "\"] .";
-const NOT_SHOWN: &str = "{display:none}\n";
-const SHOWN_RULE: &str = "{display:block}\n";
+const START_GROUP: &str = "margin-inline-start:auto";
+const BESIDE: &str = "margin-inline-start:.5em";
+const SHOWN: &str = "display:block";
 
 /// The legend button (RG-102): square like the theme toggle, it starts the
 /// right-hand group, with the theme toggle beside it, or alone at the end on
 /// a --palette page. Each icon shows as the legend's state says.
 fn legend_button() -> String {
-    let hidden = [
-        STATE_OPEN,
-        DATA_LEGEND,
-        STATE_VALUE,
-        LEGEND_HIDDEN,
-        STATE_CLOSE,
-    ]
-    .concat();
+    let button = [".", LEGEND_TOGGLE_CLASS].concat();
+    let hidden = [":root", &attr(&legend_hidden_attr()), " ."].concat();
     [
-        icon_button(LEGEND_TOGGLE_CLASS).as_str(),
-        ICON_OPEN_CLASS,
-        LEGEND_TOGGLE_CLASS,
-        START_GROUP,
-        ICON_OPEN_CLASS,
-        LEGEND_TOGGLE_CLASS,
-        BESIDE_OPEN,
-        TOGGLE_CLASS,
-        BESIDE_RULE,
-        ICON_OPEN_CLASS,
-        LEGEND_OFF_CLASS,
-        NOT_SHOWN,
-        &hidden,
-        LEGEND_ON_CLASS,
-        NOT_SHOWN,
-        &hidden,
-        LEGEND_OFF_CLASS,
-        SHOWN_RULE,
+        icon_button(LEGEND_TOGGLE_CLASS),
+        rule(&button, START_GROUP),
+        rule(
+            &[button.as_str(), ":not([hidden])~.", TOGGLE_CLASS].concat(),
+            BESIDE,
+        ),
+        rule(&[".", LEGEND_OFF_CLASS].concat(), NOT_SHOWN),
+        rule(&[hidden.as_str(), LEGEND_ON_CLASS].concat(), NOT_SHOWN),
+        rule(&[hidden.as_str(), LEGEND_OFF_CLASS].concat(), SHOWN),
     ]
     .concat()
 }

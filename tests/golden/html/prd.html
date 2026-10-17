@@ -797,6 +797,14 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
   // invisible, so its rows still have boxes (RG-102).
   const isShown = (el) =>
     !!el?.getClientRects().length && getComputedStyle(el).visibility !== 'hidden';
+  // Focus is lost when it sits on nothing, on the page itself, or on an
+  // element no longer shown: one in an arrangement a breakpoint hid, or a
+  // legend row a press hid. WebKit, and Firefox on macOS, do not focus a
+  // clicked button, so a press leaves focus on the body or on that row.
+  const focusLost = () => {
+    const now = document.activeElement;
+    return !now || now === document.body || !isShown(now);
+  };
   const keyOf = (el) => el.getAttribute(kindOf(el));
 
   // A marker's focus ring lives in the indicator layer, after every marker,
@@ -835,13 +843,9 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
   // may not yet have moved focus off the hidden element, so focus counts
   // as lost on the body or anywhere in an arrangement no longer shown.
   matchMedia(main.getAttribute(N.narrowQuery)).addEventListener('change', () => {
-    const now = document.activeElement;
-    const where = now?.closest('.' + N.arrangement);
-    const visible = shown();
-    const lost = !now || now === document.body || (where && where !== visible);
-    if (!state.focus || !lost) return;
+    if (!state.focus || !focusLost()) return;
     const { key, kind } = state.focus;
-    const el = visible?.querySelector(by(kind, key));
+    const el = shown()?.querySelector(by(kind, key));
     if (el) el.focus();
   });
 
@@ -1098,11 +1102,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
     if (isLegendHidden()) root.removeAttribute(N.legendState);
     else root.setAttribute(N.legendState, N.legendHidden);
     showLegendState();
-    // WebKit, and Firefox on macOS, do not focus a clicked button: the
-    // press leaves focus on the body, or on a row it just hid. Either way
-    // the reader's place is lost, so it goes to the button.
-    const now = document.activeElement;
-    if (!now || now === document.body || !isShown(now)) legendToggle.focus();
+    if (focusLost()) legendToggle.focus();
   });
 
   // D-66: every control says whether its panel is open, and names it.

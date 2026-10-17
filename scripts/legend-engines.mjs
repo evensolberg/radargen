@@ -10,6 +10,7 @@ import { mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { LEGEND_PARTS, legendState } from './cdp.mjs';
 
 const [file] = process.argv.slice(2);
 if (!file) {
@@ -25,14 +26,6 @@ const playwright = await import('playwright').catch((error) => {
 });
 
 // A hidden legend is removed (narrow) or invisible in place (wide).
-// Both parts, or the check would pass on a page with neither.
-const HIDDEN = () => {
-  const parts = [...document.querySelectorAll('.wide-legend,.narrow-legend')];
-  return parts.length === 2 && parts.every((p) => {
-    const s = getComputedStyle(p);
-    return s.display === 'none' || s.visibility === 'hidden';
-  });
-};
 
 // Firefox on macOS needs a home of its own, or it exits with "Could not
 // find profile folder"; text-spacing.mjs explains, and shares the folder.
@@ -55,7 +48,7 @@ for (const name of ['firefox', 'webkit']) {
     const onRow = await page.evaluate(() => document.activeElement?.hasAttribute('data-legend-row'));
     await page.locator('.legend-toggle').click();
     const focused = await page.evaluate(() => document.activeElement?.classList.contains('legend-toggle'));
-    const hidden = await page.evaluate(HIDDEN);
+    const hidden = legendState(await page.evaluate(LEGEND_PARTS)) === 'hidden';
     for (const [ok, what] of [
       [onRow, 'a legend row had focus before the click'],
       [focused, 'focus moves to the button'],

@@ -178,7 +178,16 @@ export const SHOWN = `[...document.querySelectorAll('.arrangement')].find((a) =>
 
 // Page-side source: the theme toggle's icon on show (rg-1ru); the palette
 // blocks pick it, so it is the one the stylesheet displays.
-export const SHOWN_ICON = `[...document.querySelectorAll('.theme-toggle svg')].find((s) => getComputedStyle(s).display !== 'none')`;
+export const shownIcon = (button) =>
+  `[...document.querySelectorAll('${button} svg')].find((s) => getComputedStyle(s).display !== 'none')`;
+export const SHOWN_ICON = shownIcon('.theme-toggle');
+
+// Page-side source (RG-102): whether each legend part is hidden, removed
+// (narrow) or invisible in place (wide). Two parts, or a check would pass on
+// a page with neither.
+export const LEGEND_PARTS = `[...document.querySelectorAll('.wide-legend,.narrow-legend')].map((p) => { const s = getComputedStyle(p); return s.display === 'none' || s.visibility === 'hidden'; })`;
+export const legendState = (parts) =>
+  parts.length !== 2 ? 'missing' : parts.every(Boolean) ? 'hidden' : parts.some(Boolean) ? 'mixed' : 'shown';
 
 // Page-side source: the text of every element `selector` matches whose
 // visible text spills out of the element's box by more than `slack`.

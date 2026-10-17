@@ -266,7 +266,7 @@ fn the_legend_button_is_named_by_where_the_page_starts() {
         );
         assert!(shown.contains(&name(HIDE_LEGEND)) && !shown.contains(&name(SHOW_LEGEND)));
         assert!(hidden.contains(&name(SHOW_LEGEND)) && !hidden.contains(&name(HIDE_LEGEND)));
-        assert!(controls(toggle, Legend::Shown).contains(LEGEND_TOGGLE_CLASS));
+        assert!(shown.contains(LEGEND_TOGGLE_CLASS));
         let css = super::css(&WIDE, toggle);
         // Selector and declarations apart: a literal `{name:value}` reads to
         // clippy as a format argument.
