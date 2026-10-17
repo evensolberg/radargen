@@ -256,12 +256,14 @@ fn unknown_duplicate_and_malformed_values_are_named() {
             PaletteError::NotHex {
                 line: first + 5,
                 name: "--series-2".into(),
-                value: "rgb(0 0 0)".into()
+                value: "rgb(0 0 0)".into(),
+                runs_on: false
             },
             PaletteError::NotHex {
                 line: first + 6,
                 name: "--series-3".into(),
-                value: "#0072B2 !important".into()
+                value: "#0072B2 !important".into(),
+                runs_on: false
             },
         ]
     );
@@ -289,6 +291,7 @@ fn missing_roles_and_series_come_last_in_order() {
         line: 2,
         name: "--focus".into(),
         value: "nope".into(),
+        runs_on: false,
     }];
     want.extend(
         Neutral::ALL
@@ -311,7 +314,8 @@ fn errors_are_sorted_by_line() {
             PaletteError::NotHex {
                 line: 10,
                 name: "--series-1".into(),
-                value: "nope".into()
+                value: "nope".into(),
+                runs_on: false
             },
             PaletteError::OtherRule {
                 line: 12,
@@ -413,7 +417,8 @@ fn long_and_non_ascii_text_is_quoted_safely() {
         [PaletteError::NotHex {
             line: 10,
             name: "--series-1".into(),
-            value: cut
+            value: cut,
+            runs_on: false
         }]
     );
 }
@@ -427,7 +432,8 @@ fn a_forgotten_semicolon_quotes_the_value_alone() {
         [PaletteError::NotHex {
             line: 10,
             name: "--series-1".into(),
-            value: "#000001…".into()
+            value: "#000001…".into(),
+            runs_on: true
         }]
     );
 }
@@ -517,7 +523,8 @@ fn an_excerpt_stops_at_a_lone_cr() {
         [PaletteError::NotHex {
             line: 10,
             name: "--series-1".into(),
-            value: "#000001…".into()
+            value: "#000001…".into(),
+            runs_on: true
         }]
     );
 }
@@ -540,4 +547,192 @@ fn an_at_rule_before_root_is_named_as_one() {
 #[test]
 fn the_read_cap_is_one_past_the_limit() {
     assert_eq!(u64::try_from(MAX_BYTES + 1), Ok(READ_CAP));
+}
+
+/// rg-8xm: a value that runs onto the next line is a forgotten `;`, and the
+/// message says how to end it.
+#[test]
+fn a_value_on_two_lines_hints_at_a_missing_semicolon() {
+    let shown = PaletteError::NotHex {
+        line: 2,
+        name: "--surface-1".into(),
+        value: "#FFFFFF…".into(),
+        runs_on: true,
+    }
+    .to_string();
+    assert_eq!(
+        shown,
+        "--surface-1: '#FFFFFF…' is not a #RRGGBB colour; it runs onto the next line, so add ; at its end"
+    );
+    let one_line = PaletteError::NotHex {
+        line: 2,
+        name: "--surface-1".into(),
+        value: "red".into(),
+        runs_on: false,
+    }
+    .to_string();
+    assert_eq!(one_line, "--surface-1: 'red' is not a #RRGGBB colour");
+}
+
+/// rg-8xm: the role a forgotten `;` swallowed is in the file, so it is not
+/// reported missing as well.
+#[test]
+fn a_role_swallowed_by_a_forgotten_semicolon_is_not_missing() {
+    let text = file("  --series-1: #000001;\n").replacen("#FFFFFF;", "#FFFFFF", 1);
+    assert_eq!(
+        errors(&text),
+        [PaletteError::NotHex {
+            line: 2,
+            name: "--surface-1".into(),
+            value: "#FFFFFF…".into(),
+            runs_on: true
+        }]
+    );
+}
+
+/// rg-8xm: a swallowed name counts only when it is the role's name exactly,
+/// so `--focus-ring` swallowed by `--marker-hollow` leaves `--focus` missing.
+#[test]
+fn a_swallowed_name_matches_a_role_exactly() {
+    let text = file("  --series-1: #000001;\n")
+        .replacen("--marker-hollow: #FFFFFF;", "--marker-hollow: #FFFFFF", 1)
+        .replacen("--focus", "--focus-ring", 1);
+    assert_eq!(
+        errors(&text),
+        [
+            PaletteError::NotHex {
+                line: 8,
+                name: "--marker-hollow".into(),
+                value: "#FFFFFF…".into(),
+                runs_on: true
+            },
+            PaletteError::MissingRole {
+                role: Neutral::Focus
+            },
+        ]
+    );
+}
+
+/// rg-8xm: a series entry a forgotten `;` swallowed is no gap, and the file
+/// is still refused.
+#[test]
+fn a_series_entry_swallowed_by_a_forgotten_semicolon_is_no_gap() {
+    for end in ["\n", "\r\n"] {
+        let text = file(&format!(
+            "  --series-1: #000001{end}  --series-2: #000002;{end}  --series-3: #000003;{end}"
+        ));
+        assert_eq!(
+            errors(&text),
+            [PaletteError::NotHex {
+                line: 10,
+                name: "--series-1".into(),
+                value: "#000001…".into(),
+                runs_on: true
+            }],
+            "{end:?}"
+        );
+    }
+}
+
+/// rg-8xm: a role swallowed by a declaration that is refused for its name,
+/// unknown or repeated, is in the file too, so it is not reported missing.
+#[test]
+fn a_role_swallowed_by_any_declaration_is_not_missing() {
+    let unknown = file("  --series-1: #000001;\n").replacen(
+        "  --surface-1:",
+        "  --bogus: #FFFFFF\n  --surface-1:",
+        1,
+    );
+    assert_eq!(
+        errors(&unknown),
+        [PaletteError::Unknown {
+            line: 2,
+            name: "--bogus".into()
+        }]
+    );
+    let repeated = file("  --series-1: #000001;\n").replacen(
+        "  --focus:",
+        "  --surface-2: #000000\n  --focus:",
+        1,
+    );
+    assert_eq!(
+        errors(&repeated),
+        [PaletteError::Duplicate {
+            line: 9,
+            name: "--surface-2".into(),
+            first: 3
+        }]
+    );
+}
+
+/// rg-8xm: an empty value swallows the next declaration whole, so the value
+/// is that declaration, and it is still a forgotten `;`.
+#[test]
+fn an_empty_value_swallows_the_next_declaration() {
+    let text =
+        file("  --series-1: #000001;\n").replacen("--surface-1: #FFFFFF;", "--surface-1:", 1);
+    assert_eq!(
+        errors(&text),
+        [PaletteError::NotHex {
+            line: 2,
+            name: "--surface-1".into(),
+            value: "--surface-2: #F4F5F7".into(),
+            runs_on: true
+        }]
+    );
+}
+
+/// rg-8xm: escapes count towards the quote's length, so a run of no-break
+/// spaces is cut like any long value.
+#[test]
+fn escapes_count_towards_the_quote_length() {
+    let value = format!("{}#000001", "\u{a0}".repeat(50));
+    let shown = format!("{}…", "\\u{a0}".repeat(EXCERPT_CHARS / 6));
+    assert_eq!(
+        errors(&file(&format!("  --series-1: {value};\n"))),
+        [PaletteError::NotHex {
+            line: 10,
+            name: "--series-1".into(),
+            value: shown,
+            runs_on: false
+        }]
+    );
+}
+
+/// rg-8xm: a value on two lines that swallowed no declaration gets no hint
+/// at a `;`.
+#[test]
+fn a_value_on_two_lines_with_no_declaration_gets_no_hint() {
+    for (value, shown) in [
+        ("rgb(0,\n    0, 0)", "rgb(0,…"),
+        ("#0072B2\n    !important", "#0072B2…"),
+        // A `:` on the next line is not a declaration without `--`.
+        ("url(a\n    http://x)", "url(a…"),
+    ] {
+        assert_eq!(
+            errors(&file(&format!("  --series-1: {value};\n"))),
+            [PaletteError::NotHex {
+                line: 10,
+                name: "--series-1".into(),
+                value: shown.into(),
+                runs_on: false
+            }]
+        );
+    }
+}
+
+/// rg-8xm: a no-break space is not CSS whitespace, so it stays in the value;
+/// the quote shows it escaped, as NFR-10 shows an invisible character, rather
+/// than as a space the trim would have removed.
+#[test]
+fn a_no_break_space_before_a_value_is_shown_escaped() {
+    assert_eq!(
+        errors(&file("  --series-1:\u{a0}#000001;\n")),
+        [PaletteError::NotHex {
+            line: 10,
+            name: "--series-1".into(),
+            value: "\\u{a0}#000001".into(),
+            runs_on: false
+        }]
+    );
 }

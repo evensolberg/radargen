@@ -17,19 +17,40 @@ pub(super) fn css_trim(s: &str) -> &str {
     s.trim_matches(css_space)
 }
 
-/// `text`'s first line, trimmed, at most [`EXCERPT_CHARS`] characters, with
-/// `…` when anything was left out (Review Focus 5).
+/// `text`'s first line, trimmed, at most [`EXCERPT_CHARS`] characters
+/// counting the escapes made here, with `…` when anything was left out
+/// (Review Focus 5).
+///
+/// Whitespace CSS does not trim, such as a no-break space, is escaped
+/// (`\u{a0}`), as NFR-10 shows an invisible character: printed raw, it
+/// looks like a space the trim removed, and the value looks valid (rg-8xm).
+/// Control and format (Cf) characters are not escaped here: every stderr
+/// line passes through `diagnostics::escape_controls`, which escapes them,
+/// so this covers only the whitespace CSS does not trim.
 pub(super) fn excerpt(text: &str) -> String {
     // Split by hand rather than with `lines()`, which ignores a lone CR,
     // and FR-102 ends a line there too.
     let text = css_trim(text);
     let (first, rest) = text.split_once(['\n', '\r']).unwrap_or((text, ""));
-    let mut chars = css_trim(first).chars();
-    let head: String = chars.by_ref().take(EXCERPT_CHARS).collect();
-    if chars.next().is_some() || !css_trim(rest).is_empty() {
-        head + "…"
-    } else {
+    // Counted as shown, escapes included, so a run of them is cut too.
+    let mut head = String::new();
+    let mut shown = 0;
+    for c in css_trim(first).chars() {
+        let piece: String = if c.is_whitespace() && !css_space(c) {
+            c.escape_default().collect()
+        } else {
+            c.into()
+        };
+        shown += piece.chars().count();
+        if shown > EXCERPT_CHARS {
+            return head + "…";
+        }
+        head.push_str(&piece);
+    }
+    if css_trim(rest).is_empty() {
         head
+    } else {
+        head + "…"
     }
 }
 

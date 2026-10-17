@@ -11,7 +11,7 @@ created_date: 2026-10-17
 synopsis: "How to draw a radar in your own colours with --palette: what the file holds, where each of its colours is drawn, the contrast each needs, and how the quadrant colours cycle."
 status: active
 type: Guide
-revision: "1.0"
+revision: "1.1"
 review_date:
 reviewed_by: []
 completed_date:
@@ -44,6 +44,14 @@ error: --palette brand.css: --series-4 is missing; number series entries from --
 ```
 
 A missing colour has no line, since it is not in the file.
+
+A forgotten `;` runs a declaration into the next one. radargen reports the first declaration, says to add the `;` when its value is not a colour, and does not also report the declaration it swallowed as missing, or as a gap in the series:
+
+```text
+error: --palette brand.css, line 35: --surface-1: '#FFFFFF…' is not a #RRGGBB colour; it runs onto the next line, so add ; at its end
+```
+
+A character you cannot see in a value, such as a no-break space, is shown escaped, as in `'\u{a0}#0B5FA5'`: delete it and type an ordinary space, or none.
 
 A palette is one set of colours, so `--palette` cannot be combined with `--theme`; radargen refuses the pair. An HTML page drawn with a palette has no theme button and does not follow the reader's light or dark setting, so readers who rely on dark mode do not get it there. If a reader uses Windows high-contrast mode, Windows still swaps the page's backgrounds, text, lines and focus ring for its own colours, as on a built-in page; your quadrant colours stay.
 
@@ -102,3 +110,4 @@ radargen checks that the file is complete and well formed, never that its colour
 | Revision | Date | Notes |
 | --- | --- | --- |
 | 1.0 | 2026-10-17 | Initial version (PR 18, rg-cdo). |
+| 1.1 | 2026-10-17 | A forgotten `;` and an escaped invisible character in the messages (rg-8xm). |

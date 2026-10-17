@@ -23,6 +23,10 @@ pub const MAX_BYTES: usize = 1 << 20;
 /// the cap from one beyond it.
 const READ_CAP: u64 = (1 << 20) + 1;
 
+/// What [`PaletteError::NotHex`] adds when its value swallowed the next
+/// declaration.
+const RUNS_ON: &str = "; it runs onto the next line, so add ; at its end";
+
 /// The properties a palette may declare, as an unknown-property message
 /// lists them.
 const PROPERTIES: &str = "--series-1, --series-2 and on, --surface-1, --surface-2, --text-primary, --text-muted, --stroke-ring, --stroke-divider, --marker-hollow and --focus";
@@ -92,7 +96,10 @@ pub enum PaletteError {
         first: usize,
     },
     /// FR-86: a value that is not `#RRGGBB`.
-    #[error("{name}: '{value}' is not a #RRGGBB colour")]
+    #[error(
+        "{name}: '{value}' is not a #RRGGBB colour{}",
+        if *runs_on { RUNS_ON } else { "" }
+    )]
     NotHex {
         /// Where it is declared.
         line: usize,
@@ -100,6 +107,9 @@ pub enum PaletteError {
         name: String,
         /// The value, quoted by [`excerpt`].
         value: String,
+        /// The value swallowed a declaration on a later line, as a forgotten
+        /// `;` leaves it (rg-8xm).
+        runs_on: bool,
     },
     /// FR-86: a role the accepted rule does not declare.
     #[error("{role} is missing; a palette defines all eight roles")]
@@ -378,7 +388,14 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
     // Every property declared, valid or not, so one with a bad value is
     // reported once, as `NotHex`, and not again as missing.
     let mut seen: BTreeMap<&str, usize> = BTreeMap::new();
+    // The names a forgotten `;` swallowed into a value: in the file, so not
+    // reported missing as well, whatever is wrong with the declaration that
+    // swallowed them (rg-8xm).
+    let mut swallowed: Vec<&str> = Vec::new();
     for d in declared {
+        let names: Vec<&str> = swallowed_names(d.value).collect();
+        let runs_on = !names.is_empty();
+        swallowed.extend(names);
         match seen.entry(d.name) {
             Entry::Occupied(first) => {
                 errors.push(PaletteError::Duplicate {
@@ -405,6 +422,7 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
                 line: d.line,
                 name: d.name.into(),
                 value: excerpt(d.value),
+                runs_on,
             });
         }
         match slot {
@@ -418,8 +436,15 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
             }
         }
     }
+    // A swallowed series entry is declared, if not valid: no gap, and no
+    // palette either.
+    for name in &swallowed {
+        if let Some(Property::Series(index)) = property(name) {
+            series.entry(index).or_insert(None);
+        }
+    }
     for role in Neutral::ALL {
-        if !seen.contains_key(role.as_str()) {
+        if !seen.contains_key(role.as_str()) && !swallowed.contains(&role.as_str()) {
             errors.push(PaletteError::MissingRole { role });
         }
     }
@@ -430,6 +455,17 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
         .try_into()
         .ok()?;
     Palette::new(neutrals, series.into_values().collect::<Option<_>>()?)
+}
+
+/// The name of each custom-property declaration in a value: what a
+/// forgotten `;` ran it into. The value is trimmed, so a first line that is
+/// one is an empty value's swallowed successor.
+fn swallowed_names(value: &str) -> impl Iterator<Item = &str> {
+    value
+        .split(['\n', '\r'])
+        .filter_map(|line| line.split_once(':'))
+        .map(|(name, _)| css_trim(name))
+        .filter(|name| name.starts_with("--"))
 }
 
 /// FR-87's gaps in the declared series indices, in ascending order: one
