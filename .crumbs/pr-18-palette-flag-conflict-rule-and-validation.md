@@ -1,7 +1,7 @@
 ---
 id: rg-cdo
 title: 'PR 18: --palette flag, conflict rule and validation'
-status: open
+status: in_progress
 type: feature
 priority: 2
 tags:
