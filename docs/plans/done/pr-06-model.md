@@ -10,9 +10,9 @@ crumb_id: rg-rnc
 document_title: "PR 06 — `model.rs`: Item, Catalogue, column validation: Implementation Plan"
 created_date: 2026-10-10
 synopsis: "Records to meaning: FR-76's trim widened to invisible format characters, the ring set's source carried into FR-17's warning, and model.rs turning a parsed Table into a Catalogue — required columns, empty values, quadrants, ring matching, optional columns, unnamed columns and accessible names."
-status: draft
+status: complete
 type: Plan
-revision: "1.5"
+revision: "1.6"
 review_date: 2026-10-10
 reviewed_by:
   - architect-reviewer
@@ -21,8 +21,8 @@ reviewed_by:
   - accessibility-tester
   - ui-designer
   - ux-researcher
-completed_date:
-comments:
+completed_date: 2026-10-11
+comments: "1.6 records completion: shipped as #25."
 ---
 # PR 06 — `model.rs`: Item, Catalogue, column validation: Implementation Plan
 

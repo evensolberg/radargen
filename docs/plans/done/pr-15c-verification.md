@@ -10,9 +10,9 @@ crumb_id: rg-6zu
 document_title: "PR 15c — verification and the first release: Implementation Plan"
 created_date: 2026-10-12
 synopsis: "An automated WCAG 2.1 AA audit of the finished page in headless Chromium, run by just ci, over every criterion a browser can measure; a visual sign-off script; a manual checklist with the exact announcements to expect from NVDA, JAWS and VoiceOver; and a 1.0.0 release checklist, with the bump left to its own PR once the maintainer has tested. The table gains a scroll cue. Two release gates the review found, SC-8 and SC-16, are put to the maintainer."
-status: draft
+status: complete
 type: Plan
-revision: "1.1"
+revision: "1.2"
 review_date: 2026-10-12
 reviewed_by:
   - Rust seat
@@ -20,8 +20,8 @@ reviewed_by:
   - architecture seat
   - accessibility seat
   - UI seat
-completed_date:
-comments: "1.1 folds in the five-seat plan review. Part three of PR 15 (rg-6zu). The maintainer ruled on 2026-10-12: the first release is 1.0.0, after the maintainer's own testing."
+completed_date: 2026-10-13
+comments: "1.1 folds in the five-seat plan review. Part three of PR 15 (rg-6zu). The maintainer ruled on 2026-10-12: the first release is 1.0.0, after the maintainer's own testing. 1.2 records completion: shipped as #74; 1.0.0 was cut in #87 and rg-6zu closed in #88."
 ---
 # PR 15c — verification and the first release: Implementation Plan
 

@@ -10,9 +10,9 @@ crumb_id: rg-6zu
 document_title: "PR 15b — the interactive layer: Implementation Plan"
 created_date: 2026-10-12
 synopsis: "One constant script brings the page to life, with no data of its own. Part 1 (15b-1) lays the script's skeleton, shows marker focus rings by attribute instead of per-key CSS (rg-jri), and adds the theme toggle and skip link. Part 2 (15b-2) adds one sticky detail panel built from the item's table row (D-80), selection, hover, keyboard activation, and focus return keyed on the item in whichever arrangement is shown."
-status: draft
+status: complete
 type: Plan
-revision: "1.2"
+revision: "1.3"
 review_date: 2026-10-12
 reviewed_by:
   - Rust seat
@@ -20,8 +20,8 @@ reviewed_by:
   - architecture seat
   - accessibility seat
   - UI seat
-completed_date:
-comments: "1.1 folds in the five-seat plan review and the maintainer's two rulings (a sticky panel; 15b split in two). See Review rulings. Part two of PR 15 (rg-6zu), with rg-jri."
+completed_date: 2026-10-12
+comments: "1.1 folds in the five-seat plan review and the maintainer's two rulings (a sticky panel; 15b split in two). See Review rulings. Part two of PR 15 (rg-6zu), with rg-jri. 1.3 records completion: Part 1 shipped as #71, Part 2 as #73."
 ---
 # PR 15b — the interactive layer: Implementation Plan
 
