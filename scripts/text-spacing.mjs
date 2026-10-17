@@ -29,6 +29,8 @@
 // `just browser-setup` installs it and the three browsers. CHROME, as in
 // scripts/cdp.mjs, overrides Chromium's path.
 
+import { mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { SPILLS, TIMEOUT_MS, within } from './cdp.mjs';
@@ -52,6 +54,19 @@ const CHECK = `(() => {
     // The wide arrangement is drawn in parts (D-85): each text is checked
     // against its own SVG's box, and for overlap against every other.
     const boxes = [];
+    // A text's fill box on screen. Firefox's getBoundingClientRect also counts
+    // the stroke (a ring name's halo), so lines a few pixels apart overlap
+    // there; getBBox is the fill box in every engine, and in Chromium and
+    // WebKit it equals the client rect.
+    const fillBox = (t) => {
+      const b = t.getBBox(), m = t.getScreenCTM();
+      const xs = [], ys = [];
+      for (const [x, y] of [[b.x, b.y], [b.x + b.width, b.y], [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]]) {
+        const p = new DOMPoint(x, y).matrixTransform(m);
+        xs.push(p.x); ys.push(p.y);
+      }
+      return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
+    };
     for (const svg of arrangement.querySelectorAll('svg')) {
       const frame = svg.getBoundingClientRect();
       // A marker's number is drawn right after its circle and sits on it by
@@ -63,7 +78,7 @@ const CHECK = `(() => {
         t.getAttribute('aria-hidden') !== 'true' &&
         t.previousElementSibling?.tagName !== 'circle');
       for (const t of texts) {
-        const r = t.getBoundingClientRect();
+        const r = fillBox(t);
         boxes.push({ t, r });
         if (r.left < frame.left - slack || r.right > frame.right + slack ||
             r.top < frame.top - slack || r.bottom > frame.bottom + slack) {
@@ -212,9 +227,21 @@ async function main() {
   // Every engine runs, whatever an earlier one found, so one run reports
   // all three; an engine that fails to start or throws counts as a failure.
   const failed = [];
+  // macOS 27 puts ~/Library/Application Support/Firefox behind Full Disk
+  // Access, and Playwright's Firefox looks up that folder even with its own
+  // profile, so it exits with "Could not find profile folder". A home of its
+  // own (CoreFoundation reads CFFIXED_USER_HOME) keeps the lookup out of the
+  // real one; other platforms ignore the variable. One fixed folder, reused:
+  // macOS gives the Library it creates there a deny-delete ACL, so a fresh
+  // folder per run could not be removed. It holds only empty bookkeeping
+  // folders, as Playwright still gives Firefox a temporary profile.
+  const firefoxHome = join(tmpdir(), 'radargen-firefox-home');
+  mkdirSync(firefoxHome, { recursive: true });
+  const env = { ...process.env, CFFIXED_USER_HOME: firefoxHome };
   for (const [name, options] of ENGINES) {
     try {
-      if ((await checkEngine(name, options, outDir, pages)) > 0) failed.push(name);
+      const launch = name === 'firefox' ? { ...options, env } : options;
+      if ((await checkEngine(name, launch, outDir, pages)) > 0) failed.push(name);
     } catch (error) {
       // Playwright follows a missing browser's first line with an install
       // banner that bypasses the pin, so the hint replaces it. Any other
