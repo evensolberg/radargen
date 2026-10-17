@@ -1,3 +1,25 @@
+## [1.6.1] - 2026-10-17
+
+### 🐛 Bug Fixes
+
+- *(html)* Hover tooltips on the legend and theme buttons (rg-7gd)
+
+### 📚 Documentation
+
+- *(changelog)* Reconcile 1.6.0 with its squash merge
+
+### 🚜 Refactor
+
+- *(test)* Legend tooltip checks compare title with name (rg-7gd)
+
+### 🧪 Testing
+
+- *(a11y)* The tooltip check sees a missing title (rg-7gd)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Close rg-7gd
+- *(release)* 1.6.1
 ## [1.6.0] - 2026-10-17
 
 ### 🚀 Features
