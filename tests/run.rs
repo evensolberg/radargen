@@ -1258,6 +1258,23 @@ fn a_bad_palette_reports_everything_and_writes_nothing() {
     assert_eq!(snapshot(dir.path()), before);
 }
 
+/// rg-8xm, NFR-10: a no-break space before a value is quoted escaped, all
+/// the way to stderr, not as a space the trim would have removed.
+#[test]
+fn a_no_break_space_in_a_palette_value_is_shown_escaped() {
+    let nbsp = SAMPLE.replace("--focus: #0B5FA5;", "--focus:\u{a0}#0B5FA5;");
+    let dir = seeded(&[("radar.csv", PRD), ("brand.css", &nbsp)]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.png", "-p", "brand.css"],
+    );
+    assert_eq!(ran.code, Some(1));
+    assert_eq!(
+        ran.lines(),
+        ["error: --palette brand.css, line 42: --focus: '\\u{a0}#0B5FA5' is not a #RRGGBB colour"]
+    );
+}
+
 #[test]
 fn the_old_two_block_sample_is_refused_at_its_dark_rule() {
     let dir = seeded(&[("radar.csv", PRD), ("old.css", TWO_BLOCK)]);

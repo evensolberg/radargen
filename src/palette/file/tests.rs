@@ -562,7 +562,7 @@ fn a_value_on_two_lines_hints_at_a_missing_semicolon() {
     .to_string();
     assert_eq!(
         shown,
-        "--surface-1: '#FFFFFF…' is not a #RRGGBB colour; it runs onto the next line, so end it with ;"
+        "--surface-1: '#FFFFFF…' is not a #RRGGBB colour; it runs onto the next line, so add ; at its end"
     );
     let one_line = PaletteError::NotHex {
         line: 2,
@@ -617,14 +617,84 @@ fn a_swallowed_name_matches_a_role_exactly() {
 /// is still refused.
 #[test]
 fn a_series_entry_swallowed_by_a_forgotten_semicolon_is_no_gap() {
-    let text = file("  --series-1: #000001\n  --series-2: #000002;\n  --series-3: #000003;\n");
+    for end in ["\n", "\r\n"] {
+        let text = file(&format!(
+            "  --series-1: #000001{end}  --series-2: #000002;{end}  --series-3: #000003;{end}"
+        ));
+        assert_eq!(
+            errors(&text),
+            [PaletteError::NotHex {
+                line: 10,
+                name: "--series-1".into(),
+                value: "#000001…".into(),
+                runs_on: true
+            }],
+            "{end:?}"
+        );
+    }
+}
+
+/// rg-8xm: a role swallowed by a declaration that is refused for its name,
+/// unknown or repeated, is in the file too, so it is not reported missing.
+#[test]
+fn a_role_swallowed_by_any_declaration_is_not_missing() {
+    let unknown = file("  --series-1: #000001;\n").replacen(
+        "  --surface-1:",
+        "  --bogus: #FFFFFF\n  --surface-1:",
+        1,
+    );
+    assert_eq!(
+        errors(&unknown),
+        [PaletteError::Unknown {
+            line: 2,
+            name: "--bogus".into()
+        }]
+    );
+    let repeated = file("  --series-1: #000001;\n").replacen(
+        "  --focus:",
+        "  --surface-2: #000000\n  --focus:",
+        1,
+    );
+    assert_eq!(
+        errors(&repeated),
+        [PaletteError::Duplicate {
+            line: 9,
+            name: "--surface-2".into(),
+            first: 3
+        }]
+    );
+}
+
+/// rg-8xm: an empty value swallows the next declaration whole, so the value
+/// is that declaration, and it is still a forgotten `;`.
+#[test]
+fn an_empty_value_swallows_the_next_declaration() {
+    let text =
+        file("  --series-1: #000001;\n").replacen("--surface-1: #FFFFFF;", "--surface-1:", 1);
     assert_eq!(
         errors(&text),
         [PaletteError::NotHex {
+            line: 2,
+            name: "--surface-1".into(),
+            value: "--surface-2: #F4F5F7".into(),
+            runs_on: true
+        }]
+    );
+}
+
+/// rg-8xm: escapes count towards the quote's length, so a run of no-break
+/// spaces is cut like any long value.
+#[test]
+fn escapes_count_towards_the_quote_length() {
+    let value = format!("{}#000001", "\u{a0}".repeat(50));
+    let shown = format!("{}…", "\\u{a0}".repeat(EXCERPT_CHARS / 6));
+    assert_eq!(
+        errors(&file(&format!("  --series-1: {value};\n"))),
+        [PaletteError::NotHex {
             line: 10,
             name: "--series-1".into(),
-            value: "#000001…".into(),
-            runs_on: true
+            value: shown,
+            runs_on: false
         }]
     );
 }
@@ -636,6 +706,8 @@ fn a_value_on_two_lines_with_no_declaration_gets_no_hint() {
     for (value, shown) in [
         ("rgb(0,\n    0, 0)", "rgb(0,…"),
         ("#0072B2\n    !important", "#0072B2…"),
+        // A `:` on the next line is not a declaration without `--`.
+        ("url(a\n    http://x)", "url(a…"),
     ] {
         assert_eq!(
             errors(&file(&format!("  --series-1: {value};\n"))),

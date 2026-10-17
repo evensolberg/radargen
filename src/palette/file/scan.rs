@@ -17,8 +17,8 @@ pub(super) fn css_trim(s: &str) -> &str {
     s.trim_matches(css_space)
 }
 
-/// `text`'s first line, trimmed, at most [`EXCERPT_CHARS`] characters, with
-/// `…` when anything was left out (Review Focus 5).
+/// `text`'s first line, trimmed, at most [`EXCERPT_CHARS`] characters as
+/// shown, with `…` when anything was left out (Review Focus 5).
 ///
 /// Whitespace CSS does not trim, such as a no-break space, is escaped
 /// (`\u{a0}`), as NFR-10 shows an invisible character: printed raw, it
@@ -31,16 +31,24 @@ pub(super) fn excerpt(text: &str) -> String {
     // and FR-102 ends a line there too.
     let text = css_trim(text);
     let (first, rest) = text.split_once(['\n', '\r']).unwrap_or((text, ""));
-    let mut chars = css_trim(first).chars();
+    // Counted as shown, escapes included, so a run of them is cut too.
     let mut head = String::new();
-    for c in chars.by_ref().take(EXCERPT_CHARS) {
-        if c.is_whitespace() && !css_space(c) {
-            head.extend(c.escape_default());
+    let mut shown = 0;
+    let mut cut = false;
+    for c in css_trim(first).chars() {
+        let piece: String = if c.is_whitespace() && !css_space(c) {
+            c.escape_default().collect()
         } else {
-            head.push(c);
+            c.into()
+        };
+        shown += piece.chars().count();
+        if shown > EXCERPT_CHARS {
+            cut = true;
+            break;
         }
+        head.push_str(&piece);
     }
-    if chars.next().is_some() || !css_trim(rest).is_empty() {
+    if cut || !css_trim(rest).is_empty() {
         head + "…"
     } else {
         head

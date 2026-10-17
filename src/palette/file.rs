@@ -25,7 +25,7 @@ const READ_CAP: u64 = (1 << 20) + 1;
 
 /// What [`PaletteError::NotHex`] adds when its value swallowed the next
 /// declaration.
-const RUNS_ON: &str = "; it runs onto the next line, so end it with ;";
+const RUNS_ON: &str = "; it runs onto the next line, so add ; at its end";
 
 /// The properties a palette may declare, as an unknown-property message
 /// lists them.
@@ -388,10 +388,14 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
     // Every property declared, valid or not, so one with a bad value is
     // reported once, as `NotHex`, and not again as missing.
     let mut seen: BTreeMap<&str, usize> = BTreeMap::new();
-    // The names a forgotten `;` swallowed into a bad value: in the file, so
-    // not reported missing as well (rg-8xm).
+    // The names a forgotten `;` swallowed into a value: in the file, so not
+    // reported missing as well, whatever is wrong with the declaration that
+    // swallowed them (rg-8xm).
     let mut swallowed: Vec<&str> = Vec::new();
     for d in declared {
+        let before = swallowed.len();
+        swallowed.extend(swallowed_names(d.value));
+        let runs_on = swallowed.len() > before;
         match seen.entry(d.name) {
             Entry::Occupied(first) => {
                 errors.push(PaletteError::Duplicate {
@@ -414,13 +418,11 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
         };
         let hex = Hex::parse(d.value);
         if hex.is_none() {
-            let before = swallowed.len();
-            swallowed.extend(swallowed_names(d.value));
             errors.push(PaletteError::NotHex {
                 line: d.line,
                 name: d.name.into(),
                 value: excerpt(d.value),
-                runs_on: swallowed.len() > before,
+                runs_on,
             });
         }
         match slot {
@@ -455,12 +457,12 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
     Palette::new(neutrals, series.into_values().collect::<Option<_>>()?)
 }
 
-/// The name of each custom-property declaration on a value's later lines:
-/// what a forgotten `;` ran it into.
+/// The name of each custom-property declaration in a value: what a
+/// forgotten `;` ran it into. The value is trimmed, so a first line that is
+/// one is an empty value's swallowed successor.
 fn swallowed_names(value: &str) -> impl Iterator<Item = &str> {
     value
         .split(['\n', '\r'])
-        .skip(1)
         .filter_map(|line| line.split_once(':'))
         .map(|(name, _)| css_trim(name))
         .filter(|name| name.starts_with("--"))
