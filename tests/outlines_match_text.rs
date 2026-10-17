@@ -123,11 +123,11 @@ struct Built {
 }
 
 fn build() -> Built {
-    let face = FontMetrics::load(TTF, "Inter Regular").expect("shaping face");
+    let face = FontMetrics::load(TTF, "Inter Regular").expect("font parses");
     let scale = SIZE / face.units_per_em();
-    // skrifa gives an empty glyph an empty outline; an error is an id the
-    // face does not have (shaper and reader disagree) or an outline that
-    // cannot be drawn.
+    // An empty glyph has an empty outline; an error is an id the face does
+    // not have (shaper and reader disagree) or an outline that cannot be
+    // drawn.
     let outline = |glyph| {
         face.outline(glyph)
             .expect("the shaped glyph is in the face and draws")
