@@ -825,3 +825,16 @@ fn a_declaration_on_the_same_line_is_not_swallowed() {
         }]
     );
 }
+
+/// `Lines::starting_in`: the lines starting after the span's first byte and
+/// before its end, CRLF and a lone CR each one break.
+#[test]
+fn lines_starting_in_a_span() {
+    use super::scan::Lines;
+    let lines = Lines::of("a\nb\r\nc\rd\n");
+    let starts = |span| lines.starting_in(span).collect::<Vec<_>>();
+    assert_eq!(starts(0..9), [(2, 2), (3, 5), (4, 7)]);
+    // A line starting at the span's first byte or its end is left out.
+    assert_eq!(starts(2..7), [(3, 5)]);
+    assert_eq!(starts(4..4), []);
+}
