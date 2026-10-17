@@ -11,8 +11,6 @@ tags:
 created: 2026-10-08
 updated: 2026-10-16
 closed_reason: PNG export shipped in 1.1.0 (PR 16)
-blocks:
-- rg-cdo
 phase: v1.1
 ---
 
