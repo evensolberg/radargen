@@ -62,6 +62,12 @@ fn a_wrapped_heading_is_named_by_its_words() {
             first_line(&heading),
             "<g role=\"heading\" aria-level=\"1\">"
         );
+        let mut broken = text(&["Kuber", "netes"], Anchor::Start, fill);
+        if let Node::Text { words, .. } = &mut broken {
+            "Kubernetes".clone_into(words);
+        }
+        let heading = one(&semantic(Semantics::Heading(level), vec![broken]), target);
+        assert!(heading.contains(" aria-label=\"Kubernetes\">"), "{heading}");
         let plain = vec![text(&["Distributed", "Streaming"], Anchor::Start, fill)];
         let group = one(&semantic(Semantics::None, plain), target);
         assert!(!group.contains("aria-label"), "{group}");

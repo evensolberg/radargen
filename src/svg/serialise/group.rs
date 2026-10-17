@@ -2,7 +2,7 @@
 
 use super::{
     Context, ControlKind, DATA_FOCUS_RING, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR,
-    DATA_ROW, DATA_ROW_INDICATOR, DATA_SELECTION, Target, attr, node, point, shows,
+    DATA_ROW, DATA_ROW_INDICATOR, DATA_SELECTION, Target, TextMode, attr, node, point, shows,
 };
 use crate::escape::xml_text;
 use crate::svg::{Control, Group, Node, Semantics};
@@ -57,7 +57,7 @@ fn open(group: &Group, context: Context<'_>) -> String {
         );
     }
     semantics(&mut out, &group.semantics, context);
-    if let Some(words) = heading_name(group) {
+    if let Some(words) = heading_name(group, context) {
         attr(&mut out, "aria-label", words);
     }
     out.push_str(">\n");
@@ -65,12 +65,16 @@ fn open(group: &Group, context: Context<'_>) -> String {
     out
 }
 
-/// A heading's name when its only child is a text wrapped onto several
-/// lines: that text's words. Named from its content, the heading would
-/// join the lines' tspans with nothing between and read the words either
-/// side of a break as one (rg-g0c). `None` for any other group, and for a
-/// one-line heading, whose content names it.
-fn heading_name(group: &Group) -> Option<&str> {
+/// A heading's name when its only child is a text written as tspans and
+/// wrapped onto several lines: that text's words. Named from its content,
+/// the heading would join the tspans with nothing between and read the
+/// words either side of a break as one (rg-g0c). `None` for any other
+/// group, for a one-line heading, and for outlined text, whose own name
+/// already names the heading (D-88).
+fn heading_name<'g>(group: &'g Group, context: Context<'_>) -> Option<&'g str> {
+    if !matches!(context.text, TextMode::Text) {
+        return None;
+    }
     match (&group.semantics, group.children.as_slice()) {
         (Semantics::Heading(_), [Node::Text { lines, words, .. }]) if lines.len() > 1 => {
             Some(words)
