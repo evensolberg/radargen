@@ -349,7 +349,7 @@ impl RowKind {
                 first_value,
                 ..
             } => format!(
-                "'{v}' repeats line {first_line}'s name '{}' (names match ignoring case and surrounding spaces); both are drawn, so rename or delete one if they are the same item",
+                "'{v}' repeats line {first_line}'s name '{}' (names match ignoring case and extra spaces); both are drawn, so rename or delete one if they are the same item",
                 trim(first_value)
             ),
             Self::Undisplayable {
@@ -936,7 +936,7 @@ pub enum RowError {
     /// [`column_label`] takes them; names are as
     /// written, trimmed, so the author can find both cells.
     #[error(
-        "line {line}: {} '{name}' repeats {} '{first_name}'; header names match ignoring case and surrounding spaces, so rename or remove one",
+        "line {line}: {} '{name}' repeats {} '{first_name}'; header names match ignoring case and extra spaces, so rename or remove one",
         column_label(*index),
         column_label(*first_index)
     )]

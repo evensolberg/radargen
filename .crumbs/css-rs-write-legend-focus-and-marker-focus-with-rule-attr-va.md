@@ -1,14 +1,15 @@
 ---
 id: rg-lv5
 title: 'css.rs: write legend_focus and marker_focus with rule/attr/var'
-status: open
+status: closed
 type: task
 priority: 4
 tags:
 - html
 - refactor
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-16
+closed_reason: legend_focus and marker_focus use rule/attr/var; golden unchanged
 phase: ''
 ---
 

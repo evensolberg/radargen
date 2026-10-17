@@ -4,6 +4,7 @@
 use radargen::layout::arrange::{Arrangement, arrange};
 use radargen::palette::{Palette, Theme};
 use radargen::svg::{Node, Semantics, serialise};
+use radargen::tidy;
 
 use super::vocabulary::vocabulary;
 use super::{build, parse, targets};
@@ -159,9 +160,11 @@ fn hostile_text_round_trips() {
         want.labels.iter().any(|l| l == WRAPPED),
         "a wrapped heading exercises its label"
     );
+    // A name is shown tidied (rg-cuj), so U+2028 reaches the label as a
+    // space; escape.rs's own tests cover it in the markup.
     for name in HOSTILE.iter().take(8) {
         assert!(
-            want.labels.iter().any(|l| l.contains(name)),
+            want.labels.iter().any(|l| l.contains(&tidy(name))),
             "{name} in a label"
         );
     }

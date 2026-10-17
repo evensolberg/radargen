@@ -6,7 +6,7 @@
 
 use std::fmt;
 
-use crate::{normalise, trim};
+use crate::{normalise, tidy};
 
 /// FR-13: the in-house lifecycle, edge-to-centre, so it reads as written:
 /// Assess -> Trial -> Adopt -> Retire.
@@ -76,10 +76,11 @@ pub enum RingsError {
 
 /// Parse `--rings`, or the FR-13 default when the flag is absent.
 ///
-/// Entries get FR-76's trim at their ends only (FR-15), so a
-/// multi-word ring name keeps its internal spaces. The declared casing is
+/// Entries get FR-76's trim at their ends (FR-15) and a run of whitespace
+/// inside is one space ([`tidy`]), so a multi-word ring name keeps its
+/// words. The declared casing is
 /// preserved: it is what appears as a band label and legend subheading, and
-/// FR-76 only ever trims a label, never re-cases one.
+/// FR-76 only ever tidies a label, never re-cases one.
 ///
 /// # Errors
 ///
@@ -102,22 +103,22 @@ pub fn parse_rings(declared: Option<&str>) -> Result<RingSet, Vec<RingsError>> {
     let mut seen: Vec<(String, usize)> = Vec::new();
     let mut errors: Vec<RingsError> = Vec::new();
     for (i, raw) in list.split(',').enumerate() {
-        let entry = trim(raw);
+        let entry = tidy(raw);
         if entry.is_empty() {
             errors.push(RingsError::EmptyEntry { index: i + 1 });
             continue;
         }
-        let key = normalise(entry);
+        let key = normalise(&entry);
         if let Some((_, first)) = seen.iter().find(|(k, _)| *k == key) {
             errors.push(RingsError::Duplicate {
                 index: i + 1,
-                entry: entry.to_string(),
+                entry,
                 first_index: *first,
             });
             continue;
         }
         seen.push((key, i + 1));
-        rings.push(entry.to_string());
+        rings.push(entry);
     }
     if rings.is_empty() {
         return Err(vec![RingsError::Empty]);

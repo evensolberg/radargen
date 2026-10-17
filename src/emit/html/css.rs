@@ -187,25 +187,17 @@ const SWAP: &str = "{.wide{display:none}.narrow{display:block}}\n";
 
 /// The outline an indicator replaces: transparent rather than removed, so
 /// forced-colours mode paints it in a system colour.
-const OUTLINE: &str = "]:focus-visible{outline:2px solid transparent}\n";
-const ROW_SHOWN: &str = "]:focus-visible>[";
-const VISIBLE: &str = "]{visibility:visible}\n[";
-const ROW_RING: &str = "]>rect{stroke:var(";
-const ROW_RING_WIDTH: &str = ");stroke-width:";
-/// Focus's ring ends solid, whatever hover set before it.
-const RING_CLOSE: &str = "px;stroke-dasharray:none}\n";
+const NO_OUTLINE: &str = "outline:2px solid transparent";
+const FOCUS_VISIBLE: &str = ":focus-visible";
 const LBRACE: &str = "{";
 const RBRACE: &str = "}\n";
 const SHOW: &str = "visibility:visible";
 /// Hover's dashes, a pixel wide at any scale: the narrow arrangement shrinks
 /// the SVG, which would thin a scaled stroke below a pixel.
 const DASHED: &str = ";stroke-dasharray:3 2;vector-effect:non-scaling-stroke";
+/// The selected square's stroke, and how focus's ring ends: solid, whatever
+/// hover set before it.
 const SOLID: &str = ";stroke-dasharray:none";
-const SCRIPTED: &str = " [";
-const HIDDEN: &str = "]{visibility:hidden}\n[";
-const BOTH: &str = "][";
-const INSIDE: &str = "] [";
-const SHOWN_LAST: &str = "]{visibility:visible}\n";
 
 /// Both vendored faces, inlined (NFR-5) under the family the SVG text names
 /// (FR-85). `block` because the data is inline: there is no load to wait
@@ -461,47 +453,39 @@ fn marker_states() -> String {
 }
 
 fn legend_focus() -> String {
+    let row = [attr(DATA_LEGEND_ROW).as_str(), FOCUS_VISIBLE].concat();
+    let shown = [row.as_str(), ">", &attr(DATA_ROW_INDICATOR)].concat();
     [
-        "[",
-        DATA_LEGEND_ROW,
-        OUTLINE,
-        "[",
-        DATA_LEGEND_ROW,
-        ROW_SHOWN,
-        DATA_ROW_INDICATOR,
-        VISIBLE,
-        DATA_LEGEND_ROW,
-        ROW_SHOWN,
-        DATA_ROW_INDICATOR,
-        ROW_RING,
-        Neutral::Focus.as_str(),
-        ROW_RING_WIDTH,
-        &fmt_coord(FOCUS_RING_STROKE),
-        RING_CLOSE,
+        rule(&row, NO_OUTLINE),
+        rule(&shown, SHOW),
+        rule(
+            &[shown.as_str(), ">rect"].concat(),
+            &[
+                "stroke:",
+                &var(Neutral::Focus),
+                ";stroke-width:",
+                &fmt_coord(FOCUS_RING_STROKE),
+                PX,
+                SOLID,
+            ]
+            .concat(),
+        ),
     ]
     .concat()
 }
 
 fn marker_focus() -> String {
+    let ring = attr(DATA_FOCUS_RING);
+    let indicator = attr(DATA_MARKER_INDICATOR);
+    let focused = [indicator.as_str(), &attr(DATA_FOCUSED)].concat();
     [
-        ".",
-        JS_CLASS,
-        SCRIPTED,
-        DATA_MARKER,
-        OUTLINE,
-        "[",
-        DATA_FOCUS_RING,
-        HIDDEN,
-        DATA_MARKER_INDICATOR,
-        BOTH,
-        DATA_FOCUSED,
-        VISIBLE,
-        DATA_MARKER_INDICATOR,
-        BOTH,
-        DATA_FOCUSED,
-        INSIDE,
-        DATA_FOCUS_RING,
-        SHOWN_LAST,
+        rule(
+            &[".", JS_CLASS, " ", &attr(DATA_MARKER), FOCUS_VISIBLE].concat(),
+            NO_OUTLINE,
+        ),
+        rule(&ring, "visibility:hidden"),
+        rule(&focused, SHOW),
+        rule(&[focused.as_str(), " ", &ring].concat(), SHOW),
     ]
     .concat()
 }

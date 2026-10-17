@@ -1,17 +1,13 @@
-## [1.2.6] - 2026-10-17
+## [1.2.5] - 2026-10-17
 
 ### 🐛 Bug Fixes
 
-- *(html)* Plain text broken mid-word is an image named by its words
-- *(html)* The review's follow-ups to text broken mid-word
-
-### 📚 Documentation
-
-- *(prd)* D-88 names HTML text broken mid-word (0.76)
+- *(model)* A run of whitespace inside a label or name is one space
+- *(model)* The review's follow-ups to tidied labels
 
 ### 🚜 Refactor
 
-- *(svg)* Simplify pass on naming text
+- *(model)* Simplify pass on tidied labels
 
 ### ⚙️ Miscellaneous Tasks
 

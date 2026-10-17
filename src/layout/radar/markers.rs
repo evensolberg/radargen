@@ -12,7 +12,6 @@ use crate::style::{
     FOCUS_RING_GAP, FOCUS_RING_STROKE, HIT_RADIUS, INDICATOR_REACH, MARKER_NUMBER, MARKER_RADIUS,
 };
 use crate::svg::{Control, Group, ItemKey, Node, Paint, Point, Semantics};
-use crate::trim;
 
 /// One plotted item, ready to draw.
 #[derive(Debug, Clone, PartialEq)]
@@ -79,7 +78,7 @@ pub(super) fn markers(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Marker> {
                 control: Control {
                     key: ItemKey(item.line),
                     label: catalogue.accessible_name(item, Some(number)),
-                    tooltip: Some(format!("{number}. {}", trim(&item.name))),
+                    tooltip: Some(format!("{number}. {}", item.name)),
                 },
             }
         })
@@ -319,7 +318,7 @@ mod tests {
                 let item = catalogue.items.get(index).expect("in range");
                 assert_eq!(control.key, ItemKey(item.line));
                 assert_eq!(control.label, catalogue.accessible_name(item, Some(n)));
-                assert_eq!(control.tooltip, Some(format!("{n}. {}", trim(&item.name))));
+                assert_eq!(control.tooltip, Some(format!("{n}. {}", item.name)));
             }
             got.iter().map(|(_, c, _)| (*c).clone()).collect::<Vec<_>>()
         };
