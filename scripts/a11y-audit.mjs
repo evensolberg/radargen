@@ -286,8 +286,9 @@ async function reflow(label) {
   await openTable(true);
   const sideways = await evaluate(`document.documentElement.scrollWidth - innerWidth`);
   check(sideways <= 0.5, `${label}: the page scrolls sideways by ${sideways} px`);
-  // The skip link is visually hidden until focused, so it is not measured.
-  const spills = await evaluate(`(${SPILLS})('.theme-toggle, h2, summary, thead th', 0.5)`);
+  // The skip link is visually hidden until focused, so it is not measured,
+  // and the theme toggle shows an icon, its words visually hidden (rg-1ru).
+  const spills = await evaluate(`(${SPILLS})('h2, summary, thead th', 0.5)`);
   check(spills.length === 0, `${label}: text spills its box: ${spills}`);
   await openTable(false);
 }
@@ -420,13 +421,13 @@ async function forced(label) {
   const cell = `document.querySelector('tr[data-row="${key}"] > td')`;
   const toggle = `document.querySelector('.theme-toggle')`;
   const before = { marker: await clip(marker), row: await clip(row), cell: await clip(cell), other: await clip(otherIndicator), toggle: await clip(toggle) };
-  // The toggle: forced colours override both palettes, so the label is the
+  // The toggle: forced colours override both palettes, so its icon is the
   // only visible sign a press worked.
   await tabTo(toggle);
   const focusedToggle = await clip(toggle);
   await press('Enter');
-  check((await clip(toggle)) !== focusedToggle, `${label}: a press repaints the toggle's label`);
-  painted("the toggle's label", await evaluate(`getComputedStyle(${toggle}).color`));
+  check((await clip(toggle)) !== focusedToggle, `${label}: a press repaints the toggle's icon`);
+  painted("the toggle's icon", await evaluate(`getComputedStyle(${toggle}.querySelector('svg:not([hidden])')).stroke`));
   // Focus: a marker's ring.
   await tabTo(marker);
   check((await clip(marker)) !== before.marker, `${label}: a focused marker's ring is painted`);

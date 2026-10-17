@@ -68,7 +68,7 @@ fn the_page_controls_are_hidden_until_the_script_runs() {
     assert!(main_at < controls && controls < wide, "first in <main>");
     for button in [
         "<button type=\"button\" class=\"skip\" hidden=\"\">Skip to the legend</button>",
-        "<button type=\"button\" class=\"theme-toggle\" hidden=\"\">Switch to dark theme</button>",
+        "<button type=\"button\" class=\"theme-toggle\" hidden=\"\"><svg class=\"theme-moon\"",
     ] {
         assert!(html.contains(button), "{button}");
     }

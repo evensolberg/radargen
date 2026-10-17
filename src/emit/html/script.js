@@ -34,6 +34,8 @@
     toLight: 'Switch to light theme',
     js: 'js',
     toggle: 'theme-toggle',
+    moon: 'theme-moon',
+    sun: 'theme-sun',
     skip: 'skip',
     arrangement: 'arrangement',
     legendScroll: 'wide-legend',
@@ -314,8 +316,14 @@
       const chosen = root.getAttribute(N.theme);
       return chosen ? chosen === 'dark' : prefersDark.matches;
     };
+    // The icon shows the theme a press switches to; the hidden words name
+    // the button. SVG elements have no `hidden` property, so the attribute.
+    const words = toggle.querySelector('span');
     const label = () => {
-      toggle.textContent = dark() ? N.toLight : N.toDark;
+      const isDark = dark();
+      words.textContent = isDark ? N.toLight : N.toDark;
+      toggle.querySelector('.' + N.moon).toggleAttribute('hidden', isDark);
+      toggle.querySelector('.' + N.sun).toggleAttribute('hidden', !isDark);
     };
     toggle.addEventListener('click', () => {
       root.setAttribute(N.theme, dark() ? 'light' : 'dark');

@@ -75,7 +75,7 @@ An `.html` output is one file with its fonts, styles and script inside it. It ma
 - **Markers.** A disc in the quadrant's colour; hollow for `conditional`. `New` adds a full ring around it, `Moved In` a half-ring facing the centre, and `Moved Out` a half-ring facing the edge. A key on the page explains them.
 - **Details.** Clicking a marker, a legend row or a name in the table opens a panel with every filled column for that item. Its Close button, Escape, or activating the item again closes it.
 - **The table.** Under "Every item", below the radar, open "The table" to list every row with every column, including rows not on the radar and columns radargen does not use.
-- **Themes.** The page follows the reader's light or dark setting, and a button switches between them. The choice is not remembered between visits. `--theme` and `--width` do not apply to HTML.
+- **Themes.** The page follows the reader's light or dark setting, and a button at the top right switches between them: a moon while the page is light, a sun while it is dark. The choice is not remembered between visits. `--theme` and `--width` do not apply to HTML.
 - **Keyboard and screen readers.** A skip link leads to the legend. Markers, legend rows and table names are buttons, reached with Tab and activated with Enter or Space. A marker's or legend row's spoken name gives its number, name, any qualifier or status, quadrant and ring.
 - **Without JavaScript** the radar, legend and table still show; the details panel, highlighting, skip link and theme button need it.
 - **Printing.** The page has no print styles. Use a PNG or an SVG for print.

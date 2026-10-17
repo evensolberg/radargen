@@ -3,8 +3,9 @@ use std::collections::BTreeMap;
 use super::super::table::{PROSE_CLASS, TABLE_VIEW_CLASS};
 use super::{
     ARIA_CONTROLS, ARIA_EXPANDED, ARRANGEMENT_CLASS, CLOSE_CLASS, DATA_FOCUSED, DATA_HOVERED,
-    DATA_NARROW_QUERY, DATA_SELECTED, DATA_THEME, EMPTY_CLASS, HEADING_CLASS, JS_CLASS, PANEL_ID,
-    SCRIPT, SKIP_CLASS, SKIP_OVER_PAGE, TO_DARK, TO_LIGHT, TOGGLE_CLASS, controls,
+    DATA_NARROW_QUERY, DATA_SELECTED, DATA_THEME, EMPTY_CLASS, HEADING_CLASS, JS_CLASS, MOON_CLASS,
+    MOON_ICON, PANEL_ID, SCRIPT, SKIP_CLASS, SKIP_OVER_PAGE, SUN_CLASS, SUN_ICON, TO_DARK,
+    TO_LIGHT, TOGGLE_CLASS, controls,
 };
 use crate::svg::serialise::{
     DATA_HIT, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW,
@@ -61,6 +62,8 @@ fn the_scripts_names_are_the_pages() {
         ("toLight", TO_LIGHT),
         ("js", JS_CLASS),
         ("toggle", TOGGLE_CLASS),
+        ("moon", MOON_CLASS),
+        ("sun", SUN_CLASS),
         ("skip", SKIP_CLASS),
         ("arrangement", ARRANGEMENT_CLASS),
         ("legendScroll", super::super::css::WIDE_LEGEND),
@@ -169,8 +172,54 @@ fn a_palette_page_has_no_toggle() {
     assert!(controls(false).contains(SKIP_CLASS));
     assert_eq!(
         controls(true),
-        "<div class=\"page-controls\"><button type=\"button\" class=\"skip\" hidden=\"\">Skip to the legend</button><button type=\"button\" class=\"theme-toggle\" hidden=\"\">Switch to dark theme</button></div>\n"
+        [
+            "<div class=\"page-controls\"><button type=\"button\" class=\"skip\" hidden=\"\">Skip to the legend</button>",
+            "<button type=\"button\" class=\"theme-toggle\" hidden=\"\">",
+            MOON_ICON,
+            SUN_ICON,
+            "<span class=\"visually-hidden\">Switch to dark theme</span></button></div>\n",
+        ]
+        .concat()
     );
+}
+
+/// rg-1ru: the toggle shows the theme a press switches to, the moon while
+/// the light theme shows, and keeps its words as its name (rg-nuy). The
+/// icons are decoration, hidden from assistive technology, and drawn in
+/// the button's text colour so they follow both themes and forced colours.
+#[test]
+fn the_toggle_is_an_icon_named_by_what_a_press_does() {
+    let toggle = controls(true);
+    for icon in [MOON_ICON, SUN_ICON] {
+        assert!(icon.starts_with("<svg class=\""), "{icon}");
+        assert!(
+            icon.contains(" viewBox=\"0 0 24 24\" aria-hidden=\"true\""),
+            "{icon}"
+        );
+        assert!(icon.ends_with("</svg>"), "{icon}");
+    }
+    assert!(MOON_ICON.starts_with(&["<svg class=\"", MOON_CLASS, "\""].concat()));
+    assert!(SUN_ICON.starts_with(&["<svg class=\"", SUN_CLASS, "\""].concat()));
+    assert!(!MOON_ICON.contains("hidden=\"\""), "the moon shows first");
+    assert!(SUN_ICON.contains(" hidden=\"\""), "the sun waits for dark");
+    assert!(toggle.contains("<span class=\"visually-hidden\">Switch to dark theme</span>"));
+    let css = super::css(
+        &super::super::css::Wide {
+            title_height: 53.0,
+            radar_width: 670.0,
+            radar_height: 640.5,
+            legend_width: 306.817,
+        },
+        true,
+    );
+    for rule in [
+        ".page-controls .theme-toggle{",
+        "padding:.4em}",
+        ".theme-toggle svg{display:block;width:1.25em;height:1.25em;",
+        "fill:none;stroke:currentColor;stroke-width:2;",
+    ] {
+        assert!(css.contains(rule), "{rule} in {css}");
+    }
 }
 
 /// Plan RG-018A R11: with no toggle to hold the controls bar open, the
