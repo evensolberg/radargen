@@ -1,18 +1,27 @@
+## [1.3.2] - 2026-10-17
+
+### 🐛 Bug Fixes
+
+- *(palette)* Hint at a forgotten ; and show a no-break space escaped
+- *(palette)* Hint at a ; only when a declaration was swallowed
+- *(palette)* A swallowed declaration is in the file, whatever its host
+
+### 🚜 Refactor
+
+- *(palette)* State runs_on and the excerpt cut directly
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* File rg-4id and rg-x5g from the rg-8xm reviews
 ## [1.3.1] - 2026-10-17
 
 ### 🐛 Bug Fixes
 
-- *(csv)* Cap the input read at 64 MiB
-- *(csv)* Tidy the cap's doc comment and cite NFR-15
-
-### 📚 Documentation
-
-- *(architecture)* Record the CSV read cap
+- *(csv)* Cap the input read at 64 MiB (1.3.1) (#106)
 
 ### ⚙️ Miscellaneous Tasks
 
 - *(crumbs)* Unblock rg-0fm now rg-cdo (PR 18) has shipped
-- *(crumbs)* Defer rg-v3a and rg-kzl
 ## [1.3.0] - 2026-10-17
 
 ### 🚀 Features

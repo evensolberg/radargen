@@ -17,8 +17,9 @@ pub(super) fn css_trim(s: &str) -> &str {
     s.trim_matches(css_space)
 }
 
-/// `text`'s first line, trimmed, at most [`EXCERPT_CHARS`] characters as
-/// shown, with `…` when anything was left out (Review Focus 5).
+/// `text`'s first line, trimmed, at most [`EXCERPT_CHARS`] characters
+/// counting the escapes made here, with `…` when anything was left out
+/// (Review Focus 5).
 ///
 /// Whitespace CSS does not trim, such as a no-break space, is escaped
 /// (`\u{a0}`), as NFR-10 shows an invisible character: printed raw, it
