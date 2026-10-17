@@ -11,8 +11,9 @@ use crate::diagnostics::Fatal;
 
 /// The largest input read (rg-w5k).
 ///
-/// A radar's CSV is a few kilobytes, and ten thousand rows with paragraph-long descriptions are about 20 MB; far
-/// past anything a page can show. The cap is there so a wrong path —
+/// A radar's CSV is a few kilobytes. Ten thousand rows with
+/// paragraph-long descriptions, far more than a page can show, come to
+/// about 20 MB, so 64 MiB leaves room. The cap is there so a wrong path —
 /// `/dev/zero`, a disk image, a log — fails with a message rather than
 /// exhausting memory, since the text is held, decoded and parsed whole.
 pub const MAX_BYTES: usize = 64 << 20;

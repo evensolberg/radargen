@@ -825,7 +825,7 @@ fn csv_file_messages() {
             Fatal::CsvTooLarge {
                 path: "in.csv".into(),
             },
-            "error: in.csv: larger than 64 MiB; a radar's CSV is rarely past a megabyte, so check the path",
+            "error: in.csv: larger than 64 MiB; a radar's CSV is usually a few kilobytes, so check the path",
         ),
         (
             Fatal::Unwritable {

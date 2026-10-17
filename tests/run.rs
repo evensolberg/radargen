@@ -1344,7 +1344,7 @@ fn a_csv_past_the_cap_is_refused() {
     assert_eq!(
         ran.lines(),
         [
-            "error: /dev/zero: larger than 64 MiB; a radar's CSV is rarely past a megabyte, so check the path"
+            "error: /dev/zero: larger than 64 MiB; a radar's CSV is usually a few kilobytes, so check the path"
         ]
     );
     assert_eq!(snapshot(dir.path()), before);
