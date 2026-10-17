@@ -7,6 +7,7 @@
 
 use std::fmt;
 
+pub mod file;
 mod hex;
 pub use hex::Hex;
 
@@ -119,6 +120,7 @@ const INK_DARK_RGB: [u8; 3] = [0x16, 0x19, 0x1F];
 
 /// WCAG 2.x relative luminance of an sRGB colour. Total: every `[u8; 3]` is
 /// a colour, so nothing here can fail.
+// qual:allow(complexity, magic_numbers) reason: "WCAG 2.x's published sRGB and luminance constants, named by the formula they belong to"
 fn luminance(rgb: [u8; 3]) -> f64 {
     let channel = |v: u8| {
         let c = f64::from(v) / 255.0;
@@ -138,6 +140,7 @@ fn luminance(rgb: [u8; 3]) -> f64 {
 }
 
 /// WCAG contrast ratio of two luminances, from 1 to 21.
+// qual:allow(complexity, magic_numbers) reason: "WCAG 2.x's flare term"
 const fn ratio(a: f64, b: f64) -> f64 {
     (a.max(b) + 0.05) / (a.min(b) + 0.05)
 }
@@ -177,7 +180,6 @@ impl Palette {
     ///
     /// Never: the values are constants, and a test parses every one.
     #[must_use]
-    // qual:allow(error_handling) reason: "constants; the_built_ins_parse proves each is #RRGGBB"
     pub fn built_in(theme: Theme) -> Self {
         let neutrals = match theme {
             Theme::Light => LIGHT,

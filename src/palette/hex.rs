@@ -8,6 +8,8 @@
 
 /// How many hex digits follow the `#`.
 const DIGITS: usize = 6;
+/// They are hexadecimal.
+const RADIX: u32 = 16;
 
 /// A colour given as `#RRGGBB`, in any case, kept uppercased (FR-102) so
 /// one colour is always the same bytes in an output (NFR-4).
@@ -29,7 +31,7 @@ impl Hex {
         if digits.len() != DIGITS || !digits.bytes().all(|b| b.is_ascii_hexdigit()) {
             return None;
         }
-        let [_, r, g, b] = u32::from_str_radix(digits, 16).ok()?.to_be_bytes();
+        let [_, r, g, b] = u32::from_str_radix(digits, RADIX).ok()?.to_be_bytes();
         Some(Self {
             rgb: [r, g, b],
             text: ["#", &digits.to_ascii_uppercase()].concat(),
