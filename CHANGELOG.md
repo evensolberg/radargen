@@ -1,18 +1,17 @@
+## [1.3.3] - 2026-10-17
+
+### 🧪 Testing
+
+- *(svg)* Drive the svg-font spike through FontMetrics
+- *(svg)* Correct two comments in the spike test
+- *(svg)* Match the house expect wording; drop skrifa from a comment
+- *(svg)* The spike test checks glyph offsets and the worst channel
+- *(svg)* Say which marked rows carry offsets
 ## [1.3.2] - 2026-10-17
 
 ### 🐛 Bug Fixes
 
-- *(palette)* Hint at a forgotten ; and show a no-break space escaped
-- *(palette)* Hint at a ; only when a declaration was swallowed
-- *(palette)* A swallowed declaration is in the file, whatever its host
-
-### 🚜 Refactor
-
-- *(palette)* State runs_on and the excerpt cut directly
-
-### ⚙️ Miscellaneous Tasks
-
-- *(crumbs)* File rg-4id and rg-x5g from the rg-8xm reviews
+- *(palette)* Hint at a forgotten ; and drop its knock-on errors (1.3.2) (#107)
 ## [1.3.1] - 2026-10-17
 
 ### 🐛 Bug Fixes
