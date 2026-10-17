@@ -1,14 +1,41 @@
+## [1.2.6] - 2026-10-17
+
+### 🐛 Bug Fixes
+
+- *(html)* Plain text broken mid-word is an image named by its words
+- *(html)* The review's follow-ups to text broken mid-word
+
+### 📚 Documentation
+
+- *(prd)* D-88 names HTML text broken mid-word (0.76)
+
+### 🚜 Refactor
+
+- *(svg)* Simplify pass on naming text
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.2.6; close rg-zl6
+- Merge main (1.2.5) into the rg-zl6 branch
+## [1.2.5] - 2026-10-17
+
+### 🐛 Bug Fixes
+
+- *(model)* A run of whitespace inside a label or name is one space (1.2.5) (#101)
+
+### 🚜 Refactor
+
+- *(html)* Build legend and marker focus rules with rule/attr/var (#99)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Fold rg-rqe into rg-kzl
+- *(crumbs)* Unblock rg-cdo now rg-42m (PR 16) has shipped
 ## [1.2.4] - 2026-10-17
 
 ### 🐛 Bug Fixes
 
-- *(html)* A heading wrapped between words is named with the space
-- *(html)* The review's follow-ups to wrapped-heading names
-- *(html)* Only tspan text gets a wrapped heading's label
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* 1.2.4; close rg-g0c, file rg-zl6 and rg-cuj
+- *(html)* A heading wrapped between words is named with the space (1.2.4) (#98)
 ## [1.2.3] - 2026-10-17
 
 ### 🐛 Bug Fixes

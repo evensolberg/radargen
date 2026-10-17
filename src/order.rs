@@ -11,7 +11,6 @@ use std::cmp::Ordering;
 use std::ops::Range;
 
 use crate::model::{Catalogue, Item, Quadrant};
-use crate::trim;
 
 /// The `resolve` stage's output (architecture §2): every order the
 /// output depends on, as indices into the [`Catalogue`], which is never
@@ -153,7 +152,7 @@ pub fn quadrant_order(quadrants: &[Quadrant]) -> Vec<usize> {
 pub fn compare_names(a: &Item, b: &Item) -> Ordering {
     a.name_key
         .cmp(&b.name_key)
-        .then_with(|| trim(&a.name).cmp(trim(&b.name)))
+        .then_with(|| a.name.cmp(&b.name))
 }
 
 /// FR-34: the quadrant's FR-10 position (`rank`, from [`quadrant_order`]),
@@ -342,6 +341,14 @@ mod tests {
         resolve(cat).rank
     }
 
+    fn lines_in_order(cat: &Catalogue) -> Vec<usize> {
+        resolve(cat)
+            .items
+            .iter()
+            .map(|&i| cat.items.get(i).expect("a plotted index is an item").line)
+            .collect()
+    }
+
     fn names_in_order(cat: &Catalogue) -> Vec<&str> {
         resolve(cat)
             .items
@@ -406,22 +413,22 @@ mod tests {
         assert_eq!(names_in_order(&cat), ["Airflow", "Kafka", "kafka"]);
     }
 
-    /// D-63: the ordinal step compares trimmed names. ` Kafka` and `Kafka`
-    /// are then equal and fall to CSV line, where a raw comparison would
-    /// put the spaced one first; and a leading space cannot move
-    /// `Zookeeper` ahead of `Airflow`. The second case is decided by the
-    /// name key, and the third only by the trimmed ordinal step.
+    /// D-63: names are stored tidied, so ` Kafka` and `Kafka` are equal and
+    /// fall to CSV line, and a leading space cannot move `Zookeeper` ahead
+    /// of `Airflow`. The second case is decided by the name key, and the
+    /// third only by the ordinal step. Both spellings show as `Kafka`, so
+    /// rows are told apart by their CSV line.
     #[test]
-    fn names_compare_trimmed_so_a_space_cannot_move_a_name() {
+    fn a_space_cannot_move_a_name() {
         let cat = catalogue(&csv(&[("Kafka", "T", "Adopt"), (" Kafka", "T", "Adopt")]));
-        assert_eq!(names_in_order(&cat), ["Kafka", " Kafka"]);
+        assert_eq!(lines_in_order(&cat), [2, 3]);
         let cat = catalogue(&csv(&[
             (" Zookeeper", "T", "Adopt"),
             ("Airflow", "T", "Adopt"),
         ]));
-        assert_eq!(names_in_order(&cat), ["Airflow", " Zookeeper"]);
+        assert_eq!(names_in_order(&cat), ["Airflow", "Zookeeper"]);
         let cat = catalogue(&csv(&[(" kafka", "T", "Adopt"), ("Kafka", "T", "Adopt")]));
-        assert_eq!(names_in_order(&cat), ["Kafka", " kafka"]);
+        assert_eq!(lines_in_order(&cat), [3, 2]);
     }
 
     /// D-53: code point order, which is UTF-8 byte order. U+FF21 (FULLWIDTH

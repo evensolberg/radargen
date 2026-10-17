@@ -37,7 +37,7 @@ A starter file with every column filled in is at `radargen-data/radar-template.c
 
 ## The columns
 
-Columns are found by **name, not position**, so their order in the file does not matter. Names are matched ignoring case and surrounding spaces, so `Name`, `name` and ` NAME ` are all the `name` column. The order below is the template's, and a sensible default.
+Columns are found by **name, not position**, so their order in the file does not matter. Names are matched ignoring case and extra spaces, so `Name`, `name` and ` NAME ` are all the `name` column. The order below is the template's, and a sensible default.
 
 | Column | Required | Accepts | Shown as |
 | --- | --- | --- | --- |
@@ -61,19 +61,19 @@ Every row and every column appears in the **table view**, under the *Every item*
 
 ### `name`
 
-The item, as readers should see it. Two rows with the same name, ignoring case and surrounding spaces, are both drawn and you get a warning. The tool never merges them, because they may be different things.
+The item, as readers should see it. Two rows with the same name, ignoring case and extra spaces, are both drawn and you get a warning. The tool never merges them, because they may be different things.
 
 ### `quadrant`
 
 Free text. Every distinct value becomes one sector, so the file decides how many quadrants there are. The radar reads best with **3 to 6**, and more than six draws with a warning.
 
-- Values that differ only in case or surrounding spaces are one quadrant: `Tool`, `tool` and `Tool ` are the same.
+- Values that differ only in case or extra spaces are one quadrant: `Tool`, `tool` and `Tool ` are the same, and so are `Tool Kit` and `Tool  Kit`. The label is shown with single spaces.
 - Values that differ in spelling are not: `Tool` and `Tools` are two quadrants, with no warning. Keep the spelling consistent.
 - Quadrants are placed in alphabetical order, ignoring case. There is no way to reorder them yet.
 
 ### `ring`
 
-Which band the item sits in. The value must be one of the declared rings, matched ignoring case and surrounding spaces.
+Which band the item sits in. The value must be one of the declared rings, matched ignoring case and extra spaces.
 
 A row whose ring is not declared is **not an error**. It is left off the radar, it appears in the table view flagged "not on the radar", and you get a warning naming the declared rings. Usually the value is a typo (`Adpot`), or a ring missing from `--rings`.
 
@@ -92,7 +92,7 @@ radargen radar.csv -o radar.html --rings "Hold,Assess,Trial,Adopt"
 ```
 
 - `--rings` replaces the default set rather than adding to it, so list every ring you want.
-- Spaces around each entry are ignored; spaces inside a name are kept (`"Under review, Trial"`).
+- Spaces around each entry are ignored; a name keeps its words, with a run of spaces inside it shown as one (`"Under review, Trial"`).
 - An empty entry or a duplicate is an error.
 - Every declared ring is drawn, even one no row uses.
 - The centre band has the least room: about a tenth of the outer band's. Put the ring with the fewest items there.
@@ -110,7 +110,7 @@ The main write-up of what the item is. The column must be in the header. A row m
 | blank, or no column | Solid, and nothing is claimed either way |
 | anything else | Solid, with a warning |
 
-Values are matched ignoring case and surrounding spaces. The qualifier never depends on the ring, so it works the same with any `--rings`.
+Values are matched ignoring case and extra spaces. The qualifier never depends on the ring, so it works the same with any `--rings`.
 
 ### `domain` and `rationale`
 
@@ -139,7 +139,7 @@ How the item changed since the last edition. You set it for each edition; the to
 | blank, or no column | The plain marker, and nothing is stated |
 | anything else | Treated as `No Change`, with a warning |
 
-Values are matched ignoring case and surrounding spaces, so `moved in` works.
+Values are matched ignoring case and extra spaces, so `moved in` works.
 
 ### `link`
 
@@ -152,7 +152,7 @@ A web address for the item, such as the product's home page: `https://www.terraf
 ## Text in any field
 
 - **A line break inside a cell** (Alt+Enter in Excel) becomes a space in a name, quadrant, ring, qualifier, status or date, and is kept as a line break in a description, domain, rationale or your own columns.
-- **Leading and trailing spaces are ignored** for matching. Names, quadrants, rings and the other short fields (qualifier, status, dates, link) are also shown trimmed; a description, domain, rationale or your own column is shown exactly as written, spaces and blank lines included.
+- **Leading and trailing spaces, and extra spaces inside a value, are ignored** for matching. Names, quadrants and rings are shown trimmed and with single spaces, and the other short fields (qualifier, status, dates, link) are shown trimmed; a description, domain, rationale or your own column is shown exactly as written, spaces and blank lines included.
 - **Characters that cannot be displayed are removed, with a warning naming the line and column.** These are control characters other than tab and line break, and the invisible characters that reverse the direction of text. The same applies to `--title`, `--subtitle` and `--rings`.
 - **Anything else is shown as written.** Characters such as `<`, `&` and `"` are safe and appear literally. Names in Latin, Greek and Cyrillic scripts, including Vietnamese, draw with the built-in font.
 

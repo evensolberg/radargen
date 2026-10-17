@@ -1,7 +1,7 @@
 ---
 id: rg-zl6
 title: Plain HTML text broken mid-word reads as two fragments
-status: open
+status: closed
 type: bug
 priority: 4
 tags:
@@ -9,6 +9,7 @@ tags:
 - a11y
 created: 2026-10-16
 updated: 2026-10-16
+closed_reason: Plain text broken mid-word is role=img named by its words in the HTML (D-88), 1.2.6
 phase: ''
 ---
 

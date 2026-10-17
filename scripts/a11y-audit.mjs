@@ -2,7 +2,8 @@
 //
 // Usage: node scripts/a11y-audit.mjs <page.html> <d71.html> <d71-narrow-width>
 //
-// The first page is the interaction fixture; the second is D-71's, whose
+// The first page is the audit fixture (the interaction fixture plus a ring
+// whose heading wraps, so a wrapped heading's label is read); the second is D-71's, whose
 // narrow arrangement is wider than 480 units, so its narrow targets fall
 // below 24 px at 320 px by design: D-71's recorded 2.5.8 exception. Markers meet 2.5.8
 // through its Equivalent exception (PRD D-81).
