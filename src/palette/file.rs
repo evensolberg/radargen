@@ -393,9 +393,9 @@ fn resolve(declared: &[Declaration<'_>], errors: &mut Vec<PaletteError>) -> Opti
     // swallowed them (rg-8xm).
     let mut swallowed: Vec<&str> = Vec::new();
     for d in declared {
-        let before = swallowed.len();
-        swallowed.extend(swallowed_names(d.value));
-        let runs_on = swallowed.len() > before;
+        let names: Vec<&str> = swallowed_names(d.value).collect();
+        let runs_on = !names.is_empty();
+        swallowed.extend(names);
         match seen.entry(d.name) {
             Entry::Occupied(first) => {
                 errors.push(PaletteError::Duplicate {

@@ -34,7 +34,6 @@ pub(super) fn excerpt(text: &str) -> String {
     // Counted as shown, escapes included, so a run of them is cut too.
     let mut head = String::new();
     let mut shown = 0;
-    let mut cut = false;
     for c in css_trim(first).chars() {
         let piece: String = if c.is_whitespace() && !css_space(c) {
             c.escape_default().collect()
@@ -43,15 +42,14 @@ pub(super) fn excerpt(text: &str) -> String {
         };
         shown += piece.chars().count();
         if shown > EXCERPT_CHARS {
-            cut = true;
-            break;
+            return head + "…";
         }
         head.push_str(&piece);
     }
-    if cut || !css_trim(rest).is_empty() {
-        head + "…"
-    } else {
+    if css_trim(rest).is_empty() {
         head
+    } else {
+        head + "…"
     }
 }
 
