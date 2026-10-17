@@ -26,7 +26,10 @@ pub enum Legend {
     Hidden,
 }
 
-const HEAD_OPEN: &str = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"generator\" content=\"";
+const DOCTYPE_OPEN: &str = "<!DOCTYPE html>\n<html lang=\"en\"";
+/// RG-102: written on `<html>` when the page starts with its legend hidden.
+const HIDDEN_START: &str = " data-legend=\"hidden\"";
+const HEAD_OPEN: &str = ">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"generator\" content=\"";
 const BODY_OPEN: &str = "</style>\n</head>\n<body>\n";
 const HIDDEN_HEADING: &str = "<h1 class=\"visually-hidden\">";
 const DIV_OPEN: &str = "<div class=\"";
@@ -58,6 +61,8 @@ pub struct Page<'a> {
     /// FR-56, §6.6: the built-in themes with a toggle, or a `--palette`
     /// file's one set without.
     pub colours: &'a Colours,
+    /// RG-102: where the legend starts.
+    pub legend: Legend,
 }
 
 /// The page for `input` (FR-68).
@@ -80,6 +85,7 @@ pub fn page(input: &Page<'_>) -> String {
         plotted,
         title,
         colours,
+        legend,
     } = *input;
     let bound = colours.interactive();
     let toggle = colours.has_toggle();
@@ -90,7 +96,16 @@ pub fn page(input: &Page<'_>) -> String {
     } else {
         [HIDDEN_HEADING, UNTITLED, "</h1>\n"].concat()
     };
+    // With nothing plotted there is no legend, nor a button to bring one
+    // back, so the page records no hidden start.
+    let start = if legend == Legend::Hidden && !plotted.items.is_empty() {
+        HIDDEN_START
+    } else {
+        ""
+    };
     [
+        DOCTYPE_OPEN,
+        start,
         HEAD_OPEN,
         OUTPUT_VERSION,
         "\">\n<title>",
@@ -99,6 +114,7 @@ pub fn page(input: &Page<'_>) -> String {
         &css::font_faces(),
         &css::palettes(colours),
         &css::layout(&sizes, narrow.body.width),
+        &css::legend_hiding(&sizes),
         &css::indicators(),
         css::VISUALLY_HIDDEN,
         css::HIDDEN_BOX,
@@ -161,4 +177,18 @@ fn part(class: &str, rest: &str, document: &Document, target: Target<'_>) -> Str
         DIV_CLOSE,
     ]
     .concat()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{HIDDEN_START, chrome};
+
+    /// The hidden start is the attribute the script and stylesheet read.
+    #[test]
+    fn the_hidden_start_is_the_legend_attribute() {
+        assert_eq!(
+            HIDDEN_START,
+            [" ", chrome::DATA_LEGEND, "=\"", chrome::LEGEND_HIDDEN, "\""].concat()
+        );
+    }
 }

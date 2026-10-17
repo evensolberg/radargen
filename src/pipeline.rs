@@ -283,6 +283,7 @@ fn render(
                 plotted: &plotted,
                 title: config.title.as_deref(),
                 colours: &config.colours,
+                legend: config.legend,
             })
             .into_bytes())
         }

@@ -21,7 +21,8 @@ use crate::svg::serialise::{
 };
 
 use super::chrome::{
-    DATA_FOCUSED, DATA_HOVERED, DATA_SELECTED, DATA_THEME, ICONS_DARK, ICONS_LIGHT, JS_CLASS,
+    DATA_FOCUSED, DATA_HOVERED, DATA_LEGEND, DATA_SELECTED, DATA_THEME, ICONS_DARK, ICONS_LIGHT,
+    JS_CLASS, LEGEND_HIDDEN,
 };
 use crate::text::{FAMILY, REGULAR_WOFF2, SEMIBOLD_WOFF2, Weight};
 
@@ -115,7 +116,7 @@ impl Wide {
     }
 
     /// The whole arrangement's cap: the radar column and the legend.
-    fn cap(self) -> String {
+    pub(super) fn cap(self) -> String {
         [
             SPAN_OPEN,
             &self.radar_cap(),
@@ -358,6 +359,63 @@ pub(super) fn layout(wide: &Wide, narrow_width: f64) -> String {
         NARROW_HIDDEN,
         &narrow_query(wide),
         SWAP,
+    ]
+    .concat()
+}
+
+const SCREEN_OPEN: &str = "@media screen{\n";
+const SCREEN_CLOSE: &str = "}\n";
+const STATE_OPEN: &str = ":root.";
+const STATE_ATTR: &str = "[";
+const STATE_VALUE: &str = "=\"";
+const STATE_CLOSE: &str = "\"]";
+const DESCENDANT: &str = " .";
+const SELECTOR_AND: &str = ",";
+const HIDE_RULE: &str = "{display:none}\n";
+const ONE_COLUMN_OPEN: &str = " .wide{grid-template-columns:minmax(0,";
+const ONE_COLUMN_CLOSE: &str = ")}\n";
+const RADAR_KEPT_OPEN: &str = " .wide-radar svg{max-width:";
+const RADAR_KEPT_CLOSE: &str = "}\n";
+
+/// RG-102: while the legend is hidden, both arrangements' legend parts are
+/// hidden.
+///
+/// The wide grid is one column as wide as radar and legend were together,
+/// so the title keeps its size and nothing moves sideways, and the radar's
+/// SVG keeps its cap, left-aligned, so it grows only into width the legend
+/// was holding back. Only under the script's class, since without script
+/// nothing can bring the legend back (FR-98's rule), and only on screen,
+/// since a printout has no button either.
+pub(super) fn legend_hiding(wide: &Wide) -> String {
+    let on = [
+        STATE_OPEN,
+        JS_CLASS,
+        STATE_ATTR,
+        DATA_LEGEND,
+        STATE_VALUE,
+        LEGEND_HIDDEN,
+        STATE_CLOSE,
+    ]
+    .concat();
+    [
+        SCREEN_OPEN,
+        on.as_str(),
+        DESCENDANT,
+        WIDE_LEGEND,
+        SELECTOR_AND,
+        on.as_str(),
+        DESCENDANT,
+        NARROW_LEGEND,
+        HIDE_RULE,
+        on.as_str(),
+        ONE_COLUMN_OPEN,
+        &wide.cap(),
+        ONE_COLUMN_CLOSE,
+        on.as_str(),
+        RADAR_KEPT_OPEN,
+        &wide.radar_cap(),
+        RADAR_KEPT_CLOSE,
+        SCREEN_CLOSE,
     ]
     .concat()
 }

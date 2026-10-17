@@ -531,6 +531,22 @@ fn theme_and_width_are_ignored_on_html() {
     assert_eq!(read(dir.path(), "a.html"), read(dir.path(), "b.html"));
 }
 
+/// RG-102: --legend hidden reaches the page; any case, alias included.
+#[test]
+fn legend_hidden_starts_the_page_hidden() {
+    let dir = seeded(&[("radar.csv", &format!("{HEAD}Kafka,Tool,Adopt,d\n"))]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "h.html", "--legend", "HIDE"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert_eq!(ran.stderr, "");
+    assert!(
+        read(dir.path(), "h.html")
+            .starts_with("<!DOCTYPE html>\n<html lang=\"en\" data-legend=\"hidden\">\n")
+    );
+}
+
 /// RG-102: PNG and SVG always draw the legend; asked to hide it, they
 /// say so once and draw the same bytes. Asked to show it, they say nothing.
 #[test]

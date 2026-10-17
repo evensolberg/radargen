@@ -38,6 +38,11 @@ pub(super) const DATA_SELECTED: &str = "data-selected";
 /// script to stand in for the browser apply only under it.
 pub(super) const JS_CLASS: &str = "js";
 pub(super) const TOGGLE_CLASS: &str = "theme-toggle";
+/// The root attribute that says the legend is hidden (RG-102). The page is
+/// written with it when it starts hidden, and the legend button sets and
+/// removes it. Not to be confused with the rows' `data-legend-row`.
+pub(super) const DATA_LEGEND: &str = "data-legend";
+pub(super) const LEGEND_HIDDEN: &str = "hidden";
 /// The toggle's icons (rg-1ru): each shows the theme a press switches to,
 /// so the moon shows while the light palette does and the sun while the
 /// dark one does. The palette blocks pick which (`ICONS_LIGHT`,

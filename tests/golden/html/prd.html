@@ -25,6 +25,11 @@ svg{display:block;width:100%;height:auto}
 .narrow{max-width:420px;margin:0 auto}
 .narrow{display:none}
 @media (max-width: 890px){.wide{display:none}.narrow{display:block}}
+@media screen{
+:root.js[data-legend="hidden"] .wide-legend,:root.js[data-legend="hidden"] .narrow-legend{display:none}
+:root.js[data-legend="hidden"] .wide{grid-template-columns:minmax(0,calc(max(536px,calc((100vh - 46px)*670/659.5)) + 355.077px))}
+:root.js[data-legend="hidden"] .wide-radar svg{max-width:max(536px,calc((100vh - 46px)*670/659.5))}
+}
 [data-legend-row][data-hovered]>[data-row-indicator]{visibility:visible}
 [data-legend-row][data-hovered]>[data-row-indicator]>rect{stroke:var(--text-muted);stroke-width:1px;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
 [data-legend-row][data-selected]>[data-selection]{visibility:visible}

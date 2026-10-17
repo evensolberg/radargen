@@ -327,3 +327,32 @@ fn a_palette_block_holds_only_safe_characters() {
         "{colours}"
     );
 }
+
+/// RG-102: on screen, with the script running and the page set hidden, both
+/// legend parts hide; the wide grid is one column as wide as radar and
+/// legend were, so nothing moves sideways; and the radar keeps its cap,
+/// left-aligned. Without the script's class, or in print, none applies.
+#[test]
+fn a_hidden_legend_hides_both_parts_on_screen_under_the_script_only() {
+    let css = legend_hiding(&WIDE);
+    let on = ":root.js[data-legend=\"hidden\"]";
+    assert!(
+        css.starts_with("@media screen{\n") && css.ends_with("}\n"),
+        "{css}"
+    );
+    let rules: Vec<&str> = css.lines().skip(1).filter(|l| *l != "}").collect();
+    assert!(
+        rules.iter().all(|l| l.starts_with(on)),
+        "every rule needs the script: {css}"
+    );
+    for rule in [
+        format!("{on} .wide-legend,{on} .narrow-legend{{display:none}}"),
+        format!(
+            "{on} .wide{{grid-template-columns:minmax(0,{})}}",
+            WIDE.cap()
+        ),
+        format!("{on} .wide-radar svg{{max-width:{}}}", WIDE.radar_cap()),
+    ] {
+        assert!(css.contains(&rule), "{rule} in {css}");
+    }
+}

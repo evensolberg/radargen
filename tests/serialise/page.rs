@@ -5,6 +5,7 @@
 use std::collections::BTreeSet;
 
 use radargen::emit::OUTPUT_VERSION;
+use radargen::emit::html::Legend;
 use radargen::layout::arrange::{NarrowParts, WideParts, narrow_parts, wide_parts};
 use radargen::num::fmt_coord;
 use radargen::style::breakpoint_px;
@@ -12,7 +13,7 @@ use radargen::style::breakpoint_px;
 use super::golden::golden;
 use super::html::{assert_requests_nothing, outside, style, svgs};
 use super::vocabulary::vocabulary;
-use super::{parse, prd};
+use super::{build, parse, prd};
 
 const VIEWPORT: &str = r#"<meta name="viewport" content="width=device-width, initial-scale=1">"#;
 const VISUALLY_HIDDEN: &str = ".visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}";
@@ -273,4 +274,29 @@ fn prd_page_matches_its_golden() {
     let (html, count) = elided(&prd_page(Some("Technology Radar")));
     assert_eq!(count, 2, "both font faces were inlined");
     golden("html", "prd.html", &html);
+}
+
+/// RG-102: the page records where its legend starts on <html>; shown is the
+/// default and writes nothing; nothing plotted writes nothing either, since
+/// there is no legend and no button to bring one back.
+#[test]
+fn the_page_records_a_hidden_start() {
+    assert!(
+        prd()
+            .page(None)
+            .starts_with("<!DOCTYPE html>\n<html lang=\"en\">\n")
+    );
+    let hidden = prd().page_legend(Legend::Hidden);
+    assert!(hidden.starts_with("<!DOCTYPE html>\n<html lang=\"en\" data-legend=\"hidden\">\n"));
+    assert_requests_nothing(&hidden);
+    let unplotted = build(
+        "name,quadrant,ring,description\nLegacy Bus,Tools,Rejected,x\n",
+        None,
+        None,
+    );
+    assert!(
+        unplotted
+            .page_legend(Legend::Hidden)
+            .starts_with("<!DOCTYPE html>\n<html lang=\"en\">\n")
+    );
 }
