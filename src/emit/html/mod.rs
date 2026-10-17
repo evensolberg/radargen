@@ -14,7 +14,20 @@ use crate::order::Plotted;
 use crate::palette::Colours;
 use crate::svg::{Document, Target, serialise};
 
-const HEAD_OPEN: &str = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"generator\" content=\"";
+/// Where the page's legend starts (RG-102). Only HTML reads it: PNG and
+/// SVG always draw the legend.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum Legend {
+    /// The legend shows.
+    #[value(alias = "show")]
+    Shown,
+    /// The legend starts hidden, with a button to show it.
+    #[value(alias = "hide")]
+    Hidden,
+}
+
+const DOCTYPE_OPEN: &str = "<!DOCTYPE html>\n<html lang=\"en\"";
+const HEAD_OPEN: &str = ">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"generator\" content=\"";
 const BODY_OPEN: &str = "</style>\n</head>\n<body>\n";
 const HIDDEN_HEADING: &str = "<h1 class=\"visually-hidden\">";
 const DIV_OPEN: &str = "<div class=\"";
@@ -46,6 +59,8 @@ pub struct Page<'a> {
     /// FR-56, §6.6: the built-in themes with a toggle, or a `--palette`
     /// file's one set without.
     pub colours: &'a Colours,
+    /// RG-102: where the legend starts.
+    pub legend: Legend,
 }
 
 /// The page for `input` (FR-68).
@@ -68,6 +83,7 @@ pub fn page(input: &Page<'_>) -> String {
         plotted,
         title,
         colours,
+        legend,
     } = *input;
     let bound = colours.interactive();
     let toggle = colours.has_toggle();
@@ -78,7 +94,22 @@ pub fn page(input: &Page<'_>) -> String {
     } else {
         [HIDDEN_HEADING, UNTITLED, "</h1>\n"].concat()
     };
+    // With nothing plotted there is no legend, nor a button to bring one
+    // back, so the page starts shown, read the same way by the attribute
+    // and the button's name.
+    let legend = if plotted.items.is_empty() {
+        Legend::Shown
+    } else {
+        legend
+    };
+    let start = if legend == Legend::Hidden {
+        [" ", &chrome::legend_hidden_attr()].concat()
+    } else {
+        String::new()
+    };
     [
+        DOCTYPE_OPEN,
+        &start,
         HEAD_OPEN,
         OUTPUT_VERSION,
         "\">\n<title>",
@@ -87,6 +118,7 @@ pub fn page(input: &Page<'_>) -> String {
         &css::font_faces(),
         &css::palettes(colours),
         &css::layout(&sizes, narrow.body.width),
+        &css::legend_hiding(&sizes),
         &css::indicators(),
         css::VISUALLY_HIDDEN,
         css::HIDDEN_BOX,
@@ -94,7 +126,7 @@ pub fn page(input: &Page<'_>) -> String {
         &chrome::css(&sizes, toggle),
         BODY_OPEN,
         &chrome::main_open(&css::narrow_query(&sizes)),
-        &chrome::controls(toggle),
+        &chrome::controls(toggle, legend),
         &heading,
         DIV_OPEN,
         chrome::ARRANGEMENT_CLASS,

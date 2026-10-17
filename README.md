@@ -71,13 +71,13 @@ A row whose ring is not in the list is left off the radar and the legend, but ke
 An `.html` output is one file with its fonts, styles and script inside it. It makes no network requests, so it can be emailed, put on a file share or opened offline.
 
 - **Layout.** On a wide screen the legend sits beside the radar; on a narrow one, below it. The switch happens where the radar would otherwise shrink too far to read, so a radar with a wider legend switches at a wider window.
-- **Legend.** Grouped by quadrant, then by ring in the order you declared them, then by name. Items are numbered across the whole radar in that order, and each marker carries its number.
+- **Legend.** Grouped by quadrant, then by ring in the order you declared them, then by name. Items are numbered across the whole radar in that order, and each marker carries its number. A list-icon button at the top right hides or shows the legend, crossed out while it is hidden; the key to marker shapes stays, and the table still lists every item. `--legend hidden` starts the page with it hidden. The choice is not remembered between visits.
 - **Markers.** A disc in the quadrant's colour; hollow for `conditional`. `New` adds a full ring around it, `Moved In` a half-ring facing the centre, and `Moved Out` a half-ring facing the edge. A key on the page explains them.
 - **Details.** Clicking a marker, a legend row or a name in the table opens a panel with every filled column for that item. Its Close button, Escape, or activating the item again closes it.
 - **The table.** Under "Every item", below the radar, open "The table" to list every row with every column, including rows not on the radar and columns radargen does not use.
 - **Themes.** The page follows the reader's light or dark setting, and a button at the top right switches between them: a moon while the page is light, a sun while it is dark. The choice is not remembered between visits. `--theme` and `--width` do not apply to HTML.
-- **Keyboard and screen readers.** A skip link leads to the legend. Markers, legend rows and table names are buttons, reached with Tab and activated with Enter or Space. A marker's or legend row's spoken name gives its number, name, any qualifier or status, quadrant and ring.
-- **Without JavaScript** the radar, legend and table still show; the details panel, highlighting, skip link and theme button need it.
+- **Keyboard and screen readers.** A skip link leads to the legend, or to the table while the legend is hidden. Markers, legend rows and table names are buttons, reached with Tab and activated with Enter or Space. A marker's or legend row's spoken name gives its number, name, any qualifier or status, quadrant and ring.
+- **Without JavaScript** the radar, legend and table still show; the details panel, highlighting, skip link and the legend and theme buttons need it.
 - **Printing.** The page has no print styles. Use a PNG or an SVG for print.
 
 The page aims to meet WCAG 2.1 AA, and WCAG 2.2's target size as well, in the built-in themes. With very long quadrant or ring names the narrow layout can widen past what the target-size check allows; radargen warns and names the label to shorten. With your own palette, contrast is yours to check.
@@ -134,6 +134,7 @@ radargen --create-palette <PATH>
 | `-t`, `--title <TITLE>` | A title above the radar. |
 | `-s`, `--subtitle <SUBTITLE>` | A second line under the title, such as the edition's date. |
 | `-T`, `--theme <light\|dark>` | The colours for PNG and SVG; light by default. Not with `--palette`. |
+| `--legend <shown\|hidden>` | Whether an HTML page starts with its legend shown or hidden; shown by default. PNG and SVG always draw it, and warn if asked to hide it. |
 | `-w`, `--width <WIDTH>` | The width in pixels for PNG and SVG, from 320 to 10000. |
 | `-p`, `--palette <FILE>` | Colours from a palette file instead of the built-in themes, in every format. Not with `--theme`. |
 | `--create-template <PATH>` | Write a starter CSV, and render nothing. Given alone. |

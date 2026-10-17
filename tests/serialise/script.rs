@@ -68,6 +68,7 @@ fn the_page_controls_are_hidden_until_the_script_runs() {
     assert!(main_at < controls && controls < wide, "first in <main>");
     for button in [
         "<button type=\"button\" class=\"skip\" hidden=\"\">Skip to the legend</button>",
+        "<button type=\"button\" class=\"legend-toggle\" hidden=\"\">",
         "<button type=\"button\" class=\"theme-toggle\" hidden=\"\"><svg class=\"theme-moon\"",
     ] {
         assert!(html.contains(button), "{button}");
@@ -103,4 +104,12 @@ fn one_hidden_panel_between_the_radar_and_the_table() {
     assert!(html.contains(
         "<div class=\"detail-head\"><h2 class=\"detail-heading\" tabindex=\"-1\"></h2><button type=\"button\" class=\"detail-close\">Close</button></div><dl><dt></dt><dd></dd></dl><p class=\"detail-empty\" hidden=\"\">No further details.</p></section>"
     ));
+}
+
+/// RG-102: the page remembers nothing between visits.
+#[test]
+fn the_script_stores_nothing() {
+    for api in ["localStorage", "sessionStorage", "cookie", "indexedDB"] {
+        assert!(!SCRIPT.contains(api), "{api}");
+    }
 }

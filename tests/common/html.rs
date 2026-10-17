@@ -64,6 +64,7 @@ pub fn page_attribute(element: &str, name: &str, value: &str, all: &[(String, St
         ("h2", "id") => value == "table-heading",
         ("section", "id") => value == "detail",
         ("main", "data-narrow-query") => value.starts_with("(max-width: "),
+        ("html", "data-legend") => value == "hidden",
         ("a", "href") => web && has("target", "_blank") && has("rel", "noopener noreferrer"),
         ("a", "target") => value == "_blank",
         ("a", "rel") => value == "noopener noreferrer",

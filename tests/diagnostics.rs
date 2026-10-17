@@ -1085,6 +1085,15 @@ fn d87_warnings_name_their_widths() {
     }
 }
 
+/// RG-102: --legend hidden on a static output says what happened.
+#[test]
+fn legend_static_says_png_and_svg_keep_the_legend() {
+    assert_eq!(
+        Warning::Render(RenderKind::LegendStatic).to_string(),
+        "--legend hidden applies to HTML pages; PNG and SVG always draw the legend"
+    );
+}
+
 /// FR-95 names the label that sets the width, quadrant or ring (D-73),
 /// trimmed and single-quoted as FR-89's names are.
 #[test]

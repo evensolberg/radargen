@@ -17,6 +17,7 @@ use crate::csv::decode;
 use crate::csv::parse::parse;
 use crate::decode::NotUtf8;
 use crate::diagnostics::{Fatal, Flag, RenderKind, RowError, Warning, Warnings};
+use crate::emit::html::Legend;
 use crate::emit::html::{Page, page};
 use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
@@ -43,6 +44,9 @@ pub struct Config {
     pub format: OutputFormat,
     /// FR-56, FR-59: the built-in themes, or a `--palette` file's one set.
     pub colours: Colours,
+    /// RG-102: where an HTML page's legend starts; PNG and SVG warn on
+    /// `hidden` and draw it anyway.
+    pub legend: Legend,
     /// FR-57: `--width`, which HTML ignores.
     pub width: Option<u32>,
     /// FR-65, resolved: cleaned (FR-90), trimmed, and `None` when empty.
@@ -164,6 +168,7 @@ fn config(
         output: output.to_path_buf(),
         format,
         colours,
+        legend: cli.legend,
         width: cli.width,
         title,
         subtitle,
@@ -262,6 +267,11 @@ fn render(
     // FR-89 at the growth the radar is drawn with (D-86): only what still
     // overlaps is reported.
     warn_crowding(catalogue, &plotted, blocks.radar.growth(), warnings);
+    // RG-102: a static snapshot has no button to bring a hidden legend
+    // back, so it keeps the legend and says so.
+    if config.legend == Legend::Hidden && config.format != OutputFormat::Html {
+        warnings.push(Warning::Render(RenderKind::LegendStatic));
+    }
     match config.format {
         OutputFormat::Html => {
             // FR-95 concerns the narrow arrangement, which only HTML carries.
@@ -273,6 +283,7 @@ fn render(
                 plotted: &plotted,
                 title: config.title.as_deref(),
                 colours: &config.colours,
+                legend: config.legend,
             })
             .into_bytes())
         }

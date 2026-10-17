@@ -6,7 +6,8 @@
 //! `svg::serialise`, and a test holds the script's names block to them.
 //! Rule fragments are module constants, as in `css.rs`.
 
-use super::css::{HIDDEN_BOX, OUTLINE_CLOSE, Wide, capped, narrow_query};
+use super::Legend;
+use super::css::{HIDDEN_BOX, NOT_SHOWN, OUTLINE_CLOSE, Wide, attr, capped, narrow_query, rule};
 use crate::escape::html_attr;
 use crate::palette::Neutral;
 
@@ -38,6 +39,17 @@ pub(super) const DATA_SELECTED: &str = "data-selected";
 /// script to stand in for the browser apply only under it.
 pub(super) const JS_CLASS: &str = "js";
 pub(super) const TOGGLE_CLASS: &str = "theme-toggle";
+/// The root attribute that says the legend is hidden (RG-102). The page is
+/// written with it when it starts hidden, and the legend button sets and
+/// removes it. Not to be confused with the rows' `data-legend-row`.
+pub(super) const DATA_LEGEND: &str = "data-legend";
+pub(super) const LEGEND_HIDDEN: &str = "hidden";
+
+/// `data-legend="hidden"`, as the page starts with it, the button sets it
+/// and the stylesheet keys on it (RG-102): one spelling for all three.
+pub(super) fn legend_hidden_attr() -> String {
+    [DATA_LEGEND, "=\"", LEGEND_HIDDEN, "\""].concat()
+}
 /// The toggle's icons (rg-1ru): each shows the theme a press switches to,
 /// so the moon shows while the light palette does and the sun while the
 /// dark one does. The palette blocks pick which (`ICONS_LIGHT`,
@@ -48,13 +60,36 @@ pub(super) const SUN_CLASS: &str = "theme-sun";
 pub(super) const ICONS_LIGHT: &str = "--theme-moon:block;--theme-sun:none;";
 pub(super) const ICONS_DARK: &str = "--theme-moon:none;--theme-sun:block;";
 pub(super) const SKIP_CLASS: &str = "skip";
+/// The skip link's names (FR-98, RG-102): to the legend, or to the table
+/// while the legend is hidden. Only the script writes the second.
+pub(super) const SKIP_TO_LEGEND: &str = "Skip to the legend";
+#[cfg(test)]
+pub(super) const SKIP_TO_TABLE: &str = "Skip to the table";
+pub(super) const LEGEND_TOGGLE_CLASS: &str = "legend-toggle";
+/// The legend button's names (RG-102, as rg-nuy for the theme toggle): what
+/// a press does. The page is written with the one for where it starts; the
+/// script writes the other.
+pub(super) const HIDE_LEGEND: &str = "Hide legend";
+pub(super) const SHOW_LEGEND: &str = "Show legend";
+/// The legend button's icons show the legend's state, swapped by
+/// `data-legend` alone: a press always changes what the reader sees, even in
+/// the narrow arrangement, where the legend is usually below the fold.
+const LEGEND_ON_CLASS: &str = "legend-on";
+const LEGEND_OFF_CLASS: &str = "legend-off";
+const LIST_SHAPE: &str = "<path d=\"M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01\"/></svg>";
+/// The crossed-out list: its last two lines cut short for an X as tall as
+/// two rows, so the change of state reads at the icon's 20 px.
+const LIST_OFF_SHAPE: &str =
+    "<path d=\"M9 6h11M9 12h3M9 18h3M4 6h.01M4 12h.01M4 18h.01M15 12l6 6M21 12l-6 6\"/></svg>";
 /// Each arrangement's container (FR-69).
 pub(super) const ARRANGEMENT_CLASS: &str = "arrangement";
 
 const CONTROLS_OPEN: &str = "<div class=\"page-controls\">";
 const BUTTON_TAG: &str = "<button type=\"button\" class=\"";
-const SKIP_REST: &str = "\" hidden=\"\">Skip to the legend</button>";
-const TOGGLE_REST: &str = "\" hidden=\"\">";
+const SKIP_END: &str = "</button>";
+/// The rest of a page control's start tag: every one is written `hidden`
+/// and revealed by the script (FR-98's rule).
+const HIDDEN_REST: &str = "\" hidden=\"\">";
 /// Decoration only: the toggle's name is its visually hidden label. The
 /// strokes take the button's text colour from the stylesheet.
 const ICON_OPEN: &str = "<svg class=\"";
@@ -71,16 +106,43 @@ pub(super) fn main_open(query: &str) -> String {
     ["<main ", DATA_NARROW_QUERY, "=", &html_attr(query), ">\n"].concat()
 }
 
-/// The skip link and, when the page has both built-in themes to switch
-/// between, the theme toggle (FR-56, §6.6): first in `<main>`, both
-/// `hidden` until the script runs (FR-98's rule).
-pub(super) fn controls(toggle: bool) -> String {
-    let mut out = [CONTROLS_OPEN, BUTTON_TAG, SKIP_CLASS, SKIP_REST].concat();
+/// The skip link, the legend button (RG-102) named for where the legend
+/// starts, and, when the page has both built-in themes to switch between,
+/// the theme toggle (FR-56, §6.6): first in `<main>`, all `hidden` until the
+/// script runs (FR-98's rule).
+pub(super) fn controls(toggle: bool, legend: Legend) -> String {
+    let name = match legend {
+        Legend::Shown => HIDE_LEGEND,
+        Legend::Hidden => SHOW_LEGEND,
+    };
+    let mut out = [
+        CONTROLS_OPEN,
+        BUTTON_TAG,
+        SKIP_CLASS,
+        HIDDEN_REST,
+        SKIP_TO_LEGEND,
+        SKIP_END,
+        BUTTON_TAG,
+        LEGEND_TOGGLE_CLASS,
+        HIDDEN_REST,
+        ICON_OPEN,
+        LEGEND_ON_CLASS,
+        ICON_REST,
+        LIST_SHAPE,
+        ICON_OPEN,
+        LEGEND_OFF_CLASS,
+        ICON_REST,
+        LIST_OFF_SHAPE,
+        LABEL_OPEN,
+        name,
+        TOGGLE_END,
+    ]
+    .concat();
     if toggle {
         out.extend([
             BUTTON_TAG,
             TOGGLE_CLASS,
-            TOGGLE_REST,
+            HIDDEN_REST,
             ICON_OPEN,
             MOON_CLASS,
             ICON_REST,
@@ -155,7 +217,10 @@ const SKIP_RULE: &str =
 /// `.page-controls` to outrank the controls' own padding: at the
 /// page's 16 px text it is about 35 px a side, past WCAG 2.5.8's 24. Each
 /// icon shows as its palette block's property says.
-const TOGGLE_ICON_RULE: &str = ".page-controls .theme-toggle{padding:.4em}\n.theme-toggle svg{width:1.25em;height:1.25em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}\n";
+const PADDED: &str = ".page-controls .";
+const PAD: &str = "padding:.4em";
+/// Both icon buttons' icons, one size and stroke, so they stay the same.
+const ICON_SVG: &str = "width:1.25em;height:1.25em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round";
 const ICON_SHOWN_OPEN: &str = ".theme-toggle .";
 const MOON_SHOWN: &str = "{display:var(--theme-moon)}\n";
 const SUN_SHOWN: &str = "{display:var(--theme-sun)}\n";
@@ -176,19 +241,53 @@ const SHEET_RULE: &str =
 const GRID_OPEN: &str = "@media (min-width: ";
 const GRID_RULE: &str = "px){.detail dl{display:grid;grid-template-columns:max-content 1fr;column-gap:1.5em;align-items:baseline}.detail dt{grid-column:1}.detail dd{grid-column:2}}\n";
 
+/// The square icon button `class`, its padding all round under
+/// `.page-controls` to outrank the controls' own (rg-1ru, RG-102).
+fn icon_button(class: &str) -> String {
+    [
+        rule(&[PADDED, class].concat(), PAD),
+        rule(&[".", class, " svg"].concat(), ICON_SVG),
+    ]
+    .concat()
+}
+
+const START_GROUP: &str = "margin-inline-start:auto";
+const BESIDE: &str = "margin-inline-start:.5em";
+const SHOWN: &str = "display:block";
+
+/// The legend button (RG-102): square like the theme toggle, it starts the
+/// right-hand group, with the theme toggle beside it, or alone at the end on
+/// a --palette page. Each icon shows as the legend's state says.
+fn legend_button() -> String {
+    let button = [".", LEGEND_TOGGLE_CLASS].concat();
+    let hidden = [":root", &attr(&legend_hidden_attr()), " ."].concat();
+    [
+        icon_button(LEGEND_TOGGLE_CLASS),
+        rule(&button, START_GROUP),
+        rule(
+            &[button.as_str(), ":not([hidden])~.", TOGGLE_CLASS].concat(),
+            BESIDE,
+        ),
+        rule(&[".", LEGEND_OFF_CLASS].concat(), NOT_SHOWN),
+        rule(&[hidden.as_str(), LEGEND_ON_CLASS].concat(), NOT_SHOWN),
+        rule(&[hidden.as_str(), LEGEND_OFF_CLASS].concat(), SHOWN),
+    ]
+    .concat()
+}
+
 /// The controls' rules, capped and inset like the table view.
-/// Plan RG-018A R11: without the toggle, which holds the controls bar
-/// open, a focused skip link would push the page down and let it jump
-/// back; drawn over the page instead.
+/// Plan RG-018A R11: the skip link is a text button a little taller than
+/// the icon buttons, so in the bar's flow its focus would push the page
+/// down and let it jump back. It is drawn over the page instead, on every
+/// page.
 pub(super) const SKIP_OVER_PAGE: &str =
     ".page-controls{position:relative}\n.skip:focus{position:absolute;z-index:1}\n";
 
 /// The controls' and panel's rules; `toggle` as for [`controls`].
 pub(super) fn css(wide: &Wide, toggle: bool) -> String {
-    let skip = if toggle { "" } else { SKIP_OVER_PAGE };
     let icon = if toggle {
         [
-            TOGGLE_ICON_RULE,
+            icon_button(TOGGLE_CLASS).as_str(),
             ICON_SHOWN_OPEN,
             MOON_CLASS,
             MOON_SHOWN,
@@ -212,6 +311,7 @@ pub(super) fn css(wide: &Wide, toggle: bool) -> String {
         BUTTON_CLOSE,
         SKIP_RULE,
         HIDDEN_BOX,
+        &legend_button(),
         &icon,
         FOCUS_OPEN,
         Neutral::Focus.as_str(),
@@ -232,7 +332,7 @@ pub(super) fn css(wide: &Wide, toggle: bool) -> String {
         GRID_OPEN,
         &wide.breakpoint().to_string(),
         GRID_RULE,
-        skip,
+        SKIP_OVER_PAGE,
     ]
     .concat()
 }

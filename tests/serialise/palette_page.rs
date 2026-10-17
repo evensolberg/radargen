@@ -29,10 +29,18 @@ fn a_palette_page_has_one_set_and_no_toggle() {
         assert!(!css.contains(absent), "{absent}");
     }
     assert!(!html.contains("class=\"theme-toggle\""), "no toggle");
+    assert!(
+        !html.contains("theme-moon") && !html.contains("theme-sun"),
+        "and none of its icons"
+    );
     assert_eq!(
         html.matches("<svg").count(),
-        svgs(&html).len(),
-        "and none of its icons: every SVG is a drawing"
+        svgs(&html).len() + 2,
+        "every other SVG is a drawing, but for the legend button's two icons"
+    );
+    assert!(
+        html.contains("class=\"legend-toggle\""),
+        "the legend button is there"
     );
     assert!(html.contains("class=\"skip\""), "the skip link stays");
     assert!(css.contains("@media (forced-colors: active)"));

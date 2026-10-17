@@ -26,7 +26,7 @@ mod script;
 mod table;
 mod vocabulary;
 
-use radargen::emit::html::{Page, page};
+use radargen::emit::html::{Legend, Page, page};
 use radargen::layout::arrange::{
     Arrangement, Blocks, NarrowParts, WideParts, narrow_parts, wide_parts,
 };
@@ -49,7 +49,13 @@ struct Built {
 impl Built {
     /// The page for `wide` and `narrow`, with this catalogue's table.
     fn page_of(&self, wide: &WideParts, narrow: &NarrowParts, title: Option<&str>) -> String {
-        self.page_in(wide, narrow, title, &Colours::BuiltIn(Theme::Light))
+        self.page_in(
+            wide,
+            narrow,
+            title,
+            &Colours::BuiltIn(Theme::Light),
+            Legend::Shown,
+        )
     }
 
     /// As [`Built::page_of`], in `colours`.
@@ -59,6 +65,7 @@ impl Built {
         narrow: &NarrowParts,
         title: Option<&str>,
         colours: &Colours,
+        legend: Legend,
     ) -> String {
         page(&Page {
             wide,
@@ -67,7 +74,20 @@ impl Built {
             plotted: &self.plotted,
             title,
             colours,
+            legend,
         })
+    }
+
+    /// The page for both arrangements of these blocks, its legend starting
+    /// as `legend`.
+    fn page_legend(&self, legend: Legend) -> String {
+        self.page_in(
+            &wide_parts(&self.blocks),
+            &narrow_parts(&self.blocks),
+            None,
+            &Colours::BuiltIn(Theme::Light),
+            legend,
+        )
     }
 
     /// The page for both arrangements of these blocks, in `colours`.
@@ -77,6 +97,7 @@ impl Built {
             &narrow_parts(&self.blocks),
             None,
             colours,
+            Legend::Shown,
         )
     }
 

@@ -22,6 +22,7 @@ use crate::svg::serialise::{
 
 use super::chrome::{
     DATA_FOCUSED, DATA_HOVERED, DATA_SELECTED, DATA_THEME, ICONS_DARK, ICONS_LIGHT, JS_CLASS,
+    legend_hidden_attr,
 };
 use crate::text::{FAMILY, REGULAR_WOFF2, SEMIBOLD_WOFF2, Weight};
 
@@ -362,6 +363,47 @@ pub(super) fn layout(wide: &Wide, narrow_width: f64) -> String {
     .concat()
 }
 
+const SCREEN_OPEN: &str = "@media screen{\n";
+const SCREEN_CLOSE: &str = "}\n";
+/// `!important` over the indicators' own `visibility:visible`, which would
+/// otherwise show a hovered or selected row through the hidden legend; no
+/// pointer events, so nothing in it, now or later, takes a click meant for
+/// the radar it overlaps.
+const INVISIBLE: &str = "visibility:hidden!important;pointer-events:none!important";
+pub(super) const NOT_SHOWN: &str = "display:none";
+/// Contained, as the title is, so spanning both tracks does not let the
+/// radar's own size widen them.
+const SPAN_TRACKS: &str = "grid-column:1/-1;contain:inline-size";
+const MAX_WIDTH: &str = "max-width:";
+
+/// RG-102: while the legend is hidden, it is gone from both arrangements.
+///
+/// The wide legend turns invisible in place, which also takes its rows out
+/// of the tab order and the accessibility tree, so the grid's tracks, the
+/// legend's scrollbar gutter included, never change and nothing moves
+/// sideways. The radar spans both tracks, its SVG keeping its cap, so it
+/// grows only into width the legend was holding back. The narrow legend,
+/// last in its column, is simply removed. Only under the script's class,
+/// since without script nothing can bring the legend back (FR-98's rule),
+/// and only on screen, since a printout has no button either.
+pub(super) fn legend_hiding(wide: &Wide) -> String {
+    let on = [":root.", JS_CLASS, &attr(&legend_hidden_attr()), " ."].concat();
+    let part = |class: &str| [on.as_str(), class].concat();
+    let (legend, radar) = (part(WIDE_LEGEND), part(WIDE_RADAR));
+    [
+        SCREEN_OPEN,
+        &rule(&[legend.as_str(), ",", &legend, " *"].concat(), INVISIBLE),
+        &rule(&part(NARROW_LEGEND), NOT_SHOWN),
+        &rule(&radar, SPAN_TRACKS),
+        &rule(
+            &[radar.as_str(), " svg"].concat(),
+            &[MAX_WIDTH, &wide.radar_cap()].concat(),
+        ),
+        SCREEN_CLOSE,
+    ]
+    .concat()
+}
+
 /// The media query under which the narrow arrangement shows: one below
 /// FR-69's breakpoint (architecture §4), the one source PR 15's
 /// `matchMedia` reads too.
@@ -403,12 +445,12 @@ pub(super) fn indicators() -> String {
 }
 
 /// `[name]`.
-fn attr(name: &str) -> String {
+pub(super) fn attr(name: &str) -> String {
     ["[", name, "]"].concat()
 }
 
 /// `selector{declarations}` on its own line.
-fn rule(selector: &str, declarations: &str) -> String {
+pub(super) fn rule(selector: &str, declarations: &str) -> String {
     [selector, LBRACE, declarations, RBRACE].concat()
 }
 

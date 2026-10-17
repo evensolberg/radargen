@@ -34,6 +34,13 @@
     toLight: 'Switch to light theme',
     js: 'js',
     toggle: 'theme-toggle',
+    legendToggle: 'legend-toggle',
+    legendState: 'data-legend',
+    legendHidden: 'hidden',
+    hideLegend: 'Hide legend',
+    showLegend: 'Show legend',
+    skipLegend: 'Skip to the legend',
+    skipTable: 'Skip to the table',
     words: 'visually-hidden',
     skip: 'skip',
     arrangement: 'arrangement',
@@ -59,6 +66,18 @@
   const control = (node) =>
     node instanceof Element ? node.closest('[' + N.marker + '],[' + N.legend + ']') : null;
   const kindOf = (el) => (el.hasAttribute(N.marker) ? N.marker : N.legend);
+  // Rendered and visible: a hidden wide legend stays in its track,
+  // invisible, so its rows still have boxes (RG-102).
+  const isShown = (el) =>
+    !!el?.getClientRects().length && getComputedStyle(el).visibility !== 'hidden';
+  // Focus is lost when it sits on nothing, on the page itself, or on an
+  // element no longer shown: one in an arrangement a breakpoint hid, or a
+  // legend row a press hid. WebKit, and Firefox on macOS, do not focus a
+  // clicked button, so a press leaves focus on the body or on that row.
+  const focusLost = () => {
+    const now = document.activeElement;
+    return !now || now === document.body || !isShown(now);
+  };
   const keyOf = (el) => el.getAttribute(kindOf(el));
 
   // A marker's focus ring lives in the indicator layer, after every marker,
@@ -94,16 +113,12 @@
 
   // A breakpoint change hides the arrangement holding the focus; focus the
   // same item in the one now shown. When the change event fires, Chromium
-  // may not yet have moved focus off the hidden element, so focus counts
-  // as lost on the body or anywhere in an arrangement no longer shown.
+  // may not yet have moved focus off the hidden element, so focus counts as
+  // lost by focusLost(), which that late blur cannot fool.
   matchMedia(main.getAttribute(N.narrowQuery)).addEventListener('change', () => {
-    const now = document.activeElement;
-    const where = now?.closest('.' + N.arrangement);
-    const visible = shown();
-    const lost = !now || now === document.body || (where && where !== visible);
-    if (!state.focus || !lost) return;
+    if (!state.focus || !focusLost()) return;
     const { key, kind } = state.focus;
-    const el = visible?.querySelector(by(kind, key));
+    const el = shown()?.querySelector(by(kind, key));
     if (el) el.focus();
   });
 
@@ -188,11 +203,19 @@
     }
   };
 
-  // Where focus returns for `key`: its opener in the arrangement shown, else
-  // its table button, or the table's toggle while the table is closed.
+  // Where focus returns for `key`: its opener in the arrangement shown if
+  // still rendered, else its marker there (a legend row hidden since it
+  // opened the panel), else its table button, or the table's toggle while
+  // the table is closed.
   const opener = (key, kind) => {
-    const shownEl = kind === TABLE ? null : shown()?.querySelector(by(kind, key));
-    if (shownEl) return shownEl;
+    const rendered = (k) => {
+      const el = shown()?.querySelector(by(k, key));
+      return isShown(el) ? el : null;
+    };
+    if (kind !== TABLE) {
+      const el = rendered(kind) ?? rendered(N.marker);
+      if (el) return el;
+    }
     return details.open ? tableButton(key) : details.querySelector('summary');
   };
 
@@ -329,10 +352,30 @@
     toggle.hidden = false;
   }
 
-  // FR-98: past the markers to the legend of the arrangement shown.
+  // FR-98, RG-102: past the markers to the legend of the arrangement
+  // shown, or to the table while the legend is hidden.
   const skip = document.querySelector('.' + N.skip);
+  const plotted = !!document.querySelector('[' + N.legend + ']');
+  const isLegendHidden = () => root.getAttribute(N.legendState) === N.legendHidden;
   skip.addEventListener('click', () => {
-    shown()?.querySelector('[' + N.legend + ']')?.focus();
+    if (isLegendHidden()) details.querySelector('summary').focus();
+    else shown()?.querySelector('[' + N.legend + ']')?.focus();
+  });
+
+  // RG-102: the legend button hides and shows both arrangements' legends.
+  // Its name says what a press does, and the skip link follows the state.
+  const legendToggle = document.querySelector('.' + N.legendToggle);
+  const legendWords = legendToggle.querySelector('.' + N.words);
+  const showLegendState = () => {
+    const hidden = isLegendHidden();
+    legendWords.textContent = hidden ? N.showLegend : N.hideLegend;
+    skip.textContent = hidden ? N.skipTable : N.skipLegend;
+  };
+  legendToggle.addEventListener('click', () => {
+    if (isLegendHidden()) root.removeAttribute(N.legendState);
+    else root.setAttribute(N.legendState, N.legendHidden);
+    showLegendState();
+    if (focusLost()) legendToggle.focus();
   });
 
   // D-66: every control says whether its panel is open, and names it.
@@ -343,6 +386,8 @@
     el.setAttribute(N.controls, N.panel);
   }
   root.classList.add(N.js);
-  // With nothing plotted there is no legend to skip to.
-  skip.hidden = !document.querySelector('[' + N.legend + ']');
+  // With nothing plotted there is no legend to hide or skip to.
+  showLegendState();
+  legendToggle.hidden = !plotted;
+  skip.hidden = !plotted;
 })();

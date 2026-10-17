@@ -339,6 +339,13 @@ cut at the legend panel's top edge, so the legend can be hidden without
 leaving its space. Both are the narrow document's width and span one capped
 column, so they draw at one scale and stack into the one document.
 
+While the legend is hidden (FR-103) the wide legend stays in its column,
+`visibility:hidden`, and the radar spans both columns with its cap, so the
+columns, the legend's scrollbar gutter included, never change and nothing
+moves sideways; the narrow legend is removed. The breakpoint does not move
+with it: it is still computed with the legend beside the radar, though the
+wide arrangement would fit narrower windows while it is hidden (rg-dok).
+
 `Blocks` is a struct of four concrete fields — title, radar, legend, key — not a
 `Vec<Box<dyn Block>>`. The trait exists to *impose a shape* on four types, not to
 make them interchangeable at runtime: nothing ever iterates blocks without
@@ -565,7 +572,9 @@ its ring, marked `data-focus-ring` (PR 15b, `rg-jri`). PR 14b's generated
 per-key `:has` rules did this without script but cost style recalculation on
 every Tab, 49 ms at 300 markers; the attribute costs 0.14 ms. Without script
 the marker keeps the browser's own outline, which the page hides only under
-the script's `.js` class. A legend row's indicator is shown by the row's own
+the script's `.js` class, as are the rules that hide the legend while
+`data-legend="hidden"`, the other root state the script drives beside
+`data-theme` (FR-103). A legend row's indicator is shown by the row's own
 focus, with no `:has` and no per-key rule: `[data-legend-row]:focus-visible >
 [data-row-indicator] { visibility: visible }`. Pointer events on a hit area are
 forwarded to the control with the same key by the delegated handler FR-37

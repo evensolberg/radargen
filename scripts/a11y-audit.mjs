@@ -16,7 +16,7 @@
 
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { SHOWN, SHOWN_ICON, SPILLS, connect, poll } from './cdp.mjs';
+import { SHOWN, SHOWN_ICON, SPILLS, connect, poll, shownIcon } from './cdp.mjs';
 
 const [page, d71, d71Width] = process.argv.slice(2);
 if (!page || !d71 || !d71Width) {
@@ -138,6 +138,13 @@ async function names(label) {
     `${label}: the toggle is a button named "${action}": ${toggleNode.role?.value} "${toggleName}"`,
   );
   check(prop(toggleNode, 'pressed') === undefined, `${label}: the toggle has no pressed state`);
+  // RG-102: the legend button too, named for where the page starts.
+  const legendNode = await ax(`document.querySelector('.legend-toggle')`);
+  check(
+    legendNode.role?.value === 'button' && legendNode.name?.value === 'Hide legend',
+    `${label}: the legend button is a button named "Hide legend": ${legendNode.role?.value} "${legendNode.name?.value}"`,
+  );
+  check(prop(legendNode, 'pressed') === undefined, `${label}: the legend button has no pressed state`);
   await openTable(true);
   const rows = await evaluate(`document.querySelectorAll('tr[data-row] button').length`);
   check(rows > 0, `${label}: the table has buttons`);
@@ -272,7 +279,7 @@ async function targets(label, { exceptionWidth } = {}) {
   // summary, the table buttons, the skip link (focused) and Close (open).
   await openTable(true);
   const measure = (selector) => evaluate(`[...document.querySelectorAll('${selector}')].map((e) => { const r = e.getBoundingClientRect(); return { what: e.className || e.tagName.toLowerCase(), w: r.width, h: r.height }; })`);
-  const html = [...(await measure('.theme-toggle, summary, tr[data-row] button'))];
+  const html = [...(await measure('.legend-toggle, .theme-toggle, summary, tr[data-row] button'))];
   await tabTo(`document.querySelector('.skip')`);
   html.push(...(await measure('.skip')));
   await press('Enter');
@@ -292,16 +299,20 @@ async function reflow(label) {
   // and the theme toggle shows an icon, its words visually hidden (rg-1ru).
   const spills = await evaluate(`(${SPILLS})('h2, summary, thead th', 0.5)`);
   check(spills.length === 0, `${label}: text spills its box: ${spills}`);
-  const iconFits = await evaluate(`(() => {
-    const button = document.querySelector('.theme-toggle');
-    if (!button) return true;
+  // Each icon button (rg-1ru, RG-102) shows one icon, inside its box.
+  // A --palette page has no theme toggle; every page with items has the
+  // legend button, so its absence, or a zero box, fails.
+  const iconFits = await evaluate(`['.theme-toggle', '.legend-toggle'].every((selector) => {
+    const button = document.querySelector(selector);
+    if (!button) return selector === '.theme-toggle';
+    if (button.getBoundingClientRect().width === 0) return false;
     const o = button.getBoundingClientRect();
-    const icon = ${SHOWN_ICON};
+    const icon = [...button.querySelectorAll('svg')].find((s) => getComputedStyle(s).display !== 'none');
     if (!icon) return false;
     const i = icon.getBoundingClientRect();
     return i.left >= o.left && i.right <= o.right && i.top >= o.top && i.bottom <= o.bottom;
-  })()`);
-  check(iconFits, `${label}: the toggle shows an icon, inside its button`);
+  })`);
+  check(iconFits, `${label}: each icon button shows an icon, inside its box`);
   await openTable(false);
 }
 
@@ -349,7 +360,9 @@ async function structure(label) {
 }
 
 // 9: keyboard (2.1.2, 2.4.3, 2.4.7, 3.2.1). A full Tab pass.
-async function keyboard(label) {
+// `legendHidden` (RG-102): the legend button was pressed, so the pass meets
+// no legend row and the skip link goes to the table.
+async function keyboard(label, { legendHidden = false } = {}) {
   const order = [];
   for (let i = 0; i < TAB_LIMIT; i++) {
     await press('Tab');
@@ -388,16 +401,21 @@ async function keyboard(label) {
     check(s.drawn, `${label}: focus on ${s.id} is drawn (2.4.7)`);
     check(!s.opened, `${label}: focus on ${s.id} opened the panel (3.2.1)`);
   }
+  // Item stops are `m` or `l` and a number; `legend-toggle` is not a row.
   const ids = order.map((s) => s.id);
   check(new Set(ids).size === ids.length, `${label}: a stop repeats: ${ids}`);
   const plotted = await plottedCount();
-  const markers = order.filter((s) => s.id.startsWith('m')).map((s) => Number(s.label.split('.')[0]));
-  const rows = order.filter((s) => s.id.startsWith('l')).map((s) => Number(s.label.split('.')[0]));
+  const markers = order.filter((s) => /^m\d/.test(s.id)).map((s) => Number(s.label.split('.')[0]));
+  const rows = order.filter((s) => /^l\d/.test(s.id)).map((s) => Number(s.label.split('.')[0]));
   check(markers.length === plotted && markers.every((n, i) => n === i + 1), `${label}: every marker, in number order (2.4.3): ${markers}`);
-  check(rows.length === plotted && rows.every((n, i) => n === i + 1), `${label}: every legend row, in number order (2.4.3): ${rows}`);
-  // The page's sequence: skip link, toggle, markers, legend rows, the table.
+  const wantRows = legendHidden ? 0 : plotted;
+  check(rows.length === wantRows && rows.every((n, i) => n === i + 1), `${label}: ${wantRows} legend rows, in number order (2.4.3): ${rows}`);
+  // The page's sequence: skip link, legend button, theme toggle, markers,
+  // legend rows unless hidden, the table. With the legend hidden the pass
+  // starts on the legend button just pressed, so it begins at the toggle.
   const at = (p) => ids.findIndex(p);
-  const sequence = [at((i) => i === 'skip'), at((i) => i.includes('theme-toggle')), at((i) => i.startsWith('m')), at((i) => i.startsWith('l')), at((i) => i === 'SUMMARY')];
+  const head = legendHidden ? [] : [at((i) => i === 'skip'), at((i) => i.includes('legend-toggle'))];
+  const sequence = [...head, at((i) => i.includes('theme-toggle')), at((i) => /^m\d/.test(i)), ...(legendHidden ? [] : [at((i) => /^l\d/.test(i))]), at((i) => i === 'SUMMARY')];
   check(sequence.every((n) => n >= 0) && sequence.every((n, i) => i === 0 || n > sequence[i - 1]), `${label}: stops out of the page's order: ${ids}`);
 }
 
@@ -440,6 +458,7 @@ async function forced(label) {
   await press('Enter');
   check((await clip(toggle)) !== focusedToggle, `${label}: a press repaints the toggle's icon`);
   painted("the toggle's icon", await evaluate(`(() => { const icon = ${SHOWN_ICON}; return icon ? getComputedStyle(icon).stroke : 'no icon shown'; })()`));
+  painted("the legend button's icon", await evaluate(`(() => { const icon = ${shownIcon('.legend-toggle')}; return icon ? getComputedStyle(icon).stroke : 'no icon shown'; })()`));
   // Focus: a marker's ring.
   await tabTo(marker);
   check((await clip(marker)) !== before.marker, `${label}: a focused marker's ring is painted`);
@@ -516,6 +535,22 @@ try {
     await run(`keyboard @${width}`, async () => {
       await load(page, width);
       await keyboard(`@${width}`);
+    });
+  }
+  // RG-102: with the legend hidden, its rows leave the tree and the tab
+  // order, the button offers to show it, and the skip link goes to the table.
+  for (const width of [1400, 400]) {
+    await run(`legend hidden @${width}`, async () => {
+      await load(page, width);
+      await tabTo(`document.querySelector('.legend-toggle')`);
+      await press('Enter');
+      const button = await ax(`document.querySelector('.legend-toggle')`);
+      check(button.name?.value === 'Show legend' && prop(button, 'pressed') === undefined, `@${width} hidden: the button is named "Show legend", unpressed: "${button.name?.value}"`);
+      const row = await ax(`${SHOWN}.querySelector('[data-legend-row]')`);
+      check(row.ignored === true, `@${width} hidden: a legend row is out of the accessibility tree`);
+      const skip = await ax(`document.querySelector('.skip')`);
+      check(skip.name?.value === 'Skip to the table', `@${width} hidden: the skip link is "Skip to the table": "${skip.name?.value}"`);
+      await keyboard(`legend hidden @${width}`, { legendHidden: true });
     });
   }
   await run('chrome text at 200% @1400', async () => {
