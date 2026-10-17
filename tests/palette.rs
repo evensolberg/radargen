@@ -54,3 +54,38 @@ fn the_sample_reads_as_a_users_file() {
     assert!(!SAMPLE.contains('\r') && SAMPLE.ends_with("}\n"));
     assert!(SAMPLE.contains("https://github.com/evensolberg/radargen/blob/main/docs/palette.md"));
 }
+
+/// The guide's tables give each value the code draws.
+#[test]
+fn the_guide_lists_every_value() {
+    let guide = include_str!("../docs/palette.md");
+    let light = Palette::built_in(Theme::Light);
+    let dark = Palette::built_in(Theme::Dark);
+    for role in Neutral::ALL {
+        let row = guide
+            .lines()
+            .find(|l| l.starts_with(&format!("| `{role}` |")))
+            .unwrap_or_else(|| panic!("no row for {role}"));
+        let cell = |p: &Palette| format!("| `{}` |", p.value(Role::Neutral(role)));
+        assert!(
+            row.contains(&cell(&light)) && row.contains(&cell(&dark)),
+            "{role}: {row}"
+        );
+    }
+    for i in 0..8 {
+        let row = format!(
+            "| `--series-{}` | `{}`",
+            i + 1,
+            light.value(Role::Series(i))
+        );
+        assert!(guide.contains(&row), "{row}");
+    }
+}
+
+/// The illustration is well-formed XML: an SVG with `--` in a comment
+/// shows as a broken image (plan RG-018A, R23).
+#[test]
+fn the_illustration_parses() {
+    let svg = include_str!("../docs/palette-roles.svg");
+    roxmltree::Document::parse(svg).expect("well-formed");
+}
