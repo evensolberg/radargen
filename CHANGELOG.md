@@ -1,24 +1,18 @@
+## [1.4.1] - 2026-10-17
+
+### 🧪 Testing
+
+- *(golden)* Hold a version placeholder, not the version
+- *(golden)* Tidy from review; a pasteable install placeholder
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.4.1
 ## [1.4.0] - 2026-10-17
 
 ### 🚀 Features
 
-- *(cli)* --create-palette writes a palette file to start from
-
-### 🐛 Bug Fixes
-
-- *(cli)* Say only unshared colours carry a dark value; tidy tests
-
-### 📚 Documentation
-
-- *(palette)* The tests, not one file, hold SAMPLE to the built-ins
-
-### 🚜 Refactor
-
-- *(starter)* One list of starters, one clap group
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* 1.4.0
+- *(cli)* --create-palette writes a palette file to start from (1.4.0) (#111)
 ## [1.3.5] - 2026-10-17
 
 ### 🐛 Bug Fixes

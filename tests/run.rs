@@ -6,6 +6,8 @@
 mod html;
 #[path = "common/palette.rs"]
 mod palette;
+#[path = "common/version.rs"]
+mod version;
 
 use std::fmt::Write as _;
 use std::fs;
@@ -1150,7 +1152,7 @@ fn the_cli_writes_the_golden_exports() {
         )
         .expect("the golden");
         assert!(
-            read(dir.path(), golden) == want,
+            version::versionless(&read(dir.path(), golden)) == want,
             "{golden}: the binary's export is the golden"
         );
     }
