@@ -290,3 +290,18 @@ fn the_legend_button_is_named_by_where_the_page_starts() {
         }
     }
 }
+
+/// rg-247: the radar's cap subtracts the page controls' height as
+/// `3.05rem + 2px` (css.rs's `CAP_UNDER`), from four values here: the icon's
+/// 1.25em, its .4em padding all round, the buttons' .5em block margin and
+/// 1px border, in em equal to rem because the buttons inherit the page's
+/// font. A change to any of them must change `CAP_UNDER` too.
+#[test]
+fn the_controls_height_the_radar_cap_allows_for() {
+    assert!(super::ICON_SVG.starts_with("width:1.25em;height:1.25em;"));
+    assert_eq!(super::PAD, "padding:.4em");
+    assert!(super::BUTTON_OPEN.contains("margin-block:.5em;"));
+    assert!(super::BUTTON_OPEN.contains("border:1px solid var("));
+    assert!(super::BUTTON_OPEN.contains("font:inherit;"));
+    assert!(super::super::css::CAP_UNDER.contains(" - 3.05rem - 2px)"));
+}

@@ -786,9 +786,10 @@ try {
   });
 
   // D-85: the wide radar's column grows to the window's width or to the
-  // height under the title, whichever runs out first, never below 0.8 of
-  // its own width; the title, key and legend keep their natural size, and
-  // the legend scrolls in a box as tall as the radar. Measured, not read
+  // height under the controls and the title, whichever runs out first,
+  // never below 0.8 of its own width; the title, key and legend keep their
+  // natural size, and the legend scrolls in a box as tall as the radar.
+  // Measured, not read
   // from the CSS: a declaration the browser drops as invalid would leave
   // the string tests passing.
   // 830 lies between the interaction fixture's breakpoint (about 758) and
@@ -806,11 +807,15 @@ try {
         const l = size(legend).width;
         // The legend's column: its natural width and any scrollbar gutter.
         const column = document.querySelector('.wide-legend').getBoundingClientRect().width;
-        const cap = Math.max(0.8 * r, (innerHeight - size(title).height) * r / h);
+        // rg-247: the radar is as tall as the window below the controls bar
+        // and the title, never below 0.8 of its own width.
+        const bar = document.querySelector('.page-controls').getBoundingClientRect().height;
+        const cap = Math.max(0.8 * r, (innerHeight - bar - size(title).height) * r / h);
         const want = Math.min(room - column, cap);
         const box = (svg) => svg.getBoundingClientRect();
         return {
-          radar: box(radar).width, want,
+          radar: box(radar).width, want, heightBound: cap > 0.8 * r && cap < room - column,
+          radarBottom: box(radar).bottom, windowHeight: innerHeight,
           radarHeight: box(radar).height, scroller: document.querySelector('.wide-legend').clientHeight,
           legend: box(legend).width, l,
           title: box(title).width, titleWant: Math.min(size(title).width, want + column),
@@ -822,6 +827,7 @@ try {
       const at = `${width}x${height}`;
       check(await evaluate(`getComputedStyle(document.querySelector('.arrangement.wide')).display !== 'none'`), `${at}: the wide arrangement shows`);
       check(near(m.radar, m.want), `${at}: the radar is ${m.radar} px, not ${m.want}`);
+      check(!m.heightBound || m.radarBottom <= m.windowHeight + 0.5, `${at}: a radar capped by the window's height ends inside it: bottom ${m.radarBottom}`);
       check(near(m.legend, m.l), `${at}: the legend is ${m.legend} px, not its own ${m.l}`);
       check(near(m.scroller, m.radarHeight), `${at}: the legend's box is ${m.scroller} px tall, the radar ${m.radarHeight}`);
       check(near(m.title, m.titleWant), `${at}: the title is ${m.title} px, not ${m.titleWant}`);

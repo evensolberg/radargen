@@ -146,7 +146,7 @@ fn one_arrangement_at_a_time() {
     let query = breakpoint_px(width, wide.radar.width) - 1;
     for rule in [
         format!(
-            ".wide{{display:grid;grid-template-columns:minmax(0,max({f}px,calc((100vh - {t}px)*{r}/{h}))) max-content;justify-content:center}}",
+            ".wide{{display:grid;grid-template-columns:minmax(0,max({f}px,calc((100vh - {t}px - 3.05rem - 2px)*{r}/{h}))) max-content;justify-content:center}}",
             f = fmt_coord(wide.radar.width * 0.8),
             r = fmt_coord(wide.radar.width),
             t = fmt_coord(wide.title.height),
