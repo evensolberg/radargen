@@ -122,7 +122,7 @@ pub fn page(input: &Page<'_>) -> String {
         &chrome::css(&sizes, toggle),
         BODY_OPEN,
         &chrome::main_open(&css::narrow_query(&sizes)),
-        &chrome::controls(toggle),
+        &chrome::controls(toggle, legend),
         &heading,
         DIV_OPEN,
         chrome::ARRANGEMENT_CLASS,

@@ -227,14 +227,14 @@ fn hostile_text_survives_an_html5_parser() {
     assert!(dom.errors.borrow().is_empty(), "{:?}", dom.errors.borrow());
 
     let all = elements(&dom.document);
-    // The theme toggle's icons (rg-1ru), every element in them: page
+    // The control icons (rg-1ru, RG-102), every element in them: page
     // chrome with their own vocabulary, told from the drawings by having no
     // namespace declaration (`DRAWING_OPEN`).
     let is_icon = |n: &&Handle| {
         name_of(n) == (ns!(svg), LocalName::from("svg")) && attribute(n, "xmlns").is_none()
     };
     let icons: Vec<&Handle> = all.iter().filter(is_icon).collect();
-    assert_eq!(icons.len(), 2, "the moon and the sun");
+    assert_eq!(icons.len(), 4, "two legend icons, the moon, the sun");
     let icon_nodes: Vec<Handle> = icons.into_iter().flat_map(elements).collect();
     let inside_an_icon = |n: &Handle| icon_nodes.iter().any(|i| Rc::ptr_eq(i, n));
     for node in &all {

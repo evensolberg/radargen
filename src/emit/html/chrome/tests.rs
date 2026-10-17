@@ -6,6 +6,11 @@ use super::{
     DATA_NARROW_QUERY, DATA_SELECTED, DATA_THEME, EMPTY_CLASS, HEADING_CLASS, JS_CLASS, PANEL_ID,
     SCRIPT, SKIP_CLASS, SKIP_OVER_PAGE, TO_DARK, TO_LIGHT, TOGGLE_CLASS, controls,
 };
+use super::{
+    DATA_LEGEND, HIDE_LEGEND, LEGEND_HIDDEN, LEGEND_TOGGLE_CLASS, MOON_CLASS, SHOW_LEGEND,
+    SKIP_TO_LEGEND, SKIP_TO_TABLE, SUN_CLASS,
+};
+use crate::emit::html::Legend;
 use crate::svg::serialise::{
     DATA_HIT, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW,
 };
@@ -61,6 +66,13 @@ fn the_scripts_names_are_the_pages() {
         ("toLight", TO_LIGHT),
         ("js", JS_CLASS),
         ("toggle", TOGGLE_CLASS),
+        ("legendToggle", LEGEND_TOGGLE_CLASS),
+        ("legendState", DATA_LEGEND),
+        ("legendHidden", LEGEND_HIDDEN),
+        ("hideLegend", HIDE_LEGEND),
+        ("showLegend", SHOW_LEGEND),
+        ("skipLegend", SKIP_TO_LEGEND),
+        ("skipTable", SKIP_TO_TABLE),
         (
             "words",
             super::super::css::VISUALLY_HIDDEN.trim_start_matches('.'),
@@ -177,13 +189,21 @@ const WIDE: super::super::css::Wide = super::super::css::Wide {
 /// toggle, and the built-in page's controls keep their bytes.
 #[test]
 fn a_palette_page_has_no_toggle() {
-    assert!(!controls(false).contains(TOGGLE_CLASS));
-    assert!(!controls(false).contains("<svg"), "no icons either");
-    assert!(controls(false).contains(SKIP_CLASS));
+    let palette = controls(false, Legend::Shown);
+    assert!(!palette.contains(TOGGLE_CLASS));
+    assert!(
+        !palette.contains(MOON_CLASS) && !palette.contains(SUN_CLASS),
+        "no theme icons"
+    );
+    assert!(palette.contains(SKIP_CLASS));
     assert_eq!(
-        controls(true),
+        controls(true, Legend::Shown),
         [
             "<div class=\"page-controls\"><button type=\"button\" class=\"skip\" hidden=\"\">Skip to the legend</button>",
+            "<button type=\"button\" class=\"legend-toggle\" hidden=\"\">",
+            "<svg class=\"legend-on\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01\"/></svg>",
+            "<svg class=\"legend-off\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6h11M9 12h5M9 18h5M4 6h.01M4 12h.01M4 18h.01M17 13l4 4M21 13l-4 4\"/></svg>",
+            "<span class=\"visually-hidden\">Hide legend</span></button>",
             "<button type=\"button\" class=\"theme-toggle\" hidden=\"\">",
             "<svg class=\"theme-moon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 14.5A8.5 8.5 0 1 1 9.5 4a7.5 7.5 0 0 0 10.5 10.5z\"/></svg>",
             "<svg class=\"theme-sun\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"/></svg>",
@@ -200,7 +220,8 @@ fn a_palette_page_has_no_toggle() {
 fn the_toggle_shows_the_icon_its_palette_picks() {
     let hidden = super::super::css::VISUALLY_HIDDEN.trim_start_matches('.');
     assert!(
-        controls(true).contains(&["<span class=\"", hidden, "\">", TO_DARK, "</span>"].concat())
+        controls(true, Legend::Shown)
+            .contains(&["<span class=\"", hidden, "\">", TO_DARK, "</span>"].concat())
     );
     let css = super::css(&WIDE, true);
     for rule in [
@@ -225,4 +246,38 @@ fn a_palette_page_draws_the_skip_link_over_the_page() {
         "no icon rule"
     );
     assert!(!super::css(&WIDE, true).contains(SKIP_OVER_PAGE));
+}
+
+/// RG-102: the legend button is on every page, a --palette page too, named
+/// by what a press does from where the page starts; its icons show the
+/// state, swapped by the root attribute.
+#[test]
+fn the_legend_button_is_named_by_where_the_page_starts() {
+    let name = |n: &str| ["<span class=\"visually-hidden\">", n, "</span>"].concat();
+    for toggle in [true, false] {
+        assert!(controls(toggle, Legend::Shown).contains(&name(HIDE_LEGEND)));
+        assert!(controls(toggle, Legend::Hidden).contains(&name(SHOW_LEGEND)));
+        assert!(controls(toggle, Legend::Shown).contains(LEGEND_TOGGLE_CLASS));
+        let css = super::css(&WIDE, toggle);
+        // Selector and declarations apart: a literal `{name:value}` reads to
+        // clippy as a format argument.
+        for rule in [
+            [".page-controls .legend-toggle{", "padding:.4em}"],
+            [".legend-toggle svg{", "width:1.25em;height:1.25em;"],
+            [".legend-toggle{", "margin-inline-start:auto}"],
+            [
+                ".legend-toggle:not([hidden])~.theme-toggle{",
+                "margin-inline-start:.5em}",
+            ],
+            [".legend-off{", "display:none}"],
+            [":root[data-legend=\"hidden\"] .legend-on{", "display:none}"],
+            [
+                ":root[data-legend=\"hidden\"] .legend-off{",
+                "display:block}",
+            ],
+        ] {
+            let rule = rule.concat();
+            assert!(css.contains(&rule), "{rule} in {css}");
+        }
+    }
 }
