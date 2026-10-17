@@ -9,15 +9,18 @@ use radargen::svg::{Target, serialise};
 use resvg::tiny_skia::{Pixmap, PremultipliedColorU8};
 
 use super::prd;
+use super::version::versionless;
 
-/// Byte-compares `got` with `tests/golden/{dir}/{name}`. With
-/// `UPDATE_GOLDEN=1` (refused under CI) it writes the file and fails, so a
-/// blessing run is never green.
+/// Byte-compares `got`, its version replaced by a placeholder, with
+/// `tests/golden/{dir}/{name}`. With `UPDATE_GOLDEN=1` (refused under CI)
+/// it writes the file and fails, so a blessing run is never green.
 pub fn golden(dir: &str, name: &str, got: &str) {
     assert!(
         !got.contains('\r') && !got.starts_with('\u{feff}'),
         "NFR-17: LF, no BOM"
     );
+    let got = versionless(got);
+    let got = got.as_str();
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/golden")
         .join(dir)

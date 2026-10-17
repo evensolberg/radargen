@@ -11,6 +11,8 @@ mod fonts;
 mod html;
 #[path = "../common/palette.rs"]
 mod palette;
+#[path = "../common/version.rs"]
+mod version;
 
 mod colours;
 mod export;

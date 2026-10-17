@@ -16,10 +16,10 @@ radargen entries.csv -o slide.png --theme dark --width 1920
 
 ## Install
 
-Release binaries come in a later release. Until then, install 1.1.0 from source with a recent stable [Rust toolchain](https://rustup.rs) (1.85 or later; on Windows, rustup also asks for the MSVC build tools):
+Release binaries come in a later release. Until then, install from source with a recent stable [Rust toolchain](https://rustup.rs) (1.85 or later; on Windows, rustup also asks for the MSVC build tools). Replace `<latest version>` with the newest tag on the [releases page](https://github.com/evensolberg/radargen/releases), in the form `vX.Y.Z`:
 
 ```sh
-cargo install --locked --git https://github.com/evensolberg/radargen --tag v1.1.0
+cargo install --locked --git https://github.com/evensolberg/radargen --tag <latest version>
 ```
 
 ## Starting a radar
@@ -80,7 +80,7 @@ radargen radar.csv -o radar.png --palette brand.css
 ## Status
 
 The specification is in [`docs/product/radargen-prd.md`](docs/product/radargen-prd.md).
-1.4 writes HTML, PNG and SVG, in the built-in themes or your own palette.
+radargen writes HTML, PNG and SVG, in the built-in themes or your own palette.
 
 ## Documentation
 
