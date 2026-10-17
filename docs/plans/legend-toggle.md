@@ -7,12 +7,12 @@ crumb_id: rg-3gc
 document_title: "Legend toggle implementation plan"
 created_date: 2026-10-17
 synopsis: "Task-by-task plan for RG-102 in two PRs: first the narrow arrangement cut into body and legend parts for HTML (no bump), then the --legend flag, the page's start state and hiding rules, the icon button and its script, browser checks, docs and 1.6.0."
-status: draft
+status: complete
 type: Plan
 revision: "1.2"
 review_date: 2026-10-17
 reviewed_by: [rust-engineer, qa-expert, ui-designer, architect-reviewer, ux-researcher]
-completed_date:
+completed_date: 2026-10-17
 comments: "Implements spec RG-102 (docs/design/legend-toggle.md) revision 1.1."
 ---
 
@@ -1077,10 +1077,10 @@ legend-engines-only:
 
 ### Task 10: Release
 
-- [ ] **Step 1:** Run `crumbs close rg-3gc --reason '…'` and commit `.crumbs`.
-- [ ] **Step 2:** Check that main's version is still `1.5.0`. Bump `Cargo.toml` to `1.6.0`, run `cargo update -p radargen --offline`, and commit `chore(release): 1.6.0`.
-- [ ] **Step 3:** Run `git tag --list v1.6.0` (expected: empty), then `git-cliff --tag v1.6.0 -o CHANGELOG.md`, and commit `docs(changelog): 1.6.0`.
-- [ ] **Step 4:** `just ci` (expected: exit 0), push, PR, the review steps, merge, `just publish`.
+- [x] **Step 1:** Run `crumbs close rg-3gc --reason '…'` and commit `.crumbs`.
+- [x] **Step 2:** Check that main's version is still `1.5.0`. Bump `Cargo.toml` to `1.6.0`, run `cargo update -p radargen --offline`, and commit `chore(release): 1.6.0`.
+- [x] **Step 3:** Run `git tag --list v1.6.0` (expected: empty), then `git-cliff --tag v1.6.0 -o CHANGELOG.md`, and commit `docs(changelog): 1.6.0`.
+- [x] **Step 4:** `just ci` (expected: exit 0), push, PR, the review steps, merge, `just publish`.
 
 ## Revisions
 
