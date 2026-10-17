@@ -1,0 +1,11 @@
+{
+  "name": "radargen-browser-checks",
+  "private": true,
+  "description": "Dev-only: the library that drives radargen's text-spacing check in Chromium, Firefox and WebKit. Not part of the released binary.",
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}

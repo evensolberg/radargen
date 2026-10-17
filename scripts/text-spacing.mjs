@@ -2,8 +2,9 @@
 //
 // Usage: node scripts/text-spacing.mjs <out-dir> <page.html>[:<tails>][:scroll] ...
 //
-// For each page, at viewport widths 320, 420, the breakpoint less one, the
-// breakpoint, and 1400, with 1.4.12's four properties injected, it asserts:
+// In each of Chromium, Firefox and WebKit, for each page, at viewport widths
+// 320, 420, the breakpoint less one, the breakpoint, and 1400, with 1.4.12's
+// four properties injected, it asserts:
 //   - every displayed <text> lies inside its own SVG's box (nothing clipped),
 //     the wide arrangement's parts each counting as one (D-85);
 //   - no two displayed texts overlap, numbers and halos aside;
@@ -14,16 +15,25 @@
 //     panel, both opened first, D-78);
 //   - with :scroll, the table's own region does scroll at 320 px, so the
 //     check above is not vacuous for a table that happens to fit;
-//   - the accessibility tree's roles and names do not change.
-// It writes a screenshot per page and width, and exits non-zero on failure.
+//   - the roles and names in Playwright's ARIA snapshot (and, in Chromium,
+//     in its own accessibility tree) do not change.
+// It writes a screenshot per engine, page and width, and exits non-zero on
+// any failure, in any engine; an engine that will not start is a failure,
+// not a skip (RG-015B).
 //
-// It drives Chromium through scripts/cdp.mjs. Chromium only: Firefox and
-// Safari are not covered.
+// Why three engines (rg-497): every measurement here is the engine's own
+// layout, so each engine is measured as it draws. Chromium turns optional
+// ligatures off under letter-spacing; an engine that keeps them shapes a
+// spaced name differently, and only that engine can say whether it still
+// fits. The engines come from Playwright, a dev dependency (package.json);
+// `just browser-setup` installs it and the three browsers. CHROME, as in
+// scripts/cdp.mjs, overrides Chromium's path.
 
-import { writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { SPILLS, connect } from './cdp.mjs';
+import { SPILLS, TIMEOUT_MS, within } from './cdp.mjs';
 
 const SPACING =
   '*{letter-spacing:.12em!important;word-spacing:.16em!important;line-height:1.5!important}' +
@@ -44,6 +54,19 @@ const CHECK = `(() => {
     // The wide arrangement is drawn in parts (D-85): each text is checked
     // against its own SVG's box, and for overlap against every other.
     const boxes = [];
+    // A text's fill box on screen. Firefox's getBoundingClientRect also counts
+    // the stroke (a ring name's halo), so lines a few pixels apart overlap
+    // there; getBBox is the fill box in every engine, and in Chromium and
+    // WebKit it equals the client rect.
+    const fillBox = (t) => {
+      const b = t.getBBox(), m = t.getScreenCTM();
+      const xs = [], ys = [];
+      for (const [x, y] of [[b.x, b.y], [b.x + b.width, b.y], [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]]) {
+        const p = new DOMPoint(x, y).matrixTransform(m);
+        xs.push(p.x); ys.push(p.y);
+      }
+      return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
+    };
     for (const svg of arrangement.querySelectorAll('svg')) {
       const frame = svg.getBoundingClientRect();
       // A marker's number is drawn right after its circle and sits on it by
@@ -55,7 +78,7 @@ const CHECK = `(() => {
         t.getAttribute('aria-hidden') !== 'true' &&
         t.previousElementSibling?.tagName !== 'circle');
       for (const t of texts) {
-        const r = t.getBoundingClientRect();
+        const r = fillBox(t);
         boxes.push({ t, r });
         if (r.left < frame.left - slack || r.right > frame.right + slack ||
             r.top < frame.top - slack || r.bottom > frame.bottom + slack) {
@@ -88,8 +111,11 @@ const CHECK = `(() => {
   }
   // The table view (FR-41): its region may scroll, the page may not, and no
   // cell's text may spill out of the cell's box under 1.4.12's spacing.
-  if (document.documentElement.scrollWidth > innerWidth + slack) {
-    problems.push('the page scrolls sideways: ' + document.documentElement.scrollWidth + ' > ' + innerWidth);
+  // clientWidth, not innerWidth: an engine with classic scrollbars counts
+  // the bar in innerWidth, which would hide an overflow narrower than it.
+  const viewport = document.documentElement.clientWidth;
+  if (document.documentElement.scrollWidth > viewport + slack) {
+    problems.push('the page scrolls sideways: ' + document.documentElement.scrollWidth + ' > ' + viewport);
   }
   const spills = ${SPILLS};
   for (const text of spills('.table-scroll td, .table-scroll th, summary, .detail-heading, .detail dt, .detail dd', slack)) {
@@ -104,69 +130,135 @@ const CHECK = `(() => {
   return { problems, tails, scrolls };
 })()`;
 
-async function axNames(send) {
-  const { result } = await send('Accessibility.getFullAXTree');
-  return result.nodes
-    // InlineTextBox nodes are line fragments, not semantics: HTML text
-    // rewraps under the added spacing, which is 1.4.12 working.
+const playwright = await import('playwright').catch((error) => {
+  if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error;
+  console.error("no Playwright: run 'just browser-setup' (npm ci, then the browsers)");
+  process.exit(2);
+});
+
+// The engines, in the order they run. CHROME stands in for Playwright's
+// headless Chromium, as it does for the CDP scripts.
+const ENGINES = [
+  ['chromium', { executablePath: process.env.CHROME || undefined }],
+  ['firefox', {}],
+  ['webkit', {}],
+];
+
+// The roles and names of the accessibility tree, as one string to compare.
+// Every engine gives Playwright's ARIA snapshot, computed from the DOM and
+// the engine's computed styles; Chromium also gives its own tree, which is
+// what its screen readers read. Its InlineTextBox nodes are line fragments,
+// not semantics: HTML text rewraps under the added spacing, which is 1.4.12
+// working.
+async function axNames(page, cdp) {
+  const aria = await page.locator(':root').ariaSnapshot();
+  if (!cdp) return aria;
+  const { nodes } = await cdp.send('Accessibility.getFullAXTree');
+  const native = nodes
     .filter((n) => !n.ignored && n.name?.value && n.role?.value !== 'InlineTextBox')
     .map((n) => `${n.role?.value}:${n.name.value}`)
     .sort()
     .join('\n');
+  return `${aria}\n${native}`;
 }
 
-async function main() {
-  const [outDir, ...pages] = process.argv.slice(2);
-  if (!outDir || pages.length === 0) {
-    console.error('usage: node scripts/text-spacing.mjs <out-dir> <page.html>[:<tails>] ...');
-    process.exit(2);
-  }
-  const { send, close, evaluate, navigate } = await connect();
+// `expression` evaluated in the page and awaited; a hang fails the run.
+const evaluate = (page, expression) => within(page.evaluate(expression), expression.slice(0, 40));
+
+// Every check on every page in one engine; returns the number of problems.
+async function checkEngine(name, launchOptions, outDir, pages) {
+  const browser = await playwright[name].launch(launchOptions);
   let failures = 0;
   try {
-    await send('Page.enable');
-    await send('Accessibility.enable');
+    const context = await browser.newContext({ viewport: { width: 1400, height: 1200 }, deviceScaleFactor: 1 });
+    const page = await context.newPage();
+    page.setDefaultTimeout(TIMEOUT_MS);
+    const cdp = name === 'chromium' ? await context.newCDPSession(page) : undefined;
+    if (cdp) await cdp.send('Accessibility.enable');
     for (const arg of pages) {
       // The tail count follows the last colon, so a Windows drive letter
       // stays in the path.
       const [, file, expected, scroll] = arg.match(/^(.*?)(?::(\d+))?(:scroll)?$/);
-      await navigate(pathToFileURL(resolve(file)).href);
+      await page.goto(pathToFileURL(resolve(file)).href);
       // Open the table view once, before any accessibility snapshot, so
       // opening it is never reported as the tree changing.
-      await evaluate(`document.querySelectorAll('details').forEach((d) => { d.open = true; })`);
+      await evaluate(page, `document.querySelectorAll('details').forEach((d) => { d.open = true; })`);
       // And the detail panel, for the table's first row (FR-38), so its
       // text is checked too.
-      await evaluate(`document.querySelector('tr[data-row] button')?.click()`);
-      const query = await evaluate(`(document.querySelector('style').textContent.match(/max-width: (\\d+)px/)||[])[1]`);
+      await evaluate(page, `document.querySelector('tr[data-row] button')?.click()`);
+      const query = await evaluate(page, `(document.querySelector('style').textContent.match(/max-width: (\\d+)px/)||[])[1]`);
       const breakpoint = Number(query) + 1;
       if (!Number.isInteger(breakpoint)) throw new Error(`${file}: no max-width breakpoint in its stylesheet`);
       for (const width of [320, 420, breakpoint - 1, breakpoint, 1400]) {
-        await send('Emulation.setDeviceMetricsOverride', { width, height: 1200, deviceScaleFactor: 1, mobile: false });
-        await evaluate(`document.getElementById('spacing')?.remove()`);
-        await evaluate(SETTLED);
-        const before = await axNames(send);
+        await page.setViewportSize({ width, height: 1200 });
+        await evaluate(page, `document.getElementById('spacing')?.remove()`);
+        await evaluate(page, SETTLED);
+        const before = await axNames(page, cdp);
         await evaluate(
+          page,
           `(() => { const s = document.createElement('style'); s.id = 'spacing'; s.textContent = ${JSON.stringify(SPACING)}; document.head.append(s); })()`,
         );
-        await evaluate(SETTLED);
-        const { problems, tails, scrolls } = await evaluate(CHECK);
+        await evaluate(page, SETTLED);
+        const { problems, tails, scrolls } = await evaluate(page, CHECK);
         if (scroll && width === 320 && !scrolls) problems.push('the table region does not scroll at 320 px');
         if (expected !== undefined && tails !== Number(expected)) {
           problems.push(`tails: ${tails}, expected ${expected}`);
         }
-        if ((await axNames(send)) !== before) problems.push('the accessibility tree changed');
-        const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
-        writeFileSync(join(outDir, `${basename(file, '.html')}-${width}.png`), Buffer.from(shot.result.data, 'base64'));
+        if ((await axNames(page, cdp)) !== before) problems.push('the accessibility tree changed');
+        await page.screenshot({ path: join(outDir, `${basename(file, '.html')}-${name}-${width}.png`), fullPage: true });
         const verdict = problems.length === 0 ? 'ok' : 'FAIL';
-        console.log(`${verdict} ${basename(file)} @${width}px (${tails} tails)`);
+        console.log(`${verdict} ${name} ${basename(file)} @${width}px (${tails} tails)`);
         for (const p of problems) console.log('    ' + p);
         failures += problems.length;
       }
     }
   } finally {
-    await close();
+    await browser.close();
   }
-  process.exit(failures === 0 ? 0 : 1);
+  return failures;
+}
+
+async function main() {
+  const [outDir, ...pages] = process.argv.slice(2);
+  if (!outDir || pages.length === 0) {
+    console.error('usage: node scripts/text-spacing.mjs <out-dir> <page.html>[:<tails>][:scroll] ...');
+    process.exit(2);
+  }
+  // Every engine runs, whatever an earlier one found, so one run reports
+  // all three; an engine that fails to start or throws counts as a failure.
+  const failed = [];
+  // macOS 27 puts ~/Library/Application Support/Firefox behind Full Disk
+  // Access, and Playwright's Firefox looks up that folder even with its own
+  // profile, so it exits with "Could not find profile folder". A home of its
+  // own (CoreFoundation reads CFFIXED_USER_HOME) keeps the lookup out of the
+  // real one; other platforms ignore the variable. One fixed folder, reused:
+  // macOS gives the Library it creates there a deny-delete ACL, so a fresh
+  // folder per run could not be removed. It holds only empty bookkeeping
+  // folders, as Playwright still gives Firefox a temporary profile.
+  // It must exist before launch, and is made inside Firefox's own try so a
+  // problem there cannot stop the other engines.
+  const firefoxHome = join(tmpdir(), 'radargen-firefox-home');
+  const env = { ...process.env, CFFIXED_USER_HOME: firefoxHome };
+  for (const [name, options] of ENGINES) {
+    try {
+      if (name === 'firefox') mkdirSync(firefoxHome, { recursive: true });
+      const launch = name === 'firefox' ? { ...options, env } : options;
+      if ((await checkEngine(name, launch, outDir, pages)) > 0) failed.push(name);
+    } catch (error) {
+      // Playwright follows a missing browser's first line with an install
+      // banner that bypasses the pin, so the hint replaces it. Any other
+      // failure keeps its whole message: a launch failure's cause is in the
+      // browser logs after its first line.
+      const message = String(error?.message ?? error);
+      const text = message.includes("Executable doesn't exist")
+        ? `${message.split('\n')[0]}; run 'just browser-setup'`
+        : message;
+      console.log(`FAIL ${name}: ${text}`);
+      failed.push(name);
+    }
+  }
+  console.log(failed.length === 0 ? 'text spacing: ok in chromium, firefox and webkit' : `text spacing: FAIL in ${failed.join(', ')}`);
+  process.exit(failed.length === 0 ? 0 : 1);
 }
 
 await main();

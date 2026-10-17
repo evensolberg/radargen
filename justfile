@@ -132,15 +132,24 @@ publish:
 release-build:
     cargo build --quiet --release
 
-# Every browser check, in Playwright's headless Chromium (or CHROME set to a
-# Chromium binary). Part of `just ci`, and it fails when Chromium is missing
-# rather than skipping: a skipped behaviour check would pass without
-# looking (RG-015B).
+# Every browser check: text spacing in Chromium, Firefox and WebKit, the
+# rest in Playwright's headless Chromium (or CHROME set to a Chromium
+# binary). Part of `just ci`, and it fails when a browser is missing rather
+# than skipping: a skipped behaviour check would pass without looking
+# (RG-015B). `just browser-setup` installs them.
 browser: release-build text-spacing-only interaction-only a11y-audit-only
 
-# WCAG 1.4.12 text spacing in a browser (plan RG-014C, D-78): renders the
-# fixtures and checks every text fits and none overlaps, at five widths,
-# with the four spacing properties applied.
+# Installs the browser checks' dev dependencies: Playwright, pinned in
+# package-lock.json, and the browsers it drives. Run once, and again after
+# Playwright's version changes; the checks themselves never download.
+browser-setup:
+    npm ci
+    npx --no-install playwright install chromium-headless-shell firefox webkit
+
+# WCAG 1.4.12 text spacing in a browser (plan RG-014C, D-78, rg-497):
+# renders the fixtures and checks every text fits and none overlaps, at five
+# widths, with the four spacing properties applied, in Chromium, Firefox and
+# WebKit.
 text-spacing: release-build text-spacing-only
 
 [private]
@@ -235,7 +244,8 @@ focus-cost: release-build
 # the score only for a version-2 baseline, and reads anything else (no
 # version, version 1, a file it cannot parse) as no regression, so the
 # baseline's shape is checked first. Last, `just browser` drives the page in
-# headless Chromium, and fails if Chromium is missing.
+# headless browsers (Chromium, and Firefox and WebKit for text spacing), and
+# fails if one is missing; `just browser-setup` installs them.
 @ci:
     cargo fmt --check
     cargo clippy --locked --all-targets -- -D warnings

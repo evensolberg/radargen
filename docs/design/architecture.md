@@ -754,6 +754,7 @@ is on plan, not short.
 | Golden | CSV in → exact bytes out, per format and per ring set | `tests/golden/` |
 | Determinism | Two **separate process invocations**, byte-compared | `tests/determinism.rs` |
 | Behaviour | Keyboard operability, focus, panel open/close, selection, hover, breakpoint changes | `scripts/interaction.mjs` in headless Chromium, run by `just browser` in `just ci` |
+| Text spacing | WCAG 1.4.12's four properties applied: no text clipped, overlapping or spilling, at five widths, in both arrangements | `scripts/text-spacing.mjs` in Chromium, Firefox and WebKit, run by `just browser` in `just ci` |
 
 The **oracle** level is not a nicety and is why it is named rather than folded
 into "unit". SC-7 asserts that the wrap points baked into the HTML are the ones

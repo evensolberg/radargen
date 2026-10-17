@@ -1,12 +1,25 @@
+## [1.3.4] - 2026-10-17
+
+### 🚜 Refactor
+
+- *(a11y)* Drop page.goto's default waitUntil in text-spacing
+
+### 🧪 Testing
+
+- *(a11y)* Run the text-spacing check in Chromium, Firefox and WebKit
+- *(a11y)* Point missing browsers at just browser-setup
+- *(a11y)* Keep launch logs, measure overflow against clientWidth
+- *(a11y)* Launch Firefox on macOS 27; measure SVG text by its fill box
+- *(a11y)* Make Firefox's home inside its own try
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.3.4
 ## [1.3.3] - 2026-10-17
 
 ### 🧪 Testing
 
-- *(svg)* Drive the svg-font spike through FontMetrics
-- *(svg)* Correct two comments in the spike test
-- *(svg)* Match the house expect wording; drop skrifa from a comment
-- *(svg)* The spike test checks glyph offsets and the worst channel
-- *(svg)* Say which marked rows carry offsets
+- *(svg)* Drive the svg-font spike through FontMetrics (1.3.3) (#108)
 ## [1.3.2] - 2026-10-17
 
 ### 🐛 Bug Fixes
