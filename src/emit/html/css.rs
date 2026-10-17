@@ -103,10 +103,10 @@ impl Wide {
 
     /// The radar column's cap: the width at which the radar is as tall as
     /// the viewport below the page controls and the title, but never less
-    /// than `WIDE_MIN_SCALE`
-    /// of its own width. The floor matters on a short window: FR-69's
-    /// breakpoint reads only the width, so without it the height term could
-    /// shrink the radar's text past what the breakpoint allows.
+    /// than `WIDE_MIN_SCALE` of its own width. The floor matters on a short
+    /// window: FR-69's breakpoint reads only the width, so without it the
+    /// height term could shrink the radar's text past what the breakpoint
+    /// allows.
     pub(super) fn radar_cap(self) -> String {
         [
             CAP_FLOOR,
