@@ -9,7 +9,6 @@ use std::borrow::Cow;
 use std::fmt;
 
 pub mod file;
-
 mod hex;
 pub use hex::Hex;
 

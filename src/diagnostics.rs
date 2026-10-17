@@ -8,6 +8,7 @@ use crate::columns::ColumnKind;
 use crate::csv::decode::MAX_BYTES as MAX_CSV_BYTES;
 use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::{RingSource, RingsError};
+use crate::starter::Starter;
 use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX};
 use crate::text::FontError;
 use crate::{is_untagged_format, normalise, trim};
@@ -901,20 +902,21 @@ pub enum Fatal {
     NoTask,
     /// FR-99, FR-101: a file to start from never replaces one (D-83, D-91).
     #[error(
-        "{flag} {path}: already exists; radargen never replaces a file, so choose another path"
+        "{} {path}: already exists; radargen never replaces a file, so choose another path",
+        .starter.flag()
     )]
     StarterExists {
-        /// The flag, `--create-template` or `--create-palette`.
-        flag: &'static str,
+        /// Which file, so the message names its flag.
+        starter: Starter,
         /// Its argument as given.
         path: String,
     },
     /// FR-99, FR-101: the file cannot be written, for any of the reasons
     /// [`Fatal::Unwritable`] gives `-o`. Nothing at the path has changed.
-    #[error("{flag} {path}: cannot be written: {}", io_reason(source))]
+    #[error("{} {path}: cannot be written: {}", .starter.flag(), io_reason(source))]
     StarterUnwritable {
-        /// The flag, `--create-template` or `--create-palette`.
-        flag: &'static str,
+        /// Which file, so the message names its flag.
+        starter: Starter,
         /// Its argument as given.
         path: String,
         /// The underlying I/O failure.

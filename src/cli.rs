@@ -51,14 +51,14 @@ pub struct Cli {
     /// A header row, then one row per item, with at least name, quadrant,
     /// ring and description columns. --create-template writes one to start
     /// from.
-    #[arg(required_unless_present_any = STARTERS)]
+    #[arg(required_unless_present = STARTER)]
     pub csv_path: Option<PathBuf>,
 
     // FR-52: the format comes from the extension, matched ignoring case.
     /// Where to write the radar.
     ///
     /// The extension picks the format: .html, .png or .svg, in any case.
-    #[arg(short, long, required_unless_present_any = STARTERS)]
+    #[arg(short, long, required_unless_present = STARTER)]
     pub output: Option<PathBuf>,
 
     // FR-12 to FR-15: the list is edge-to-centre and replaces the default
@@ -129,7 +129,7 @@ pub struct Cli {
     ///
     /// It has every column the tool reads and a few example rows to replace
     /// or delete. An existing file is never replaced. Give this flag alone.
-    #[arg(long, value_name = "PATH", exclusive = true)]
+    #[arg(long, value_name = "PATH", exclusive = true, group = STARTER)]
     pub create_template: Option<PathBuf>,
 
     // FR-101, D-91: as --create-template, for a --palette file. The
@@ -140,12 +140,12 @@ pub struct Cli {
     /// It holds the built-in light colours, with the dark theme's value in a
     /// comment beside each colour the themes do not share. An existing file
     /// is never replaced. Give this flag alone.
-    #[arg(long, value_name = "PATH", exclusive = true)]
+    #[arg(long, value_name = "PATH", exclusive = true, group = STARTER)]
     pub create_palette: Option<PathBuf>,
 }
 
-/// The flags that each stand in for a render (FR-60).
-const STARTERS: [&str; 2] = ["create_template", "create_palette"];
+/// The group of flags that each stand in for a render (FR-60).
+const STARTER: &str = "starter";
 
 /// What a command line asks for (FR-60, FR-99, FR-101).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

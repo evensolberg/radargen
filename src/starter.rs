@@ -20,6 +20,9 @@ pub enum Starter {
 }
 
 impl Starter {
+    /// Every starter.
+    pub const ALL: [Self; 2] = [Self::Template, Self::Palette];
+
     /// The flag that asks for it, as a message names it.
     #[must_use]
     pub const fn flag(self) -> &'static str {
@@ -53,10 +56,10 @@ impl Starter {
     /// [`Fatal::StarterExists`] when anything is at `path`, and
     /// [`Fatal::StarterUnwritable`] when it cannot be written.
     pub fn create(self, path: &Path) -> Result<(), Fatal> {
-        let flag = self.flag();
+        let shown = path.display().to_string();
         let unwritable = |source| Fatal::StarterUnwritable {
-            flag,
-            path: path.display().to_string(),
+            starter: self,
+            path: shown.clone(),
             source,
         };
         let mut file = OpenOptions::new()
@@ -65,8 +68,8 @@ impl Starter {
             .open(path)
             .map_err(|source: io::Error| match source.kind() {
                 io::ErrorKind::AlreadyExists => Fatal::StarterExists {
-                    flag,
-                    path: path.display().to_string(),
+                    starter: self,
+                    path: shown.clone(),
                 },
                 _ => unwritable(source),
             })?;
@@ -84,11 +87,9 @@ impl Starter {
 mod tests {
     use super::*;
 
-    const BOTH: [Starter; 2] = [Starter::Template, Starter::Palette];
-
     #[test]
     fn create_writes_the_contents() {
-        for starter in BOTH {
+        for starter in Starter::ALL {
             let dir = tempfile::tempdir().expect("tempdir");
             let path = dir.path().join("start");
             starter.create(&path).expect("writes");
@@ -102,13 +103,13 @@ mod tests {
     /// FR-99, FR-101: the likeliest file at the path is the author's own.
     #[test]
     fn create_never_replaces_a_file() {
-        for starter in BOTH {
+        for starter in Starter::ALL {
             let dir = tempfile::tempdir().expect("tempdir");
             let path = dir.path().join("start");
             fs::write(&path, b"mine").expect("seeds");
             let error = starter.create(&path).expect_err("refuses");
             assert!(
-                matches!(error, Fatal::StarterExists { flag, .. } if flag == starter.flag()),
+                matches!(error, Fatal::StarterExists { starter: s, .. } if s == starter),
                 "{error}"
             );
             assert_eq!(fs::read(&path).expect("reads"), b"mine");
@@ -119,7 +120,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn create_refuses_a_dangling_symlink() {
-        for starter in BOTH {
+        for starter in Starter::ALL {
             let dir = tempfile::tempdir().expect("tempdir");
             let path = dir.path().join("start");
             let target = dir.path().join("elsewhere");
@@ -132,12 +133,12 @@ mod tests {
 
     #[test]
     fn create_in_a_missing_directory_is_unwritable() {
-        for starter in BOTH {
+        for starter in Starter::ALL {
             let dir = tempfile::tempdir().expect("tempdir");
             let path = dir.path().join("nope").join("start");
             let error = starter.create(&path).expect_err("refuses");
             assert!(
-                matches!(error, Fatal::StarterUnwritable { flag, .. } if flag == starter.flag()),
+                matches!(error, Fatal::StarterUnwritable { starter: s, .. } if s == starter),
                 "{error}"
             );
         }

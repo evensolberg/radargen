@@ -14,6 +14,7 @@ use std::process::Command;
 
 use radargen::layout::geometry::Geometry;
 use radargen::palette::{Palette, Role, Theme};
+use radargen::starter::Starter;
 use radargen::style::MAX_GROWTH;
 
 use palette::{SAMPLE, quadrants, with_series};
@@ -652,14 +653,11 @@ fn the_template_renders_as_written() {
     assert_eq!(ran.stderr, "");
 }
 
-/// The flags that write a file to start from (FR-99, FR-101).
-const STARTERS: [&str; 2] = ["--create-template", "--create-palette"];
-
 /// FR-99, FR-101: an existing file is never replaced, and the error names
 /// the flag and the path.
 #[test]
 fn a_starter_never_replaces_a_file() {
-    for flag in STARTERS {
+    for flag in Starter::ALL.map(Starter::flag) {
         let dir = seeded(&[("mine.txt", "mine\n")]);
         let before = snapshot(dir.path());
         let ran = run_in(dir.path(), &[flag, "mine.txt"]);
@@ -678,7 +676,7 @@ fn a_starter_never_replaces_a_file() {
 /// flag.
 #[test]
 fn an_unwritable_starter_names_its_flag() {
-    for flag in STARTERS {
+    for flag in Starter::ALL.map(Starter::flag) {
         let dir = seeded(&[]);
         let ran = run_in(dir.path(), &[flag, "nope/start.txt"]);
         assert_eq!(ran.code, Some(1));

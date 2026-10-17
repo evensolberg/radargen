@@ -362,10 +362,9 @@ fn create_palette_stands_alone() {
 
 #[test]
 fn a_starter_flag_with_anything_else_is_a_usage_error() {
-    for (flag, other) in [
-        ("--create-template", "--create-palette"),
-        ("--create-palette", "--create-template"),
-    ] {
+    let flags = Starter::ALL.map(Starter::flag);
+    for flag in flags {
+        let other = flags.into_iter().find(|&f| f != flag).expect("another");
         for extra in [
             &["in.csv"][..],
             &["-o", "e.html"],
