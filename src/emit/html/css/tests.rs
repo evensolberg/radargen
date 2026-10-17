@@ -347,7 +347,9 @@ fn a_hidden_legend_hides_both_parts_on_screen_under_the_script_only() {
         "every rule needs the script: {css}"
     );
     for rule in [
-        format!("{on} .wide-legend,{on} .wide-legend *{{visibility:hidden!important}}"),
+        format!(
+            "{on} .wide-legend,{on} .wide-legend *{{visibility:hidden!important;pointer-events:none!important}}"
+        ),
         format!("{on} .narrow-legend{{display:none}}"),
         format!("{on} .wide-radar{{grid-column:1/-1;contain:inline-size}}"),
         format!("{on} .wide-radar svg{{max-width:{}}}", WIDE.radar_cap()),

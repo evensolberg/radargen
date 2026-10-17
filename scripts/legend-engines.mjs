@@ -4,7 +4,8 @@
 // CDP checks drive Chromium only, which focuses a clicked button.
 //
 // Playwright's locator.focus() sets up the focused row; the click itself is
-// a real one.
+// a real one. Only WebKit tells the guard apart everywhere: Firefox focuses
+// a clicked button except on macOS, so on Linux it passes either way.
 import { mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -24,11 +25,14 @@ const playwright = await import('playwright').catch((error) => {
 });
 
 // A hidden legend is removed (narrow) or invisible in place (wide).
-const HIDDEN = () =>
-  [...document.querySelectorAll('.wide-legend,.narrow-legend')].every((p) => {
+// Both parts, or the check would pass on a page with neither.
+const HIDDEN = () => {
+  const parts = [...document.querySelectorAll('.wide-legend,.narrow-legend')];
+  return parts.length === 2 && parts.every((p) => {
     const s = getComputedStyle(p);
     return s.display === 'none' || s.visibility === 'hidden';
   });
+};
 
 // Firefox on macOS needs a home of its own, or it exits with "Could not
 // find profile folder"; text-spacing.mjs explains, and shares the folder.
@@ -44,12 +48,20 @@ for (const name of ['firefox', 'webkit']) {
   const browser = await playwright[name].launch(LAUNCH[name]);
   try {
     const page = await (await browser.newContext({ viewport: { width: 1400, height: 900 } })).newPage();
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
     await page.goto(url);
     await page.locator('.arrangement.wide [data-legend-row]').first().focus();
+    const onRow = await page.evaluate(() => document.activeElement?.hasAttribute('data-legend-row'));
     await page.locator('.legend-toggle').click();
     const focused = await page.evaluate(() => document.activeElement?.classList.contains('legend-toggle'));
     const hidden = await page.evaluate(HIDDEN);
-    for (const [ok, what] of [[focused, 'focus moves to the button'], [hidden, 'both legends hide']]) {
+    for (const [ok, what] of [
+      [onRow, 'a legend row had focus before the click'],
+      [focused, 'focus moves to the button'],
+      [hidden, 'both legends hide'],
+      [errors.length === 0, `no script errors: ${errors}`],
+    ]) {
       console.log(`${ok ? 'ok' : 'FAIL'} ${name}: ${what}`);
       failed ||= !ok;
     }

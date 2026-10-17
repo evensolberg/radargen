@@ -300,9 +300,12 @@ async function reflow(label) {
   const spills = await evaluate(`(${SPILLS})('h2, summary, thead th', 0.5)`);
   check(spills.length === 0, `${label}: text spills its box: ${spills}`);
   // Each icon button (rg-1ru, RG-102) shows one icon, inside its box.
+  // A --palette page has no theme toggle; every page with items has the
+  // legend button, so its absence, or a zero box, fails.
   const iconFits = await evaluate(`['.theme-toggle', '.legend-toggle'].every((selector) => {
     const button = document.querySelector(selector);
-    if (!button) return true;
+    if (!button) return selector === '.theme-toggle';
+    if (button.getBoundingClientRect().width === 0) return false;
     const o = button.getBoundingClientRect();
     const icon = [...button.querySelectorAll('svg')].find((s) => getComputedStyle(s).display !== 'none');
     if (!icon) return false;

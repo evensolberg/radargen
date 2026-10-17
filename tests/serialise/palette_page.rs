@@ -4,7 +4,7 @@
 use radargen::palette::file::parse;
 use radargen::palette::{Colours, Palette, Role, Theme};
 
-use super::html::style;
+use super::html::{style, svgs};
 use super::palette::{SAMPLE, quadrants, with_series};
 use super::{build, prd};
 
@@ -32,6 +32,11 @@ fn a_palette_page_has_one_set_and_no_toggle() {
     assert!(
         !html.contains("theme-moon") && !html.contains("theme-sun"),
         "and none of its icons"
+    );
+    assert_eq!(
+        html.matches("<svg").count(),
+        svgs(&html).len() + 2,
+        "every other SVG is a drawing, but for the legend button's two icons"
     );
     assert!(
         html.contains("class=\"legend-toggle\""),

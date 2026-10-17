@@ -9,7 +9,7 @@ created_date: 2026-10-17
 synopsis: "An icon button on the HTML page shows and hides the legend in both arrangements, and --legend shown|hidden sets where it starts. The narrow arrangement is cut into a body and a legend part so CSS can hide the legend; the key always shows. PNG and SVG are unchanged."
 status: active
 type: Spec
-revision: "1.2"
+revision: "1.3"
 review_date:
 reviewed_by: []
 completed_date:
@@ -165,7 +165,7 @@ Tests first.
 - **Browser** (`interaction.mjs` and `a11y-audit.mjs` in headless
   Chromium, as the existing checks are; a small Playwright check of the
   focus-on-click path in Firefox and WebKit):
-  - a press hides both legends and the wide radar's column widens on a
+  - a press hides both legends and the wide radar widens on a
     window too narrow for both, and nothing else moves or changes width;
   - the key stays visible;
   - the skip link hides and returns;
@@ -204,3 +204,4 @@ apart: no version bump. Then the feature: a minor bump, 1.6.0.
 | 1.0 | 2026-10-17 | Initial version, from the design agreed in conversation (rg-3gc). |
 | 1.1 | 2026-10-17 | After the five-agent review: no short form; a warning for PNG and SVG; the icon shows the state; the skip link retargets to the table; the wide box keeps its width; the narrow cut keeps the key's gap; print shows the legend; nothing plotted writes no state; Chromium plus a Firefox and WebKit focus check; two PRs. |
 | 1.2 | 2026-10-17 | As built: the wide legend is hidden in place, not by a one-column grid, which missed by the scrollbar gutter; focus left on the page by a WebKit click goes to the button too. |
+| 1.3 | 2026-10-17 | Review fixes: the skip link is drawn over the page on every page; the invisible wide legend takes no pointer events; the crossed-out list's X is larger; one testing bullet reworded. |

@@ -9,7 +9,7 @@ created_date: 2026-10-17
 synopsis: "Task-by-task plan for RG-102 in two PRs: first the narrow arrangement cut into body and legend parts for HTML (no bump), then the --legend flag, the page's start state and hiding rules, the icon button and its script, browser checks, docs and 1.6.0."
 status: draft
 type: Plan
-revision: "1.1"
+revision: "1.2"
 review_date: 2026-10-17
 reviewed_by: [rust-engineer, qa-expert, ui-designer, architect-reviewer, ux-researcher]
 completed_date:
@@ -27,6 +27,8 @@ comments: "Implements spec RG-102 (docs/design/legend-toggle.md) revision 1.1."
 **Tech Stack:** Rust (clap `ValueEnum`), inline CSS and JS emitted as constants, CDP-driven headless Chromium checks (`scripts/interaction.mjs`, `scripts/a11y-audit.mjs`), and Playwright for Firefox and WebKit.
 
 **Spec:** `docs/design/legend-toggle.md` (RG-102, revision 1.1). Read it before starting.
+
+> **As built (rev 1.2 of this plan):** Task 7 replaced the one-column wide grid described below with the wide legend made invisible in place (`visibility:hidden!important`, no pointer events) and the radar spanning both grid tracks, contained and capped: the one-column grid missed by the legend's scrollbar gutter. Task 8 added moving focus from the body to the button, for WebKit. The spec (rev 1.3) and the ledger's `Ruling:` lines are the record; this plan's code for those two pieces is superseded.
 
 **Delivery:** two PRs.
 - **PR A** (Tasks 1–2): the narrow parts. No reader can tell the difference, so it gets no bump.
@@ -76,7 +78,7 @@ Branch: `feat/narrow-parts` from main.
 **Interfaces:**
 - Produces: `pub struct NarrowParts { pub body: Document, pub legend: Document }` (`Debug, Clone, PartialEq`); `pub fn narrow_parts(blocks: &Blocks) -> NarrowParts`.
 
-- [ ] **Step 1: Write the failing tests**, next to `the_wide_parts_tile_the_wide_document`:
+- [x] **Step 1: Write the failing tests**, next to `the_wide_parts_tile_the_wide_document`:
 
 ```rust
     /// RG-102: HTML's narrow arrangement in two documents, cut at the
@@ -124,9 +126,9 @@ Branch: `feat/narrow-parts` from main.
 
 If `bounds` takes a different argument order in this module, match the existing calls in `blocks_do_not_overlap`.
 
-- [ ] **Step 2: Run them and see them fail.** Run `cargo test --lib narrow_`. Expected: compile errors, because `NarrowParts` and `narrow_parts` don't exist.
+- [x] **Step 2: Run them and see them fail.** Run `cargo test --lib narrow_`. Expected: compile errors, because `NarrowParts` and `narrow_parts` don't exist.
 
-- [ ] **Step 3: Implement**, after `wide_parts`. `placements` already picks the narrow scale (it holds the bisection), so these parts draw exactly what `arrange` draws.
+- [x] **Step 3: Implement**, after `wide_parts`. `placements` already picks the narrow scale (it holds the bisection), so these parts draw exactly what `arrange` draws.
 
 ```rust
 /// The narrow arrangement as HTML draws it (RG-102): two documents, so the
@@ -170,9 +172,9 @@ pub fn narrow_parts(blocks: &Blocks) -> NarrowParts {
 }
 ```
 
-- [ ] **Step 4: Run and see them pass.** Run `cargo test --lib arrange`. Expected: PASS. If the "starts at its panel" assertion fails because the panel's stroke paints above its origin, cut at `at.legend.origin.y` minus half that stroke, the same way `wide_parts` cuts half a rule above the rule (`KEY_RULE_STROKE / 2.0`). Name the constant.
+- [x] **Step 4: Run and see them pass.** Run `cargo test --lib arrange`. Expected: PASS. If the "starts at its panel" assertion fails because the panel's stroke paints above its origin, cut at `at.legend.origin.y` minus half that stroke, the same way `wide_parts` cuts half a rule above the rule (`KEY_RULE_STROKE / 2.0`). Name the constant.
 
-- [ ] **Step 5: Commit.** `feat(layout): cut the narrow arrangement into body and legend (rg-3gc)`
+- [x] **Step 5: Commit.** `feat(layout): cut the narrow arrangement into body and legend (rg-3gc)`
 
 ---
 
@@ -187,7 +189,7 @@ pub fn narrow_parts(blocks: &Blocks) -> NarrowParts {
 - Consumes: `NarrowParts`, `narrow_parts` (Task 1).
 - Produces: `Page.narrow: &'a NarrowParts`; `css::NARROW_BODY = "narrow-body"`, `css::NARROW_LEGEND = "narrow-legend"` (`pub(super)`); `Built::page_of(&self, wide: &WideParts, narrow: &NarrowParts, title: Option<&str>)` and `Built::page_in(…, narrow: &NarrowParts, …)`.
 
-- [ ] **Step 1: Update the tests to expect parts.**
+- [x] **Step 1: Update the tests to expect parts.**
   - **`tests/serialise/page.rs`:** `documents()` returns `(WideParts, NarrowParts)` from `narrow_parts(&built.blocks)`. In `one_arrangement_at_a_time`, use `svgs(&html).len() == 6` ("four wide parts and two narrow"), and add:
     ```rust
     for part in ["<div class=\"narrow-body\">\n", "<div class=\"narrow-legend\">\n"] {
@@ -204,9 +206,9 @@ pub fn narrow_parts(blocks: &Blocks) -> NarrowParts {
   - **`tests/run.rs`:** change both `html::svgs(&page).len(), 5` to `6`, with the message `"four wide parts and two narrow"`.
   - **`tests/serialise/main.rs`:** `page_of` and `page_in` take `narrow: &NarrowParts`, and their callers pass `&narrow_parts(&self.blocks)`.
 
-- [ ] **Step 2: Run and see it fail.** Run `cargo test --test serialise`. Expected: compile errors at `Page { narrow: … }`.
+- [x] **Step 2: Run and see it fail.** Run `cargo test --test serialise`. Expected: compile errors at `Page { narrow: … }`.
 
-- [ ] **Step 3: Implement.** In `css.rs`, next to `WIDE_LEGEND`:
+- [x] **Step 3: Implement.** In `css.rs`, next to `WIDE_LEGEND`:
 
 ```rust
 /// The narrow arrangement's parts' containers (RG-102). Each SVG spans the
@@ -235,7 +237,7 @@ fn narrow_parts(parts: &NarrowParts, target: Target<'_>) -> String {
 
 In `pipeline.rs`'s HTML branch, pass `narrow: &narrow_parts(&blocks)` and import it.
 
-- [ ] **Step 4: Add a browser check that the narrow parts stack seamlessly.** In `interaction.mjs`, after the existing narrow scenarios, add:
+- [x] **Step 4: Add a browser check that the narrow parts stack seamlessly.** In `interaction.mjs`, after the existing narrow scenarios, add:
 
 ```js
   // RG-102: the narrow parts stack with no seam: the legend's SVG starts
@@ -248,9 +250,9 @@ In `pipeline.rs`'s HTML branch, pass `narrow: &narrow_parts(&blocks)` and import
   });
 ```
 
-- [ ] **Step 5: Bless the golden and run everything.** Run `UPDATE_GOLDEN=1 cargo test --test serialise`, then `cargo test`, clippy, `just lint` and `just browser`. Expected: all pass. `git diff tests/golden/html/prd.html` shows only the narrow `<svg>` split into its two containers.
+- [x] **Step 5: Bless the golden and run everything.** Run `UPDATE_GOLDEN=1 cargo test --test serialise`, then `cargo test`, clippy, `just lint` and `just browser`. Expected: all pass. `git diff tests/golden/html/prd.html` shows only the narrow `<svg>` split into its two containers.
 
-- [ ] **Step 6: Commit, review and merge PR A.** Commit as `feat(html): draw the narrow arrangement in two parts (rg-3gc)`. Then run the full workflow: code review, the local multi-agent stand-in for Copilot, simplify, final review, `just ci`, PR and merge. No version bump: no reader can tell the difference.
+- [x] **Step 6: Commit, review and merge PR A.** Commit as `feat(html): draw the narrow arrangement in two parts (rg-3gc)`. Then run the full workflow: code review, the local multi-agent stand-in for Copilot, simplify, final review, `just ci`, PR and merge. No version bump: no reader can tell the difference.
 
 ---
 
@@ -267,7 +269,7 @@ Branch: `feat/legend-toggle`, rebased on main after PR A merges. The spec and pl
 **Interfaces:**
 - Produces: `radargen::emit::html::Legend { Shown, Hidden }` (`Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum`); `Cli.legend: Legend`; `pipeline::Config.legend: Legend`; `RenderKind::LegendStatic`.
 
-- [ ] **Step 1: Write the failing tests.** In `tests/cli.rs`, after the `--theme` section (add `Legend` to the `radargen::cli` import):
+- [x] **Step 1: Write the failing tests.** In `tests/cli.rs`, after the `--theme` section (add `Legend` to the `radargen::cli` import):
 
 ```rust
 // ---- --legend: where the HTML page starts; show and hide as hidden aliases
@@ -345,9 +347,9 @@ fn legend_hidden_warns_on_png_and_svg_and_changes_nothing() {
 
 In `tests/diagnostics.rs`, next to the `WidthClamped` rendering test, add the same shape of test for `RenderKind::LegendStatic`. It renders exactly `--legend hidden applies to HTML pages; PNG and SVG always draw the legend`, with whatever `warning:` prefix the neighbouring tests show.
 
-- [ ] **Step 2: Run them and see them fail.** Run `cargo test --test cli legend`, `cargo test --test run legend` and `cargo test --test diagnostics`. Expected: compile errors.
+- [x] **Step 2: Run them and see them fail.** Run `cargo test --test cli legend`, `cargo test --test run legend` and `cargo test --test diagnostics`. Expected: compile errors.
 
-- [ ] **Step 3: Implement.** In `src/emit/html/mod.rs`:
+- [x] **Step 3: Implement.** In `src/emit/html/mod.rs`:
 
 ```rust
 /// Where the page's legend starts (RG-102). Only HTML reads it: PNG and
@@ -403,9 +405,9 @@ In `src/pipeline.rs`:
 
 If both branches share a static path, put it there once.
 
-- [ ] **Step 4: Run them and see them pass.** Run `cargo test --test cli` and `cargo test --test diagnostics`. `help_speaks_to_users` and `short_help_is_one_line_per_flag` must pass. Run clippy too. In `tests/run.rs`, `legend_hidden_warns_on_png_and_svg_and_changes_nothing` passes now; `legend_hidden_starts_the_page_hidden` passes after Task 4, so run the full `cargo test` at the end of Task 4.
+- [x] **Step 4: Run them and see them pass.** Run `cargo test --test cli` and `cargo test --test diagnostics`. `help_speaks_to_users` and `short_help_is_one_line_per_flag` must pass. Run clippy too. In `tests/run.rs`, `legend_hidden_warns_on_png_and_svg_and_changes_nothing` passes now; `legend_hidden_starts_the_page_hidden` passes after Task 4, so run the full `cargo test` at the end of Task 4.
 
-- [ ] **Step 5: Commit.** `feat(cli): --legend shown|hidden; warn for PNG and SVG (rg-3gc)`
+- [x] **Step 5: Commit.** `feat(cli): --legend shown|hidden; warn for PNG and SVG (rg-3gc)`
 
 ---
 
@@ -421,7 +423,7 @@ If both branches share a static path, put it there once.
 - Consumes: `Legend` (Task 3); `NARROW_LEGEND` (Task 2).
 - Produces: `Page.legend: Legend`; `chrome::DATA_LEGEND = "data-legend"`; `chrome::LEGEND_HIDDEN = "hidden"`; `css::legend_hiding(wide: &Wide) -> String`; `Built::page_legend(&self, legend: Legend) -> String`.
 
-- [ ] **Step 1: Write the failing tests.** In `src/emit/html/css/tests.rs`:
+- [x] **Step 1: Write the failing tests.** In `src/emit/html/css/tests.rs`:
 
 ```rust
 /// RG-102: on screen, with the script running and the page set hidden, both
@@ -481,9 +483,9 @@ fn the_page_records_a_hidden_start() {
 }
 ```
 
-- [ ] **Step 2: Run them and see them fail.** Run `cargo test --lib a_hidden_legend` and `cargo test --test serialise hidden_start`. Expected: compile errors.
+- [x] **Step 2: Run them and see them fail.** Run `cargo test --lib a_hidden_legend` and `cargo test --test serialise hidden_start`. Expected: compile errors.
 
-- [ ] **Step 3: Implement.** In `chrome.rs`:
+- [x] **Step 3: Implement.** In `chrome.rs`:
 
 ```rust
 /// The root attribute that says the legend is hidden (RG-102). The page is
@@ -547,9 +549,9 @@ const HTML_OPEN_REST: &str = ">\n<head>\n<meta charset=\"utf-8\">…";   // the 
 
 In `tests/common/html.rs`'s `page_attribute`, add `("html", "data-legend") => value == "hidden",`.
 
-- [ ] **Step 4: Bless the golden and run everything.** Run `UPDATE_GOLDEN=1 cargo test --test serialise`, then `cargo test` (including Task 3's run tests) and clippy. Expected: PASS. The golden gains only the `@media screen` block.
+- [x] **Step 4: Bless the golden and run everything.** Run `UPDATE_GOLDEN=1 cargo test --test serialise`, then `cargo test` (including Task 3's run tests) and clippy. Expected: PASS. The golden gains only the `@media screen` block.
 
-- [ ] **Step 5: Commit.** `feat(html): a page can start with its legend hidden (rg-3gc)`
+- [x] **Step 5: Commit.** `feat(html): a page can start with its legend hidden (rg-3gc)`
 
 ---
 
@@ -564,7 +566,7 @@ In `tests/common/html.rs`'s `page_attribute`, add `("html", "data-legend") => va
 - Consumes: `Legend`, `DATA_LEGEND`, `LEGEND_HIDDEN` (Tasks 3–4).
 - Produces: `chrome::LEGEND_TOGGLE_CLASS = "legend-toggle"`; `chrome::HIDE_LEGEND = "Hide legend"`; `chrome::SHOW_LEGEND = "Show legend"`; `chrome::LEGEND_ON_CLASS = "legend-on"`; `chrome::LEGEND_OFF_CLASS = "legend-off"`; `chrome::SKIP_TO_LEGEND = "Skip to the legend"`; `#[cfg(test)] chrome::SKIP_TO_TABLE = "Skip to the table"`; `chrome::controls(toggle: bool, legend: Legend) -> String`.
 
-- [ ] **Step 1: Write the failing tests.** In `chrome/tests.rs`:
+- [x] **Step 1: Write the failing tests.** In `chrome/tests.rs`:
   - Add `Legend` and the new constants to the imports.
   - Replace the byte pin in `a_palette_page_has_no_toggle` with `controls(true, Legend::Shown)` equal to:
 
@@ -635,9 +637,9 @@ In `tests/serialise/palette_page.rs`, replace "every SVG is a drawing" with:
 
 In `tests/serialise/html5.rs`, the icon count becomes 4, with the message `"the legend's two icons, the moon and the sun"`.
 
-- [ ] **Step 2: Run and see them fail.** Run `cargo test --lib chrome` and `cargo test --test serialise`. Expected: compile errors and failures.
+- [x] **Step 2: Run and see them fail.** Run `cargo test --lib chrome` and `cargo test --test serialise`. Expected: compile errors and failures.
 
-- [ ] **Step 3: Implement** in `chrome.rs`:
+- [x] **Step 3: Implement** in `chrome.rs`:
 
 ```rust
 pub(super) const LEGEND_TOGGLE_CLASS: &str = "legend-toggle";
@@ -680,9 +682,9 @@ Update `SKIP_OVER_PAGE`'s comment (RG-018A R11): a `--palette` page with somethi
 
 In `mod.rs`, call `chrome::controls(toggle, legend)`.
 
-- [ ] **Step 4: Bless and run.** Run `UPDATE_GOLDEN=1 cargo test --test serialise`, then `cargo test --lib chrome`, clippy and `just lint`. `the_scripts_names_are_the_pages` fails until Task 6 Step 1 adds the script's names. Do that step next, before running the full suite.
+- [x] **Step 4: Bless and run.** Run `UPDATE_GOLDEN=1 cargo test --test serialise`, then `cargo test --lib chrome`, clippy and `just lint`. `the_scripts_names_are_the_pages` fails until Task 6 Step 1 adds the script's names. Do that step next, before running the full suite.
 
-- [ ] **Step 5: Commit** after Task 6 Step 1 passes, so no commit has a failing test. Commit as `feat(html): the legend button and its icons (rg-3gc)`.
+- [x] **Step 5: Commit** after Task 6 Step 1 passes, so no commit has a failing test. Commit as `feat(html): the legend button and its icons (rg-3gc)`.
 
 ---
 
@@ -695,7 +697,7 @@ In `mod.rs`, call `chrome::controls(toggle, legend)`.
 **Interfaces:**
 - Consumes: the names from Task 5.
 
-- [ ] **Step 1: The names block.** Add these entries to `const N`:
+- [x] **Step 1: The names block.** Add these entries to `const N`:
 
 ```js
     legendToggle: 'legend-toggle',
@@ -709,7 +711,7 @@ In `mod.rs`, call `chrome::controls(toggle, legend)`.
 
 Run `cargo test --lib the_scripts_names_are_the_pages`. Expected: PASS. Task 5's map and this block now agree. Commit Task 5 now.
 
-- [ ] **Step 2: The skip link and the button.** Replace the FR-98 skip block with:
+- [x] **Step 2: The skip link and the button.** Replace the FR-98 skip block with:
 
 ```js
   // FR-98, RG-102: past the markers to the legend of the arrangement
@@ -751,7 +753,7 @@ At the end, replace `skip.hidden = !document.querySelector(…)` with:
   skip.hidden = !plotted;
 ```
 
-- [ ] **Step 3: The opener falls back to the marker.** Replace `opener`:
+- [x] **Step 3: The opener falls back to the marker.** Replace `opener`:
 
 ```js
   // Where focus returns for `key`: its opener in the arrangement shown if
@@ -771,9 +773,9 @@ At the end, replace `skip.hidden = !document.querySelector(…)` with:
   };
 ```
 
-- [ ] **Step 4: Bless, run and lint.** Run `UPDATE_GOLDEN=1 cargo test --test serialise`, then `cargo test`, clippy and `just lint`. Expected: PASS.
+- [x] **Step 4: Bless, run and lint.** Run `UPDATE_GOLDEN=1 cargo test --test serialise`, then `cargo test`, clippy and `just lint`. Expected: PASS.
 
-- [ ] **Step 5: Commit.** `feat(html): the legend button's script; the skip link follows (rg-3gc)`
+- [x] **Step 5: Commit.** `feat(html): the legend button's script; the skip link follows (rg-3gc)`
 
 ---
 
@@ -785,7 +787,7 @@ At the end, replace `skip.hidden = !document.querySelector(…)` with:
 **Interfaces:**
 - Consumes: the release binary from Tasks 3–6.
 
-- [ ] **Step 1: The pages.** In `interaction-only`, after the palette page:
+- [x] **Step 1: The pages.** In `interaction-only`, after the palette page:
 
 ```bash
     ./target/release/radargen tests/fixtures/interaction.csv -o "$out/hidden.html" --legend hidden 2>/dev/null
@@ -798,14 +800,14 @@ Pass `"$out/hidden.html" "$out/unplotted-hidden.html"` as the fourth and fifth a
 - Update the usage line.
 - Import `SHOWN` from `./cdp.mjs`.
 
-- [ ] **Step 2: Fix the scenarios the new Tab stop breaks.**
+- [x] **Step 2: Fix the scenarios the new Tab stop breaks.**
   - **"tab order and rings":** after `first stop is the skip link`, add `await press('Tab'); check((await active()).cls?.includes('legend-toggle'), 'second stop is the legend button');`, and rename the theme toggle check `'third stop is the theme toggle'`.
   - **"theme toggle":** replace the two bare `press('Tab')` with `await tabTo((a) => a.cls?.includes('theme-toggle'), 'the toggle');`.
   - **"a resize after leaving a marker":** replace the three bare `press('Tab')` with `await tabToMarker(1);`.
   - **"no script":** add `'.legend-toggle'` to the selectors loop.
   - **The palette scenario:** check that `.legend-toggle` is visible and is the second Tab stop.
 
-- [ ] **Step 3: The scenarios.** Add after the theme toggle scenario:
+- [x] **Step 3: The scenarios.** Add after the theme toggle scenario:
 
 ```js
   // RG-102: the legend button.
@@ -945,7 +947,7 @@ Pass `"$out/hidden.html" "$out/unplotted-hidden.html"` as the fourth and fifth a
   });
 ```
 
-- [ ] **Step 4: The audit.** In `a11y-audit.mjs`:
+- [x] **Step 4: The audit.** In `a11y-audit.mjs`:
   - **Names:** next to the theme toggle's name check, check that `.legend-toggle` has role `button`, the name `Hide legend`, and no `pressed`.
   - **Targets:** add `.legend-toggle` to the `measure` selector.
   - **Reflow:** in `iconFits`, also check `.legend-toggle`'s displayed SVG inside its button.
@@ -959,9 +961,9 @@ Pass `"$out/hidden.html" "$out/unplotted-hidden.html"` as the fourth and fifth a
 
     The existing `keyboard()` requires `rows.length === plotted`, so give it a `legendHidden` flag that expects zero rows rather than writing a second copy.
 
-- [ ] **Step 5: Run.** `just browser`. Expected: exit 0, every scenario `ok` (interaction and audit in Chromium; text spacing in three engines as before).
+- [x] **Step 5: Run.** `just browser`. Expected: exit 0, every scenario `ok` (interaction and audit in Chromium; text spacing in three engines as before).
 
-- [ ] **Step 6: Commit.** `test(browser): the legend button in Chromium (rg-3gc)`
+- [x] **Step 6: Commit.** `test(browser): the legend button in Chromium (rg-3gc)`
 
 ---
 
@@ -971,7 +973,7 @@ Pass `"$out/hidden.html" "$out/unplotted-hidden.html"` as the fourth and fifth a
 - Create: `scripts/legend-engines.mjs`
 - Modify: `justfile` (`browser` gains `legend-engines-only`)
 
-- [ ] **Step 1: Write the check.** Review Focus 1's real path is in Firefox and WebKit, which the CDP checks never drive. The launch follows `text-spacing.mjs` (lines 133–175: the dynamic `playwright` import, the engine list, `launch`, `newContext`, `newPage`):
+- [x] **Step 1: Write the check.** Review Focus 1's real path is in Firefox and WebKit, which the CDP checks never drive. The launch follows `text-spacing.mjs` (lines 133–175: the dynamic `playwright` import, the engine list, `launch`, `newContext`, `newPage`):
 
 ```js
 // RG-102 in Firefox and WebKit, where a click need not focus a button: a
@@ -1013,7 +1015,7 @@ process.exit(failed ? 1 : 0);
 
 `locator.focus()` here is Playwright's API, not `interaction.mjs`'s trusted-input rule. This script exists to reproduce a focused row before a real click.
 
-- [ ] **Step 2: Wire it in.** In `justfile`, add the recipe below and append `legend-engines-only` to `browser`'s dependencies:
+- [x] **Step 2: Wire it in.** In `justfile`, add the recipe below and append `legend-engines-only` to `browser`'s dependencies:
 
 ```just
 [private]
@@ -1026,9 +1028,9 @@ legend-engines-only:
     node scripts/legend-engines.mjs "$out/legend.html"
 ```
 
-- [ ] **Step 3: Run.** `just browser`. Expected: `ok firefox: …` and `ok webkit: …` for both checks, and exit 0.
+- [x] **Step 3: Run.** `just browser`. Expected: `ok firefox: …` and `ok webkit: …` for both checks, and exit 0.
 
-- [ ] **Step 4: Commit.** `test(browser): legend focus on click in Firefox and WebKit (rg-3gc)`
+- [x] **Step 4: Commit.** `test(browser): legend focus on click in Firefox and WebKit (rg-3gc)`
 
 ---
 
@@ -1037,7 +1039,7 @@ legend-engines-only:
 **Files:**
 - Modify: `docs/product/radargen-prd.md`, `docs/design/architecture.md`, `docs/a11y/manual-checks.md`, `README.md`, `docs/design/legend-toggle.md` (status `active`)
 
-- [ ] **Step 1: PRD.**
+- [x] **Step 1: PRD.**
   - **New FR-103,** after FR-102, in the PRD's voice and citing RG-102. It states:
     - the button, and its name by action and icon by state;
     - the flag, with no short form, the hidden aliases, and the PNG/SVG warning;
@@ -1053,11 +1055,11 @@ legend-engines-only:
     - FR-91's key list: `legend` will be a key, matched as the flag is.
   - **Version 0.82,** with a revision row naming rg-3gc.
 
-- [ ] **Step 2: Architecture.** Two additions:
+- [x] **Step 2: Architecture.** Two additions:
   - D-85's note on HTML's parts gains the narrow cut (`narrow_parts`), and why: so CSS can hide the legend without leaving its space.
   - §4's breakpoint note says hiding the legend does not move the breakpoint (rg-dok).
 
-- [ ] **Step 3: Manual checklist.** Make these changes:
+- [x] **Step 3: Manual checklist.** Make these changes:
   - Step 7 (the skip link) adds "with the legend hidden, 'Skip to the table, button', and Enter lands on the table toggle".
   - A new step after the theme toggle covers the legend button:
     - Tab to it and expect "Hide legend, button" with no pressed state.
@@ -1065,11 +1067,11 @@ legend-engines-only:
     - Record whether the new name is announced.
   - Bump the checklist's revision and add a row.
 
-- [ ] **Step 4: README.** Make these changes:
+- [x] **Step 4: README.** Make these changes:
   - Add a flag-table row: `--legend <shown|hidden>`, "Whether an HTML page starts with its legend shown or hidden; PNG and SVG always draw it, and warn if asked to hide it."
   - Add one line in the HTML section: the legend button hides the number-to-name list, the key to marker shapes stays, and the table still lists every item.
 
-- [ ] **Step 5: Validate and commit.** Run `yq --front-matter=extract '.' docs/design/legend-toggle.md`. Commit as `docs: the legend button and --legend (FR-103, rg-3gc)`.
+- [x] **Step 5: Validate and commit.** Run `yq --front-matter=extract '.' docs/design/legend-toggle.md`. Commit as `docs: the legend button and --legend (FR-103, rg-3gc)`.
 
 ---
 
@@ -1086,3 +1088,4 @@ legend-engines-only:
 | --- | --- | --- |
 | 1.0 | 2026-10-17 | Initial version, from spec RG-102. |
 | 1.1 | 2026-10-17 | After the five-agent review (rust-engineer, qa-expert, ui-designer, architect-reviewer, ux-researcher) and the maintainer's rulings: two PRs; no short form; the PNG/SVG warning; state-showing icons; the skip link retargets; the wide box keeps its width; the narrow cut keeps the key's gap; print shows the legend; fixed help, CSS and test snippets; trusted input; the existing Tab-order scenarios updated; a Firefox and WebKit focus check; Chromium named where only Chromium runs. |
+| 1.2 | 2026-10-17 | Tasks 1–9 done; an as-built note on the hiding mechanism and the WebKit focus rule, which superseded this plan's code there. |

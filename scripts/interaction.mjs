@@ -1,6 +1,7 @@
 // The interactive layer, driven in a browser (plan RG-015B).
 //
-// Usage: node scripts/interaction.mjs <page.html> [<long-legend.html> [<palette.html>]]
+// Usage: node scripts/interaction.mjs <page.html> [<long-legend.html> [<palette.html>
+//   [<hidden.html> [<unplotted-hidden.html>]]]]
 //
 // Each scenario loads the page afresh, at the widths it names, and drives
 // it with trusted input only (Input.dispatchKeyEvent and
@@ -274,8 +275,10 @@ try {
   // RG-102: the legend button.
   // A hidden legend is removed (narrow) or invisible in place (wide).
   const LEGENDS = `[...document.querySelectorAll('.wide-legend,.narrow-legend')].map((p) => { const s = getComputedStyle(p); return s.display === 'none' || s.visibility === 'hidden'; })`;
-  const allHidden = async () => (await evaluate(LEGENDS)).every(Boolean);
-  const allShown = async () => (await evaluate(LEGENDS)).every((hidden) => !hidden);
+  // Both parts, or the check would pass on a page with neither.
+  const both = (states) => states.length === 2;
+  const allHidden = async () => { const s = await evaluate(LEGENDS); return both(s) && s.every(Boolean); };
+  const allShown = async () => { const s = await evaluate(LEGENDS); return both(s) && s.every((hidden) => !hidden); };
   const LEGEND_NAME = `document.querySelector('.legend-toggle').textContent`;
   const SKIP_NAME = `document.querySelector('.skip').textContent`;
   const LEGEND_ICON = `[...document.querySelectorAll('.legend-toggle svg')].find((s) => getComputedStyle(s).display !== 'none')?.getAttribute('class')`;
@@ -297,7 +300,11 @@ try {
     await clickOn('.legend-toggle');
     await expect(true, 'after a click');
     const key = `${SHOWN}.querySelector('.wide-key svg, .narrow-body svg')`;
-    check((await evaluate(`${key}.getBoundingClientRect().height`)) > 0, 'the key stays drawn');
+    check((await evaluate(`${key}.getBoundingClientRect().height`)) > 0 && (await evaluate(`getComputedStyle(${key}).visibility`)) === 'visible', 'the key stays drawn and visible');
+    // The skip link, followed, now goes to the table.
+    await tabTo((a) => a.cls === 'skip', 'the skip link');
+    await press('Enter');
+    check((await active()).tag === 'summary', 'the skip link lands on the table toggle');
     await tabTo((a) => a.cls?.includes('legend-toggle'), 'the legend button');
     await press('Enter');
     await expect(false, 'after Enter');
@@ -316,11 +323,14 @@ try {
       const before = await evaluate(boxes);
       const radarBefore = await evaluate(radar);
       await clickOn('.legend-toggle');
+      check(await allHidden(), `${width}x${height}: the press hid the legend`);
       const after = await evaluate(boxes);
       const radarAfter = await evaluate(radar);
       before.forEach(([l, w], i) => check(near(l, after[i][0]) && near(w, after[i][1]), `${width}x${height}: part ${i} moved: ${before[i]} -> ${after[i]}`));
       check(near(radarBefore[0], radarAfter[0]), `${width}x${height}: the radar's left edge stays`);
       check(radarAfter[1] >= radarBefore[1] - 1, `${width}x${height}: the radar never shrinks`);
+      // Where the radar is already at its cap, it keeps its size.
+      if (width === 1850) check(near(radarAfter[1], radarBefore[1]), `${width}x${height}: the capped radar keeps its size: ${radarBefore[1]} -> ${radarAfter[1]}`);
     }
   });
 
@@ -338,7 +348,7 @@ try {
 
   // Review Focus 1, in Chromium: a click that does not focus the button,
   // as in WebKit, leaves a focused row hidden; focus moves to the button.
-  await scenario('legend hidden: focus leaves a row', [WIDE], async (width) => {
+  await scenario('legend hidden: focus leaves a row', [WIDE, NARROW], async (width) => {
     await load(width);
     await tabTo((a) => a.legend !== null, 'a legend row');
     await evaluate(`addEventListener('mousedown', (e) => e.preventDefault(), { capture: true, once: true })`);
@@ -348,12 +358,16 @@ try {
 
   // Review Focus 2: a panel opened from a row, the legend hidden, the panel
   // closed: focus returns to the item's marker.
-  await scenario('legend hidden: the panel closes to the marker', [WIDE], async (width) => {
+  await scenario('legend hidden: the panel closes to the marker', [WIDE, NARROW], async (width) => {
     await load(width);
     await tabTo((a) => a.legend !== null, 'a legend row');
     const key = (await active()).legend;
     await press('Enter');
     await clickOn('.legend-toggle');
+    check(!(await panelHidden()), 'the panel stays open');
+    // The selected row's marks stay hidden with it (the !important).
+    const marks = `[...${SHOWN}.querySelectorAll('[data-legend-row="${key}"] *')].filter((e) => getComputedStyle(e).visibility === 'visible').length`;
+    check(width !== WIDE || (await evaluate(marks)) === 0, 'no mark of the selected row shows through');
     await clickOn('.detail-close');
     check((await active()).marker === key, `focus on marker ${key}`);
   });
@@ -397,6 +411,11 @@ try {
       await load(width, { page: hiddenUrl, script: false });
       check(await allShown(), 'without script the legend shows');
       check((await evaluate(`getComputedStyle(document.querySelector('.legend-toggle')).display`)) === 'none', 'and there is no button');
+      // Printed, the legend shows: a printout has no button.
+      await load(width, { page: hiddenUrl });
+      await send('Emulation.setEmulatedMedia', { media: 'print' });
+      check(await allShown(), 'printed, the legend shows');
+      await send('Emulation.setEmulatedMedia', { media: '' });
     });
   }
 
@@ -408,13 +427,19 @@ try {
       check((await evaluate(STATE)) === null, 'no data-legend');
       check(await evaluate(`document.querySelector('.legend-toggle').hidden`), 'no button');
       check(await evaluate(`document.querySelector('.skip').hidden`), 'no skip link');
+      check(await evaluate(`document.documentElement.classList.contains('js')`), 'the script ran to its end');
     });
   }
 
-  // FR-98: visible when focused, and it reaches the legend.
+  // FR-98: visible when focused, and it reaches the legend. Focusing it
+  // moves nothing: it is drawn over the page on every page (RG-018A R11).
   await scenario('skip link', [WIDE, NARROW], async (width) => {
     await load(width);
+    const shownSvg = `${SHOWN}.querySelector('svg').getBoundingClientRect().top`;
+    const before = await evaluate(shownSvg);
     await press('Tab');
+    const after = await evaluate(shownSvg);
+    check(Math.abs(after - before) <= 0.5, `focusing the skip link moves nothing: ${before} -> ${after}`);
     const box = await evaluate(`document.activeElement.getBoundingClientRect().width`);
     check(box > 20, `the focused skip link is visible (${box}px wide)`);
     await press('Enter');

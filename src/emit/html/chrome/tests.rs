@@ -202,7 +202,7 @@ fn a_palette_page_has_no_toggle() {
             "<div class=\"page-controls\"><button type=\"button\" class=\"skip\" hidden=\"\">Skip to the legend</button>",
             "<button type=\"button\" class=\"legend-toggle\" hidden=\"\">",
             "<svg class=\"legend-on\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01\"/></svg>",
-            "<svg class=\"legend-off\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6h11M9 12h5M9 18h5M4 6h.01M4 12h.01M4 18h.01M17 13l4 4M21 13l-4 4\"/></svg>",
+            "<svg class=\"legend-off\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M9 6h11M9 12h3M9 18h3M4 6h.01M4 12h.01M4 18h.01M15 12l6 6M21 12l-6 6\"/></svg>",
             "<span class=\"visually-hidden\">Hide legend</span></button>",
             "<button type=\"button\" class=\"theme-toggle\" hidden=\"\">",
             "<svg class=\"theme-moon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 14.5A8.5 8.5 0 1 1 9.5 4a7.5 7.5 0 0 0 10.5 10.5z\"/></svg>",
@@ -236,16 +236,21 @@ fn the_toggle_shows_the_icon_its_palette_picks() {
     }
 }
 
-/// Plan RG-018A R11: with no toggle to hold the controls bar open, the
-/// focused skip link is drawn over the page, not pushed into its flow.
+/// Plan RG-018A R11: the focused skip link, a text button a little taller
+/// than the icon buttons, is drawn over the page on every page, so focusing
+/// it never pushes the page down.
 #[test]
-fn a_palette_page_draws_the_skip_link_over_the_page() {
-    assert!(super::css(&WIDE, false).ends_with(SKIP_OVER_PAGE));
+fn the_skip_link_is_drawn_over_the_page() {
+    for toggle in [true, false] {
+        assert!(
+            super::css(&WIDE, toggle).ends_with(SKIP_OVER_PAGE),
+            "{toggle}"
+        );
+    }
     assert!(
         !super::css(&WIDE, false).contains(".theme-toggle svg"),
         "no icon rule"
     );
-    assert!(!super::css(&WIDE, true).contains(SKIP_OVER_PAGE));
 }
 
 /// RG-102: the legend button is on every page, a --palette page too, named
@@ -255,8 +260,12 @@ fn a_palette_page_draws_the_skip_link_over_the_page() {
 fn the_legend_button_is_named_by_where_the_page_starts() {
     let name = |n: &str| ["<span class=\"visually-hidden\">", n, "</span>"].concat();
     for toggle in [true, false] {
-        assert!(controls(toggle, Legend::Shown).contains(&name(HIDE_LEGEND)));
-        assert!(controls(toggle, Legend::Hidden).contains(&name(SHOW_LEGEND)));
+        let (shown, hidden) = (
+            controls(toggle, Legend::Shown),
+            controls(toggle, Legend::Hidden),
+        );
+        assert!(shown.contains(&name(HIDE_LEGEND)) && !shown.contains(&name(SHOW_LEGEND)));
+        assert!(hidden.contains(&name(SHOW_LEGEND)) && !hidden.contains(&name(HIDE_LEGEND)));
         assert!(controls(toggle, Legend::Shown).contains(LEGEND_TOGGLE_CLASS));
         let css = super::css(&WIDE, toggle);
         // Selector and declarations apart: a literal `{name:value}` reads to

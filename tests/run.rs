@@ -579,7 +579,8 @@ fn legend_hidden_warns_on_png_and_svg_and_changes_nothing() {
         );
         let bytes =
             |n: &str| std::fs::read(dir.path().join(format!("{n}.{ext}"))).expect("written");
-        assert_eq!(bytes("a"), bytes("c"), "{ext}");
+        assert_eq!(bytes("a"), bytes("b"), "{ext}: shown");
+        assert_eq!(bytes("a"), bytes("c"), "{ext}: hidden");
     }
 }
 

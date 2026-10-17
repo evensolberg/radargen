@@ -373,13 +373,15 @@ const DESCENDANT: &str = " .";
 const SELECTOR_AND: &str = ",";
 const EVERY_CHILD: &str = " *";
 /// `!important` over the indicators' own `visibility:visible`, which would
-/// otherwise show a hovered or selected row through the hidden legend.
-const INVISIBLE_RULE: &str = "{visibility:hidden!important}\n";
+/// otherwise show a hovered or selected row through the hidden legend; no
+/// pointer events, so nothing in it, now or later, takes a click meant for
+/// the radar it overlaps.
+const INVISIBLE_RULE: &str = "{visibility:hidden!important;pointer-events:none!important}\n";
 const HIDE_RULE: &str = "{display:none}\n";
 /// Contained, as the title is, so spanning both tracks does not let the
 /// radar's own size widen them.
-const SPAN_TRACKS_RULE: &str = " .wide-radar{grid-column:1/-1;contain:inline-size}\n";
-const RADAR_KEPT_OPEN: &str = " .wide-radar svg{max-width:";
+const SPAN_TRACKS_RULE: &str = "{grid-column:1/-1;contain:inline-size}\n";
+const RADAR_KEPT_OPEN: &str = " svg{max-width:";
 const RADAR_KEPT_CLOSE: &str = "}\n";
 
 /// RG-102: while the legend is hidden, it is gone from both arrangements.
@@ -419,8 +421,12 @@ pub(super) fn legend_hiding(wide: &Wide) -> String {
         NARROW_LEGEND,
         HIDE_RULE,
         on.as_str(),
+        DESCENDANT,
+        WIDE_RADAR,
         SPAN_TRACKS_RULE,
         on.as_str(),
+        DESCENDANT,
+        WIDE_RADAR,
         RADAR_KEPT_OPEN,
         &wide.radar_cap(),
         RADAR_KEPT_CLOSE,

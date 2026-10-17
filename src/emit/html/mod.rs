@@ -97,8 +97,14 @@ pub fn page(input: &Page<'_>) -> String {
         [HIDDEN_HEADING, UNTITLED, "</h1>\n"].concat()
     };
     // With nothing plotted there is no legend, nor a button to bring one
-    // back, so the page records no hidden start.
-    let start = if legend == Legend::Hidden && !plotted.items.is_empty() {
+    // back, so the page starts shown, read the same way by the attribute
+    // and the button's name.
+    let legend = if plotted.items.is_empty() {
+        Legend::Shown
+    } else {
+        legend
+    };
+    let start = if legend == Legend::Hidden {
         HIDDEN_START
     } else {
         ""

@@ -103,8 +103,8 @@ pub struct Cli {
     // edition, and FR-100's --legend-columns may want one.
     /// Where an HTML page's legend starts.
     ///
-    /// The page has a button to show or hide it either way. PNG and SVG
-    /// always draw the legend. Written in any case.
+    /// Written in any case. The page has a button to show or hide it either
+    /// way. PNG and SVG always draw the legend.
     #[arg(long, value_enum, default_value_t = Legend::Shown, ignore_case = true)]
     pub legend: Legend,
 

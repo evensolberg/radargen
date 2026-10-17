@@ -11,7 +11,7 @@ created_date: 2026-10-13
 synopsis: "What only a person with a screen reader, a real browser's zoom or a keyboard on a real machine can judge, step by step, with the announcement to expect at each step and a results table to fill in before tagging 1.0.0. The automated audit (scripts/a11y-audit.mjs) covers everything a browser can measure; this covers the rest."
 status: draft
 type: Guide
-revision: "1.8"
+revision: "1.9"
 review_date:
 reviewed_by: []
 completed_date:
@@ -60,16 +60,19 @@ The expected names come from `three-quadrant.csv`.
 7. **The skip link.** Reload and press Tab once.
    - *Expect:* "Skip to the legend, button".
    - *Expect:* on Enter, focus on "1. …" in the legend.
-   - *Expect, with the legend hidden (step 9):* "Skip to the table, button", and on Enter, focus on the table's toggle.
 8. **The toggle.** Tab to it.
    - *Expect:* "Switch to dark theme, button" ("Switch to light theme" if the system is dark), with no pressed state, and nothing read for the icon.
    - *Expect:* Enter changes the page's colours, and the label becomes the other one.
    - *Expect (sighted):* a moon while the page is light, a sun while it is dark.
    - *Record:* whether the new label is announced after the press, or only when focus returns to the button.
-9. **The legend button** (RG-102). Tab to it; it is between the skip link and the theme toggle.
+9. **The legend button** (RG-102). Tab to it; it is between the skip link and the theme toggle (alone at the end on a `--palette` page, step 18).
    - *Expect:* "Hide legend, button", with no pressed state, and nothing read for the icon.
    - *Expect:* Enter hides both legends; the key stays; the icon becomes a crossed-out list and the name "Show legend".
-   - *Record:* whether the new name is announced after the press, or only when focus returns to the button.
+   - *Record:* whether the new name is announced after the press, or only when focus returns to the button. Silent in two or more pairs is a fail: raise a crumb for a polite status message.
+   - *Expect, with the legend still hidden:* browse mode and the headings list no longer find the "Legend" heading or any legend row.
+   - *Expect, with the legend still hidden:* reload and press Tab once: "Skip to the legend, button" again, since nothing is remembered. Hide the legend, Shift+Tab to the skip link: "Skip to the table, button", and on Enter, focus on the table's toggle.
+   - *Expect, with `--legend hidden`:* on the first visit the button reads "Show legend, button" and the skip link "Skip to the table, button".
+   - *Expect (sighted, narrow window):* with the legend below the fold, the icon changes on each press.
 10. **The table** (`interaction.html`). Open *The table* and browse into it.
    - *Expect:* "Every item, region", then a table with its row and column counts.
    - *Expect:* moving across a row reads each cell with its column header; moving down a column reads the row header (the name).
@@ -77,7 +80,7 @@ The expected names come from `three-quadrant.csv`.
 11. **Two items with one name** (`interaction.html`).
     - *Expect:* the two "Kafka" markers are told apart by their number and position: "1. Kafka, Moved In; Platforms quadrant, Assess ring" and "6. Kafka, New; Tools quadrant, Adopt ring".
 12. **Browse mode and navigation lists.**
-    - *Expect, NVDA's headings list (Insert+F7) and VoiceOver's rotor (Headings):* level 1 "Technology Radar"; level 2 "Key" and "Legend"; level 3 each quadrant; level 4 each ring under it; level 2 "Every item".
+    - *Expect, NVDA's headings list (Insert+F7) and VoiceOver's rotor (Headings):* level 1 "Technology Radar"; level 2 "Key" and "Legend" (with the legend shown); level 3 each quadrant; level 4 each ring under it; level 2 "Every item".
     - *Expect, iOS swipe order:* the same order as Tab.
 13. **Scrolling the panel with keys** (crumb `rg-n54`). In desktop Chrome, Firefox and Safari, at a small window (about 320 by 260), open a long item's panel. With focus on the panel heading:
     - *Expect:* ArrowDown and PageDown scroll the panel's content.
@@ -157,3 +160,4 @@ The expected names come from `three-quadrant.csv`.
 | 1.6 | 2026-10-17 | Step 8: the toggle shows a moon or a sun, the theme a press switches to, and its icon is not announced (rg-1ru). |
 | 1.7 | 2026-10-17 | Step 14: the narrow arrangement's two SVGs, body and legend (RG-102). |
 | 1.8 | 2026-10-17 | New step 9: the legend button; step 7 adds the skip link with the legend hidden; later steps renumbered (RG-102). |
+| 1.9 | 2026-10-17 | Step 9 covers browse mode, a hidden start, the narrow icon change and a fail rule for silent renames; the skip-link-to-table check moves there from step 7 (RG-102 review). |

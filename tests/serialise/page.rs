@@ -294,9 +294,10 @@ fn the_page_records_a_hidden_start() {
         None,
         None,
     );
+    let unplotted = unplotted.page_legend(Legend::Hidden);
+    assert!(unplotted.starts_with("<!DOCTYPE html>\n<html lang=\"en\">\n"));
+    // One start, read the same way by the attribute and the button's name.
     assert!(
-        unplotted
-            .page_legend(Legend::Hidden)
-            .starts_with("<!DOCTYPE html>\n<html lang=\"en\">\n")
+        unplotted.contains(">Hide legend</span>") && !unplotted.contains(">Show legend</span>")
     );
 }
