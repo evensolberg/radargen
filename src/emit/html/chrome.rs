@@ -42,28 +42,34 @@ pub(super) const SKIP_CLASS: &str = "skip";
 /// Each arrangement's container (FR-69).
 pub(super) const ARRANGEMENT_CLASS: &str = "arrangement";
 
-const CONTROLS_OPEN: &str = "<div class=\"page-controls\"><button type=\"button\" class=\"";
-const SKIP_REST: &str =
-    "\" hidden=\"\">Skip to the legend</button><button type=\"button\" class=\"";
+const CONTROLS_OPEN: &str = "<div class=\"page-controls\">";
+const BUTTON_TAG: &str = "<button type=\"button\" class=\"";
+const SKIP_REST: &str = "\" hidden=\"\">Skip to the legend</button>";
 const TOGGLE_REST: &str = "\" hidden=\"\">";
-const TOGGLE_END: &str = "</button></div>\n";
+const TOGGLE_END: &str = "</button>";
+const CONTROLS_CLOSE: &str = "</div>\n";
 
 /// `<main>`'s start tag, carrying the narrow query.
 pub(super) fn main_open(query: &str) -> String {
     ["<main ", DATA_NARROW_QUERY, "=", &html_attr(query), ">\n"].concat()
 }
 
-/// The skip link and the theme toggle, first in `<main>`, both `hidden`
-/// until the script runs (FR-98's rule).
-pub(super) fn controls() -> String {
+/// The skip link and, when the page has both built-in themes to switch
+/// between, the theme toggle (FR-56, §6.6): first in `<main>`, both
+/// `hidden` until the script runs (FR-98's rule).
+pub(super) fn controls(toggle: bool) -> String {
+    let toggle = if toggle {
+        [BUTTON_TAG, TOGGLE_CLASS, TOGGLE_REST, TO_DARK, TOGGLE_END].concat()
+    } else {
+        String::new()
+    };
     [
         CONTROLS_OPEN,
+        BUTTON_TAG,
         SKIP_CLASS,
         SKIP_REST,
-        TOGGLE_CLASS,
-        TOGGLE_REST,
-        TO_DARK,
-        TOGGLE_END,
+        &toggle,
+        CONTROLS_CLOSE,
     ]
     .concat()
 }
@@ -140,7 +146,15 @@ const GRID_OPEN: &str = "@media (min-width: ";
 const GRID_RULE: &str = "px){.detail dl{display:grid;grid-template-columns:max-content 1fr;column-gap:1.5em;align-items:baseline}.detail dt{grid-column:1}.detail dd{grid-column:2}}\n";
 
 /// The controls' rules, capped and inset like the table view.
-pub(super) fn css(wide: &Wide) -> String {
+/// Plan RG-018A R11: without the toggle, which holds the controls bar
+/// open, a focused skip link would push the page down and let it jump
+/// back; drawn over the page instead.
+pub(super) const SKIP_OVER_PAGE: &str =
+    ".page-controls{position:relative}\n.skip:focus{position:absolute;z-index:1}\n";
+
+/// The controls' and panel's rules; `toggle` as for [`controls`].
+pub(super) fn css(wide: &Wide, toggle: bool) -> String {
+    let skip = if toggle { "" } else { SKIP_OVER_PAGE };
     [
         HIDDEN_RULE,
         &capped(BAR_OPEN, wide),
@@ -172,6 +186,7 @@ pub(super) fn css(wide: &Wide) -> String {
         GRID_OPEN,
         &wide.breakpoint().to_string(),
         GRID_RULE,
+        skip,
     ]
     .concat()
 }

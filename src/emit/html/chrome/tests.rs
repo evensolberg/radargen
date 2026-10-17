@@ -4,7 +4,7 @@ use super::super::table::{PROSE_CLASS, TABLE_VIEW_CLASS};
 use super::{
     ARIA_CONTROLS, ARIA_EXPANDED, ARRANGEMENT_CLASS, CLOSE_CLASS, DATA_FOCUSED, DATA_HOVERED,
     DATA_NARROW_QUERY, DATA_SELECTED, DATA_THEME, EMPTY_CLASS, HEADING_CLASS, JS_CLASS, PANEL_ID,
-    SCRIPT, SKIP_CLASS, TO_DARK, TO_LIGHT, TOGGLE_CLASS,
+    SCRIPT, SKIP_CLASS, SKIP_OVER_PAGE, TO_DARK, TO_LIGHT, TOGGLE_CLASS, controls,
 };
 use crate::svg::serialise::{
     DATA_HIT, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW,
@@ -142,12 +142,15 @@ fn words_match_whole() {
 /// and its close button and heading show focus (WCAG 2.4.7).
 #[test]
 fn the_panel_sticks_and_shows_focus() {
-    let css = super::css(&super::super::css::Wide {
-        title_height: 53.0,
-        radar_width: 670.0,
-        radar_height: 640.0,
-        legend_width: 330.0,
-    });
+    let css = super::css(
+        &super::super::css::Wide {
+            title_height: 53.0,
+            radar_width: 670.0,
+            radar_height: 640.0,
+            legend_width: 330.0,
+        },
+        true,
+    );
     for rule in [
         ".detail{position:sticky;bottom:.75rem;max-height:min(45vh,28em);overflow:auto;",
         ".detail dd{margin:0 0 .6em;overflow-wrap:anywhere}",
@@ -156,4 +159,30 @@ fn the_panel_sticks_and_shows_focus() {
     ] {
         assert!(css.contains(rule), "{rule} in {css}");
     }
+}
+
+/// §6.6: a page drawn with a `--palette` file has the skip link and no
+/// toggle, and the built-in page's controls keep their bytes.
+#[test]
+fn a_palette_page_has_no_toggle() {
+    assert!(!controls(false).contains(TOGGLE_CLASS));
+    assert!(controls(false).contains(SKIP_CLASS));
+    assert_eq!(
+        controls(true),
+        "<div class=\"page-controls\"><button type=\"button\" class=\"skip\" hidden=\"\">Skip to the legend</button><button type=\"button\" class=\"theme-toggle\" hidden=\"\">Switch to dark theme</button></div>\n"
+    );
+}
+
+/// Plan RG-018A R11: with no toggle to hold the controls bar open, the
+/// focused skip link is drawn over the page, not pushed into its flow.
+#[test]
+fn a_palette_page_draws_the_skip_link_over_the_page() {
+    let wide = super::super::css::Wide {
+        title_height: 53.0,
+        radar_width: 670.0,
+        radar_height: 640.5,
+        legend_width: 306.817,
+    };
+    assert!(super::css(&wide, false).ends_with(SKIP_OVER_PAGE));
+    assert!(!super::css(&wide, true).contains(SKIP_OVER_PAGE));
 }

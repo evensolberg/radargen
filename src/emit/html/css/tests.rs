@@ -4,7 +4,8 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 
 use super::*;
-use crate::palette::{Palette, Theme};
+use crate::palette::file::parse;
+use crate::palette::{Colours, Palette, Theme};
 use crate::text::{FAMILY, Weight};
 
 /// A wide arrangement's parts, the PRD example's widths: a 976.817-unit
@@ -16,6 +17,7 @@ const WIDE: Wide = Wide {
     legend_width: 306.817,
 };
 const NARROW: f64 = 420.0;
+const BUILT_IN: Colours = Colours::BuiltIn(Theme::Light);
 
 /// `layout(&WIDE, NARROW)` in full: the body, the SVGs, the wide grid and
 /// its parts, the narrow cap, the default and the one query (FR-51, FR-69,
@@ -91,7 +93,11 @@ fn palettes_override_in_order() {
     ]
     .concat();
     // The forced-colours block follows (forced_colours_map_the_neutrals_…).
-    assert!(palettes().starts_with(&want), "{}", palettes());
+    assert!(
+        palettes(&BUILT_IN).starts_with(&want),
+        "{}",
+        palettes(&BUILT_IN)
+    );
     // The number inks are literals because the series agree (§5).
     let series = |theme| {
         Palette::built_in(theme)
@@ -204,7 +210,7 @@ fn legend_focus_is_unchanged() {
 fn the_stylesheet_requests_nothing_but_fonts() {
     let css = [
         font_faces(),
-        palettes(),
+        palettes(&BUILT_IN),
         layout(&WIDE, NARROW),
         indicators(),
         [VISUALLY_HIDDEN, HIDDEN_BOX].concat(),
@@ -224,7 +230,7 @@ fn the_stylesheet_requests_nothing_but_fonts() {
 /// after the themes, at their specificity, so it wins in every theme.
 #[test]
 fn forced_colours_map_the_neutrals_to_system_colours() {
-    let css = palettes();
+    let css = palettes(&BUILT_IN);
     let forced = concat!(
         "@media (forced-colors: active){:root,:root[data-theme]{",
         "--surface-1:Canvas;--surface-2:Canvas;--text-primary:CanvasText;",
@@ -268,4 +274,52 @@ fn hover_focus_and_selection_differ() {
         "selection wins over hover"
     );
     assert!(css.contains(CURSOR));
+}
+
+/// The sample file as a `--palette` file's colours.
+fn sample() -> Colours {
+    let text = include_str!("../../../../docs/product/palette.sample.css");
+    Colours::File(Box::new(parse(text).expect("the sample parses")))
+}
+
+/// §6.6: one set, no system preference or theme blocks, and forced colours
+/// kept (plan RG-018A, Ruling 5).
+#[test]
+fn a_palette_file_gives_one_set() {
+    let css = palettes(&sample());
+    let light = declarations(&Palette::built_in(Theme::Light));
+    assert!(
+        css.starts_with(&format!(":root{{color-scheme:light;{light}}}\n")),
+        "{css}"
+    );
+    for absent in [
+        "prefers-color-scheme",
+        ":root:not([",
+        ":root[data-theme=\"dark\"]",
+    ] {
+        assert!(!css.contains(absent), "{absent}: {css}");
+    }
+    assert!(css.contains("@media (forced-colors: active)"), "{css}");
+}
+
+/// Plan RG-018A Ruling 4: a dark palette's page says so.
+#[test]
+fn a_dark_palette_declares_a_dark_scheme() {
+    let dark = Colours::File(Box::new(Palette::built_in(Theme::Dark)));
+    assert!(palettes(&dark).starts_with(":root{color-scheme:dark;--surface-1:#15181D;"));
+}
+
+/// NFR-6 context 5, pinned where the values are written (R21): a palette
+/// page's colour block holds only the characters its template and `Hex`
+/// produce.
+#[test]
+fn a_palette_block_holds_only_safe_characters() {
+    let css = palettes(&sample());
+    let colours = css.split("@media").next().unwrap_or_default();
+    assert!(
+        colours
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "#:;{}-\n".contains(c)),
+        "{colours}"
+    );
 }

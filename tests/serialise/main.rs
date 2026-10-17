@@ -17,6 +17,7 @@ mod hostile;
 mod html5;
 mod identity;
 mod page;
+mod palette_page;
 mod script;
 mod table;
 mod vocabulary;
@@ -25,7 +26,7 @@ use radargen::emit::html::{Page, page};
 use radargen::layout::arrange::{Arrangement, Blocks, WideParts, arrange, wide_parts};
 use radargen::model::Catalogue;
 use radargen::order::{Plotted, resolve};
-use radargen::palette::Palette;
+use radargen::palette::{Colours, Palette, Theme};
 use radargen::svg::Document;
 use radargen::svg::Target;
 use radargen::text::Fonts;
@@ -43,13 +44,35 @@ struct Built {
 impl Built {
     /// The page for `wide` and `narrow`, with this catalogue's table.
     fn page_of(&self, wide: &WideParts, narrow: &Document, title: Option<&str>) -> String {
+        self.page_in(wide, narrow, title, &Colours::BuiltIn(Theme::Light))
+    }
+
+    /// As [`Built::page_of`], in `colours`.
+    fn page_in(
+        &self,
+        wide: &WideParts,
+        narrow: &Document,
+        title: Option<&str>,
+        colours: &Colours,
+    ) -> String {
         page(&Page {
             wide,
             narrow,
             catalogue: &self.catalogue,
             plotted: &self.plotted,
             title,
+            colours,
         })
+    }
+
+    /// The page for both arrangements of these blocks, in `colours`.
+    fn page_with(&self, colours: &Colours) -> String {
+        self.page_in(
+            &wide_parts(&self.blocks),
+            &arrange(Arrangement::Narrow, &self.blocks),
+            None,
+            colours,
+        )
     }
 
     /// The page for both arrangements of these blocks.

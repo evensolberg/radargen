@@ -5,6 +5,7 @@
 //! literal for SVG and PNG, which are fixed snapshots and whose consumers do
 //! not resolve custom properties.
 
+use std::borrow::Cow;
 use std::fmt;
 
 pub mod file;
@@ -98,6 +99,46 @@ pub enum Theme {
     Light,
     /// The dark palette: pale ink on near-black grounds.
     Dark,
+}
+
+/// The colours a run draws with (FR-56, FR-59).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Colours {
+    /// The built-in palettes. `--theme` picks the one a PNG or SVG is bound
+    /// to; an HTML page carries both, and a toggle (FR-56).
+    BuiltIn(Theme),
+    /// A `--palette` file: one set for every format, and no toggle (§6.6).
+    /// Boxed: a palette is far larger than a theme.
+    File(Box<Palette>),
+}
+
+impl Colours {
+    /// The palette a PNG or SVG is bound to.
+    #[must_use]
+    pub fn snapshot(&self) -> Cow<'_, Palette> {
+        match self {
+            Self::BuiltIn(theme) => Cow::Owned(Palette::built_in(*theme)),
+            Self::File(palette) => Cow::Borrowed(palette),
+        }
+    }
+
+    /// The palette an HTML page names its roles and cycles its series by:
+    /// the built-in light one, whose series both themes share, or the
+    /// file's, with its own length (FR-67, FR-87).
+    #[must_use]
+    pub fn interactive(&self) -> Cow<'_, Palette> {
+        match self {
+            Self::BuiltIn(_) => Cow::Owned(Palette::built_in(Theme::Light)),
+            Self::File(palette) => Cow::Borrowed(palette),
+        }
+    }
+
+    /// Whether an HTML page offers the theme toggle: only with both built-in
+    /// themes to switch between (FR-56, §6.6).
+    #[must_use]
+    pub const fn has_toggle(&self) -> bool {
+        matches!(self, Self::BuiltIn(_))
+    }
 }
 
 /// FR-81: shared by both built-in themes; most-separable first, so every prefix
@@ -520,6 +561,22 @@ mod tests {
     fn ink_is_whichever_contrasts_more_not_a_threshold() {
         assert_eq!(ink_for(&hex("#7A7A7A")), "#FFFFFF");
         assert_eq!(ink_for(&hex("#2F9626")), "#16191F");
+    }
+
+    /// FR-56, §6.6: the built-in themes give a snapshot per theme and an HTML
+    /// page both themes and a toggle; a file gives its one set everywhere.
+    #[test]
+    fn colours_bind_per_format() {
+        let dark = Colours::BuiltIn(Theme::Dark);
+        assert_eq!(*dark.snapshot(), Palette::built_in(Theme::Dark));
+        assert_eq!(*dark.interactive(), Palette::built_in(Theme::Light));
+        assert!(dark.has_toggle());
+        let series = ["#000001", "#000002"].map(hex);
+        let file = Palette::new(light_neutrals(), series.into()).expect("a palette");
+        let colours = Colours::File(Box::new(file.clone()));
+        assert_eq!(*colours.snapshot(), file);
+        assert_eq!(*colours.interactive(), file);
+        assert!(!colours.has_toggle());
     }
 
     fn hex(value: &str) -> Hex {

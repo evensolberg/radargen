@@ -13,7 +13,7 @@ use base64::engine::general_purpose::STANDARD;
 
 use crate::layout::arrange::WideParts;
 use crate::num::fmt_coord;
-use crate::palette::{Neutral, Palette, Theme};
+use crate::palette::{Colours, Neutral, Palette, Theme};
 use crate::style::{FOCUS_RING_STROKE, WIDE_MIN_SCALE, breakpoint_px};
 use crate::svg::serialise::{
     DATA_FOCUS_RING, DATA_HIT, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR,
@@ -223,37 +223,47 @@ fn face(woff2: &[u8], weight: Weight) -> String {
     .concat()
 }
 
-/// Both palettes (FR-56, architecture §5): light by default, dark when the
-/// viewer prefers it unless the page is set light, and dark when the page is
-/// set dark. The theme toggle (FR-56) sets `data-theme` on `<html>`.
+/// A `--palette` page's one set (§6.6): `color-scheme` from the palette
+/// (plan RG-018A, Ruling 4), then its declarations.
+const FILE_OPEN: &str = ":root{color-scheme:";
+
+/// The page's colours (FR-56, architecture §5). Built in: light by default,
+/// dark when the viewer prefers it unless the page is set light, and dark
+/// when the page is set dark; the theme toggle sets `data-theme` on
+/// `<html>`. From a `--palette` file: that one set, with no preference and
+/// no toggle (§6.6). Forced colours apply to both (rg-min, Ruling 5).
 ///
-/// Values are written as `Palette` holds them: they are validated when a
-/// palette is built (crumb `rg-cdo`), which guards this context and the SVG
-/// attributes alike (NFR-6).
-pub(super) fn palettes() -> String {
-    let light = declarations(&Palette::built_in(Theme::Light));
-    let dark = declarations(&Palette::built_in(Theme::Dark));
-    [
-        LIGHT_OPEN,
-        &light,
-        CLOSE,
-        DARK_PREFERRED_OPEN,
-        DATA_THEME,
-        NOT_LIGHT,
-        &dark,
-        CLOSE_TWICE,
-        DARK_CHOSEN_OPEN,
-        DATA_THEME,
-        DARK_CHOSEN,
-        &dark,
-        CLOSE,
-        FORCED_OPEN,
-        DATA_THEME,
-        FORCED_REST,
-        &forced(),
-        CLOSE_TWICE,
-    ]
-    .concat()
+/// Values are written as `Palette` holds them, each a `Hex`, which admits
+/// only `#RRGGBB` (NFR-6 context 5).
+pub(super) fn palettes(colours: &Colours) -> String {
+    let forced = [FORCED_OPEN, DATA_THEME, FORCED_REST, &forced(), CLOSE_TWICE].concat();
+    match colours {
+        Colours::BuiltIn(_) => {
+            let light = declarations(&Palette::built_in(Theme::Light));
+            let dark = declarations(&Palette::built_in(Theme::Dark));
+            [
+                LIGHT_OPEN,
+                &light,
+                CLOSE,
+                DARK_PREFERRED_OPEN,
+                DATA_THEME,
+                NOT_LIGHT,
+                &dark,
+                CLOSE_TWICE,
+                DARK_CHOSEN_OPEN,
+                DATA_THEME,
+                DARK_CHOSEN,
+                &dark,
+                CLOSE,
+                &forced,
+            ]
+            .concat()
+        }
+        Colours::File(palette) => {
+            let scheme = if palette.is_dark() { "dark;" } else { "light;" };
+            [FILE_OPEN, scheme, &declarations(palette), CLOSE, &forced].concat()
+        }
+    }
 }
 
 /// Forced colours (Windows high contrast) remap neither SVG paint nor these
