@@ -37,27 +37,35 @@ pub const NUMBER_CENTRING: f64 = f64::midpoint(TEXT_ASCENT, -TEXT_DESCENT);
 /// The glyph a face draws for a character it lacks: the missing-glyph box.
 const NOTDEF: u32 = 0;
 
-/// Unicode's `Default_Ignorable_Code_Point`: characters a renderer draws as
-/// nothing when it cannot draw them, so lacking a glyph for one is not a
-/// box. The format characters (Cf), then the rest of
-/// `DerivedCoreProperties.txt`'s list, which is mostly fillers, variation
-/// selectors and reserved ranges.
-fn ignorable(c: char) -> bool {
-    use unicode_properties::{GeneralCategory, UnicodeGeneralCategory as _};
-    c.general_category() == GeneralCategory::Format
-        || matches!(
-            c,
-            '\u{034f}'
-                | '\u{115f}'..='\u{1160}'
-                | '\u{17b4}'..='\u{17b5}'
-                | '\u{180b}'..='\u{180f}'
-                | '\u{2065}'
-                | '\u{3164}'
-                | '\u{fe00}'..='\u{fe0f}'
-                | '\u{ffa0}'
-                | '\u{fff0}'..='\u{fff8}'
-                | '\u{e0000}'..='\u{e0fff}'
-        )
+/// Unicode's `Default_Ignorable_Code_Point` (`DerivedCoreProperties.txt`,
+/// unchanged since Unicode 14): characters a renderer draws as nothing when
+/// it cannot draw them, so lacking a glyph for one is not a box. Listed
+/// rather than taken as every format character (Cf), since some Cf are
+/// visible: the prepended concatenation marks U+0600–U+0605, U+06DD,
+/// U+070F, U+08E2, U+110BD and U+110CD, and the annotation characters
+/// U+FFF9–U+FFFB, all of which a box replaces. `harfrust` holds the same
+/// list but does not export it.
+const fn ignorable(c: char) -> bool {
+    matches!(
+        c,
+        '\u{ad}'
+            | '\u{34f}'
+            | '\u{61c}'
+            | '\u{115f}'..='\u{1160}'
+            | '\u{17b4}'..='\u{17b5}'
+            | '\u{180b}'..='\u{180f}'
+            | '\u{200b}'..='\u{200f}'
+            | '\u{202a}'..='\u{202e}'
+            | '\u{2060}'..='\u{206f}'
+            | '\u{3164}'
+            | '\u{fe00}'..='\u{fe0f}'
+            | '\u{feff}'
+            | '\u{ffa0}'
+            | '\u{fff0}'..='\u{fff8}'
+            | '\u{1bca0}'..='\u{1bca3}'
+            | '\u{1d173}'..='\u{1d17a}'
+            | '\u{e0000}'..='\u{e0fff}'
+    )
 }
 
 /// FR-85 pins exactly two weights; FR-35 separates the legend's levels with
@@ -271,33 +279,45 @@ impl<'a> FontMetrics<'a> {
     /// draw as base and mark. Only a cluster holding `.notdef` lacks
     /// anything, and within it the characters the cmap does not map are the
     /// ones named, less the default-ignorable ones, which draw nothing by
-    /// design. A cluster whose every character is mapped (the shaper chose
-    /// `.notdef` anyway) names its first.
+    /// design.
+    ///
+    /// # Panics
+    ///
+    /// If the shaper's clusters are not ascending byte offsets on `text`'s
+    /// character boundaries, which left-to-right shaping guarantees.
     #[must_use]
+    // qual:allow(complexity, error_handling) reason: "the documented # Panics: left-to-right clusters are ascending char boundaries"
     pub fn missing(&self, text: &str) -> Vec<char> {
         use skrifa::MetadataProvider as _;
-        let shaped = self.shape(text);
         let charmap = self.font.charmap();
-        let at = |cluster: u32| usize::try_from(cluster).unwrap_or(text.len());
-        let mut missing = Vec::new();
-        for glyph in shaped.iter().filter(|g| g.id == NOTDEF) {
-            // Left to right, clusters ascend; the next larger one ends this.
-            let end = shaped
-                .iter()
-                .map(|g| g.cluster)
-                .filter(|&c| c > glyph.cluster)
-                .min()
-                .map_or(text.len(), at);
-            let cluster = text.get(at(glyph.cluster)..end).unwrap_or_default();
-            let mut lacking: Vec<char> = cluster
-                .chars()
-                .filter(|&c| charmap.map(c).is_none() && !ignorable(c))
-                .collect();
-            if lacking.is_empty() {
-                lacking.extend(cluster.chars().next());
+        let offset = |cluster: u32| {
+            usize::try_from(cluster)
+                .expect("a cluster is a byte offset into text, so fits in usize")
+        };
+        // Each cluster's start, and whether any of its glyphs is .notdef.
+        // Shaped left to right, clusters ascend and each is contiguous, so
+        // one pass finds them and the next cluster's start ends this one.
+        let mut clusters: Vec<(usize, bool)> = Vec::new();
+        for glyph in self.shape(text) {
+            let start = offset(glyph.cluster);
+            let notdef = glyph.id == NOTDEF;
+            match clusters.last_mut() {
+                Some((last, any)) if *last == start => *any |= notdef,
+                _ => clusters.push((start, notdef)),
             }
-            for c in lacking {
-                if !missing.contains(&c) {
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        let mut missing = Vec::new();
+        for (i, &(start, notdef)) in clusters.iter().enumerate() {
+            if !notdef {
+                continue;
+            }
+            let end = clusters.get(i + 1).map_or(text.len(), |&(next, _)| next);
+            let cluster = text
+                .get(start..end)
+                .expect("left-to-right clusters ascend and start on char boundaries");
+            for c in cluster.chars() {
+                if charmap.map(c).is_none() && !ignorable(c) && seen.insert(c) {
                     missing.push(c);
                 }
             }
@@ -753,6 +773,10 @@ mod tests {
             "Русский язык",
             "a\u{200d}b a\u{200c}b a\u{fe0f}b a\u{ad}b a\u{2060}b",
             "\u{a0}·\u{2009}–—",
+            // Not in the cmap, but canonically equivalent to letters that
+            // are: the shaper decomposes them, a cmap lookup would not.
+            "\u{212b}ngstr\u{f6}m",
+            "5 \u{2126}",
         ] {
             let missing = face.missing(text);
             assert!(missing.is_empty(), "{text:?}: {missing:?}");
@@ -768,6 +792,31 @@ mod tests {
         assert_eq!(face.missing("中\u{fe0f}"), ['中']);
         assert_eq!(face.missing("q\u{1ab0}"), ['\u{1ab0}']);
         assert_eq!(face.missing("\u{1ab0}"), ['\u{1ab0}']);
+        // A cluster ends where the next begins: the ohm sign after it is
+        // drawn, as omega, though the cmap lacks it.
+        assert_eq!(face.missing("中\u{2126}"), ['中']);
+        // A prepended concatenation mark is a visible format character, not
+        // a default-ignorable one, so it is named, alone or with a mark it
+        // shares a cluster with.
+        assert_eq!(face.missing("\u{600}"), ['\u{600}']);
+        assert_eq!(face.missing("\u{600}\u{1ab0}"), ['\u{600}', '\u{1ab0}']);
+        assert_eq!(face.missing("\u{6dd}\u{1ab0}"), ['\u{6dd}', '\u{1ab0}']);
+    }
+
+    /// FR-104 on a long name is linear: no cluster's end is searched for
+    /// from every glyph, and no character is compared with every other.
+    #[test]
+    fn missing_runs_in_linear_time() {
+        let fonts = Fonts::embedded().expect("loads");
+        let text: String = ('\u{4e00}'..'\u{9fa5}').collect();
+        let start = std::time::Instant::now();
+        let missing = fonts.missing(&text);
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(5),
+            "{:?}",
+            start.elapsed()
+        );
+        assert_eq!(missing.len(), text.chars().count(), "every one is lacking");
     }
 
     /// A shaped glyph has contours; a space has none; an id the face lacks

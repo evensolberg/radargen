@@ -326,10 +326,9 @@ struct Header {
     /// Per header position, the index of its named column in `columns`, or
     /// `None` for an unnamed one (FR-93).
     slots: Vec<Option<usize>>,
-    columns: Vec<Column>,
-    /// The header positions of the named columns, in order: where each
+    /// The named columns; each one's [`Column::position`] is where its
     /// `Item::cells` entry is read from.
-    cell_positions: Vec<usize>,
+    columns: Vec<Column>,
     /// FR-93's unnamed columns.
     unnamed: Vec<usize>,
 }
@@ -338,7 +337,6 @@ impl Header {
     fn of(names: &[String]) -> Self {
         let mut slots = Vec::with_capacity(names.len());
         let mut columns = Vec::new();
-        let mut cell_positions = Vec::new();
         let mut unnamed = Vec::new();
         for (p, name) in names.iter().enumerate() {
             let key = normalise(name);
@@ -348,7 +346,6 @@ impl Header {
                 continue;
             }
             slots.push(Some(columns.len()));
-            cell_positions.push(p);
             columns.push(Column {
                 heading: name.clone(),
                 kind: ColumnKind::of(&key),
@@ -358,7 +355,6 @@ impl Header {
         Self {
             slots,
             columns,
-            cell_positions,
             unnamed,
         }
     }
@@ -552,11 +548,12 @@ impl Builder {
         // hand-built record still gives one cell per named column.
         let cells = self
             .header
-            .cell_positions
+            .columns
             .iter()
+            .map(|column| column.position)
             // The ring cell is shown for an unplotted row (FR-17), so it is
             // stored tidied as the declared rings are (D-89).
-            .map(|&p| {
+            .map(|p| {
                 if p == self.at.ring {
                     tidy(at(p))
                 } else {
