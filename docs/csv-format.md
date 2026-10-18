@@ -13,7 +13,7 @@ created_date: 2026-10-12
 synopsis: "How to write the CSV radargen reads: the four required columns and seven optional ones, what each accepts, what is a hard error and what only warns, and how the file must be saved."
 status: active
 type: Guide
-revision: "1.4"
+revision: "1.5"
 review_date:
 reviewed_by: []
 completed_date:
@@ -180,10 +180,10 @@ A web address for the item, such as the product's home page: `https://www.terraf
 - a value under an unnamed column;
 - more than six quadrants;
 - a band with more items than fit without overlapping;
-- a quadrant or ring name long enough to make the phone layout too wide;
-- a quadrant or ring name long enough that a common laptop gets the phone layout too (HTML only).
+- a quadrant name or `--rings` entry long enough to make the narrow layout too wide (HTML only);
+- a quadrant name or `--rings` entry long enough that a common laptop gets the narrow layout (HTML only).
 
-Every message about a row names its CSV line, and the column where there is one. Messages about the radar as a whole (too many quadrants, an overfull band, a too-wide phone layout, a page too wide for a laptop) name what they count instead and print first. Problems with `--title`, `--subtitle` or `--rings` name the flag. Messages go to the terminal's error output and are grouped, so forty rows with the same typo make one line.
+Every message about a row names its CSV line, and the column where there is one. Messages about the radar as a whole (too many quadrants, an overfull band, a too-wide narrow layout, a page that gives laptops the narrow layout) name what they count instead and print first. Problems with `--title`, `--subtitle` or `--rings` name the flag. Messages go to the terminal's error output and are grouped, so forty rows with the same typo make one line.
 
 ## Example
 
@@ -204,3 +204,4 @@ Kubernetes,Platforms,Adopt,"Container orchestration.",default,Containers,"Defaul
 | 1.2 | 2026-10-12 | Line breaks in cells (FR-97). |
 | 1.3 | 2026-10-12 | The table view is live (FR-41, FR-78, D-80). |
 | 1.4 | 2026-10-12 | The detail panel is live (FR-38). |
+| 1.5 | 2026-10-17 | The warning for a page that gives laptops the narrow layout (FR-105); "narrow layout" for the phone layout; both layout warnings marked HTML only. |
