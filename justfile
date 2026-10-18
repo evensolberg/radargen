@@ -203,7 +203,9 @@ interaction-only:
 # its legend heading wraps, declared with a doubled space (rg-cuj): a long
 # ring wraps without widening the radar, which a long quadrant would (D-71).
 # It takes --table all, so the audit reaches the unplotted row and its flag
-# (FR-106).
+# (FR-106). Two default pages follow: table-wide.csv, which drops an
+# unplotted row and an extra column, and a page with nothing plotted,
+# whose table holds only its empty-state row.
 a11y-audit: release-build a11y-audit-only
 
 [private]
@@ -216,7 +218,10 @@ a11y-audit-only:
     { cat tests/fixtures/interaction.csv; printf 'Delta Lake,Platforms,%s,Lakehouse storage.,,,\n' "$ring"; } > "$out/a11y-audit.csv"
     ./target/release/radargen "$out/a11y-audit.csv" -o "$out/a11y-audit.html" --rings "Assess,Trial,Adopt,$ring" --table all 2>/dev/null
     ./target/release/radargen tests/fixtures/d71-wide.csv -o "$out/d71.html" 2>/dev/null
-    node scripts/a11y-audit.mjs "$out/a11y-audit.html" "$out/d71.html"
+    ./target/release/radargen tests/fixtures/table-wide.csv -o "$out/radar.html" 2>/dev/null
+    printf 'name,quadrant,ring,description\nLegacy Bus,Tools,Rejected,Retired.\n' > "$out/empty.csv"
+    ./target/release/radargen "$out/empty.csv" -o "$out/empty.html" 2>/dev/null
+    node scripts/a11y-audit.mjs "$out/a11y-audit.html" "$out/d71.html" "$out/radar.html" "$out/empty.html"
 
 # Screenshots for the release's visual sign-off (RG-015C): each fixture at
 # five widths, three colour modes, panel closed and open. Looked at, not
