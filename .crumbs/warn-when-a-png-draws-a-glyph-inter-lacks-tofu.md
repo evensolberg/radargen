@@ -1,7 +1,7 @@
 ---
 id: rg-o25
 title: Warn when a PNG draws a glyph Inter lacks (tofu)
-status: in_progress
+status: closed
 type: idea
 priority: 2
 tags:
@@ -9,6 +9,7 @@ tags:
 - a11y
 created: 2026-10-16
 updated: 2026-10-17
+closed_reason: PNG/SVG warn per drawn text the Inter subset lacks glyphs for (FR-104, D-93)
 phase: v1.x
 ---
 
@@ -19,3 +20,5 @@ From the PR 16 accessibility plan review: names in scripts the bundled Inter sub
 [2026-10-17] Decided (user, 2026-10-17): one warning per name with a glyph Inter lacks, PNG and SVG only; minor bump.
 
 [start] 2026-10-17 20:02:00
+
+[stop]  2026-10-17 20:16:35  14m 35s
