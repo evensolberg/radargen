@@ -16,28 +16,30 @@ const FACTOR: usize = 8;
 /// bound sits between them, with room for noise either way.
 const BOUND: f64 = 24.0;
 
-/// Each size is timed this many times and the fastest run kept, so one
+/// Each size is timed this many times and the fastest run kept, so a
 /// preempted run does not decide the result.
-const RUNS: usize = 3;
+const RUNS: usize = 5;
 
 /// Asserts that `work` on `make(n * FACTOR)` takes less than `BOUND` times
 /// as long as on `make(n)`. Only `work` is timed. `n` should make the
 /// smaller run take some milliseconds, so timer resolution does not
 /// dominate it.
+///
+/// The two sizes' runs are interleaved, small then large, so a burst of
+/// load from tests running beside this one slows both sizes' runs rather
+/// than all of one size's.
 pub fn assert_linear<T>(n: usize, make: impl Fn(usize) -> T, work: impl Fn(&T)) {
-    let best = |size: usize| -> Duration {
-        let input = make(size);
-        (0..RUNS)
-            .map(|_| {
-                let start = Instant::now();
-                work(black_box(&input));
-                start.elapsed()
-            })
-            .min()
-            .expect("RUNS is not zero")
+    let time = |input: &T| -> Duration {
+        let start = Instant::now();
+        work(black_box(input));
+        start.elapsed()
     };
-    let small = best(n);
-    let large = best(n * FACTOR);
+    let (small_input, large_input) = (make(n), make(n * FACTOR));
+    let (mut small, mut large) = (Duration::MAX, Duration::MAX);
+    for _ in 0..RUNS {
+        small = small.min(time(&small_input));
+        large = large.min(time(&large_input));
+    }
     let ratio = large.as_secs_f64() / small.as_secs_f64().max(f64::MIN_POSITIVE);
     assert!(
         ratio < BOUND,

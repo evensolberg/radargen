@@ -1,14 +1,15 @@
 ---
 id: rg-wl7
 title: Wrapping a long unbreakable word shapes every prefix (quadratic)
-status: open
+status: closed
 type: bug
 priority: 3
 tags:
 - text
 - performance
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-18
+closed_reason: Bisected the fitting prefix; break is now linear in the word
 phase: ''
 ---
 

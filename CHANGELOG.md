@@ -1,20 +1,14 @@
+## [1.13.1] - 2026-10-18
+
+### 🐛 Bug Fixes
+
+- *(text)* Bisect a long word's break point instead of scanning (rg-wl7)
+- *(html)* Allow for the controls bar only where it shows (rg-ft5)
 ## [1.13.0] - 2026-10-18
 
 ### 🚀 Features
 
-- *(columns)* Warn when a header nearly matches a known column
-
-### 🐛 Bug Fixes
-
-- *(columns)* Allow two edits only for a header longer than the name
-
-### 📚 Documentation
-
-- *(prd)* FR-108 and D-98, near-miss column headers (0.97)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(crumbs)* Close rg-prs
+- *(columns)* Warn when a header nearly matches a known column (1.13.0) (#131)
 ## [1.12.1] - 2026-10-18
 
 ### 🐛 Bug Fixes

@@ -297,6 +297,27 @@ fn legend_button() -> String {
 /// specificity.
 pub(super) const PRINT_NO_CONTROLS: &str = "@media print{.page-controls{display:none}}\n";
 
+/// The page controls' height, which the radar's cap subtracts (rg-247,
+/// css.rs's `CAP_UNDER`): an icon button, 1.25em with .4em padding all
+/// round and a 1px border, and its .5em block margin (`BUTTON_OPEN`), which
+/// the flex bar contains. In rem, the size the buttons are drawn at,
+/// wherever the cap is reused; the skip link is drawn over the page and
+/// adds nothing. The tests hold the four values this mirrors.
+///
+/// rg-ft5: set only where the bar shows. Every control is written hidden
+/// and only the script, which marks the root `.js`, reveals one; the bar is
+/// not printed (`PRINT_NO_CONTROLS`).
+pub(super) const BAR_HEIGHT: &str =
+    "@media not print{:root.js{--controls-height:calc(3.05rem + 2px)}}\n";
+
+/// [`BAR_HEIGHT`] on a page whose script reveals a control, else nothing.
+/// The script reveals the theme toggle wherever there is one, and the
+/// legend button and skip link only when something is plotted, so a
+/// `--palette` page with nothing plotted shows no bar.
+pub(super) const fn bar_height(shows: bool) -> &'static str {
+    if shows { BAR_HEIGHT } else { "" }
+}
+
 /// The controls' rules, capped and inset like the table view.
 /// Plan RG-018A R11: the skip link is a text button a little taller than
 /// the icon buttons, so in the bar's flow its focus would push the page

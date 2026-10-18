@@ -467,14 +467,21 @@ impl Column<'_> {
 
     /// FR-46: push the column-wide pieces of a token wider than the column,
     /// in order, and return the tail that fits. Nothing is dropped.
+    ///
+    /// rg-wl7: the tail is measured whole only once it is as short as the
+    /// piece that would be cut from it, not on every pass: measuring it
+    /// whole each time made a long word's break quadratic. Since widths
+    /// grow with a prefix's length, a tail fits whole exactly when its
+    /// fitting prefix is all of it, so this cuts where the plain
+    /// `while self.overflows(rest)` loop did.
     // qual:allow(complexity, error_handling) reason: "fitting_prefix returns a char boundary, so split_at_checked cannot fail"
     fn break_token<'w>(&self, token: &'w str, lines: &mut Vec<String>) -> &'w str {
         let mut rest = token;
-        while self.overflows(rest) {
+        loop {
             let cut = self.fitting_prefix(rest);
-            // Only an empty `rest` has no first character, and it overflows
-            // only a negative width: stop rather than loop.
-            if cut == 0 {
+            // Only an empty `rest` has no first character: stop rather than
+            // loop, whether or not it overflows a negative width.
+            if cut == 0 || (cut == rest.len() && !self.overflows(rest)) {
                 break;
             }
             let (head, tail) = rest.split_at_checked(cut).expect(
@@ -489,17 +496,36 @@ impl Column<'_> {
     /// The byte length of `token`'s longest prefix that fits — or of its
     /// first character when not even that fits, so a column narrower than
     /// one glyph still makes progress. Zero only for an empty token.
+    ///
+    /// rg-wl7: found by galloping then bisecting over the prefixes' char
+    /// ends, so a line costs a logarithmic number of measures of prefixes
+    /// at most about twice its length, not one measure of every prefix.
+    /// That finds the scan's answer, the last prefix before the first that
+    /// overflows, because overflowing is monotone in a prefix's length: a
+    /// longer prefix adds advances, which are never negative; the kern a
+    /// glyph adds against the one before it is smaller than its own
+    /// advance, so adding it never narrows the prefix; a combining
+    /// mark adds no advance and no letter-spacing gap, as it shares its
+    /// base's cluster; and letter-spacing is never negative.
     fn fitting_prefix(&self, token: &str) -> usize {
-        let first = token.chars().next().map_or(0, char::len_utf8);
-        token
-            .char_indices()
-            .map(|(i, c)| i + c.len_utf8())
-            .take_while(|&end| {
-                token
-                    .get(..end)
-                    .is_some_and(|prefix| !self.overflows(prefix))
-            })
-            .last()
+        let fits = |end: usize| token.get(..end).is_some_and(|p| !self.overflows(p));
+        let mut ends = token.char_indices().map(|(i, c)| i + c.len_utf8());
+        // Gallop: take the char ends up to the first of the 1st, 2nd, 4th,
+        // … prefixes that overflows, or all of them.
+        let mut seen: Vec<usize> = Vec::new();
+        let mut probe = 1;
+        loop {
+            seen.extend(ends.by_ref().take(probe - seen.len()));
+            if seen.len() < probe || seen.last().is_some_and(|&end| !fits(end)) {
+                break;
+            }
+            probe *= 2;
+        }
+        let fitting = seen.partition_point(|&end| fits(end));
+        let first = seen.first().copied().unwrap_or(0);
+        fitting
+            .checked_sub(1)
+            .and_then(|last| seen.get(last).copied())
             .unwrap_or(first)
     }
 }
@@ -800,5 +826,121 @@ mod tests {
         assert!(matches!(ink.last(), Some(Segment::Close)), "{ink:?}");
         assert_eq!(face.outline(space.id).expect("draws"), []);
         assert!(face.outline(u32::MAX).is_err(), "no such glyph");
+    }
+
+    /// The linear scan `Column::fitting_prefix` replaced (rg-wl7), kept as
+    /// the reference its bisection must agree with.
+    fn reference_fitting_prefix(column: &Column<'_>, token: &str) -> usize {
+        let first = token.chars().next().map_or(0, char::len_utf8);
+        token
+            .char_indices()
+            .map(|(i, c)| i + c.len_utf8())
+            .take_while(|&end| {
+                token
+                    .get(..end)
+                    .is_some_and(|prefix| !column.overflows(prefix))
+            })
+            .last()
+            .unwrap_or(first)
+    }
+
+    /// The `Column::break_token` loop rg-wl7 replaced, over the reference
+    /// scan.
+    fn reference_break_token<'w>(
+        column: &Column<'_>,
+        token: &'w str,
+        lines: &mut Vec<String>,
+    ) -> &'w str {
+        let mut rest = token;
+        while column.overflows(rest) {
+            let cut = reference_fitting_prefix(column, rest);
+            if cut == 0 {
+                break;
+            }
+            let (head, tail) = rest.split_at_checked(cut).expect("a char boundary");
+            lines.push(head.to_string());
+            rest = tail;
+        }
+        rest
+    }
+
+    /// rg-wl7: the bisected break cuts every token where the linear scan
+    /// did, across kerned pairs, combining marks, ligature candidates,
+    /// characters the subset lacks, both weights, letter-spacing, and
+    /// columns from narrower than one glyph to wider than the token. The
+    /// break itself measures every tail it cuts.
+    #[test]
+    fn breaking_a_token_matches_the_linear_scan() {
+        let fonts = Fonts::embedded().expect("loads");
+        let tokens = [
+            "",
+            "W",
+            "Kubernetes",
+            "AVAVAVAWAWAWTyTyTo.Wa.",
+            "Cafe\u{301}Zu\u{308}richA\u{300}\u{301}e\u{301}\u{302}\u{303}",
+            "->=>!=<=>>--||ffifflfi",
+            "Infrastructure-as-Code/Platform_Engineering",
+            "中文Kafka🙂عربي\u{a0}·–—",
+            "Tie\u{302}\u{301}ngVie\u{323}\u{302}tΕλληνικάРусский",
+            "llllllllllllllllllllllllllllll",
+        ];
+        let mut checked = 0_usize;
+        for weight in [Weight::Regular, Weight::SemiBold] {
+            let face = fonts.face(weight);
+            for spacing in [0.0, 1.5] {
+                let width = |t: &str| face.measure(t, 12.5, spacing);
+                for max_width in [-1, 0, 1, 2, 3, 5, 8, 12].map(|w| f64::from(w) * 25.0) {
+                    let column = Column {
+                        max_width,
+                        width: &width,
+                    };
+                    for token in tokens {
+                        assert_eq!(
+                            column.fitting_prefix(token),
+                            reference_fitting_prefix(&column, token),
+                            "{weight:?} {spacing} {max_width}: {token:?}"
+                        );
+                        let (mut new, mut old) = (Vec::new(), Vec::new());
+                        let rest = column.break_token(token, &mut new);
+                        let reference = reference_break_token(&column, token, &mut old);
+                        assert_eq!(
+                            (new, rest),
+                            (old, reference),
+                            "{weight:?} {spacing} {max_width}: {token:?}"
+                        );
+                        checked += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(checked, 2 * 2 * 8 * 10, "every case ran");
+    }
+
+    /// rg-wl7: breaking a long word without break points measures a
+    /// number of characters linear in its length: neither the remaining
+    /// tail nor every prefix of a line is measured once per line. Counted,
+    /// not timed, so load cannot skew it. The old scan, kept as the
+    /// reference, measures far more, so the bound tells the two apart.
+    #[test]
+    fn breaking_a_long_word_measures_linearly_many_characters() {
+        let n = 1 << 12;
+        let word = "W".repeat(n);
+        let measured = std::cell::Cell::new(0_usize);
+        let width = |t: &str| {
+            let chars = t.chars().count();
+            measured.set(measured.get() + chars);
+            f64::from(u32::try_from(chars).expect("a test word is short"))
+        };
+        let lines = wrap_by(&word, 12.0, &width);
+        assert_eq!(lines.len(), n / 12 + 1, "{lines:?}");
+        let new = measured.replace(0);
+        let column = Column {
+            max_width: 12.0,
+            width: &width,
+        };
+        reference_break_token(&column, &word, &mut Vec::new());
+        let old = measured.get();
+        assert!(new < 16 * n, "{new} characters measured for {n}");
+        assert!(old > 16 * n, "the old scan measured only {old} for {n}");
     }
 }

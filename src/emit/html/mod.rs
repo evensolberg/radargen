@@ -138,6 +138,10 @@ pub fn page(input: &Page<'_>) -> String {
         css::HIDDEN_BOX,
         &table::css(&sizes),
         &chrome::css(&sizes, toggle),
+        // The bar shows what the script reveals: the toggle, and the
+        // legend button and skip link when the page has a legend row
+        // (script.js's `plotted`), which every plotted item draws.
+        chrome::bar_height(toggle || !plotted.items.is_empty()),
         BODY_OPEN,
         &chrome::main_open(&sizes),
         &chrome::controls(toggle, legend),

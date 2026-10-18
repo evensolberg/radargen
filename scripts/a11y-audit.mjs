@@ -492,9 +492,18 @@ async function forced(label) {
     await evaluate(`document.getElementById('detail').style.visibility = ''`);
     return shot.result.data;
   };
-  const system = await evaluate(SYSTEM_COLOURS);
-  const allowed = new Set(Object.entries(system).filter(([name]) => name !== 'Canvas').map(([, c]) => c));
-  const painted = (what, colour) => check(allowed.has(colour), `${label}: ${what} is painted in a system colour other than Canvas: ${colour}`);
+  // Highlight depends on the colour scheme: when this scenario presses the
+  // theme toggle it changes, rgba(5, 0, 73, 0.8) to rgba(55, 0, 110, 0.8)
+  // in Chromium, and Chromium leaves some SVG strokes styled before the
+  // press at the old value. Reading the colours again later does not help,
+  // so a mark may be painted in either: the system colours as the scenario
+  // starts or as the check runs.
+  const others = (system) => Object.entries(system).filter(([name]) => name !== 'Canvas').map(([, c]) => c);
+  const start = others(await evaluate(SYSTEM_COLOURS));
+  const painted = async (what, colour) => {
+    const allowed = new Set([...start, ...others(await evaluate(SYSTEM_COLOURS))]);
+    check(allowed.has(colour), `${label}: ${what} is painted in a system colour other than Canvas: ${colour}`);
+  };
   const marker = `${SHOWN}.querySelector('[data-marker]')`;
   const key = await evaluate(`${marker}.getAttribute('data-marker')`);
   const indicator = `${SHOWN}.querySelector('[data-marker-indicator="${key}"]')`;
@@ -511,32 +520,32 @@ async function forced(label) {
   const focusedToggle = await clip(toggle);
   await press('Enter');
   check((await clip(toggle)) !== focusedToggle, `${label}: a press repaints the toggle's icon`);
-  painted("the toggle's icon", await evaluate(`(() => { const icon = ${SHOWN_ICON}; return icon ? getComputedStyle(icon).stroke : 'no icon shown'; })()`));
-  painted("the legend button's icon", await evaluate(`(() => { const icon = ${shownIcon('.legend-toggle')}; return icon ? getComputedStyle(icon).stroke : 'no icon shown'; })()`));
+  await painted("the toggle's icon", await evaluate(`(() => { const icon = ${SHOWN_ICON}; return icon ? getComputedStyle(icon).stroke : 'no icon shown'; })()`));
+  await painted("the legend button's icon", await evaluate(`(() => { const icon = ${shownIcon('.legend-toggle')}; return icon ? getComputedStyle(icon).stroke : 'no icon shown'; })()`));
   // Focus: a marker's ring.
   await tabTo(marker);
   check((await clip(marker)) !== before.marker, `${label}: a focused marker's ring is painted`);
   const ring = `${indicator}.querySelector('[data-focus-ring] circle')`;
   check((await evaluate(`getComputedStyle(${indicator}.querySelector('[data-focus-ring]')).visibility`)) === 'visible', `${label}: the ring is visible`);
-  painted('the ring', await evaluate(`getComputedStyle(${ring}).stroke`));
+  await painted('the ring', await evaluate(`getComputedStyle(${ring}).stroke`));
   // Selection: the square, the bar, the table's border, the panel's border.
   await press('Enter');
   const square = `${indicator}.querySelector('[data-selection] rect')`;
   check((await evaluate(`getComputedStyle(${indicator}.querySelector('[data-selection]')).visibility`)) === 'visible', `${label}: the selection square is visible`);
-  painted('the selection square', await evaluate(`getComputedStyle(${square}).stroke`));
+  await painted('the selection square', await evaluate(`getComputedStyle(${square}).stroke`));
   check((await clip(row)) !== before.row, `${label}: a selected legend row's bar is painted`);
-  painted('the bar', await evaluate(`getComputedStyle(${row}.querySelector('[data-selection] rect')).fill`));
+  await painted('the bar', await evaluate(`getComputedStyle(${row}.querySelector('[data-selection] rect')).fill`));
   check((await clip(cell)) !== before.cell, `${label}: a selected table row is marked`);
-  painted("the table row's border", await evaluate(`getComputedStyle(${cell}).borderInlineStartColor`));
+  await painted("the table row's border", await evaluate(`getComputedStyle(${cell}).borderInlineStartColor`));
   check((await evaluate(`parseFloat(getComputedStyle(${cell}).borderInlineStartWidth)`)) >= 1, `${label}: the table row's border has width`);
   const panel = await evaluate(`(() => { const s = getComputedStyle(document.getElementById('detail')); return [s.borderTopColor, parseFloat(s.borderTopWidth), s.borderTopStyle]; })()`);
-  painted("the panel's border", panel[0]);
+  await painted("the panel's border", panel[0]);
   check(panel[1] >= 1 && panel[2] !== 'none', `${label}: the panel has a border: ${panel}`);
   // Hover: another marker's dashed square.
   const at = await evaluate(`(() => { const e = ${SHOWN}.querySelector('[data-marker="${other}"] circle'); e.scrollIntoView({ block: 'center' }); const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; })()`);
   await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y });
   check((await clip(otherIndicator)) !== before.other, `${label}: hover's dashes are painted`);
-  painted("hover's dashes", await evaluate(`getComputedStyle(${otherIndicator}.querySelector('[data-selection] rect')).stroke`));
+  await painted("hover's dashes", await evaluate(`getComputedStyle(${otherIndicator}.querySelector('[data-selection] rect')).stroke`));
   // Focus on a legend row: its outline.
   const otherRow = `${SHOWN}.querySelector('[data-legend-row="${other}"]')`;
   await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 1 });
@@ -544,7 +553,7 @@ async function forced(label) {
   await press('Escape');
   await tabTo(otherRow);
   check((await clip(otherRow)) !== rowBefore, `${label}: a focused legend row's outline is painted`);
-  painted("the legend row's outline", await evaluate(`getComputedStyle(${otherRow}.querySelector('[data-row-indicator] rect')).stroke`));
+  await painted("the legend row's outline", await evaluate(`getComputedStyle(${otherRow}.querySelector('[data-row-indicator] rect')).stroke`));
 }
 
 async function run(name, body) {
