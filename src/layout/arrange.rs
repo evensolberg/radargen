@@ -21,9 +21,10 @@ use crate::order::Plotted;
 use crate::palette::{Neutral, Role};
 use crate::style::{
     COLUMN_GAP, DOC_TOP, KEY_RULE_STROKE, KEY_TO_LEGEND, LEGEND_PANEL_INSET_X,
-    LEGEND_PANEL_INSETS_X, LEGEND_WIDE_DROP, MARGIN, NARROW_MAX_WIDTH, NARROW_MIN_SCALE,
-    NARROW_RADAR_COLUMN, NARROW_WIDTH, RADAR_INSET, RADAR_INSETS, RADAR_LABEL_PAD, breakpoint_px,
-    breakpoint_shows_on_laptops, wide_shows_on_laptops,
+    LEGEND_PANEL_INSETS_X, LEGEND_WIDE_DROP, LEGEND_WIDTH_MAX, MARGIN, MIN_RADAR_WIDTH,
+    NARROW_MAX_WIDTH, NARROW_MIN_SCALE, NARROW_RADAR_COLUMN, NARROW_WIDTH, RADAR_INSET,
+    RADAR_INSETS, RADAR_LABEL_PAD, WIDE_MIN_SCALE, breakpoint_px, breakpoint_shows_on_laptops,
+    wide_shows_on_laptops,
 };
 use crate::svg::{Document, Group, Node, Paint, Point, Semantics};
 use crate::text::Fonts;
@@ -178,7 +179,9 @@ fn part(width: f64, height: f64, origin: Point, children: Vec<Node>) -> Document
 /// cut at the radar's right edge and at the key's top rule.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WideParts {
-    /// The title block, across the whole width.
+    /// The title block, as wide as the radar: the title wraps at the legend
+    /// column's width (380), well inside it, and so draws at the radar's
+    /// scale at the hidden breakpoint, not the whole document's (rg-dok).
     pub title: Document,
     /// The radar, from the left edge to its block's right edge.
     pub radar: Document,
@@ -188,13 +191,44 @@ pub struct WideParts {
     pub legend: Document,
 }
 
+// rg-dok: the title part is cut at the radar's right edge, so the title,
+// wrapped at the legend column's width from the left margin, and its right
+// margin must fit inside the narrowest radar part.
+const _: () = assert!(
+    MARGIN + LEGEND_WIDTH_MAX + MARGIN <= RADAR_INSET + MIN_RADAR_WIDTH,
+    "rg-dok: the title must fit inside the radar part it is cut to"
+);
+// rg-dok (D-97): a hidden legend keeps its column, which the radar and
+// key span, so the widest legend part must fit inside the narrowest hidden
+// breakpoint, 0.8 of the narrowest radar part. About 118 units are left
+// for a classic scrollbar's gutter. It also makes the radar part more than
+// half the document, which `WideParts::breakpoint` relies on.
+const _: () = assert!(
+    COLUMN_GAP - RADAR_LABEL_PAD + LEGEND_WIDTH_MAX + MARGIN
+        <= WIDE_MIN_SCALE * (RADAR_INSET + MIN_RADAR_WIDTH),
+    "D-97: the hidden legend's column must fit within the hidden breakpoint"
+);
+
 impl WideParts {
-    /// FR-69's breakpoint (D-85): the title part spans the whole document,
-    /// and the radar part is the radar's share of it. The page's media
-    /// query and FR-105's warning both read this one value.
+    /// FR-69's breakpoint (D-85): the radar and legend parts tile the whole
+    /// document, and the radar part is the radar's share of it. The page's
+    /// media query and FR-105's warning both read this one value.
+    ///
+    /// The sum is the document's width exactly: the legend part was cut as
+    /// that width less the radar part, which is at least half of it, so
+    /// the subtraction was exact (Sterbenz) and adding it back is too.
     #[must_use]
     pub fn breakpoint(&self) -> u32 {
-        breakpoint_px(self.title.width, self.radar.width)
+        breakpoint_px(self.radar.width + self.legend.width, self.radar.width)
+    }
+
+    /// FR-69's breakpoint while the legend is hidden (D-97): the same rule
+    /// with the legend's width taken out. The title, radar and key parts
+    /// are one width and span the page, so the radar reaches 0.8 of its
+    /// natural size where the viewport is 0.8 of it, `R − 0.2 × R`.
+    #[must_use]
+    pub fn breakpoint_hidden(&self) -> u32 {
+        breakpoint_px(self.radar.width, self.radar.width)
     }
 }
 
@@ -211,7 +245,7 @@ pub fn wide_parts(blocks: &Blocks) -> WideParts {
     let legend = blocks.legend.spanning(at.legend_width);
     WideParts {
         title: part(
-            at.width,
+            radar_right,
             top,
             Point::ORIGIN,
             vec![blocks.title.render(at.title)],
@@ -512,7 +546,7 @@ mod tests {
     use crate::model::Catalogue;
     use crate::order::Plotted;
     use crate::rings::RingSource;
-    use crate::style::{GROWTH_STEP, MAX_GROWTH, WIDE_MIN_VIEWPORT_PX};
+    use crate::style::{GROWTH_STEP, MAX_GROWTH, MIN_PX_PER_UNIT, WIDE_MIN_VIEWPORT_PX};
     use crate::svg::{ItemKey, Semantics};
 
     /// The title and subtitle a fixture is built with.
@@ -1381,9 +1415,9 @@ mod tests {
     }
 
     /// rg-swu (D-85): HTML's wide arrangement in four documents. The radar
-    /// and the legend tile the wide document's width, the title spans it,
-    /// the key sits under the radar, and together they draw every node the
-    /// one document draws, each inside its own part.
+    /// and the legend tile the wide document's width, the title and the
+    /// key are as wide as the radar (rg-dok), and together they draw every
+    /// node the one document draws, each inside its own part.
     #[test]
     fn the_wide_parts_tile_the_wide_document() {
         for (name, b) in fixtures() {
@@ -1397,7 +1431,7 @@ mod tests {
             } = &parts;
             assert!(close(radar.width + legend.width, whole.width), "{name}");
             assert!(
-                close(title.width, whole.width) && close(key.width, radar.width),
+                close(title.width, radar.width) && close(key.width, radar.width),
                 "{name}"
             );
             let left = title.height + radar.height + key.height;
@@ -1426,6 +1460,55 @@ mod tests {
                 .map(|d| leaves(&d.root))
                 .sum();
             assert_eq!(drawn, leaves(&whole.root), "{name}");
+        }
+    }
+
+    /// rg-dok (D-97): with the legend hidden the page switches at the wide
+    /// radar's own 0.8, `R − 0.2 × R` for a radar part `R` wide. The PRD
+    /// example's radar part is 670 wide, so 536, against 891 beside its
+    /// 355.077-unit legend: 1025.077 − 0.2 × 670, rounded.
+    #[test]
+    fn the_hidden_breakpoint_is_the_radars_own() {
+        let parts = wide_parts(&blocks(PRD_EXAMPLE, TITLED));
+        assert!(close(parts.radar.width, 670.0), "{}", parts.radar.width);
+        assert_eq!(parts.breakpoint(), 891);
+        assert_eq!(parts.breakpoint_hidden(), 536);
+    }
+
+    /// A classic scrollbar's gutter, about 15 to 17 pixels, rounded up.
+    const CLASSIC_GUTTER: f64 = 20.0;
+
+    /// rg-dok (D-97): a hidden legend keeps its column, which the radar
+    /// and key span, so it must fit inside the hidden breakpoint with room
+    /// for the legend box's scrollbar gutter.
+    #[test]
+    fn the_hidden_legend_column_fits_its_breakpoint() {
+        for (name, b) in fixtures() {
+            let parts = wide_parts(&b);
+            let hidden = f64::from(parts.breakpoint_hidden());
+            assert!(
+                parts.legend.width + CLASSIC_GUTTER <= hidden,
+                "{name}: {} at {hidden}",
+                parts.legend.width
+            );
+        }
+    }
+
+    /// rg-dok: the page reserves its scrollbar's gutter only from the hidden
+    /// breakpoint up. Below it the narrow SVGs span the viewport with no
+    /// inset, as FR-94's `NARROW_HORIZONTAL_INSET_PX` assumes; from it up, a
+    /// narrow document narrowed by a classic gutter, D-71's widened ones
+    /// included, still draws at FR-94's least scale or more.
+    #[test]
+    fn a_gutter_from_the_hidden_breakpoint_keeps_fr94s_scale() {
+        for (name, b) in fixtures() {
+            let narrow = placements(Arrangement::Narrow, &b).width;
+            let hidden = f64::from(wide_parts(&b).breakpoint_hidden());
+            let scale = ((hidden - CLASSIC_GUTTER) / narrow).min(1.0);
+            assert!(
+                scale >= MIN_PX_PER_UNIT,
+                "{name}: {scale} for {narrow} at {hidden}"
+            );
         }
     }
 

@@ -139,7 +139,7 @@ pub fn page(input: &Page<'_>) -> String {
         &table::css(&sizes),
         &chrome::css(&sizes, toggle),
         BODY_OPEN,
-        &chrome::main_open(&css::narrow_query(&sizes)),
+        &chrome::main_open(&sizes),
         &chrome::controls(toggle, legend),
         &heading,
         DIV_OPEN,

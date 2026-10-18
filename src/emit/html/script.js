@@ -29,6 +29,7 @@
     prose: 'prose',
     tableView: 'table-view',
     narrowQuery: 'data-narrow-query',
+    narrowQueryHidden: 'data-narrow-query-hidden',
     theme: 'data-theme',
     toDark: 'Switch to dark theme',
     toLight: 'Switch to light theme',
@@ -114,13 +115,20 @@
   // A breakpoint change hides the arrangement holding the focus; focus the
   // same item in the one now shown. When the change event fires, Chromium
   // may not yet have moved focus off the hidden element, so focus counts as
-  // lost by focusLost(), which that late blur cannot fool.
-  matchMedia(main.getAttribute(N.narrowQuery)).addEventListener('change', () => {
+  // lost by focusLost(), which that late blur cannot fool. The page swaps
+  // at one breakpoint while the legend shows and at a lower one while it is
+  // hidden (D-97), so both queries are watched; a change of the other one
+  // swaps nothing, leaves focus shown, and so does nothing. A press that
+  // swaps the arrangements changes neither query; its handler sees to focus.
+  const swapped = () => {
     if (!state.focus || !focusLost()) return;
     const { key, kind } = state.focus;
     const el = shown()?.querySelector(by(kind, key));
     if (el) el.focus();
-  });
+  };
+  for (const query of [N.narrowQuery, N.narrowQueryHidden]) {
+    matchMedia(main.getAttribute(query)).addEventListener('change', swapped);
+  }
 
   // FR-38's panel, built from the item's table row (D-80): its heading is
   // the number and name, and each non-empty cell after the name becomes a

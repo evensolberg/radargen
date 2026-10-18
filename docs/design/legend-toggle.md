@@ -9,7 +9,7 @@ created_date: 2026-10-17
 synopsis: "An icon button on the HTML page shows and hides the legend in both arrangements, and --legend shown|hidden sets where it starts. The narrow arrangement is cut into a body and a legend part so CSS can hide the legend; the key always shows. PNG and SVG are unchanged."
 status: active
 type: Spec
-revision: "1.3"
+revision: "1.5"
 review_date:
 reviewed_by: []
 completed_date:
@@ -38,9 +38,12 @@ author chooses where the page starts.
   shows, **Show legend** while it is hidden. No pressed state (the rg-nuy
   ruling).
 - A press hides or shows the legend in **both arrangements at once**, so
-  crossing FR-69's breakpoint keeps the state.
+  crossing a breakpoint keeps the state. Between FR-69's breakpoint and the
+  lower one the page uses while the legend is hidden, a press also switches
+  the arrangement (D-97, below).
 - **The key always shows.** Only the legend panel, which maps numbers to
-  names, is hidden. The title, radar and key are unaffected.
+  names, is hidden. The title, radar and key stay drawn; while the legend
+  is hidden the radar may grow into its width, the key with it (below).
 - The choice is **not remembered** between visits, as the theme choice is
   not: every visit starts where the author set it. Storage is also
   unreliable on `file://` pages, which is how many radars are opened.
@@ -110,17 +113,37 @@ grows only where the window was too narrow for radar and legend side by
 side; on a short, wide window it keeps its size and the space to its right
 is empty, under the button that brings the legend back. (A one-column grid
 as wide as radar and legend was tried first; it missed by the scrollbar
-gutter, which CSS cannot know, and moved everything a few pixels.) The title, key, controls bar
-and table keep their positions and widths, so nothing moves sideways or
-shrinks when the legend is toggled.
+gutter, which CSS cannot know, and moved everything a few pixels.) Above FR-69's
+breakpoint, or below the hidden one, the title, controls bar and table keep
+their positions and widths, so nothing moves sideways or shrinks when the
+legend is toggled; between the two a press switches the arrangement, which
+re-lays out the page (below). The key spans both columns with the
+radar, never wider than it (rg-dok), so it keeps its width too except where
+the radar grows, and then grows with it, as it does on a resize.
 
-### The breakpoint does not move
+### The breakpoint moves with the legend
 
-FR-69's breakpoint is still computed with the legend beside the radar (891
-px for the PRD example). While the legend is hidden the wide arrangement
-would fit down to about 536 px, but moving the breakpoint would need a
-second media query and a state-dependent `matchMedia` in the script. Not
-in this change; recorded as a follow-up crumb.
+*Since rg-dok (PRD D-97).* FR-69's breakpoint is computed with the legend
+beside the radar (891 px for the PRD example). While the legend is hidden
+the page switches at a second, lower one, the same rule with the legend's
+width taken out: `R − 0.2 × R` for a radar part `R` wide, 536 px for the PRD
+example. The title part is cut as wide as the radar part so it never draws
+smaller than the radar, and the key spans the columns with the radar, so
+all three reach 0.8 together; the invisible legend's column always fits
+inside that width. The second query applies on screen under the script's
+class only, so a page without script, or printed, keeps FR-69's breakpoint,
+as it keeps its legend. The script's breakpoint focus handling listens to
+both queries and acts on the one for the legend's state.
+
+On a window between the two, a press switches the arrangement: hiding the
+legend shows the wide one and showing it brings back the narrow one, once
+each, since the switch is the stylesheet's and the queries do not change.
+The button is in the page controls, outside both arrangements, so it keeps
+focus; where a click does not focus it and the switch hides what had focus,
+focus moves to it, as for a hidden row. An open panel stays open, its item
+selected in the arrangement now shown, and closes to that item there. A
+page started with `--legend hidden` is drawn in the right arrangement as
+soon as the script marks the page, the moment the legend hides.
 
 ## Script and accessibility
 
@@ -188,9 +211,11 @@ Tests first.
   revision row.
 - Manual accessibility checklist: a step for the legend button.
 - Architecture: D-85's note on HTML's parts gains the narrow cut; §4's
-  breakpoint note says hiding the legend does not move it (rg-dok).
+  breakpoint note said hiding the legend did not move it, and since rg-dok
+  describes the second breakpoint instead (D-97).
 - README: the flag in the reference, a line in the HTML section.
-- A crumb for moving the breakpoint while the legend is hidden.
+- A crumb for moving the breakpoint while the legend is hidden (rg-dok,
+  since done: D-97).
 
 ## Delivery
 
@@ -205,3 +230,5 @@ apart: no version bump. Then the feature: a minor bump, 1.6.0.
 | 1.1 | 2026-10-17 | After the five-agent review: no short form; a warning for PNG and SVG; the icon shows the state; the skip link retargets to the table; the wide box keeps its width; the narrow cut keeps the key's gap; print shows the legend; nothing plotted writes no state; Chromium plus a Firefox and WebKit focus check; two PRs. |
 | 1.2 | 2026-10-17 | As built: the wide legend is hidden in place, not by a one-column grid, which missed by the scrollbar gutter; focus left on the page by a WebKit click goes to the button too. |
 | 1.3 | 2026-10-17 | Review fixes: the skip link is drawn over the page on every page; the invisible wide legend takes no pointer events; the crossed-out list's X is larger; one testing bullet reworded. |
+| 1.4 | 2026-10-18 | rg-dok (PRD D-97): the breakpoint moves while the legend is hidden, to `R − 0.2 × R`; the title part is cut as wide as the radar; the key spans the columns with the radar; a press between the two breakpoints switches the arrangement and leaves focus on the button. Replaces the "breakpoint does not move" limitation. |
+| 1.5 | 2026-10-18 | rg-dok review: the "nothing moves" rule is limited to above FR-69's breakpoint or below the hidden one; stale lines on crossing the breakpoint, the unaffected title and key, and the architecture note brought up to date. |

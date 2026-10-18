@@ -10,9 +10,12 @@ use crate::text::{FAMILY, Weight};
 
 /// A wide arrangement's parts, the PRD example's widths: a 976.817-unit
 /// document whose radar part is 670 wide, under a 53-unit title, so its
-/// breakpoint is 976.817 − 0.2 × 670, rounded.
+/// breakpoint is 976.817 − 0.2 × 670, rounded, and 0.8 × 670 while the
+/// legend is hidden (D-97).
 const WIDE: Wide = Wide {
     breakpoint: 843,
+    breakpoint_hidden: 536,
+    title_width: 670.0,
     title_height: 53.0,
     radar_width: 670.0,
     radar_height: 640.5,
@@ -27,9 +30,10 @@ const BUILT_IN: Colours = Colours::BuiltIn(Theme::Light);
 const LAYOUT: &str = concat!(
     "body{margin:0;line-height:1.4;font-family:\"Inter\";background:var(--surface-1);color:var(--text-primary)}\n",
     "svg{display:block;width:100%;height:auto}\n",
+    "@media screen and (min-width: 536px){html{scrollbar-gutter:stable}}\n",
     ".wide{display:grid;grid-template-columns:minmax(0,max(536px,calc((100vh - 53px - 3.05rem - 2px)*670/640.5))) max-content;justify-content:center}\n",
     ".wide-title{grid-row:1;grid-column:1/-1;contain:inline-size}\n",
-    ".wide-title svg{width:976.817px;max-width:100%}\n",
+    ".wide-title svg{width:670px;max-width:100%}\n",
     ".wide-radar{grid-row:2;grid-column:1}\n",
     ".wide-key{grid-row:3;grid-column:1}\n",
     ".wide-key svg{width:670px;max-width:100%}\n",
@@ -118,8 +122,10 @@ fn palettes_override_in_order() {
 #[test]
 fn the_layout_is_exact() {
     assert_eq!(layout(&WIDE, NARROW), LAYOUT);
-    // The query is one below the breakpoint.
+    // The query is one below the breakpoint, and the hidden legend's one
+    // below its own (D-97).
     assert_eq!(narrow_query(&WIDE), "(max-width: 842px)");
+    assert_eq!(narrow_query_hidden(&WIDE), "(max-width: 535px)");
 }
 
 /// D-85: the radar's column fills the window's width or the height under
@@ -329,17 +335,21 @@ fn a_palette_block_holds_only_safe_characters() {
 /// RG-102: on screen, with the script running and the page set hidden, the
 /// wide legend turns invisible in place, so the grid's tracks, gutter
 /// included, never change and nothing moves; the radar spans both tracks,
-/// keeping its cap, so it grows only into width the legend held. The narrow
-/// legend is removed. Without the script's class, or in print, none applies.
+/// keeping its cap, so it grows only into width the legend held, and the
+/// key spans them with it, never wider than the radar it sits under
+/// (rg-dok). The narrow legend is removed. And the arrangements swap at the
+/// hidden breakpoint instead (D-97): wide by default, narrow below it, at
+/// the specificity that outranks the shown query. Without the script's
+/// class, or in print, none applies.
 #[test]
 fn a_hidden_legend_hides_both_parts_on_screen_under_the_script_only() {
     let css = legend_hiding(&WIDE);
     let on = ":root.js[data-legend=\"hidden\"]";
-    assert!(
-        css.starts_with("@media screen{\n") && css.ends_with("}\n"),
-        "{css}"
-    );
-    let rules: Vec<&str> = css.lines().skip(1).filter(|l| *l != "}").collect();
+    let (screen, narrow) = css
+        .split_once("}\n@media screen and (max-width: 535px){")
+        .expect("the hidden query follows the screen block");
+    assert!(screen.starts_with("@media screen{\n"), "{css}");
+    let rules: Vec<&str> = screen.lines().skip(1).collect();
     assert!(
         rules.iter().all(|l| l.starts_with(on)),
         "every rule needs the script: {css}"
@@ -351,9 +361,21 @@ fn a_hidden_legend_hides_both_parts_on_screen_under_the_script_only() {
         format!("{on} .narrow-legend{{display:none}}"),
         format!("{on} .wide-radar{{grid-column:1/-1;contain:inline-size}}"),
         format!("{on} .wide-radar svg{{max-width:{}}}", WIDE.radar_cap()),
+        format!("{on} .wide-key{{grid-column:1/-1;contain:inline-size}}"),
+        format!(
+            "{on} .wide-key svg{{max-width:min(100%,{})}}",
+            WIDE.radar_cap()
+        ),
+        format!("{on} .wide{{display:grid}}"),
+        format!("{on} .narrow{{display:none}}"),
     ] {
-        assert!(css.contains(&rule), "{rule} in {css}");
+        assert!(rules.contains(&rule.as_str()), "{rule} in {css}");
     }
+    assert_eq!(
+        narrow,
+        format!("\n{on} .wide{{display:none}}\n{on} .narrow{{display:block}}\n}}\n"),
+        "{css}"
+    );
     assert!(
         !css.contains("grid-template-columns"),
         "the tracks stay: {css}"
