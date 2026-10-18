@@ -8,10 +8,11 @@
 use clap::Parser;
 use std::path::{Path, PathBuf};
 
-use crate::diagnostics::{Fatal, Flag, RenderKind, Warning, Warnings};
+use crate::diagnostics::{Fatal, RenderKind, Warning, Warnings};
 pub use crate::emit::html::{Legend, Table};
 use crate::escape::remove_undisplayable;
 pub use crate::palette::Theme;
+use crate::settings::Origin;
 use crate::starter::Starter;
 use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
 
@@ -276,19 +277,23 @@ pub fn format(output: &Path) -> Result<OutputFormat, Fatal> {
     }
 }
 
-/// FR-90 on a flag value: removes every character the output cannot display
-/// (the set [`displayable`] rejects, the one FR-90 removes from CSV fields) and
-/// warns once, naming `flag`, when it removed any.
+/// FR-90 on a setting's value, from the command line or the file.
 ///
-/// For `--rings` the caller cleans before [`crate::rings::parse_rings`], and
-/// for `--unplotted-rings` before [`crate::rings::RingSet::with_unplotted`], so
-/// FR-63's empty and duplicate checks see the cleaned list; FR-65's
-/// empty-or-whitespace rule likewise applies to the cleaned title.
-pub fn clean_flag(flag: Flag, value: &str, warnings: &mut Warnings) -> String {
+/// Removes every character the output cannot display (the set
+/// [`displayable`] rejects, the one FR-90 removes from CSV fields) and warns
+/// once, naming the value's setting and source (NFR-10), when it removed
+/// any.
+///
+/// For the rings the caller cleans before [`crate::rings::parse_ring_list`],
+/// and for `--unplotted-rings` before
+/// [`crate::rings::RingSet::with_unplotted`], so FR-63's checks see the
+/// cleaned list; FR-65's empty-or-whitespace rule likewise applies to the
+/// cleaned title.
+pub fn clean_setting(origin: &Origin, value: &str, warnings: &mut Warnings) -> String {
     let mut cleaned = value.to_string();
     if let Some((first, count)) = remove_undisplayable(&mut cleaned) {
         warnings.push(Warning::Render(RenderKind::FlagUndisplayable {
-            flag,
+            flag: origin.clone(),
             first,
             count,
         }));

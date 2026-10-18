@@ -12,11 +12,11 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::cli::{Cli, OutputFormat, Task, clean_flag, format};
+use crate::cli::{Cli, OutputFormat, Task, clean_setting, format};
 use crate::csv::decode;
 use crate::csv::parse::parse;
 use crate::decode::NotUtf8;
-use crate::diagnostics::{Fatal, Flag, OffRadar, RenderKind, RowError, Warning, Warnings};
+use crate::diagnostics::{Fatal, OffRadar, RenderKind, RowError, Warning, Warnings};
 use crate::emit::html::{Legend, Page, Table, page};
 use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
@@ -33,7 +33,7 @@ use crate::order::resolve;
 use crate::palette::Colours;
 use crate::palette::file::{self, ReadError};
 use crate::rings::{RingSet, parse_rings};
-use crate::settings::{Origin, Setting};
+use crate::settings::{Origin, Setting, Sourced};
 use crate::text::Fonts;
 
 /// The resolved run (architecture §7), read-only once built. The colours
@@ -57,14 +57,29 @@ pub struct Config {
     pub width: Option<u32>,
     /// FR-100: `--legend-columns`, which HTML ignores.
     pub legend_columns: u8,
-    /// FR-65, resolved: cleaned (FR-90), trimmed, and `None` when empty.
-    pub title: Option<String>,
+    /// FR-65, resolved: cleaned (FR-90), trimmed, and `None` when empty,
+    /// with its origin, so FR-104 can name it.
+    pub title: Option<Sourced<String>>,
     /// As `title`.
-    pub subtitle: Option<String>,
+    pub subtitle: Option<Sourced<String>>,
     /// The declared rings and their source (FR-12, FR-17).
     pub rings: RingSet,
     /// The input CSV, as given (FR-60).
     pub input: PathBuf,
+}
+
+impl Config {
+    /// FR-65's title, if one shows.
+    #[must_use]
+    pub fn title(&self) -> Option<&str> {
+        self.title.as_ref().map(|t| t.value.as_str())
+    }
+
+    /// FR-65's subtitle, if one shows.
+    #[must_use]
+    pub fn subtitle(&self) -> Option<&str> {
+        self.subtitle.as_ref().map(|s| s.value.as_str())
+    }
 }
 
 /// Why a run stopped (NFR-16): file and flag errors, each on its own line
@@ -159,16 +174,30 @@ fn config(
             Ok(format)
         })
         .map_err(|e| vec![e])?;
-    let title = resolved(Flag::Title, cli.title.as_deref(), warnings);
-    let subtitle = resolved(Flag::Subtitle, cli.subtitle.as_deref(), warnings);
+    let title = cli
+        .title
+        .clone()
+        .map(|value| Sourced {
+            value,
+            origin: Origin::flag(Setting::Title),
+        })
+        .and_then(|t| resolved(t, warnings));
+    let subtitle = cli
+        .subtitle
+        .clone()
+        .map(|value| Sourced {
+            value,
+            origin: Origin::flag(Setting::Subtitle),
+        })
+        .and_then(|t| resolved(t, warnings));
     let declared = cli
         .rings
         .as_deref()
-        .map(|rings| clean_flag(Flag::Rings, rings, warnings));
+        .map(|rings| clean_setting(&Origin::flag(Setting::Rings), rings, warnings));
     let unplotted = cli
         .unplotted_rings
         .as_deref()
-        .map(|rings| clean_flag(Flag::UnplottedRings, rings, warnings));
+        .map(|rings| clean_setting(&Origin::flag(Setting::UnplottedRings), rings, warnings));
     let mut rings = parse_rings(declared.as_deref()).map_err(|errors| {
         errors
             .into_iter()
@@ -261,10 +290,14 @@ fn output_is_input(output: &Path, input: &Path) -> Result<(), Fatal> {
     }
 }
 
-/// FR-65's resolved value: cleaned (FR-90), trimmed, `None` when empty.
-fn resolved(flag: Flag, value: Option<&str>, warnings: &mut Warnings) -> Option<String> {
-    let cleaned = clean_flag(flag, value?, warnings);
-    shown(Some(&cleaned)).map(str::to_owned)
+/// FR-65's resolved value: cleaned (FR-90), trimmed, `None` when empty;
+/// it keeps its origin, so FR-104 can name it.
+fn resolved(text: Sourced<String>, warnings: &mut Warnings) -> Option<Sourced<String>> {
+    let cleaned = clean_setting(&text.origin, &text.value, warnings);
+    shown(Some(&cleaned)).map(|value| Sourced {
+        value: value.to_owned(),
+        origin: text.origin,
+    })
 }
 
 /// Read, parse and build. A file-level failure is one line (tier one);
@@ -302,8 +335,8 @@ fn render(
     let blocks = Blocks::new(
         catalogue,
         &plotted,
-        config.title.as_deref(),
-        config.subtitle.as_deref(),
+        config.title(),
+        config.subtitle(),
         fonts,
     );
     // FR-89 at the growth the radar is drawn with (D-86): only what still
@@ -325,8 +358,8 @@ fn render(
         warn_missing_glyphs(
             catalogue,
             &plotted,
-            config.title.as_deref(),
-            config.subtitle.as_deref(),
+            config.title.as_ref(),
+            config.subtitle.as_ref(),
             config.format,
             fonts,
             warnings,
@@ -351,7 +384,7 @@ fn render(
                 narrow: &narrow_parts(&blocks),
                 catalogue,
                 plotted: &plotted,
-                title: config.title.as_deref(),
+                title: config.title(),
                 colours: &config.colours,
                 legend: config.legend,
                 table: config.table,
@@ -381,7 +414,7 @@ fn render(
                 palette: &config.colours.snapshot(),
                 fonts,
                 width: config.width,
-                title: config.title.as_deref(),
+                title: config.title(),
                 desc: &blocks.radar.name(),
             },
         )?

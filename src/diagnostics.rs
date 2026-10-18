@@ -214,8 +214,9 @@ pub enum RenderKind {
     },
     /// FR-90 on a flag value: one per flag, however many characters it lost.
     FlagUndisplayable {
-        /// The flag whose value lost characters.
-        flag: Flag,
+        /// The setting whose value it is, and where that value came from
+        /// (NFR-10).
+        flag: Origin,
         /// The first character the value lost.
         first: char,
         /// How many characters the value lost in all.
@@ -224,8 +225,9 @@ pub enum RenderKind {
     /// FR-104 on a flag value: one per drawn text, so one per `--rings`
     /// entry, however many characters it lacks.
     FlagMissingGlyphs {
-        /// The flag the text came from.
-        flag: Flag,
+        /// The setting whose value it is, and where that value came from
+        /// (NFR-10).
+        flag: Origin,
         /// The text, the value or one `--rings` entry, and what it lacks.
         lacking: Lacking,
     },
@@ -302,33 +304,6 @@ impl fmt::Display for Binding {
                 write!(f, "ring '{}' in {}", trim(name), ring_list(source))
             }
         }
-    }
-}
-
-/// A command-line flag a warning names: FR-90 cleans its value, and FR-104
-/// checks that a PNG or SVG can draw it. `--config` keys arrive with PR 19
-/// and will name themselves the same way.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Flag {
-    /// `--title` (FR-65).
-    Title,
-    /// `--subtitle` (FR-65).
-    Subtitle,
-    /// `--rings` (FR-12).
-    Rings,
-    /// `--unplotted-rings` (FR-107). Its rings are never drawn, so FR-104
-    /// has nothing to check; only FR-90 names it.
-    UnplottedRings,
-}
-
-impl fmt::Display for Flag {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Title => "--title",
-            Self::Subtitle => "--subtitle",
-            Self::Rings => "--rings",
-            Self::UnplottedRings => "--unplotted-rings",
-        })
     }
 }
 

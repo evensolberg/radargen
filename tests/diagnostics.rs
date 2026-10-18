@@ -6,7 +6,7 @@ use std::sync::Arc;
 use radargen::cli::OutputFormat;
 use radargen::columns::ColumnKind;
 use radargen::diagnostics::{
-    Binding, DateColumn, Fatal, Flag, Lacking, OffRadar, Position, RenderKind, RowError, RowKind,
+    Binding, DateColumn, Fatal, Lacking, OffRadar, Position, RenderKind, RowError, RowKind,
     Separator, Warning, Warnings, column_label,
 };
 use radargen::rings::RingsError;
@@ -269,14 +269,14 @@ fn missing_glyphs_in_a_flag_name_the_flag() {
     let cases = [
         (
             RenderKind::FlagMissingGlyphs {
-                flag: Flag::Title,
+                flag: Origin::flag(Setting::Title),
                 lacking: lacking("雷达 2026", '雷', 2, OutputFormat::Svg),
             },
             "--title: '雷达 2026' has 2 characters the bundled font lacks, the first U+96F7 雷; the SVG draws them as boxes — an HTML page shows them, or transliterate them".to_owned(),
         ),
         (
             RenderKind::FlagMissingGlyphs {
-                flag: Flag::Rings,
+                flag: Origin::flag(Setting::Rings),
                 lacking: lacking("採用", '採', 2, OutputFormat::Png),
             },
             format!(
@@ -285,7 +285,7 @@ fn missing_glyphs_in_a_flag_name_the_flag() {
         ),
         (
             RenderKind::FlagMissingGlyphs {
-                flag: Flag::Subtitle,
+                flag: Origin::flag(Setting::Subtitle),
                 lacking: lacking("Q3 🙂", '🙂', 1, OutputFormat::Png),
             },
             format!("--subtitle: 'Q3 🙂' has U+1F642 🙂, which the bundled font lacks; {PNG_ONE}"),

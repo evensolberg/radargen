@@ -3,9 +3,10 @@
 
 use clap::Parser;
 use radargen::cli::{Cli, Legend, OutputFormat, Table, Theme};
-use radargen::cli::{Task, clean_flag, format};
-use radargen::diagnostics::{Fatal, Flag, RowKind, Warning, Warnings};
+use radargen::cli::{Task, clean_setting, format};
+use radargen::diagnostics::{Fatal, RowKind, Warning, Warnings};
 use radargen::rings::{RingsError, parse_rings};
+use radargen::settings::{Origin, Setting, Source};
 use radargen::starter::Starter;
 use std::path::Path;
 
@@ -320,12 +321,15 @@ fn theme_takes_capital_t_and_title_takes_lowercase() {
 #[test]
 fn each_flag_names_itself_in_the_one_character_warning() {
     for (flag, name) in [
-        (Flag::Title, "--title"),
-        (Flag::Subtitle, "--subtitle"),
-        (Flag::Rings, "--rings"),
+        (Setting::Title, "--title"),
+        (Setting::Subtitle, "--subtitle"),
+        (Setting::Rings, "--rings"),
     ] {
         let mut warnings = Warnings::default();
-        assert_eq!(clean_flag(flag, "a\u{1}b", &mut warnings), "ab");
+        assert_eq!(
+            clean_setting(&Origin::flag(flag), "a\u{1}b", &mut warnings),
+            "ab"
+        );
         assert_eq!(
             warnings.render(),
             [format!(
@@ -338,12 +342,15 @@ fn each_flag_names_itself_in_the_one_character_warning() {
 #[test]
 fn each_flag_names_itself_in_the_several_characters_warning() {
     for (flag, name) in [
-        (Flag::Title, "--title"),
-        (Flag::Subtitle, "--subtitle"),
-        (Flag::Rings, "--rings"),
+        (Setting::Title, "--title"),
+        (Setting::Subtitle, "--subtitle"),
+        (Setting::Rings, "--rings"),
     ] {
         let mut warnings = Warnings::default();
-        assert_eq!(clean_flag(flag, "\u{1}a\u{7f}b\u{85}", &mut warnings), "ab");
+        assert_eq!(
+            clean_setting(&Origin::flag(flag), "\u{1}a\u{7f}b\u{85}", &mut warnings),
+            "ab"
+        );
         assert_eq!(
             warnings.render(),
             [format!(
@@ -357,21 +364,31 @@ fn each_flag_names_itself_in_the_several_characters_warning() {
 fn a_clean_value_is_unchanged_and_silent() {
     let mut warnings = Warnings::default();
     let value = "Tab\there, Ærø 日本\nline";
-    assert_eq!(clean_flag(Flag::Title, value, &mut warnings), value);
+    assert_eq!(
+        clean_setting(&Origin::flag(Setting::Title), value, &mut warnings),
+        value
+    );
     assert!(warnings.is_empty());
 }
 
 #[test]
 fn a_title_of_only_undisplayable_characters_cleans_to_empty() {
     let mut warnings = Warnings::default();
-    assert_eq!(clean_flag(Flag::Title, "\u{1}", &mut warnings), "");
+    assert_eq!(
+        clean_setting(&Origin::flag(Setting::Title), "\u{1}", &mut warnings),
+        ""
+    );
     assert_eq!(warnings.as_slice().len(), 1);
 }
 
 #[test]
 fn rings_are_cleaned_before_fr_63_checks_them() {
     let mut warnings = Warnings::default();
-    let cleaned = clean_flag(Flag::Rings, "Adopt,\u{1},Hold", &mut warnings);
+    let cleaned = clean_setting(
+        &Origin::flag(Setting::Rings),
+        "Adopt,\u{1},Hold",
+        &mut warnings,
+    );
     assert_eq!(
         parse_rings(Some(&cleaned)),
         Err(vec![RingsError::EmptyEntry { index: 2 }])
@@ -386,7 +403,7 @@ fn a_flag_warning_renders_before_row_warnings() {
         column: 0,
         kind: RowKind::EmptyDescription,
     });
-    clean_flag(Flag::Subtitle, "x\u{1}", &mut warnings);
+    clean_setting(&Origin::flag(Setting::Subtitle), "x\u{1}", &mut warnings);
     let lines = warnings.render();
     assert_eq!(lines.len(), 2, "{lines:?}");
     assert!(
@@ -403,7 +420,11 @@ fn a_flag_warning_renders_before_row_warnings() {
 fn a_bidi_override_is_removed_from_a_title() {
     let mut warnings = Warnings::default();
     assert_eq!(
-        clean_flag(Flag::Title, "Radar\u{202e}2026", &mut warnings),
+        clean_setting(
+            &Origin::flag(Setting::Title),
+            "Radar\u{202e}2026",
+            &mut warnings
+        ),
         "Radar2026"
     );
     assert_eq!(warnings.as_slice().len(), 1);
@@ -652,7 +673,11 @@ fn unplotted_rings_take_a_list_and_no_short_form() {
 fn unplotted_rings_name_themselves_in_the_cleaning_warning() {
     let mut warnings = Warnings::default();
     assert_eq!(
-        clean_flag(Flag::UnplottedRings, "In\u{1} Use", &mut warnings),
+        clean_setting(
+            &Origin::flag(Setting::UnplottedRings),
+            "In\u{1} Use",
+            &mut warnings
+        ),
         "In Use"
     );
     assert_eq!(
@@ -696,5 +721,20 @@ fn the_unplotted_rings_help_says_what_still_warns() {
         long.get(rings..start)
             .is_some_and(|h| h.contains("with a warning unless --unplotted-rings names it")),
         "{long}"
+    );
+}
+
+/// FR-90 names a value from the file by its key and file (NFR-10).
+#[test]
+fn a_value_from_the_file_names_its_key_when_cleaned() {
+    let mut warnings = Warnings::default();
+    let origin = Origin::new(
+        Setting::Title,
+        Source::Config(std::sync::Arc::from("radar.toml")),
+    );
+    assert_eq!(clean_setting(&origin, "a\u{1}b", &mut warnings), "ab");
+    assert_eq!(
+        warnings.render(),
+        ["warning: the title key in radar.toml: removed U+0001, which the output cannot display"]
     );
 }

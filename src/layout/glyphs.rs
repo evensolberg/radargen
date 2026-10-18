@@ -4,11 +4,11 @@
 
 use crate::cli::OutputFormat;
 use crate::columns::ColumnKind;
-use crate::diagnostics::{Flag, Lacking, RenderKind, RowKind, Warning, Warnings};
+use crate::diagnostics::{Lacking, RenderKind, RowKind, Warning, Warnings};
 use crate::layout::title::shown;
 use crate::model::Catalogue;
 use crate::order::Plotted;
-use crate::settings::Source;
+use crate::settings::{Origin, Setting, Source, Sourced};
 use crate::text::{Fonts, words};
 
 /// FR-104: one warning per drawn text with characters the bundled font
@@ -28,29 +28,36 @@ use crate::text::{Fonts, words};
 pub fn warn_missing_glyphs(
     catalogue: &Catalogue,
     plotted: &Plotted,
-    title: Option<&str>,
-    subtitle: Option<&str>,
+    title: Option<&Sourced<String>>,
+    subtitle: Option<&Sourced<String>>,
     format: OutputFormat,
     fonts: &Fonts,
     warnings: &mut Warnings,
 ) {
     let lacking = |text: &str| lacking(text, format, fonts);
-    for (flag, value) in [(Flag::Title, title), (Flag::Subtitle, subtitle)] {
+    for text in [title, subtitle].into_iter().flatten() {
         // As the title block draws it: FR-76's trim, then one space per run
         // of whitespace, so a tab, which the shaper would draw as a box, is
         // not checked.
-        if let Some(lacking) = shown(value).map(words).as_deref().and_then(lacking) {
+        if let Some(lacking) = shown(Some(&text.value))
+            .map(words)
+            .as_deref()
+            .and_then(lacking)
+        {
             warnings.push(Warning::Render(RenderKind::FlagMissingGlyphs {
-                flag,
+                flag: text.origin.clone(),
                 lacking,
             }));
         }
     }
-    if catalogue.ring_source == Source::Flag {
+    // FR-104: a ring the author wrote, on the command line or in the file;
+    // the default rings are the font's own.
+    if catalogue.ring_source != Source::Default {
+        let origin = Origin::new(Setting::Rings, catalogue.ring_source.clone());
         for ring in &catalogue.rings {
             if let Some(lacking) = lacking(ring) {
                 warnings.push(Warning::Render(RenderKind::FlagMissingGlyphs {
-                    flag: Flag::Rings,
+                    flag: origin.clone(),
                     lacking,
                 }));
             }
@@ -113,12 +120,18 @@ mod tests {
         subtitle: Option<&str>,
     ) -> Vec<Warning> {
         let (catalogue, order) = plotted(csv, rings);
+        let flag = |setting, value: Option<&str>| {
+            value.map(|v| Sourced {
+                value: v.to_owned(),
+                origin: Origin::flag(setting),
+            })
+        };
         let mut warnings = Warnings::default();
         warn_missing_glyphs(
             &catalogue,
             &order,
-            title,
-            subtitle,
+            flag(Setting::Title, title).as_ref(),
+            flag(Setting::Subtitle, subtitle).as_ref(),
             OutputFormat::Png,
             fonts(),
             &mut warnings,
@@ -146,8 +159,11 @@ mod tests {
         }
     }
 
-    const fn flag(flag: Flag, lacking: Lacking) -> Warning {
-        Warning::Render(RenderKind::FlagMissingGlyphs { flag, lacking })
+    const fn flag(setting: Setting, lacking: Lacking) -> Warning {
+        Warning::Render(RenderKind::FlagMissingGlyphs {
+            flag: Origin::flag(setting),
+            lacking,
+        })
     }
 
     /// A drawn name or quadrant warns at its own cell. An unplotted row's
@@ -208,11 +224,45 @@ mod tests {
         assert_eq!(
             got,
             [
-                flag(Flag::Title, lacks("雷达 2026", '雷', 2)),
-                flag(Flag::Subtitle, lacks("Q3 🙂", '🙂', 1)),
-                flag(Flag::Rings, lacks("採用", '採', 2)),
-                flag(Flag::Rings, lacks("Hold 🙂", '🙂', 1)),
+                flag(Setting::Title, lacks("雷达 2026", '雷', 2)),
+                flag(Setting::Subtitle, lacks("Q3 🙂", '🙂', 1)),
+                flag(Setting::Rings, lacks("採用", '採', 2)),
+                flag(Setting::Rings, lacks("Hold 🙂", '🙂', 1)),
             ]
+        );
+    }
+
+    /// FR-104 checks a file's rings as it checks the flag's, and names
+    /// the rings key with its file (NFR-10).
+    #[test]
+    fn a_file_s_rings_warn_naming_the_rings_key() {
+        let csv = format!("{HEAD}Kafka,Tools,採用,d\n");
+        let (mut catalogue, order) = plotted(&csv, Some("採用,Trial"));
+        let source = Source::Config(std::sync::Arc::from("radar.toml"));
+        catalogue.ring_source = source.clone();
+        let mut warnings = Warnings::default();
+        warn_missing_glyphs(
+            &catalogue,
+            &order,
+            None,
+            None,
+            OutputFormat::Png,
+            fonts(),
+            &mut warnings,
+        );
+        assert_eq!(
+            warnings.as_slice(),
+            [Warning::Render(RenderKind::FlagMissingGlyphs {
+                flag: Origin::new(Setting::Rings, source),
+                lacking: lacks("採用", '採', 2),
+            })]
+        );
+        assert!(
+            warnings.render().first().is_some_and(
+                |line| line.starts_with("warning: the rings key in radar.toml: '採用' has ")
+            ),
+            "{:?}",
+            warnings.render()
         );
     }
 
@@ -224,7 +274,7 @@ mod tests {
         let csv = format!("{HEAD}Kafka,Tools,Adopt,d\n");
         assert_eq!(
             warned(&csv, None, Some("\u{feff}雷达\u{200b} "), Some(" \u{200b}")),
-            [flag(Flag::Title, lacks("雷达", '雷', 2))]
+            [flag(Setting::Title, lacks("雷达", '雷', 2))]
         );
     }
 
