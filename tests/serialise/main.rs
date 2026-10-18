@@ -47,7 +47,9 @@ struct Built {
 }
 
 impl Built {
-    /// The page for `wide` and `narrow`, with this catalogue's table.
+    /// The page for `wide` and `narrow`, with this catalogue's table. The
+    /// table is `--table all`'s, so the tests of every row and column read
+    /// the whole catalogue; [`Built::page_table`] chooses.
     fn page_of(&self, wide: &WideParts, narrow: &NarrowParts, title: Option<&str>) -> String {
         self.page_in(
             wide,
@@ -55,25 +57,13 @@ impl Built {
             title,
             &Colours::BuiltIn(Theme::Light),
             Legend::Shown,
+            Table::All,
         )
     }
 
-    /// As [`Built::page_of`], in `colours`. The table is `--table all`'s,
-    /// so the tests of every row and column read the whole catalogue;
-    /// [`Built::page_table`] chooses.
+    /// As [`Built::page_of`], in `colours`, the legend starting as `legend`
+    /// and the table publishing `table`.
     fn page_in(
-        &self,
-        wide: &WideParts,
-        narrow: &NarrowParts,
-        title: Option<&str>,
-        colours: &Colours,
-        legend: Legend,
-    ) -> String {
-        self.page_full(wide, narrow, title, colours, legend, Table::All)
-    }
-
-    /// As [`Built::page_in`], its table publishing `table`.
-    fn page_full(
         &self,
         wide: &WideParts,
         narrow: &NarrowParts,
@@ -97,7 +87,7 @@ impl Built {
     /// The page for both arrangements of these blocks, titled `title`, its
     /// table publishing `table`.
     fn page_table(&self, title: Option<&str>, table: Table) -> String {
-        self.page_full(
+        self.page_in(
             &wide_parts(&self.blocks),
             &narrow_parts(&self.blocks),
             title,
@@ -116,6 +106,7 @@ impl Built {
             None,
             &Colours::BuiltIn(Theme::Light),
             legend,
+            Table::All,
         )
     }
 
@@ -127,6 +118,7 @@ impl Built {
             None,
             colours,
             Legend::Shown,
+            Table::All,
         )
     }
 

@@ -58,19 +58,8 @@ fn text(node: Node<'_, '_>) -> String {
 #[test]
 fn rows_come_in_fr78s_order_keyed_on_the_csv_line() {
     let b = built();
-    let html = b.page(Some("T"));
-    let table = table_of(&html);
-    let doc = parse(&table);
-    let got: Vec<String> = rows(&doc)
-        .iter()
-        .filter_map(|r| r.attribute("data-row").map(str::to_owned))
-        .collect();
-    let want: Vec<String> = b
-        .plotted
-        .table_rows()
-        .into_iter()
-        .map(|i| b.catalogue.items.get(i).expect("an item").line.to_string())
-        .collect();
+    let got = keys(&b.page(Some("T")));
+    let want = lines(&b, &b.plotted.table_rows());
     assert_eq!(got, want, "plotted in FR-34's order, then unplotted");
     let csv_order: Vec<String> = b
         .catalogue
@@ -153,13 +142,8 @@ fn columns_are_the_number_the_three_labels_then_the_header() {
     let doc_html = b.page(Some("T"));
     let table = table_of(&doc_html);
     let doc = parse(&table);
-    let heads: Vec<String> = doc
-        .descendants()
-        .filter(|n| n.has_tag_name("th") && n.attribute("scope") == Some("col"))
-        .map(text)
-        .collect();
     assert_eq!(
-        heads,
+        headings(&doc_html),
         [
             "#Number",
             "name",
@@ -390,6 +374,14 @@ fn headings(html: &str) -> Vec<String> {
         .collect()
 }
 
+/// The CSV lines of `b`'s items at `indices`, as `data-row` keys.
+fn lines(b: &Built, indices: &[usize]) -> Vec<String> {
+    indices
+        .iter()
+        .map(|&i| b.catalogue.items.get(i).expect("an item").line.to_string())
+        .collect()
+}
+
 /// The `data-row` keys of `html`'s table rows, in order.
 fn keys(html: &str) -> Vec<String> {
     let table = table_of(html);
@@ -405,12 +397,7 @@ fn keys(html: &str) -> Vec<String> {
 #[test]
 fn the_radar_table_holds_only_plotted_rows() {
     let b = built();
-    let plotted: Vec<String> = b
-        .plotted
-        .items
-        .iter()
-        .map(|&i| b.catalogue.items.get(i).expect("an item").line.to_string())
-        .collect();
+    let plotted = lines(&b, &b.plotted.items);
     let radar = b.page_table(Some("T"), Table::Radar);
     assert_eq!(keys(&radar), plotted, "plotted rows, in FR-34's order");
     assert!(
@@ -536,11 +523,10 @@ fn the_radar_table_with_nothing_plotted_says_so() {
 fn the_table_heading_names_what_it_holds() {
     let b = built();
     let heading = |html: &str| {
-        let doc_html = html.to_owned();
-        let at = doc_html
+        let at = html
             .find("<h2 class=\"table-heading\" id=\"table-heading\">")
             .expect("the heading");
-        let rest = doc_html.get(at..).unwrap_or_default();
+        let rest = html.get(at..).unwrap_or_default();
         let open = rest.find('>').expect("opens") + 1;
         let close = rest.find("</h2>").expect("closes");
         rest.get(open..close).unwrap_or_default().to_owned()
