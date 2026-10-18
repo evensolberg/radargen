@@ -2,7 +2,7 @@
 //! `model::build_catalogue` together, on whole files.
 
 use radargen::csv::parse::parse;
-use radargen::diagnostics::{RowError, Warnings};
+use radargen::diagnostics::{OffRadar, RowError, Warnings};
 use radargen::model::{ColumnKind, Link, Qualifier, Status, build_catalogue};
 use radargen::rings::parse_rings;
 
@@ -61,7 +61,7 @@ fn the_prd_example_builds_with_one_warning() {
     assert_eq!(fourth.cell(exit), Some("2027-01-31"));
 
     assert_eq!(
-        w.render(),
+        w.render(OffRadar::Listed),
         [
             "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
         ]
@@ -79,7 +79,11 @@ fn row_errors_from_both_stages_arrive_in_one_run() {
         parse(include_str!("fixtures/row-errors.csv"), &mut w).expect("parses");
     let rings = parse_rings(None).expect("default");
     let model_errors = build_catalogue(&table, &rings, &mut w).expect_err("fails");
-    assert!(w.render().is_empty(), "{:?}", w.render());
+    assert!(
+        w.render(OffRadar::Listed).is_empty(),
+        "{:?}",
+        w.render(OffRadar::Listed)
+    );
     let rendered = |errs: &[RowError]| errs.iter().map(RowError::render).collect::<Vec<_>>();
     assert_eq!(
         rendered(&parse_errors),
@@ -129,7 +133,7 @@ fn parse_errors_do_not_suppress_model_warnings() {
     let rings = parse_rings(None).expect("default");
     build_catalogue(&table, &rings, &mut w).expect("builds");
     assert_eq!(
-        w.render(),
+        w.render(OffRadar::Listed),
         [
             "warning: line 3, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
         ]
@@ -166,7 +170,7 @@ fn the_link_column_is_read_once_per_row() {
             "{header:?}"
         );
         assert_eq!(
-            w.render(),
+            w.render(OffRadar::Listed),
             [
                 "warning: line 3, link: 'javascript:alert(1)' is not an http or https address; shown as text, not a link"
             ],

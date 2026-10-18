@@ -38,7 +38,11 @@ mod tests {
     #[test]
     fn it_reads_with_no_warning() {
         let (catalogue, warnings) = catalogue();
-        assert!(warnings.is_empty(), "{:?}", warnings.render());
+        assert!(
+            warnings.is_empty(),
+            "{:?}",
+            warnings.render(crate::diagnostics::OffRadar::Listed)
+        );
         assert!(catalogue.items.iter().all(|item| item.ring.is_some()));
     }
 

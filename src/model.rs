@@ -822,7 +822,7 @@ mod tests {
         assert!(errs.is_empty(), "{errs:?}");
         let rings = parse_rings(rings).expect("valid rings");
         let result = build_catalogue(&table, &rings, &mut w);
-        (result, w.render())
+        (result, w.render(crate::diagnostics::OffRadar::Listed))
     }
 
     fn catalogue(csv: &str) -> Catalogue {

@@ -678,9 +678,13 @@ mod tests {
             Ok((table, errs)) => (
                 Ok(table),
                 errs.iter().map(RowError::render).collect(),
-                w.render(),
+                w.render(crate::diagnostics::OffRadar::Listed),
             ),
-            Err(e) => (Err(e), Vec::new(), w.render()),
+            Err(e) => (
+                Err(e),
+                Vec::new(),
+                w.render(crate::diagnostics::OffRadar::Listed),
+            ),
         }
     }
 

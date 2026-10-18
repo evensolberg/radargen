@@ -114,7 +114,7 @@ fn each_row_kind_has_its_per_row_message() {
         ),
     ];
     for (warning, expected) in cases {
-        assert_eq!(warning.to_string(), expected);
+        assert_eq!(warning.text(OffRadar::Listed), expected);
     }
 }
 
@@ -158,7 +158,7 @@ fn undisplayable_and_unnamed_values_have_their_per_row_message() {
         ),
     ];
     for (warning, expected) in cases {
-        assert_eq!(warning.to_string(), expected);
+        assert_eq!(warning.text(OffRadar::Listed), expected);
     }
 }
 
@@ -228,7 +228,7 @@ fn missing_glyphs_have_their_per_row_message() {
         ),
     ];
     for (warning, expected) in cases {
-        assert_eq!(warning.to_string(), expected);
+        assert_eq!(warning.text(OffRadar::Listed), expected);
     }
 }
 
@@ -261,7 +261,7 @@ fn missing_glyphs_in_a_flag_name_the_flag() {
         ),
     ];
     for (kind, expected) in cases {
-        assert_eq!(Warning::Render(kind).to_string(), expected);
+        assert_eq!(Warning::Render(kind).text(OffRadar::Listed), expected);
     }
 }
 
@@ -281,7 +281,7 @@ fn missing_glyphs_group_into_one_line() {
         cell(ColumnKind::Name, "Kafka 中", '中', 1, OutputFormat::Png),
     ));
     assert_eq!(
-        w.render(),
+        w.render(OffRadar::Listed),
         vec![format!(
             "warning: 2 values have characters the bundled font lacks — name 'Kafka 中' on line 3 (U+4E2D 中), quadrant 'عربي' on line 4 (4 characters, first U+0639 ع); {PNG_MANY}"
         )]
@@ -307,17 +307,23 @@ fn each_render_level_kind_has_its_message() {
         ),
     ];
     for (warning, expected) in cases {
-        assert_eq!(warning.to_string(), expected);
+        assert_eq!(warning.text(OffRadar::Listed), expected);
     }
 }
 
 #[test]
 fn values_are_shown_trimmed() {
     let w = ring(3, "  Adpot ");
-    assert!(w.to_string().contains("ring: 'Adpot' is"), "{w}");
+    assert!(
+        w.text(OffRadar::Listed).contains("ring: 'Adpot' is"),
+        "{w:?}"
+    );
     // FR-76's trim, so an invisible format character is not quoted either.
     let w = ring(3, "\u{200b}Adpot\u{feff}");
-    assert!(w.to_string().contains("ring: 'Adpot' is"), "{w}");
+    assert!(
+        w.text(OffRadar::Listed).contains("ring: 'Adpot' is"),
+        "{w:?}"
+    );
 }
 
 /// FR-76's trim in NFR-20's grouped lines and FR-89's labels too: the value
@@ -328,11 +334,11 @@ fn grouped_values_are_shown_with_fr76s_trim() {
     w.push(ring(4, "\u{200b}Adpot"));
     w.push(ring(9, "Adpot\u{feff}"));
     assert!(
-        w.render()
+        w.render(OffRadar::Listed)
             .first()
             .is_some_and(|line| line.contains("— Adpot (2, first line 4);")),
         "{:?}",
-        w.render()
+        w.render(OffRadar::Listed)
     );
     let date = |line, value: &str| {
         at(
@@ -348,11 +354,11 @@ fn grouped_values_are_shown_with_fr76s_trim() {
     w.push(date(4, "\u{200b}June"));
     w.push(date(9, "June"));
     assert!(
-        w.render()
+        w.render(OffRadar::Listed)
             .first()
             .is_some_and(|line| line.contains("— June (2, first line 4);")),
         "{:?}",
-        w.render()
+        w.render(OffRadar::Listed)
     );
     let band = Warning::Render(RenderKind::OverfullBand {
         quadrant: "\u{200b}Tool".into(),
@@ -361,9 +367,9 @@ fn grouped_values_are_shown_with_fr76s_trim() {
         fits: 10,
     });
     assert!(
-        band.to_string()
+        band.text(OffRadar::Listed)
             .starts_with("quadrant 'Tool', ring 'Adopt':"),
-        "{band}"
+        "{band:?}"
     );
 }
 
@@ -372,7 +378,7 @@ fn grouped_values_are_shown_with_fr76s_trim() {
 #[test]
 fn control_characters_in_values_are_shown_escaped() {
     let w = ring(3, "In\nUse\u{1b}[31m");
-    let s = w.to_string();
+    let s = w.text(OffRadar::Listed);
     assert!(!s.contains('\n') && !s.contains('\u{1b}'), "{s:?}");
     assert!(s.contains(r"In\nUse\u{1b}[31m"), "{s}");
     // C0, DEL and C1 controls; bidi marks, embeddings, overrides and isolates,
@@ -392,7 +398,7 @@ fn control_characters_in_values_are_shown_escaped() {
                 rings: declared(),
             },
         )
-        .to_string();
+        .text(OffRadar::Listed);
         assert!(
             !shown.contains(c),
             "U+{:04X} passed through raw: {shown:?}",
@@ -400,7 +406,7 @@ fn control_characters_in_values_are_shown_escaped() {
         );
     }
     // Ordinary non-ASCII text is not escaped.
-    let plain = ring(3, "Dvořák — 日本").to_string();
+    let plain = ring(3, "Dvořák — 日本").text(OffRadar::Listed);
     assert!(plain.contains("'Dvořák — 日本'"), "{plain}");
     // An extra column's header is CSV text too (FR-18).
     let header = at(
@@ -412,7 +418,7 @@ fn control_characters_in_values_are_shown_escaped() {
             count: 1,
         },
     );
-    let header = header.to_string();
+    let header = header.text(OffRadar::Listed);
     assert!(
         !header.contains('\n') && header.contains(r"notes\nline 1"),
         "{header}"
@@ -443,7 +449,7 @@ fn forty_rows_and_a_typo_make_one_ring_line_and_a_duplicate_keeps_its_own() {
         },
     ));
     assert_eq!(
-        w.render(),
+        w.render(OffRadar::Listed),
         vec![
             "warning: 41 rows use a ring --rings does not declare (Adopt, Trial) — In Use (40, first line 4), Adpot (1, line 37); all appear in the table view; to plot one, add it to --rings",
             "warning: line 50, name: 'Kafka' repeats line 9's name 'Kafka' (names match ignoring case and extra spaces); both are drawn, so rename or delete one if they are the same item",
@@ -467,14 +473,14 @@ fn the_ring_warning_names_the_default_ring_set_when_no_flag_declared_one() {
         )
     };
     assert_eq!(
-        default(37).to_string(),
+        default(37).text(OffRadar::Listed),
         "line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
     );
     let mut w = Warnings::default();
     w.push(default(4));
     w.push(default(9));
     assert_eq!(
-        w.render(),
+        w.render(OffRadar::Listed),
         vec![
             "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); all appear in the table view; to plot one, pass --rings with every ring you want, since --rings replaces the default set"
         ]
@@ -483,9 +489,8 @@ fn the_ring_warning_names_the_default_ring_set_when_no_flag_declared_one() {
 
 /// FR-17 under FR-106: the message says where the row went, which depends
 /// on the output and on `--table`. An HTML page under the default leaves it
-/// out and says how to list it; a PNG or SVG has no table to name. The
-/// grouped line follows suit. A warning shown alone, or in a run that never
-/// says, reads as `--table all` does, the wording FR-17 had before FR-106.
+/// out and says what `--table all` would cost; a PNG or SVG has no table to
+/// name. The grouped line follows suit.
 #[test]
 fn the_ring_warning_says_where_the_row_went() {
     let default = |line| {
@@ -499,11 +504,8 @@ fn the_ring_warning_says_where_the_row_went() {
             },
         )
     };
-    let rendered = |off_radar: Option<OffRadar>, lines: &[usize], flag: bool| {
+    let rendered = |off_radar: OffRadar, lines: &[usize], flag: bool| {
         let mut w = Warnings::default();
-        if let Some(o) = off_radar {
-            w.set_off_radar(o);
-        }
         for &line in lines {
             w.push(if flag {
                 ring(line, "Adpot")
@@ -511,51 +513,46 @@ fn the_ring_warning_says_where_the_row_went() {
                 default(line)
             });
         }
-        w.render()
+        w.render(off_radar)
     };
-    assert_eq!(OffRadar::default(), OffRadar::Listed);
     assert_eq!(
-        rendered(None, &[37], false),
-        rendered(Some(OffRadar::Listed), &[37], false)
-    );
-    assert_eq!(
-        rendered(Some(OffRadar::Unlisted), &[37], false),
+        rendered(OffRadar::Unlisted, &[37], false),
         [
             "warning: line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is not on the page; to plot it, pass --rings with every ring you want, since --rings replaces the default set; to list it in the table, pass --table all"
         ]
     );
     assert_eq!(
-        rendered(Some(OffRadar::Unlisted), &[37], true),
+        rendered(OffRadar::Unlisted, &[37], true),
         [
             "warning: line 37, ring: 'Adpot' is not one of the rings --rings declares (Adopt, Trial); the row is not on the page; to plot it, add it to --rings; to list it in the table, pass --table all"
         ]
     );
     assert_eq!(
-        rendered(Some(OffRadar::Undrawn), &[37], false),
+        rendered(OffRadar::Undrawn, &[37], false),
         [
             "warning: line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
         ]
     );
     assert_eq!(
-        rendered(Some(OffRadar::Undrawn), &[37], true),
+        rendered(OffRadar::Undrawn, &[37], true),
         [
             "warning: line 37, ring: 'Adpot' is not one of the rings --rings declares (Adopt, Trial); the row is not on the radar; to plot it, add it to --rings"
         ]
     );
     assert_eq!(
-        rendered(Some(OffRadar::Unlisted), &[4, 9], false),
+        rendered(OffRadar::Unlisted, &[4, 9], false),
         [
             "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); none is on the page; to plot one, pass --rings with every ring you want, since --rings replaces the default set; to list them in the table, pass --table all"
         ]
     );
     assert_eq!(
-        rendered(Some(OffRadar::Undrawn), &[4, 9], true),
+        rendered(OffRadar::Undrawn, &[4, 9], true),
         [
             "warning: 2 rows use a ring --rings does not declare (Adopt, Trial) — Adpot (2, first line 4); none is on the radar; to plot one, add it to --rings"
         ]
     );
     assert_eq!(
-        rendered(Some(OffRadar::Listed), &[4, 9], true),
+        rendered(OffRadar::Listed, &[4, 9], true),
         [
             "warning: 2 rows use a ring --rings does not declare (Adopt, Trial) — Adpot (2, first line 4); all appear in the table view; to plot one, add it to --rings"
         ]
@@ -566,7 +563,7 @@ fn the_ring_warning_says_where_the_row_went() {
 #[test]
 fn table_all_on_a_snapshot_says_it_has_no_table() {
     assert_eq!(
-        Warning::Render(RenderKind::TableStatic).to_string(),
+        Warning::Render(RenderKind::TableStatic).text(OffRadar::Listed),
         "--table all applies to HTML pages; PNG and SVG have no table"
     );
 }
@@ -576,7 +573,7 @@ fn a_class_with_one_occurrence_prints_the_per_row_message() {
     let mut w = Warnings::default();
     w.push(ring(37, "Adpot"));
     assert_eq!(
-        w.render(),
+        w.render(OffRadar::Listed),
         vec![
             "warning: line 37, ring: 'Adpot' is not one of the rings --rings declares (Adopt, Trial); the row is in the table view, not on the radar; to plot it, add it to --rings",
         ]
@@ -590,7 +587,7 @@ fn values_group_under_fr_76_normalisation() {
     w.push(ring(5, " in use "));
     w.push(ring(6, "IN USE"));
     assert_eq!(
-        w.render(),
+        w.render(OffRadar::Listed),
         vec![
             "warning: 3 rows use a ring --rings does not declare (Adopt, Trial) — In Use (3, first line 4); all appear in the table view; to plot one, add it to --rings",
         ]
@@ -615,7 +612,7 @@ fn render_level_warnings_come_first_and_never_group() {
         fits: 10,
     }));
     assert_eq!(
-        w.render(),
+        w.render(OffRadar::Listed),
         vec![
             "warning: 9 quadrants; the radar reads best with 3 to 6, so sectors narrow and labels may crowd",
             "warning: quadrant 'A', ring 'Adopt': 12 items; about 10 fit comfortably, so some markers overlap",
@@ -643,7 +640,7 @@ fn classes_order_by_first_line_then_column() {
             value: "maybe".into(),
         },
     ));
-    let out = w.render();
+    let out = w.render(OffRadar::Listed);
     let [qualifier, status, ring] = out.as_slice() else {
         panic!("expected 3 lines: {out:#?}")
     };
@@ -665,7 +662,7 @@ fn out_of_order_pushes_are_sorted_by_position() {
             first_value: "Kafka".into(),
         },
     ));
-    let out = w.render();
+    let out = w.render(OffRadar::Listed);
     let [name, ..] = out.as_slice() else {
         panic!("expected at least 1 line: {out:#?}")
     };
@@ -678,7 +675,7 @@ fn grouped_values_are_never_capped() {
     for i in 0..30 {
         w.push(ring(i + 2, &format!("Ring{i:02}")));
     }
-    let out = w.render();
+    let out = w.render(OffRadar::Listed);
     let [grouped] = out.as_slice() else {
         panic!("expected one grouped line: {out:#?}")
     };
@@ -733,7 +730,7 @@ fn every_row_class_has_a_grouped_line() {
         let mut w = Warnings::default();
         w.push(at(4, 1, kind.clone()));
         w.push(at(6, 1, kind));
-        assert_eq!(w.render(), vec![expected]);
+        assert_eq!(w.render(OffRadar::Listed), vec![expected]);
     }
     // Each member names its own column.
     let mut mixed = Warnings::default();
@@ -756,7 +753,7 @@ fn every_row_class_has_a_grouped_line() {
         },
     ));
     assert_eq!(
-        mixed.render(),
+        mixed.render(OffRadar::Listed),
         vec![
             "warning: 2 values had characters the output cannot display — description on line 4 (U+0001), name on line 6 (2, first U+007F); each was removed",
         ]
@@ -782,13 +779,16 @@ fn the_two_date_columns_are_separate_classes() {
             value: "y".into(),
         },
     ));
-    assert_eq!(w.render().len(), 2);
+    assert_eq!(w.render(OffRadar::Listed).len(), 2);
 }
 
 #[test]
 fn no_warnings_render_nothing() {
     assert!(Warnings::default().is_empty());
-    assert_eq!(Warnings::default().render(), Vec::<String>::new());
+    assert_eq!(
+        Warnings::default().render(OffRadar::Listed),
+        Vec::<String>::new()
+    );
 }
 
 /// NFR-10 applies to the grouped line too: it prints values through its own
@@ -798,7 +798,7 @@ fn control_characters_are_escaped_in_grouped_lines_too() {
     let mut w = Warnings::default();
     w.push(ring(4, "In\nUse"));
     w.push(ring(5, "In\nUse"));
-    let out = w.render();
+    let out = w.render(OffRadar::Listed);
     let [line] = out.as_slice() else {
         panic!("expected one grouped line: {out:#?}")
     };
@@ -816,7 +816,7 @@ fn grouped_values_order_by_first_line_not_push_order() {
     w.push(ring(4, "In Use"));
     // The shown spelling is the first occurrence's (line 4), not the first pushed.
     assert_eq!(
-        w.render(),
+        w.render(OffRadar::Listed),
         vec![
             "warning: 3 rows use a ring --rings does not declare (Adopt, Trial) — In Use (2, first line 4), Adpot (1, line 37); all appear in the table view; to plot one, add it to --rings",
         ]
@@ -854,7 +854,7 @@ fn warnings_at_one_position_keep_push_order() {
         let mut w = Warnings::default();
         w.push(first);
         w.push(second);
-        let out = w.render();
+        let out = w.render(OffRadar::Listed);
         let [first, ..] = out.as_slice() else {
             panic!("expected at least 1 line: {out:#?}")
         };
@@ -878,7 +878,7 @@ fn a_grouped_line_is_placed_by_its_first_member() {
             value: "maybe".into(),
         },
     ));
-    let out = w.render();
+    let out = w.render(OffRadar::Listed);
     let [grouped, qualifier] = out.as_slice() else {
         panic!("expected 2 lines: {out:#?}")
     };
@@ -905,7 +905,7 @@ fn date_values_group_by_trimmed_text_not_case() {
     w.push(date(5, " Jan-1 "));
     w.push(date(6, "JAN-1"));
     assert_eq!(
-        w.render(),
+        w.render(OffRadar::Listed),
         vec![
             "warning: 3 rows have last_affirmed values that are not YYYY-MM-DD dates — Jan-1 (2, first line 4), JAN-1 (1, line 6); each is shown as written",
         ]
@@ -935,7 +935,7 @@ fn a_single_repeat_in_a_duplicate_group_names_its_line() {
         },
     ));
     assert_eq!(
-        w.render(),
+        w.render(OffRadar::Listed),
         vec![
             "warning: 2 rows repeat an earlier name — Kafka (line 2; repeated on line 12), Redis (line 3; repeated on line 14); every row is drawn, so rename or delete the repeats that are the same item",
         ]
@@ -1196,7 +1196,7 @@ fn unnamed_column_values_group_by_column() {
     w.push(unnamed(4, 5));
     w.push(unnamed(5, 5));
     assert_eq!(
-        w.render(),
+        w.render(OffRadar::Listed),
         vec![
             "warning: 3 values are under columns with no name in the header row — column 6 (F) (2, first line 4), column 7 (G) (1, line 9); none is shown, so add a header name, or delete the values"
         ]
@@ -1226,14 +1226,14 @@ fn column_labels_count_like_a_spreadsheet() {
 /// so they pass through.
 #[test]
 fn interior_format_characters_are_escaped_except_joiners_and_tags() {
-    let shown = ring(3, "Ad\u{200B}opt").to_string();
+    let shown = ring(3, "Ad\u{200B}opt").text(OffRadar::Listed);
     assert!(shown.contains("'Ad\\u{200b}opt'"), "{shown}");
     let family = "\u{1F468}\u{200D}\u{1F469}";
     let england = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}";
-    let word_joiner = ring(3, "Ad\u{2060}opt").to_string();
+    let word_joiner = ring(3, "Ad\u{2060}opt").text(OffRadar::Listed);
     assert!(word_joiner.contains("'Ad\\u{2060}opt'"), "{word_joiner}");
     for kept in [family, england, "a\u{200C}b", "a\u{E0001}b"] {
-        let shown = ring(3, kept).to_string();
+        let shown = ring(3, kept).text(OffRadar::Listed);
         assert!(shown.contains(&format!("'{kept}'")), "{shown}");
     }
 }
@@ -1302,7 +1302,7 @@ fn d87_warnings_name_their_widths() {
         ),
     ];
     for (kind, expected) in cases {
-        assert_eq!(Warning::Render(kind).to_string(), expected);
+        assert_eq!(Warning::Render(kind).text(OffRadar::Listed), expected);
     }
 }
 
@@ -1310,7 +1310,7 @@ fn d87_warnings_name_their_widths() {
 #[test]
 fn legend_static_says_png_and_svg_keep_the_legend() {
     assert_eq!(
-        Warning::Render(RenderKind::LegendStatic).to_string(),
+        Warning::Render(RenderKind::LegendStatic).text(OffRadar::Listed),
         "--legend hidden applies to HTML pages; PNG and SVG always draw the legend"
     );
 }
@@ -1339,7 +1339,7 @@ fn fr95_names_a_quadrant_or_a_ring() {
         ),
     ];
     for (kind, expected) in cases {
-        assert_eq!(Warning::Render(kind).to_string(), expected);
+        assert_eq!(Warning::Render(kind).text(OffRadar::Listed), expected);
     }
 }
 
@@ -1355,7 +1355,7 @@ fn fr105_gives_the_breakpoint_and_names_the_label() {
             ),
             breakpoint: 1477,
         })
-        .to_string(),
+        .text(OffRadar::Listed),
         "the wide layout needs a screen at least 1477 pixels wide, so 1440-pixel laptops get the narrow layout; a shorter name for quadrant 'Platforms and Infrastructure Shared Across Every Product Team' would fix it"
     );
 }
@@ -1409,7 +1409,7 @@ fn fr95_names_where_a_ring_came_from() {
             },
             width: 600,
         })
-        .to_string()
+        .text(OffRadar::Listed)
     };
     assert!(
         message(RingSource::Flag)
@@ -1439,7 +1439,7 @@ fn refused_links_group_by_value() {
     w.push(link(4, "mailto:y"));
     w.push(link(5, "FTP://x"));
     assert_eq!(
-        w.render(),
+        w.render(OffRadar::Listed),
         [
             "warning: 4 rows have a link that is not an http or https address — ftp://x (2, first line 2), mailto:y (1, line 4), FTP://x (1, line 5); shown as text, not links"
         ],

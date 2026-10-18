@@ -64,17 +64,15 @@ pub struct Config {
     pub input: PathBuf,
 }
 
-impl Config {
-    /// Where this run puts a row FR-17 leaves off the radar (FR-106): in
-    /// the page's table only under `--table all`, and nowhere in a PNG or
-    /// SVG, which has no table.
-    #[must_use]
-    pub const fn off_radar(&self) -> OffRadar {
-        match (self.format, self.table) {
-            (OutputFormat::Html, Table::All) => OffRadar::Listed,
-            (OutputFormat::Html, Table::Radar) => OffRadar::Unlisted,
-            (OutputFormat::Png | OutputFormat::Svg, _) => OffRadar::Undrawn,
-        }
+/// Where a run writing `format` with `--table` set to `table` puts a row
+/// FR-17 leaves off the radar (FR-106): in the page's table only under
+/// `--table all`, and nowhere in a PNG or SVG, which has no table.
+#[must_use]
+pub const fn off_radar(format: OutputFormat, table: Table) -> OffRadar {
+    match (format, table) {
+        (OutputFormat::Html, Table::All) => OffRadar::Listed,
+        (OutputFormat::Html, Table::Radar) => OffRadar::Unlisted,
+        (OutputFormat::Png | OutputFormat::Svg, _) => OffRadar::Undrawn,
     }
 }
 
@@ -132,8 +130,17 @@ impl Report {
 pub fn run(cli: &Cli) -> Report {
     let mut warnings = Warnings::default();
     let outcome = steps(cli, &mut warnings).map_err(Failure::render);
+    // FR-17's words depend on where an off-radar row went (FR-106), which
+    // `-o`'s format and --table decide. Without a format the run stopped at
+    // tier one, before any row was read, so no row warning exists and any
+    // value would do.
+    let off_radar = cli
+        .output
+        .as_deref()
+        .and_then(|output| format(output).ok())
+        .map_or(OffRadar::Undrawn, |format| off_radar(format, cli.table));
     Report {
-        warnings: warnings.render(),
+        warnings: warnings.render(off_radar),
         outcome,
     }
 }
@@ -145,7 +152,6 @@ fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
         Task::Render { input, output } => (input, output),
     };
     let config = config(cli, input, output, warnings).map_err(Failure::Alone)?;
-    warnings.set_off_radar(config.off_radar());
     let fonts = Fonts::embedded().map_err(Fatal::from)?;
     let catalogue = catalogue(&config.input, &config.rings, warnings)?;
     let bytes = render(&catalogue, &config, &fonts, warnings)?;
