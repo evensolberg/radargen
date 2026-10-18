@@ -270,24 +270,19 @@ fn render(
     warn_crowding(catalogue, &plotted, blocks.radar.growth(), warnings);
     // RG-102: a static snapshot has no button to bring a hidden legend
     // back, so it keeps the legend and says so.
-    if config.legend == Legend::Hidden && config.format != OutputFormat::Html {
+    if config.legend == Legend::Hidden && config.format.is_snapshot() {
         warnings.push(Warning::Render(RenderKind::LegendStatic));
     }
     // FR-104: a static snapshot draws every text with the bundled font
     // alone, so a character it lacks is a box; the page falls back to the
     // reader's fonts, so it is not warned (D-93).
-    let snapshot = match config.format {
-        OutputFormat::Html => None,
-        OutputFormat::Png => Some("PNG"),
-        OutputFormat::Svg => Some("SVG"),
-    };
-    if let Some(format) = snapshot {
+    if config.format.is_snapshot() {
         warn_missing_glyphs(
             catalogue,
             &plotted,
             config.title.as_deref(),
             config.subtitle.as_deref(),
-            format,
+            config.format,
             fonts,
             warnings,
         );

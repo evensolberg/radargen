@@ -3,10 +3,11 @@
 
 use std::sync::Arc;
 
+use radargen::cli::OutputFormat;
 use radargen::columns::ColumnKind;
 use radargen::diagnostics::{
-    Binding, DateColumn, Fatal, Flag, Position, RenderKind, RowError, RowKind, Separator, Warning,
-    Warnings, column_label,
+    Binding, DateColumn, Fatal, Flag, Lacking, Position, RenderKind, RowError, RowKind, Separator,
+    Warning, Warnings, column_label,
 };
 use radargen::rings::{RingSource, RingsError};
 
@@ -161,6 +162,30 @@ fn undisplayable_and_unnamed_values_have_their_per_row_message() {
     }
 }
 
+/// FR-104's text and what it lacks, as the variants carry it.
+fn lacking(text: &str, first: char, count: usize, format: OutputFormat) -> Lacking {
+    Lacking {
+        text: text.into(),
+        first,
+        count,
+        format,
+    }
+}
+
+/// FR-104 on a cell under `column`.
+fn cell(
+    column: ColumnKind,
+    text: &str,
+    first: char,
+    count: usize,
+    format: OutputFormat,
+) -> RowKind {
+    RowKind::MissingGlyphs {
+        column,
+        lacking: lacking(text, first, count, format),
+    }
+}
+
 /// FR-104's ending for one missing character in a PNG.
 const PNG_ONE: &str = "the PNG draws it as a box — an HTML page shows it, or transliterate it";
 /// The same for several.
@@ -177,13 +202,7 @@ fn missing_glyphs_have_their_per_row_message() {
             at(
                 3,
                 0,
-                RowKind::MissingGlyphs {
-                    column: ColumnKind::Name,
-                    text: "Kafka 中".into(),
-                    first: '中',
-                    count: 1,
-                    format: "PNG",
-                },
+                cell(ColumnKind::Name, "Kafka 中", '中', 1, OutputFormat::Png),
             ),
             format!("line 3, name: 'Kafka 中' has U+4E2D 中, which the bundled font lacks; {PNG_ONE}"),
         ),
@@ -191,13 +210,7 @@ fn missing_glyphs_have_their_per_row_message() {
             at(
                 4,
                 1,
-                RowKind::MissingGlyphs {
-                    column: ColumnKind::Quadrant,
-                    text: "عربي".into(),
-                    first: 'ع',
-                    count: 4,
-                    format: "PNG",
-                },
+                cell(ColumnKind::Quadrant, "عربي", 'ع', 4, OutputFormat::Png),
             ),
             format!(
                 "line 4, quadrant: 'عربي' has 4 characters the bundled font lacks, the first U+0639 ع; {PNG_MANY}"
@@ -209,13 +222,7 @@ fn missing_glyphs_have_their_per_row_message() {
             at(
                 5,
                 0,
-                RowKind::MissingGlyphs {
-                    column: ColumnKind::Name,
-                    text: "q\u{1ab0}".into(),
-                    first: '\u{1ab0}',
-                    count: 1,
-                    format: "SVG",
-                },
+                cell(ColumnKind::Name, "q\u{1ab0}", '\u{1ab0}', 1, OutputFormat::Svg),
             ),
             "line 5, name: 'q\u{1ab0}' has U+1AB0, which the bundled font lacks; the SVG draws it as a box — an HTML page shows it, or transliterate it".to_owned(),
         ),
@@ -232,20 +239,14 @@ fn missing_glyphs_in_a_flag_name_the_flag() {
         (
             RenderKind::FlagMissingGlyphs {
                 flag: Flag::Title,
-                text: "雷达 2026".into(),
-                first: '雷',
-                count: 2,
-                format: "SVG",
+                lacking: lacking("雷达 2026", '雷', 2, OutputFormat::Svg),
             },
             "--title: '雷达 2026' has 2 characters the bundled font lacks, the first U+96F7 雷; the SVG draws them as boxes — an HTML page shows them, or transliterate them".to_owned(),
         ),
         (
             RenderKind::FlagMissingGlyphs {
                 flag: Flag::Rings,
-                text: "採用".into(),
-                first: '採',
-                count: 2,
-                format: "PNG",
+                lacking: lacking("採用", '採', 2, OutputFormat::Png),
             },
             format!(
                 "--rings: '採用' has 2 characters the bundled font lacks, the first U+63A1 採; {PNG_MANY}"
@@ -254,10 +255,7 @@ fn missing_glyphs_in_a_flag_name_the_flag() {
         (
             RenderKind::FlagMissingGlyphs {
                 flag: Flag::Subtitle,
-                text: "Q3 🙂".into(),
-                first: '🙂',
-                count: 1,
-                format: "PNG",
+                lacking: lacking("Q3 🙂", '🙂', 1, OutputFormat::Png),
             },
             format!("--subtitle: 'Q3 🙂' has U+1F642 🙂, which the bundled font lacks; {PNG_ONE}"),
         ),
@@ -275,24 +273,12 @@ fn missing_glyphs_group_into_one_line() {
     w.push(at(
         4,
         1,
-        RowKind::MissingGlyphs {
-            column: ColumnKind::Quadrant,
-            text: "عربي".into(),
-            first: 'ع',
-            count: 4,
-            format: "PNG",
-        },
+        cell(ColumnKind::Quadrant, "عربي", 'ع', 4, OutputFormat::Png),
     ));
     w.push(at(
         3,
         0,
-        RowKind::MissingGlyphs {
-            column: ColumnKind::Name,
-            text: "Kafka 中".into(),
-            first: '中',
-            count: 1,
-            format: "PNG",
-        },
+        cell(ColumnKind::Name, "Kafka 中", '中', 1, OutputFormat::Png),
     ));
     assert_eq!(
         w.render(),
@@ -641,13 +627,7 @@ fn every_row_class_has_a_grouped_line() {
             "warning: 2 rows have an empty description — lines 4, 6; each detail panel omits it",
         ),
         (
-            RowKind::MissingGlyphs {
-                column: ColumnKind::Name,
-                text: "中".into(),
-                first: '中',
-                count: 1,
-                format: "PNG",
-            },
+            cell(ColumnKind::Name, "中", '中', 1, OutputFormat::Png),
             "warning: 2 values have characters the bundled font lacks — name '中' on line 4 (U+4E2D 中), name '中' on line 6 (U+4E2D 中); the PNG draws them as boxes — an HTML page shows them, or transliterate them",
         ),
         (

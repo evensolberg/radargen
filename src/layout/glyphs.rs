@@ -2,13 +2,13 @@
 //! bundled font lacks, so the static output draws a box where the HTML page
 //! would fall back to the reader's fonts (D-93).
 
+use crate::cli::OutputFormat;
 use crate::columns::ColumnKind;
-use crate::diagnostics::{Flag, RenderKind, RowKind, Warning, Warnings};
+use crate::diagnostics::{Flag, Lacking, RenderKind, RowKind, Warning, Warnings};
 use crate::model::Catalogue;
 use crate::order::Plotted;
 use crate::rings::RingSource;
 use crate::text::{Fonts, words};
-use crate::tidy;
 
 /// FR-104: one warning per drawn text with characters the bundled font
 /// lacks, pointing where the author wrote it.
@@ -22,104 +22,86 @@ use crate::tidy;
 /// # Panics
 ///
 /// If `plotted` was not built from `catalogue`, so it names a quadrant or
-/// item the catalogue lacks, or if a quadrant's label is no row's cell,
-/// which FR-9 rules out.
-// qual:allow(complexity, error_handling) reason: "the documented # Panics: a Plotted from another catalogue, or a label no row wrote, is a caller bug"
+/// item the catalogue lacks.
+// qual:allow(complexity, error_handling) reason: "the documented # Panics: a Plotted from another catalogue is a caller bug"
 pub fn warn_missing_glyphs(
     catalogue: &Catalogue,
     plotted: &Plotted,
     title: Option<&str>,
     subtitle: Option<&str>,
-    format: &'static str,
+    format: OutputFormat,
     fonts: &Fonts,
     warnings: &mut Warnings,
 ) {
-    let flags = [(Flag::Title, title), (Flag::Subtitle, subtitle)];
-    let drawn = flags
-        .into_iter()
-        .filter_map(|(flag, value)| Some((flag, words(value?))));
-    let rings = (catalogue.ring_source == RingSource::Flag)
-        .then_some(&catalogue.rings)
-        .into_iter()
-        .flatten()
-        .map(|ring| (Flag::Rings, ring.clone()));
-    for (flag, text) in drawn.chain(rings) {
-        if let Some((first, count)) = lacking(&text, fonts) {
+    let lacking = |text: &str| lacking(text, format, fonts);
+    for (flag, value) in [(Flag::Title, title), (Flag::Subtitle, subtitle)] {
+        // As the title block draws it: one space per run of whitespace, so
+        // a tab, which the shaper would draw as a box, is not checked.
+        if let Some(lacking) = value.map(words).as_deref().and_then(lacking) {
             warnings.push(Warning::Render(RenderKind::FlagMissingGlyphs {
                 flag,
-                text,
-                first,
-                count,
-                format,
+                lacking,
             }));
         }
     }
-    let at = |kind| {
-        let column = catalogue.column(kind)?;
-        Some((column, catalogue.columns.get(column)?.position))
-    };
-    let mut cell = |line, column, kind, text: &str| {
-        if let Some((first, count)) = lacking(text, fonts) {
+    if catalogue.ring_source == RingSource::Flag {
+        for ring in &catalogue.rings {
+            if let Some(lacking) = lacking(ring) {
+                warnings.push(Warning::Render(RenderKind::FlagMissingGlyphs {
+                    flag: Flag::Rings,
+                    lacking,
+                }));
+            }
+        }
+    }
+    let mut cell = |line, kind, text: &str| {
+        if let Some((column, lacking)) = catalogue.position(kind).zip(lacking(text)) {
             warnings.push(Warning::Row {
                 line,
                 column,
                 kind: RowKind::MissingGlyphs {
                     column: kind,
-                    text: text.to_owned(),
-                    first,
-                    count,
-                    format,
+                    lacking,
                 },
             });
         }
     };
-    if let Some((_, position)) = at(ColumnKind::Name) {
-        for &i in &plotted.items {
-            let item = catalogue
-                .items
-                .get(i)
-                .expect("FR-34's order indexes the catalogue's items");
-            cell(item.line, position, ColumnKind::Name, &item.name);
-        }
+    for &i in &plotted.items {
+        let item = catalogue
+            .items
+            .get(i)
+            .expect("FR-34's order indexes the catalogue's items");
+        cell(item.line, ColumnKind::Name, &item.name);
     }
-    if let Some((column, position)) = at(ColumnKind::Quadrant) {
-        for &q in &plotted.quadrants {
-            let label = &catalogue
-                .quadrants
-                .get(q)
-                .expect("FR-10's order indexes the catalogue's quadrants")
-                .label;
-            // FR-9 draws one row's spelling: point at the first row that
-            // wrote it.
-            let source = catalogue
-                .items
-                .iter()
-                .find(|item| {
-                    item.quadrant == q && item.cell(column).is_some_and(|c| tidy(c) == *label)
-                })
-                .expect("FR-9's label is one of its rows' cells, tidied");
-            cell(source.line, position, ColumnKind::Quadrant, label);
-        }
+    for &q in &plotted.quadrants {
+        let quadrant = catalogue
+            .quadrants
+            .get(q)
+            .expect("FR-10's order indexes the catalogue's quadrants");
+        cell(quadrant.line, ColumnKind::Quadrant, &quadrant.label);
     }
 }
 
-/// The first character `text` lacks and how many distinct ones it lacks,
-/// or `None` when the font draws all of it.
-fn lacking(text: &str, fonts: &Fonts) -> Option<(char, usize)> {
+/// What `text` lacks in `format`, or `None` when the font draws all of it.
+/// The text is copied only when there is a warning to carry it.
+fn lacking(text: &str, format: OutputFormat, fonts: &Fonts) -> Option<Lacking> {
     let missing = fonts.missing(text);
-    missing.first().map(|&first| (first, missing.len()))
+    let &first = missing.first()?;
+    Some(Lacking {
+        text: text.to_owned(),
+        first,
+        count: missing.len(),
+        format,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::layout::arrange::{Arrangement, Blocks, arrange};
-    use crate::layout::test_support::{HEAD, HEAD_META, plotted};
+    use crate::layout::block::fonts;
+    use crate::layout::test_support::{HEAD, HEAD_META, groups, plotted};
     use crate::svg::Node;
-
-    fn fonts() -> Fonts {
-        Fonts::embedded().expect("loads")
-    }
 
     /// The warnings for `csv`, `--rings` and the title flags, for a PNG.
     fn warned(
@@ -135,35 +117,35 @@ mod tests {
             &order,
             title,
             subtitle,
-            "PNG",
-            &fonts(),
+            OutputFormat::Png,
+            fonts(),
             &mut warnings,
         );
         warnings.as_slice().to_vec()
     }
 
-    const fn row(line: usize, column: usize, kind: RowKind) -> Warning {
-        Warning::Row { line, column, kind }
-    }
-
-    fn cell(column: ColumnKind, text: &str, first: char, count: usize) -> RowKind {
-        RowKind::MissingGlyphs {
-            column,
+    fn lacks(text: &str, first: char, count: usize) -> Lacking {
+        Lacking {
             text: text.into(),
             first,
             count,
-            format: "PNG",
+            format: OutputFormat::Png,
         }
     }
 
-    fn flag(flag: Flag, text: &str, first: char, count: usize) -> Warning {
-        Warning::Render(RenderKind::FlagMissingGlyphs {
-            flag,
-            text: text.into(),
-            first,
-            count,
-            format: "PNG",
-        })
+    fn cell(line: usize, column: usize, kind: ColumnKind, lacking: Lacking) -> Warning {
+        Warning::Row {
+            line,
+            column,
+            kind: RowKind::MissingGlyphs {
+                column: kind,
+                lacking,
+            },
+        }
+    }
+
+    const fn flag(flag: Flag, lacking: Lacking) -> Warning {
+        Warning::Render(RenderKind::FlagMissingGlyphs { flag, lacking })
     }
 
     /// A drawn name or quadrant warns at its own cell. An unplotted row's
@@ -177,8 +159,8 @@ mod tests {
         assert_eq!(
             got,
             [
-                row(2, 0, cell(ColumnKind::Name, "Kafka 中", '中', 1)),
-                row(3, 1, cell(ColumnKind::Quadrant, "عربي", 'ع', 4)),
+                cell(2, 0, ColumnKind::Name, lacks("Kafka 中", '中', 1)),
+                cell(3, 1, ColumnKind::Quadrant, lacks("عربي", 'ع', 4)),
             ]
         );
     }
@@ -193,8 +175,8 @@ mod tests {
         assert_eq!(
             got,
             [
-                row(2, 0, cell(ColumnKind::Name, "中", '中', 1)),
-                row(2, 2, cell(ColumnKind::Quadrant, "عربي", 'ع', 4)),
+                cell(2, 0, ColumnKind::Name, lacks("中", '中', 1)),
+                cell(2, 2, ColumnKind::Quadrant, lacks("عربي", 'ع', 4)),
             ]
         );
     }
@@ -206,7 +188,7 @@ mod tests {
         let csv = format!("{HEAD}a,zoo 中,Adopt,d\nb,Zoo 中,Adopt,d\nc,Zoo 中,Trial,d\n");
         assert_eq!(
             warned(&csv, None, None, None),
-            [row(3, 1, cell(ColumnKind::Quadrant, "Zoo 中", '中', 1))]
+            [cell(3, 1, ColumnKind::Quadrant, lacks("Zoo 中", '中', 1))]
         );
     }
 
@@ -224,10 +206,10 @@ mod tests {
         assert_eq!(
             got,
             [
-                flag(Flag::Title, "雷达 2026", '雷', 2),
-                flag(Flag::Subtitle, "Q3 🙂", '🙂', 1),
-                flag(Flag::Rings, "採用", '採', 2),
-                flag(Flag::Rings, "Hold 🙂", '🙂', 1),
+                flag(Flag::Title, lacks("雷达 2026", '雷', 2)),
+                flag(Flag::Subtitle, lacks("Q3 🙂", '🙂', 1)),
+                flag(Flag::Rings, lacks("採用", '採', 2)),
+                flag(Flag::Rings, lacks("Hold 🙂", '🙂', 1)),
             ]
         );
     }
@@ -249,39 +231,35 @@ mod tests {
 
     /// One drawn text node: its lines, the whole text they wrap, and its
     /// tail, if any.
-    struct Drawn {
-        lines: Vec<String>,
-        words: String,
-        tail: Option<String>,
+    struct Drawn<'a> {
+        lines: &'a [String],
+        words: &'a str,
+        tail: Option<&'a str>,
     }
 
-    /// Every text node the wide document draws.
-    fn drawn(node: &Node, out: &mut Vec<Drawn>) {
-        match node {
-            Node::Group(group) => group.children.iter().for_each(|c| drawn(c, out)),
-            Node::Text {
-                lines, words, tail, ..
-            } => out.push(Drawn {
-                lines: lines.clone(),
-                words: words.clone(),
-                tail: tail.as_ref().map(|t| t.text.clone()),
-            }),
-            _ => {}
-        }
-    }
-
-    fn document(
+    /// Every text node the wide document for `csv` draws, handed to `check`.
+    fn each_drawn(
         csv: &str,
         rings: Option<&str>,
         title: Option<&str>,
         subtitle: Option<&str>,
-    ) -> Vec<Drawn> {
+        check: impl Fn(&Drawn),
+    ) {
         let (catalogue, order) = plotted(csv, rings);
-        let fonts = fonts();
-        let blocks = Blocks::new(&catalogue, &order, title, subtitle, &fonts);
-        let mut out = Vec::new();
-        drawn(&arrange(Arrangement::Wide, &blocks).root, &mut out);
-        out
+        let blocks = Blocks::new(&catalogue, &order, title, subtitle, fonts());
+        let root = arrange(Arrangement::Wide, &blocks).root;
+        for node in groups(&root).iter().flat_map(|g| &g.children) {
+            if let Node::Text {
+                lines, words, tail, ..
+            } = node
+            {
+                check(&Drawn {
+                    lines,
+                    words,
+                    tail: tail.as_ref().map(|t| t.text.as_str()),
+                });
+            }
+        }
     }
 
     /// The tool's own text (the key, the legend's headings, qualifier and
@@ -290,33 +268,34 @@ mod tests {
     #[test]
     fn the_tools_own_text_is_covered() {
         // Twelve items, so the numbers 1 to 12 draw every digit.
-        let meta = [
-            ("Assess", "conditional", "new"),
-            ("Trial", "default", "moved in"),
-            ("Adopt", "", "moved out"),
-            ("Retire", "", ""),
-        ];
-        let quadrants = ["Tools", "Ops"].into_iter().cycle();
-        let rows = (0..12).zip(meta.into_iter().cycle()).zip(quadrants).fold(
-            String::new(),
-            |rows, ((i, (ring, q, status)), quadrant)| {
-                rows + &format!("Item {i},{quadrant},{ring},d,{q},{status}\n")
-            },
+        let csv = format!(
+            "{HEAD_META}\
+             A,Tools,Assess,d,conditional,new\n\
+             B,Ops,Trial,d,default,moved in\n\
+             C,Tools,Adopt,d,,moved out\n\
+             D,Ops,Retire,d,,\n\
+             E,Tools,Assess,d,conditional,new\n\
+             F,Ops,Trial,d,default,moved in\n\
+             G,Tools,Adopt,d,,moved out\n\
+             H,Ops,Retire,d,,\n\
+             I,Tools,Assess,d,conditional,new\n\
+             J,Ops,Trial,d,default,moved in\n\
+             K,Tools,Adopt,d,,moved out\n\
+             L,Ops,Retire,d,,\n"
         );
-        let fonts = fonts();
-        let texts: Vec<String> =
-            document(&format!("{HEAD_META}{rows}"), None, Some("T"), Some("S"))
-                .into_iter()
-                .flat_map(|d| d.lines.into_iter().chain(d.tail))
-                .collect();
-        assert!(texts.iter().any(|t| t == "Key"), "{texts:?}");
-        let all = texts.concat();
+        let seen = std::cell::RefCell::new(String::new());
+        each_drawn(&csv, None, Some("T"), Some("S"), |node| {
+            for text in node.lines.iter().map(String::as_str).chain(node.tail) {
+                let missing = fonts().missing(text);
+                assert!(missing.is_empty(), "{text:?}: {missing:?}");
+                seen.borrow_mut().push_str(text);
+                seen.borrow_mut().push('\n');
+            }
+        });
+        let seen = seen.into_inner();
+        assert!(seen.lines().any(|t| t == "Key"), "{seen}");
         for digit in '0'..='9' {
-            assert!(all.contains(digit), "{digit} is drawn: {texts:?}");
-        }
-        for text in texts {
-            let missing = fonts.missing(&text);
-            assert!(missing.is_empty(), "{text:?}: {missing:?}");
+            assert!(seen.contains(digit), "{digit} is drawn: {seen}");
         }
     }
 
@@ -335,35 +314,33 @@ mod tests {
             .into_iter()
             .filter_map(|w| match w {
                 Warning::Row {
-                    kind: RowKind::MissingGlyphs { text, .. },
+                    kind: RowKind::MissingGlyphs { lacking, .. },
                     ..
                 }
-                | Warning::Render(RenderKind::FlagMissingGlyphs { text, .. }) => Some(text),
+                | Warning::Render(RenderKind::FlagMissingGlyphs { lacking, .. }) => {
+                    Some(lacking.text)
+                }
                 _ => None,
             })
             .collect();
         assert_eq!(warned_texts.len(), 6, "{warned_texts:?}");
-        let fonts = fonts();
-        let nodes = document(csv, rings, title, subtitle);
-        assert!(
-            nodes.iter().any(|d| d.lines.len() > 1),
-            "the fixture wraps a text"
-        );
-        let mut boxed = 0;
-        for node in &nodes {
-            for line in node.lines.iter().filter(|l| !fonts.missing(l).is_empty()) {
-                boxed += 1;
+        let (boxed, wrapped) = (std::cell::Cell::new(0), std::cell::Cell::new(false));
+        each_drawn(csv, rings, title, subtitle, |node| {
+            wrapped.set(wrapped.get() || node.lines.len() > 1);
+            for line in node.lines.iter().filter(|l| !fonts().missing(l).is_empty()) {
+                boxed.set(boxed.get() + 1);
                 assert!(
-                    warned_texts.contains(&node.words),
+                    warned_texts.iter().any(|w| w == node.words),
                     "{line:?}, of {:?}, is drawn with a box but not warned: {warned_texts:?}",
                     node.words
                 );
             }
-            if let Some(tail) = &node.tail {
-                let missing = fonts.missing(tail);
+            if let Some(tail) = node.tail {
+                let missing = fonts().missing(tail);
                 assert!(missing.is_empty(), "the tool's own {tail:?}: {missing:?}");
             }
-        }
-        assert!(boxed > 0, "the fixture draws boxes");
+        });
+        assert!(wrapped.get(), "the fixture wraps a text");
+        assert!(boxed.get() > 0, "the fixture draws boxes");
     }
 }

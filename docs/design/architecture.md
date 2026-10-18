@@ -708,8 +708,9 @@ warn. Like `warn_crowding`, it rebuilds what is drawn from `Catalogue`,
 `every_drawn_text_that_lacks_a_glyph_is_warned` keeps the two in step, by
 matching every boxed line of the drawn document to a warned text. No position
 is carried down for it: each item already keeps its line, and this change gives
-each column its header position (`Column::position`), which is all the cell
-needs (D-93).
+each column its header position (`Column::position`, read through
+`Catalogue::position`) and each quadrant the line its label came from
+(`Quadrant::line`), which is all the cell needs (D-93).
 
 ## 8. Where each open question lives
 

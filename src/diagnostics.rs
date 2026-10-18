@@ -4,6 +4,7 @@
 use std::fmt;
 use std::sync::Arc;
 
+use crate::cli::OutputFormat;
 use crate::columns::ColumnKind;
 use crate::csv::decode::MAX_BYTES as MAX_CSV_BYTES;
 use crate::palette::file::{MAX_BYTES, PaletteError};
@@ -131,14 +132,8 @@ pub enum RowKind {
     MissingGlyphs {
         /// The column the text was read from: `name` or `quadrant`.
         column: ColumnKind,
-        /// The text as drawn.
-        text: String,
-        /// The first character the font lacks.
-        first: char,
-        /// How many distinct characters it lacks.
-        count: usize,
-        /// The format being written, which draws the box: `PNG` or `SVG`.
-        format: &'static str,
+        /// The text and what it lacks.
+        lacking: Lacking,
     },
 }
 
@@ -202,15 +197,46 @@ pub enum RenderKind {
     FlagMissingGlyphs {
         /// The flag the text came from.
         flag: Flag,
-        /// The text as drawn: the value, or one `--rings` entry.
-        text: String,
-        /// The first character the font lacks.
-        first: char,
-        /// How many distinct characters it lacks.
-        count: usize,
-        /// The format being written, which draws the box: `PNG` or `SVG`.
-        format: &'static str,
+        /// The text, the value or one `--rings` entry, and what it lacks.
+        lacking: Lacking,
     },
+}
+
+/// FR-104: a text as a PNG or SVG draws it, with characters the bundled
+/// font lacks. Its `Display` is the message after the position or flag.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Lacking {
+    /// The text as drawn.
+    pub text: String,
+    /// The first character the font lacks.
+    pub first: char,
+    /// How many distinct characters it lacks.
+    pub count: usize,
+    /// The snapshot being written, which draws the boxes.
+    pub format: OutputFormat,
+}
+
+impl fmt::Display for Lacking {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            text,
+            first,
+            count,
+            format,
+        } = self;
+        let (first, ending) = (glyph(*first), boxes(*format, *count));
+        if *count == 1 {
+            write!(
+                f,
+                "'{text}' has {first}, which the bundled font lacks; {ending}"
+            )
+        } else {
+            write!(
+                f,
+                "'{text}' has {count} characters the bundled font lacks, the first {first}; {ending}"
+            )
+        }
+    }
 }
 
 /// The label whose reach sets the radar's width (FR-95, D-73): a quadrant
@@ -306,7 +332,7 @@ enum Class {
     Unnamed,
     /// The format rides here, as a ring set's source does: one run writes
     /// one format.
-    MissingGlyphs(&'static str),
+    MissingGlyphs(OutputFormat),
 }
 
 impl RowKind {
@@ -321,7 +347,7 @@ impl RowKind {
             Self::DuplicateName { .. } => Class::DuplicateName,
             Self::Undisplayable { .. } => Class::Undisplayable,
             Self::UnnamedValue { .. } => Class::Unnamed,
-            Self::MissingGlyphs { format, .. } => Class::MissingGlyphs(format),
+            Self::MissingGlyphs { lacking, .. } => Class::MissingGlyphs(lacking.format),
         }
     }
 
@@ -407,13 +433,7 @@ impl RowKind {
             Self::UnnamedValue { .. } => {
                 "this column has no name in the header row, so its value is not shown; add a header name, or delete the value".into()
             }
-            Self::MissingGlyphs {
-                text,
-                first,
-                count,
-                format,
-                ..
-            } => lacks(text, *first, *count, format),
+            Self::MissingGlyphs { lacking, .. } => lacking.to_string(),
         }
     }
 }
@@ -484,13 +504,7 @@ impl RenderKind {
                 "{flag}: removed {count} characters the output cannot display, the first {}",
                 code_point(*first)
             ),
-            Self::FlagMissingGlyphs {
-                flag,
-                text,
-                first,
-                count,
-                format,
-            } => format!("{flag}: {}", lacks(text, *first, *count, format)),
+            Self::FlagMissingGlyphs { flag, lacking } => format!("{flag}: {lacking}"),
         }
     }
 }
@@ -553,48 +567,30 @@ pub const fn plural<'a>(n: usize, one: &'a str, many: &'a str) -> &'a str {
     if n == 1 { one } else { many }
 }
 
-/// FR-104's ending, which says what to do: the box for one missing
-/// character, or for several, in `format`.
-fn boxes(format: &str, count: usize) -> String {
-    if count == 1 {
-        format!("the {format} draws it as a box — an HTML page shows it, or transliterate it")
-    } else {
-        format!("the {format} draws them as boxes — an HTML page shows them, or transliterate them")
-    }
-}
-
-/// FR-104's message for one drawn text, after its position or flag. The
-/// text is already as drawn, so it is not trimmed again.
-fn lacks(text: &str, first: char, count: usize, format: &str) -> String {
-    let ending = boxes(format, count);
-    let first = glyph(first);
-    if count == 1 {
-        format!("'{text}' has {first}, which the bundled font lacks; {ending}")
-    } else {
-        format!(
-            "'{text}' has {count} characters the bundled font lacks, the first {first}; {ending}"
-        )
-    }
+/// FR-104's ending, which says what to do about `count` boxes in `format`.
+fn boxes(format: OutputFormat, count: usize) -> String {
+    let (them, boxes) = (plural(count, "it", "them"), plural(count, "a box", "boxes"));
+    format!(
+        "the {format} draws {them} as {boxes} — an HTML page shows {them}, or transliterate {them}"
+    )
 }
 
 /// A missing character as FR-104 names it: `U+4E2D 中`, or the code point
-/// alone when [`shown`] keeps the character out.
+/// alone where the character shows nothing a reader can match. A mark would
+/// combine with the space before it, and whitespace or a control, format,
+/// unassigned or private-use character is invisible.
 fn glyph(c: char) -> String {
-    shown(c).map_or_else(|| code_point(c), |c| format!("{} {c}", code_point(c)))
-}
-
-/// `c`, if a message can show it beside its code point (FR-104). A mark
-/// would combine with the punctuation before it, and whitespace or a
-/// control, format, unassigned or private-use character shows nothing a
-/// reader can match, so those get the code point alone.
-fn shown(c: char) -> Option<char> {
     use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory as _};
     let hidden = c.is_whitespace()
         || matches!(
             c.general_category_group(),
             GeneralCategoryGroup::Mark | GeneralCategoryGroup::Other
         );
-    (!hidden).then_some(c)
+    if hidden {
+        code_point(c)
+    } else {
+        format!("{} {c}", code_point(c))
+    }
 }
 
 fn code_point(c: char) -> String {
@@ -776,10 +772,10 @@ fn grouped(class: Class, members: &[Member]) -> String {
             comma_list(members.iter().filter_map(|m| {
                 let RowKind::MissingGlyphs {
                     column,
-                    text,
-                    first,
-                    count,
-                    ..
+                    lacking:
+                        Lacking {
+                            text, first, count, ..
+                        },
                 } = m.kind
                 else {
                     return None;
