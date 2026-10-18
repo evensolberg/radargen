@@ -275,6 +275,10 @@ fn legend_button() -> String {
     .concat()
 }
 
+/// rg-kw7: the page's buttons do nothing on paper, so the controls bar is
+/// not printed.
+pub(super) const PRINT_NO_CONTROLS: &str = "@media print{.page-controls{display:none}}\n";
+
 /// The controls' rules, capped and inset like the table view.
 /// Plan RG-018A R11: the skip link is a text button a little taller than
 /// the icon buttons, so in the bar's flow its focus would push the page
@@ -333,6 +337,7 @@ pub(super) fn css(wide: &Wide, toggle: bool) -> String {
         &wide.breakpoint().to_string(),
         GRID_RULE,
         SKIP_OVER_PAGE,
+        PRINT_NO_CONTROLS,
     ]
     .concat()
 }
