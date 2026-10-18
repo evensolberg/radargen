@@ -77,6 +77,15 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.miniz_oxide]
 opt-level = 3
+# Shaping too (rg-c9v): every text measure in a test goes through
+# harfrust, and a one-character measure costs about 15 times more
+# unoptimised, so text-heavy tests spent most of their time here.
+[profile.dev.package.harfrust]
+opt-level = 3
+[profile.dev.package.read-fonts]
+opt-level = 3
+[profile.dev.package.skrifa]
+opt-level = 3
 
 [profile.release]
 strip = true

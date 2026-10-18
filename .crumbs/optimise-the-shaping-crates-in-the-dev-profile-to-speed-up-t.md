@@ -1,7 +1,7 @@
 ---
 id: rg-c9v
 title: Optimise the shaping crates in the dev profile to speed up tests
-status: open
+status: closed
 type: task
 priority: 3
 tags:
@@ -9,9 +9,14 @@ tags:
 - tests
 created: 2026-10-18
 updated: 2026-10-18
+closed_reason: dev-profile opt-level 3 for harfrust, read-fonts, skrifa; warm cargo test 38.8 s -> 6.9 s
 phase: ''
 ---
 
 # Optimise the shaping crates in the dev profile to speed up tests
 
 From the fix/cap-and-wrap review (rg-wl7): text shaping dominates debug test time; a 1-char measure costs about 157 us in debug against about 10 us optimised. Adding [profile.dev.package.{harfrust,read-fonts,skrifa}] opt-level = 3 beside the existing resvg/png overrides in Cargo.toml made breaking_a_token_matches_the_linear_scan 17x faster (0.43 s vs about 7.5 s). Check build-time cost and that no golden or timing test changes.
+
+[start] 2026-10-18 13:55:28
+
+[stop]  2026-10-18 14:02:18  6m 50s
