@@ -544,6 +544,43 @@ mod tests {
         }
     }
 
+    /// rg-sw0: a glyph the shaper raises is drawn above the baseline. Two
+    /// stacked accents on a capital are the one case the Inter subset shapes
+    /// with a vertical offset (the upper accent, 812 units up in Regular),
+    /// so a flipped sign in `place` moves it below the letter.
+    #[test]
+    fn place_raises_a_glyph_the_shaper_raises() {
+        let fonts = Fonts::embedded().expect("loads");
+        let text = "A\u{300}\u{301}";
+        let size = 20.0;
+        for weight in [Weight::Regular, Weight::SemiBold] {
+            let face = fonts.face(weight);
+            let shaped = face.shape(text);
+            let placed = face.place(text, size, 0.0);
+            assert!(
+                shaped.iter().any(|g| g.y_offset > 0),
+                "{weight:?}: the subset still raises the upper accent: {shaped:?}"
+            );
+            let scale = size / face.units_per_em();
+            for (glyph, at) in shaped.iter().zip(&placed) {
+                assert_eq!(at.glyph, glyph.id);
+                assert!(
+                    (at.y + f64::from(glyph.y_offset) * scale).abs() < 1e-9,
+                    "{weight:?}: glyph {} at y {} for offset {}",
+                    glyph.id,
+                    at.y,
+                    glyph.y_offset
+                );
+                if glyph.y_offset > 0 {
+                    assert!(
+                        at.y < 0.0,
+                        "{weight:?}: y grows down, so raised is negative"
+                    );
+                }
+            }
+        }
+    }
+
     /// Spacing falls between clusters, not after the last, and never inside
     /// one (FR-84).
     #[test]
