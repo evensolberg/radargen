@@ -9,7 +9,8 @@ use crate::columns::ColumnKind;
 use crate::csv::decode::MAX_BYTES as MAX_CSV_BYTES;
 use crate::emit::html::Table;
 use crate::palette::file::{MAX_BYTES, PaletteError};
-use crate::rings::{RingSource, RingsError};
+use crate::rings::RingsError;
+use crate::settings::{Origin, Setting, Source};
 use crate::starter::Starter;
 use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX, WIDE_MIN_VIEWPORT_PX};
 use crate::text::FontError;
@@ -74,7 +75,7 @@ pub enum RowKind {
         /// The ring cell as the CSV had it.
         value: String,
         /// Whether the ring list came from `--rings` or the default (D-61).
-        source: RingSource,
+        source: Source,
         /// The declared rings, edge-to-centre, shared by every warning of
         /// the run.
         rings: Arc<[String]>,
@@ -279,7 +280,7 @@ pub enum Binding {
         /// The ring's name.
         name: String,
         /// `--rings`, or the default set.
-        source: RingSource,
+        source: Source,
     },
 }
 
@@ -291,16 +292,15 @@ impl fmt::Display for Binding {
             Self::Quadrant(name) => write!(f, "quadrant '{}'", trim(name)),
             Self::Ring {
                 name,
-                source: RingSource::Flag,
-            } => write!(f, "ring '{}' in --rings", trim(name)),
-            Self::Ring {
-                name,
-                source: RingSource::Default,
+                source: Source::Default,
             } => write!(
                 f,
                 "ring '{}' (a default ring, so pass --rings to rename it)",
                 trim(name)
             ),
+            Self::Ring { name, source } => {
+                write!(f, "ring '{}' in {}", trim(name), ring_list(source))
+            }
         }
     }
 }
@@ -372,11 +372,11 @@ impl fmt::Display for Warning {
 
 /// NFR-20's warning classes: one per row kind, except that the two date
 /// columns are separate classes, so each grouped line names its column.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Class {
     /// One run declares one ring set, so the source never splits a class;
     /// it rides here so the grouped line can name it.
-    Ring(RingSource),
+    Ring(Source),
     Qualifier,
     Status,
     Date(DateColumn),
@@ -392,9 +392,9 @@ enum Class {
 }
 
 impl RowKind {
-    const fn class(&self) -> Class {
+    fn class(&self) -> Class {
         match self {
-            Self::UndeclaredRing { source, .. } => Class::Ring(*source),
+            Self::UndeclaredRing { source, .. } => Class::Ring(source.clone()),
             Self::UnrecognisedQualifier { .. } => Class::Qualifier,
             Self::UnrecognisedStatus { .. } => Class::Status,
             Self::UnparsableDate { column, .. } => Class::Date(*column),
@@ -454,7 +454,7 @@ impl RowKind {
                 off_radar,
                 suggest_unplotted,
                 ..
-            } => off_radar.ring_row(v, *source, &rings.join(", "), *suggest_unplotted),
+            } => off_radar.ring_row(v, source, &rings.join(", "), *suggest_unplotted),
             Self::UnrecognisedQualifier { .. } => {
                 format!("unrecognised qualifier value '{v}'; drawn solid")
             }
@@ -722,10 +722,10 @@ impl OffRadar {
 
     /// FR-17's message for one row whose ring `v` is not in `list`,
     /// declared by `source` (D-61): the fact, then the remedies.
-    fn ring_row(self, v: &str, source: RingSource, list: &str, suggest: bool) -> String {
+    fn ring_row(self, v: &str, source: &Source, list: &str, suggest: bool) -> String {
         let fact = match source {
-            RingSource::Flag => format!("'{v}' is not in --rings ({list})"),
-            RingSource::Default => format!("'{v}' is not one of the default rings ({list})"),
+            Source::Default => format!("'{v}' is not one of the default rings ({list})"),
+            named => format!("'{v}' is not in {} ({list})", ring_list(named)),
         };
         let went = match self {
             Self::Listed => "; the row is in the table view, not on the radar",
@@ -739,16 +739,16 @@ impl OffRadar {
     fn ring_rows(
         self,
         n: usize,
-        source: RingSource,
+        source: &Source,
         list: &str,
         tallies: &str,
         suggest: bool,
     ) -> String {
         let fact = match source {
-            RingSource::Flag => format!("{n} rows use a ring not in --rings ({list})"),
-            RingSource::Default => {
+            Source::Default => {
                 format!("{n} rows use a ring that is not one of the default rings ({list})")
             }
+            named => format!("{n} rows use a ring not in {} ({list})", ring_list(named)),
         };
         let went = match self {
             Self::Listed => "all appear in the table view",
@@ -765,14 +765,14 @@ impl OffRadar {
     /// row, how to keep it off quietly (only when `suggest`, D-96), and,
     /// last, what `--table all` would also publish (FR-106). `one` names
     /// the row and `them` the rows `--table all` lists.
-    fn remedies(self, source: RingSource, suggest: bool, one: &str, them: &str) -> String {
+    fn remedies(self, source: &Source, suggest: bool, one: &str, them: &str) -> String {
         // `write!` rather than `push_str(&format!(..))`, which clippy's
         // `format_push_string` refuses; writing to a `String` cannot fail.
         let mut text = match source {
-            RingSource::Flag => format!("; to plot {one}, add it to --rings"),
-            RingSource::Default => format!(
+            Source::Default => format!(
                 "; to plot {one}, pass --rings with every ring to draw (it replaces the defaults)"
             ),
+            named => format!("; to plot {one}, add it to {}", ring_list(named)),
         };
         if suggest {
             write!(
@@ -838,7 +838,7 @@ impl Warnings {
         for (class, members) in &classes {
             let text = match members.as_slice() {
                 [only] => only.per_row(),
-                _ => grouped(*class, members),
+                _ => grouped(class, members),
             };
             lines.push(format!("warning: {}", escape_controls(&text)));
         }
@@ -863,7 +863,7 @@ impl Member<'_> {
     }
 }
 
-fn grouped(class: Class, members: &[Member]) -> String {
+fn grouped(class: &Class, members: &[Member]) -> String {
     let n = members.len();
     match class {
         Class::Ring(source) => grouped_rings(source, members),
@@ -944,7 +944,7 @@ fn grouped(class: Class, members: &[Member]) -> String {
                     ),
                 })
             })),
-            boxes(format, n)
+            boxes(*format, n)
         ),
         // FR-93 counts values, each column with its count and first line.
         Class::Unnamed => format!(
@@ -967,10 +967,16 @@ fn grouped(class: Class, members: &[Member]) -> String {
     }
 }
 
+/// The declared ring set as FR-17 names the list to edit: `--rings`, or
+/// `the rings key in radar.toml`. The default set has its own wording.
+fn ring_list(source: &Source) -> Origin {
+    Origin::new(Setting::Rings, source.clone())
+}
+
 /// FR-17's grouped line: it lists the declared rings and says what to edit,
 /// which depends on where the ring set came from (D-61).
 // qual:allow(complexity, error_handling) reason: "a Ring class is built only from UndeclaredRing rows, so a member is always found"
-fn grouped_rings(source: RingSource, members: &[Member]) -> String {
+fn grouped_rings(source: &Source, members: &[Member]) -> String {
     let n = members.len();
     // Every member of one run carries the same rings, `off_radar` and
     // `suggest_unplotted`, so the first speaks for all.
@@ -1082,12 +1088,23 @@ pub enum Fatal {
         /// The `-o` argument as given.
         path: String,
     },
-    /// FR-63, NFR-16 tier one.
-    #[error("--rings: {0}")]
-    Rings(#[from] RingsError),
-    /// FR-107's checks, FR-63's among them, NFR-16 tier one.
-    #[error("--unplotted-rings: {0}")]
-    UnplottedRings(RingsError),
+    /// FR-63 on the ring set, from `--rings` or a `--config` file's key
+    /// (NFR-16 tier one, NFR-10).
+    #[error("{origin}: {error}")]
+    Rings {
+        /// Where the list came from.
+        origin: Origin,
+        /// What is wrong with it.
+        error: RingsError,
+    },
+    /// FR-107's checks, FR-63's among them, named by the list's source.
+    #[error("{origin}: {error}")]
+    UnplottedRings {
+        /// Where the list came from.
+        origin: Origin,
+        /// What is wrong with it.
+        error: RingsError,
+    },
     /// FR-102, FR-86, FR-87: one problem in the `--palette` file; a file
     /// reports every one (NFR-16 tier one).
     #[error("{}", palette_problem(path, error))]

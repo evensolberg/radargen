@@ -1,6 +1,9 @@
 //! `--rings` parsing and validation (FR-12–FR-15, FR-63).
 
-use radargen::rings::{RingMatch, RingSet, RingSource, RingsError, parse_rings};
+use std::sync::Arc;
+
+use radargen::rings::{RingMatch, RingSet, RingsError, parse_ring_list, parse_rings};
+use radargen::settings::Source;
 
 #[test]
 fn omitting_the_flag_yields_the_in_house_default() {
@@ -16,11 +19,11 @@ fn omitting_the_flag_yields_the_in_house_default() {
 fn the_set_records_its_source() {
     assert_eq!(
         parse_rings(None).expect("default is valid").source(),
-        RingSource::Default
+        &Source::Default
     );
     assert_eq!(
         parse_rings(Some("Adopt")).expect("valid").source(),
-        RingSource::Flag
+        &Source::Flag
     );
 }
 
@@ -222,7 +225,7 @@ fn unplotted_rings_are_a_tidied_comma_list() {
     }
     assert_eq!(set.classify("In"), RingMatch::Unknown);
     assert_eq!(set.rings(), ["Adopt", "Trial"]);
-    assert_eq!(set.source(), RingSource::Flag);
+    assert_eq!(set.source(), &Source::Flag);
 }
 
 /// FR-63's checks, with `--rings`' errors: an empty entry, a duplicate
@@ -259,13 +262,13 @@ fn a_ring_in_both_lists_is_an_error() {
             RingsError::Overlap {
                 index: 2,
                 entry: "ADOPT".into(),
-                by: RingSource::Flag,
+                by: Source::Flag,
             },
             RingsError::EmptyEntry { index: 3 },
             RingsError::Overlap {
                 index: 4,
                 entry: "trial".into(),
-                by: RingSource::Flag,
+                by: Source::Flag,
             },
         ])
     );
@@ -282,7 +285,7 @@ fn a_default_ring_cannot_be_unplotted() {
         Err(vec![RingsError::Overlap {
             index: 2,
             entry: "adopt".into(),
-            by: RingSource::Default,
+            by: Source::Default,
         }])
     );
 }
@@ -296,7 +299,7 @@ fn a_repeated_overlap_is_a_duplicate() {
             RingsError::Overlap {
                 index: 1,
                 entry: "Adopt".into(),
-                by: RingSource::Flag,
+                by: Source::Flag,
             },
             RingsError::Duplicate {
                 index: 2,
@@ -322,4 +325,38 @@ fn a_default_ring_may_be_unplotted_once_rings_replace_the_defaults() {
     let set = unplotted("Retire").expect("Retire is not drawn");
     assert!(set.names_unplotted());
     assert_eq!(set.classify("retire"), RingMatch::Unplotted);
+}
+
+/// FR-91: a file's rings, joined as the flag would hold them, get exactly
+/// the flag's checks, and the set remembers the file (FR-17).
+#[test]
+fn a_config_ring_list_is_parsed_as_the_flag_is() {
+    let file = Source::Config(Arc::from("radar.toml"));
+    let set = parse_ring_list(" Hold ,Adopt", file.clone()).expect("parses");
+    assert_eq!(set.rings(), ["Hold", "Adopt"]);
+    assert_eq!(set.source(), &file);
+    assert_eq!(
+        parse_ring_list("Adopt,adopt", file.clone()),
+        Err(vec![RingsError::Duplicate {
+            index: 2,
+            entry: "adopt".into(),
+            first_index: 1
+        }])
+    );
+    // `rings = []`, joined, is FR-63's one no-rings error.
+    assert_eq!(parse_ring_list("", file), Err(vec![RingsError::Empty]));
+}
+
+/// FR-107's overlap names a file's ring set by its key and file.
+#[test]
+fn an_overlap_with_a_config_ring_set_names_its_key() {
+    let set =
+        parse_ring_list("Adopt,Hold", Source::Config(Arc::from("radar.toml"))).expect("parses");
+    let errors = set.with_unplotted("Adopt").expect_err("overlaps");
+    assert_eq!(
+        errors.first().map(ToString::to_string).as_deref(),
+        Some(
+            "entry 1 'Adopt' is also in the rings key in radar.toml, which draws it; remove it from one list"
+        )
+    );
 }

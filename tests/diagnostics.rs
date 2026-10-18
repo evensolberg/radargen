@@ -9,7 +9,8 @@ use radargen::diagnostics::{
     Binding, DateColumn, Fatal, Flag, Lacking, OffRadar, Position, RenderKind, RowError, RowKind,
     Separator, Warning, Warnings, column_label,
 };
-use radargen::rings::{RingSource, RingsError};
+use radargen::rings::RingsError;
+use radargen::settings::{Origin, Setting, Source};
 
 const fn at(line: usize, column: usize, kind: RowKind) -> Warning {
     Warning::Row { line, column, kind }
@@ -27,7 +28,7 @@ fn defaults() -> Arc<[String]> {
 
 /// FR-17 on `line`'s ring `value`, declared by `source`, the row going
 /// where `off_radar` says, in a run with no `--unplotted-rings`.
-fn undeclared(line: usize, value: &str, source: RingSource, off_radar: OffRadar) -> Warning {
+fn undeclared(line: usize, value: &str, source: Source, off_radar: OffRadar) -> Warning {
     quiet_hint(line, value, source, off_radar, true)
 }
 
@@ -36,13 +37,13 @@ fn undeclared(line: usize, value: &str, source: RingSource, off_radar: OffRadar)
 fn quiet_hint(
     line: usize,
     value: &str,
-    source: RingSource,
+    source: Source,
     off_radar: OffRadar,
     suggest_unplotted: bool,
 ) -> Warning {
     let rings = match source {
-        RingSource::Flag => declared(),
-        RingSource::Default => defaults(),
+        Source::Flag | Source::Config(_) => declared(),
+        Source::Default => defaults(),
     };
     at(
         line,
@@ -59,12 +60,12 @@ fn quiet_hint(
 
 /// FR-17 under `--rings`, on a `--table all` page.
 fn ring(line: usize, value: &str) -> Warning {
-    undeclared(line, value, RingSource::Flag, OffRadar::Listed)
+    undeclared(line, value, Source::Flag, OffRadar::Listed)
 }
 
 /// FR-17 under the default rings, on a `--table all` page: `Adpot`.
 fn default_ring(line: usize) -> Warning {
-    undeclared(line, "Adpot", RingSource::Default, OffRadar::Listed)
+    undeclared(line, "Adpot", Source::Default, OffRadar::Listed)
 }
 
 #[test]
@@ -500,14 +501,10 @@ fn the_ring_warning_says_where_the_row_went() {
     // Every warning of one run carries the same `off_radar`, so a group
     // speaks for them all.
     let rendered = |off_radar: OffRadar, lines: &[usize], flag: bool| {
-        let source = if flag {
-            RingSource::Flag
-        } else {
-            RingSource::Default
-        };
+        let source = if flag { Source::Flag } else { Source::Default };
         let mut w = Warnings::default();
         for &line in lines {
-            w.push(undeclared(line, "Adpot", source, off_radar));
+            w.push(undeclared(line, "Adpot", source.clone(), off_radar));
         }
         w.render()
     };
@@ -988,27 +985,39 @@ fn fatal_messages() {
             "error: a 10000 by 12000 pixel PNG is too large to draw; pass a smaller --width",
         ),
         (
-            Fatal::from(RingsError::EmptyEntry { index: 2 }),
+            Fatal::Rings {
+                origin: Origin::flag(Setting::Rings),
+                error: RingsError::EmptyEntry { index: 2 },
+            },
             "error: --rings: entry 2 is empty",
         ),
         (
-            Fatal::from(RingsError::Duplicate {
-                index: 3,
-                entry: "adopt".into(),
-                first_index: 1,
-            }),
+            Fatal::Rings {
+                origin: Origin::flag(Setting::Rings),
+                error: RingsError::Duplicate {
+                    index: 3,
+                    entry: "adopt".into(),
+                    first_index: 1,
+                },
+            },
             "error: --rings: entry 3 'adopt' repeats entry 1",
         ),
         (
-            Fatal::from(RingsError::Empty),
+            Fatal::Rings {
+                origin: Origin::flag(Setting::Rings),
+                error: RingsError::Empty,
+            },
             "error: --rings: no rings declared",
         ),
         (
-            Fatal::from(RingsError::Duplicate {
-                index: 2,
-                entry: "a\nerror: forged".into(),
-                first_index: 1,
-            }),
+            Fatal::Rings {
+                origin: Origin::flag(Setting::Rings),
+                error: RingsError::Duplicate {
+                    index: 2,
+                    entry: "a\nerror: forged".into(),
+                    first_index: 1,
+                },
+            },
             r"error: --rings: entry 2 'a\nerror: forged' repeats entry 1",
         ),
     ];
@@ -1330,7 +1339,7 @@ fn fr95_names_a_quadrant_or_a_ring() {
             RenderKind::NarrowWidened {
                 binding: Binding::Ring {
                     name: "Under evaluation by the architecture board".into(),
-                    source: RingSource::Flag,
+                    source: Source::Flag,
                 },
                 width: 750,
             },
@@ -1411,10 +1420,10 @@ fn fr95_names_where_a_ring_came_from() {
         .to_string()
     };
     assert!(
-        message(RingSource::Flag)
+        message(Source::Flag)
             .ends_with("a shorter name for ring 'Under evaluation' in --rings would fix it")
     );
-    assert!(message(RingSource::Default).ends_with(
+    assert!(message(Source::Default).ends_with(
         "a shorter name for ring 'Under evaluation' (a default ring, so pass --rings to rename it) would fix it"
     ));
 }
@@ -1454,15 +1463,16 @@ fn the_unplotted_rings_hint_is_left_out_once_the_flag_is_given() {
     let quiet = "to leave it off without this warning, add it to --unplotted-rings";
     let quiet_one = "to leave one off without this warning, add it to --unplotted-rings";
     for off_radar in [OffRadar::Listed, OffRadar::Unlisted, OffRadar::Undrawn] {
-        for source in [RingSource::Flag, RingSource::Default] {
-            let row = |suggest| quiet_hint(37, "Adpot", source, off_radar, suggest).to_string();
+        for source in [Source::Flag, Source::Default] {
+            let row =
+                |suggest| quiet_hint(37, "Adpot", source.clone(), off_radar, suggest).to_string();
             let with = row(true);
             assert!(with.contains(quiet), "{with}");
             assert_eq!(row(false), with.replacen(&format!("; {quiet}"), "", 1));
             let grouped = |suggest| {
                 let mut w = Warnings::default();
-                w.push(quiet_hint(4, "Adpot", source, off_radar, suggest));
-                w.push(quiet_hint(9, "Adpot", source, off_radar, suggest));
+                w.push(quiet_hint(4, "Adpot", source.clone(), off_radar, suggest));
+                w.push(quiet_hint(9, "Adpot", source.clone(), off_radar, suggest));
                 w.render()
             };
             let [with] = grouped(true).try_into().expect("one line");
@@ -1474,7 +1484,7 @@ fn the_unplotted_rings_hint_is_left_out_once_the_flag_is_given() {
         }
     }
     assert_eq!(
-        quiet_hint(37, "Adpot", RingSource::Flag, OffRadar::Unlisted, false).to_string(),
+        quiet_hint(37, "Adpot", Source::Flag, OffRadar::Unlisted, false).to_string(),
         "line 37, ring: 'Adpot' is not in --rings (Adopt, Trial), so the row is left off the page; to plot it, add it to --rings; --table all lists it, but also publishes every other column"
     );
 }
@@ -1514,5 +1524,91 @@ fn near_misses_group_into_one_line_before_the_rows() {
             "warning: 2 header names are not columns radargen knows — Rationalle (did you mean rationale?), exit date (did you mean exit_date?)",
             "warning: line 2, description: empty; the detail panel omits it",
         ]
+    );
+}
+
+fn radar_toml() -> Source {
+    Source::Config(std::sync::Arc::from("radar.toml"))
+}
+
+/// FR-107's two cross-source examples, word for word.
+#[test]
+fn an_overlap_across_sources_names_both_sides() {
+    let key_vs_flag = Fatal::UnplottedRings {
+        origin: Origin::new(Setting::UnplottedRings, radar_toml()),
+        error: RingsError::Overlap {
+            index: 2,
+            entry: "Adopt".into(),
+            by: Source::Flag,
+        },
+    };
+    assert_eq!(
+        key_vs_flag.render(),
+        "error: the unplotted_rings key in radar.toml: entry 2 'Adopt' is also in --rings, which draws it; remove it from one list"
+    );
+    let flag_vs_key = Fatal::UnplottedRings {
+        origin: Origin::flag(Setting::UnplottedRings),
+        error: RingsError::Overlap {
+            index: 1,
+            entry: "Adopt".into(),
+            by: radar_toml(),
+        },
+    };
+    assert_eq!(
+        flag_vs_key.render(),
+        "error: --unplotted-rings: entry 1 'Adopt' is also in the rings key in radar.toml, which draws it; remove it from one list"
+    );
+    let rings = Fatal::Rings {
+        origin: Origin::new(Setting::Rings, radar_toml()),
+        error: RingsError::Empty,
+    };
+    assert_eq!(
+        rings.render(),
+        "error: the rings key in radar.toml: no rings declared"
+    );
+}
+
+/// FR-17 names a file's ring set by its key and file, alone and grouped,
+/// and says to edit that list (D-61).
+#[test]
+fn an_undeclared_ring_names_the_rings_key() {
+    let one = quiet_hint(4, "Adpot", radar_toml(), OffRadar::Undrawn, true);
+    assert_eq!(
+        one.to_string(),
+        "line 4, ring: 'Adpot' is not in the rings key in radar.toml (Adopt, Trial); the row is not on the radar; to plot it, add it to the rings key in radar.toml; to leave it off without this warning, add it to --unplotted-rings"
+    );
+    let mut warnings = Warnings::default();
+    warnings.push(quiet_hint(
+        4,
+        "Adpot",
+        radar_toml(),
+        OffRadar::Undrawn,
+        false,
+    ));
+    warnings.push(quiet_hint(
+        9,
+        "Adpot",
+        radar_toml(),
+        OffRadar::Undrawn,
+        false,
+    ));
+    assert_eq!(
+        warnings.render(),
+        [
+            "warning: 2 rows use a ring not in the rings key in radar.toml (Adopt, Trial) — Adpot (2, first line 4); none is on the radar; to plot one, add it to the rings key in radar.toml"
+        ]
+    );
+}
+
+/// FR-95 and FR-105 name a ring from a file by its key and file.
+#[test]
+fn a_binding_ring_from_a_file_names_its_key() {
+    let binding = Binding::Ring {
+        name: "Very long ring".into(),
+        source: radar_toml(),
+    };
+    assert_eq!(
+        binding.to_string(),
+        "ring 'Very long ring' in the rings key in radar.toml"
     );
 }

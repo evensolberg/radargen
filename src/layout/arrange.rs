@@ -610,7 +610,7 @@ mod tests {
     };
     use crate::model::Catalogue;
     use crate::order::Plotted;
-    use crate::rings::RingSource;
+    use crate::settings::Source;
     use crate::style::{GROWTH_STEP, MAX_GROWTH, MIN_PX_PER_UNIT, WIDE_MIN_VIEWPORT_PX};
     use crate::svg::{ItemKey, Semantics};
 
@@ -1118,7 +1118,7 @@ mod tests {
                 binding,
                 Binding::Ring {
                     name: ring.clone(),
-                    source: RingSource::Flag,
+                    source: Source::Flag,
                 },
                 "{csv}"
             );
@@ -1175,7 +1175,7 @@ mod tests {
             let b = with_rings(&csv, &rings);
             let binding = Binding::Ring {
                 name: ring.clone(),
-                source: RingSource::Flag,
+                source: Source::Flag,
             };
             assert_eq!(beyond_laptops(&b), binding, "{csv}");
         }

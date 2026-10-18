@@ -33,6 +33,7 @@ use crate::order::resolve;
 use crate::palette::Colours;
 use crate::palette::file::{self, ReadError};
 use crate::rings::{RingSet, parse_rings};
+use crate::settings::{Origin, Setting};
 use crate::text::Fonts;
 
 /// The resolved run (architecture §7), read-only once built. The colours
@@ -168,14 +169,24 @@ fn config(
         .unplotted_rings
         .as_deref()
         .map(|rings| clean_flag(Flag::UnplottedRings, rings, warnings));
-    let mut rings = parse_rings(declared.as_deref())
-        .map_err(|errors| errors.into_iter().map(Fatal::from).collect::<Vec<_>>())?;
+    let mut rings = parse_rings(declared.as_deref()).map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|error| Fatal::Rings {
+                origin: Origin::flag(Setting::Rings),
+                error,
+            })
+            .collect::<Vec<_>>()
+    })?;
     // FR-107: checked against the declared set, so only once that parsed.
     if let Some(list) = &unplotted {
         rings = rings.with_unplotted(list).map_err(|errors| {
             errors
                 .into_iter()
-                .map(Fatal::UnplottedRings)
+                .map(|error| Fatal::UnplottedRings {
+                    origin: Origin::flag(Setting::UnplottedRings),
+                    error,
+                })
                 .collect::<Vec<_>>()
         })?;
     }

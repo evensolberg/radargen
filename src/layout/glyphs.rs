@@ -8,7 +8,7 @@ use crate::diagnostics::{Flag, Lacking, RenderKind, RowKind, Warning, Warnings};
 use crate::layout::title::shown;
 use crate::model::Catalogue;
 use crate::order::Plotted;
-use crate::rings::RingSource;
+use crate::settings::Source;
 use crate::text::{Fonts, words};
 
 /// FR-104: one warning per drawn text with characters the bundled font
@@ -46,7 +46,7 @@ pub fn warn_missing_glyphs(
             }));
         }
     }
-    if catalogue.ring_source == RingSource::Flag {
+    if catalogue.ring_source == Source::Flag {
         for ring in &catalogue.rings {
             if let Some(lacking) = lacking(ring) {
                 warnings.push(Warning::Render(RenderKind::FlagMissingGlyphs {
