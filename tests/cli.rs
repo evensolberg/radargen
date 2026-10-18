@@ -82,6 +82,21 @@ fn png_and_svg_are_formats() {
     }
 }
 
+/// RG-102 and FR-104 apply to the static snapshots, and a message names
+/// the format as an author writes it.
+#[test]
+fn png_and_svg_are_snapshots_named_in_capitals() {
+    let cases = [
+        (OutputFormat::Html, false, "HTML"),
+        (OutputFormat::Png, true, "PNG"),
+        (OutputFormat::Svg, true, "SVG"),
+    ];
+    for (format, snapshot, name) in cases {
+        assert_eq!(format.is_snapshot(), snapshot, "{name}");
+        assert_eq!(format.to_string(), name);
+    }
+}
+
 #[test]
 fn an_unrecognised_or_absent_extension_is_a_different_error() {
     for path in ["e.jpg", "e", "e."] {
