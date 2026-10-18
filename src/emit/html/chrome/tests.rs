@@ -300,10 +300,12 @@ fn the_legend_button_is_named_by_where_the_page_starts() {
 }
 
 /// rg-247: the radar's cap subtracts the page controls' height as
-/// `3.05rem + 2px` (css.rs's `CAP_UNDER`), from four values here: the icon's
+/// `3.05rem + 2px` (`BAR_HEIGHT`), from four values here: the icon's
 /// 1.25em, its .4em padding all round, the buttons' .5em block margin and
 /// 1px border, in em equal to rem because the buttons inherit the page's
-/// font. A change to any of them must change `CAP_UNDER` too.
+/// font. A change to any of them must change `BAR_HEIGHT` too. rg-ft5: the
+/// cap (css.rs's `CAP_UNDER`) reads it through a property that is zero
+/// unless `BAR_HEIGHT` sets it.
 #[test]
 fn the_controls_height_the_radar_cap_allows_for() {
     assert!(super::ICON_SVG.starts_with("width:1.25em;height:1.25em;"));
@@ -311,7 +313,21 @@ fn the_controls_height_the_radar_cap_allows_for() {
     assert!(super::BUTTON_OPEN.contains("margin-block:.5em;"));
     assert!(super::BUTTON_OPEN.contains("border:1px solid var("));
     assert!(super::BUTTON_OPEN.contains("font:inherit;"));
-    assert!(super::super::css::CAP_UNDER.contains(" - 3.05rem - 2px)"));
+    assert!(super::BAR_HEIGHT.contains("{--controls-height:calc(3.05rem + 2px)}"));
+    assert!(super::super::css::CAP_UNDER.contains(" - var(--controls-height,0px))"));
+}
+
+/// rg-ft5: the bar shows only once the script runs (`:root.js`), never in
+/// print (`PRINT_NO_CONTROLS`), and only on a page with a control to show,
+/// so only there does the cap allow for its height.
+#[test]
+fn the_controls_height_is_set_only_where_the_bar_shows() {
+    assert_eq!(
+        super::bar_height(true),
+        "@media not print{:root.js{--controls-height:calc(3.05rem + 2px)}}\n"
+    );
+    assert_eq!(super::bar_height(false), "");
+    assert!(super::PRINT_NO_CONTROLS.starts_with("@media print{"));
 }
 
 /// rg-kw7: a printout has no use for the page's buttons, so the controls

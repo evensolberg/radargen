@@ -73,3 +73,28 @@ fn a_palette_page_cycles_over_the_files_series() {
         assert!(!html.contains(value), "{value}");
     }
 }
+
+/// rg-ft5: the radar's cap allows for the controls bar only where it
+/// shows: with the script, on screen, on a page with a control to show. A
+/// `--palette` page with nothing plotted has none, as the script leaves
+/// its legend button and skip link hidden and it has no theme toggle.
+#[test]
+fn the_cap_allows_for_the_controls_only_where_they_show() {
+    const ALLOWANCE: &str = "@media not print{:root.js{--controls-height:calc(3.05rem + 2px)}}\n";
+    let nothing = build("name,quadrant,ring,description\n", None, None);
+    for (html, shows) in [
+        (prd().page_with(&sample()), true),
+        (prd().page_with(&Colours::BuiltIn(Theme::Light)), true),
+        (nothing.page_with(&Colours::BuiltIn(Theme::Light)), true),
+        (nothing.page_with(&sample()), false),
+    ] {
+        let css = style(&html);
+        assert_eq!(css.contains(ALLOWANCE), shows, "{css}");
+        assert_eq!(
+            css.matches("--controls-height:").count(),
+            usize::from(shows)
+        );
+        assert!(css.contains(" - var(--controls-height,0px))*"), "{css}");
+        assert!(!css.contains("3.05rem - 2px"), "{css}");
+    }
+}

@@ -1,14 +1,15 @@
 ---
 id: rg-ft5
 title: 'HTML: no controls bar without script, but the radar cap still allows for it'
-status: open
+status: closed
 type: bug
 priority: 4
 tags:
 - html
 - layout
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-18
+closed_reason: Cap reads --controls-height, set only where the bar shows
 phase: ''
 ---
 

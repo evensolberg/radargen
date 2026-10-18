@@ -49,13 +49,11 @@ pub(super) const NARROW_LEGEND: &str = "narrow-legend";
 
 const CAP_FLOOR: &str = "max(";
 const CAP_HEIGHT: &str = "px,calc((100vh - ";
-/// The page controls' height, subtracted with the title's (rg-247): an
-/// icon button, 1.25em with .4em padding all round and a 1px border, and
-/// its .5em block margin (chrome.rs's `BUTTON_OPEN`), which the flex bar
-/// contains. In rem, the size the buttons are drawn at, wherever the cap
-/// is reused; the skip link is drawn over the page and adds nothing.
-/// chrome.rs's tests hold the four values this mirrors.
-pub(super) const CAP_UNDER: &str = "px - 3.05rem - 2px)*";
+/// The page controls' height, subtracted with the title's (rg-247), read
+/// from the property chrome.rs's `BAR_HEIGHT` sets. It is zero unless set,
+/// so the cap allows for the bar only where the bar shows (rg-ft5): not
+/// without script, not in print, and not on a page with no control.
+pub(super) const CAP_UNDER: &str = "px - var(--controls-height,0px))*";
 const CAP_OVER: &str = "/";
 const CAP_END: &str = "))";
 const SPAN_OPEN: &str = "calc(";

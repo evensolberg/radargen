@@ -1041,6 +1041,33 @@ try {
     }
   });
 
+  // rg-ft5: where the controls bar does not show, without script or in
+  // print, the cap does not allow for it, so a radar the window's height
+  // bounds reaches the window's bottom rather than stopping 51 px short.
+  await scenario('without the controls the radar reaches the bottom', [1850], async (width) => {
+    for (const [what, script, media] of [['without script', false, ''], ['printed', true, 'print']]) {
+      await load(width, { height: 1000, script });
+      await send('Emulation.setEmulatedMedia', { media });
+      const m = await evaluate(`(() => {
+        const radar = document.querySelector('.arrangement.wide .wide-radar svg');
+        const { width: r, height: h } = radar.viewBox.baseVal;
+        const title = document.querySelector('.arrangement.wide .wide-title svg').viewBox.baseVal.height;
+        const room = radar.closest('.arrangement').clientWidth;
+        const column = document.querySelector('.wide-legend').getBoundingClientRect().width;
+        const cap = (innerHeight - title) * r / h;
+        return {
+          bar: document.querySelector('.page-controls').getBoundingClientRect().height,
+          heightBound: cap > 0.8 * r && cap < room - column,
+          bottom: radar.getBoundingClientRect().bottom, windowHeight: innerHeight,
+        };
+      })()`);
+      check(m.bar === 0, `${what}: the controls bar takes no room: ${m.bar} px`);
+      check(m.heightBound, `${what}: the window's height bounds the radar`);
+      check(near(m.bottom, m.windowHeight), `${what}: the radar ends at the window's bottom, ${m.windowHeight}: ${m.bottom}`);
+    }
+    await send('Emulation.setEmulatedMedia', { media: '' });
+  });
+
   // D-85: a legend taller than its radar scrolls in its own box beside it.
   // The box is as tall as the radar, a scrollbar does not shrink the legend,
   // Shift+Tab back into it from the panel lands on a row the panel does not
