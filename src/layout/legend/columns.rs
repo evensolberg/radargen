@@ -85,9 +85,12 @@ mod tests {
     fn among_equals_the_earliest_break_wins() {
         // [3 1 | 1 1 3] and [3 1 1 | 1 3] are both 5 tall.
         assert_eq!(of(&[3.0, 1.0, 1.0, 1.0, 3.0], 2), [0, 2]);
-        // Equal groups in three columns of four: the first break decides
-        // only after the tallest column; here every split ties at 2.
+        // Four equal groups in three columns: every split ties at 2, so
+        // the earliest first break wins, then the earliest second.
         assert_eq!(of(&[1.0; 4], 3), [0, 1, 2]);
+        // A later break need only keep within the tallest column, not be
+        // best for its own rest: 4 | 1 | 1 1 1, not 4 | 1 1 | 1 1.
+        assert_eq!(of(&[4.0, 1.0, 1.0, 1.0, 1.0], 3), [0, 1, 2]);
     }
 
     #[test]

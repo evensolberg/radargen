@@ -157,7 +157,7 @@ declarations only and are not listed.
 | `src/layout/block.rs` | The `Block` trait, `Size`, `Placement`; nothing domain-specific — arrives with the first block (PR 09), using `geometry::Point` | v1.0 |
 | `src/layout/title.rs` | Title block (FR-65) | v1.0 |
 | `src/layout/radar.rs` | Radar block: sectors, bands, markers, labels, FR-70's three scales | v1.0 |
-| `src/layout/legend/` (`mod.rs`, `layout.rs`, `columns.rs`) | Legend block (FR-35, FR-74, FR-75); a static legend's columns and their split (FR-100) | v1.0 |
+| `src/layout/legend/` (`mod.rs`, `layout.rs`, `columns.rs`) | Legend block (FR-35, FR-74, FR-75); a static legend's columns and their split (FR-100) | v1.0; columns 1.12 |
 | `src/layout/key.rs` | Encoding key (FR-66) | v1.0 |
 | `src/layout/arrange.rs` | Wide and narrow placement (FR-68–FR-71); FR-95's and FR-105's render warnings (`warn_narrow`, `warn_wide`), HTML only, each naming the label that sets its arrangement's width (D-73, D-94) | v1.0 |
 | `src/svg/mod.rs` | `Node`, `Document` — the SVG tree. `Node` arrives with the first block that renders (PR 09) and gains variants with each block; `Document` arrives with `arrange` (PR 12) | v1.0 |

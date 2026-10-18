@@ -98,7 +98,7 @@ radargen radar.csv -o radar.svg --theme dark
 
 Both draw the wide layout: the title, the radar, the key and the full legend, on the theme's background. `--theme light` (the default) or `--theme dark` picks the colours, and `--width` picks the width in pixels, from 320 to 10000, with the height following. Without `--width` the image is the layout's natural width.
 
-- **Long legends.** The legend is drawn in full, so a long one makes a tall image, which a slide then shrinks. `--legend-columns 2` (up to 4) flows it into columns beside the radar, breaking only between quadrants, for a wider, shorter image; a larger `--width`, or splitting the CSV, also helps.
+- **Long legends.** The legend is drawn in full, so a long one makes a tall image, which a slide then shrinks. `--legend-columns 2` (up to 4) flows it into columns beside the radar, breaking only between quadrants, for a wider, shorter image (at a fixed `--width` the whole image scales down instead, so its text gets smaller); a larger `--width`, or splitting the CSV, also helps.
 - **Scripts.** The bundled font covers Latin, Greek, Cyrillic and Vietnamese. Names in other scripts, and emoji, draw as boxes, and radargen warns about each text that has them, naming its line and column or its flag, and suggests the HTML page or a transliteration. The HTML page falls back to the reader's fonts, so it draws them and does not warn.
 - **Accessibility.** A PNG has no text alternative, and an SVG placed as an image loses its own. Write alt text where you place it, and link the HTML page or the CSV as the full description.
 
