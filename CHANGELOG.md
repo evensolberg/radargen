@@ -1,17 +1,41 @@
+## [1.7.0] - 2026-10-18
+
+### 🚀 Features
+
+- *(diagnostics)* Warn when a PNG or SVG lacks a glyph (rg-o25)
+
+### 🐛 Bug Fixes
+
+- *(text)* Find missing glyphs in one pass, naming visible Cf (rg-o25)
+- *(diagnostics)* Name the format and the fix in FR-104's warning
+- *(glyphs)* Quote --title and --subtitle as the title block draws them
+
+### 📚 Documentation
+
+- *(prd)* The CSV and palette read caps are runtime failures (rg-nsp) (#121)
+- *(spike)* Re-record the svg-font spike against Inter (rg-35i) (#123)
+- *(prd)* Align FR-104, D-93 and R-7 with the warning as built
+
+### 🚜 Refactor
+
+- *(text)* Name missing glyphs from character-level clusters
+- *(model)* Keep a quadrant's source line and a column lookup
+- *(cli)* Let OutputFormat say it is a snapshot and name itself
+- *(diagnostics)* Carry FR-104's text in one Lacking value
+
+### 🧪 Testing
+
+- *(text)* Place raises a glyph the shaper raises (rg-sw0) (#122)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Close rg-o25
+- *(crumbs)* The grouped FR-90 line's count needs a unit
 ## [1.6.4] - 2026-10-18
 
 ### 🐛 Bug Fixes
 
-- *(html)* The page controls are not printed (rg-kw7)
-
-### 📚 Documentation
-
-- *(prd)* FR-58 allows the one print rule; pin its order (rg-kw7)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(crumbs)* Close rg-kw7
-- *(release)* 1.6.4
+- *(html)* The page controls are not printed (1.6.4) (#120)
 ## [1.6.3] - 2026-10-18
 
 ### 🐛 Bug Fixes

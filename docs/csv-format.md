@@ -176,7 +176,7 @@ A web address for the item, such as the product's home page: `https://www.terraf
 - an empty description;
 - a duplicate name;
 - a removed character;
-- a name, quadrant or ring with characters the bundled font lacks (PNG and SVG only);
+- a name or quadrant with characters the bundled font lacks (PNG and SVG only);
 - a value under an unnamed column;
 - more than six quadrants;
 - a band with more items than fit without overlapping;
