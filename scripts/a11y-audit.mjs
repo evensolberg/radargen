@@ -1,6 +1,6 @@
 // WCAG 2.1 AA's automatable criteria, audited in a browser (plan RG-015C).
 //
-// Usage: node scripts/a11y-audit.mjs <page.html> <d71.html> <d71-narrow-width>
+// Usage: node scripts/a11y-audit.mjs <page.html> <d71.html>
 //
 // The first page is the audit fixture (the interaction fixture plus a ring
 // whose heading wraps, so a wrapped heading's label is read); the second is D-71's, whose
@@ -18,12 +18,11 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { SHOWN, SHOWN_ICON, SPILLS, connect, poll, shownIcon } from './cdp.mjs';
 
-const [page, d71, d71Width] = process.argv.slice(2);
-if (!page || !d71 || !d71Width) {
-  console.error('usage: node scripts/a11y-audit.mjs <page.html> <d71.html> <d71-narrow-width>');
+const [page, d71] = process.argv.slice(2);
+if (!page || !d71) {
+  console.error('usage: node scripts/a11y-audit.mjs <page.html> <d71.html>');
   process.exit(2);
 }
-const W71 = Number(d71Width);
 const TOLERANCE = 0.05;
 // WCAG 2.5.8's least target, in CSS px.
 const TARGET_PX = 24;
@@ -587,11 +586,13 @@ try {
       await keyboard(`forced @${width}`);
     });
   }
-  check(W71 > D71_MIN_WIDTH, `D-71's fixture is ${W71} units wide; over ${D71_MIN_WIDTH.toFixed(0)} is needed to clear the tolerance`);
   for (const width of [400, 320]) {
     await run(`D-71's exception @${width}`, async () => {
       await load(d71, width);
-      await targets(`D-71 @${width}`, { exceptionWidth: W71 });
+      // The narrow document's width, from the page itself: its body SVG's own.
+      const w71 = await evaluate(`document.querySelector('.narrow svg').viewBox.baseVal.width`);
+      check(w71 > D71_MIN_WIDTH, `D-71's fixture is ${w71} units wide; over ${D71_MIN_WIDTH.toFixed(0)} is needed to clear the tolerance`);
+      await targets(`D-71 @${width}`, { exceptionWidth: w71 });
     });
   }
 } finally {
