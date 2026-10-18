@@ -1,13 +1,14 @@
-//! The title block (FR-65): an optional title and subtitle, wrapped at the
-//! legend column.
+//! The title block (FR-65): an optional title and subtitle, wrapped once for
+//! each arrangement at the width its part leaves between the margins
+//! (rg-0ms).
 
 use std::num::NonZeroU8;
 
 use crate::layout::block::{Block, Placement, Size};
 use crate::palette::Neutral;
 use crate::style::{
-    LEGEND_WIDTH_MAX, SUBTITLE, SUBTITLE_AFTER_TITLE, SUBTITLE_ALONE, SUBTITLE_LEADING, TITLE,
-    TITLE_BOTTOM, TITLE_FIRST_BASELINE, TITLE_LEADING, TITLE_TOP, TextStyle,
+    SUBTITLE, SUBTITLE_AFTER_TITLE, SUBTITLE_ALONE, SUBTITLE_LEADING, TITLE, TITLE_BOTTOM,
+    TITLE_FIRST_BASELINE, TITLE_LEADING, TITLE_TOP, TextStyle,
 };
 use crate::svg::{Anchor, Group, Node, Point, Scale, Semantics, TextRun};
 use crate::text::{Fonts, words};
@@ -48,8 +49,8 @@ struct Run {
 }
 
 impl Run {
-    fn wrap(text: &str, part: Part, first_baseline: f64, fonts: &Fonts) -> Self {
-        let lines = part.style.wrap(text, LEGEND_WIDTH_MAX, fonts);
+    fn wrap(text: &str, part: Part, first_baseline: f64, measure: f64, fonts: &Fonts) -> Self {
+        let lines = part.style.wrap(text, measure, fonts);
         let width = widest(lines.iter().map(|line| part.style.measure(line, fonts)));
         Self {
             lines,
@@ -119,24 +120,27 @@ fn size_of(title: Option<&Run>, subtitle: Option<&Run>) -> Size {
         })
 }
 
-/// The document's title and subtitle (FR-65); either may be absent.
+/// The document's title and subtitle (FR-65) wrapped at one measure;
+/// either may be absent.
 #[derive(Debug, Clone, PartialEq)]
-pub struct TitleBlock {
+pub struct Wrap {
     title: Option<Run>,
     subtitle: Option<Run>,
     size: Size,
 }
 
-impl TitleBlock {
-    /// Wraps `title` and `subtitle` at the legend column. A value that is
-    /// `None` or empty after [`crate::trim`] is omitted; with both omitted
-    /// the block is empty and reserves no space.
+impl Wrap {
+    /// Wraps `title` and `subtitle` at `measure`. A value that is `None` or
+    /// empty after [`crate::trim`] is omitted; with both omitted the block is
+    /// empty and reserves no space.
     #[must_use]
-    pub fn new(title: Option<&str>, subtitle: Option<&str>, fonts: &Fonts) -> Self {
-        let title =
-            shown(title).map(|t| Run::wrap(t, TITLE_PART, TITLE_TOP + TITLE_FIRST_BASELINE, fonts));
+    pub fn new(title: Option<&str>, subtitle: Option<&str>, measure: f64, fonts: &Fonts) -> Self {
+        let title = shown(title).map(|t| {
+            let first = TITLE_TOP + TITLE_FIRST_BASELINE;
+            Run::wrap(t, TITLE_PART, first, measure, fonts)
+        });
         let first = subtitle_baseline(title.as_ref());
-        let subtitle = shown(subtitle).map(|t| Run::wrap(t, SUBTITLE_PART, first, fonts));
+        let subtitle = shown(subtitle).map(|t| Run::wrap(t, SUBTITLE_PART, first, measure, fonts));
         let size = size_of(title.as_ref(), subtitle.as_ref());
         Self {
             title,
@@ -146,7 +150,57 @@ impl TitleBlock {
     }
 }
 
-impl Block for TitleBlock {
+/// The widths the title wraps at, one per arrangement: each the width its
+/// part leaves between the margins (rg-0ms).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Measures {
+    /// The wide radar part's width less two margins.
+    pub wide: f64,
+    /// The narrow document's width less two margins.
+    pub narrow: f64,
+}
+
+/// The title block (FR-65): the same title and subtitle, wrapped for each
+/// arrangement.
+///
+/// The key picks its columns for each arrangement the same way (rg-zb9).
+/// The wide wrap is the one every format draws (SC-7); a title that fits
+/// both measures wraps the same in both.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TitleBlock {
+    wide: Wrap,
+    narrow: Wrap,
+}
+
+impl TitleBlock {
+    /// `title` and `subtitle` wrapped at each of `measures`.
+    #[must_use]
+    pub fn new(
+        title: Option<&str>,
+        subtitle: Option<&str>,
+        measures: Measures,
+        fonts: &Fonts,
+    ) -> Self {
+        Self {
+            wide: Wrap::new(title, subtitle, measures.wide, fonts),
+            narrow: Wrap::new(title, subtitle, measures.narrow, fonts),
+        }
+    }
+
+    /// The title as the wide arrangement draws it.
+    #[must_use]
+    pub const fn wide(&self) -> &Wrap {
+        &self.wide
+    }
+
+    /// The title as the narrow arrangement draws it.
+    #[must_use]
+    pub const fn narrow(&self) -> &Wrap {
+        &self.narrow
+    }
+}
+
+impl Block for Wrap {
     fn size(&self, scale: f64) -> Size {
         self.size.scaled(scale)
     }
@@ -168,9 +222,10 @@ mod tests {
     use super::*;
     use crate::layout::block::{at, close, fonts};
     use crate::layout::test_support::assert_inside;
+    use crate::style::LEGEND_WIDTH_MAX;
 
-    fn block(title: Option<&str>, subtitle: Option<&str>) -> TitleBlock {
-        TitleBlock::new(title, subtitle, fonts())
+    fn block(title: Option<&str>, subtitle: Option<&str>) -> Wrap {
+        Wrap::new(title, subtitle, LEGEND_WIDTH_MAX, fonts())
     }
 
     /// The text nodes of a rendered block, flattened in paint order, with
@@ -348,7 +403,7 @@ mod tests {
     }
 
     #[test]
-    fn a_long_title_wraps_at_the_legend_column() {
+    fn a_long_title_wraps_at_its_measure() {
         let b = block(Some(wide_title()), None);
         for line in lines(pick(&texts(&b.render(at(1.0))), 0)) {
             assert!(measured(line, TITLE) <= LEGEND_WIDTH_MAX);
@@ -421,5 +476,21 @@ mod tests {
         for scale in [1.0, 0.5] {
             assert_inside(&b.render(at(scale)), b.size(scale), fonts);
         }
+    }
+
+    /// rg-0ms: each arrangement's title wraps at its own measure, and a
+    /// title that fits the narrower wraps the same in both.
+    #[test]
+    fn each_arrangement_wraps_at_its_measure() {
+        let measures = Measures {
+            wide: 2.0 * LEGEND_WIDTH_MAX,
+            narrow: LEGEND_WIDTH_MAX,
+        };
+        let long = TitleBlock::new(Some(wide_title()), None, measures, fonts());
+        assert_eq!(long.narrow(), &block(Some(wide_title()), None));
+        let wide = long.wide().render(at(1.0));
+        assert_eq!(lines(pick(&texts(&wide), 0)), [wide_title()]);
+        let short = TitleBlock::new(Some("Title"), Some("Sub"), measures, fonts());
+        assert_eq!(short.wide(), short.narrow());
     }
 }
