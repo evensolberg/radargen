@@ -130,6 +130,32 @@ fn width_outside_the_range_is_a_usage_error() {
     }
 }
 
+// ---- FR-100: --legend-columns accepts 1..=4, default 1
+
+#[test]
+fn legend_columns_accepts_one_to_four() {
+    assert_eq!(
+        parse(&["in.csv", "-o", "e.png"])
+            .expect("parses")
+            .legend_columns,
+        1
+    );
+    for n in ["1", "4"] {
+        let cli = parse(&["in.csv", "-o", "e.png", "--legend-columns", n]).expect(n);
+        assert_eq!(cli.legend_columns.to_string(), n);
+    }
+}
+
+#[test]
+fn legend_columns_outside_the_range_is_a_usage_error() {
+    for n in ["0", "5", "-1", "two"] {
+        assert!(
+            parse(&["in.csv", "-o", "e.png", "--legend-columns", n]).is_err(),
+            "{n}"
+        );
+    }
+}
+
 // ---- FR-56: --theme, case-insensitive, default light
 
 #[test]

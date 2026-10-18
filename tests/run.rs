@@ -1899,3 +1899,68 @@ fn a_bad_rings_list_is_reported_before_unplotted_rings_are_checked() {
     assert_eq!(ran.code, Some(1));
     assert_eq!(ran.lines(), ["error: --rings: entry 2 is empty"]);
 }
+
+// ---- FR-100: --legend-columns
+
+const LONG_LEGEND: &str = include_str!("fixtures/long-legend.csv");
+
+/// A static output's (width, height): a PNG's pixels, an SVG's viewBox.
+fn drawn_size(dir: &Path, name: &str, ext: &str) -> (f64, f64) {
+    if ext == "png" {
+        let image = png(dir, name);
+        (f64::from(image.width()), f64::from(image.height()))
+    } else {
+        let svg = read(dir, name);
+        let parsed = roxmltree::Document::parse(&svg).expect("well-formed");
+        let view: Vec<f64> = parsed
+            .root_element()
+            .attribute("viewBox")
+            .expect("a viewBox")
+            .split_whitespace()
+            .map(|n| n.parse().expect("a number"))
+            .collect();
+        let [.., width, height] = view.as_slice() else {
+            panic!("a viewBox of four numbers: {view:?}");
+        };
+        (*width, *height)
+    }
+}
+
+/// FR-100: at its own width, a long legend in columns makes a PNG or SVG
+/// wider and shorter, with nothing more said than the plain render says.
+#[test]
+fn legend_columns_widen_and_shorten_a_static_output() {
+    let dir = seeded(&[("radar.csv", LONG_LEGEND)]);
+    for ext in ["png", "svg"] {
+        let (plain, flowed) = (format!("a.{ext}"), format!("b.{ext}"));
+        let one = run_in(dir.path(), &["radar.csv", "-o", &plain]);
+        let three = run_in(
+            dir.path(),
+            &["radar.csv", "-o", &flowed, "--legend-columns", "3"],
+        );
+        for ran in [&one, &three] {
+            assert!(ran.ok(), "{ext}: {}", ran.stderr);
+        }
+        assert_eq!(one.stderr, three.stderr, "{ext}");
+        let (w1, h1) = drawn_size(dir.path(), &plain, ext);
+        let (w3, h3) = drawn_size(dir.path(), &flowed, ext);
+        assert!(w3 > w1 && h3 < h1, "{ext}: {w1}×{h1} then {w3}×{h3}");
+    }
+}
+
+/// FR-100: HTML ignores the flag without a word: the same page, the same
+/// stderr.
+#[test]
+fn html_ignores_legend_columns() {
+    let dir = seeded(&[("radar.csv", LONG_LEGEND)]);
+    let plain = run_in(dir.path(), &["radar.csv", "-o", "a.html"]);
+    let flowed = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "b.html", "--legend-columns", "4"],
+    );
+    for ran in [&plain, &flowed] {
+        assert!(ran.ok(), "{}", ran.stderr);
+    }
+    assert_eq!(plain.stderr, flowed.stderr);
+    assert_eq!(read(dir.path(), "a.html"), read(dir.path(), "b.html"));
+}

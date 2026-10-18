@@ -157,7 +157,7 @@ declarations only and are not listed.
 | `src/layout/block.rs` | The `Block` trait, `Size`, `Placement`; nothing domain-specific — arrives with the first block (PR 09), using `geometry::Point` | v1.0 |
 | `src/layout/title.rs` | Title block (FR-65) | v1.0 |
 | `src/layout/radar.rs` | Radar block: sectors, bands, markers, labels, FR-70's three scales | v1.0 |
-| `src/layout/legend/` (`mod.rs`, `layout.rs`) | Legend block (FR-35, FR-74, FR-75) | v1.0 |
+| `src/layout/legend/` (`mod.rs`, `layout.rs`, `columns.rs`) | Legend block (FR-35, FR-74, FR-75); a static legend's columns and their split (FR-100) | v1.0 |
 | `src/layout/key.rs` | Encoding key (FR-66) | v1.0 |
 | `src/layout/arrange.rs` | Wide and narrow placement (FR-68–FR-71); FR-95's and FR-105's render warnings (`warn_narrow`, `warn_wide`), HTML only, each naming the label that sets its arrangement's width (D-73, D-94) | v1.0 |
 | `src/svg/mod.rs` | `Node`, `Document` — the SVG tree. `Node` arrives with the first block that renders (PR 09) and gains variants with each block; `Document` arrives with `arrange` (PR 12) | v1.0 |
@@ -343,6 +343,11 @@ and the widest narrow document is the radar at 0.3 plus the same insets, so
 the wide document is never the narrower of the two. A breakpoint past
 `WIDE_MIN_VIEWPORT_PX` sends laptops to the narrow arrangement, which only
 labels can cause since D-86's growth stops short of it, and FR-105 warns (D-94).
+For PNG and SVG only, `--legend-columns` flows the wide legend into up to four
+columns before arranging (`Blocks::with_legend_columns`, FR-100, D-90): whole
+quadrant groups per column, split at the shortest tallest column, on one panel,
+so the static document grows wider and shorter while HTML, and so
+`breakpoint_px`, never sees it.
 
 HTML draws the narrow arrangement as two SVGs too (`arrange::narrow_parts`,
 RG-102): the body (title, radar, key and the gap under it) and the legend,

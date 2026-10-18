@@ -433,6 +433,10 @@ pub const MIN_RADAR_WIDTH: f64 = 660.0;
 /// Smaller legend styles go proportionally lower; this is not a floor for them.
 pub const MIN_LEGIBLE_PX: f64 = 10.0;
 
+/// FR-100: the most columns `--legend-columns` flows a static legend into;
+/// four beside a radar is already wider than a 16:9 slide (D-90).
+pub const MAX_LEGEND_COLUMNS: u8 = 4;
+
 /// FR-64: the narrowest `--width`, in pixels.
 pub const MIN_EXPORT_WIDTH: u32 = 320;
 /// FR-64: the widest `--width`, and the clamp for a default past it (D-87).

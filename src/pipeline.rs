@@ -54,6 +54,8 @@ pub struct Config {
     pub table: Table,
     /// FR-57: `--width`, which HTML ignores.
     pub width: Option<u32>,
+    /// FR-100: `--legend-columns`, which HTML ignores.
+    pub legend_columns: u8,
     /// FR-65, resolved: cleaned (FR-90), trimmed, and `None` when empty.
     pub title: Option<String>,
     /// As `title`.
@@ -192,6 +194,7 @@ fn config(
         legend: cli.legend,
         table: cli.table,
         width: cli.width,
+        legend_columns: cli.legend_columns,
         title,
         subtitle,
         rings,
@@ -318,6 +321,13 @@ fn render(
             warnings,
         );
     }
+    // FR-100: only a static output flows its legend; the page's scrolls
+    // beside the radar, so HTML ignores the flag, silently (D-90).
+    let blocks = if config.format.is_snapshot() {
+        blocks.with_legend_columns(usize::from(config.legend_columns))
+    } else {
+        blocks
+    };
     match config.format {
         OutputFormat::Html => {
             // FR-105 and FR-95 concern the switch between the arrangements

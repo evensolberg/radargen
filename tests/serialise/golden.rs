@@ -225,3 +225,29 @@ fn prd_example_matches_its_light_svg_golden() {
 fn prd_example_matches_its_dark_svg_golden() {
     golden("svg", "prd-dark.svg", &prd_svg(Theme::Dark));
 }
+
+/// FR-100, D-90: a long legend flowed into three columns, exported light
+/// at its own width: pins the breaks, the columns' places and the panel.
+#[test]
+fn a_legend_in_columns_matches_its_svg_golden() {
+    let built = super::build(
+        include_str!("../fixtures/long-legend.csv"),
+        None,
+        Some("Technology Radar"),
+    );
+    let blocks = built.blocks.with_legend_columns(3);
+    let palette = Palette::built_in(Theme::Light);
+    let fonts = radargen::text::Fonts::embedded().expect("loads");
+    let svg = radargen::emit::svg::export(
+        &arrange(Arrangement::Wide, &blocks),
+        &radargen::emit::svg::Export {
+            palette: &palette,
+            fonts: &fonts,
+            width: None,
+            title: Some("Technology Radar"),
+            desc: &blocks.radar.name(),
+        },
+    )
+    .expect("exports");
+    golden("svg", "long-legend-columns-light.svg", &svg);
+}

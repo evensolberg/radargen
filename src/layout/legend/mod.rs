@@ -4,10 +4,12 @@
 //! each row a control. Its layout, as data, lives in the `layout`
 //! submodule, and one row's composition in `row`.
 
+mod columns;
 mod layout;
 mod row;
 
 use std::num::NonZeroU8;
+use std::ops::Range;
 
 use crate::layout::block::{Block, Placement, Size};
 use crate::layout::marker::{number_paint, number_text};
@@ -16,9 +18,9 @@ use crate::order::Plotted;
 use crate::palette::{Neutral, Role};
 use crate::style::{
     BADGE_HOLLOW_STROKE, BADGE_RADIUS, BADGE_STROKE, INDENT_ITEM, LEGEND_BADGE_NUMBER,
-    LEGEND_PANEL_INSET_X, LEGEND_PANEL_INSET_Y, LEGEND_PANEL_RADIUS, LEGEND_ROW_INDICATOR_INSET,
-    LEGEND_ROW_LEFT_OUTSET, LEGEND_ROW_RADIUS, LEGEND_ROW_RIGHT_OUTSET, SELECTION_BAR_WIDTH,
-    SWATCH_RADIUS,
+    LEGEND_FIRST_GROUP, LEGEND_PANEL_INSET_X, LEGEND_PANEL_INSET_Y, LEGEND_PANEL_RADIUS,
+    LEGEND_ROW_INDICATOR_INSET, LEGEND_ROW_LEFT_OUTSET, LEGEND_ROW_RADIUS, LEGEND_ROW_RIGHT_OUTSET,
+    SELECTION_BAR_WIDTH, SWATCH_RADIUS,
 };
 use crate::svg::{Group, ItemKey, Node, Paint, Point, Scale, Semantics, TextRun};
 use crate::text::Fonts;
@@ -37,6 +39,19 @@ pub struct LegendBlock {
     layout: Layout,
     /// The panel at scale 1; zero for an empty legend (FR-42).
     size: Size,
+    /// FR-100's columns, left to right; empty for the single column every
+    /// legend has unless a static output flows it.
+    columns: Vec<Column>,
+}
+
+/// One of FR-100's columns: a run of whole quadrant groups, drawn moved by
+/// `offset` from where the single column has them.
+#[derive(Debug, Clone, PartialEq)]
+struct Column {
+    /// The column's entries in [`Layout::entries`].
+    entries: Range<usize>,
+    /// From the single column's place to this column's, at scale 1.
+    offset: Point,
 }
 
 impl LegendBlock {
@@ -50,8 +65,67 @@ impl LegendBlock {
     pub fn new(catalogue: &Catalogue, plotted: &Plotted, fonts: &Fonts) -> Self {
         let layout = layout(catalogue, plotted, fonts);
         Self {
-            size: panel_size(&layout),
+            size: if layout.entries.is_empty() {
+                Size::default()
+            } else {
+                panel_size(layout.width, layout.height)
+            },
             layout,
+            columns: Vec::new(),
+        }
+    }
+
+    /// The legend flowed into `columns` columns beside one another
+    /// (FR-100, D-90), breaking only between quadrant groups, or as it is
+    /// when that is one column.
+    #[must_use]
+    pub fn in_columns(&self, columns: usize) -> Self {
+        let Layout {
+            width,
+            entries,
+            groups,
+            ..
+        } = &self.layout;
+        // Where group `g`'s entries start, and the column's lift that puts
+        // its heading where the first group's is (FR-100).
+        let first = |g: usize| groups.get(g).map_or(entries.len(), |start| start.entry);
+        let lift = |g: usize| {
+            groups
+                .get(g)
+                .map_or(0.0, |start| LEGEND_FIRST_GROUP - start.baseline)
+        };
+        // A column from group `g` to the next column's: the title, in the
+        // first column, from the content's top.
+        let span = |g: usize, end: usize| if g == 0 { 0 } else { first(g) }..first(end);
+        let height = |run: Range<usize>| {
+            let bottom = span(run.start, run.end)
+                .last()
+                .and_then(|i| entries.get(i))
+                .map_or(0.0, Entry::bottom);
+            bottom + lift(run.start)
+        };
+        let starts = columns::split(groups.len(), columns, height);
+        if starts.len() < 2 {
+            return self.clone();
+        }
+        let ends = starts.iter().skip(1).copied().chain([groups.len()]);
+        let mut x = 0.0;
+        let mut tallest: f64 = 0.0;
+        let mut flowed = Vec::new();
+        for (&g, end) in starts.iter().zip(ends) {
+            if !flowed.is_empty() {
+                x += width + LEGEND_PANEL_INSET_X;
+            }
+            tallest = tallest.max(height(g..end));
+            flowed.push(Column {
+                entries: span(g, end),
+                offset: Point { x, y: lift(g) },
+            });
+        }
+        Self {
+            layout: self.layout.clone(),
+            size: panel_size(*width + x, tallest),
+            columns: flowed,
         }
     }
 
@@ -76,7 +150,7 @@ impl LegendBlock {
         } else {
             vec![
                 panel_node(panel.scaled(s), s),
-                content_node(&self.layout, s),
+                content_node(&self.layout, &self.columns, s),
             ]
         };
         Node::Group(Group::new(at.origin, children))
@@ -126,22 +200,18 @@ impl Block for LegendSpan<'_> {
     }
 }
 
-/// The panel at scale 1: the content plus its insets, or zero when there
-/// is no content (FR-42: with no quadrants the legend is omitted).
+/// The panel at scale 1 around content `width` by `height`: the content
+/// plus its insets. An empty legend has no panel (FR-42); the caller
+/// decides that.
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
 )]
-// qual:allow(iosp) reason: "Size::default is the derived zero, not a step of ours; one FR-42 branch over arithmetic"
 // qual:allow(complexity, magic_numbers) reason: "the panel insets the content on both sides"
-fn panel_size(layout: &Layout) -> Size {
-    if layout.entries.is_empty() {
-        Size::default()
-    } else {
-        Size {
-            width: layout.width + 2.0 * LEGEND_PANEL_INSET_X,
-            height: layout.height + 2.0 * LEGEND_PANEL_INSET_Y,
-        }
+fn panel_size(width: f64, height: f64) -> Size {
+    Size {
+        width: width + 2.0 * LEGEND_PANEL_INSET_X,
+        height: height + 2.0 * LEGEND_PANEL_INSET_Y,
     }
 }
 
@@ -205,18 +275,36 @@ fn panel_node(size: Size, s: f64) -> Node {
     rect_node(area, LEGEND_PANEL_RADIUS * s, SURFACE2)
 }
 
-/// Every entry at `s`, in the layout's order, inset in the panel.
-fn content_node(layout: &Layout, s: f64) -> Node {
+/// Every entry at `s`, in the layout's order, inset in the panel: as one
+/// column, or as FR-100's `columns`, each a group at its offset.
+fn content_node(layout: &Layout, columns: &[Column], s: f64) -> Node {
     let offset = Point {
         x: LEGEND_PANEL_INSET_X,
         y: LEGEND_PANEL_INSET_Y,
     }
     .scaled(s);
-    let children = layout
-        .entries
-        .iter()
-        .map(|entry| entry_node(entry, layout.width, s))
-        .collect();
+    let entries = |range: Range<usize>| -> Vec<Node> {
+        layout
+            .entries
+            .get(range)
+            .unwrap_or_default()
+            .iter()
+            .map(|entry| entry_node(entry, layout.width, s))
+            .collect()
+    };
+    let children = if columns.is_empty() {
+        entries(0..layout.entries.len())
+    } else {
+        columns
+            .iter()
+            .map(|column| {
+                Node::Group(Group::new(
+                    column.offset.scaled(s),
+                    entries(column.entries.clone()),
+                ))
+            })
+            .collect()
+    };
     Node::Group(Group::new(offset, children))
 }
 
@@ -366,11 +454,12 @@ fn number_node(row: &Row, s: f64) -> Node {
 
 #[cfg(test)]
 mod tests {
+    use super::layout::GroupStart;
     use super::*;
     use crate::layout::block::{assert_translates, at, close, fonts};
     use crate::layout::test_support::{
-        HEAD_META, NAME_FULL_LINE, NAME_THREE_LINES, NAME_TWO_LINES, PRD_EXAMPLE, Rect,
-        assert_finite, assert_inside, bounds, empty_catalogue, fill, groups, near, plotted,
+        HEAD, HEAD_META, NAME_FULL_LINE, NAME_THREE_LINES, NAME_TWO_LINES, PRD_EXAMPLE, Rect,
+        assert_finite, assert_inside, bounds, csv_of, empty_catalogue, fill, groups, near, plotted,
     };
     use crate::style::{MIN_PX_PER_UNIT, MIN_TARGET_PX};
     use crate::svg::{Anchor, Control, TextPaint};
@@ -897,6 +986,91 @@ mod tests {
             group(&block.spanning(400.0).render(at(1.0))).children,
             Vec::new()
         );
+    }
+
+    /// Four quadrants of 6, 2, 2 and 6 rows: two columns break between
+    /// the second and third, where the columns are equal.
+    fn flowed() -> String {
+        [("A", 6), ("B", 2), ("C", 2), ("D", 6)]
+            .iter()
+            .flat_map(|&(q, n)| (0..n).map(move |i| format!("{q}{i},{q},Adopt,d\n")))
+            .fold(HEAD.to_owned(), |text, row| text + &row)
+    }
+
+    fn start(block: &LegendBlock, group: usize) -> GroupStart {
+        *block.layout.groups.get(group).expect("a group")
+    }
+
+    fn controls(root: &Node) -> Vec<Control> {
+        rows(root).into_iter().map(|(c, _)| c.clone()).collect()
+    }
+
+    /// FR-100: whole groups, side by side, each a single column's width
+    /// apart by the panel's inset, on one panel spanning them.
+    #[test]
+    fn columns_stand_beside_one_another_on_one_panel() {
+        let (_, _, block) = legend(&flowed());
+        let two = block.in_columns(2);
+        let [first, second] = two.columns.as_slice() else {
+            panic!("two columns: {:?}", two.columns);
+        };
+        let third = start(&block, 2);
+        assert_eq!(first.entries, 0..third.entry);
+        assert_eq!(second.entries, third.entry..block.layout.entries.len());
+        assert!(near(first.offset, Point::ORIGIN), "{first:?}");
+        let width = block.layout.width;
+        assert!(
+            close(second.offset.x, width + LEGEND_PANEL_INSET_X),
+            "{second:?}"
+        );
+        assert!(
+            close(third.baseline + second.offset.y, start(&block, 0).baseline),
+            "the third quadrant's heading is level with the first's"
+        );
+        let size = two.size(1.0);
+        assert!(
+            close(size.width, width + width + LEGEND_PANEL_INSET_X + 24.0),
+            "{size:?}"
+        );
+        assert!(size.height < block.size(1.0).height, "{size:?}");
+        let root = two.render(at(1.0));
+        assert_inside(&root, size, fonts());
+        let (_, panel_width, panel_height, ..) = rect(child(&group(&root).children, 0));
+        assert!(close(panel_width, size.width) && close(panel_height, size.height));
+        let offsets: Vec<Point> = content(&root)
+            .children
+            .iter()
+            .map(|column| group(column).offset)
+            .collect();
+        assert_eq!(offsets, [first.offset, second.offset]);
+        assert_eq!(
+            controls(&root),
+            controls(&block.render(at(1.0))),
+            "FR-35's order"
+        );
+        let half = two.render(at(0.5));
+        assert_inside(&half, two.size(0.5), fonts());
+    }
+
+    /// FR-100: one column per group when asked for more.
+    #[test]
+    fn more_columns_than_groups_gives_one_each() {
+        let (_, _, block) = legend(&flowed());
+        assert_eq!(block.in_columns(4).columns.len(), 4);
+        let (_, _, three) = legend(&csv_of(&["A", "B", "C"], "Adopt"));
+        assert_eq!(three.in_columns(4).columns.len(), 3);
+    }
+
+    /// One column, one group or none: the legend as it is.
+    #[test]
+    fn a_single_column_is_the_legend_unchanged() {
+        let (_, _, block) = legend(&flowed());
+        assert_eq!(block.in_columns(1), block);
+        let (_, _, one) = legend(&csv_of(&["A", "A"], "Adopt"));
+        assert_eq!(one.in_columns(4), one);
+        let catalogue = empty_catalogue();
+        let empty = LegendBlock::new(&catalogue, &Plotted::default(), fonts());
+        assert_eq!(empty.in_columns(3), empty);
     }
 
     #[test]
