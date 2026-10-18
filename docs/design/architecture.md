@@ -148,6 +148,7 @@ declarations only and are not listed.
 | `src/palette/file.rs` | FR-102's grammar, FR-86's values and FR-87's series over a `--palette` file, every problem collected with its line; `read`, capped at 1 MiB, returning its own `ReadError` so the pipeline names the flag (RG-018A) | 1.3 |
 | `src/decode.rs` | Bytes to text for every file read: one BOM stripped, UTF-8 required, a NUL refused, CR/LF/CRLF counted once (FR-2, FR-61) | 1.3 |
 | `src/layout/geometry.rs` | `Geometry`: angles, bands, marker placement (FR-30–FR-33, FR-43, FR-77), FR-89's computed band capacity, `place`, and FR-88/FR-89's render warnings (`warn_crowding`); `Point` | *exists* |
+| `src/layout/glyphs.rs` | FR-104's warning (`warn_missing_glyphs`), PNG and SVG only: each drawn text the bundled font lacks characters for, a row warning at its cell or a render warning naming its flag (D-93); detection is `text.rs`'s | 1.7 |
 | `src/layout/block.rs` | The `Block` trait, `Size`, `Placement`; nothing domain-specific — arrives with the first block (PR 09), using `geometry::Point` | v1.0 |
 | `src/layout/title.rs` | Title block (FR-65) | v1.0 |
 | `src/layout/radar.rs` | Radar block: sectors, bands, markers, labels, FR-70's three scales | v1.0 |
@@ -158,7 +159,7 @@ declarations only and are not listed.
 | `src/svg/serialise/` | `serialise(&Document, Target)`: one `<svg>` element, colours bound late for an interactive or static `Target`, interactive-only nodes dropped for static; every attribute through `escape::xml_attr`, every float through `num::fmt_coord` (PR 13). Its `TextMode` writes text as `<text>` or as outlines, and `standalone` is the exported file's root (D-88) | v1.0 |
 | `src/escape.rs` | NFR-6's output contexts 1 to 4, one function each; context 5 is `palette::Hex` | v1.0 |
 | `src/num.rs` | `fmt_coord()` — NFR-17's rounding, used by every emitter | v1.0 |
-| `src/text.rs` | Shaped measurement and FR-79 wrapping, over **both** of FR-85's faces; shaping, placing and outlining glyphs for the exported SVG (D-88), the only module that reads `skrifa` | *exists* |
+| `src/text.rs` | Shaped measurement and FR-79 wrapping, over **both** of FR-85's faces; shaping, placing and outlining glyphs for the exported SVG (D-88), and the characters a face draws as `.notdef` (FR-104); the only module that reads `skrifa` | *exists* |
 | `src/emit/html/mod.rs` | Self-contained HTML: both arrangements, FR-69's computed media-query switch, FR-56's theme override, inline JS/CSS and font | v1.0 |
 | `src/emit/html/table.rs` | The table view (FR-41, FR-78) — every CSV row, every declared column | v1.0 |
 | `src/emit/write.rs` | NFR-14's atomic write: temp file in the same directory, flush, rename; `fs::write`'s permissions, a symlink replaced not followed, a read-only target refused | v1.0 |
@@ -697,6 +698,14 @@ position is `Position::{Render, Cell { line, column }}`, `Render` is declared
 first so the derived order puts it first, and `column` (the header index) orders
 warnings within a line, which NFR-11 also asks for and `Option<line>` could not
 express.
+
+FR-104's warning comes in both kinds. A text from a CSV cell is a row warning at
+that cell, so it sorts and groups with the others; a text from `--title`,
+`--subtitle` or a `--rings` entry is a render warning naming its flag. It is
+raised at render time, in `layout/glyphs.rs`, because only the PNG and SVG warn
+and only the layout knows what is drawn. No position is carried down for it:
+the catalogue already keeps each item's line and each column's header position
+(`Column::position`), which is all the cell needs (D-93).
 
 ## 8. Where each open question lives
 

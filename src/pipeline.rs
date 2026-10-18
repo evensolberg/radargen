@@ -25,6 +25,7 @@ use crate::emit::{png, svg};
 use crate::errors::render_errors;
 use crate::layout::arrange::{Arrangement, Blocks, arrange, narrow_parts, warn_narrow, wide_parts};
 use crate::layout::geometry::warn_crowding;
+use crate::layout::glyphs::warn_missing_glyphs;
 use crate::layout::title::shown;
 use crate::model::{Catalogue, build_catalogue};
 use crate::order::resolve;
@@ -247,7 +248,7 @@ fn catalogue(path: &Path, rings: &RingSet, warnings: &mut Warnings) -> Result<Ca
     }
 }
 
-/// The order, the render warnings (FR-88, FR-89, FR-95, D-87), the blocks
+/// The order, the render warnings (FR-88, FR-89, FR-95, FR-104, D-87), the blocks
 /// built once, and the output: the page around both arrangements (FR-68),
 /// or the wide arrangement as a PNG or an SVG (FR-71).
 fn render(
@@ -271,6 +272,19 @@ fn render(
     // back, so it keeps the legend and says so.
     if config.legend == Legend::Hidden && config.format != OutputFormat::Html {
         warnings.push(Warning::Render(RenderKind::LegendStatic));
+    }
+    // FR-104: a static snapshot draws every text with the bundled font
+    // alone, so a character it lacks is a box; the page falls back to the
+    // reader's fonts, so it is not warned (D-93).
+    if config.format != OutputFormat::Html {
+        warn_missing_glyphs(
+            catalogue,
+            &plotted,
+            config.title.as_deref(),
+            config.subtitle.as_deref(),
+            fonts,
+            warnings,
+        );
     }
     match config.format {
         OutputFormat::Html => {

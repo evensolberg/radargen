@@ -37,6 +37,9 @@ pub struct Column {
     pub heading: String,
     /// What the column means, matched from the header under FR-76.
     pub kind: ColumnKind,
+    /// Its 0-based header index, unnamed columns counted: where a warning
+    /// about one of its cells points (NFR-10, NFR-11).
+    pub position: usize,
 }
 
 /// FR-20's recognised values. Blank and unrecognised values claim nothing,
@@ -349,6 +352,7 @@ impl Header {
             columns.push(Column {
                 heading: name.clone(),
                 kind: ColumnKind::of(&key),
+                position: p,
             });
         }
         Self {
@@ -1576,6 +1580,15 @@ Plain,Tool,adopt,d,,,,no change\n"
         );
     }
 
+    /// FR-104 points at a cell by its header position, which an unnamed
+    /// column puts ahead of its index among the named columns.
+    #[test]
+    fn a_column_keeps_its_header_position() {
+        let cat = catalogue("name,,quadrant,ring,description\nOld,,Tool,Adopt,d\n");
+        let positions: Vec<usize> = cat.columns.iter().map(|c| c.position).collect();
+        assert_eq!(positions, [0, 2, 3, 4]);
+    }
+
     /// The unplotted ring is read from the named columns, so an unnamed
     /// column before it does not shift it onto another cell.
     #[test]
@@ -1599,6 +1612,7 @@ Plain,Tool,adopt,d,,,,no change\n"
             columns: vec![Column {
                 heading: "name".into(),
                 kind: ColumnKind::Name,
+                position: 0,
             }],
             quadrants: vec![Quadrant {
                 key: "tool".into(),

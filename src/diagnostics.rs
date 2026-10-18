@@ -126,6 +126,18 @@ pub enum RowKind {
         /// [`column_label`] of the nameless column: `column 6 (F)`.
         column: String,
     },
+    /// FR-104: a text a PNG or SVG draws, from this cell, holds characters
+    /// the bundled font lacks. One per drawn text, however many it lacks.
+    MissingGlyphs {
+        /// The column the text was read from: `name` or `quadrant`.
+        column: ColumnKind,
+        /// The text as drawn.
+        text: String,
+        /// The first character the font lacks.
+        first: char,
+        /// How many distinct characters it lacks.
+        count: usize,
+    },
 }
 
 /// The warnings that concern the render as a whole. They never group: FR-88
@@ -183,6 +195,18 @@ pub enum RenderKind {
         /// How many characters the value lost in all.
         count: usize,
     },
+    /// FR-104 on a flag value: one per drawn text, so one per `--rings`
+    /// entry, however many characters it lacks.
+    FlagMissingGlyphs {
+        /// The flag the text came from.
+        flag: Flag,
+        /// The text as drawn: the value, or one `--rings` entry.
+        text: String,
+        /// The first character the font lacks.
+        first: char,
+        /// How many distinct characters it lacks.
+        count: usize,
+    },
 }
 
 /// The label whose reach sets the radar's width (FR-95, D-73): a quadrant
@@ -200,8 +224,9 @@ pub enum Binding {
     },
 }
 
-/// A command-line flag whose value FR-90 cleans. `--config` keys arrive with
-/// PR 19 and will name themselves the same way.
+/// A command-line flag a warning names: FR-90 cleans its value, and FR-104
+/// checks that a PNG or SVG can draw it. `--config` keys arrive with PR 19
+/// and will name themselves the same way.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Flag {
     /// `--title` (FR-65).
@@ -275,6 +300,7 @@ enum Class {
     DuplicateName,
     Undisplayable,
     Unnamed,
+    MissingGlyphs,
 }
 
 impl RowKind {
@@ -289,6 +315,7 @@ impl RowKind {
             Self::DuplicateName { .. } => Class::DuplicateName,
             Self::Undisplayable { .. } => Class::Undisplayable,
             Self::UnnamedValue { .. } => Class::Unnamed,
+            Self::MissingGlyphs { .. } => Class::MissingGlyphs,
         }
     }
 
@@ -302,6 +329,7 @@ impl RowKind {
             Self::RefusedLink { .. } => ColumnKind::Link.as_str(),
             Self::EmptyDescription => ColumnKind::Description.as_str(),
             Self::DuplicateName { .. } => ColumnKind::Name.as_str(),
+            Self::MissingGlyphs { column, .. } => column.as_str(),
             // A header name is CSV text (FR-18's extra columns); it is escaped
             // with the rest of the line.
             Self::Undisplayable { column, .. } | Self::UnnamedValue { column } => column,
@@ -319,7 +347,9 @@ impl RowKind {
             | Self::RefusedLink { value }
             | Self::DuplicateName { value, .. }
             | Self::UnnamedValue { column: value } => Some(value),
-            Self::EmptyDescription | Self::Undisplayable { .. } => None,
+            Self::EmptyDescription | Self::Undisplayable { .. } | Self::MissingGlyphs { .. } => {
+                None
+            }
         }
     }
 
@@ -371,6 +401,9 @@ impl RowKind {
             Self::UnnamedValue { .. } => {
                 "this column has no name in the header row, so its value is not shown; add a header name, or delete the value".into()
             }
+            Self::MissingGlyphs {
+                text, first, count, ..
+            } => lacks(text, *first, *count),
         }
     }
 }
@@ -441,6 +474,12 @@ impl RenderKind {
                 "{flag}: removed {count} characters the output cannot display, the first {}",
                 code_point(*first)
             ),
+            Self::FlagMissingGlyphs {
+                flag,
+                text,
+                first,
+                count,
+            } => format!("{flag}: {}", lacks(text, *first, *count)),
         }
     }
 }
@@ -501,6 +540,41 @@ fn column_letters(number: usize) -> String {
 #[must_use]
 pub const fn plural<'a>(n: usize, one: &'a str, many: &'a str) -> &'a str {
     if n == 1 { one } else { many }
+}
+
+/// What FR-104 says a PNG or SVG does with one missing character.
+const FALLBACK_ONE: &str =
+    "a PNG or SVG draws it as a box, while the HTML page falls back to the reader's fonts";
+/// The same for several, and for a grouped line.
+const FALLBACK_EACH: &str =
+    "a PNG or SVG draws each as a box, while the HTML page falls back to the reader's fonts";
+
+/// FR-104's message for one drawn text, after its position or flag.
+fn lacks(text: &str, first: char, count: usize) -> String {
+    let text = trim(text);
+    let first =
+        shown(first).map_or_else(|| code_point(first), |c| format!("{} ({c})", code_point(c)));
+    if count == 1 {
+        format!("'{text}' has {first}, which the bundled font lacks; {FALLBACK_ONE}")
+    } else {
+        format!(
+            "'{text}' has {count} characters the bundled font lacks, the first {first}; {FALLBACK_EACH}"
+        )
+    }
+}
+
+/// `c`, if a message can show it beside its code point (FR-104). A mark
+/// would combine with the punctuation before it, and whitespace or a
+/// control, format, unassigned or private-use character shows nothing a
+/// reader can match, so those get the code point alone.
+fn shown(c: char) -> Option<char> {
+    use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory as _};
+    let hidden = c.is_whitespace()
+        || matches!(
+            c.general_category_group(),
+            GeneralCategoryGroup::Mark | GeneralCategoryGroup::Other
+        );
+    (!hidden).then_some(c)
 }
 
 fn code_point(c: char) -> String {
@@ -672,6 +746,29 @@ fn grouped(class: Class, members: &[Member]) -> String {
                         m.line,
                         code_point(*first)
                     ),
+                })
+            }))
+        ),
+        // Positions, as for FR-90, each with its text: unlike a removed
+        // character, the box is drawn, so the text is what to look for.
+        Class::MissingGlyphs => format!(
+            "{n} values have characters the bundled font lacks — {}; {FALLBACK_EACH}",
+            comma_list(members.iter().filter_map(|m| {
+                let RowKind::MissingGlyphs {
+                    column,
+                    text,
+                    first,
+                    count,
+                } = m.kind
+                else {
+                    return None;
+                };
+                let (column, text) = (column.as_str(), trim(text));
+                let first = shown(*first)
+                    .map_or_else(|| code_point(*first), |c| format!("{} {c}", code_point(c)));
+                Some(match count {
+                    1 => format!("{column} '{text}' on line {} ({first})", m.line),
+                    c => format!("{column} '{text}' on line {} ({c}, first {first})", m.line),
                 })
             }))
         ),

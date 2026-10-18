@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use radargen::columns::ColumnKind;
 use radargen::diagnostics::{
-    Binding, DateColumn, Fatal, Position, RenderKind, RowError, RowKind, Separator, Warning,
+    Binding, DateColumn, Fatal, Flag, Position, RenderKind, RowError, RowKind, Separator, Warning,
     Warnings, column_label,
 };
 use radargen::rings::{RingSource, RingsError};
@@ -159,6 +159,128 @@ fn undisplayable_and_unnamed_values_have_their_per_row_message() {
     for (warning, expected) in cases {
         assert_eq!(warning.to_string(), expected);
     }
+}
+
+/// FR-104: a drawn CSV text with characters the bundled font lacks,
+/// named with its text, its first such character, and how many there are.
+#[test]
+fn missing_glyphs_have_their_per_row_message() {
+    let cases = [
+        (
+            at(
+                3,
+                0,
+                RowKind::MissingGlyphs {
+                    column: ColumnKind::Name,
+                    text: "Kafka 中".into(),
+                    first: '中',
+                    count: 1,
+                },
+            ),
+            "line 3, name: 'Kafka 中' has U+4E2D (中), which the bundled font lacks; a PNG or SVG draws it as a box, while the HTML page falls back to the reader's fonts",
+        ),
+        (
+            at(
+                4,
+                1,
+                RowKind::MissingGlyphs {
+                    column: ColumnKind::Quadrant,
+                    text: "عربي".into(),
+                    first: 'ع',
+                    count: 4,
+                },
+            ),
+            "line 4, quadrant: 'عربي' has 4 characters the bundled font lacks, the first U+0639 (ع); a PNG or SVG draws each as a box, while the HTML page falls back to the reader's fonts",
+        ),
+        // A lone combining mark would join the parenthesis, so only its
+        // code point is shown.
+        (
+            at(
+                5,
+                0,
+                RowKind::MissingGlyphs {
+                    column: ColumnKind::Name,
+                    text: "q\u{1ab0}".into(),
+                    first: '\u{1ab0}',
+                    count: 1,
+                },
+            ),
+            "line 5, name: 'q\u{1ab0}' has U+1AB0, which the bundled font lacks; a PNG or SVG draws it as a box, while the HTML page falls back to the reader's fonts",
+        ),
+    ];
+    for (warning, expected) in cases {
+        assert_eq!(warning.to_string(), expected);
+    }
+}
+
+/// FR-104 on a flag value: the flag is named, as FR-90 names it.
+#[test]
+fn missing_glyphs_in_a_flag_name_the_flag() {
+    let cases = [
+        (
+            RenderKind::FlagMissingGlyphs {
+                flag: Flag::Title,
+                text: "雷达 2026".into(),
+                first: '雷',
+                count: 2,
+            },
+            "--title: '雷达 2026' has 2 characters the bundled font lacks, the first U+96F7 (雷); a PNG or SVG draws each as a box, while the HTML page falls back to the reader's fonts",
+        ),
+        (
+            RenderKind::FlagMissingGlyphs {
+                flag: Flag::Rings,
+                text: "採用".into(),
+                first: '採',
+                count: 2,
+            },
+            "--rings: '採用' has 2 characters the bundled font lacks, the first U+63A1 (採); a PNG or SVG draws each as a box, while the HTML page falls back to the reader's fonts",
+        ),
+        (
+            RenderKind::FlagMissingGlyphs {
+                flag: Flag::Subtitle,
+                text: "Q3 🙂".into(),
+                first: '🙂',
+                count: 1,
+            },
+            "--subtitle: 'Q3 🙂' has U+1F642 (🙂), which the bundled font lacks; a PNG or SVG draws it as a box, while the HTML page falls back to the reader's fonts",
+        ),
+    ];
+    for (kind, expected) in cases {
+        assert_eq!(Warning::Render(kind).to_string(), expected);
+    }
+}
+
+/// FR-104 under NFR-20: one class across columns, listing each text's
+/// position, its text and its first missing character.
+#[test]
+fn missing_glyphs_group_into_one_line() {
+    let mut w = Warnings::default();
+    w.push(at(
+        4,
+        1,
+        RowKind::MissingGlyphs {
+            column: ColumnKind::Quadrant,
+            text: "عربي".into(),
+            first: 'ع',
+            count: 4,
+        },
+    ));
+    w.push(at(
+        3,
+        0,
+        RowKind::MissingGlyphs {
+            column: ColumnKind::Name,
+            text: "Kafka 中".into(),
+            first: '中',
+            count: 1,
+        },
+    ));
+    assert_eq!(
+        w.render(),
+        vec![
+            "warning: 2 values have characters the bundled font lacks — name 'Kafka 中' on line 3 (U+4E2D 中), quadrant 'عربي' on line 4 (4, first U+0639 ع); a PNG or SVG draws each as a box, while the HTML page falls back to the reader's fonts",
+        ]
+    );
 }
 
 /// FR-88 and FR-89 have no line, so no `line N, column:` prefix.
@@ -498,6 +620,15 @@ fn every_row_class_has_a_grouped_line() {
         (
             RowKind::EmptyDescription,
             "warning: 2 rows have an empty description — lines 4, 6; each detail panel omits it",
+        ),
+        (
+            RowKind::MissingGlyphs {
+                column: ColumnKind::Name,
+                text: "中".into(),
+                first: '中',
+                count: 1,
+            },
+            "warning: 2 values have characters the bundled font lacks — name '中' on line 4 (U+4E2D 中), name '中' on line 6 (U+4E2D 中); a PNG or SVG draws each as a box, while the HTML page falls back to the reader's fonts",
         ),
         (
             RowKind::DuplicateName {

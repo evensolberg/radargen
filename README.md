@@ -93,7 +93,7 @@ radargen radar.csv -o radar.svg --theme dark
 Both draw the wide layout: the title, the radar, the key and the full legend, on the theme's background. `--theme light` (the default) or `--theme dark` picks the colours, and `--width` picks the width in pixels, from 320 to 10000, with the height following. Without `--width` the image is the layout's natural width.
 
 - **Long legends.** The legend is drawn in full, so a long one makes a tall image, which a slide then shrinks. A larger `--width`, or splitting the CSV, helps.
-- **Scripts.** The bundled font covers Latin, Greek, Cyrillic and Vietnamese. Names in other scripts, and emoji, draw as boxes; the HTML page falls back to the reader's fonts.
+- **Scripts.** The bundled font covers Latin, Greek, Cyrillic and Vietnamese. Names in other scripts, and emoji, draw as boxes, and radargen warns about each text that has them, naming its line and column or its flag; the HTML page falls back to the reader's fonts, so it draws them and does not warn.
 - **Accessibility.** A PNG has no text alternative, and an SVG placed as an image loses its own. Write alt text where you place it, and link the HTML page or the CSV as the full description.
 
 ### PNG
@@ -148,7 +148,7 @@ radargen --create-palette <PATH>
 radargen refuses what it cannot read or place, and warns about what it can draw but doubts.
 
 - **Errors** stop the run, and nothing is written. They cover a file that cannot be read or is not UTF-8, a separator other than a comma, an unclosed quote, a missing required column or a repeated header name, an empty `name`, `quadrant` or `ring`, a row with the wrong number of values, a bad `--rings` list or palette file, and an output path radargen cannot use (an unknown extension, a missing folder, or the input CSV itself).
-- **Warnings** still write the output. They cover values radargen does not recognise (a ring, qualifier, status, date or link), an empty description, a repeated name, characters the output cannot display (removed), more than six quadrants, a ring and quadrant holding more items than fit comfortably, and widths that make text hard to read.
+- **Warnings** still write the output. They cover values radargen does not recognise (a ring, qualifier, status, date or link), an empty description, a repeated name, characters the output cannot display (removed), characters the bundled font lacks (a PNG or SVG draws them as boxes), more than six quadrants, a ring and quadrant holding more items than fit comfortably, and widths that make text hard to read.
 - **How many at once.** Every row error is reported in one run, after any warnings, and a message about a row names its line, and its column where there is one. Repeats of the same kind are folded into one line. A problem with a flag or with the file as a whole (not UTF-8, an unclosed quote, the wrong separator) stops at the first one, warnings about values wait until no row is missing a name, quadrant or ring, and warnings about the drawing wait until there are no errors.
 - **Exit codes.** 0 when the output is written, even with warnings; 1 for an error; 2 for a command line radargen cannot accept: an unknown, missing or out-of-range flag, or flags that conflict.
 - **Earlier output is safe.** The output is written to a temporary file and renamed into place, so a failed run leaves any earlier file at that path untouched.

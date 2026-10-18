@@ -584,6 +584,64 @@ fn legend_hidden_warns_on_png_and_svg_and_changes_nothing() {
     }
 }
 
+/// FR-104's message tail, which every one of its warnings ends with.
+const BOXES: &str =
+    "a PNG or SVG draws each as a box, while the HTML page falls back to the reader's fonts";
+
+/// FR-104: a PNG or an SVG warns about each drawn text the bundled font
+/// lacks characters for, at its cell or naming its flag, and is still
+/// written. The HTML page falls back to the reader's fonts, so it is
+/// silent. The scripts the subset carries, decomposed Vietnamese included,
+/// do not warn.
+#[test]
+fn missing_glyphs_warn_on_png_and_svg_not_html() {
+    let csv = format!(
+        "{HEAD}Kafka 中文,Tools,Adopt,d\nFlink,عربي,Adopt,d\nTie\u{302}\u{301}ng,Ελληνικά,Adopt,d\nРусский,Tools,Trial,d\n"
+    );
+    let dir = seeded(&[("radar.csv", &csv)]);
+    for ext in ["png", "svg"] {
+        let out = format!("radar.{ext}");
+        let ran = run_in(dir.path(), &["radar.csv", "-o", &out, "--title", "雷达"]);
+        assert!(ran.ok(), "{ext}: {}", ran.stderr);
+        assert!(dir.path().join(&out).is_file(), "{ext}: written");
+        assert_eq!(
+            ran.lines(),
+            [
+                format!(
+                    "warning: --title: '雷达' has 2 characters the bundled font lacks, the first U+96F7 (雷); {BOXES}"
+                ),
+                format!(
+                    "warning: 2 values have characters the bundled font lacks — name 'Kafka 中文' on line 2 (2, first U+4E2D 中), quadrant 'عربي' on line 3 (4, first U+0639 ع); {BOXES}"
+                ),
+            ],
+            "{ext}"
+        );
+    }
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.html", "--title", "雷达"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert_eq!(ran.stderr, "");
+}
+
+/// FR-104 alone on a row is the per-row message, in NFR-11's order among
+/// the row's other warnings.
+#[test]
+fn one_missing_glyph_is_a_row_warning() {
+    let csv = format!("{HEAD}Kafka 中,Tools,Adopt,\n");
+    let dir = seeded(&[("radar.csv", &csv)]);
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.png"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "warning: line 2, name: 'Kafka 中' has U+4E2D (中), which the bundled font lacks; a PNG or SVG draws it as a box, while the HTML page falls back to the reader's fonts",
+            "warning: line 2, description: empty; the detail panel omits it",
+        ]
+    );
+}
+
 /// FR-95 is a render warning, so it prints before the row warnings.
 #[test]
 fn fr95_reaches_stderr() {
