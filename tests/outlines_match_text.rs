@@ -243,7 +243,7 @@ const WORST_CHANNEL: u8 = 128;
 /// Outlining is *visually* identical to `<text>`, not bit-identical. The
 /// residue is a scattering of antialiasing edge cases, one or two subpixels per
 /// scanline and never clustered — see the spike for the precision sweep that
-/// shows most of it is NFR-17's rounding and about 30 subpixels are not.
+/// shows all of it is NFR-17's rounding.
 fn subpixels() -> usize {
     usize::try_from(W * H * 4).expect("pixmap fits usize")
 }
@@ -281,7 +281,7 @@ fn deduplicating_glyphs_preserves_the_rendering() {
 }
 
 /// The size argument, which did not decide it — see the spike. Recorded
-/// because the naive per-instance form costs nearly seven times the deduplicated
+/// because the naive per-instance form costs about six times the deduplicated
 /// one, and quoting the naive number would make outlining look untenable.
 #[test]
 fn deduplicated_outlines_are_the_cheap_outlined_form() {

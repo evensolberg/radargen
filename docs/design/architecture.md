@@ -877,8 +877,8 @@ Three consequences the design carries:
   longer held: the conversion was worth half a day to a day of its own.
 - **Outlines are deduplicated through `<use>`.** One `<path>` per distinct glyph
   in each face and size in `<defs>`, already at its size, placed by
-  `<use xlink:href x= y=>`. The spike's edition is 749 glyph instances over 56
-  distinct glyphs, so the per-instance form costs nearly seven times as much.
+  `<use xlink:href x= y=>`. The spike's edition is 773 glyph instances over 71
+  distinct glyphs, so the per-instance form costs about six times as much.
   Per face and size, the PRD example draws 395 glyphs over 134 definitions
   (65 per face alone), about 30% more file than one definition per face, a
   roughly fixed cost, since legend names share one size. The PRD example

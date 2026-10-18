@@ -1,5 +1,7 @@
 # SVG font embedding spike — findings
 
+> **Re-recorded 2026-10-17 against Inter (rg-35i):** the sizes and the precision sweep below were first measured with a Libertinus stand-in and are now Inter's, from the same tests. The verdict does not move; the fidelity finding got stronger.
+>
 > **Since PRD v0.46 (D-67):** measurement uses `harfrust`, the shaper `resvg` 0.48 uses; this spike's `rustybuzz` findings carry over unchanged, because the oracle test still agrees to the pixel.
 
 **Closes the question design §11 raised:** how does the exported SVG carry its
@@ -36,49 +38,58 @@ makes it two.
 
 ## What outlining costs
 
-A realistic edition: 44 strings — title block, quadrant and ring labels, thirty
-legend rows, the key — **749 glyph instances over 56 distinct glyphs**.
+A realistic edition: 48 strings — title block, quadrant and ring labels, thirty
+legend rows, the key, and four rows of combining marks — **773 glyph instances
+over 71 distinct glyphs**.
 
 | Variant | Bytes | gzipped |
 | --- | --- | --- |
-| `<text>`, external font *(forbidden by SC-15)* | 4,150 | — |
-| Outlined, one path per glyph instance | 645,673 | 210,015 |
-| **Outlined, deduplicated through `<use>`** | **73,508** | **19,002** |
-| Embedded `@font-face`, WOFF2 base64 | 216,658 | 162,090 |
+| `<text>`, external font *(forbidden by SC-15)* | 4,022 | — |
+| Outlined, one path per glyph instance | 379,353 | 132,280 |
+| **Outlined, deduplicated through `<use>`** | **62,622** | **15,251** |
+| Embedded `@font-face`, WOFF2 base64 | 112,766 | 83,433 |
 
-**The naive form costs nearly nine times the deduplicated one**, and quoting it
-would make outlining look untenable — 749 instances over 56 glyphs is a ratio
+(gzip -9. The embed's gzip figure is of the full document, including its
+`<style>` wrapper, which the byte count leaves out.)
+
+**The naive form costs about six times the deduplicated one**, and quoting it
+would make outlining look untenable — 773 instances over 71 glyphs is a ratio
 the per-instance form pays for every time. One `<path>` per distinct glyph in
 `<defs>`, placed by `<use x= y=>`, is the form to build.
 
-**Size is not what decided it, and the honest reading is that it is roughly a
-wash.** The embed column uses the *unsubset* Libertinus stand-in; a Latin-subset
-Inter WOFF2 would be far smaller, and comparable to 73 kB uncompressed. The
-gzip column is where they part — outlines compress about 3.9×, base64 of an
-already-compressed WOFF2 essentially not at all — which matters only if the file
-is zipped for email.
+**Size is not what decided it, though it now points the same way.** The embed
+column is the Latin-subset Inter WOFF2 the HTML ships, and it still costs about
+1.8 times the deduplicated outlines uncompressed. The gzip column widens the
+gap to about 5.5 times: outlines compress about 4.1×, while base64 of an
+already-compressed WOFF2 gives back little more than its own encoding overhead.
+That matters only if the file is zipped for email.
 
 Ids in the exported SVG are fine, incidentally: design §5 bans them because the
 HTML holds two arrangements in one DOM, and the exported SVG is one document
 holding one.
 
-## Fidelity: visually identical, not bit-identical
+## Fidelity: bit-identical given the precision, visually identical at NFR-17's
 
 Rasterising the outlined document and the `<text>` document through `resvg` and
 comparing pixel buffers:
 
 | Coordinate precision | Differing subpixels of 3,960,000 | Worst channel delta |
 | --- | --- | --- |
-| 3 dp *(NFR-17)* | 82 (20 ppm) | 64 |
-| 4 dp | 44 | 64 |
-| 6 dp | 30 | 64 |
-| 9 dp | 30 | 64 |
+| 3 dp *(NFR-17)* | 154 (38 ppm) | 64 |
+| 4 dp | 22 | 32 |
+| 6 dp | 0 | 0 |
+| 9 dp | 0 | 0 |
 
-Two things worth reading off this. **It does not fall to zero** — about 30
-subpixels are precision-independent, so roughly 52 of the 82 are NFR-17's
-rounding and the remainder is something in `resvg`'s own text pipeline that a
-path does not reproduce. **It is not clustered**: the residue spreads over 67
-scanlines of 1,100, one or two subpixels each, never a glyph rendering wrongly.
+Two things worth reading off this. **It falls to zero**: at 6 dp the outlined
+document rasterises bit-identically to the `<text>` one, so the whole residue at
+3 dp is NFR-17's rounding. (The Libertinus stand-in left about 30 subpixels at
+every precision, which this doc used to put down to `resvg`'s own text
+pipeline. Inter leaves none, so that was the stand-in's, not the pipeline's.)
+**It is not clustered**: at 3 dp the residue spreads over about 75 scanlines of
+1,100, one or two subpixels each, never a glyph rendering wrongly.
+
+The 3 dp row is from the test, which formats with `fmt_coord`. The other rows
+are from a throwaway probe of the same test with the precision varied.
 
 **This costs nothing that is specified.** NFR-4 is byte-identity of *our own*
 output, which outlining does not touch — the same input still produces the same
