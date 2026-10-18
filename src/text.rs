@@ -507,6 +507,7 @@ impl Column<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_timing::assert_linear;
     use skrifa::instance::{LocationRef, Size};
     use skrifa::{FontRef, MetadataProvider};
 
@@ -776,11 +777,15 @@ mod tests {
             .chain('\u{4e00}'..='\u{9fff}')
             .chain('\u{20000}'..='\u{2a6df}')
             .collect();
-        let start = std::time::Instant::now();
-        let missing = fonts.missing(&text);
-        let elapsed = start.elapsed();
-        assert!(elapsed < std::time::Duration::from_secs(5), "{elapsed:?}");
-        assert_eq!(missing.len(), text.chars().count(), "every one is lacking");
+        let prefix = |n: usize| text.chars().take(n).collect::<String>();
+        assert_linear(1 << 10, prefix, |t| {
+            std::hint::black_box(fonts.missing(t));
+        });
+        assert_eq!(
+            fonts.missing(&text).len(),
+            text.chars().count(),
+            "every one is lacking"
+        );
     }
 
     /// A shaped glyph has contours; a space has none; an id the face lacks

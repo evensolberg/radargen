@@ -1137,7 +1137,7 @@ mod tests {
         assert_eq!(
             warnings,
             [
-                "warning: 2 values had characters the output cannot display — name on line 2 (U+0001), description on line 2 (2, first U+007F); each was removed"
+                "warning: 2 values had characters the output cannot display — name on line 2 (U+0001), description on line 2 (2 characters, first U+007F); each was removed"
             ]
         );
     }

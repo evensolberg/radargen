@@ -757,7 +757,7 @@ fn every_row_class_has_a_grouped_line() {
     assert_eq!(
         mixed.render(),
         vec![
-            "warning: 2 values had characters the output cannot display — description on line 4 (U+0001), name on line 6 (2, first U+007F); each was removed",
+            "warning: 2 values had characters the output cannot display — description on line 4 (U+0001), name on line 6 (2 characters, first U+007F); each was removed",
         ]
     );
 }

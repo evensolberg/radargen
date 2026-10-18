@@ -1,20 +1,21 @@
+## [1.12.1] - 2026-10-18
+
+### 🐛 Bug Fixes
+
+- *(diagnostics)* Grouped FR-90 line names its count's unit (rg-xbp)
+
+### 📚 Documentation
+
+- *(prd)* NFR-9 lists every warning the tool emits (rg-mx8)
+
+### 🧪 Testing
+
+- Linear-time tests compare n with 8n, not a 5 s limit (rg-the)
 ## [1.12.0] - 2026-10-18
 
 ### 🚀 Features
 
-- *(legend)* Flow a static legend into columns (FR-100)
-
-### 🚜 Refactor
-
-- *(legend)* Keep LegendBlock::new free of branches
-
-### 🧪 Testing
-
-- *(legend)* Pin FR-100's later-break tie rule
-
-### ⚙️ Miscellaneous Tasks
-
-- *(crumbs)* Close rg-73h
+- *(legend)* Flow a static legend into columns (1.12.0) (#129)
 ## [1.11.0] - 2026-10-18
 
 ### 🚀 Features
