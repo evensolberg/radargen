@@ -193,8 +193,8 @@ interaction-only:
     node scripts/interaction.mjs "$out/interaction.html" "$out/long-legend.html" "$out/palette.html" "$out/hidden.html" "$out/unplotted-hidden.html"
 
 # WCAG 2.1 AA's automatable criteria in headless Chromium (RG-015C). D-71's
-# fixture is wider than 480 units, so its narrow width is read from FR-95's
-# warning and passed on: the audit bounds D-71's recorded 2.5.8 exception.
+# fixture is wider than 480 units, so the audit reads its narrow width from
+# the page's narrow SVG and bounds D-71's recorded 2.5.8 exception.
 # The audit page is interaction.csv plus a row in a ring long enough that
 # its legend heading wraps, declared with a doubled space (rg-cuj): a long
 # ring wraps without widening the radar, which a long quadrant would (D-71).
