@@ -18,6 +18,7 @@ pub mod order;
 pub mod palette;
 pub mod pipeline;
 pub mod rings;
+pub mod settings;
 pub mod starter;
 pub mod style;
 pub mod svg;
