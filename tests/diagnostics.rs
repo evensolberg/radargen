@@ -161,8 +161,15 @@ fn undisplayable_and_unnamed_values_have_their_per_row_message() {
     }
 }
 
-/// FR-104: a drawn CSV text with characters the bundled font lacks,
-/// named with its text, its first such character, and how many there are.
+/// FR-104's ending for one missing character in a PNG.
+const PNG_ONE: &str = "the PNG draws it as a box — an HTML page shows it, or transliterate it";
+/// The same for several.
+const PNG_MANY: &str =
+    "the PNG draws them as boxes — an HTML page shows them, or transliterate them";
+
+/// FR-104: a drawn CSV text with characters the bundled font lacks, named
+/// with its text, its first such character, how many there are, and the
+/// format that draws the box.
 #[test]
 fn missing_glyphs_have_their_per_row_message() {
     let cases = [
@@ -175,9 +182,10 @@ fn missing_glyphs_have_their_per_row_message() {
                     text: "Kafka 中".into(),
                     first: '中',
                     count: 1,
+                    format: "PNG",
                 },
             ),
-            "line 3, name: 'Kafka 中' has U+4E2D (中), which the bundled font lacks; a PNG or SVG draws it as a box, while the HTML page falls back to the reader's fonts",
+            format!("line 3, name: 'Kafka 中' has U+4E2D 中, which the bundled font lacks; {PNG_ONE}"),
         ),
         (
             at(
@@ -188,11 +196,14 @@ fn missing_glyphs_have_their_per_row_message() {
                     text: "عربي".into(),
                     first: 'ع',
                     count: 4,
+                    format: "PNG",
                 },
             ),
-            "line 4, quadrant: 'عربي' has 4 characters the bundled font lacks, the first U+0639 (ع); a PNG or SVG draws each as a box, while the HTML page falls back to the reader's fonts",
+            format!(
+                "line 4, quadrant: 'عربي' has 4 characters the bundled font lacks, the first U+0639 ع; {PNG_MANY}"
+            ),
         ),
-        // A lone combining mark would join the parenthesis, so only its
+        // A lone combining mark would join the space before it, so only its
         // code point is shown.
         (
             at(
@@ -203,9 +214,10 @@ fn missing_glyphs_have_their_per_row_message() {
                     text: "q\u{1ab0}".into(),
                     first: '\u{1ab0}',
                     count: 1,
+                    format: "SVG",
                 },
             ),
-            "line 5, name: 'q\u{1ab0}' has U+1AB0, which the bundled font lacks; a PNG or SVG draws it as a box, while the HTML page falls back to the reader's fonts",
+            "line 5, name: 'q\u{1ab0}' has U+1AB0, which the bundled font lacks; the SVG draws it as a box — an HTML page shows it, or transliterate it".to_owned(),
         ),
     ];
     for (warning, expected) in cases {
@@ -223,8 +235,9 @@ fn missing_glyphs_in_a_flag_name_the_flag() {
                 text: "雷达 2026".into(),
                 first: '雷',
                 count: 2,
+                format: "SVG",
             },
-            "--title: '雷达 2026' has 2 characters the bundled font lacks, the first U+96F7 (雷); a PNG or SVG draws each as a box, while the HTML page falls back to the reader's fonts",
+            "--title: '雷达 2026' has 2 characters the bundled font lacks, the first U+96F7 雷; the SVG draws them as boxes — an HTML page shows them, or transliterate them".to_owned(),
         ),
         (
             RenderKind::FlagMissingGlyphs {
@@ -232,8 +245,11 @@ fn missing_glyphs_in_a_flag_name_the_flag() {
                 text: "採用".into(),
                 first: '採',
                 count: 2,
+                format: "PNG",
             },
-            "--rings: '採用' has 2 characters the bundled font lacks, the first U+63A1 (採); a PNG or SVG draws each as a box, while the HTML page falls back to the reader's fonts",
+            format!(
+                "--rings: '採用' has 2 characters the bundled font lacks, the first U+63A1 採; {PNG_MANY}"
+            ),
         ),
         (
             RenderKind::FlagMissingGlyphs {
@@ -241,8 +257,9 @@ fn missing_glyphs_in_a_flag_name_the_flag() {
                 text: "Q3 🙂".into(),
                 first: '🙂',
                 count: 1,
+                format: "PNG",
             },
-            "--subtitle: 'Q3 🙂' has U+1F642 (🙂), which the bundled font lacks; a PNG or SVG draws it as a box, while the HTML page falls back to the reader's fonts",
+            format!("--subtitle: 'Q3 🙂' has U+1F642 🙂, which the bundled font lacks; {PNG_ONE}"),
         ),
     ];
     for (kind, expected) in cases {
@@ -251,7 +268,7 @@ fn missing_glyphs_in_a_flag_name_the_flag() {
 }
 
 /// FR-104 under NFR-20: one class across columns, listing each text's
-/// position, its text and its first missing character.
+/// position, its text, and how many characters it lacks, the first named.
 #[test]
 fn missing_glyphs_group_into_one_line() {
     let mut w = Warnings::default();
@@ -263,6 +280,7 @@ fn missing_glyphs_group_into_one_line() {
             text: "عربي".into(),
             first: 'ع',
             count: 4,
+            format: "PNG",
         },
     ));
     w.push(at(
@@ -273,13 +291,14 @@ fn missing_glyphs_group_into_one_line() {
             text: "Kafka 中".into(),
             first: '中',
             count: 1,
+            format: "PNG",
         },
     ));
     assert_eq!(
         w.render(),
-        vec![
-            "warning: 2 values have characters the bundled font lacks — name 'Kafka 中' on line 3 (U+4E2D 中), quadrant 'عربي' on line 4 (4, first U+0639 ع); a PNG or SVG draws each as a box, while the HTML page falls back to the reader's fonts",
-        ]
+        vec![format!(
+            "warning: 2 values have characters the bundled font lacks — name 'Kafka 中' on line 3 (U+4E2D 中), quadrant 'عربي' on line 4 (4 characters, first U+0639 ع); {PNG_MANY}"
+        )]
     );
 }
 
@@ -627,8 +646,9 @@ fn every_row_class_has_a_grouped_line() {
                 text: "中".into(),
                 first: '中',
                 count: 1,
+                format: "PNG",
             },
-            "warning: 2 values have characters the bundled font lacks — name '中' on line 4 (U+4E2D 中), name '中' on line 6 (U+4E2D 中); a PNG or SVG draws each as a box, while the HTML page falls back to the reader's fonts",
+            "warning: 2 values have characters the bundled font lacks — name '中' on line 4 (U+4E2D 中), name '中' on line 6 (U+4E2D 中); the PNG draws them as boxes — an HTML page shows them, or transliterate them",
         ),
         (
             RowKind::DuplicateName {

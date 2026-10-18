@@ -137,6 +137,8 @@ pub enum RowKind {
         first: char,
         /// How many distinct characters it lacks.
         count: usize,
+        /// The format being written, which draws the box: `PNG` or `SVG`.
+        format: &'static str,
     },
 }
 
@@ -206,6 +208,8 @@ pub enum RenderKind {
         first: char,
         /// How many distinct characters it lacks.
         count: usize,
+        /// The format being written, which draws the box: `PNG` or `SVG`.
+        format: &'static str,
     },
 }
 
@@ -300,7 +304,9 @@ enum Class {
     DuplicateName,
     Undisplayable,
     Unnamed,
-    MissingGlyphs,
+    /// The format rides here, as a ring set's source does: one run writes
+    /// one format.
+    MissingGlyphs(&'static str),
 }
 
 impl RowKind {
@@ -315,7 +321,7 @@ impl RowKind {
             Self::DuplicateName { .. } => Class::DuplicateName,
             Self::Undisplayable { .. } => Class::Undisplayable,
             Self::UnnamedValue { .. } => Class::Unnamed,
-            Self::MissingGlyphs { .. } => Class::MissingGlyphs,
+            Self::MissingGlyphs { format, .. } => Class::MissingGlyphs(format),
         }
     }
 
@@ -402,8 +408,12 @@ impl RowKind {
                 "this column has no name in the header row, so its value is not shown; add a header name, or delete the value".into()
             }
             Self::MissingGlyphs {
-                text, first, count, ..
-            } => lacks(text, *first, *count),
+                text,
+                first,
+                count,
+                format,
+                ..
+            } => lacks(text, *first, *count, format),
         }
     }
 }
@@ -479,7 +489,8 @@ impl RenderKind {
                 text,
                 first,
                 count,
-            } => format!("{flag}: {}", lacks(text, *first, *count)),
+                format,
+            } => format!("{flag}: {}", lacks(text, *first, *count, format)),
         }
     }
 }
@@ -542,25 +553,34 @@ pub const fn plural<'a>(n: usize, one: &'a str, many: &'a str) -> &'a str {
     if n == 1 { one } else { many }
 }
 
-/// What FR-104 says a PNG or SVG does with one missing character.
-const FALLBACK_ONE: &str =
-    "a PNG or SVG draws it as a box, while the HTML page falls back to the reader's fonts";
-/// The same for several, and for a grouped line.
-const FALLBACK_EACH: &str =
-    "a PNG or SVG draws each as a box, while the HTML page falls back to the reader's fonts";
-
-/// FR-104's message for one drawn text, after its position or flag.
-fn lacks(text: &str, first: char, count: usize) -> String {
-    let text = trim(text);
-    let first =
-        shown(first).map_or_else(|| code_point(first), |c| format!("{} ({c})", code_point(c)));
+/// FR-104's ending, which says what to do: the box for one missing
+/// character, or for several, in `format`.
+fn boxes(format: &str, count: usize) -> String {
     if count == 1 {
-        format!("'{text}' has {first}, which the bundled font lacks; {FALLBACK_ONE}")
+        format!("the {format} draws it as a box — an HTML page shows it, or transliterate it")
+    } else {
+        format!("the {format} draws them as boxes — an HTML page shows them, or transliterate them")
+    }
+}
+
+/// FR-104's message for one drawn text, after its position or flag. The
+/// text is already as drawn, so it is not trimmed again.
+fn lacks(text: &str, first: char, count: usize, format: &str) -> String {
+    let ending = boxes(format, count);
+    let first = glyph(first);
+    if count == 1 {
+        format!("'{text}' has {first}, which the bundled font lacks; {ending}")
     } else {
         format!(
-            "'{text}' has {count} characters the bundled font lacks, the first {first}; {FALLBACK_EACH}"
+            "'{text}' has {count} characters the bundled font lacks, the first {first}; {ending}"
         )
     }
+}
+
+/// A missing character as FR-104 names it: `U+4E2D 中`, or the code point
+/// alone when [`shown`] keeps the character out.
+fn glyph(c: char) -> String {
+    shown(c).map_or_else(|| code_point(c), |c| format!("{} {c}", code_point(c)))
 }
 
 /// `c`, if a message can show it beside its code point (FR-104). A mark
@@ -751,26 +771,29 @@ fn grouped(class: Class, members: &[Member]) -> String {
         ),
         // Positions, as for FR-90, each with its text: unlike a removed
         // character, the box is drawn, so the text is what to look for.
-        Class::MissingGlyphs => format!(
-            "{n} values have characters the bundled font lacks — {}; {FALLBACK_EACH}",
+        Class::MissingGlyphs(format) => format!(
+            "{n} values have characters the bundled font lacks — {}; {}",
             comma_list(members.iter().filter_map(|m| {
                 let RowKind::MissingGlyphs {
                     column,
                     text,
                     first,
                     count,
+                    ..
                 } = m.kind
                 else {
                     return None;
                 };
-                let (column, text) = (column.as_str(), trim(text));
-                let first = shown(*first)
-                    .map_or_else(|| code_point(*first), |c| format!("{} {c}", code_point(c)));
+                let (column, first) = (column.as_str(), glyph(*first));
                 Some(match count {
                     1 => format!("{column} '{text}' on line {} ({first})", m.line),
-                    c => format!("{column} '{text}' on line {} ({c}, first {first})", m.line),
+                    c => format!(
+                        "{column} '{text}' on line {} ({c} characters, first {first})",
+                        m.line
+                    ),
                 })
-            }))
+            })),
+            boxes(format, n)
         ),
         // FR-93 counts values, each column with its count and first line.
         Class::Unnamed => format!(

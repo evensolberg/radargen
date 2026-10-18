@@ -22,13 +22,15 @@ use crate::tidy;
 /// # Panics
 ///
 /// If `plotted` was not built from `catalogue`, so it names a quadrant or
-/// item the catalogue lacks.
-// qual:allow(complexity, error_handling) reason: "the documented # Panics: a Plotted from another catalogue is a caller bug"
+/// item the catalogue lacks, or if a quadrant's label is no row's cell,
+/// which FR-9 rules out.
+// qual:allow(complexity, error_handling) reason: "the documented # Panics: a Plotted from another catalogue, or a label no row wrote, is a caller bug"
 pub fn warn_missing_glyphs(
     catalogue: &Catalogue,
     plotted: &Plotted,
     title: Option<&str>,
     subtitle: Option<&str>,
+    format: &'static str,
     fonts: &Fonts,
     warnings: &mut Warnings,
 ) {
@@ -48,6 +50,7 @@ pub fn warn_missing_glyphs(
                 text,
                 first,
                 count,
+                format,
             }));
         }
     }
@@ -65,6 +68,7 @@ pub fn warn_missing_glyphs(
                     text: text.to_owned(),
                     first,
                     count,
+                    format,
                 },
             });
         }
@@ -86,14 +90,15 @@ pub fn warn_missing_glyphs(
                 .expect("FR-10's order indexes the catalogue's quadrants")
                 .label;
             // FR-9 draws one row's spelling: point at the first row that
-            // wrote it, or at the quadrant's first row in a hand-built one.
-            let rows = || catalogue.items.iter().filter(|item| item.quadrant == q);
-            let source = rows()
-                .find(|item| item.cell(column).is_some_and(|c| tidy(c) == *label))
-                .or_else(|| rows().next());
-            if let Some(item) = source {
-                cell(item.line, position, ColumnKind::Quadrant, label);
-            }
+            // wrote it.
+            let source = catalogue
+                .items
+                .iter()
+                .find(|item| {
+                    item.quadrant == q && item.cell(column).is_some_and(|c| tidy(c) == *label)
+                })
+                .expect("FR-9's label is one of its rows' cells, tidied");
+            cell(source.line, position, ColumnKind::Quadrant, label);
         }
     }
 }
@@ -116,7 +121,7 @@ mod tests {
         Fonts::embedded().expect("loads")
     }
 
-    /// The warnings for `csv`, `--rings` and the title flags.
+    /// The warnings for `csv`, `--rings` and the title flags, for a PNG.
     fn warned(
         csv: &str,
         rings: Option<&str>,
@@ -125,7 +130,15 @@ mod tests {
     ) -> Vec<Warning> {
         let (catalogue, order) = plotted(csv, rings);
         let mut warnings = Warnings::default();
-        warn_missing_glyphs(&catalogue, &order, title, subtitle, &fonts(), &mut warnings);
+        warn_missing_glyphs(
+            &catalogue,
+            &order,
+            title,
+            subtitle,
+            "PNG",
+            &fonts(),
+            &mut warnings,
+        );
         warnings.as_slice().to_vec()
     }
 
@@ -139,6 +152,7 @@ mod tests {
             text: text.into(),
             first,
             count,
+            format: "PNG",
         }
     }
 
@@ -148,6 +162,7 @@ mod tests {
             text: text.into(),
             first,
             count,
+            format: "PNG",
         })
     }
 
@@ -195,14 +210,15 @@ mod tests {
         );
     }
 
-    /// A flag's text warns naming the flag, one per `--rings` entry.
+    /// A flag's text warns naming the flag, one per `--rings` entry, quoted
+    /// as drawn: a run of spaces is one.
     #[test]
     fn a_flag_warns_naming_the_flag() {
         let csv = format!("{HEAD}Kafka,Tools,採用,d\n");
         let got = warned(
             &csv,
             Some("採用,Trial,Hold 🙂"),
-            Some("雷达 2026"),
+            Some("雷达   2026"),
             Some("Q3 🙂"),
         );
         assert_eq!(
@@ -231,56 +247,91 @@ mod tests {
         assert_eq!(got, []);
     }
 
-    /// Every text the wide document draws: each line, the whole text, and
-    /// any tail.
-    fn drawn(node: &Node, out: &mut Vec<String>) {
+    /// One drawn text node: its lines, the whole text they wrap, and its
+    /// tail, if any.
+    struct Drawn {
+        lines: Vec<String>,
+        words: String,
+        tail: Option<String>,
+    }
+
+    /// Every text node the wide document draws.
+    fn drawn(node: &Node, out: &mut Vec<Drawn>) {
         match node {
             Node::Group(group) => group.children.iter().for_each(|c| drawn(c, out)),
             Node::Text {
                 lines, words, tail, ..
-            } => {
-                out.extend(lines.iter().cloned());
-                out.push(words.clone());
-                out.extend(tail.iter().map(|t| t.text.clone()));
-            }
+            } => out.push(Drawn {
+                lines: lines.clone(),
+                words: words.clone(),
+                tail: tail.as_ref().map(|t| t.text.clone()),
+            }),
             _ => {}
         }
     }
 
-    fn document_texts(csv: &str, rings: Option<&str>, title: Option<&str>) -> Vec<String> {
+    fn document(
+        csv: &str,
+        rings: Option<&str>,
+        title: Option<&str>,
+        subtitle: Option<&str>,
+    ) -> Vec<Drawn> {
         let (catalogue, order) = plotted(csv, rings);
         let fonts = fonts();
-        let blocks = Blocks::new(&catalogue, &order, title, Some("Sub"), &fonts);
+        let blocks = Blocks::new(&catalogue, &order, title, subtitle, &fonts);
         let mut out = Vec::new();
         drawn(&arrange(Arrangement::Wide, &blocks).root, &mut out);
         out
     }
 
     /// The tool's own text (the key, the legend's headings, qualifier and
-    /// status labels, numbers) and the default rings are all in the subset,
-    /// so they need no runtime check.
+    /// status labels, every digit a number is drawn with) and the default
+    /// rings are all in the subset, so they need no runtime check.
     #[test]
     fn the_tools_own_text_is_covered() {
-        let csv = format!(
-            "{HEAD_META}A,Tools,Adopt,d,conditional,new\nB,Tools,Trial,d,default,moved in\nC,Ops,Assess,d,,moved out\nD,Ops,Retire,d,,\n"
+        // Twelve items, so the numbers 1 to 12 draw every digit.
+        let meta = [
+            ("Assess", "conditional", "new"),
+            ("Trial", "default", "moved in"),
+            ("Adopt", "", "moved out"),
+            ("Retire", "", ""),
+        ];
+        let quadrants = ["Tools", "Ops"].into_iter().cycle();
+        let rows = (0..12).zip(meta.into_iter().cycle()).zip(quadrants).fold(
+            String::new(),
+            |rows, ((i, (ring, q, status)), quadrant)| {
+                rows + &format!("Item {i},{quadrant},{ring},d,{q},{status}\n")
+            },
         );
         let fonts = fonts();
-        let texts = document_texts(&csv, None, Some("T"));
+        let texts: Vec<String> =
+            document(&format!("{HEAD_META}{rows}"), None, Some("T"), Some("S"))
+                .into_iter()
+                .flat_map(|d| d.lines.into_iter().chain(d.tail))
+                .collect();
         assert!(texts.iter().any(|t| t == "Key"), "{texts:?}");
+        let all = texts.concat();
+        for digit in '0'..='9' {
+            assert!(all.contains(digit), "{digit} is drawn: {texts:?}");
+        }
         for text in texts {
             let missing = fonts.missing(&text);
             assert!(missing.is_empty(), "{text:?}: {missing:?}");
         }
     }
 
-    /// Completeness: every drawn text that lacks a glyph is one a warning
-    /// names, so no drawn label escapes the enumeration.
+    /// Completeness: with every column salted with characters the font
+    /// lacks, every drawn line that lacks one belongs to a text a warning
+    /// names exactly, so no drawn label escapes the enumeration.
     #[test]
     fn every_drawn_text_that_lacks_a_glyph_is_warned() {
-        let csv = format!("{HEAD_META}中文,عربي,採用,d,conditional,new\nB,عربي,Trial,d,,\n");
+        let csv = "name,quadrant,ring,description,qualifier,status,domain\n\
+             中文 名前 that is long enough to wrap across more than one line of the legend,عربي,採用,説明,条件,新,域\n\
+             B,عربي,Trial,説明,default,new,域\n\
+             C 中,Tools,採用,d,conditional,moved in,域\n";
         let rings = Some("採用,Trial");
-        let title = Some("雷达");
-        let warned_texts: Vec<String> = warned(&csv, rings, title, Some("Sub"))
+        let (title, subtitle) = (Some("雷达"), Some("Q3   季度"));
+        let warned_texts: Vec<String> = warned(csv, rings, title, subtitle)
             .into_iter()
             .filter_map(|w| match w {
                 Warning::Row {
@@ -291,18 +342,28 @@ mod tests {
                 _ => None,
             })
             .collect();
-        assert_eq!(warned_texts.len(), 4, "{warned_texts:?}");
+        assert_eq!(warned_texts.len(), 6, "{warned_texts:?}");
         let fonts = fonts();
-        let lacking: Vec<String> = document_texts(&csv, rings, title)
-            .into_iter()
-            .filter(|t| !fonts.missing(t).is_empty())
-            .collect();
-        assert!(!lacking.is_empty(), "the fixture draws boxes");
-        for text in lacking {
-            assert!(
-                warned_texts.iter().any(|w| *w == text || w.contains(&text)),
-                "{text:?} is drawn with a box but not warned: {warned_texts:?}"
-            );
+        let nodes = document(csv, rings, title, subtitle);
+        assert!(
+            nodes.iter().any(|d| d.lines.len() > 1),
+            "the fixture wraps a text"
+        );
+        let mut boxed = 0;
+        for node in &nodes {
+            for line in node.lines.iter().filter(|l| !fonts.missing(l).is_empty()) {
+                boxed += 1;
+                assert!(
+                    warned_texts.contains(&node.words),
+                    "{line:?}, of {:?}, is drawn with a box but not warned: {warned_texts:?}",
+                    node.words
+                );
+            }
+            if let Some(tail) = &node.tail {
+                let missing = fonts.missing(tail);
+                assert!(missing.is_empty(), "the tool's own {tail:?}: {missing:?}");
+            }
         }
+        assert!(boxed > 0, "the fixture draws boxes");
     }
 }

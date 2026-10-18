@@ -276,12 +276,18 @@ fn render(
     // FR-104: a static snapshot draws every text with the bundled font
     // alone, so a character it lacks is a box; the page falls back to the
     // reader's fonts, so it is not warned (D-93).
-    if config.format != OutputFormat::Html {
+    let snapshot = match config.format {
+        OutputFormat::Html => None,
+        OutputFormat::Png => Some("PNG"),
+        OutputFormat::Svg => Some("SVG"),
+    };
+    if let Some(format) = snapshot {
         warn_missing_glyphs(
             catalogue,
             &plotted,
             config.title.as_deref(),
             config.subtitle.as_deref(),
+            format,
             fonts,
             warnings,
         );
