@@ -1,6 +1,6 @@
 [package]
 name = "radargen"
-version = "1.12.1"
+version = "1.13.0"
 edition = "2024"
 rust-version = "1.97"
 description = "Render a technology radar from CSV to a self-contained HTML page, a PNG image or an SVG file"
@@ -17,6 +17,8 @@ harfrust = "0.12"
 same-file = "1"
 serde = "1.0.229"
 serde_json = "1.0.154"
+# FR-108's edit distance; already built for clap's suggestions.
+strsim = "0.11.1"
 tempfile = "3"
 thiserror = "2.0.21"
 unicode-properties = { version = "0.1.4", default-features = false, features = ["general-category"] }

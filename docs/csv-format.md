@@ -13,11 +13,11 @@ created_date: 2026-10-12
 synopsis: "How to write the CSV radargen reads: the four required columns and seven optional ones, what each accepts, what is a hard error and what only warns, and how the file must be saved."
 status: active
 type: Guide
-revision: "1.7"
+revision: "1.8"
 review_date:
 reviewed_by: []
 completed_date:
-comments: "Written for authors. The normative rules are the PRD's section 6.1 (FR-1 to FR-29, FR-42, FR-76, FR-90, FR-93); where this guide and the PRD differ, the PRD wins."
+comments: "Written for authors. The normative rules are the PRD's section 6.1 (FR-1 to FR-29, FR-42, FR-76, FR-90, FR-93, FR-108); where this guide and the PRD differ, the PRD wins."
 ---
 # The radar CSV
 
@@ -53,7 +53,7 @@ Columns are found by **name, not position**, so their order in the file does not
 | `status` | no | `New`, `Moved In`, `Moved Out`, `No Change`, or blank | A ring or half-ring on the marker, and the legend |
 | `link` | no | A web address starting `http://` or `https://`, or blank | A link in the table view and the detail panel |
 
-**Any other column is left out of the page by default**, so a team can keep its own notes (a ticket reference, an owner, a survey score) in the same file without publishing them. The radar and legend ignore it. With `--table all` it is shown in the table view and the detail panel, under its own header name. A column whose header cell is empty is dropped; if a row has a value under it, you get a warning.
+**Any other column is left out of the page by default**, so a team can keep its own notes (a ticket reference, an owner, a survey score) in the same file without publishing them. The radar and legend ignore it. With `--table all` it is shown in the table view and the detail panel, under its own header name. A column whose header cell is empty is dropped; if a row has a value under it, you get a warning. A header one or two letters from a column radargen reads, such as `rationalle`, gets one warning naming the column you probably meant, so a typo does not silently lose that column.
 
 An optional column that is missing, or empty on a row, is simply left out for that item. Nothing is shown as blank or as a dash.
 
@@ -186,6 +186,7 @@ A web address for the item, such as the product's home page: `https://www.terraf
 - a removed character;
 - a name or quadrant with characters the bundled font lacks (PNG and SVG only);
 - a value under an unnamed column;
+- a header one or two letters from a column radargen reads, naming the column it probably meant (two letters only when the header is the longer, so `state` is not taken for `status`);
 - more than six quadrants;
 - a band with more items than fit without overlapping;
 - a quadrant name or `--rings` entry long enough to make the narrow layout too wide (HTML only);
@@ -215,3 +216,4 @@ Kubernetes,Platforms,Adopt,"Container orchestration.",default,Containers,"Defaul
 | 1.5 | 2026-10-17 | The warning for a page that gives laptops the narrow layout (FR-105); "narrow layout" for the phone layout; both layout warnings marked HTML only. |
 | 1.6 | 2026-10-17 | The page publishes what the radar draws by default: other columns and undeclared-ring rows reach the table and detail panel only with `--table all` (FR-106, D-95; rg-fgf). The default table's heading is *Items on the radar*, and the panel shows every field the table lists (rg-fgf review). |
 | 1.7 | 2026-10-18 | `--unplotted-rings`: rings whose rows stay off the radar without a warning, while other undeclared rings still warn (FR-107, D-96; rg-4bq). |
+| 1.8 | 2026-10-18 | The warning for a header that nearly names a known column, such as `rationalle` (FR-108, D-98; rg-prs). |

@@ -1964,3 +1964,39 @@ fn html_ignores_legend_columns() {
     assert_eq!(plain.stderr, flowed.stderr);
     assert_eq!(read(dir.path(), "a.html"), read(dir.path(), "b.html"));
 }
+
+/// FR-108 end to end: a misspelt column warns once, whatever the format
+/// and `--table`, and the run succeeds.
+#[test]
+fn a_misspelt_column_warns_in_every_format() {
+    let csv = "name,quadrant,ring,description,Rationalle,owner\nK,T,Adopt,d,r,o\n";
+    let dir = seeded(&[("radar.csv", csv)]);
+    let expected =
+        "warning: line 1, Rationalle: not a column radargen knows; did you mean 'rationale'?";
+    for args in [
+        &["radar.csv", "-o", "a.html"][..],
+        &["radar.csv", "-o", "b.html", "--table", "all"],
+        &["radar.csv", "-o", "c.svg"],
+        &["radar.csv", "-o", "d.png"],
+    ] {
+        let ran = run_in(dir.path(), args);
+        assert!(ran.ok(), "{args:?}: {}", ran.stderr);
+        assert_eq!(ran.lines(), [expected], "{args:?}");
+    }
+}
+
+/// FR-108 beside FR-5: a misspelt required column fails the run, and the
+/// near-miss warning prints before the error, naming the column meant.
+#[test]
+fn a_misspelt_required_column_fails_with_its_near_miss_warning() {
+    let dir = seeded(&[("radar.csv", "name,quadrant,ring,descripton\nK,T,Adopt,d\n")]);
+    let ran = run_in(dir.path(), &RENDER);
+    assert!(!ran.ok(), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "warning: line 1, descripton: not a column radargen knows; did you mean 'description'?",
+            "error: line 1: the header has no 'description' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description",
+        ]
+    );
+}
