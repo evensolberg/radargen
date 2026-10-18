@@ -37,6 +37,9 @@ const TARGET_UNITS = 36;
 // The narrowest D-71 fixture whose targets fall short at 320 px by more than
 // the tolerance, so the exception check has something to bound.
 const D71_MIN_WIDTH = (TARGET_UNITS * 320) / (TARGET_PX - TOLERANCE);
+// FR-106: the table's heading, which names its region, per --table.
+const ALL_HEADING = 'Every item';
+const RADAR_HEADING = 'Items on the radar';
 
 const { send, on, close, evaluate, navigate, press } = await connect();
 const thrown = [];
@@ -304,11 +307,16 @@ async function targets(label, { exceptionWidth } = {}) {
   for (const b of html) check(b.w >= TARGET_PX - TOLERANCE && b.h >= TARGET_PX - TOLERANCE, `${label}: ${b.what} is ${b.w.toFixed(2)}×${b.h.toFixed(2)} px`);
 }
 
+// 1.4.10: the page never scrolls sideways.
+async function noSideways(label) {
+  const sideways = await evaluate(`document.documentElement.scrollWidth - innerWidth`);
+  check(sideways <= 0.5, `${label}: the page scrolls sideways by ${sideways} px`);
+}
+
 // 6: reflow and resize (1.4.10, 1.4.4). Chrome's text only.
 async function reflow(label) {
   await openTable(true);
-  const sideways = await evaluate(`document.documentElement.scrollWidth - innerWidth`);
-  check(sideways <= 0.5, `${label}: the page scrolls sideways by ${sideways} px`);
+  await noSideways(label);
   // The skip link is visually hidden until focused, so it is not measured,
   // and the theme toggle shows an icon, its words visually hidden (rg-1ru).
   const spills = await evaluate(`(${SPILLS})('h2, summary, thead th', 0.5)`);
@@ -339,7 +347,7 @@ async function tableRegion(label, heading) {
 }
 
 // 8: structure (1.3.1, 1.3.2, 2.4.6, 1.1.1). `heading` is the table's.
-async function structure(label, heading = 'Every item') {
+async function structure(label, heading = ALL_HEADING) {
   const { result } = await send('Accessibility.getFullAXTree');
   const live = result.nodes.filter((n) => !n.ignored);
   const levels = live.filter((n) => n.role?.value === 'heading').map((n) => prop(n, 'level'));
@@ -384,7 +392,7 @@ async function structure(label, heading = 'Every item') {
 // and holds one cell, spanning every column, saying nothing is on the radar.
 async function emptyTable(label) {
   await openTable(true);
-  await tableRegion(label, 'Items on the radar');
+  await tableRegion(label, RADAR_HEADING);
   const body = await evaluate(`(() => {
     const rows = [...document.querySelectorAll('.table-scroll tbody tr')];
     const cell = rows[0]?.querySelector('td');
@@ -401,8 +409,7 @@ async function emptyTable(label) {
   check(body.text === 'Nothing is on the radar.', `${label}: the empty-state text: "${body.text}"`);
   const cell = await ax(`document.querySelector('.table-scroll tbody td')`);
   check(!cell.ignored && cell.role?.value === 'cell', `${label}: the empty-state row is a table cell: ${cell.role?.value}`);
-  const sideways = await evaluate(`document.documentElement.scrollWidth - innerWidth`);
-  check(sideways <= 0.5, `${label}: the page scrolls sideways by ${sideways} px`);
+  await noSideways(label);
   await openTable(false);
 }
 
@@ -623,23 +630,22 @@ try {
       await keyboard(`forced @${width}`);
     });
   }
-  // FR-106: a default page leaves its unplotted row and extra column out,
-  // under its own heading, and reads as the --table all page does.
+  // FR-106: what a default page changes, and only that: the unplotted row
+  // and the extra column are left out, under the table's own heading.
   for (const width of [1400, 400]) {
     await run(`--table radar @${width}`, async () => {
       await load(radar, width);
       const dropped = await evaluate(`[document.querySelectorAll('tr.unplotted, .flag').length, [...document.querySelectorAll('thead th')].some((h) => h.textContent === 'note')]`);
       check(dropped[0] === 0 && !dropped[1], `radar @${width}: the unplotted row and the extra column are left out: ${dropped}`);
-      await names(`radar @${width}`);
-      await structure(`radar @${width}`, 'Items on the radar');
-      await reflow(`radar @${width}`);
-      await keyboard(`radar @${width}`);
-    });
-    await run(`--table radar, nothing plotted @${width}`, async () => {
-      await load(empty, width);
-      await emptyTable(`empty @${width}`);
+      await openTable(true);
+      await tableRegion(`radar @${width}`, RADAR_HEADING);
+      await openTable(false);
     });
   }
+  await run('--table radar, nothing plotted @1400', async () => {
+    await load(empty, 1400);
+    await emptyTable('empty @1400');
+  });
   for (const width of [400, 320]) {
     await run(`D-71's exception @${width}`, async () => {
       await load(d71, width);
