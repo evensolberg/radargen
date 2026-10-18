@@ -14,7 +14,7 @@ Company:
 Date: 2026-08-27
 Comments: []
 date created: 2026-08-25
-date modified: 2026-10-17
+date modified: 2026-10-18
 ---
 
 # Product Requirements — radargen
