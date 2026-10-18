@@ -1,12 +1,16 @@
-//! FR-41's table view: every CSV row and every named column (FR-78, D-80),
-//! under a visible heading and a native `<details>` toggle, so it needs no
-//! script. PR 15b builds the detail panel from these rows, so each item's
-//! prose is in the page once.
+//! FR-41's table view, under a visible heading and a native `<details>`
+//! toggle, so it needs no script. By default it publishes what the radar
+//! draws, the plotted rows and the columns radargen reads; `--table all`
+//! publishes every CSV row and every named column (FR-78, FR-106, D-80,
+//! D-95). PR 15b builds the detail panel from these rows, so each item's
+//! prose is in the page once, and a row or column left out of the table is
+//! left out of the panel too.
 //!
 //! Every value is escaped where it is written (NFR-6): text with
 //! [`xml_text`], an `href` with [`html_attr`]. Rule fragments are module
 //! constants, as in `css.rs`.
 
+use super::Table;
 use super::chrome::DATA_SELECTED;
 use super::css::{OUTLINE_CLOSE, Wide, capped};
 use crate::escape::{html_attr, xml_text};
@@ -47,15 +51,21 @@ const CLASS_OPEN: &str = " class=\"";
 const CLASS_CLOSE: &str = "\"";
 const NEW_TAB: &str = "<span class=\"visually-hidden\"> (opens in a new tab)</span>";
 
-/// The table view, for `<main>` after both arrangements.
-pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted) -> String {
-    let columns = order(catalogue);
+/// The table view publishing `publish`, for `<main>` after both
+/// arrangements.
+pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted, publish: Table) -> String {
+    let columns = order(catalogue, publish);
     let head: String = columns
         .iter()
         .map(|&c| column_heading(catalogue, c))
         .collect();
-    let body: String = plotted
-        .table_rows()
+    // FR-106: `radar` lists FR-34's plotted items alone; `all` follows them
+    // with the unplotted rows (FR-78).
+    let rows = match publish {
+        Table::Radar => plotted.items.clone(),
+        Table::All => plotted.table_rows(),
+    };
+    let body: String = rows
         .into_iter()
         .filter_map(|i| {
             let item = catalogue.items.get(i)?;
@@ -86,13 +96,21 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted) -> String {
 
 /// FR-78's columns, as indices into [`Catalogue::columns`]: `name`,
 /// `quadrant`, `ring`, then every other named column in header order,
-/// `description` included (D-80).
-fn order(catalogue: &Catalogue) -> Vec<usize> {
+/// `description` included (D-80). Under `radar`, a column radargen does not
+/// read ([`ColumnKind::Other`]) is left out (FR-106).
+fn order(catalogue: &Catalogue, publish: Table) -> Vec<usize> {
     let first: Vec<usize> = [ColumnKind::Name, ColumnKind::Quadrant, ColumnKind::Ring]
         .into_iter()
         .filter_map(|kind| catalogue.column(kind))
         .collect();
-    let rest = (0..catalogue.columns.len()).filter(|c| !first.contains(c));
+    let published = |c: &usize| {
+        publish == Table::All
+            || catalogue
+                .columns
+                .get(*c)
+                .is_some_and(|column| column.kind != ColumnKind::Other)
+    };
+    let rest = (0..catalogue.columns.len()).filter(|c| !first.contains(c) && published(c));
     first.iter().copied().chain(rest).collect()
 }
 

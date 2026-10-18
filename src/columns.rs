@@ -27,7 +27,8 @@ pub enum ColumnKind {
     Status,
     /// A web address for the item (FR-96).
     Link,
-    /// FR-27: a column the tool does not know. Kept for the table (FR-78).
+    /// FR-27: a column the tool does not know. Only `--table all`'s table
+    /// shows it (FR-78, FR-106).
     Other,
 }
 

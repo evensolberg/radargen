@@ -178,6 +178,8 @@ pub enum RenderKind {
     /// RG-102: `--legend hidden` on a PNG or SVG, which always draw the
     /// legend.
     LegendStatic,
+    /// FR-106: `--table all` on a PNG or SVG, which have no table.
+    TableStatic,
     /// D-87: the document is wider than FR-64's ceiling and `--width` was
     /// not given, so the PNG is drawn at the ceiling.
     WidthClamped {
@@ -342,7 +344,11 @@ impl fmt::Display for Warning {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let text = match self {
             Self::Render(kind) => kind.message(),
-            Self::Row { line, kind, .. } => Member { line: *line, kind }.per_row(),
+            // Alone, a row warning has no run to say where an off-radar
+            // row went, so it reads as `--table all` does.
+            Self::Row { line, kind, .. } => {
+                Member { line: *line, kind }.per_row(OffRadar::default())
+            }
         };
         f.write_str(&escape_controls(&text))
     }
@@ -418,17 +424,27 @@ impl RowKind {
         }
     }
 
-    fn message(&self) -> String {
+    /// The message after the position; `off_radar` is where an FR-17 row
+    /// went (FR-106).
+    fn message(&self, off_radar: OffRadar) -> String {
         let v = self.value().map(trim).unwrap_or_default();
         match self {
             Self::UndeclaredRing { source, rings, .. } => {
                 let list = rings.join(", ");
+                let (went, listing) = match off_radar {
+                    OffRadar::Listed => ("the row is in the table view, not on the radar", ""),
+                    OffRadar::Unlisted => (
+                        "the row is not on the page",
+                        "; to list it in the table, pass --table all",
+                    ),
+                    OffRadar::Undrawn => ("the row is not on the radar", ""),
+                };
                 match source {
                     RingSource::Default => format!(
-                        "'{v}' is not one of the default rings ({list}); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
+                        "'{v}' is not one of the default rings ({list}); {went}; to plot it, pass --rings with every ring you want, since --rings replaces the default set{listing}"
                     ),
                     RingSource::Flag => format!(
-                        "'{v}' is not one of the rings --rings declares ({list}); the row is in the table view, not on the radar; to plot it, add it to --rings"
+                        "'{v}' is not one of the rings --rings declares ({list}); {went}; to plot it, add it to --rings{listing}"
                     ),
                 }
             }
@@ -499,6 +515,9 @@ impl RenderKind {
             Self::LegendStatic => {
                 "--legend hidden applies to HTML pages; PNG and SVG always draw the legend"
                     .to_owned()
+            }
+            Self::TableStatic => {
+                "--table all applies to HTML pages; PNG and SVG have no table".to_owned()
             }
             Self::WidthClamped { natural, drawn } => format!(
                 "the radar is {natural} pixels wide, past --width's limit; the PNG is drawn {drawn} wide, or pass --width to choose"
@@ -657,33 +676,61 @@ fn needs_escape(c: char) -> bool {
 /// A plain list, grouped only when printed: NFR-20's grouping needs the whole
 /// run, and grouping at push time would need a map keyed by value, which §6
 /// rules out of output-affecting code (architecture §7).
+///
+/// It also holds where the run puts a row FR-17 leaves off the radar, which
+/// that warning's words depend on and which only the flags decide (FR-106).
 #[derive(Debug, Default)]
-pub struct Warnings(Vec<Warning>);
+pub struct Warnings {
+    list: Vec<Warning>,
+    off_radar: OffRadar,
+}
+
+/// Where a row FR-17 leaves off the radar ends up, which its warning says
+/// (FR-106): it depends on the output and on `--table`, so the pipeline
+/// sets it once the flags are read.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum OffRadar {
+    /// An HTML page under `--table all`: the table lists it, flagged. The
+    /// default, since it is FR-17's wording from before FR-106, which a
+    /// warning shown alone keeps.
+    #[default]
+    Listed,
+    /// An HTML page under the default `--table radar`: nowhere on the page.
+    Unlisted,
+    /// A PNG or SVG, which has no table.
+    Undrawn,
+}
 
 impl Warnings {
+    /// Records where this run puts a row FR-17 leaves off the radar, for
+    /// the words of its warning (FR-106).
+    pub const fn set_off_radar(&mut self, off_radar: OffRadar) {
+        self.off_radar = off_radar;
+    }
+
     /// Records a warning; order is kept until printing (NFR-11).
     pub fn push(&mut self, w: Warning) {
-        self.0.push(w);
+        self.list.push(w);
     }
 
     /// The raw warnings in push order, so a stage's tests can assert on
     /// kinds and positions rather than on rendered English.
     #[must_use]
     pub fn as_slice(&self) -> &[Warning] {
-        &self.0
+        &self.list
     }
 
     /// Whether the run raised no warnings.
     #[must_use]
     pub const fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.list.is_empty()
     }
 
     /// One string per stderr line, in NFR-11's order, grouped per NFR-20.
     #[must_use]
     pub fn render(&self) -> Vec<String> {
         // Stable: equal positions keep push order.
-        let mut sorted: Vec<&Warning> = self.0.iter().collect();
+        let mut sorted: Vec<&Warning> = self.list.iter().collect();
         sorted.sort_by_key(|w| w.position());
 
         // Render-level warnings sort first and print as they are; row
@@ -705,8 +752,8 @@ impl Warnings {
         }
         for (class, members) in &classes {
             let text = match members.as_slice() {
-                [only] => only.per_row(),
-                _ => grouped(*class, members),
+                [only] => only.per_row(self.off_radar),
+                _ => grouped(*class, members, self.off_radar),
             };
             lines.push(format!("warning: {}", escape_controls(&text)));
         }
@@ -721,20 +768,20 @@ struct Member<'a> {
 }
 
 impl Member<'_> {
-    fn per_row(&self) -> String {
+    fn per_row(&self, off_radar: OffRadar) -> String {
         format!(
             "line {}, {}: {}",
             self.line,
             self.kind.column_name(),
-            self.kind.message()
+            self.kind.message(off_radar)
         )
     }
 }
 
-fn grouped(class: Class, members: &[Member]) -> String {
+fn grouped(class: Class, members: &[Member], off_radar: OffRadar) -> String {
     let n = members.len();
     match class {
-        Class::Ring(source) => grouped_rings(source, members),
+        Class::Ring(source) => grouped_rings(source, members, off_radar),
         Class::Qualifier => format!(
             "{n} rows have an unrecognised qualifier — {}; each is drawn solid",
             tallied(members, normalise)
@@ -825,7 +872,7 @@ fn grouped(class: Class, members: &[Member]) -> String {
 /// FR-17's grouped line: it lists the declared rings and says what to edit,
 /// which depends on where the ring set came from (D-61).
 // qual:allow(complexity, error_handling) reason: "a Ring class is built only from UndeclaredRing rows, so a member is always found"
-fn grouped_rings(source: RingSource, members: &[Member]) -> String {
+fn grouped_rings(source: RingSource, members: &[Member], off_radar: OffRadar) -> String {
     let n = members.len();
     let list = members
         .iter()
@@ -835,12 +882,21 @@ fn grouped_rings(source: RingSource, members: &[Member]) -> String {
         })
         .expect("a Ring class holds only UndeclaredRing members");
     let tallies = tallied(members, normalise);
+    // FR-106: where the rows went, as the per-row message says it.
+    let (went, listing) = match off_radar {
+        OffRadar::Listed => ("all appear in the table view", ""),
+        OffRadar::Unlisted => (
+            "none is on the page",
+            "; to list them in the table, pass --table all",
+        ),
+        OffRadar::Undrawn => ("none is on the radar", ""),
+    };
     match source {
         RingSource::Default => format!(
-            "{n} rows use a ring that is not one of the default rings ({list}) — {tallies}; all appear in the table view; to plot one, pass --rings with every ring you want, since --rings replaces the default set"
+            "{n} rows use a ring that is not one of the default rings ({list}) — {tallies}; {went}; to plot one, pass --rings with every ring you want, since --rings replaces the default set{listing}"
         ),
         RingSource::Flag => format!(
-            "{n} rows use a ring --rings does not declare ({list}) — {tallies}; all appear in the table view; to plot one, add it to --rings"
+            "{n} rows use a ring --rings does not declare ({list}) — {tallies}; {went}; to plot one, add it to --rings{listing}"
         ),
     }
 }

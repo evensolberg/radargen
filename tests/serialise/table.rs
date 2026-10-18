@@ -1,11 +1,14 @@
-//! FR-41 and FR-78's table view (PR 15a): every CSV row and every named
-//! column, plotted rows first in FR-34's order, unplotted ones flagged, and
-//! FR-96's links.
+//! FR-41 and FR-78's table view (PR 15a): under `--table all`, every CSV
+//! row and every named column, plotted rows first in FR-34's order,
+//! unplotted ones flagged, and FR-96's links; under the default `--table
+//! radar`, only the rows the radar draws and the columns radargen reads
+//! (FR-106).
 //!
 //! The fixture is ordered so a wrong implementation cannot pass by luck:
 //! FR-34's order is not CSV order, the unplotted row sits mid-file, and a
 //! multi-line record early on makes a row's line differ from its index.
 
+use radargen::emit::html::Table;
 use radargen::model::{Link, NOT_ON_THE_RADAR};
 use roxmltree::Node;
 
@@ -375,4 +378,127 @@ fn the_table_shows_when_it_scrolls() {
         css.contains("table{min-width:100%;border-collapse:collapse;font-size:.8125rem}"),
         "no table background over the cue"
     );
+}
+
+/// The column headings of `html`'s table, the number column first.
+fn headings(html: &str) -> Vec<String> {
+    let table = table_of(html);
+    let doc = parse(&table);
+    doc.descendants()
+        .filter(|n| n.has_tag_name("th") && n.attribute("scope") == Some("col"))
+        .map(text)
+        .collect()
+}
+
+/// The `data-row` keys of `html`'s table rows, in order.
+fn keys(html: &str) -> Vec<String> {
+    let table = table_of(html);
+    let doc = parse(&table);
+    rows(&doc)
+        .iter()
+        .filter_map(|r| r.attribute("data-row").map(str::to_owned))
+        .collect()
+}
+
+/// FR-106: the default table holds the plotted rows only, in FR-34's order,
+/// so the unplotted `Old` has no row and so no detail panel; `all` keeps it.
+#[test]
+fn the_radar_table_holds_only_plotted_rows() {
+    let b = built();
+    let plotted: Vec<String> = b
+        .plotted
+        .items
+        .iter()
+        .map(|&i| b.catalogue.items.get(i).expect("an item").line.to_string())
+        .collect();
+    let radar = b.page_table(Some("T"), Table::Radar);
+    assert_eq!(keys(&radar), plotted, "plotted rows, in FR-34's order");
+    assert!(
+        !table_of(&radar).contains("Old"),
+        "the unplotted row is absent"
+    );
+    assert!(!radar.contains(NOT_ON_THE_RADAR), "so nothing is flagged");
+    let all = b.page_table(Some("T"), Table::All);
+    assert!(
+        keys(&all).len() > plotted.len() && table_of(&all).contains("Old"),
+        "--table all keeps the unplotted row"
+    );
+    assert_eq!(
+        all,
+        b.page(Some("T")),
+        "the harness's page is --table all's"
+    );
+}
+
+/// FR-106: the default table keeps the columns radargen reads, in FR-78's
+/// order, and drops an extra one, from every row as from the header; `all`
+/// keeps it.
+#[test]
+fn the_radar_table_drops_columns_radargen_does_not_read() {
+    let b = built();
+    let radar = b.page_table(Some("T"), Table::Radar);
+    assert_eq!(
+        headings(&radar),
+        ["#Number", "name", "quadrant", "ring", "description", "link"],
+        "the extra note column is gone"
+    );
+    let table = table_of(&radar);
+    let doc = parse(&table);
+    for row in rows(&doc) {
+        assert_eq!(cells(row).len(), 6, "one cell per heading: {}", text(row));
+    }
+    assert!(
+        !table.contains("n1") && !table.contains("n2"),
+        "no note value"
+    );
+    assert!(
+        headings(&b.page_table(Some("T"), Table::All)).contains(&"note".to_owned()),
+        "--table all keeps it"
+    );
+}
+
+/// FR-106: every column radargen reads survives `radar`, whatever it is
+/// called in the header, so the filter is by meaning and not by position.
+#[test]
+fn the_radar_table_keeps_every_column_radargen_reads() {
+    let csv = "Ticket,name,quadrant,ring,description,qualifier,domain,rationale,last_affirmed,exit_date,status,link,Owner\n\
+T-1,Kafka,Tools,Adopt,d,default,Streaming,why,2026-06-01,,New,https://k.example,Ana\n";
+    let page = build(csv, None, None).page_table(None, Table::Radar);
+    assert_eq!(
+        headings(&page),
+        [
+            "#Number",
+            "name",
+            "quadrant",
+            "ring",
+            "description",
+            "qualifier",
+            "domain",
+            "rationale",
+            "last_affirmed",
+            "exit_date",
+            "status",
+            "link"
+        ]
+    );
+    assert!(!page.contains("T-1") && !page.contains("Ana"), "{page}");
+}
+
+/// FR-106 with nothing plotted: the default table is a table with no rows,
+/// under its heading and toggle as ever, and the page is still well formed.
+#[test]
+fn the_radar_table_with_nothing_plotted_is_empty() {
+    let page = build(
+        "name,quadrant,ring,description\nOld,Tools,Gone,d\n",
+        None,
+        None,
+    )
+    .page_table(None, Table::Radar);
+    assert!(keys(&page).is_empty(), "no row");
+    assert!(!page.contains("Old"), "the unplotted row is not published");
+    assert_eq!(
+        headings(&page),
+        ["#Number", "name", "quadrant", "ring", "description"]
+    );
+    assert!(page.contains("<tbody>\n</tbody>"), "an empty body");
 }

@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="radargen {version}">
+<title>Technology Radar</title>
+<style>
+@font-face{font-family:"Inter";font-style:normal;font-weight:400;font-display:block;src:url(data:font/woff2;base64,…) format("woff2")}
+@font-face{font-family:"Inter";font-style:normal;font-weight:600;font-display:block;src:url(data:font/woff2;base64,…) format("woff2")}
+:root{color-scheme:light;--surface-1:#FFFFFF;--surface-2:#F4F5F7;--text-primary:#16191F;--text-muted:#585F6B;--stroke-ring:#7E858F;--stroke-divider:#848B96;--marker-hollow:#FFFFFF;--focus:#0B5FA5;--series-1:#0072B2;--series-2:#C25400;--series-3:#00857A;--series-4:#787832;--series-5:#B5476B;--series-6:#2F9626;--series-7:#C431B8;--series-8:#9D5A43;--theme-moon:block;--theme-sun:none;}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark;--surface-1:#15181D;--surface-2:#1E222A;--text-primary:#E8EAEE;--text-muted:#A6AEBB;--stroke-ring:#6C7480;--stroke-divider:#666E7A;--marker-hollow:#15181D;--focus:#7FB8E6;--series-1:#0072B2;--series-2:#C25400;--series-3:#00857A;--series-4:#787832;--series-5:#B5476B;--series-6:#2F9626;--series-7:#C431B8;--series-8:#9D5A43;--theme-moon:none;--theme-sun:block;}}
+:root[data-theme="dark"]{color-scheme:dark;--surface-1:#15181D;--surface-2:#1E222A;--text-primary:#E8EAEE;--text-muted:#A6AEBB;--stroke-ring:#6C7480;--stroke-divider:#666E7A;--marker-hollow:#15181D;--focus:#7FB8E6;--series-1:#0072B2;--series-2:#C25400;--series-3:#00857A;--series-4:#787832;--series-5:#B5476B;--series-6:#2F9626;--series-7:#C431B8;--series-8:#9D5A43;--theme-moon:none;--theme-sun:block;}
+@media (forced-colors: active){:root,:root[data-theme]{--surface-1:Canvas;--surface-2:Canvas;--text-primary:CanvasText;--text-muted:CanvasText;--stroke-ring:CanvasText;--stroke-divider:CanvasText;--marker-hollow:Canvas;--focus:Highlight;}}
+body{margin:0;line-height:1.4;font-family:"Inter";background:var(--surface-1);color:var(--text-primary)}
+svg{display:block;width:100%;height:auto}
+.wide{display:grid;grid-template-columns:minmax(0,max(536px,calc((100vh - 46px - 3.05rem - 2px)*670/659.5))) max-content;justify-content:center}
+.wide-title{grid-row:1;grid-column:1/-1;contain:inline-size}
+.wide-title svg{width:1025.077px;max-width:100%}
+.wide-radar{grid-row:2;grid-column:1}
+.wide-key{grid-row:3;grid-column:1}
+.wide-key svg{width:670px;max-width:100%}
+.wide-legend{grid-row:2;grid-column:2;height:0;min-height:100%;box-sizing:border-box;overflow-x:hidden;overflow-y:auto;scrollbar-gutter:stable}
+.wide-legend svg{width:355.077px}
+.narrow{max-width:420px;margin:0 auto}
+.narrow{display:none}
+@media (max-width: 890px){.wide{display:none}.narrow{display:block}}
+@media screen{
+:root.js[data-legend="hidden"] .wide-legend,:root.js[data-legend="hidden"] .wide-legend *{visibility:hidden!important;pointer-events:none!important}
+:root.js[data-legend="hidden"] .narrow-legend{display:none}
+:root.js[data-legend="hidden"] .wide-radar{grid-column:1/-1;contain:inline-size}
+:root.js[data-legend="hidden"] .wide-radar svg{max-width:max(536px,calc((100vh - 46px - 3.05rem - 2px)*670/659.5))}
+}
+[data-legend-row][data-hovered]>[data-row-indicator]{visibility:visible}
+[data-legend-row][data-hovered]>[data-row-indicator]>rect{stroke:var(--text-muted);stroke-width:1px;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
+[data-legend-row][data-selected]>[data-selection]{visibility:visible}
+[data-legend-row]:focus-visible{outline:2px solid transparent}
+[data-legend-row]:focus-visible>[data-row-indicator]{visibility:visible}
+[data-legend-row]:focus-visible>[data-row-indicator]>rect{stroke:var(--focus);stroke-width:2px;stroke-dasharray:none}
+.js [data-marker]:focus-visible{outline:2px solid transparent}
+[data-focus-ring]{visibility:hidden}
+[data-marker-indicator][data-focused]{visibility:visible}
+[data-marker-indicator][data-focused] [data-focus-ring]{visibility:visible}
+[data-marker-indicator][data-hovered],[data-marker-indicator][data-selected]{visibility:visible}
+[data-marker-indicator][data-hovered] [data-selection]{visibility:visible}
+[data-marker-indicator][data-hovered] [data-selection]>rect{stroke:var(--text-muted);stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
+[data-marker-indicator][data-selected] [data-selection]{visibility:visible}
+[data-marker-indicator][data-selected] [data-selection]>rect{stroke:var(--text-primary);stroke-dasharray:none}
+[data-hit],[role=button]{cursor:pointer}
+.visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+.table-heading,.table-view{max-width:calc(max(536px,calc((100vh - 46px - 3.05rem - 2px)*670/659.5)) + 355.077px);margin-inline:auto;padding-inline:20px;box-sizing:border-box}
+.table-heading{margin-block:1.5em .25em;font-size:1rem;font-weight:600}
+.table-view{margin-block-end:1.5em}
+summary{cursor:pointer;width:fit-content;padding-block:.5em;font-weight:600}
+.table-scroll{position:relative;overflow-x:auto;border-radius:6px;border:1px solid var(--stroke-divider);background:linear-gradient(to right,var(--surface-2) 30%,transparent) left/2.5em 100%,linear-gradient(to left,var(--surface-2) 30%,transparent) right/2.5em 100%,radial-gradient(farthest-side at 0 50%,color-mix(in srgb,var(--text-muted) 45%,transparent),transparent) left/.9em 100%,radial-gradient(farthest-side at 100% 50%,color-mix(in srgb,var(--text-muted) 45%,transparent),transparent) right/.9em 100%;background-repeat:no-repeat;background-attachment:local,local,scroll,scroll;background-color:var(--surface-2)}
+table{min-width:100%;border-collapse:collapse;font-size:.8125rem}
+th,td{text-align:start;vertical-align:top;padding:.4em .6em;border-bottom:1px solid var(--stroke-divider)}
+th{font-weight:600}
+thead th{font-size:.75rem;border-bottom-width:2px;color:var(--text-muted)}
+.number{text-align:end;font-variant-numeric:tabular-nums}
+td.prose{white-space:pre-line;min-width:16em}
+td.link{overflow-wrap:anywhere;min-width:12em}
+.flag{display:inline-block;padding:0 .45em;border:1px solid currentColor;border-radius:1em;font-size:.8em;font-weight:600;white-space:nowrap;color:var(--text-muted)}
+tr:not(.unplotted)+tr.unplotted>*{border-top:2px solid var(--stroke-divider)}
+a,a:visited{text-decoration:underline;color:var(--text-primary)}
+tr[data-selected]>:first-child{border-inline-start:3px solid var(--text-primary)}
+tr[data-selected]>*{background:var(--surface-1)}
+th button{all:unset;display:block;padding-block:3px;margin-block:-3px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:.2em}
+th button:hover{text-decoration-style:solid}
+summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+[hidden]{display:none!important}
+.page-controls{display:flex;max-width:calc(max(536px,calc((100vh - 46px - 3.05rem - 2px)*670/659.5)) + 355.077px);margin-inline:auto;padding-inline:20px;box-sizing:border-box}
+.page-controls button,.detail-close{margin-block:.5em;font:inherit;padding:.4em .8em;border-radius:6px;cursor:pointer;border:1px solid var(--stroke-divider);background:var(--surface-2);color:var(--text-primary)}
+.skip{margin-inline-end:auto}
+.theme-toggle{margin-inline-start:auto}
+.skip:not(:focus){position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+.page-controls .legend-toggle{padding:.4em}
+.legend-toggle svg{width:1.25em;height:1.25em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.legend-toggle{margin-inline-start:auto}
+.legend-toggle:not([hidden])~.theme-toggle{margin-inline-start:.5em}
+.legend-off{display:none}
+:root[data-legend="hidden"] .legend-on{display:none}
+:root[data-legend="hidden"] .legend-off{display:block}
+.page-controls .theme-toggle{padding:.4em}
+.theme-toggle svg{width:1.25em;height:1.25em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.theme-toggle .theme-moon{display:var(--theme-moon)}
+.theme-toggle .theme-sun{display:var(--theme-sun)}
+.page-controls button:focus-visible,.detail-close:focus-visible,.detail-heading:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.detail{max-width:calc(max(536px,calc((100vh - 46px - 3.05rem - 2px)*670/659.5)) + 355.077px);margin-inline:auto;padding-inline:20px;box-sizing:border-box}
+.detail{position:sticky;bottom:.75rem;max-height:min(45vh,28em);overflow:auto;margin-block:1em;padding-block:1em;border-radius:8px;box-shadow:0 2px 12px rgb(0 0 0 / .14);background:var(--surface-2);border:1px solid var(--stroke-divider)}
+.detail-head{display:flex;justify-content:space-between;align-items:center;gap:1em}
+.detail-heading{margin:0;font-size:1.0625rem;font-weight:600}
+.detail dl{margin:.5em 0 0}
+.detail dd{margin:0 0 .6em;overflow-wrap:anywhere}
+.detail dd.prose{white-space:pre-line;max-width:70ch}
+.detail dt{font-size:.75rem;font-weight:600;color:var(--text-muted)}
+.detail-empty{color:var(--text-muted)}
+@media (max-width: 890px){.detail{bottom:0;margin-block-end:0;border-inline:0;border-radius:8px 8px 0 0}}
+@media (min-width: 891px){.detail dl{display:grid;grid-template-columns:max-content 1fr;column-gap:1.5em;align-items:baseline}.detail dt{grid-column:1}.detail dd{grid-column:2}}
+.page-controls{position:relative}
+.skip:focus{position:absolute;z-index:1}
+@media print{.page-controls{display:none}}
+</style>
+</head>
+<body>
+<main data-narrow-query="(max-width: 890px)">
+<div class="page-controls"><button type="button" class="skip" hidden="">Skip to the legend</button><button type="button" class="legend-toggle" hidden=""><svg class="legend-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg><svg class="legend-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h3M9 18h3M4 6h.01M4 12h.01M4 18h.01M15 12l6 6M21 12l-6 6"/></svg><span class="visually-hidden">Hide legend</span></button><button type="button" class="theme-toggle" hidden=""><svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7.5 7.5 0 0 0 10.5 10.5z"/></svg><svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span class="visually-hidden">Switch to dark theme</span></button></div>
+<div class="arrangement wide">
+<div class="wide-title">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1025.077 46">
+<g>
+<g transform="translate(20 10)">
+<g role="heading" aria-level="1">
+<text x="0" y="22" font-family="Inter" font-size="17" font-weight="600" fill="var(--text-primary)">Technology Radar</text>
+</g>
+</g>
+</g>
+</svg>
+</div>
+<div class="wide-radar">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 670 659.5">
+<g transform="translate(0 -46)">
+<g transform="translate(10 46)">
+<g transform="translate(330 330)" role="group" aria-label="Technology radar: 3 quadrants, 4 rings, 6 items">
+<circle cx="0" cy="0" r="260" fill="none" stroke="var(--stroke-ring)" stroke-width="1"/>
+<circle cx="0" cy="0" r="195" fill="none" stroke="var(--stroke-ring)" stroke-width="1"/>
+<circle cx="0" cy="0" r="130" fill="none" stroke="var(--stroke-ring)" stroke-width="1"/>
+<circle cx="0" cy="0" r="65" fill="none" stroke="var(--stroke-ring)" stroke-width="1"/>
+<line x1="0" y1="0" x2="0" y2="-262" stroke="var(--stroke-divider)" stroke-width="1"/>
+<line x1="0" y1="0" x2="226.899" y2="131" stroke="var(--stroke-divider)" stroke-width="1"/>
+<line x1="0" y1="0" x2="-226.899" y2="131" stroke="var(--stroke-divider)" stroke-width="1"/>
+<text x="283.77" y="-163.835" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.48" text-anchor="middle" fill="var(--text-primary)">Platform</text>
+<text x="0" y="300" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.48" text-anchor="middle" fill="var(--text-primary)">Practice</text>
+<text x="-271.784" y="-156.915" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.48" text-anchor="middle" fill="var(--text-primary)">Tool</text>
+<text x="0" y="-227.5" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="none" stroke="var(--surface-1)" stroke-width="3" stroke-linejoin="round" aria-hidden="true">Assess</text>
+<text x="0" y="-162.5" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="none" stroke="var(--surface-1)" stroke-width="3" stroke-linejoin="round" aria-hidden="true">Trial</text>
+<text x="0" y="-97.5" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="none" stroke="var(--surface-1)" stroke-width="3" stroke-linejoin="round" aria-hidden="true">Adopt</text>
+<text x="0" y="-32.5" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="none" stroke="var(--surface-1)" stroke-width="3" stroke-linejoin="round" aria-hidden="true">Retire</text>
+<text x="0" y="-227.5" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="var(--text-muted)">Assess</text>
+<text x="0" y="-162.5" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="var(--text-muted)">Trial</text>
+<text x="0" y="-97.5" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="var(--text-muted)">Adopt</text>
+<text x="0" y="-32.5" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="var(--text-muted)">Retire</text>
+<g>
+<circle cx="77.682" cy="-44.85" r="18" fill="none" pointer-events="all" data-hit="6"/>
+<circle cx="0" cy="89.7" r="18" fill="none" pointer-events="all" data-hit="7"/>
+<circle cx="-133.974" cy="-77.35" r="18" fill="none" pointer-events="all" data-hit="4"/>
+<circle cx="-87.33" cy="-20.483" r="18" fill="none" pointer-events="all" data-hit="3"/>
+<circle cx="-74.753" cy="-79.603" r="18" fill="none" pointer-events="all" data-hit="2"/>
+<circle cx="-21.391" cy="-12.35" r="18" fill="none" pointer-events="all" data-hit="5"/>
+</g>
+<g role="button" tabindex="0" aria-label="1. Kubernetes, Default; Platform quadrant, Adopt ring" data-row="6" data-marker="6">
+<title>1. Kubernetes</title>
+<circle cx="77.682" cy="-44.85" r="10" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<text x="77.682" y="-41.576" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">1</text>
+</g>
+<g role="button" tabindex="0" aria-label="2. Trunk-Based Development, Default; Practice quadrant, Adopt ring" data-row="7" data-marker="7">
+<title>2. Trunk-Based Development</title>
+<circle cx="0" cy="89.7" r="10" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<text x="0" y="92.974" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">2</text>
+</g>
+<g role="button" tabindex="0" aria-label="3. Ansible, Moved In; Tool quadrant, Trial ring" data-row="4" data-marker="4">
+<title>3. Ansible</title>
+<path d="M -126.974 -89.474 A 14 14 0 0 1 -140.974 -65.226" fill="none" stroke="var(--series-3)" stroke-width="2"/>
+<circle cx="-133.974" cy="-77.35" r="10" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2"/>
+<text x="-133.974" y="-74.076" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">3</text>
+</g>
+<g role="button" tabindex="0" aria-label="4. Pulumi, Conditional, New; Tool quadrant, Adopt ring" data-row="3" data-marker="3">
+<title>4. Pulumi</title>
+<circle cx="-87.33" cy="-20.483" r="14" fill="none" stroke="var(--series-3)" stroke-width="2"/>
+<circle cx="-87.33" cy="-20.483" r="10" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="3"/>
+<text x="-87.33" y="-17.209" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="var(--text-primary)" pointer-events="none">4</text>
+</g>
+<g role="button" tabindex="0" aria-label="5. Terraform, Default; Tool quadrant, Adopt ring" data-row="2" data-marker="2">
+<title>5. Terraform</title>
+<circle cx="-74.753" cy="-79.603" r="10" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2"/>
+<text x="-74.753" y="-76.329" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">5</text>
+</g>
+<g role="button" tabindex="0" aria-label="6. Chef; Tool quadrant, Retire ring" data-row="5" data-marker="5">
+<title>6. Chef</title>
+<circle cx="-21.391" cy="-12.35" r="10" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2"/>
+<text x="-21.391" y="-9.076" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">6</text>
+</g>
+<g>
+<g data-marker-indicator="6" visibility="hidden" aria-hidden="true" pointer-events="none">
+<circle cx="77.682" cy="-44.85" r="19" fill="var(--surface-1)" stroke="none"/>
+<circle cx="77.682" cy="-44.85" r="10" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<text x="77.682" y="-41.576" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">1</text>
+<g data-selection="6" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="59.682" y="-62.85" width="36" height="36" rx="2.5" fill="none" stroke="var(--text-primary)" stroke-width="2"/>
+</g>
+<g data-focus-ring="6">
+<circle cx="77.682" cy="-44.85" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
+</g>
+<g data-marker-indicator="7" visibility="hidden" aria-hidden="true" pointer-events="none">
+<circle cx="0" cy="89.7" r="19" fill="var(--surface-1)" stroke="none"/>
+<circle cx="0" cy="89.7" r="10" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<text x="0" y="92.974" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">2</text>
+<g data-selection="7" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-18" y="71.7" width="36" height="36" rx="2.5" fill="none" stroke="var(--text-primary)" stroke-width="2"/>
+</g>
+<g data-focus-ring="7">
+<circle cx="0" cy="89.7" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
+</g>
+<g data-marker-indicator="4" visibility="hidden" aria-hidden="true" pointer-events="none">
+<circle cx="-133.974" cy="-77.35" r="19" fill="var(--surface-1)" stroke="none"/>
+<path d="M -126.974 -89.474 A 14 14 0 0 1 -140.974 -65.226" fill="none" stroke="var(--series-3)" stroke-width="2"/>
+<circle cx="-133.974" cy="-77.35" r="10" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2"/>
+<text x="-133.974" y="-74.076" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">3</text>
+<g data-selection="4" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-151.974" y="-95.35" width="36" height="36" rx="2.5" fill="none" stroke="var(--text-primary)" stroke-width="2"/>
+</g>
+<g data-focus-ring="4">
+<circle cx="-133.974" cy="-77.35" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
+</g>
+<g data-marker-indicator="3" visibility="hidden" aria-hidden="true" pointer-events="none">
+<circle cx="-87.33" cy="-20.483" r="19" fill="var(--surface-1)" stroke="none"/>
+<circle cx="-87.33" cy="-20.483" r="14" fill="none" stroke="var(--series-3)" stroke-width="2"/>
+<circle cx="-87.33" cy="-20.483" r="10" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="3"/>
+<text x="-87.33" y="-17.209" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="var(--text-primary)">4</text>
+<g data-selection="3" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-105.33" y="-38.483" width="36" height="36" rx="2.5" fill="none" stroke="var(--text-primary)" stroke-width="2"/>
+</g>
+<g data-focus-ring="3">
+<circle cx="-87.33" cy="-20.483" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
+</g>
+<g data-marker-indicator="2" visibility="hidden" aria-hidden="true" pointer-events="none">
+<circle cx="-74.753" cy="-79.603" r="19" fill="var(--surface-1)" stroke="none"/>
+<circle cx="-74.753" cy="-79.603" r="10" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2"/>
+<text x="-74.753" y="-76.329" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">5</text>
+<g data-selection="2" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-92.753" y="-97.603" width="36" height="36" rx="2.5" fill="none" stroke="var(--text-primary)" stroke-width="2"/>
+</g>
+<g data-focus-ring="2">
+<circle cx="-74.753" cy="-79.603" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
+</g>
+<g data-marker-indicator="5" visibility="hidden" aria-hidden="true" pointer-events="none">
+<circle cx="-21.391" cy="-12.35" r="19" fill="var(--surface-1)" stroke="none"/>
+<circle cx="-21.391" cy="-12.35" r="10" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="2"/>
+<text x="-21.391" y="-9.076" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">6</text>
+<g data-selection="5" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-39.391" y="-30.35" width="36" height="36" rx="2.5" fill="none" stroke="var(--text-primary)" stroke-width="2"/>
+</g>
+<g data-focus-ring="5">
+<circle cx="-21.391" cy="-12.35" r="18" fill="none" stroke="var(--focus)" stroke-width="2"/>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</svg>
+</div>
+<div class="wide-key">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 670 118.5">
+<g transform="translate(0 -705.5)">
+<g aria-hidden="true">
+<line x1="20" y1="706" x2="660" y2="706" stroke="var(--stroke-divider)" stroke-width="1"/>
+</g>
+<g transform="translate(20 706)">
+<g role="heading" aria-level="2">
+<text x="0" y="20" font-family="Inter" font-size="13" font-weight="600" fill="var(--text-primary)">Key</text>
+</g>
+<g aria-hidden="true">
+<circle cx="10" cy="40" r="7" fill="var(--text-muted)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="28" y="44" font-family="Inter" font-size="11" font-weight="400" fill="var(--text-muted)">Default, or no qualifier — solid marker</text>
+<g aria-hidden="true">
+<circle cx="358.429" cy="40" r="7" fill="var(--marker-hollow)" stroke="var(--text-muted)" stroke-width="3"/>
+</g>
+<text x="376.429" y="44" font-family="Inter" font-size="11" font-weight="400" fill="var(--text-muted)">Conditional — hollow marker</text>
+<g aria-hidden="true">
+<circle cx="10" cy="64" r="9" fill="none" stroke="var(--text-muted)" stroke-width="2"/>
+<circle cx="10" cy="64" r="5" fill="var(--text-muted)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="28" y="68" font-family="Inter" font-size="11" font-weight="400" fill="var(--text-muted)">New this edition — full ring</text>
+<g aria-hidden="true">
+<path d="M 358.429 73 A 9 9 0 0 1 358.429 55" fill="none" stroke="var(--text-muted)" stroke-width="2"/>
+<circle cx="358.429" cy="64" r="5" fill="var(--text-muted)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="376.429" y="68" font-family="Inter" font-size="11" font-weight="400" fill="var(--text-muted)">Moved in — half-ring facing the centre</text>
+<g aria-hidden="true">
+<path d="M 10 79 A 9 9 0 0 1 10 97" fill="none" stroke="var(--text-muted)" stroke-width="2"/>
+<circle cx="10" cy="88" r="5" fill="var(--text-muted)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="28" y="92" font-family="Inter" font-size="11" font-weight="400" fill="var(--text-muted)">Moved out — half-ring facing the outer edge</text>
+</g>
+</g>
+</svg>
+</div>
+<div class="wide-legend" tabindex="-1">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 355.077 432">
+<g transform="translate(-670 -46)">
+<g transform="translate(676 52)">
+<rect x="0" y="0" width="341.077" height="406" rx="8" fill="var(--surface-2)" stroke="none"/>
+<g transform="translate(12 8)">
+<g role="heading" aria-level="2">
+<text x="0" y="14" font-family="Inter" font-size="13" font-weight="600" fill="var(--text-primary)">Legend</text>
+</g>
+<g aria-hidden="true">
+<circle cx="5" cy="32" r="5" fill="var(--series-1)" stroke="none"/>
+</g>
+<g role="heading" aria-level="3">
+<text x="16" y="36" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.36" fill="var(--text-primary)">Platform</text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="54" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="var(--text-muted)">Adopt</text>
+</g>
+<g role="button" tabindex="0" aria-label="1. Kubernetes, Default; Platform quadrant, Adopt ring" data-row="6" data-legend-row="6">
+<rect x="38" y="58" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
+<g data-row-indicator="6" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="59" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="6" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="64" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
+<circle cx="52" cy="76" r="8" fill="var(--series-1)" stroke="var(--series-1)" stroke-width="1.5"/>
+<text x="52" y="79.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">1</text>
+<text x="68" y="76.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Kubernetes<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Default</tspan></text>
+</g>
+<g aria-hidden="true">
+<circle cx="5" cy="110" r="5" fill="var(--series-2)" stroke="none"/>
+</g>
+<g role="heading" aria-level="3">
+<text x="16" y="114" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.36" fill="var(--text-primary)">Practice</text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="132" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="var(--text-muted)">Adopt</text>
+</g>
+<g role="button" tabindex="0" aria-label="2. Trunk-Based Development, Default; Practice quadrant, Adopt ring" data-row="7" data-legend-row="7">
+<rect x="38" y="136" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
+<g data-row-indicator="7" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="137" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="7" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="142" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
+<circle cx="52" cy="154" r="8" fill="var(--series-2)" stroke="var(--series-2)" stroke-width="1.5"/>
+<text x="52" y="157.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">2</text>
+<text x="68" y="154.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Trunk-Based Development<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Default</tspan></text>
+</g>
+<g aria-hidden="true">
+<circle cx="5" cy="188" r="5" fill="var(--series-3)" stroke="none"/>
+</g>
+<g role="heading" aria-level="3">
+<text x="16" y="192" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.36" fill="var(--text-primary)">Tool</text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="210" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="var(--text-muted)">Trial</text>
+</g>
+<g role="button" tabindex="0" aria-label="3. Ansible, Moved In; Tool quadrant, Trial ring" data-row="4" data-legend-row="4">
+<rect x="38" y="214" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
+<g data-row-indicator="4" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="215" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="4" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="220" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
+<circle cx="52" cy="232" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
+<text x="52" y="235.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">3</text>
+<text x="68" y="232.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Ansible<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Moved In</tspan></text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="262" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="var(--text-muted)">Adopt</text>
+</g>
+<g role="button" tabindex="0" aria-label="4. Pulumi, Conditional, New; Tool quadrant, Adopt ring" data-row="3" data-legend-row="3">
+<rect x="38" y="266" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
+<g data-row-indicator="3" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="267" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="3" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="272" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
+<circle cx="52" cy="284" r="8" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="2"/>
+<text x="52" y="287.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="var(--text-primary)" pointer-events="none">4</text>
+<text x="68" y="284.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Pulumi<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Conditional · New</tspan></text>
+</g>
+<g role="button" tabindex="0" aria-label="5. Terraform, Default; Tool quadrant, Adopt ring" data-row="2" data-legend-row="2">
+<rect x="38" y="302" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
+<g data-row-indicator="2" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="303" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="2" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="308" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
+<circle cx="52" cy="320" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
+<text x="52" y="323.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">5</text>
+<text x="68" y="320.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Terraform<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Default</tspan></text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="350" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="var(--text-muted)">Retire</text>
+</g>
+<g role="button" tabindex="0" aria-label="6. Chef; Tool quadrant, Retire ring" data-row="5" data-legend-row="5">
+<rect x="38" y="354" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
+<g data-row-indicator="5" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="355" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="5" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="360" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
+<circle cx="52" cy="372" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
+<text x="52" y="375.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">6</text>
+<text x="68" y="372.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Chef</text>
+</g>
+</g>
+</g>
+</g>
+</svg>
+</div>
+
+</div>
+<div class="arrangement narrow">
+<div class="narrow-body">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 548.629">
+<g>
+<g transform="translate(20 10)">
+<g role="heading" aria-level="1">
+<text x="0" y="22" font-family="Inter" font-size="17" font-weight="600" fill="var(--text-primary)">Technology Radar</text>
+</g>
+</g>
+<g transform="translate(10 46)">
+<g transform="translate(200 170.315)" role="group" aria-label="Technology radar: 3 quadrants, 4 rings, 6 items">
+<circle cx="0" cy="0" r="134.187" fill="none" stroke="var(--stroke-ring)" stroke-width="0.778"/>
+<circle cx="0" cy="0" r="100.64" fill="none" stroke="var(--stroke-ring)" stroke-width="0.778"/>
+<circle cx="0" cy="0" r="67.094" fill="none" stroke="var(--stroke-ring)" stroke-width="0.778"/>
+<circle cx="0" cy="0" r="33.547" fill="none" stroke="var(--stroke-ring)" stroke-width="0.778"/>
+<line x1="0" y1="0" x2="0" y2="-135.219" stroke="var(--stroke-divider)" stroke-width="0.778"/>
+<line x1="0" y1="0" x2="117.103" y2="67.61" stroke="var(--stroke-divider)" stroke-width="0.778"/>
+<line x1="0" y1="0" x2="-117.103" y2="67.61" stroke="var(--stroke-divider)" stroke-width="0.778"/>
+<text x="158.05" y="-91.25" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.48" text-anchor="middle" fill="var(--text-primary)">Platform</text>
+<text x="0" y="154.831" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.48" text-anchor="middle" fill="var(--text-primary)">Practice</text>
+<text x="-146.065" y="-84.331" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.48" text-anchor="middle" fill="var(--text-primary)">Tool</text>
+<text x="0" y="-117.414" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="none" stroke="var(--surface-1)" stroke-width="3" stroke-linejoin="round" aria-hidden="true">Assess</text>
+<text x="0" y="-83.867" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="none" stroke="var(--surface-1)" stroke-width="3" stroke-linejoin="round" aria-hidden="true">Trial</text>
+<text x="0" y="-50.32" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="none" stroke="var(--surface-1)" stroke-width="3" stroke-linejoin="round" aria-hidden="true">Adopt</text>
+<text x="0" y="-16.773" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="none" stroke="var(--surface-1)" stroke-width="3" stroke-linejoin="round" aria-hidden="true">Retire</text>
+<text x="0" y="-117.414" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="var(--text-muted)">Assess</text>
+<text x="0" y="-83.867" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="var(--text-muted)">Trial</text>
+<text x="0" y="-50.32" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="var(--text-muted)">Adopt</text>
+<text x="0" y="-16.773" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="var(--text-muted)">Retire</text>
+<g>
+<circle cx="40.092" cy="-23.147" r="18" fill="none" pointer-events="all" data-hit="6"/>
+<circle cx="0" cy="46.295" r="18" fill="none" pointer-events="all" data-hit="7"/>
+<circle cx="-69.145" cy="-39.921" r="18" fill="none" pointer-events="all" data-hit="4"/>
+<circle cx="-45.071" cy="-10.571" r="18" fill="none" pointer-events="all" data-hit="3"/>
+<circle cx="-38.58" cy="-41.084" r="18" fill="none" pointer-events="all" data-hit="2"/>
+<circle cx="-11.04" cy="-6.374" r="18" fill="none" pointer-events="all" data-hit="5"/>
+</g>
+<g role="button" tabindex="0" aria-label="1. Kubernetes, Default; Platform quadrant, Adopt ring" data-row="6" data-marker="6">
+<title>1. Kubernetes</title>
+<circle cx="40.092" cy="-23.147" r="7.778" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="1.556"/>
+<text x="40.092" y="-20.601" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">1</text>
+</g>
+<g role="button" tabindex="0" aria-label="2. Trunk-Based Development, Default; Practice quadrant, Adopt ring" data-row="7" data-marker="7">
+<title>2. Trunk-Based Development</title>
+<circle cx="0" cy="46.295" r="7.778" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="1.556"/>
+<text x="0" y="48.841" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">2</text>
+</g>
+<g role="button" tabindex="0" aria-label="3. Ansible, Moved In; Tool quadrant, Trial ring" data-row="4" data-marker="4">
+<title>3. Ansible</title>
+<path d="M -63.7 -49.351 A 10.889 10.889 0 0 1 -74.589 -30.491" fill="none" stroke="var(--series-3)" stroke-width="1.556"/>
+<circle cx="-69.145" cy="-39.921" r="7.778" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="1.556"/>
+<text x="-69.145" y="-37.374" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">3</text>
+</g>
+<g role="button" tabindex="0" aria-label="4. Pulumi, Conditional, New; Tool quadrant, Adopt ring" data-row="3" data-marker="3">
+<title>4. Pulumi</title>
+<circle cx="-45.071" cy="-10.571" r="10.889" fill="none" stroke="var(--series-3)" stroke-width="1.556"/>
+<circle cx="-45.071" cy="-10.571" r="7.778" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="2.333"/>
+<text x="-45.071" y="-8.025" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="var(--text-primary)" pointer-events="none">4</text>
+</g>
+<g role="button" tabindex="0" aria-label="5. Terraform, Default; Tool quadrant, Adopt ring" data-row="2" data-marker="2">
+<title>5. Terraform</title>
+<circle cx="-38.58" cy="-41.084" r="7.778" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="1.556"/>
+<text x="-38.58" y="-38.537" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">5</text>
+</g>
+<g role="button" tabindex="0" aria-label="6. Chef; Tool quadrant, Retire ring" data-row="5" data-marker="5">
+<title>6. Chef</title>
+<circle cx="-11.04" cy="-6.374" r="7.778" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="1.556"/>
+<text x="-11.04" y="-3.828" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">6</text>
+</g>
+<g>
+<g data-marker-indicator="6" visibility="hidden" aria-hidden="true" pointer-events="none">
+<circle cx="40.092" cy="-23.147" r="14.778" fill="var(--surface-1)" stroke="none"/>
+<circle cx="40.092" cy="-23.147" r="7.778" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="1.556"/>
+<text x="40.092" y="-20.601" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF">1</text>
+<g data-selection="6" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="26.092" y="-37.147" width="28" height="28" rx="1.944" fill="none" stroke="var(--text-primary)" stroke-width="1.556"/>
+</g>
+<g data-focus-ring="6">
+<circle cx="40.092" cy="-23.147" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
+</g>
+</g>
+<g data-marker-indicator="7" visibility="hidden" aria-hidden="true" pointer-events="none">
+<circle cx="0" cy="46.295" r="14.778" fill="var(--surface-1)" stroke="none"/>
+<circle cx="0" cy="46.295" r="7.778" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="1.556"/>
+<text x="0" y="48.841" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF">2</text>
+<g data-selection="7" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-14" y="32.295" width="28" height="28" rx="1.944" fill="none" stroke="var(--text-primary)" stroke-width="1.556"/>
+</g>
+<g data-focus-ring="7">
+<circle cx="0" cy="46.295" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
+</g>
+</g>
+<g data-marker-indicator="4" visibility="hidden" aria-hidden="true" pointer-events="none">
+<circle cx="-69.145" cy="-39.921" r="14.778" fill="var(--surface-1)" stroke="none"/>
+<path d="M -63.7 -49.351 A 10.889 10.889 0 0 1 -74.589 -30.491" fill="none" stroke="var(--series-3)" stroke-width="1.556"/>
+<circle cx="-69.145" cy="-39.921" r="7.778" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="1.556"/>
+<text x="-69.145" y="-37.374" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF">3</text>
+<g data-selection="4" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-83.145" y="-53.921" width="28" height="28" rx="1.944" fill="none" stroke="var(--text-primary)" stroke-width="1.556"/>
+</g>
+<g data-focus-ring="4">
+<circle cx="-69.145" cy="-39.921" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
+</g>
+</g>
+<g data-marker-indicator="3" visibility="hidden" aria-hidden="true" pointer-events="none">
+<circle cx="-45.071" cy="-10.571" r="14.778" fill="var(--surface-1)" stroke="none"/>
+<circle cx="-45.071" cy="-10.571" r="10.889" fill="none" stroke="var(--series-3)" stroke-width="1.556"/>
+<circle cx="-45.071" cy="-10.571" r="7.778" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="2.333"/>
+<text x="-45.071" y="-8.025" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="var(--text-primary)">4</text>
+<g data-selection="3" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-59.071" y="-24.571" width="28" height="28" rx="1.944" fill="none" stroke="var(--text-primary)" stroke-width="1.556"/>
+</g>
+<g data-focus-ring="3">
+<circle cx="-45.071" cy="-10.571" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
+</g>
+</g>
+<g data-marker-indicator="2" visibility="hidden" aria-hidden="true" pointer-events="none">
+<circle cx="-38.58" cy="-41.084" r="14.778" fill="var(--surface-1)" stroke="none"/>
+<circle cx="-38.58" cy="-41.084" r="7.778" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="1.556"/>
+<text x="-38.58" y="-38.537" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF">5</text>
+<g data-selection="2" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-52.58" y="-55.084" width="28" height="28" rx="1.944" fill="none" stroke="var(--text-primary)" stroke-width="1.556"/>
+</g>
+<g data-focus-ring="2">
+<circle cx="-38.58" cy="-41.084" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
+</g>
+</g>
+<g data-marker-indicator="5" visibility="hidden" aria-hidden="true" pointer-events="none">
+<circle cx="-11.04" cy="-6.374" r="14.778" fill="var(--surface-1)" stroke="none"/>
+<circle cx="-11.04" cy="-6.374" r="7.778" fill="var(--series-3)" stroke="var(--surface-1)" stroke-width="1.556"/>
+<text x="-11.04" y="-3.828" font-family="Inter" font-size="7" font-weight="600" text-anchor="middle" fill="#FFFFFF">6</text>
+<g data-selection="5" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="-25.04" y="-20.374" width="28" height="28" rx="1.944" fill="none" stroke="var(--text-primary)" stroke-width="1.556"/>
+</g>
+<g data-focus-ring="5">
+<circle cx="-11.04" cy="-6.374" r="14" fill="none" stroke="var(--focus)" stroke-width="1.556"/>
+</g>
+</g>
+</g>
+</g>
+</g>
+<g aria-hidden="true">
+<line x1="20" y1="386.629" x2="400" y2="386.629" stroke="var(--stroke-divider)" stroke-width="1"/>
+</g>
+<g transform="translate(20 386.629)">
+<g role="heading" aria-level="2">
+<text x="0" y="20" font-family="Inter" font-size="13" font-weight="600" fill="var(--text-primary)">Key</text>
+</g>
+<g aria-hidden="true">
+<circle cx="10" cy="40" r="7" fill="var(--text-muted)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="28" y="44" font-family="Inter" font-size="11" font-weight="400" fill="var(--text-muted)">Default, or no qualifier — solid marker</text>
+<g aria-hidden="true">
+<circle cx="10" cy="64" r="7" fill="var(--marker-hollow)" stroke="var(--text-muted)" stroke-width="3"/>
+</g>
+<text x="28" y="68" font-family="Inter" font-size="11" font-weight="400" fill="var(--text-muted)">Conditional — hollow marker</text>
+<g aria-hidden="true">
+<circle cx="10" cy="88" r="9" fill="none" stroke="var(--text-muted)" stroke-width="2"/>
+<circle cx="10" cy="88" r="5" fill="var(--text-muted)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="28" y="92" font-family="Inter" font-size="11" font-weight="400" fill="var(--text-muted)">New this edition — full ring</text>
+<g aria-hidden="true">
+<path d="M 10 121 A 9 9 0 0 1 10 103" fill="none" stroke="var(--text-muted)" stroke-width="2"/>
+<circle cx="10" cy="112" r="5" fill="var(--text-muted)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="28" y="116" font-family="Inter" font-size="11" font-weight="400" fill="var(--text-muted)">Moved in — half-ring facing the centre</text>
+<g aria-hidden="true">
+<path d="M 10 127 A 9 9 0 0 1 10 145" fill="none" stroke="var(--text-muted)" stroke-width="2"/>
+<circle cx="10" cy="136" r="5" fill="var(--text-muted)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="28" y="140" font-family="Inter" font-size="11" font-weight="400" fill="var(--text-muted)">Moved out — half-ring facing the outer edge</text>
+</g>
+</g>
+</svg>
+</div>
+<div class="narrow-legend">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 426">
+<g transform="translate(0 -548.629)">
+<g transform="translate(8 548.629)">
+<rect x="0" y="0" width="404" height="406" rx="8" fill="var(--surface-2)" stroke="none"/>
+<g transform="translate(12 8)">
+<g role="heading" aria-level="2">
+<text x="0" y="14" font-family="Inter" font-size="13" font-weight="600" fill="var(--text-primary)">Legend</text>
+</g>
+<g aria-hidden="true">
+<circle cx="5" cy="32" r="5" fill="var(--series-1)" stroke="none"/>
+</g>
+<g role="heading" aria-level="3">
+<text x="16" y="36" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.36" fill="var(--text-primary)">Platform</text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="54" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="var(--text-muted)">Adopt</text>
+</g>
+<g role="button" tabindex="0" aria-label="1. Kubernetes, Default; Platform quadrant, Adopt ring" data-row="6" data-legend-row="6">
+<rect x="38" y="58" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
+<g data-row-indicator="6" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="59" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="6" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="64" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
+<circle cx="52" cy="76" r="8" fill="var(--series-1)" stroke="var(--series-1)" stroke-width="1.5"/>
+<text x="52" y="79.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">1</text>
+<text x="68" y="76.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Kubernetes<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Default</tspan></text>
+</g>
+<g aria-hidden="true">
+<circle cx="5" cy="110" r="5" fill="var(--series-2)" stroke="none"/>
+</g>
+<g role="heading" aria-level="3">
+<text x="16" y="114" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.36" fill="var(--text-primary)">Practice</text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="132" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="var(--text-muted)">Adopt</text>
+</g>
+<g role="button" tabindex="0" aria-label="2. Trunk-Based Development, Default; Practice quadrant, Adopt ring" data-row="7" data-legend-row="7">
+<rect x="38" y="136" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
+<g data-row-indicator="7" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="137" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="7" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="142" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
+<circle cx="52" cy="154" r="8" fill="var(--series-2)" stroke="var(--series-2)" stroke-width="1.5"/>
+<text x="52" y="157.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">2</text>
+<text x="68" y="154.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Trunk-Based Development<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Default</tspan></text>
+</g>
+<g aria-hidden="true">
+<circle cx="5" cy="188" r="5" fill="var(--series-3)" stroke="none"/>
+</g>
+<g role="heading" aria-level="3">
+<text x="16" y="192" font-family="Inter" font-size="12" font-weight="600" letter-spacing="0.36" fill="var(--text-primary)">Tool</text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="210" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="var(--text-muted)">Trial</text>
+</g>
+<g role="button" tabindex="0" aria-label="3. Ansible, Moved In; Tool quadrant, Trial ring" data-row="4" data-legend-row="4">
+<rect x="38" y="214" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
+<g data-row-indicator="4" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="215" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="4" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="220" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
+<circle cx="52" cy="232" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
+<text x="52" y="235.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">3</text>
+<text x="68" y="232.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Ansible<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Moved In</tspan></text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="262" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="var(--text-muted)">Adopt</text>
+</g>
+<g role="button" tabindex="0" aria-label="4. Pulumi, Conditional, New; Tool quadrant, Adopt ring" data-row="3" data-legend-row="3">
+<rect x="38" y="266" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
+<g data-row-indicator="3" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="267" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="3" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="272" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
+<circle cx="52" cy="284" r="8" fill="var(--marker-hollow)" stroke="var(--series-3)" stroke-width="2"/>
+<text x="52" y="287.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="var(--text-primary)" pointer-events="none">4</text>
+<text x="68" y="284.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Pulumi<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Conditional · New</tspan></text>
+</g>
+<g role="button" tabindex="0" aria-label="5. Terraform, Default; Tool quadrant, Adopt ring" data-row="2" data-legend-row="2">
+<rect x="38" y="302" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
+<g data-row-indicator="2" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="303" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="2" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="308" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
+<circle cx="52" cy="320" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
+<text x="52" y="323.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">5</text>
+<text x="68" y="320.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Terraform<tspan dx="5.047" font-size="10.5" font-weight="400" fill="var(--text-muted)"> Default</tspan></text>
+</g>
+<g role="heading" aria-level="4">
+<text x="24" y="350" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="var(--text-muted)">Retire</text>
+</g>
+<g role="button" tabindex="0" aria-label="6. Chef; Tool quadrant, Retire ring" data-row="5" data-legend-row="5">
+<rect x="38" y="354" width="283.077" height="36" rx="6" fill="var(--surface-2)" stroke="none"/>
+<g data-row-indicator="5" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="355" width="281.077" height="34" rx="5" fill="none" stroke="none"/>
+</g>
+<g data-selection="5" visibility="hidden" aria-hidden="true" pointer-events="none">
+<rect x="39" y="360" width="3" height="24" fill="var(--text-primary)" stroke="none"/>
+</g>
+<circle cx="52" cy="372" r="8" fill="var(--series-3)" stroke="var(--series-3)" stroke-width="1.5"/>
+<text x="52" y="375.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF" pointer-events="none">6</text>
+<text x="68" y="372.5" font-family="Inter" font-size="12.5" font-weight="400" fill="var(--text-primary)" pointer-events="none">Chef</text>
+</g>
+</g>
+</g>
+</g>
+</svg>
+</div>
+
+</div>
+<section id="detail" class="detail" aria-label="Item details" hidden=""><div class="detail-head"><h2 class="detail-heading" tabindex="-1"></h2><button type="button" class="detail-close">Close</button></div><dl><dt></dt><dd></dd></dl><p class="detail-empty" hidden="">No further details.</p></section>
+<h2 class="table-heading" id="table-heading">Every item</h2>
+<details class="table-view"><summary>The table</summary>
+<div class="table-scroll" role="region" aria-labelledby="table-heading" tabindex="0">
+<table>
+<thead><tr><th scope="col"><span aria-hidden="true">#</span><span class="visually-hidden">Number</span></th><th scope="col">name</th><th scope="col">quadrant</th><th scope="col">ring</th><th scope="col">description</th><th scope="col">qualifier</th><th scope="col">domain</th><th scope="col">rationale</th><th scope="col">last_affirmed</th><th scope="col">exit_date</th><th scope="col">status</th></tr></thead>
+<tbody>
+<tr data-row="6"><td class="number">1</td><th scope="row"><button type="button" data-row="6">Kubernetes</button></th><td>Platform</td><td>Adopt</td><td class="prose">Container orchestration platform for deploying, scaling, and managing containerised workloads.</td><td>default</td><td class="prose">Container Orchestration</td><td class="prose">Default for all new containerised workloads.</td><td>2026-06-01</td><td></td><td></td></tr>
+<tr data-row="7"><td class="number">2</td><th scope="row"><button type="button" data-row="7">Trunk-Based Development</button></th><td>Practice</td><td>Adopt</td><td class="prose">Developers integrate small, frequent changes into a shared trunk.</td><td>default</td><td class="prose">Delivery Practice</td><td class="prose">Default branching model for managed delivery teams.</td><td>2026-06-01</td><td></td><td></td></tr>
+<tr data-row="4"><td class="number">3</td><th scope="row"><button type="button" data-row="4">Ansible</button></th><td>Tool</td><td>Trial</td><td class="prose">Agentless configuration management and orchestration over SSH.</td><td></td><td class="prose">Configuration Management</td><td class="prose">Bounded trial on one managed estate; was Assess last edition.</td><td>2026-05-12</td><td></td><td>Moved In</td></tr>
+<tr data-row="3"><td class="number">4</td><th scope="row"><button type="button" data-row="3">Pulumi</button></th><td>Tool</td><td>Adopt</td><td class="prose">Infrastructure-as-code authored in a general-purpose language instead of a domain-specific syntax.</td><td>conditional</td><td class="prose">Infrastructure as Code</td><td class="prose">Acceptable where a client mandates a general-purpose language over HCL.</td><td>2026-06-01</td><td></td><td>New</td></tr>
+<tr data-row="2"><td class="number">5</td><th scope="row"><button type="button" data-row="2">Terraform</button></th><td>Tool</td><td>Adopt</td><td class="prose">Declarative infrastructure-as-code tool for provisioning cloud and on-prem resources.</td><td>default</td><td class="prose">Infrastructure as Code</td><td class="prose">Default IaC tool across all managed environments.</td><td>2026-06-01</td><td></td><td>No Change</td></tr>
+<tr data-row="5"><td class="number">6</td><th scope="row"><button type="button" data-row="5">Chef</button></th><td>Tool</td><td>Retire</td><td class="prose">Agent-based configuration management using a Ruby DSL.</td><td></td><td class="prose">Configuration Management</td><td class="prose">Superseded by the Ansible trial outcome; migration owned and scheduled.</td><td>2026-03-15</td><td>2027-01-31</td><td></td></tr>
+</tbody></table></div></details>
+</main>
+<script>
+// radargen's interactive layer (FR-37, FR-38, FR-48, FR-49, FR-56, FR-72,
+// FR-73, FR-98; architecture §5).
+//
+// Constant: it holds nothing from the CSV and reads what it needs from the
+// page, so every page carries these same bytes (NFR-4) and no CSV text is
+// ever script (NFR-6). It requests nothing (NFR-5). Without it the page
+// still works: markers keep their native outline, the table shows every
+// row, and the controls it drives stay hidden.
+(() => {
+  'use strict';
+
+  // Every attribute, class and id this script uses. A Rust test checks
+  // each value against the constant the page is written with.
+  const N = {
+    row: 'data-row',
+    marker: 'data-marker',
+    legend: 'data-legend-row',
+    hit: 'data-hit',
+    markerIndicator: 'data-marker-indicator',
+    focused: 'data-focused',
+    selected: 'data-selected',
+    hovered: 'data-hovered',
+    expanded: 'aria-expanded',
+    controls: 'aria-controls',
+    panel: 'detail',
+    heading: 'detail-heading',
+    close: 'detail-close',
+    empty: 'detail-empty',
+    prose: 'prose',
+    tableView: 'table-view',
+    narrowQuery: 'data-narrow-query',
+    theme: 'data-theme',
+    toDark: 'Switch to dark theme',
+    toLight: 'Switch to light theme',
+    js: 'js',
+    toggle: 'theme-toggle',
+    legendToggle: 'legend-toggle',
+    legendState: 'data-legend',
+    legendHidden: 'hidden',
+    hideLegend: 'Hide legend',
+    showLegend: 'Show legend',
+    skipLegend: 'Skip to the legend',
+    skipTable: 'Skip to the table',
+    words: 'visually-hidden',
+    skip: 'skip',
+    arrangement: 'arrangement',
+    legendScroll: 'wide-legend',
+  };
+
+  const root = document.documentElement;
+  const main = document.querySelector('main');
+  // Items are held as their key and kind, never as elements: a breakpoint
+  // change hides an element, and Chromium then moves focus to the body, so
+  // only the key survives (architecture §5). `focus` is the control last
+  // focused, `open` the item whose panel shows and what opened it, and
+  // `hovered` the key under the pointer.
+  const TABLE = 'table';
+  const state = { focus: null, open: null, hovered: null };
+
+  // `[name="key"]`: every element of an item carries its key (§5).
+  const by = (name, key) => '[' + name + '="' + key + '"]';
+  const shown = () =>
+    [...document.querySelectorAll('.' + N.arrangement)].find(
+      (a) => getComputedStyle(a).display !== 'none',
+    );
+  const control = (node) =>
+    node instanceof Element ? node.closest('[' + N.marker + '],[' + N.legend + ']') : null;
+  const kindOf = (el) => (el.hasAttribute(N.marker) ? N.marker : N.legend);
+  // Rendered and visible: a hidden wide legend stays in its track,
+  // invisible, so its rows still have boxes (RG-102).
+  const isShown = (el) =>
+    !!el?.getClientRects().length && getComputedStyle(el).visibility !== 'hidden';
+  // Focus is lost when it sits on nothing, on the page itself, or on an
+  // element no longer shown: one in an arrangement a breakpoint hid, or a
+  // legend row a press hid. WebKit, and Firefox on macOS, do not focus a
+  // clicked button, so a press leaves focus on the body or on that row.
+  const focusLost = () => {
+    const now = document.activeElement;
+    return !now || now === document.body || !isShown(now);
+  };
+  const keyOf = (el) => el.getAttribute(kindOf(el));
+
+  // A marker's focus ring lives in the indicator layer, after every marker,
+  // so it is shown by attribute rather than by a rule per key (rg-jri). The
+  // focused indicator moves last in its layer, so no later indicator shown
+  // for hover or selection covers it (FR-48, D-66).
+  const ring = (el, on) => {
+    const indicator = el
+      .closest('svg')
+      .querySelector(by(N.markerIndicator, keyOf(el)));
+    if (!indicator) return;
+    indicator.toggleAttribute(N.focused, on);
+    if (on && indicator !== indicator.parentNode.lastElementChild) indicator.parentNode.append(indicator);
+  };
+  const showRing = (el) => {
+    if (kindOf(el) === N.marker) ring(el, el.matches(':focus-visible'));
+  };
+
+  document.addEventListener('focusin', (event) => {
+    const el = control(event.target);
+    state.focus = el ? { key: keyOf(el), kind: kindOf(el) } : null;
+    if (el) showRing(el);
+  });
+  document.addEventListener('focusout', (event) => {
+    const el = control(event.target);
+    if (!el) return;
+    if (kindOf(el) === N.marker) ring(el, false);
+    // Still rendered, so the reader left it, and a later breakpoint change
+    // must not pull focus back. A blur from the breakpoint itself comes
+    // once the element is hidden, which keeps the key.
+    if (el.getClientRects().length > 0) state.focus = null;
+  });
+
+  // A breakpoint change hides the arrangement holding the focus; focus the
+  // same item in the one now shown. When the change event fires, Chromium
+  // may not yet have moved focus off the hidden element, so focus counts as
+  // lost by focusLost(), which that late blur cannot fool.
+  matchMedia(main.getAttribute(N.narrowQuery)).addEventListener('change', () => {
+    if (!state.focus || !focusLost()) return;
+    const { key, kind } = state.focus;
+    const el = shown()?.querySelector(by(kind, key));
+    if (el) el.focus();
+  });
+
+  // FR-38's panel, built from the item's table row (D-80): its heading is
+  // the number and name, and each non-empty cell after the name becomes a
+  // term and its value, cloned so a link keeps the table's escaped address.
+  // The prototypes for those come from the page, so the script makes no
+  // markup of its own (NFR-6).
+  const panel = document.getElementById(N.panel);
+  const heading = panel.querySelector('.' + N.heading);
+  const list = panel.querySelector('dl');
+  const empty = panel.querySelector('.' + N.empty);
+  const termShape = list.querySelector('dt');
+  const valueShape = list.querySelector('dd');
+  list.replaceChildren();
+  const details = document.querySelector('details.' + N.tableView);
+  const tableRow = (key) => document.querySelector('tr' + by(N.row, key));
+  const tableButton = (key) => tableRow(key)?.querySelector('button');
+
+  const fill = (key) => {
+    const row = tableRow(key);
+    const titles = [...row.closest('table').querySelectorAll('thead th')];
+    const cells = [...row.children];
+    const nameAt = cells.findIndex((c) => c.tagName === 'TH');
+    const number = cells[0].textContent;
+    const name = cells[nameAt].textContent;
+    heading.textContent = number ? number + '. ' + name : name;
+    list.replaceChildren();
+    cells.slice(nameAt + 1).forEach((cell, i) => {
+      if (!cell.textContent.trim()) return;
+      const term = termShape.cloneNode(false);
+      term.textContent = titles[nameAt + 1 + i].textContent;
+      const value = valueShape.cloneNode(false);
+      for (const child of cell.childNodes) value.append(child.cloneNode(true));
+      if (cell.classList.contains(N.prose)) value.classList.add(N.prose);
+      list.append(term, value);
+    });
+    list.hidden = list.childElementCount === 0;
+    empty.hidden = !list.hidden;
+  };
+
+  // The sticky panel must never hide what has focus (WCAG 2.4.11): not on
+  // the page, nor in the wide legend's own scrolling box (D-85). The box is
+  // padded by as much of it as the panel covers, so a row focused in it is
+  // scrolled within it, above the panel, rather than the page moving and
+  // taking the radar with it. Scroll padding adds no room to scroll into,
+  // so the box gets that much real padding too, or its last rows could
+  // never clear the panel.
+  const boxes = [...document.querySelectorAll('.' + N.legendScroll)];
+  // Every size is read before any style is written, so a scroll forces
+  // no extra layout.
+  const pad = () => {
+    const top = panel.getBoundingClientRect().top;
+    const height = panel.offsetHeight;
+    // The overlap only: never more than the box, or padding would grow it.
+    const unders = boxes.map((box) => {
+      const r = box.getBoundingClientRect();
+      return panel.hidden ? 0 : r.bottom - Math.max(top, r.top);
+    });
+    root.style.scrollPaddingBottom = panel.hidden ? '' : height + 'px';
+    boxes.forEach((box, i) => {
+      const by = unders[i] > 0 ? unders[i] + 'px' : '';
+      box.style.scrollPaddingBottom = by;
+      box.style.paddingBottom = by;
+    });
+  };
+  new ResizeObserver(pad).observe(panel);
+  addEventListener('scroll', pad, { passive: true });
+  addEventListener('resize', pad);
+
+  // Every element of an item that matches `own`: its controls, its table
+  // row and button, and its marker's indicators.
+  const parts = (key, own) =>
+    document.querySelectorAll(own + by(N.row, key) + ',' + by(N.markerIndicator, key));
+
+  // FR-72: selection shows on every element of the item, both arrangements
+  // and the table; FR-73's marks come from the page's fixed rules.
+  const mark = (key, on) => {
+    for (const el of parts(key, '')) {
+      el.toggleAttribute(N.selected, on);
+      if (el.hasAttribute(N.expanded)) el.setAttribute(N.expanded, String(on));
+    }
+  };
+
+  // Where focus returns for `key`: its opener in the arrangement shown if
+  // still rendered, else its marker there (a legend row hidden since it
+  // opened the panel), else its table button, or the table's toggle while
+  // the table is closed.
+  const opener = (key, kind) => {
+    const rendered = (k) => {
+      const el = shown()?.querySelector(by(k, key));
+      return isShown(el) ? el : null;
+    };
+    if (kind !== TABLE) {
+      const el = rendered(kind) ?? rendered(N.marker);
+      if (el) return el;
+    }
+    return details.open ? tableButton(key) : details.querySelector('summary');
+  };
+
+  const open = (key, kind) => {
+    if (state.open) mark(state.open.key, false);
+    state.open = { key, kind };
+    fill(key);
+    mark(key, true);
+    panel.hidden = false;
+    pad();
+    heading.focus({ preventScroll: true });
+    // Sticky lifts the panel from below the viewport, never down from above
+    // it: opened from deep in the table, it would be out of sight.
+    const box = panel.getBoundingClientRect();
+    if (box.bottom <= 0 || box.top >= innerHeight) panel.scrollIntoView({ block: 'nearest' });
+  };
+  const close = (returnFocus) => {
+    if (!state.open) return;
+    const { key, kind } = state.open;
+    mark(key, false);
+    state.open = null;
+    panel.hidden = true;
+    pad();
+    if (returnFocus) opener(key, kind)?.focus();
+  };
+  // Activating the open item again closes it, leaving focus where the
+  // activation put it (FR-38).
+  const activate = (key, kind) => (state.open?.key === key ? close(false) : open(key, kind));
+
+  // The control an event's target stands for: a marker, a legend row, or the
+  // marker a hit area enlarges (FR-94).
+  const target = (node) => {
+    if (!(node instanceof Element)) return null;
+    const hit = node.closest('[' + N.hit + ']');
+    if (!hit) return control(node);
+    return hit.closest('svg').querySelector(by(N.marker, hit.getAttribute(N.hit)));
+  };
+
+  document.addEventListener('click', (event) => {
+    const node = event.target;
+    if (!(node instanceof Element)) return;
+    if (node.closest('.' + N.close)) return close(true);
+    const el = target(node);
+    if (el) {
+      // A hit area takes no focus, so its marker does, and is where focus
+      // stays if this activation closes the panel.
+      if (el !== control(node)) el.focus({ preventScroll: true });
+      return activate(keyOf(el), kindOf(el));
+    }
+    const button = node.closest('tr[' + N.row + '] button');
+    if (button) activate(button.getAttribute(N.row), TABLE);
+  });
+
+  // FR-48: Enter and Space work as a click, as on a native button; FR-49:
+  // Escape closes the panel and returns focus. Escape acts only from the
+  // panel or the open item's own control, so it never moves focus from
+  // anywhere else.
+  const svgButton = (node) => (control(node) === node ? node : null);
+  // Space activates on release only where it was pressed, as a native
+  // button does.
+  let spaceOn = null;
+  document.addEventListener('keydown', (event) => {
+    const active = document.activeElement;
+    const focusedControl = control(active);
+    if (focusedControl) showRing(focusedControl);
+    if (event.defaultPrevented || event.isComposing) return;
+    const el = svgButton(event.target);
+    if (el && event.key === 'Enter') {
+      event.preventDefault();
+      if (!event.repeat) activate(keyOf(el), kindOf(el));
+    } else if (el && event.key === ' ') {
+      event.preventDefault();
+      spaceOn = el;
+    } else if (event.key === 'Escape' && state.open) {
+      // From the panel, focus goes back to the opener; from one of the open
+      // item's own controls, it stays where the reader is.
+      if (panel.contains(active)) {
+        event.preventDefault();
+        close(true);
+      } else if (active?.getAttribute(N.expanded) === 'true') {
+        event.preventDefault();
+        close(false);
+      }
+    }
+  });
+  document.addEventListener('keyup', (event) => {
+    if (event.key !== ' ') return;
+    const el = svgButton(event.target);
+    if (el && el === spaceOn) activate(keyOf(el), kindOf(el));
+    spaceOn = null;
+  });
+
+  // FR-37: the pointer over a marker lights its legend row, and the
+  // reverse. A touch has no hover to end, so it sets none.
+  const hover = (key) => {
+    if (state.hovered === key) return;
+    const set = (k, on) => {
+      for (const el of parts(k, '[role=button]')) el.toggleAttribute(N.hovered, on);
+    };
+    if (state.hovered) set(state.hovered, false);
+    state.hovered = key;
+    if (key) set(key, true);
+  };
+  document.addEventListener('pointerover', (event) => {
+    if (event.pointerType === 'touch') return;
+    const el = target(event.target);
+    hover(el ? keyOf(el) : null);
+  });
+  document.addEventListener('pointerout', (event) => {
+    if (!event.relatedTarget) hover(null);
+  });
+
+  // FR-56: the viewer's preference until a press chooses; the label says
+  // what the next press does. A page drawn with --palette has one set of
+  // colours and no toggle, so none of this runs there.
+  const toggle = document.querySelector('.' + N.toggle);
+  if (toggle) {
+    const prefersDark = matchMedia('(prefers-color-scheme: dark)');
+    const dark = () => {
+      const chosen = root.getAttribute(N.theme);
+      return chosen ? chosen === 'dark' : prefersDark.matches;
+    };
+    // The hidden words name the button and its title repeats them as a hover
+    // tooltip for a sighted mouse user, who sees only the icon (rg-7gd); the
+    // stylesheet picks the icon.
+    const words = toggle.querySelector('.' + N.words);
+    const label = () => {
+      toggle.title = words.textContent = dark() ? N.toLight : N.toDark;
+    };
+    toggle.addEventListener('click', () => {
+      root.setAttribute(N.theme, dark() ? 'light' : 'dark');
+      label();
+    });
+    prefersDark.addEventListener('change', label);
+    label();
+    toggle.hidden = false;
+  }
+
+  // FR-98, RG-102: past the markers to the legend of the arrangement
+  // shown, or to the table while the legend is hidden.
+  const skip = document.querySelector('.' + N.skip);
+  const plotted = !!document.querySelector('[' + N.legend + ']');
+  const isLegendHidden = () => root.getAttribute(N.legendState) === N.legendHidden;
+  skip.addEventListener('click', () => {
+    if (isLegendHidden()) details.querySelector('summary').focus();
+    else shown()?.querySelector('[' + N.legend + ']')?.focus();
+  });
+
+  // RG-102: the legend button hides and shows both arrangements' legends.
+  // Its name says what a press does, and the skip link follows the state.
+  const legendToggle = document.querySelector('.' + N.legendToggle);
+  const legendWords = legendToggle.querySelector('.' + N.words);
+  const showLegendState = () => {
+    const hidden = isLegendHidden();
+    // The name, and its hover tooltip, as for the theme toggle (rg-7gd).
+    legendToggle.title = legendWords.textContent = hidden ? N.showLegend : N.hideLegend;
+    skip.textContent = hidden ? N.skipTable : N.skipLegend;
+  };
+  legendToggle.addEventListener('click', () => {
+    if (isLegendHidden()) root.removeAttribute(N.legendState);
+    else root.setAttribute(N.legendState, N.legendHidden);
+    showLegendState();
+    if (focusLost()) legendToggle.focus();
+  });
+
+  // D-66: every control says whether its panel is open, and names it.
+  for (const el of document.querySelectorAll(
+    '[role=button][' + N.row + '],tr[' + N.row + '] button',
+  )) {
+    el.setAttribute(N.expanded, 'false');
+    el.setAttribute(N.controls, N.panel);
+  }
+  root.classList.add(N.js);
+  // With nothing plotted there is no legend to hide or skip to.
+  showLegendState();
+  legendToggle.hidden = !plotted;
+  skip.hidden = !plotted;
+})();
+</script>
+</body>
+</html>

@@ -9,7 +9,7 @@ use clap::Parser;
 use std::path::{Path, PathBuf};
 
 use crate::diagnostics::{Fatal, Flag, RenderKind, Warning, Warnings};
-pub use crate::emit::html::Legend;
+pub use crate::emit::html::{Legend, Table};
 use crate::escape::remove_undisplayable;
 pub use crate::palette::Theme;
 use crate::starter::Starter;
@@ -89,8 +89,8 @@ pub struct Cli {
     ///
     /// For example "Hold,Assess,Trial,Adopt". The list replaces the default
     /// set, which is Assess, Trial, Adopt, Retire. A row's ring matches in any
-    /// case; a row whose ring is not in the list is left off the radar and
-    /// listed in the table, with a warning.
+    /// case; a row whose ring is not in the list is left off the radar, with
+    /// a warning, and an HTML page's table lists it only with --table all.
     #[arg(short, long)]
     pub rings: Option<String>,
 
@@ -128,6 +128,18 @@ pub struct Cli {
     /// it either way. PNG and SVG always draw the legend.
     #[arg(long, value_enum, default_value_t = Legend::Shown, ignore_case = true)]
     pub legend: Legend,
+
+    // FR-106, D-95: the page publishes what the radar draws unless asked
+    // for everything, so a CSV that doubles as an internal register is not
+    // published whole by default. PNG and SVG have no table, so the pipeline
+    // warns on `all` there, as it does on `--legend hidden`. No aliases and
+    // no short form: it is set once per radar, like --legend.
+    /// What an HTML page's table lists.
+    ///
+    /// A row or column the table leaves out is in no detail panel either.
+    /// Accepted in any letter case. PNG and SVG have no table.
+    #[arg(long, value_enum, default_value_t = Table::Radar, ignore_case = true)]
+    pub table: Table,
 
     // FR-57: the height always follows the document's aspect ratio and is
     // never a second flag. The range is FR-64's, enforced by clap so the

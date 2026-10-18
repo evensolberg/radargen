@@ -26,7 +26,7 @@ mod script;
 mod table;
 mod vocabulary;
 
-use radargen::emit::html::{Legend, Page, page};
+use radargen::emit::html::{Legend, Page, Table, page};
 use radargen::layout::arrange::{
     Arrangement, Blocks, NarrowParts, WideParts, narrow_parts, wide_parts,
 };
@@ -58,7 +58,9 @@ impl Built {
         )
     }
 
-    /// As [`Built::page_of`], in `colours`.
+    /// As [`Built::page_of`], in `colours`. The table is `--table all`'s,
+    /// so the tests of every row and column read the whole catalogue;
+    /// [`Built::page_table`] chooses.
     fn page_in(
         &self,
         wide: &WideParts,
@@ -66,6 +68,19 @@ impl Built {
         title: Option<&str>,
         colours: &Colours,
         legend: Legend,
+    ) -> String {
+        self.page_full(wide, narrow, title, colours, legend, Table::All)
+    }
+
+    /// As [`Built::page_in`], its table publishing `table`.
+    fn page_full(
+        &self,
+        wide: &WideParts,
+        narrow: &NarrowParts,
+        title: Option<&str>,
+        colours: &Colours,
+        legend: Legend,
+        table: Table,
     ) -> String {
         page(&Page {
             wide,
@@ -75,7 +90,21 @@ impl Built {
             title,
             colours,
             legend,
+            table,
         })
+    }
+
+    /// The page for both arrangements of these blocks, titled `title`, its
+    /// table publishing `table`.
+    fn page_table(&self, title: Option<&str>, table: Table) -> String {
+        self.page_full(
+            &wide_parts(&self.blocks),
+            &narrow_parts(&self.blocks),
+            title,
+            &Colours::BuiltIn(Theme::Light),
+            Legend::Shown,
+            table,
+        )
     }
 
     /// The page for both arrangements of these blocks, its legend starting

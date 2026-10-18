@@ -5,7 +5,7 @@
 use std::collections::BTreeSet;
 
 use radargen::emit::OUTPUT_VERSION;
-use radargen::emit::html::Legend;
+use radargen::emit::html::{Legend, Table};
 use radargen::layout::arrange::{NarrowParts, WideParts, narrow_parts, wide_parts};
 use radargen::num::fmt_coord;
 
@@ -266,12 +266,28 @@ fn elided(html: &str) -> (String, usize) {
     })
 }
 
-/// NFR-4: the PRD example's page, byte for byte (architecture §10).
+/// NFR-4: the PRD example's page under `--table all`, byte for byte
+/// (architecture §10). It pins the page as it was before FR-106 gave the
+/// table a choice: `all` publishes every row, so the unplotted `Rejected`
+/// row is in it.
 #[test]
 fn prd_page_matches_its_golden() {
     let (html, count) = elided(&prd_page(Some("Technology Radar")));
     assert_eq!(count, 2, "both font faces were inlined");
     golden("html", "prd.html", &html);
+}
+
+/// NFR-4: the PRD example's page under the default `--table radar`, byte
+/// for byte: as `prd.html` without the unplotted row (FR-106).
+#[test]
+fn prd_radar_page_matches_its_golden() {
+    let (html, count) = elided(&prd().page_table(Some("Technology Radar"), Table::Radar));
+    assert_eq!(count, 2, "both font faces were inlined");
+    assert!(
+        !html.contains("Legacy Ticketing"),
+        "the unplotted row is not published"
+    );
+    golden("html", "prd-radar.html", &html);
 }
 
 /// RG-102: the page records where its legend starts on <html>; shown is the
