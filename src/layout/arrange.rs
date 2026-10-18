@@ -1815,16 +1815,43 @@ mod tests {
         assert_eq!(title_lines(&arrange(Arrangement::Narrow, &b)).len(), 2);
     }
 
+    /// rg-0ms: each arrangement's title is wrapped at exactly its part's
+    /// width less two margins: after D-86's growth in wide, and at D-71's
+    /// widened document in narrow, neither of which is the 630 or 380 an
+    /// ungrown, unwidened radar gives.
+    #[test]
+    fn the_title_wraps_at_its_part_exactly() {
+        let long = "Technology radar ".repeat(12);
+        let titles = Titles {
+            title: Some(&long),
+            subtitle: Some(&long),
+        };
+        for (name, csv) in [("grown", innermost("Q", 12)), ("beyond", beyond())] {
+            let b = blocks(&csv, titles);
+            let wide = wide_parts(&b).title.width - MARGIN - MARGIN;
+            let narrow = arrange(Arrangement::Narrow, &b).width - MARGIN - MARGIN;
+            let wrap = |measure| Wrap::new(titles.title, titles.subtitle, measure, fonts());
+            assert_eq!(b.title.wide(), &wrap(wide), "{name} wide");
+            assert_eq!(b.title.narrow(), &wrap(narrow), "{name} narrow");
+        }
+        let grown = blocks(&innermost("Q", 12), titles);
+        assert!(grown.radar.growth() > 1.0);
+        assert!(wide_parts(&grown).title.width - MARGIN - MARGIN > 630.0);
+        let beyond = blocks(&beyond(), titles);
+        assert!(arrange(Arrangement::Narrow, &beyond).width - MARGIN - MARGIN > LEGEND_WIDTH_MAX);
+    }
+
     /// rg-0ms: a title that fits the legend column draws the same in both
     /// arrangements, and the same as before.
     #[test]
     fn a_short_title_is_unchanged() {
-        for (name, b) in fixtures() {
+        let short = fixtures()
+            .into_iter()
+            .filter(|(_, b)| b.title.wide().size(1.0).width <= LEGEND_WIDTH_MAX);
+        for (name, b) in short {
             let [wide, ..] = children(&arrange(Arrangement::Wide, &b)).map(Clone::clone);
             let [narrow, ..] = children(&arrange(Arrangement::Narrow, &b)).map(Clone::clone);
-            if name != "long title" {
-                assert_eq!(wide, narrow, "{name}");
-            }
+            assert_eq!(wide, narrow, "{name}");
         }
         let b = blocks(PRD_EXAMPLE, TITLED);
         assert_eq!(
