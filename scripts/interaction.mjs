@@ -419,6 +419,8 @@ try {
       // Printed, the legend shows: a printout has no button.
       await send('Emulation.setEmulatedMedia', { media: 'print' });
       check(await allShown(), 'printed, the legend shows');
+      // rg-kw7: and the controls, which do nothing on paper, are not printed.
+      check((await evaluate(`getComputedStyle(document.querySelector('.page-controls')).display`)) === 'none', 'printed, the controls are not');
       await send('Emulation.setEmulatedMedia', { media: '' });
       await load(width, { page: hiddenUrl, script: false });
       check(await allShown(), 'without script the legend shows');

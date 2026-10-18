@@ -1,19 +1,22 @@
-## [1.6.3] - 2026-10-17
+## [1.6.4] - 2026-10-18
 
 ### 🐛 Bug Fixes
 
-- *(palette)* A forgotten ; is its own error (rg-p9a)
-- *(palette)* Stay linear on forgotten semicolons; more cases (rg-p9a)
+- *(html)* The page controls are not printed (rg-kw7)
 
-### 🚜 Refactor
+### 📚 Documentation
 
-- *(palette)* Read each ;-segment once (rg-p9a)
-- *(palette)* A checked split at a forgotten ; (rg-p9a)
+- *(prd)* FR-58 allows the one print rule; pin its order (rg-kw7)
 
 ### ⚙️ Miscellaneous Tasks
 
-- *(crumbs)* Close rg-p9a and rg-x5g
-- *(release)* 1.6.3
+- *(crumbs)* Close rg-kw7
+- *(release)* 1.6.4
+## [1.6.3] - 2026-10-18
+
+### 🐛 Bug Fixes
+
+- *(palette)* A forgotten ; is its own error (1.6.3) (#119)
 ## [1.6.2] - 2026-10-17
 
 ### 🐛 Bug Fixes

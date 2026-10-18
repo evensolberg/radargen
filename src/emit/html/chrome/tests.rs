@@ -243,7 +243,7 @@ fn the_toggle_shows_the_icon_its_palette_picks() {
 fn the_skip_link_is_drawn_over_the_page() {
     for toggle in [true, false] {
         assert!(
-            super::css(&WIDE, toggle).ends_with(SKIP_OVER_PAGE),
+            super::css(&WIDE, toggle).contains(SKIP_OVER_PAGE),
             "{toggle}"
         );
     }
@@ -304,4 +304,18 @@ fn the_controls_height_the_radar_cap_allows_for() {
     assert!(super::BUTTON_OPEN.contains("border:1px solid var("));
     assert!(super::BUTTON_OPEN.contains("font:inherit;"));
     assert!(super::super::css::CAP_UNDER.contains(" - 3.05rem - 2px)"));
+}
+
+/// rg-kw7: a printout has no use for the page's buttons, so the controls
+/// bar is not printed, on any page. The rule overrides the bar's by order,
+/// so it comes last.
+#[test]
+fn the_controls_are_not_printed() {
+    for toggle in [true, false] {
+        assert!(
+            super::css(&WIDE, toggle)
+                .ends_with(&[SKIP_OVER_PAGE, super::PRINT_NO_CONTROLS].concat()),
+            "{toggle}"
+        );
+    }
 }
