@@ -638,7 +638,7 @@ signature says whether a stage is capable of warning, which is worth more than
 uniformity.
 
 ```rust
-pub fn build_catalogue(table: &Table, rings: &RingSet, w: &mut Warnings) -> Result<Catalogue, Vec<RowError>>;
+pub fn build_catalogue(table: &Table, rings: &RingSet, off_radar: OffRadar, w: &mut Warnings) -> Result<Catalogue, Vec<RowError>>;
 pub fn layout(cat: &Catalogue, cfg: &Config, w: &mut Warnings) -> Blocks;
 ```
 
@@ -699,10 +699,11 @@ ruled out maps in output-affecting code. Pushing plainly and grouping once at th
 end makes NFR-11's order a stable sort by position, so a stage that pushes a
 line-3 warning after a line-40 one cannot reorder the output.
 FR-17's words depend on where a row it leaves off the radar ends up, which
-only the output and `--table` decide (FR-106). That is an `OffRadar`, passed
-to `Warnings::render` and `Warning::text` rather than held: the pipeline
-computes it from `-o`'s format and `--table` with one pure function, so no
-warning is ever worded for a mode nobody named.
+only the output and `--table` decide (FR-106). Both are known before any row
+is read, so the pipeline computes an `OffRadar` from the `Config` with
+`OffRadar::of` and passes it to `build_catalogue`, and each FR-17 warning
+carries it beside its ring source. Rendering then needs nothing but the
+warnings.
 
 FR-88's quadrant-count warning carries no CSV line, and NFR-11 puts it **before**
 the line-ordered ones. That is a sort key, not a special case: a warning's
