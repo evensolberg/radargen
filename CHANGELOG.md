@@ -1,9 +1,25 @@
+## [1.14.0] - 2026-10-18
+
+### 🚀 Features
+
+- *(title)* Wrap the title at its arrangement's width
+
+### 📚 Documentation
+
+- *(prd)* Record the title's wrap per arrangement (D-99, 0.99)
+
+### 🧪 Testing
+
+- *(title)* Pin the wrap measures to grown and widened parts
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Close rg-0ms
 ## [1.13.1] - 2026-10-18
 
 ### 🐛 Bug Fixes
 
-- *(text)* Bisect a long word's break point instead of scanning (rg-wl7)
-- *(html)* Allow for the controls bar only where it shows (rg-ft5)
+- Radar cap only where the controls show; linear long-word wrap (1.13.1) (#132)
 ## [1.13.0] - 2026-10-18
 
 ### 🚀 Features
