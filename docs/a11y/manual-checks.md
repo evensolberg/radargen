@@ -86,9 +86,9 @@ The expected names come from `three-quadrant.csv`.
    - *Expect (magnifier, ZoomText or macOS Zoom following focus):* after a press that switches the arrangement, the magnified view stays on the button.
    - *Expect (screen reader):* a press that switches the arrangement announces nothing about the layout, only the button's new name if anything, and the reading order afterwards is the same: title, radar, key, then the legend when shown.
 10. **The table** (`interaction.html`). Open *The table* and browse into it.
-   - *Expect:* "Items on the radar, region", then a table with its row and column counts. A page rendered with `--table all` reads "Every item, region" instead.
-   - *Expect:* moving across a row reads each cell with its column header; moving down a column reads the row header (the name).
-   - *Expect, on a page rendered with `--table all`:* the unplotted row's button reads "Legacy Bus, not on the radar". The default page leaves that row out.
+    - *Expect:* "Items on the radar, region", then a table with its row and column counts. A page rendered with `--table all` reads "Every item, region" instead.
+    - *Expect:* moving across a row reads each cell with its column header; moving down a column reads the row header (the name).
+    - *Expect, on a page rendered with `--table all`:* the unplotted row's button reads "Legacy Bus, not on the radar". The default page leaves that row out.
 11. **Two items with one name** (`interaction.html`).
     - *Expect:* the two "Kafka" markers are told apart by their number and position: "1. Kafka, Moved In; Platforms quadrant, Assess ring" and "6. Kafka, New; Tools quadrant, Adopt ring".
 12. **Browse mode and navigation lists.**
