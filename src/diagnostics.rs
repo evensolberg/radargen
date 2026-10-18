@@ -10,7 +10,7 @@ use crate::csv::decode::MAX_BYTES as MAX_CSV_BYTES;
 use crate::emit::html::Table;
 use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::RingsError;
-use crate::settings::{Origin, Setting, Source};
+use crate::settings::{NamedPath, Origin, Setting, Source};
 use crate::starter::Starter;
 use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX, WIDE_MIN_VIEWPORT_PX};
 use crate::text::FontError;
@@ -559,10 +559,10 @@ fn io_reason(error: &std::io::Error) -> String {
 }
 
 /// A palette problem as stderr shows it: located when it has a line.
-fn palette_problem(path: &str, error: &PaletteError) -> String {
+fn palette_problem(palette: &NamedPath, error: &PaletteError) -> String {
     error.line().map_or_else(
-        || format!("--palette {path}: {error}"),
-        |line| format!("--palette {path}, line {line}: {error}"),
+        || format!("{palette}: {error}"),
+        |line| format!("{palette}, line {line}: {error}"),
     )
 }
 
@@ -1058,10 +1058,10 @@ impl fmt::Display for Separator {
 #[derive(Debug, thiserror::Error)]
 pub enum Fatal {
     /// FR-52: the `-o` extension is absent or names a format we do not write.
-    #[error("-o {path}: the output file name must end in .html, .png or .svg")]
+    #[error("{output}: the output file name must end in .html, .png or .svg")]
     UnrecognisedExtension {
-        /// The `-o` argument as given.
-        path: String,
+        /// The output, by its flag or key, as written.
+        output: NamedPath,
     },
     /// FR-63 on the ring set, from `--rings` or a `--config` file's key
     /// (NFR-16 tier one, NFR-10).
@@ -1082,53 +1082,53 @@ pub enum Fatal {
     },
     /// FR-102, FR-86, FR-87: one problem in the `--palette` file; a file
     /// reports every one (NFR-16 tier one).
-    #[error("{}", palette_problem(path, error))]
+    #[error("{}", palette_problem(palette, error))]
     Palette {
-        /// The file as the author named it.
-        path: String,
+        /// The file, by its flag or key, as the author named it.
+        palette: NamedPath,
         /// What is wrong, and where.
         error: PaletteError,
     },
     /// NFR-15: the `--palette` file does not exist or cannot be read.
-    #[error("--palette {path}: cannot be read: {}", io_reason(source))]
+    #[error("{palette}: cannot be read: {}", io_reason(source))]
     PaletteUnreadable {
-        /// The file as the author named it.
-        path: String,
+        /// The file, by its flag or key, as the author named it.
+        palette: NamedPath,
         /// The underlying I/O failure.
         #[source]
         source: std::io::Error,
     },
     /// NFR-15, FR-102: the `--palette` file is not UTF-8, or holds a NUL.
-    #[error("--palette {path}, line {line}: not UTF-8 text; re-save the file as UTF-8")]
+    #[error("{palette}, line {line}: not UTF-8 text; re-save the file as UTF-8")]
     PaletteNotUtf8 {
-        /// The file as the author named it.
-        path: String,
+        /// The file, by its flag or key, as the author named it.
+        palette: NamedPath,
         /// The physical line holding the first bad byte.
         line: usize,
     },
     /// NFR-15, plan RG-018A R4: the `--palette` file passes the cap, so it
     /// is not a palette, or never ends (`/dev/zero`).
     #[error(
-        "--palette {path}: larger than {} MiB; a palette is a few hundred bytes, so check the path",
+        "{palette}: larger than {} MiB; a palette is a few hundred bytes, so check the path",
         MAX_BYTES >> 20
     )]
     PaletteTooLarge {
-        /// The file as the author named it.
-        path: String,
+        /// The file, by its flag or key, as the author named it.
+        palette: NamedPath,
     },
     /// FR-62: `-o`'s directory does not exist; the tool does not create it.
-    #[error("-o {path}: the directory {dir} does not exist")]
+    #[error("{output}: the directory {dir} does not exist")]
     MissingDirectory {
-        /// The `-o` argument as given.
-        path: String,
+        /// The output, by its flag or key, as written.
+        output: NamedPath,
         /// The directory part of it.
         dir: String,
     },
     /// FR-62, D-74: `-o` is the input CSV, which the page would replace.
-    #[error("-o {path}: is the input CSV; choose another output path")]
+    #[error("{output}: is the input CSV; choose another output path")]
     OutputIsInput {
-        /// The `-o` argument as given.
-        path: String,
+        /// The output, by its flag or key, as written.
+        output: NamedPath,
     },
     /// NFR-15: an embedded font face does not parse.
     #[error(transparent)]
@@ -1155,10 +1155,10 @@ pub enum Fatal {
     /// NFR-15: the output cannot be written: its directory is missing or
     /// unwritable, the path names a directory or a read-only file, or the
     /// disk is full. Nothing at `-o` has changed (NFR-14).
-    #[error("-o {path}: cannot be written: {}", io_reason(source))]
+    #[error("{output}: cannot be written: {}", io_reason(source))]
     Unwritable {
-        /// The `-o` argument as given.
-        path: String,
+        /// The output, by its flag or key, as written.
+        output: NamedPath,
         /// The underlying I/O failure.
         #[source]
         source: std::io::Error,

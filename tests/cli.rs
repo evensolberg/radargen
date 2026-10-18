@@ -71,13 +71,13 @@ fn extension_matching_ignores_case() {
 fn png_and_svg_are_formats() {
     for path in ["r.png", "R.PNG", "r.Png"] {
         assert!(
-            matches!(format(Path::new(path)), Ok(OutputFormat::Png)),
+            matches!(format(Path::new(path)), Some(OutputFormat::Png)),
             "{path}"
         );
     }
     for path in ["e.svg", "E.SVG", "e.Svg"] {
         assert!(
-            matches!(format(Path::new(path)), Ok(OutputFormat::Svg)),
+            matches!(format(Path::new(path)), Some(OutputFormat::Svg)),
             "{path}"
         );
     }
@@ -102,10 +102,7 @@ fn png_and_svg_are_snapshots_named_in_capitals() {
 fn an_unrecognised_or_absent_extension_is_a_different_error() {
     for path in ["e.jpg", "e", "e."] {
         let cli = parse(&["in.csv", "-o", path]).expect("parses");
-        match format(cli.output.as_deref().expect("-o")) {
-            Err(Fatal::UnrecognisedExtension { path: named }) => assert_eq!(named, path),
-            other => panic!("{path} should be unrecognised: {other:?}"),
-        }
+        assert_eq!(format(cli.output.as_deref().expect("-o")), None, "{path}");
     }
 }
 

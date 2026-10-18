@@ -33,7 +33,7 @@ use crate::order::resolve;
 use crate::palette::Colours;
 use crate::palette::file::{self, ReadError};
 use crate::rings::{RingSet, parse_rings};
-use crate::settings::{Origin, Setting, Sourced};
+use crate::settings::{NamedPath, Origin, Setting, Sourced};
 use crate::text::Fonts;
 
 /// The resolved run (architecture §7), read-only once built. The colours
@@ -43,6 +43,9 @@ use crate::text::Fonts;
 pub struct Config {
     /// `-o`, as given.
     pub output: PathBuf,
+    /// How a message names the output: its flag or key, and the path as
+    /// written.
+    pub output_named: NamedPath,
     /// FR-52: what `-o`'s extension asks for.
     pub format: OutputFormat,
     /// FR-56, FR-59: the built-in themes, or a `--palette` file's one set.
@@ -155,7 +158,7 @@ fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
     let off_radar = OffRadar::of(config.format, config.table);
     let catalogue = catalogue(&config.input, &config.rings, off_radar, warnings)?;
     let bytes = render(&catalogue, &config, &fonts, warnings)?;
-    Ok(write_atomic(&config.output, &bytes)?)
+    Ok(write_atomic(&config.output, &config.output_named, &bytes)?)
 }
 
 /// NFR-16 tier one, in order: FR-52's extension, FR-62's directory, D-74's
@@ -167,13 +170,8 @@ fn config(
     output: &Path,
     warnings: &mut Warnings,
 ) -> Result<Config, Vec<Fatal>> {
-    let format = format(output)
-        .and_then(|format| {
-            missing_directory(output)?;
-            output_is_input(output, input)?;
-            Ok(format)
-        })
-        .map_err(|e| vec![e])?;
+    let output_named = NamedPath::flag(Setting::Output, output);
+    let format = output_checks(output, &output_named, input)?;
     let title = cli
         .title
         .clone()
@@ -223,12 +221,13 @@ fn config(
     // the file at once (FR-102), each its own line.
     let colours = match &cli.palette {
         Some(path) => file::read(path)
-            .map_err(|e| palette_errors(path, e))?
+            .map_err(|e| palette_errors(&NamedPath::flag(Setting::Palette, path), e))?
             .into(),
         None => Colours::BuiltIn(cli.theme),
     };
     Ok(Config {
         output: output.to_path_buf(),
+        output_named,
         format,
         colours,
         legend: cli.legend,
@@ -242,34 +241,55 @@ fn config(
     })
 }
 
-/// A `--palette` file's read failure as tier-one errors, named by the flag
-/// (NFR-10). PR 19's `--config` names its key and file instead, so the path
-/// shown is kept apart from the one opened (plan RG-018A, R1).
-fn palette_errors(path: &Path, error: ReadError) -> Vec<Fatal> {
-    let path = path.display().to_string();
+/// A palette file's read failure as tier-one errors, named by its flag or
+/// key, with the path as written rather than as opened (NFR-10, plan
+/// RG-018A, R1).
+fn palette_errors(palette: &NamedPath, error: ReadError) -> Vec<Fatal> {
     match error {
-        ReadError::Unreadable(source) => vec![Fatal::PaletteUnreadable { path, source }],
-        ReadError::TooLarge => vec![Fatal::PaletteTooLarge { path }],
-        ReadError::NotUtf8(NotUtf8 { line }) => vec![Fatal::PaletteNotUtf8 { path, line }],
+        ReadError::Unreadable(source) => vec![Fatal::PaletteUnreadable {
+            palette: palette.clone(),
+            source,
+        }],
+        ReadError::TooLarge => vec![Fatal::PaletteTooLarge {
+            palette: palette.clone(),
+        }],
+        ReadError::NotUtf8(NotUtf8 { line }) => vec![Fatal::PaletteNotUtf8 {
+            palette: palette.clone(),
+            line,
+        }],
         ReadError::Invalid(errors) => errors
             .into_iter()
             .map(|error| Fatal::Palette {
-                path: path.clone(),
+                palette: palette.clone(),
                 error,
             })
             .collect(),
     }
 }
 
+/// FR-52's extension, FR-62's directory and D-74's same-file check on the
+/// output, the first to fail alone (NFR-16 tier one).
+fn output_checks(path: &Path, named: &NamedPath, input: &Path) -> Result<OutputFormat, Vec<Fatal>> {
+    let checked = || -> Result<OutputFormat, Fatal> {
+        let format = format(path).ok_or_else(|| Fatal::UnrecognisedExtension {
+            output: named.clone(),
+        })?;
+        missing_directory(path, named)?;
+        output_is_input(path, named, input)?;
+        Ok(format)
+    };
+    checked().map_err(|e| vec![e])
+}
+
 /// FR-62: `-o`'s directory must exist. Only a directory that is not there
 /// is this error; one that is a file or cannot be searched is left to the
 /// write, which stays the final authority, so a directory removed after
 /// this check still fails cleanly there.
-fn missing_directory(output: &Path) -> Result<(), Fatal> {
+fn missing_directory(output: &Path, named: &NamedPath) -> Result<(), Fatal> {
     let dir = parent_dir(output);
     match std::fs::metadata(dir) {
         Err(e) if e.kind() == io::ErrorKind::NotFound => Err(Fatal::MissingDirectory {
-            path: output.display().to_string(),
+            output: named.clone(),
             dir: dir.display().to_string(),
         }),
         _ => Ok(()),
@@ -280,10 +300,10 @@ fn missing_directory(output: &Path) -> Result<(), Fatal> {
 /// (device and inode, or volume and file index on Windows), so `./`, `..`,
 /// symlinks, case and hard links are all caught, and no path spelling needs
 /// resolving. A path that cannot be opened is not the input.
-fn output_is_input(output: &Path, input: &Path) -> Result<(), Fatal> {
+fn output_is_input(output: &Path, named: &NamedPath, input: &Path) -> Result<(), Fatal> {
     if same_file::is_same_file(output, input).unwrap_or(false) {
         Err(Fatal::OutputIsInput {
-            path: output.display().to_string(),
+            output: named.clone(),
         })
     } else {
         Ok(())

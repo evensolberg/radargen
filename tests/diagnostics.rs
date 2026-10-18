@@ -1,6 +1,7 @@
 //! The diagnostic contract (architecture §10): exact messages, NFR-11 order,
 //! NFR-20 grouping. SC-10's golden tests later pin the same text end to end.
 
+use std::path::Path;
 use std::sync::Arc;
 
 use radargen::cli::OutputFormat;
@@ -10,7 +11,7 @@ use radargen::diagnostics::{
     Separator, Warning, Warnings, column_label,
 };
 use radargen::rings::RingsError;
-use radargen::settings::{Origin, Setting, Source};
+use radargen::settings::{NamedPath, Origin, Setting, Source};
 
 const fn at(line: usize, column: usize, kind: RowKind) -> Warning {
     Warning::Row { line, column, kind }
@@ -961,13 +962,13 @@ fn fatal_messages() {
     let cases = [
         (
             Fatal::UnrecognisedExtension {
-                path: "radar.pdf".into(),
+                output: NamedPath::flag(Setting::Output, Path::new("radar.pdf")),
             },
             "error: -o radar.pdf: the output file name must end in .html, .png or .svg",
         ),
         (
             Fatal::UnrecognisedExtension {
-                path: "radar".into(),
+                output: NamedPath::flag(Setting::Output, Path::new("radar")),
             },
             "error: -o radar: the output file name must end in .html, .png or .svg",
         ),
@@ -1058,7 +1059,7 @@ fn csv_file_messages() {
         ),
         (
             Fatal::Unwritable {
-                path: "out/radar.html".into(),
+                output: NamedPath::flag(Setting::Output, Path::new("out/radar.html")),
                 source: std::io::Error::new(
                     std::io::ErrorKind::PermissionDenied,
                     "permission denied",
@@ -1252,16 +1253,47 @@ fn pipeline_messages() {
     let cases = [
         (
             Fatal::MissingDirectory {
-                path: "out/radar.html".into(),
+                output: NamedPath::flag(Setting::Output, Path::new("out/radar.html")),
                 dir: "out".into(),
             },
             "error: -o out/radar.html: the directory out does not exist",
         ),
         (
             Fatal::OutputIsInput {
-                path: "radar.csv".into(),
+                output: NamedPath::flag(Setting::Output, Path::new("radar.csv")),
             },
             "error: -o radar.csv: is the input CSV; choose another output path",
+        ),
+        (
+            Fatal::MissingDirectory {
+                output: NamedPath {
+                    origin: Origin::new(
+                        Setting::Output,
+                        Source::Config(Arc::from("conf/radar.toml")),
+                    ),
+                    shown: "out/radar.html".into(),
+                },
+                dir: "conf/out".into(),
+            },
+            "error: the output key in conf/radar.toml (out/radar.html): the directory conf/out does not exist",
+        ),
+        (
+            Fatal::UnrecognisedExtension {
+                output: NamedPath {
+                    origin: Origin::new(Setting::Output, Source::Config(Arc::from("radar.toml"))),
+                    shown: "radar.pdf".into(),
+                },
+            },
+            "error: the output key in radar.toml (radar.pdf): the output file name must end in .html, .png or .svg",
+        ),
+        (
+            Fatal::PaletteTooLarge {
+                palette: NamedPath {
+                    origin: Origin::new(Setting::Palette, Source::Config(Arc::from("radar.toml"))),
+                    shown: "brand.css".into(),
+                },
+            },
+            "error: the palette key in radar.toml (brand.css): larger than 1 MiB; a palette is a few hundred bytes, so check the path",
         ),
     ];
     for (fatal, expected) in cases {
@@ -1388,7 +1420,7 @@ fn io_reasons_read_one_way() {
     let windows = std::io::Error::other("The system cannot find the path specified. (os error 3)");
     assert_eq!(
         Fatal::Unwritable {
-            path: "out.html".into(),
+            output: NamedPath::flag(Setting::Output, Path::new("out.html")),
             source: unix,
         }
         .render(),

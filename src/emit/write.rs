@@ -13,6 +13,7 @@ use std::io::{self, Write};
 use std::path::Path;
 
 use crate::diagnostics::Fatal;
+use crate::settings::NamedPath;
 
 /// The mode a new output file is created with on unix, before the umask:
 /// what `fs::write` uses, so 0644 under the usual umask of 022.
@@ -35,9 +36,9 @@ const OUTPUT_MODE: u32 = 0o666;
 ///
 /// [`Fatal::Unwritable`] when the directory is missing or unwritable, the
 /// path names a directory or a read-only file, or the disk is full.
-pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), Fatal> {
+pub fn write_atomic(path: &Path, named: &NamedPath, bytes: &[u8]) -> Result<(), Fatal> {
     let unwritable = |source| Fatal::Unwritable {
-        path: path.display().to_string(),
+        output: named.clone(),
         source,
     };
     refuse_read_only(path).map_err(unwritable)?;
@@ -86,6 +87,13 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
+    use crate::settings::Setting;
+
+    /// `path` as `-o` names it.
+    fn named(path: &Path) -> NamedPath {
+        NamedPath::flag(Setting::Output, path)
+    }
+
     /// The names in `dir`, sorted.
     fn listing(dir: &Path) -> Vec<String> {
         let mut names: Vec<String> = fs::read_dir(dir)
@@ -107,7 +115,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("radar.html");
         let bytes = b"<svg>\n</svg>\n";
-        write_atomic(&path, bytes).expect("writes");
+        write_atomic(&path, &named(&path), bytes).expect("writes");
         assert_eq!(fs::read(&path).expect("reads"), bytes);
         assert_eq!(listing(dir.path()), ["radar.html"]);
     }
@@ -117,7 +125,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("radar.html");
         fs::write(&path, b"old").expect("seeds");
-        write_atomic(&path, b"new").expect("writes");
+        write_atomic(&path, &named(&path), b"new").expect("writes");
         assert_eq!(fs::read(&path).expect("reads"), b"new");
         assert_eq!(listing(dir.path()), ["radar.html"]);
     }
@@ -136,7 +144,7 @@ mod tests {
         let path = dir.path().join("radar.html");
         fs::create_dir(&path).expect("makes the directory");
         let before = listing(dir.path());
-        let error = write_atomic(&path, b"new").expect_err("refuses");
+        let error = write_atomic(&path, &named(&path), b"new").expect_err("refuses");
         assert_eq!(listing(dir.path()), before, "no temp file left");
         assert!(std::error::Error::source(&error).is_some());
         let text = error.to_string();
@@ -171,7 +179,7 @@ mod tests {
         permissions.set_readonly(true);
         fs::set_permissions(&path, permissions).expect("read-only");
         let _guard = Writable(path.clone());
-        let error = write_atomic(&path, b"new").expect_err("refuses");
+        let error = write_atomic(&path, &named(&path), b"new").expect_err("refuses");
         assert!(matches!(error, Fatal::Unwritable { .. }), "{error}");
         assert_eq!(fs::read(&path).expect("reads"), b"old");
         assert_eq!(listing(dir.path()), ["radar.html"]);
@@ -181,7 +189,7 @@ mod tests {
     fn a_missing_directory_is_unwritable() {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("nope").join("radar.html");
-        let error = write_atomic(&path, b"new").expect_err("refuses");
+        let error = write_atomic(&path, &named(&path), b"new").expect_err("refuses");
         assert!(matches!(error, Fatal::Unwritable { .. }), "{error}");
         assert!(!dir.path().join("nope").exists());
         assert!(!error.to_string().contains(".radargen-"), "{error}");
@@ -200,7 +208,7 @@ mod tests {
                 let path = &path;
                 scope.spawn(move || {
                     let wrote = (0..20)
-                        .filter(|_| match write_atomic(path, payload) {
+                        .filter(|_| match write_atomic(path, &named(path), payload) {
                             Ok(()) => true,
                             // Only Windows refuses a rename onto a file another
                             // rename is replacing; anywhere else it is a bug.
@@ -233,7 +241,7 @@ mod tests {
         fn the_output_gets_the_mode_fs_write_gives() {
             let dir = tempfile::tempdir().expect("tempdir");
             let path = dir.path().join("radar.html");
-            write_atomic(&path, b"x").expect("writes");
+            write_atomic(&path, &named(&path), b"x").expect("writes");
             let plain = dir.path().join("plain.html");
             fs::write(&plain, b"x").expect("writes");
             assert_eq!(mode(&path), mode(&plain));
@@ -246,7 +254,7 @@ mod tests {
             fs::write(&target, b"edition").expect("seeds");
             let link = dir.path().join("latest.html");
             std::os::unix::fs::symlink(&target, &link).expect("links");
-            write_atomic(&link, b"new").expect("writes");
+            write_atomic(&link, &named(&link), b"new").expect("writes");
             assert_eq!(fs::read(&target).expect("reads"), b"edition");
             assert!(fs::symlink_metadata(&link).expect("meta").is_file());
             assert_eq!(fs::read(&link).expect("reads"), b"new");
@@ -272,7 +280,7 @@ mod tests {
                 fs::write(dir.path().join("probe"), b"").is_err(),
                 "the directory is still writable: running as root?"
             );
-            let error = write_atomic(&path, b"new").expect_err("refuses");
+            let error = write_atomic(&path, &named(&path), b"new").expect_err("refuses");
             assert!(matches!(error, Fatal::Unwritable { .. }), "{error}");
             assert_eq!(fs::read(&path).expect("reads"), b"old");
             assert_eq!(listing(dir.path()), ["radar.html"]);

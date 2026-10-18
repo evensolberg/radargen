@@ -256,24 +256,21 @@ impl Cli {
     }
 }
 
-/// FR-52: format from the `-o` extension, matched case-insensitively.
-///
-/// # Errors
-///
-/// [`Fatal::UnrecognisedExtension`] for any other or missing extension.
-pub fn format(output: &Path) -> Result<OutputFormat, Fatal> {
+/// FR-52: format from the output's extension, matched case-insensitively;
+/// `None` for any other or a missing extension. The caller names the
+/// output by its source (NFR-10).
+#[must_use]
+pub fn format(output: &Path) -> Option<OutputFormat> {
     let ext = output
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or_default()
         .to_ascii_lowercase();
     match ext.as_str() {
-        "html" => Ok(OutputFormat::Html),
-        "png" => Ok(OutputFormat::Png),
-        "svg" => Ok(OutputFormat::Svg),
-        _ => Err(Fatal::UnrecognisedExtension {
-            path: output.display().to_string(),
-        }),
+        "html" => Some(OutputFormat::Html),
+        "png" => Some(OutputFormat::Png),
+        "svg" => Some(OutputFormat::Svg),
+        _ => None,
     }
 }
 
