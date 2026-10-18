@@ -413,18 +413,7 @@ fn control_characters_in_values_are_shown_escaped() {
         '\u{2029}', '\u{202a}', '\u{202b}', '\u{202c}', '\u{202d}', '\u{202e}', '\u{2066}',
         '\u{2067}', '\u{2068}', '\u{2069}',
     ] {
-        let shown = at(
-            3,
-            2,
-            RowKind::UndeclaredRing {
-                value: format!("a{c}b"),
-                source: RingSource::Flag,
-                rings: declared(),
-                off_radar: OffRadar::Listed,
-                suggest_unplotted: true,
-            },
-        )
-        .to_string();
+        let shown = ring(3, &format!("a{c}b")).to_string();
         assert!(
             !shown.contains(c),
             "U+{:04X} passed through raw: {shown:?}",
@@ -550,6 +539,12 @@ fn the_ring_warning_says_where_the_row_went() {
         rendered(OffRadar::Unlisted, &[4, 9], false),
         [
             "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); they are left off the page; to plot one, pass --rings with every ring to draw (it replaces the defaults); to leave one off without this warning, add it to --unplotted-rings; --table all lists them, but also publishes every other column"
+        ]
+    );
+    assert_eq!(
+        rendered(OffRadar::Undrawn, &[4, 9], false),
+        [
+            "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); none is on the radar; to plot one, pass --rings with every ring to draw (it replaces the defaults); to leave one off without this warning, add it to --unplotted-rings"
         ]
     );
     assert_eq!(
@@ -1448,31 +1443,6 @@ fn refused_links_group_by_value() {
             "warning: 4 rows have a link that is not an http or https address — ftp://x (2, first line 2), mailto:y (1, line 4), FTP://x (1, line 5); shown as text, not links"
         ],
         "one line, values in first-occurrence order"
-    );
-}
-
-/// FR-17's grouped line for a PNG or SVG under the default set, the one
-/// wording the other tests leave out.
-#[test]
-fn the_grouped_snapshot_warning_under_the_default_set() {
-    let mut w = Warnings::default();
-    w.push(undeclared(
-        4,
-        "Adpot",
-        RingSource::Default,
-        OffRadar::Undrawn,
-    ));
-    w.push(undeclared(
-        9,
-        "adpot",
-        RingSource::Default,
-        OffRadar::Undrawn,
-    ));
-    assert_eq!(
-        w.render(),
-        [
-            "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); none is on the radar; to plot one, pass --rings with every ring to draw (it replaces the defaults); to leave one off without this warning, add it to --unplotted-rings"
-        ]
     );
 }
 

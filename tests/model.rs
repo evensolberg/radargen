@@ -232,21 +232,3 @@ fn a_named_unplotted_ring_is_off_the_radar_without_a_warning() {
         assert_eq!(w.render(), [expected]);
     }
 }
-
-/// With nothing but named unplotted rings off the radar, the run is silent.
-#[test]
-fn only_named_unplotted_rings_off_the_radar_is_silent() {
-    let rings = parse_rings(Some("Adopt"))
-        .expect("valid")
-        .with_unplotted("In Use")
-        .expect("valid");
-    let mut w = Warnings::default();
-    let (table, _) = parse(
-        "name,quadrant,ring,description\nK,T,Adopt,d\nL,T,In Use,d\n",
-        &mut w,
-    )
-    .expect("parses");
-    let cat = build_catalogue(&table, &rings, OffRadar::Unlisted, &mut w).expect("builds");
-    assert_eq!(cat.items.iter().filter(|i| i.ring.is_none()).count(), 1);
-    assert!(w.is_empty(), "{:?}", w.render());
-}

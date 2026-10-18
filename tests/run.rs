@@ -1747,10 +1747,7 @@ fn unplotted_rings_are_off_the_radar_without_a_warning() {
     );
     let dir = seeded(&[("radar.csv", &csv)]);
     let flags = ["--unplotted-rings", "In Use, Rejected"];
-    let radar = run_in(
-        dir.path(),
-        &[&["radar.csv", "-o", "radar.html"][..], &flags].concat(),
-    );
+    let radar = run_in(dir.path(), &[&RENDER[..], &flags].concat());
     assert!(radar.ok(), "{}", radar.stderr);
     assert_eq!(
         radar.lines(),
