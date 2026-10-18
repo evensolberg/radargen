@@ -4,6 +4,7 @@ use super::scan::EXCERPT_CHARS;
 use super::*;
 use crate::decode::{NotUtf8, decode, line_at};
 use crate::palette::{Role, Theme};
+use crate::test_timing::assert_linear;
 
 /// Every role at its built-in light value, one per line (lines 2 to 9),
 /// then `series` from line 10, inside one rule.
@@ -468,14 +469,11 @@ fn a_declaration_after_a_forgotten_semicolon_is_checked() {
 /// Plan RG-018A R3: a large file is linear, not quadratic.
 #[test]
 fn a_large_file_is_read_in_linear_time() {
-    let text = [":root {", &";".repeat(1 << 20), "}"].concat();
-    let start = std::time::Instant::now();
-    assert_eq!(errors(&text), all_missing());
-    assert!(
-        start.elapsed() < std::time::Duration::from_secs(5),
-        "{:?}",
-        start.elapsed()
-    );
+    let text = |n: usize| [":root {", &";".repeat(n), "}"].concat();
+    assert_eq!(errors(&text(1 << 14)), all_missing());
+    assert_linear(1 << 14, text, |t| {
+        std::hint::black_box(errors(t));
+    });
 }
 
 /// Plan RG-018A R3, rg-p9a: a forgotten `;` on every line is linear too.
@@ -483,16 +481,12 @@ fn a_large_file_is_read_in_linear_time() {
 /// next `;` must not be searched for again from each line.
 #[test]
 fn many_forgotten_semicolons_are_read_in_linear_time() {
-    let lines = 1 << 17;
-    let text = [":root {", &"--a:x\n".repeat(lines), "}"].concat();
-    let start = std::time::Instant::now();
-    let found = errors(&text);
-    assert!(
-        start.elapsed() < std::time::Duration::from_secs(5),
-        "{:?}",
-        start.elapsed()
-    );
-    let missing = found
+    let lines = 1 << 11;
+    let text = |n: usize| [":root {", &"--a:x\n".repeat(n), "}"].concat();
+    assert_linear(lines, text, |t| {
+        std::hint::black_box(errors(t));
+    });
+    let missing = errors(&text(lines))
         .iter()
         .filter(|e| matches!(e, PaletteError::MissingSemicolon { .. }))
         .count();
@@ -912,22 +906,13 @@ fn lines_starting_in_a_span() {
 /// the segment is trimmed once, not once per forgotten `;`.
 #[test]
 fn forgotten_semicolons_before_a_long_tail_are_read_in_linear_time() {
-    let lines = 1 << 16;
-    let text = [
-        ":root {",
-        &"--a:x\n".repeat(lines),
-        &" ".repeat(600_000),
-        "}",
-    ]
-    .concat();
-    let start = std::time::Instant::now();
-    let found = errors(&text);
-    assert!(
-        start.elapsed() < std::time::Duration::from_secs(5),
-        "{:?}",
-        start.elapsed()
-    );
-    let missing = found
+    let lines = 1 << 10;
+    // The tail grows with the lines, about nine spaces to each.
+    let text = |n: usize| [":root {", &"--a:x\n".repeat(n), &" ".repeat(9 * n), "}"].concat();
+    assert_linear(lines, text, |t| {
+        std::hint::black_box(errors(t));
+    });
+    let missing = errors(&text(lines))
         .iter()
         .filter(|e| matches!(e, PaletteError::MissingSemicolon { .. }))
         .count();

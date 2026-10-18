@@ -24,6 +24,9 @@ pub mod svg;
 pub mod template;
 pub mod text;
 
+#[cfg(test)]
+mod test_timing;
+
 use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
 
 /// FR-76's trim: any leading or trailing run of whitespace and Unicode
