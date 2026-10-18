@@ -302,3 +302,54 @@ fn ring_diagnostics_name_the_key_and_file() {
         ran.stderr
     );
 }
+
+/// D-100 (rg-qag): one file serves every format, so its legend and table
+/// keys are silent where they do not apply; the flags still warn, once.
+#[test]
+fn a_file_s_format_keys_are_silent_where_they_do_not_apply() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("radar.toml", "legend = \"hidden\"\ntable = \"all\"\n"),
+    ]);
+    for ext in ["png", "svg"] {
+        let out = format!("a.{ext}");
+        let file = run_in(dir.path(), &["radar.csv", "-c", "radar.toml", "-o", &out]);
+        assert!(file.ok(), "{}", file.stderr);
+        assert!(
+            !file.stderr.contains("applies to HTML pages"),
+            "{ext}: {}",
+            file.stderr
+        );
+        let flags = run_in(
+            dir.path(),
+            &[
+                "radar.csv",
+                "-c",
+                "radar.toml",
+                "-o",
+                &out,
+                "--legend",
+                "hidden",
+                "--table",
+                "all",
+            ],
+        );
+        assert_eq!(
+            flags.stderr.matches("applies to HTML pages").count(),
+            2,
+            "{ext}: {}",
+            flags.stderr
+        );
+    }
+    let html = run_in(
+        dir.path(),
+        &["radar.csv", "-c", "radar.toml", "-o", "a.html"],
+    );
+    assert!(html.ok());
+    assert!(
+        fs::read_to_string(dir.path().join("a.html"))
+            .expect("written")
+            .contains("data-legend=\"hidden\""),
+        "the HTML page honours the file's legend"
+    );
+}

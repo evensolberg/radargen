@@ -522,13 +522,21 @@ fn render(
     // FR-89 at the growth the radar is drawn with (D-86): only what still
     // overlaps is reported.
     warn_crowding(catalogue, &plotted, blocks.radar.growth(), warnings);
-    // RG-102: a static snapshot has no button to bring a hidden legend
-    // back, so it keeps the legend and says so.
-    if config.legend.value == Legend::Hidden && config.format.is_snapshot() {
+    // RG-102, FR-106: a static snapshot has no button to bring a hidden
+    // legend back, nor a table, so a flag asking for either is warned
+    // about. The same value from --config is silent, since one file serves
+    // every format a radar is rendered to (D-100, rg-qag).
+    let from_flag = |origin: &Origin| origin.source == Source::Flag;
+    if config.legend.value == Legend::Hidden
+        && from_flag(&config.legend.origin)
+        && config.format.is_snapshot()
+    {
         warnings.push(Warning::Render(RenderKind::LegendStatic));
     }
-    // FR-106: nor have they a table to list everything in.
-    if config.table.value == Table::All && config.format.is_snapshot() {
+    if config.table.value == Table::All
+        && from_flag(&config.table.origin)
+        && config.format.is_snapshot()
+    {
         warnings.push(Warning::Render(RenderKind::TableStatic));
     }
     // FR-104: a static snapshot draws every text with the bundled font
