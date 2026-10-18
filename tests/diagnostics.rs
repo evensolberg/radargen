@@ -982,8 +982,17 @@ fn fatal_messages() {
             Fatal::ImageTooLarge {
                 width: 10_000,
                 height: 12_000,
+                width_source: Source::Flag,
             },
             "error: a 10000 by 12000 pixel PNG is too large to draw; pass a smaller --width",
+        ),
+        (
+            Fatal::ImageTooLarge {
+                width: 10_000,
+                height: 12_000,
+                width_source: radar_toml(),
+            },
+            "error: a 10000 by 12000 pixel PNG is too large to draw; set the width key in radar.toml smaller",
         ),
         (
             Fatal::Rings {
@@ -1330,6 +1339,7 @@ fn d87_warnings_name_their_widths() {
             RenderKind::PngTextSmall {
                 width: 320,
                 legible_from: Some(821),
+                width_source: Source::Flag,
             },
             "at 320 pixels wide the PNG's text is too small to read; --width 821 or more keeps it legible",
         ),
@@ -1337,6 +1347,7 @@ fn d87_warnings_name_their_widths() {
             RenderKind::PngTextSmall {
                 width: 10_000,
                 legible_from: None,
+                width_source: Source::Default,
             },
             "at 10000 pixels wide the PNG's text is too small to read, at any --width; fewer or shorter names would help",
         ),
@@ -1642,5 +1653,28 @@ fn a_binding_ring_from_a_file_names_its_key() {
     assert_eq!(
         binding.to_string(),
         "ring 'Very long ring' in the rings key in radar.toml"
+    );
+}
+
+/// D-87's remedy names where the width came from (plan RG-019A, Ruling 9).
+#[test]
+fn a_small_png_names_the_width_key() {
+    let warning = Warning::Render(RenderKind::PngTextSmall {
+        width: 800,
+        legible_from: Some(1200),
+        width_source: radar_toml(),
+    });
+    assert_eq!(
+        warning.to_string(),
+        "at 800 pixels wide the PNG's text is too small to read; setting the width key in radar.toml to 1200 or more keeps it legible"
+    );
+    let unreadable = Warning::Render(RenderKind::PngTextSmall {
+        width: 800,
+        legible_from: None,
+        width_source: radar_toml(),
+    });
+    assert_eq!(
+        unreadable.to_string(),
+        "at 800 pixels wide the PNG's text is too small to read, at any width; fewer or shorter names would help"
     );
 }

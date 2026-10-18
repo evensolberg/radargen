@@ -33,7 +33,7 @@ use crate::order::resolve;
 use crate::palette::Colours;
 use crate::palette::file::{self, ReadError};
 use crate::rings::{RingSet, parse_rings};
-use crate::settings::{NamedPath, Origin, Setting, Sourced};
+use crate::settings::{NamedPath, Origin, Setting, Source, Sourced};
 use crate::text::Fonts;
 
 /// The resolved run (architecture §7), read-only once built. The colours
@@ -56,8 +56,9 @@ pub struct Config {
     /// FR-106: what an HTML page's table publishes; PNG and SVG warn on
     /// `all`, having no table.
     pub table: Table,
-    /// FR-57: `--width`, which HTML ignores.
-    pub width: Option<u32>,
+    /// FR-57: `--width`, which HTML ignores, with where it came from, so
+    /// D-87's remedies can name it.
+    pub width: Option<Sourced<u32>>,
     /// FR-100: `--legend-columns`, which HTML ignores.
     pub legend_columns: u8,
     /// FR-65, resolved: cleaned (FR-90), trimmed, and `None` when empty,
@@ -232,7 +233,10 @@ fn config(
         colours,
         legend: cli.legend,
         table: cli.table,
-        width: cli.width,
+        width: cli.width.map(|value| Sourced {
+            value,
+            origin: Origin::flag(Setting::Width),
+        }),
         legend_columns: cli.legend_columns,
         title,
         subtitle,
@@ -413,7 +417,17 @@ fn render(
         }
         OutputFormat::Png => {
             let wide = arrange(Arrangement::Wide, &blocks);
-            let size = png::pixel_size(&wide, config.width)?;
+            let width_source = config
+                .width
+                .as_ref()
+                .map_or(Source::Default, |w| w.origin.source.clone());
+            let size = png::pixel_size(&wide, config.width.as_ref().map(|w| w.value)).map_err(
+                |png::TooLarge { width, height }| Fatal::ImageTooLarge {
+                    width,
+                    height,
+                    width_source: width_source.clone(),
+                },
+            )?;
             if let Some(natural) = size.clamped() {
                 warnings.push(Warning::Render(RenderKind::WidthClamped {
                     natural,
@@ -424,6 +438,7 @@ fn render(
                 warnings.push(Warning::Render(RenderKind::PngTextSmall {
                     width: size.width(),
                     legible_from,
+                    width_source,
                 }));
             }
             png::rasterise(&wide, &config.colours.snapshot(), size)
@@ -433,7 +448,7 @@ fn render(
             &svg::Export {
                 palette: &config.colours.snapshot(),
                 fonts,
-                width: config.width,
+                width: config.width.as_ref().map(|w| w.value),
                 title: config.title(),
                 desc: &blocks.radar.name(),
             },

@@ -211,6 +211,8 @@ pub enum RenderKind {
         width: u32,
         /// The least width that keeps it legible, if one within FR-64 does.
         legible_from: Option<u32>,
+        /// Where the width came from, which the remedy names (NFR-10).
+        width_source: Source,
     },
     /// FR-90 on a flag value: one per flag, however many characters it lost.
     FlagUndisplayable {
@@ -513,12 +515,28 @@ impl RenderKind {
             Self::PngTextSmall {
                 width,
                 legible_from: Some(from),
+                width_source: Source::Config(file),
+            } => format!(
+                "at {width} pixels wide the PNG's text is too small to read; setting the width key in {file} to {from} or more keeps it legible"
+            ),
+            Self::PngTextSmall {
+                width,
+                legible_from: None,
+                width_source: Source::Config(_),
+            } => format!(
+                "at {width} pixels wide the PNG's text is too small to read, at any width; fewer or shorter names would help"
+            ),
+            Self::PngTextSmall {
+                width,
+                legible_from: Some(from),
+                width_source: _,
             } => format!(
                 "at {width} pixels wide the PNG's text is too small to read; --width {from} or more keeps it legible"
             ),
             Self::PngTextSmall {
                 width,
                 legible_from: None,
+                width_source: _,
             } => format!(
                 "at {width} pixels wide the PNG's text is too small to read, at any --width; fewer or shorter names would help"
             ),
@@ -556,6 +574,14 @@ fn io_reason(error: &std::io::Error) -> String {
     chars.next().map_or_else(String::new, |first| {
         first.to_lowercase().chain(chars).collect()
     })
+}
+
+/// D-87's remedy for an image too large to draw.
+fn smaller_width(source: &Source) -> String {
+    match source {
+        Source::Config(file) => format!("set the width key in {file} smaller"),
+        Source::Flag | Source::Default => "pass a smaller --width".to_owned(),
+    }
 }
 
 /// A palette problem as stderr shows it: located when it has a line.
@@ -1173,12 +1199,17 @@ pub enum Fatal {
         reason: String,
     },
     /// D-87: the image would pass `MAX_PNG_PIXELS`.
-    #[error("a {width} by {height} pixel PNG is too large to draw; pass a smaller --width")]
+    #[error(
+        "a {width} by {height} pixel PNG is too large to draw; {}",
+        smaller_width(width_source)
+    )]
     ImageTooLarge {
         /// The width in pixels.
         width: u32,
         /// The height in pixels.
         height: u32,
+        /// Where the width came from, which the remedy names (NFR-10).
+        width_source: Source,
     },
     /// FR-60, FR-99, FR-101: a `Cli` asking for no task, or for more than
     /// one. clap refuses such a command line, so only a `Cli` built by hand
