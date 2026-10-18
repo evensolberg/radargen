@@ -1,24 +1,25 @@
+## [1.12.0] - 2026-10-18
+
+### 🚀 Features
+
+- *(legend)* Flow a static legend into columns (FR-100)
+
+### 🚜 Refactor
+
+- *(legend)* Keep LegendBlock::new free of branches
+
+### 🧪 Testing
+
+- *(legend)* Pin FR-100's later-break tie rule
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Close rg-73h
 ## [1.11.0] - 2026-10-18
 
 ### 🚀 Features
 
-- *(html)* Move the breakpoint while the legend is hidden
-
-### 🐛 Bug Fixes
-
-- *(html)* Keep the legend button still when a press swaps layout
-- *(html)* Reserve the scrollbar gutter only from the hidden breakpoint
-- *(html)* Drop the legend toggle's scroll compensation
-
-### 📚 Documentation
-
-- *(prd)* Rule D-95's empty off-radar quadrant deliberate
-- Specify the legend-hidden breakpoint (D-97)
-- Settle rg-dok's review notes on D-97 and its neighbours
-
-### ⚙️ Miscellaneous Tasks
-
-- *(crumbs)* Close rg-dok
+- *(html)* Move the breakpoint while the legend is hidden (1.11.0) (#128)
 ## [1.10.0] - 2026-10-18
 
 ### 🚀 Features
