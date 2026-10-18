@@ -24,3 +24,5 @@ PRD v0.39 FR-91/FR-92, D-57/D-58, SC-26/SC-27, v1.1. TOML config (serde + toml c
 [2026-10-11] From PRD v0.46 NFR-10 (D-64, was rg-s71): any diagnostic about a configurable setting names its effective source — flag, --config key with file, or default. Record the source per setting during the cli.rs merge rather than as a ring-only field.
 
 [2026-10-18] rg-4bq (FR-107, D-96) adds an unplotted_rings key to FR-91, spec only. PR 19 must (1) check FR-107's overlap after the merge, across sources, naming both sides by effective source: the entry as --unplotted-rings or the unplotted_rings key with its file, the ring set as --rings, the rings key with its file, or the default set (FR-107's examples); (2) keep the accepted gap: a file's unplotted_rings cannot be cleared from the command line, since --unplotted-rings "" is FR-107's 'no rings named' error.
+
+[2026-10-18] Decided (maintainer, 2026-10-18): split into PR 19a (--config, folding in rg-ahj, rg-qag and the keys added since: legend, table, unplotted_rings, legend_columns) and PR 19b (--edition and {edition}). Full process: plan, five-agent review, simplify, final review.
