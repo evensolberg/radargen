@@ -209,7 +209,7 @@ a11y-audit-only:
     ring='Retired  after a careful and lengthy evaluation by the architecture board'
     { cat tests/fixtures/interaction.csv; printf 'Delta Lake,Platforms,%s,Lakehouse storage.,,,\n' "$ring"; } > "$out/a11y-audit.csv"
     ./target/release/radargen "$out/a11y-audit.csv" -o "$out/a11y-audit.html" --rings "Assess,Trial,Adopt,$ring" 2>/dev/null
-    width="$(./target/release/radargen tests/fixtures/d71-wide.csv -o "$out/d71.html" 2>&1 | sed -n 's/.*narrow arrangement is \([0-9]*\) units wide.*/\1/p')"
+    width="$(./target/release/radargen tests/fixtures/d71-wide.csv -o "$out/d71.html" 2>&1 | sed -n 's/.*narrow layout is \([0-9]*\) units wide.*/\1/p')"
     node scripts/a11y-audit.mjs "$out/a11y-audit.html" "$out/d71.html" "$width"
 
 # Screenshots for the release's visual sign-off (RG-015C): each fixture at

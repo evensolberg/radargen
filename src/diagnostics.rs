@@ -249,8 +249,9 @@ impl fmt::Display for Lacking {
     }
 }
 
-/// The label whose reach sets the radar's width (FR-95, D-73): a quadrant
-/// name from the CSV, or a ring name from `--rings`.
+/// The label whose reach sets the radar's width, for FR-95 and FR-105
+/// (D-73, D-94): a quadrant name from the CSV, or a ring name from
+/// `--rings` or the default set.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Binding {
     /// A quadrant label, as written.
@@ -265,9 +266,9 @@ pub enum Binding {
 }
 
 impl Binding {
-    /// The label as FR-95 and FR-105 name it for the fix: trimmed and
-    /// single-quoted, a ring with where to rename it (D-73).
-    fn fix(&self) -> String {
+    /// The label as FR-95 and FR-105 name it: trimmed and single-quoted,
+    /// a ring with where to rename it (D-73).
+    fn phrase(&self) -> String {
         match self {
             Self::Quadrant(name) => format!("quadrant '{}'", trim(name)),
             Self::Ring {
@@ -486,15 +487,15 @@ impl RenderKind {
                 trim(ring)
             ),
             Self::NarrowWidened { binding, width } => format!(
-                "the narrow arrangement is {width} units wide, past the {NARROW_MAX_WIDTH} its legend rows and marker targets are sized for, so on a {NARROW_MIN_VIEWPORT_PX}-pixel screen they fall below {MIN_TARGET_PX} pixels; a shorter name for {} would fix it",
-                binding.fix()
+                "the narrow layout is {width} units wide, past the {NARROW_MAX_WIDTH} its legend rows and marker targets are sized for, so on a {NARROW_MIN_VIEWPORT_PX}-pixel screen they fall below {MIN_TARGET_PX} pixels; a shorter name for {} would fix it",
+                binding.phrase()
             ),
             Self::WideBeyondLaptops {
                 binding,
                 breakpoint,
             } => format!(
-                "the wide arrangement, the radar beside its legend, shows only on screens at least {breakpoint} pixels wide, so narrower ones, common {WIDE_MIN_VIEWPORT_PX}-pixel laptops included, get the narrow arrangement; a shorter name for {} would fix it",
-                binding.fix()
+                "the wide layout needs a screen at least {breakpoint} pixels wide, so {WIDE_MIN_VIEWPORT_PX}-pixel laptops get the narrow layout; a shorter name for {} would fix it",
+                binding.phrase()
             ),
             Self::LegendStatic => {
                 "--legend hidden applies to HTML pages; PNG and SVG always draw the legend"

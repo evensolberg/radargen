@@ -191,11 +191,7 @@ fn a_quadrant_name_wider_than_any_screen_still_renders() {
     let ran = run_in(dir.path(), &RENDER);
     assert!(ran.ok(), "{}", ran.stderr);
     assert!(!ran.stderr.contains("panicked"), "{}", ran.stderr);
-    assert!(
-        ran.stderr.contains("narrow arrangement is"),
-        "{}",
-        ran.stderr
-    );
+    assert!(ran.stderr.contains("narrow layout is"), "{}", ran.stderr);
     let page = read(dir.path(), "radar.html");
     assert_eq!(html::svgs(&page).len(), 6, "four wide parts and two narrow");
     // The case the old 10,000-unit bound refused: the breakpoint, about
@@ -233,24 +229,22 @@ fn a_breakpoint_past_a_laptop_warns_on_html_only() {
     assert_starts(
         &ran,
         &[
-            "warning: the wide arrangement, ",
-            "warning: the narrow arrangement is ",
+            "warning: the wide layout needs ",
+            "warning: the narrow layout is ",
         ],
     );
     assert_eq!(
         ran.lines().first().copied().unwrap_or_default(),
         format!(
-            "warning: the wide arrangement, the radar beside its legend, shows only on screens at least {breakpoint} pixels wide, so narrower ones, common 1440-pixel laptops included, get the narrow arrangement; a shorter name for quadrant '{QUADRANT}' would fix it"
+            "warning: the wide layout needs a screen at least {breakpoint} pixels wide, so 1440-pixel laptops get the narrow layout; a shorter name for quadrant '{QUADRANT}' would fix it"
         )
     );
     for out in ["radar.png", "radar.svg"] {
+        // The fixture's names are all in the bundled font and the PNG is
+        // drawn at its own width, so a snapshot warns about nothing.
         let snapshot = run_in(dir.path(), &["radar.csv", "-o", out]);
         assert!(snapshot.ok(), "{out}: {}", snapshot.stderr);
-        assert!(
-            !snapshot.stderr.contains("wide arrangement"),
-            "{out}: {}",
-            snapshot.stderr
-        );
+        assert_eq!(snapshot.stderr, "", "{out}");
     }
 }
 
@@ -713,7 +707,7 @@ fn fr95_reaches_stderr() {
     assert_starts(
         &ran,
         &[
-            "warning: the narrow arrangement is ",
+            "warning: the narrow layout is ",
             "warning: line 3, ring: 'Rejected'",
         ],
     );
@@ -1088,11 +1082,7 @@ fn a_narrow_png_warns_about_small_text() {
 fn a_png_gives_no_narrow_warning() {
     let dir = seeded(&[("radar.csv", &too_wide())]);
     let html = run_in(dir.path(), &RENDER);
-    assert!(
-        html.stderr.contains("narrow arrangement is"),
-        "{}",
-        html.stderr
-    );
+    assert!(html.stderr.contains("narrow layout is"), "{}", html.stderr);
     let png_run = run_in(dir.path(), &["radar.csv", "-o", "radar.png"]);
     assert!(png_run.ok(), "{}", png_run.stderr);
     assert!(

@@ -160,6 +160,7 @@ fn words_match_whole() {
 fn the_panel_sticks_and_shows_focus() {
     let css = super::css(
         &super::super::css::Wide {
+            width: 1000.0,
             title_height: 53.0,
             radar_width: 670.0,
             radar_height: 640.0,
@@ -179,6 +180,7 @@ fn the_panel_sticks_and_shows_focus() {
 
 /// The PRD example's wide parts, for the controls' rules.
 const WIDE: super::super::css::Wide = super::super::css::Wide {
+    width: 976.817,
     title_height: 53.0,
     radar_width: 670.0,
     radar_height: 640.5,

@@ -1235,7 +1235,7 @@ fn fr95_names_a_quadrant_or_a_ring() {
                 binding: Binding::Quadrant(" Infrastructure Platforms and Tooling ".into()),
                 width: 503,
             },
-            "the narrow arrangement is 503 units wide, past the 480 its legend rows and marker targets are sized for, so on a 320-pixel screen they fall below 24 pixels; a shorter name for quadrant 'Infrastructure Platforms and Tooling' would fix it",
+            "the narrow layout is 503 units wide, past the 480 its legend rows and marker targets are sized for, so on a 320-pixel screen they fall below 24 pixels; a shorter name for quadrant 'Infrastructure Platforms and Tooling' would fix it",
         ),
         (
             RenderKind::NarrowWidened {
@@ -1245,7 +1245,7 @@ fn fr95_names_a_quadrant_or_a_ring() {
                 },
                 width: 750,
             },
-            "the narrow arrangement is 750 units wide, past the 480 its legend rows and marker targets are sized for, so on a 320-pixel screen they fall below 24 pixels; a shorter name for ring 'Under evaluation by the architecture board' in --rings would fix it",
+            "the narrow layout is 750 units wide, past the 480 its legend rows and marker targets are sized for, so on a 320-pixel screen they fall below 24 pixels; a shorter name for ring 'Under evaluation by the architecture board' in --rings would fix it",
         ),
     ];
     for (kind, expected) in cases {
@@ -1265,27 +1265,27 @@ fn fr105_gives_the_breakpoint_and_names_the_label() {
                 ),
                 breakpoint: 1477,
             },
-            "the wide arrangement, the radar beside its legend, shows only on screens at least 1477 pixels wide, so narrower ones, common 1440-pixel laptops included, get the narrow arrangement; a shorter name for quadrant 'Platforms and Infrastructure Shared Across Every Product Team' would fix it",
+            "the wide layout needs a screen at least 1477 pixels wide, so 1440-pixel laptops get the narrow layout; a shorter name for quadrant 'Platforms and Infrastructure Shared Across Every Product Team' would fix it",
         ),
         (
             RenderKind::WideBeyondLaptops {
                 binding: Binding::Ring {
-                    name: "Under evaluation".into(),
+                    name: " Under evaluation ".into(),
                     source: RingSource::Default,
                 },
                 breakpoint: 2000,
             },
-            "the wide arrangement, the radar beside its legend, shows only on screens at least 2000 pixels wide, so narrower ones, common 1440-pixel laptops included, get the narrow arrangement; a shorter name for ring 'Under evaluation' (a default ring, so pass --rings to rename it) would fix it",
+            "the wide layout needs a screen at least 2000 pixels wide, so 1440-pixel laptops get the narrow layout; a shorter name for ring 'Under evaluation' (a default ring, so pass --rings to rename it) would fix it",
         ),
         (
             RenderKind::WideBeyondLaptops {
                 binding: Binding::Ring {
-                    name: "Under evaluation".into(),
+                    name: " Under evaluation ".into(),
                     source: RingSource::Flag,
                 },
                 breakpoint: 1441,
             },
-            "the wide arrangement, the radar beside its legend, shows only on screens at least 1441 pixels wide, so narrower ones, common 1440-pixel laptops included, get the narrow arrangement; a shorter name for ring 'Under evaluation' in --rings would fix it",
+            "the wide layout needs a screen at least 1441 pixels wide, so 1440-pixel laptops get the narrow layout; a shorter name for ring 'Under evaluation' in --rings would fix it",
         ),
     ];
     for (kind, expected) in cases {

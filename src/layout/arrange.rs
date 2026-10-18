@@ -23,7 +23,7 @@ use crate::style::{
     COLUMN_GAP, DOC_TOP, KEY_RULE_STROKE, KEY_TO_LEGEND, LEGEND_PANEL_INSET_X,
     LEGEND_PANEL_INSETS_X, LEGEND_WIDE_DROP, MARGIN, NARROW_MAX_WIDTH, NARROW_MIN_SCALE,
     NARROW_RADAR_COLUMN, NARROW_WIDTH, RADAR_INSET, RADAR_INSETS, RADAR_LABEL_PAD, breakpoint_px,
-    wide_shows_on_laptops,
+    breakpoint_shows_on_laptops, wide_shows_on_laptops,
 };
 use crate::svg::{Document, Group, Node, Paint, Point, Semantics};
 use crate::text::Fonts;
@@ -287,14 +287,18 @@ pub fn warn_narrow(blocks: &Blocks, warnings: &mut Warnings) {
 /// D-86 never grows the radar past the bound, so only labels, which draw at
 /// natural size and never wrap (FR-79), put it there.
 pub fn warn_wide(blocks: &Blocks, warnings: &mut Warnings) {
-    let at = wide(blocks);
-    if wide_shows_on_laptops(at.width, at.radar_right) {
+    let at = placements(Arrangement::Wide, blocks);
+    // The layout always places a valid width: `breakpoint_px` asserts it,
+    // and the page's stylesheet asks it for this same breakpoint on every
+    // HTML render, so a layout bug panics there whether or not this warns.
+    let breakpoint = breakpoint_px(at.width, at.radar_right);
+    if breakpoint_shows_on_laptops(breakpoint) {
         return;
     }
     if let Some(binding) = blocks.radar.binding_label(at.radar.scale) {
         warnings.push(Warning::Render(RenderKind::WideBeyondLaptops {
             binding,
-            breakpoint: breakpoint_px(at.width, at.radar_right),
+            breakpoint,
         }));
     }
 }
@@ -1080,6 +1084,40 @@ mod tests {
             wide_warnings(&b),
             wide_warned(&b, Binding::Quadrant(diagonal))
         );
+    }
+
+    /// D-94: wherever FR-105 fires, FR-95 fires too. Over the shared
+    /// fixtures, and one long quadrant name among one to six, or one long
+    /// `--rings` entry, at lengths either side of FR-105's bound.
+    #[test]
+    fn fr95_fires_wherever_fr105_does() {
+        let mut all: Vec<Blocks> = fixtures().into_iter().map(|(_, b)| b).collect();
+        for n in (30..=200).step_by(10) {
+            let long = "W".repeat(n);
+            for count in 1..=6 {
+                let mut names: Vec<&str> = ["A", "B", "C", "D", "E"]
+                    .into_iter()
+                    .take(count - 1)
+                    .collect();
+                names.push(&long);
+                all.push(blocks(&quadrants(&names), TITLED));
+            }
+            let ring = "W".repeat(n + 60);
+            all.push(with_rings(&quadrants(&["Tools"]), &format!("{ring},Adopt")));
+        }
+        let mut fired = 0;
+        for b in &all {
+            if !wide_warnings(b).is_empty() {
+                fired += 1;
+                assert_eq!(
+                    narrow_warnings(b).len(),
+                    1,
+                    "{:?}",
+                    b.radar.binding_label(1.0)
+                );
+            }
+        }
+        assert!(fired > all.len() / 2, "{fired} of {}", all.len());
     }
 
     /// FR-105 is quiet wherever the wide arrangement shows on a laptop:
