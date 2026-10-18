@@ -505,8 +505,10 @@ try {
 
   // D-97: a panel open across a toggle-induced switch stays open, its item
   // selected in the arrangement now shown, and closes to that item there.
+  // On a short window the panel is a bottom sheet over the wide radar, and
+  // a marker focused under it is scrolled clear of it (WCAG 2.4.11).
   await scenario('legend toggle across the breakpoints: panel open', [MID], async (width) => {
-    await load(width);
+    await load(width, { height: 500 });
     const m = await tabToMarker(3);
     check(m.arrangement === 'narrow', 'narrow marker 3 is focused');
     await press('Enter');
@@ -514,9 +516,69 @@ try {
     check((await arrangement()) === 'wide', `the wide arrangement shows`);
     check(!(await panelHidden()), 'the panel stays open');
     check(await evaluate(`document.querySelector('.arrangement.wide [data-marker="${m.marker}"]').hasAttribute('data-selected')`), 'the wide marker is selected');
+    for (const n of [1, 2, 3]) {
+      const a = await tabToMarker(n);
+      check(a.arrangement === 'wide', `wide marker ${n} is focused`);
+      const clear = await evaluate(`(() => {
+        const r = document.activeElement.getBoundingClientRect();
+        const p = document.getElementById('detail').getBoundingClientRect();
+        return { clear: r.bottom <= p.top + 0.5 && r.top >= 0, marker: [r.top, r.bottom], panel: p.top };
+      })()`);
+      check(clear.clear, `wide marker ${n} is not under the sheet: ${JSON.stringify(clear)}`);
+    }
     await clickOn('.detail-close');
     const a = await active();
     check(a.arrangement === 'wide' && a.marker === m.marker, `Close returns to wide marker 3: ${JSON.stringify(a)}`);
+  });
+
+  // D-97, rg-dok: a press keeps the button where it is on screen. Classic
+  // scrollbars, so the gutter is a real one. First on a window one
+  // arrangement fits and the other does not, so a press adds or removes
+  // the page's scrollbar, whose gutter is kept; then scrolled until the
+  // button is near the top, where a second press restores the view.
+  await scenario('legend toggle across the breakpoints: the button stays put', [MID], async (width) => {
+    const CLASSIC = `document.head.insertAdjacentHTML('beforeend', '<style>::-webkit-scrollbar { width: 15px; }</style>')`;
+    const BUTTON = `(() => { const r = document.querySelector('.legend-toggle').getBoundingClientRect(); return [r.left, r.top, scrollY]; })()`;
+    const pressTwice = async (how) => {
+      const before = await evaluate(BUTTON);
+      const at = await evaluate(`(() => { const r = document.querySelector('.legend-toggle').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+      await click(at.x, at.y);
+      check((await arrangement()) === 'wide', `${how}: the press switched to wide`);
+      const mid = await evaluate(BUTTON);
+      check(near(mid[0], before[0]) && near(mid[1], before[1]), `${how}: the button stays put: ${before} -> ${mid}`);
+      await click(at.x, at.y);
+      check((await arrangement()) === 'narrow', `${how}: the second press switched back`);
+      const after = await evaluate(BUTTON);
+      check(near(after[0], before[0]) && near(after[1], before[1]) && near(after[2], before[2]), `${how}: the view comes back: ${before} -> ${after}`);
+    };
+    // The page's height in each arrangement, on a window taller than both.
+    await load(width, { height: 3000 });
+    const HEIGHT = `document.body.getBoundingClientRect().height`;
+    const shownHeight = await evaluate(HEIGHT);
+    await evaluate(`document.documentElement.setAttribute('data-legend', 'hidden')`);
+    const hiddenHeight = await evaluate(HEIGHT);
+    const height = Math.round((shownHeight + hiddenHeight) / 2);
+    check(Math.abs(shownHeight - hiddenHeight) > 20, `the arrangements differ in height: ${shownHeight}, ${hiddenHeight}`);
+    await load(width, { height });
+    await evaluate(CLASSIC);
+    await pressTwice('one arrangement scrolls');
+    await load(width, { height: 600 });
+    await evaluate(CLASSIC);
+    await evaluate(`scrollTo(0, document.querySelector('.legend-toggle').getBoundingClientRect().top + scrollY - 4)`);
+    await pressTwice('scrolled');
+  });
+
+  await load(WIDE);
+  const PARTS = await evaluate(`(() => {
+    const w = (s) => document.querySelector(s).viewBox.baseVal.width;
+    return { radar: w('.wide-radar svg'), whole: w('.wide-radar svg') + w('.wide-legend svg'), shown: ${BREAKPOINT} };
+  })()`);
+  const TITLE_AT = Math.round((Math.max(PARTS.shown, PARTS.radar + 40) + PARTS.whole) / 2);
+  await scenario('legend shown: the title keeps its natural size', [TITLE_AT], async (width) => {
+    check(width > PARTS.shown && width < PARTS.whole, `a width between ${PARTS.shown} and ${PARTS.whole}`);
+    await load(width);
+    const m = await evaluate(`[document.querySelector('.wide-title').getBoundingClientRect().width, document.querySelector('.wide-title svg').getBoundingClientRect().width]`);
+    check(near(m[1], Math.min(PARTS.radar, m[0])), `the title is ${m[1]} px, not the radar part's ${PARTS.radar} within ${m[0]}`);
   });
 
   if (hiddenUrl) {
@@ -548,6 +610,8 @@ try {
     await scenario('legend starts hidden', [WIDE, NARROW], async (width) => {
       await load(width, { page: hiddenUrl });
       check(await allHidden(), 'starts hidden');
+      const want = width === WIDE ? 'wide' : 'narrow';
+      check((await arrangement()) === want, `in the ${want} arrangement`);
       check((await evaluate(LEGEND_NAME)) === 'Show legend', 'named Show legend');
       check((await evaluate(LEGEND_TITLE)) === (await evaluate(LEGEND_NAME)), 'its tooltip too');
       check((await evaluate(SKIP_NAME)) === 'Skip to the table', 'the skip link goes to the table');

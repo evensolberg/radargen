@@ -150,6 +150,11 @@ fn one_arrangement_at_a_time() {
             t = fmt_coord(wide.title.height),
             h = fmt_coord(wide.radar.height),
         ),
+        // rg-dok: the title's SVG is drawn at its own part's width.
+        format!(
+            ".wide-title svg{{width:{}px;max-width:100%}}",
+            fmt_coord(wide.title.width)
+        ),
         format!(
             ".narrow{{max-width:{}px;margin:0 auto}}",
             fmt_coord(narrow.body.width)

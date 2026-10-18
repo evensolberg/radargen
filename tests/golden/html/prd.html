@@ -14,6 +14,7 @@
 @media (forced-colors: active){:root,:root[data-theme]{--surface-1:Canvas;--surface-2:Canvas;--text-primary:CanvasText;--text-muted:CanvasText;--stroke-ring:CanvasText;--stroke-divider:CanvasText;--marker-hollow:Canvas;--focus:Highlight;}}
 body{margin:0;line-height:1.4;font-family:"Inter";background:var(--surface-1);color:var(--text-primary)}
 svg{display:block;width:100%;height:auto}
+@media screen{html{scrollbar-gutter:stable}}
 .wide{display:grid;grid-template-columns:minmax(0,max(536px,calc((100vh - 46px - 3.05rem - 2px)*670/659.5))) max-content;justify-content:center}
 .wide-title{grid-row:1;grid-column:1/-1;contain:inline-size}
 .wide-title svg{width:670px;max-width:100%}
@@ -35,7 +36,10 @@ svg{display:block;width:100%;height:auto}
 :root.js[data-legend="hidden"] .wide{display:grid}
 :root.js[data-legend="hidden"] .narrow{display:none}
 }
-@media screen and (max-width: 535px){:root.js[data-legend="hidden"] .wide{display:none}:root.js[data-legend="hidden"] .narrow{display:block}}
+@media screen and (max-width: 535px){
+:root.js[data-legend="hidden"] .wide{display:none}
+:root.js[data-legend="hidden"] .narrow{display:block}
+}
 [data-legend-row][data-hovered]>[data-row-indicator]{visibility:visible}
 [data-legend-row][data-hovered]>[data-row-indicator]>rect{stroke:var(--text-muted);stroke-width:1px;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
 [data-legend-row][data-selected]>[data-selection]{visibility:visible}
@@ -845,26 +849,23 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
     if (el.getClientRects().length > 0) state.focus = null;
   });
 
-  const isLegendHidden = () => root.getAttribute(N.legendState) === N.legendHidden;
-
   // A breakpoint change hides the arrangement holding the focus; focus the
   // same item in the one now shown. When the change event fires, Chromium
   // may not yet have moved focus off the hidden element, so focus counts as
   // lost by focusLost(), which that late blur cannot fool. The page swaps
   // at one breakpoint while the legend shows and at a lower one while it is
-  // hidden (D-97), so only the query for the legend's state counts. A press
-  // that swaps them changes neither query; its handler sees to focus.
-  const narrowShown = matchMedia(main.getAttribute(N.narrowQuery));
-  const narrowHidden = matchMedia(main.getAttribute(N.narrowQueryHidden));
-  const swapped = (event) => {
-    if (event.target !== (isLegendHidden() ? narrowHidden : narrowShown)) return;
+  // hidden (D-97), so both queries are watched; a change of the other one
+  // swaps nothing, leaves focus shown, and so does nothing. A press that
+  // swaps the arrangements changes neither query; its handler sees to focus.
+  const swapped = () => {
     if (!state.focus || !focusLost()) return;
     const { key, kind } = state.focus;
     const el = shown()?.querySelector(by(kind, key));
     if (el) el.focus();
   };
-  narrowShown.addEventListener('change', swapped);
-  narrowHidden.addEventListener('change', swapped);
+  for (const query of [N.narrowQuery, N.narrowQueryHidden]) {
+    matchMedia(main.getAttribute(query)).addEventListener('change', swapped);
+  }
 
   // FR-38's panel, built from the item's table row (D-80): its heading is
   // the number and name, and each non-empty cell after the name becomes a
@@ -1102,6 +1103,7 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
   // shown, or to the table while the legend is hidden.
   const skip = document.querySelector('.' + N.skip);
   const plotted = !!document.querySelector('[' + N.legend + ']');
+  const isLegendHidden = () => root.getAttribute(N.legendState) === N.legendHidden;
   skip.addEventListener('click', () => {
     if (isLegendHidden()) details.querySelector('summary').focus();
     else shown()?.querySelector('[' + N.legend + ']')?.focus();
@@ -1118,8 +1120,12 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
     skip.textContent = hidden ? N.skipTable : N.skipLegend;
   };
   legendToggle.addEventListener('click', () => {
+    // A press can swap the arrangements (D-97) and change the page's
+    // height; the button stays where it was on screen.
+    const before = legendToggle.getBoundingClientRect().top;
     if (isLegendHidden()) root.removeAttribute(N.legendState);
     else root.setAttribute(N.legendState, N.legendHidden);
+    scrollBy(0, legendToggle.getBoundingClientRect().top - before);
     showLegendState();
     if (focusLost()) legendToggle.focus();
   });

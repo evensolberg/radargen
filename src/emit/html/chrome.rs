@@ -8,8 +8,8 @@
 
 use super::Legend;
 use super::css::{
-    HIDDEN_BOX, NOT_SHOWN, OUTLINE_CLOSE, Wide, attr, capped, narrow_query, narrow_query_hidden,
-    rule,
+    HIDDEN_BOX, NOT_SHOWN, OUTLINE_CLOSE, SHOWN, Wide, attr, capped, narrow_query,
+    narrow_query_hidden, rule,
 };
 use crate::escape::html_attr;
 use crate::palette::Neutral;
@@ -271,7 +271,6 @@ fn icon_button(class: &str) -> String {
 
 const START_GROUP: &str = "margin-inline-start:auto";
 const BESIDE: &str = "margin-inline-start:.5em";
-const SHOWN: &str = "display:block";
 
 /// The legend button (RG-102): square like the theme toggle, it starts the
 /// right-hand group, with the theme toggle beside it, or alone at the end on

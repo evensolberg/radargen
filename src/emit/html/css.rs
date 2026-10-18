@@ -73,6 +73,8 @@ pub(super) struct Wide {
     pub(super) breakpoint: u32,
     /// D-97's, while the legend is hidden (`WideParts::breakpoint_hidden`).
     pub(super) breakpoint_hidden: u32,
+    /// The title part's width, its SVG's natural width (rg-dok).
+    pub(super) title_width: f64,
     /// The title part's height; it spans the whole width.
     pub(super) title_height: f64,
     /// The radar part's width, which the key's part shares.
@@ -89,6 +91,7 @@ impl Wide {
         Self {
             breakpoint: parts.breakpoint(),
             breakpoint_hidden: parts.breakpoint_hidden(),
+            title_width: parts.title.width,
             title_height: parts.title.height,
             radar_width: parts.radar.width,
             radar_height: parts.radar.height,
@@ -168,7 +171,14 @@ const BODY_OPEN: &str = "body{margin:0;line-height:1.4;font-family:\"";
 const BODY_GROUND: &str = "\";background:var(";
 const BODY_INK: &str = ");color:var(";
 const SVG_RULE: &str = ")}\nsvg{display:block;width:100%;height:auto}\n";
-const GRID_OPEN: &str = ".wide{display:grid;grid-template-columns:minmax(0,";
+/// The page's scrollbar keeps its gutter on screen, so a press that swaps
+/// the arrangements (D-97) and changes the page's height never moves the
+/// page sideways. Media queries count the scrollbar, so no breakpoint moves.
+const STABLE_GUTTER: &str = "@media screen{html{scrollbar-gutter:stable}}\n";
+const GRID_OPEN: &str = ".wide{";
+/// The wide arrangement's default display: its grid (D-85).
+const WIDE_SHOWN: &str = "display:grid";
+const GRID_COLUMNS: &str = ";grid-template-columns:minmax(0,";
 const GRID_CLOSE: &str = ") max-content;justify-content:center}\n";
 /// The title spans both columns, its size contained so its width never
 /// widens the legend's column, which is sized to its content.
@@ -344,11 +354,14 @@ pub(super) fn layout(wide: &Wide, narrow_width: f64) -> String {
         BODY_INK,
         Neutral::TextPrimary.as_str(),
         SVG_RULE,
+        STABLE_GUTTER,
         GRID_OPEN,
+        WIDE_SHOWN,
+        GRID_COLUMNS,
         &wide.radar_cap(),
         GRID_CLOSE,
         &class(WIDE_TITLE, TITLE_RULE),
-        &svg_width(WIDE_TITLE, wide.radar_width, NATURAL_CLOSE),
+        &svg_width(WIDE_TITLE, wide.title_width, NATURAL_CLOSE),
         &class(WIDE_RADAR, RADAR_RULE),
         &class(WIDE_KEY, KEY_RULE),
         &svg_width(WIDE_KEY, wide.radar_width, NATURAL_CLOSE),
@@ -373,6 +386,8 @@ const SCREEN_CLOSE: &str = "}\n";
 /// the radar it overlaps.
 const INVISIBLE: &str = "visibility:hidden!important;pointer-events:none!important";
 pub(super) const NOT_SHOWN: &str = "display:none";
+/// A block shown again where a rule had it `NOT_SHOWN`.
+pub(super) const SHOWN: &str = "display:block";
 /// Contained, as the title is, so spanning both tracks does not let the
 /// radar's own size widen them.
 const SPAN_TRACKS: &str = "grid-column:1/-1;contain:inline-size";
@@ -385,9 +400,7 @@ const WIDE_ARRANGEMENT: &str = "wide";
 const NARROW_ARRANGEMENT: &str = "narrow";
 /// D-97's query, on screen only, as the hiding rules are.
 const SCREEN_AND: &str = "@media screen and ";
-const WIDE_SHOWN: &str = "display:grid";
-const NARROW_SHOWN: &str = "display:block";
-const RULE_END: &str = "}";
+const BLOCK_OPEN: &str = "{\n";
 
 /// RG-102: while the legend is hidden, it is gone from both arrangements.
 ///
@@ -433,16 +446,10 @@ pub(super) fn legend_hiding(wide: &Wide) -> String {
         SCREEN_CLOSE,
         SCREEN_AND,
         &narrow_query_hidden(wide),
-        LBRACE,
-        &wide_box,
-        LBRACE,
-        NOT_SHOWN,
-        RULE_END,
-        &narrow_box,
-        LBRACE,
-        NARROW_SHOWN,
-        RULE_END,
-        RBRACE,
+        BLOCK_OPEN,
+        &rule(&wide_box, NOT_SHOWN),
+        &rule(&narrow_box, SHOWN),
+        SCREEN_CLOSE,
     ]
     .concat()
 }

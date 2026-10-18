@@ -164,6 +164,7 @@ fn the_panel_sticks_and_shows_focus() {
         &super::super::css::Wide {
             breakpoint: 866,
             breakpoint_hidden: 536,
+            title_width: 670.0,
             title_height: 53.0,
             radar_width: 670.0,
             radar_height: 640.0,
@@ -185,6 +186,7 @@ fn the_panel_sticks_and_shows_focus() {
 const WIDE: super::super::css::Wide = super::super::css::Wide {
     breakpoint: 843,
     breakpoint_hidden: 536,
+    title_width: 670.0,
     title_height: 53.0,
     radar_width: 670.0,
     radar_height: 640.5,

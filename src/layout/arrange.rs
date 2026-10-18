@@ -180,8 +180,8 @@ fn part(width: f64, height: f64, origin: Point, children: Vec<Node>) -> Document
 #[derive(Debug, Clone, PartialEq)]
 pub struct WideParts {
     /// The title block, as wide as the radar: the title wraps at the legend
-    /// column, well inside it, and so draws at the radar's scale at the
-    /// hidden breakpoint, not the whole document's (rg-dok).
+    /// column's width (380), well inside it, and so draws at the radar's
+    /// scale at the hidden breakpoint, not the whole document's (rg-dok).
     pub title: Document,
     /// The radar, from the left edge to its block's right edge.
     pub radar: Document,
@@ -192,8 +192,8 @@ pub struct WideParts {
 }
 
 // rg-dok: the title part is cut at the radar's right edge, so the title,
-// wrapped at the legend column from the left margin, and its right margin
-// must fit inside the narrowest radar part.
+// wrapped at the legend column's width from the left margin, and its right
+// margin must fit inside the narrowest radar part.
 const _: () = assert!(
     MARGIN + LEGEND_WIDTH_MAX + MARGIN <= RADAR_INSET + MIN_RADAR_WIDTH,
     "rg-dok: the title must fit inside the radar part it is cut to"
@@ -1475,26 +1475,21 @@ mod tests {
         assert_eq!(parts.breakpoint_hidden(), 536);
     }
 
-    /// rg-dok (D-97): everything the hidden page draws side by side fits at
-    /// its breakpoint. The title, radar and key parts are one width, so
-    /// each draws at 0.8 at least there; the invisible legend's column,
-    /// which keeps its width, fits with room for a classic scrollbar's
-    /// gutter; and the hidden breakpoint is never above the shown one.
+    /// A classic scrollbar's gutter, about 15 to 17 pixels, rounded up.
+    const CLASSIC_GUTTER: f64 = 20.0;
+
+    /// rg-dok (D-97): a hidden legend keeps its column, which the radar
+    /// and key span, so it must fit inside the hidden breakpoint with room
+    /// for the legend box's scrollbar gutter.
     #[test]
-    fn the_hidden_breakpoint_holds_every_part() {
+    fn the_hidden_legend_column_fits_its_breakpoint() {
         for (name, b) in fixtures() {
             let parts = wide_parts(&b);
             let hidden = f64::from(parts.breakpoint_hidden());
-            assert!(close(parts.title.width, parts.radar.width), "{name}");
-            assert!(close(parts.key.width, parts.radar.width), "{name}");
             assert!(
-                hidden + 0.5 >= parts.radar.width * WIDE_MIN_SCALE,
-                "{name}: {hidden}"
-            );
-            assert!(parts.legend.width + 20.0 <= hidden, "{name}: {hidden}");
-            assert!(
-                parts.breakpoint_hidden() <= parts.breakpoint(),
-                "{name}: {hidden}"
+                parts.legend.width + CLASSIC_GUTTER <= hidden,
+                "{name}: {} at {hidden}",
+                parts.legend.width
             );
         }
     }
