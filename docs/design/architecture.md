@@ -333,7 +333,7 @@ switch is therefore where the radar alone reaches `WIDE_MIN_SCALE`
 (`MIN_LEGIBLE_PX / LEGEND_NAME.size`, 0.8): `W − (1 − 0.8) × R` rounded to an
 integer, for a radar part `R` wide (`WideParts::breakpoint`). The title part is
 cut as wide as the radar part, not the whole document (rg-dok): the title wraps
-at the legend column, well inside it, so it never draws smaller than the
+at the legend column's width (380), well inside it, so it never draws smaller than the
 radar does. PNG and SVG keep the one document. The
 narrow arrangement is never wider than the wide one, though since D-85 the
 breakpoint can fall a few pixels below the narrow document's width, where the

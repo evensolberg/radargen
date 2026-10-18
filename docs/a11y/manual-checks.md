@@ -11,7 +11,7 @@ created_date: 2026-10-13
 synopsis: "What only a person with a screen reader, a real browser's zoom or a keyboard on a real machine can judge, step by step, with the announcement to expect at each step and a results table to fill in before tagging 1.0.0. The automated audit (scripts/a11y-audit.mjs) covers everything a browser can measure; this covers the rest."
 status: draft
 type: Guide
-revision: "1.12"
+revision: "1.13"
 review_date:
 reviewed_by: []
 completed_date:
@@ -77,8 +77,14 @@ The expected names come from `three-quadrant.csv`.
    - *Expect (sighted, narrow window):* with the legend below the fold, the icon changes on each press.
    - *Expect (sighted, mouse):* hovering shows "Hide legend" as a tooltip. After a press, move the pointer off the button and back on: it shows "Show legend".
    - *Expect:* the name is read once, with no description or delayed hint repeating it.
-   - *Expect, at a window between the two breakpoints* (`interaction.html` at about 650 px wide, which shows the narrow arrangement)*:* Enter on the button hides the legend and the page switches to the wide arrangement, once, with no flicker back; focus stays on the button, which is read again as "Show legend, button" or not at all, never as a marker or the page. Enter again shows the legend and switches back to narrow, focus still on the button (D-97).
+   - *The two breakpoints:* `<main>` carries them as media queries, `data-narrow-query` with the legend shown and `data-narrow-query-hidden` with it hidden; each is one pixel under its breakpoint (read them with the browser's inspector, or `grep -o 'data-narrow-query[^>]*' page.html`). "Between the breakpoints" is any window width from the hidden one up to, but not including, the shown one.
+   - *Expect, at a window between the two breakpoints* (it shows the narrow arrangement)*:* Enter on the button hides the legend and the page switches to the wide arrangement, once, with no flicker back; focus stays on the button, which is read again as "Show legend, button" or not at all, never as a marker or the page. Enter again shows the legend and switches back to narrow, focus still on the button (D-97).
    - *Expect, at that width, with a marker's panel open:* the switch leaves the panel open; Close returns focus to the same marker in the arrangement now shown.
+   - *Expect (sighted, mouse, zoom):* in a 1280 px window at 150%, 175% and 200% zoom, where the page's width in CSS pixels falls between the breakpoints, a mouse press switches the arrangement and the button stays under the pointer, so a second press without moving the mouse switches back.
+   - *Expect (sighted, scrolled):* scroll until the button is near the top of the window, press it twice: the button stays where it was, and the page comes back to where it was scrolled.
+   - *Expect (touch, landscape):* on a phone or tablet held landscape at a width between the breakpoints, a tap switches the arrangement and the button stays under the finger.
+   - *Expect (magnifier, ZoomText or macOS Zoom following focus):* after a press that switches the arrangement, the magnified view stays on the button.
+   - *Expect (screen reader):* a press that switches the arrangement announces nothing about the layout, only the button's new name if anything, and the reading order afterwards is the same: title, radar, key, then the legend when shown.
 10. **The table** (`interaction.html`). Open *The table* and browse into it.
    - *Expect:* "Items on the radar, region", then a table with its row and column counts. A page rendered with `--table all` reads "Every item, region" instead.
    - *Expect:* moving across a row reads each cell with its column header; moving down a column reads the row header (the name).
@@ -170,3 +176,4 @@ The expected names come from `three-quadrant.csv`.
 | 1.10 | 2026-10-17 | Steps 8 and 9: the icon buttons' hover tooltips (rg-7gd). |
 | 1.11 | 2026-10-17 | Steps 10 and 12: the default table's heading is "Items on the radar", "Every item" under `--table all`, which alone lists the unplotted row (FR-106, rg-fgf). |
 | 1.12 | 2026-10-18 | Step 9: a press between the two breakpoints switches the arrangement, focus staying on the button, and an open panel survives it (D-97, rg-dok). |
+| 1.13 | 2026-10-18 | Step 9: how to read the two breakpoints from `<main>`; checks for zoom with the mouse, a scrolled page, touch in landscape, a magnifier and a screen reader across a switch (rg-dok review). |

@@ -9,7 +9,7 @@ created_date: 2026-10-17
 synopsis: "Task-by-task plan for RG-102 in two PRs: first the narrow arrangement cut into body and legend parts for HTML (no bump), then the --legend flag, the page's start state and hiding rules, the icon button and its script, browser checks, docs and 1.6.0."
 status: complete
 type: Plan
-revision: "1.2"
+revision: "1.3"
 review_date: 2026-10-17
 reviewed_by: [rust-engineer, qa-expert, ui-designer, architect-reviewer, ux-researcher]
 completed_date: 2026-10-17
@@ -46,7 +46,7 @@ Branch PR B from main after PR A merges.
 - The button has no pressed state (rg-nuy). Its visually hidden name says what a press does: `Hide legend` or `Show legend`. Its icon shows the state: a list while the legend shows, a crossed-out list while it is hidden.
 - The skip link reads `Skip to the legend` and focuses the first legend row while the legend shows. While it is hidden it reads `Skip to the table` and focuses the table view's `<summary>`.
 - Nothing is written to `localStorage`, `sessionStorage`, IndexedDB or cookies.
-- FR-69's breakpoint does not move (follow-up crumb rg-dok).
+- FR-69's breakpoint does not move (follow-up crumb rg-dok). *Superseded by PRD D-97 (rg-dok, 2026-10-18): while the legend is hidden the page switches at a second, lower breakpoint.*
 - Every markup and CSS fragment is a named constant. The script's `const N = {…}` names block is held to the Rust constants by `the_scripts_names_are_the_pages` (`src/emit/html/chrome/tests.rs`).
 - Comments explain why. No lint suppressions and no dead code. `cargo clippy --locked --all-targets -- -D warnings` and `just lint` are clean.
 - `--help` and `-h` text carries no requirement numbers or `§` (`help_speaks_to_users`). Each `-h` line is at most 120 columns (`short_help_is_one_line_per_flag`); clap here does not wrap.
@@ -1057,7 +1057,7 @@ legend-engines-only:
 
 - [x] **Step 2: Architecture.** Two additions:
   - D-85's note on HTML's parts gains the narrow cut (`narrow_parts`), and why: so CSS can hide the legend without leaving its space.
-  - §4's breakpoint note says hiding the legend does not move the breakpoint (rg-dok).
+  - §4's breakpoint note says hiding the legend does not move the breakpoint (rg-dok). *Superseded by PRD D-97 (rg-dok, 2026-10-18), which moves it.*
 
 - [x] **Step 3: Manual checklist.** Make these changes:
   - Step 7 (the skip link) adds "with the legend hidden, 'Skip to the table, button', and Enter lands on the table toggle".
@@ -1089,3 +1089,4 @@ legend-engines-only:
 | 1.0 | 2026-10-17 | Initial version, from spec RG-102. |
 | 1.1 | 2026-10-17 | After the five-agent review (rust-engineer, qa-expert, ui-designer, architect-reviewer, ux-researcher) and the maintainer's rulings: two PRs; no short form; the PNG/SVG warning; state-showing icons; the skip link retargets; the wide box keeps its width; the narrow cut keeps the key's gap; print shows the legend; fixed help, CSS and test snippets; trusted input; the existing Tab-order scenarios updated; a Firefox and WebKit focus check; Chromium named where only Chromium runs. |
 | 1.2 | 2026-10-17 | Tasks 1–9 done; an as-built note on the hiding mechanism and the WebKit focus rule, which superseded this plan's code there. |
+| 1.3 | 2026-10-18 | Notes that PRD D-97 (rg-dok) superseded "FR-69's breakpoint does not move"; moved to docs/plans/done/. |
