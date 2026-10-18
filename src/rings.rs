@@ -36,7 +36,14 @@ impl fmt::Display for RingSource {
     }
 }
 
-/// The declared rings, edge-to-centre (FR-12), and where they came from.
+/// The declared rings, edge-to-centre (FR-12), where they came from, and
+/// the rings FR-107 keeps off the radar.
+///
+/// **Invariant:** no entry of `unplotted` matches an entry of `rings` under
+/// FR-76, so a ring is either drawn or kept off, never both. [`parse_rings`]
+/// builds a set with none unplotted, and [`RingSet::with_unplotted`] is the
+/// one constructor that adds them, refusing any overlap. Build the fields by
+/// hand and nothing checks it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RingSet {
     /// As declared, after FR-15's trim: the band labels and legend
@@ -76,6 +83,10 @@ pub enum RingsError {
     /// The list yielded no rings at all.
     #[error("no rings declared")]
     Empty,
+    /// [`RingsError::Empty`] for `--unplotted-rings`, in the flag's own
+    /// verb: it names rings rather than declaring them (FR-107).
+    #[error("no rings named")]
+    NoneNamed,
     /// FR-107: an `--unplotted-rings` entry the ring set declares, so it
     /// would be both drawn and left off. `by` is where the ring set came
     /// from, which says what to edit (D-61). Never raised for `--rings`.
@@ -94,11 +105,9 @@ pub enum RingsError {
 /// to remove the ring from, so it says how to declare one without it.
 const fn overlap(by: RingSource) -> &'static str {
     match by {
-        RingSource::Flag => {
-            "is also in --rings; a ring is either drawn or left off the radar, so remove it from one of the two"
-        }
+        RingSource::Flag => "is also in --rings, which draws it; remove it from one list",
         RingSource::Default => {
-            "is a default ring, so it is drawn; to leave it off the radar, pass --rings listing the rings to draw, without it"
+            "is a default ring, so it is drawn; to leave it off, pass --rings with the rings to draw, without it"
         }
     }
 }
@@ -154,6 +163,15 @@ impl RingSet {
                     entry: entry.to_string(),
                     by: self.source,
                 })
+        })
+        .map_err(|errors| {
+            errors
+                .into_iter()
+                .map(|e| match e {
+                    RingsError::Empty => RingsError::NoneNamed,
+                    other => other,
+                })
+                .collect::<Vec<_>>()
         })?;
         Ok(Self { unplotted, ..self })
     }

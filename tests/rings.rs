@@ -207,8 +207,8 @@ fn a_ring_set_names_no_unplotted_rings_by_default() {
 /// casing; the declared rings are untouched.
 #[test]
 fn unplotted_rings_are_a_tidied_comma_list() {
-    let set = unplotted(" In  Use ,retired,\u{200b}Gone").expect("valid");
-    assert_eq!(set.unplotted, ["In Use", "retired", "Gone"]);
+    let set = unplotted(" In  Use ,rejected,\u{200b}Gone").expect("valid");
+    assert_eq!(set.unplotted, ["In Use", "rejected", "Gone"]);
     assert_eq!(set.rings, ["Adopt", "Trial"]);
     assert_eq!(set.source, RingSource::Flag);
 }
@@ -218,7 +218,7 @@ fn unplotted_rings_are_a_tidied_comma_list() {
 #[test]
 fn unplotted_rings_get_fr63s_checks() {
     assert_eq!(
-        unplotted("In Use,,in use , Retired"),
+        unplotted("In Use,,in use , Rejected"),
         Err(vec![
             RingsError::EmptyEntry { index: 2 },
             RingsError::Duplicate {
@@ -229,7 +229,11 @@ fn unplotted_rings_get_fr63s_checks() {
         ])
     );
     for list in ["", " , "] {
-        assert_eq!(unplotted(list), Err(vec![RingsError::Empty]), "{list:?}");
+        assert_eq!(
+            unplotted(list),
+            Err(vec![RingsError::NoneNamed]),
+            "{list:?}"
+        );
     }
 }
 
@@ -291,9 +295,12 @@ fn a_repeated_overlap_is_a_duplicate() {
     );
 }
 
-/// The messages `--unplotted-rings:` prefixes.
+/// The messages `--unplotted-rings:` prefixes. Its empty list says the
+/// flag's verb, `named`, where `--rings`' says `declared`.
 #[test]
 fn the_overlap_messages_say_what_to_edit() {
+    assert_eq!(RingsError::NoneNamed.to_string(), "no rings named");
+    assert_eq!(RingsError::Empty.to_string(), "no rings declared");
     let flag = RingsError::Overlap {
         index: 2,
         entry: "Adopt".into(),
@@ -301,7 +308,7 @@ fn the_overlap_messages_say_what_to_edit() {
     };
     assert_eq!(
         flag.to_string(),
-        "entry 2 'Adopt' is also in --rings; a ring is either drawn or left off the radar, so remove it from one of the two"
+        "entry 2 'Adopt' is also in --rings, which draws it; remove it from one list"
     );
     let default = RingsError::Overlap {
         index: 1,
@@ -310,6 +317,17 @@ fn the_overlap_messages_say_what_to_edit() {
     };
     assert_eq!(
         default.to_string(),
-        "entry 1 'Adopt' is a default ring, so it is drawn; to leave it off the radar, pass --rings listing the rings to draw, without it"
+        "entry 1 'Adopt' is a default ring, so it is drawn; to leave it off, pass --rings with the rings to draw, without it"
     );
+}
+
+/// FR-107: once `--rings` is given, the default set is not drawn, so a
+/// default ring may be unplotted.
+#[test]
+fn a_default_ring_may_be_unplotted_once_rings_replace_the_defaults() {
+    let set = parse_rings(Some("Adopt,Trial"))
+        .expect("valid")
+        .with_unplotted("Retire")
+        .expect("Retire is not drawn");
+    assert_eq!(set.unplotted, ["Retire"]);
 }

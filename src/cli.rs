@@ -101,11 +101,10 @@ pub struct Cli {
     // (FR-15, FR-63). No short form (OQ-2): it is set once per radar.
     /// Rings to leave off the radar without a warning, separated by commas.
     ///
-    /// For example "In Use,Retired". A row in one of them is left off the
-    /// radar as any row whose ring is not in --rings is, but without the
-    /// warning; a ring in neither list still warns, so a typo shows. Matched
-    /// in any case. A ring cannot be in both lists, nor be a default ring
-    /// when --rings is not given.
+    /// For example "In Use,Rejected". Their rows are treated like any row
+    /// whose ring is not in --rings, minus the warning; a ring in neither
+    /// list still warns, so typos show. Case-insensitive. A ring cannot be
+    /// in both lists, nor, without --rings, be a default ring.
     #[arg(long, value_name = "RINGS")]
     pub unplotted_rings: Option<String>,
 

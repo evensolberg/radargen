@@ -613,10 +613,10 @@ fn unplotted_rings_take_a_list_and_no_short_form() {
         "-o",
         "e.html",
         "--unplotted-rings",
-        "In Use, Retired",
+        "In Use, Rejected",
     ])
     .expect("parses");
-    assert_eq!(cli.unplotted_rings.as_deref(), Some("In Use, Retired"));
+    assert_eq!(cli.unplotted_rings.as_deref(), Some("In Use, Rejected"));
     let cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
     assert_eq!(cli.unplotted_rings, None);
     assert!(parse(&["in.csv", "-o", "e.html", "-u", "In Use"]).is_err());
@@ -661,7 +661,7 @@ fn the_unplotted_rings_help_says_what_still_warns() {
         [
             "--unplotted-rings <RINGS>",
             "Rings to leave off the radar without a warning, separated by commas.",
-            "For example \"In Use,Retired\". A row in one of them is left off the radar as any row whose ring is not in --rings is, but without the warning; a ring in neither list still warns, so a typo shows. Matched in any case. A ring cannot be in both lists, nor be a default ring when --rings is not given.",
+            "For example \"In Use,Rejected\". Their rows are treated like any row whose ring is not in --rings, minus the warning; a ring in neither list still warns, so typos show. Case-insensitive. A ring cannot be in both lists, nor, without --rings, be a default ring.",
         ],
         "{long}"
     );

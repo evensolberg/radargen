@@ -655,6 +655,9 @@ impl Builder {
                     source: self.source,
                     rings: Arc::clone(&self.declared),
                     off_radar: self.off_radar,
+                    // `with_unplotted` refuses an empty list, so an empty
+                    // one means the flag was not given.
+                    suggest_unplotted: self.unplotted_keys.is_empty(),
                 },
             );
         }
@@ -1255,14 +1258,14 @@ mod tests {
         assert_eq!(
             warnings,
             [
-                "warning: line 2, ring: 'In Use' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set; to keep it off without a warning, name it in --unplotted-rings"
+                "warning: line 2, ring: 'In Use' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings"
             ]
         );
         let (_, warnings) = build_with(&csv, Some("Adopt,Hold"));
         assert_eq!(
             warnings,
             [
-                "warning: line 2, ring: 'In Use' is not one of the rings --rings declares (Adopt, Hold); the row is in the table view, not on the radar; to plot it, add it to --rings; to keep it off without a warning, name it in --unplotted-rings"
+                "warning: line 2, ring: 'In Use' is not in --rings (Adopt, Hold); the row is in the table view, not on the radar; to plot it, add it to --rings; to leave it off without this warning, add it to --unplotted-rings"
             ]
         );
     }
@@ -1547,7 +1550,7 @@ mod tests {
             warnings(csv),
             [
                 "warning: line 2, column 2 (B): this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
-                "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set; to keep it off without a warning, name it in --unplotted-rings",
+                "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings",
                 "warning: line 2, description: removed U+0001, which the output cannot display",
                 "warning: line 3, description: empty; the detail panel omits it",
             ]
@@ -1563,7 +1566,7 @@ mod tests {
             warnings("name,quadrant,,,ring,description\nK,T,,\u{1},Adpot,d\n"),
             [
                 "warning: line 2, column 4 (D): removed U+0001, which the output cannot display",
-                "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set; to keep it off without a warning, name it in --unplotted-rings",
+                "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings",
             ]
         );
     }
