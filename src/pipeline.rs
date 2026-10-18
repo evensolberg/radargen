@@ -293,10 +293,11 @@ fn render(
         OutputFormat::Html => {
             // FR-105 and FR-95 concern the switch between the arrangements
             // and the narrow one, which only HTML carries.
-            warn_wide(&blocks, warnings);
+            let wide = wide_parts(&blocks);
+            warn_wide(&blocks, &wide, warnings);
             warn_narrow(&blocks, warnings);
             Ok(page(&Page {
-                wide: &wide_parts(&blocks),
+                wide: &wide,
                 narrow: &narrow_parts(&blocks),
                 catalogue,
                 plotted: &plotted,

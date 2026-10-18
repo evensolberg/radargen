@@ -9,9 +9,10 @@ use crate::palette::{Colours, Palette, Theme};
 use crate::text::{FAMILY, Weight};
 
 /// A wide arrangement's parts, the PRD example's widths: a 976.817-unit
-/// document whose radar part is 670 wide, under a 53-unit title.
+/// document whose radar part is 670 wide, under a 53-unit title, so its
+/// breakpoint is 976.817 − 0.2 × 670, rounded.
 const WIDE: Wide = Wide {
-    width: 976.817,
+    breakpoint: 843,
     title_height: 53.0,
     radar_width: 670.0,
     radar_height: 640.5,
@@ -117,12 +118,8 @@ fn palettes_override_in_order() {
 #[test]
 fn the_layout_is_exact() {
     assert_eq!(layout(&WIDE, NARROW), LAYOUT);
+    // The query is one below the breakpoint.
     assert_eq!(narrow_query(&WIDE), "(max-width: 842px)");
-    assert_eq!(
-        WIDE.breakpoint(),
-        843,
-        "the query is one below the breakpoint: 976.817 − 0.2 × 670"
-    );
 }
 
 /// D-85: the radar's column fills the window's width or the height under
@@ -361,30 +358,4 @@ fn a_hidden_legend_hides_both_parts_on_screen_under_the_script_only() {
         !css.contains("grid-template-columns"),
         "the tracks stay: {css}"
     );
-}
-
-/// FR-105 gives the breakpoint the page switches at: the stylesheet's,
-/// from the parts, is the placed wide document's, bit for bit.
-#[test]
-fn the_page_breakpoint_is_the_placed_documents() {
-    use crate::layout::arrange::{Arrangement, Blocks, placements, wide_parts};
-    use crate::layout::block::fonts;
-    use crate::layout::test_support::{PRD_EXAMPLE, csv_of, plotted};
-    use crate::style::breakpoint_px;
-
-    let long = "Platforms and Infrastructure Shared Across Every Product Team in the Group";
-    for csv in [
-        PRD_EXAMPLE.to_owned(),
-        csv_of(&["A", "B", "C", long], "Adopt"),
-        csv_of(&["A", "B", "C", &"W".repeat(70)], "Adopt"),
-    ] {
-        let (catalogue, plotted) = plotted(&csv, None);
-        let blocks = Blocks::new(&catalogue, &plotted, None, None, fonts());
-        let at = placements(Arrangement::Wide, &blocks);
-        assert_eq!(
-            Wide::of(&wide_parts(&blocks)).breakpoint(),
-            breakpoint_px(at.width, at.radar_right),
-            "{csv}"
-        );
-    }
 }

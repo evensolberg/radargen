@@ -14,7 +14,7 @@ use base64::engine::general_purpose::STANDARD;
 use crate::layout::arrange::WideParts;
 use crate::num::fmt_coord;
 use crate::palette::{Colours, Neutral, Palette, Theme};
-use crate::style::{FOCUS_RING_STROKE, WIDE_MIN_SCALE, breakpoint_px};
+use crate::style::{FOCUS_RING_STROKE, WIDE_MIN_SCALE};
 use crate::svg::serialise::{
     DATA_FOCUS_RING, DATA_HIT, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR,
     DATA_ROW_INDICATOR, DATA_SELECTION,
@@ -69,10 +69,8 @@ const INSET_CLOSE: &str = "px;box-sizing:border-box}\n";
 /// of its parts, in user units, which are CSS pixels at natural size.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct Wide {
-    /// The whole wide document's width: the title part's, which spans it,
-    /// so FR-69's breakpoint here is the one FR-105 warns with, from the
-    /// same placed width rather than a sum of the parts.
-    pub(super) width: f64,
+    /// FR-69's breakpoint, the parts' own (`WideParts::breakpoint`).
+    pub(super) breakpoint: u32,
     /// The title part's height; it spans the whole width.
     pub(super) title_height: f64,
     /// The radar part's width, which the key's part shares.
@@ -85,9 +83,9 @@ pub(super) struct Wide {
 
 impl Wide {
     /// The sizes `parts` were cut to.
-    pub(super) const fn of(parts: &WideParts) -> Self {
+    pub(super) fn of(parts: &WideParts) -> Self {
         Self {
-            width: parts.title.width,
+            breakpoint: parts.breakpoint(),
             title_height: parts.title.height,
             radar_width: parts.radar.width,
             radar_height: parts.radar.height,
@@ -95,10 +93,9 @@ impl Wide {
         }
     }
 
-    /// FR-69's breakpoint, where the radar draws at the legibility floor
-    /// beside a natural-size legend.
-    pub(super) fn breakpoint(self) -> u32 {
-        breakpoint_px(self.width, self.radar_width)
+    /// The whole wide document's width.
+    pub(super) fn width(self) -> f64 {
+        self.radar_width + self.legend_width
     }
 
     /// The radar column's cap: the width at which the radar is as tall as
@@ -353,7 +350,7 @@ pub(super) fn layout(wide: &Wide, narrow_width: f64) -> String {
         &wide.radar_cap(),
         GRID_CLOSE,
         &class(WIDE_TITLE, TITLE_RULE),
-        &svg_width(WIDE_TITLE, wide.width, NATURAL_CLOSE),
+        &svg_width(WIDE_TITLE, wide.width(), NATURAL_CLOSE),
         &class(WIDE_RADAR, RADAR_RULE),
         &class(WIDE_KEY, KEY_RULE),
         &svg_width(WIDE_KEY, wide.radar_width, NATURAL_CLOSE),
@@ -423,7 +420,7 @@ pub(super) fn legend_hiding(wide: &Wide) -> String {
 pub(super) fn narrow_query(wide: &Wide) -> String {
     [
         "(max-width: ",
-        &wide.breakpoint().saturating_sub(1).to_string(),
+        &wide.breakpoint.saturating_sub(1).to_string(),
         "px)",
     ]
     .concat()

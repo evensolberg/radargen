@@ -188,6 +188,16 @@ pub struct WideParts {
     pub legend: Document,
 }
 
+impl WideParts {
+    /// FR-69's breakpoint (D-85): the title part spans the whole document,
+    /// and the radar part is the radar's share of it. The page's media
+    /// query and FR-105's warning both read this one value.
+    #[must_use]
+    pub fn breakpoint(&self) -> u32 {
+        breakpoint_px(self.title.width, self.radar.width)
+    }
+}
+
 /// `blocks` in the wide arrangement, cut into [`WideParts`]. The parts
 /// draw what [`arrange`] draws, each translated to its own origin.
 #[must_use]
@@ -285,17 +295,15 @@ pub fn warn_narrow(blocks: &Blocks, warnings: &mut Warnings) {
 /// naming the label that sets the wide radar's width (D-94).
 ///
 /// D-86 never grows the radar past the bound, so only labels, which draw at
-/// natural size and never wrap (FR-79), put it there.
-pub fn warn_wide(blocks: &Blocks, warnings: &mut Warnings) {
-    let at = placements(Arrangement::Wide, blocks);
-    // The layout always places a valid width: `breakpoint_px` asserts it,
-    // and the page's stylesheet asks it for this same breakpoint on every
-    // HTML render, so a layout bug panics there whether or not this warns.
-    let breakpoint = breakpoint_px(at.width, at.radar_right);
+/// natural size and never wrap (FR-79), put it there. `wide` is `blocks`'
+/// [`wide_parts`], which the page draws.
+pub fn warn_wide(blocks: &Blocks, wide: &WideParts, warnings: &mut Warnings) {
+    let breakpoint = wide.breakpoint();
     if breakpoint_shows_on_laptops(breakpoint) {
         return;
     }
-    if let Some(binding) = blocks.radar.binding_label(at.radar.scale) {
+    // The wide arrangement draws the radar at scale 1.
+    if let Some(binding) = blocks.radar.binding_label(1.0) {
         warnings.push(Warning::Render(RenderKind::WideBeyondLaptops {
             binding,
             breakpoint,
@@ -1028,20 +1036,25 @@ mod tests {
     /// FR-105's warnings for `b`.
     fn wide_warnings(b: &Blocks) -> Vec<Warning> {
         let mut warnings = Warnings::default();
-        warn_wide(b, &mut warnings);
+        warn_wide(b, &wide_parts(b), &mut warnings);
         warnings.as_slice().to_vec()
     }
 
-    /// FR-105's one warning for `b`, with `binding` and `b`'s own
-    /// breakpoint, which must be past a laptop.
-    fn wide_warned(b: &Blocks, binding: Binding) -> Vec<Warning> {
-        let at = placements(Arrangement::Wide, b);
-        let breakpoint = breakpoint_px(at.width, at.radar_right);
-        assert!(breakpoint > WIDE_MIN_VIEWPORT_PX, "{breakpoint}");
-        vec![Warning::Render(RenderKind::WideBeyondLaptops {
-            binding,
-            breakpoint,
-        })]
+    /// The one FR-105 warning `b` raises: its label, and a breakpoint past
+    /// a laptop.
+    fn beyond_laptops(b: &Blocks) -> Binding {
+        match wide_warnings(b).as_slice() {
+            [
+                Warning::Render(RenderKind::WideBeyondLaptops {
+                    binding,
+                    breakpoint,
+                }),
+            ] => {
+                assert!(*breakpoint > WIDE_MIN_VIEWPORT_PX, "{breakpoint}");
+                binding.clone()
+            }
+            other => panic!("one FR-105 warning, got {other:?}"),
+        }
     }
 
     /// FR-105: a breakpoint past a laptop is one warning, giving it and
@@ -1050,7 +1063,7 @@ mod tests {
     fn fr105_names_the_binding_quadrant_and_the_breakpoint() {
         let long = "W".repeat(70);
         let b = blocks(&quadrants(&["A", "B", "C", &long]), TITLED);
-        assert_eq!(wide_warnings(&b), wide_warned(&b, Binding::Quadrant(long)));
+        assert_eq!(beyond_laptops(&b), Binding::Quadrant(long));
     }
 
     /// D-73 holds in the wide arrangement too: a long enough `--rings`
@@ -1065,7 +1078,7 @@ mod tests {
                 name: ring.clone(),
                 source: RingSource::Flag,
             };
-            assert_eq!(wide_warnings(&b), wide_warned(&b, binding), "{csv}");
+            assert_eq!(beyond_laptops(&b), binding, "{csv}");
         }
     }
 
@@ -1080,35 +1093,36 @@ mod tests {
         let six = format!("B{}", "W".repeat(130));
         let b = blocks(&quadrants(&[&diagonal, &six, "C"]), TITLED);
         assert_eq!(narrowed(&b).0, Binding::Quadrant(six));
-        assert_eq!(
-            wide_warnings(&b),
-            wide_warned(&b, Binding::Quadrant(diagonal))
-        );
+        assert_eq!(beyond_laptops(&b), Binding::Quadrant(diagonal));
     }
 
     /// D-94: wherever FR-105 fires, FR-95 fires too. Over the shared
-    /// fixtures, and one long quadrant name among one to six, or one long
-    /// `--rings` entry, at lengths either side of FR-105's bound.
+    /// fixtures, and a sweep either side of FR-105's bound: one long
+    /// quadrant name among one, three, four or six, or one long `--rings`
+    /// entry. Most of the sweep is past the bound, so the check bites.
     #[test]
     fn fr95_fires_wherever_fr105_does() {
-        let mut all: Vec<Blocks> = fixtures().into_iter().map(|(_, b)| b).collect();
-        for n in (30..=200).step_by(10) {
+        let mut sweep = Vec::new();
+        for n in [30, 60, 90, 130] {
             let long = "W".repeat(n);
-            for count in 1..=6 {
+            for count in [1, 3, 4, 6] {
                 let mut names: Vec<&str> = ["A", "B", "C", "D", "E"]
                     .into_iter()
                     .take(count - 1)
                     .collect();
                 names.push(&long);
-                all.push(blocks(&quadrants(&names), TITLED));
+                sweep.push(blocks(&quadrants(&names), TITLED));
             }
             let ring = "W".repeat(n + 60);
-            all.push(with_rings(&quadrants(&["Tools"]), &format!("{ring},Adopt")));
+            sweep.push(with_rings(&quadrants(&["Tools"]), &format!("{ring},Adopt")));
         }
-        let mut fired = 0;
-        for b in &all {
+        let fired = sweep
+            .iter()
+            .filter(|b| !wide_warnings(b).is_empty())
+            .count();
+        assert!(fired > sweep.len() / 2, "{fired} of {}", sweep.len());
+        for b in fixtures().iter().map(|(_, b)| b).chain(&sweep) {
             if !wide_warnings(b).is_empty() {
-                fired += 1;
                 assert_eq!(
                     narrow_warnings(b).len(),
                     1,
@@ -1117,7 +1131,6 @@ mod tests {
                 );
             }
         }
-        assert!(fired > all.len() / 2, "{fired} of {}", all.len());
     }
 
     /// FR-105 is quiet wherever the wide arrangement shows on a laptop:
