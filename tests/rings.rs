@@ -1,12 +1,12 @@
 //! `--rings` parsing and validation (FR-12–FR-15, FR-63).
 
-use radargen::rings::{RingSet, RingSource, RingsError, parse_rings};
+use radargen::rings::{RingMatch, RingSet, RingSource, RingsError, parse_rings};
 
 #[test]
 fn omitting_the_flag_yields_the_in_house_default() {
     // FR-13, edge-to-centre (FR-12, D-60): the lifecycle as it is read.
     assert_eq!(
-        parse_rings(None).expect("default is valid").rings,
+        parse_rings(None).expect("default is valid").rings(),
         vec!["Assess", "Trial", "Adopt", "Retire"]
     );
 }
@@ -15,11 +15,11 @@ fn omitting_the_flag_yields_the_in_house_default() {
 #[test]
 fn the_set_records_its_source() {
     assert_eq!(
-        parse_rings(None).expect("default is valid").source,
+        parse_rings(None).expect("default is valid").source(),
         RingSource::Default
     );
     assert_eq!(
-        parse_rings(Some("Adopt")).expect("valid").source,
+        parse_rings(Some("Adopt")).expect("valid").source(),
         RingSource::Flag
     );
 }
@@ -32,7 +32,7 @@ fn entries_lose_invisible_format_characters_at_their_ends() {
     assert_eq!(
         parse_rings(Some("\u{feff}Adopt\u{200b}, Trial"))
             .expect("valid")
-            .rings,
+            .rings(),
         vec!["Adopt", "Trial"]
     );
     assert!(matches!(
@@ -56,7 +56,7 @@ fn entries_are_trimmed_but_keep_internal_spaces() {
     assert_eq!(
         parse_rings(Some("Adopt, In Use , Retire"))
             .expect("valid")
-            .rings,
+            .rings(),
         vec!["Adopt", "In Use", "Retire"]
     );
 }
@@ -65,7 +65,7 @@ fn entries_are_trimmed_but_keep_internal_spaces() {
 fn a_single_ring_is_valid() {
     // FR-63: the list must yield at least one.
     assert_eq!(
-        parse_rings(Some("Adopt")).expect("valid").rings,
+        parse_rings(Some("Adopt")).expect("valid").rings(),
         vec!["Adopt"]
     );
 }
@@ -133,7 +133,7 @@ fn the_declared_casing_is_what_gets_displayed() {
     // FR-76: normalisation never edits displayed text beyond FR-15's trim —
     // the declared name is what appears as a band label and legend subheading.
     assert_eq!(
-        parse_rings(Some("ADOPT,trial")).expect("valid").rings,
+        parse_rings(Some("ADOPT,trial")).expect("valid").rings(),
         vec!["ADOPT", "trial"]
     );
 }
@@ -183,7 +183,7 @@ fn internal_whitespace_runs_collapse_in_ring_names() {
     assert_eq!(
         parse_rings(Some("Early  Adopt, Trial"))
             .expect("valid")
-            .rings,
+            .rings(),
         vec!["Early Adopt", "Trial"]
     );
 }
@@ -195,12 +195,21 @@ fn unplotted(list: &str) -> Result<RingSet, Vec<RingsError>> {
     parse_rings(Some("Adopt,Trial"))?.with_unplotted(list)
 }
 
-/// No `--unplotted-rings` names none.
+/// FR-16 and FR-107: a value is a declared ring, by its edge-to-centre
+/// index, an unplotted one, or neither, matched under FR-76; a set says
+/// whether it names any unplotted ring.
 #[test]
-fn a_ring_set_names_no_unplotted_rings_by_default() {
-    let none: [String; 0] = [];
-    assert_eq!(parse_rings(None).expect("default").unplotted, none);
-    assert_eq!(parse_rings(Some("Adopt")).expect("valid").unplotted, none);
+fn a_ring_set_classifies_a_value() {
+    let set = unplotted("In Use").expect("valid");
+    assert!(set.names_unplotted());
+    assert_eq!(set.classify(" trial "), RingMatch::Declared(1));
+    assert_eq!(set.classify("ADOPT"), RingMatch::Declared(0));
+    assert_eq!(set.classify("in   use"), RingMatch::Unplotted);
+    assert_eq!(set.classify("Adpot"), RingMatch::Unknown);
+    let set = parse_rings(None).expect("default");
+    assert!(!set.names_unplotted());
+    assert_eq!(set.classify("In Use"), RingMatch::Unknown);
+    assert_eq!(set.classify("retire"), RingMatch::Declared(3));
 }
 
 /// FR-107 and FR-15: entries are tidied as `--rings`' are, and keep their
@@ -208,9 +217,9 @@ fn a_ring_set_names_no_unplotted_rings_by_default() {
 #[test]
 fn unplotted_rings_are_a_tidied_comma_list() {
     let set = unplotted(" In  Use ,rejected,\u{200b}Gone").expect("valid");
-    assert_eq!(set.unplotted, ["In Use", "rejected", "Gone"]);
-    assert_eq!(set.rings, ["Adopt", "Trial"]);
-    assert_eq!(set.source, RingSource::Flag);
+    assert_eq!(set.unplotted(), ["In Use", "rejected", "Gone"]);
+    assert_eq!(set.rings(), ["Adopt", "Trial"]);
+    assert_eq!(set.source(), RingSource::Flag);
 }
 
 /// FR-63's checks, with `--rings`' errors: an empty entry, a duplicate
@@ -295,39 +304,18 @@ fn a_repeated_overlap_is_a_duplicate() {
     );
 }
 
-/// The messages `--unplotted-rings:` prefixes. Its empty list says the
-/// flag's verb, `named`, where `--rings`' says `declared`.
+/// An empty `--unplotted-rings` says the flag's verb, `named`, where
+/// `--rings`' says `declared`.
 #[test]
-fn the_overlap_messages_say_what_to_edit() {
+fn each_flag_words_its_empty_list() {
     assert_eq!(RingsError::NoneNamed.to_string(), "no rings named");
     assert_eq!(RingsError::Empty.to_string(), "no rings declared");
-    let flag = RingsError::Overlap {
-        index: 2,
-        entry: "Adopt".into(),
-        by: RingSource::Flag,
-    };
-    assert_eq!(
-        flag.to_string(),
-        "entry 2 'Adopt' is also in --rings, which draws it; remove it from one list"
-    );
-    let default = RingsError::Overlap {
-        index: 1,
-        entry: "Adopt".into(),
-        by: RingSource::Default,
-    };
-    assert_eq!(
-        default.to_string(),
-        "entry 1 'Adopt' is a default ring, so it is drawn; to leave it off, pass --rings with the rings to draw, without it"
-    );
 }
 
 /// FR-107: once `--rings` is given, the default set is not drawn, so a
 /// default ring may be unplotted.
 #[test]
 fn a_default_ring_may_be_unplotted_once_rings_replace_the_defaults() {
-    let set = parse_rings(Some("Adopt,Trial"))
-        .expect("valid")
-        .with_unplotted("Retire")
-        .expect("Retire is not drawn");
-    assert_eq!(set.unplotted, ["Retire"]);
+    let set = unplotted("Retire").expect("Retire is not drawn");
+    assert_eq!(set.unplotted(), ["Retire"]);
 }

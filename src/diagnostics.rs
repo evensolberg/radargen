@@ -1,7 +1,7 @@
 //! The diagnostic taxonomy (architecture §3, §7): what is fatal, what warns,
 //! and how warnings reach stderr (NFR-10, NFR-11, NFR-20).
 
-use std::fmt;
+use std::fmt::{self, Write as _};
 use std::sync::Arc;
 
 use crate::cli::OutputFormat;
@@ -747,23 +747,29 @@ impl OffRadar {
     /// last, what `--table all` would also publish (FR-106). `one` names
     /// the row and `them` the rows `--table all` lists.
     fn remedies(self, source: RingSource, suggest: bool, one: &str, them: &str) -> String {
-        let mut parts = vec![match source {
-            RingSource::Flag => format!("to plot {one}, add it to --rings"),
+        // `write!` rather than `push_str(&format!(..))`, which clippy's
+        // `format_push_string` refuses; writing to a `String` cannot fail.
+        let mut text = match source {
+            RingSource::Flag => format!("; to plot {one}, add it to --rings"),
             RingSource::Default => format!(
-                "to plot {one}, pass --rings with every ring to draw (it replaces the defaults)"
+                "; to plot {one}, pass --rings with every ring to draw (it replaces the defaults)"
             ),
-        }];
+        };
         if suggest {
-            parts.push(format!(
-                "to leave {one} off without this warning, add it to --unplotted-rings"
-            ));
+            write!(
+                text,
+                "; to leave {one} off without this warning, add it to --unplotted-rings"
+            )
+            .expect("a String takes any write");
         }
         if self == Self::Unlisted {
-            parts.push(format!(
-                "--table all lists {them}, but also publishes every other column"
-            ));
+            write!(
+                text,
+                "; --table all lists {them}, but also publishes every other column"
+            )
+            .expect("a String takes any write");
         }
-        format!("; {}", parts.join("; "))
+        text
     }
 }
 

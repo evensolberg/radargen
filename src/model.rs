@@ -13,7 +13,7 @@ use crate::diagnostics::{
     DateColumn, OffRadar, RowError, RowKind, Warning, Warnings, column_label,
 };
 pub use crate::link::Link;
-use crate::rings::{RingSet, RingSource};
+use crate::rings::{RingMatch, RingSet, RingSource};
 use crate::{normalise, single_line, tidy, trim};
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -479,21 +479,15 @@ impl Positions {
 pub const NOT_ON_THE_RADAR: &str = "not on the radar";
 
 /// Builds the catalogue a row at a time.
-struct Builder {
+struct Builder<'r> {
     header: Header,
     at: Positions,
-    /// The declared rings under FR-76, for FR-16's match.
-    ring_keys: Vec<String>,
-    /// FR-107's unplotted rings under FR-76: off the radar, unwarned.
-    unplotted_keys: Vec<String>,
-    source: RingSource,
+    /// The ring set, which matches each row's ring (FR-16, FR-107).
+    rings: &'r RingSet,
     /// Where the run puts an FR-17 row, for its warning (FR-106).
     off_radar: OffRadar,
-    /// The declared rings, moved into the [`Catalogue`] at the end.
-    rings: Vec<String>,
-    /// The same rings, shared by every FR-17 warning of the run. Kept apart
-    /// from `rings` because the catalogue owns a `Vec` while each warning
-    /// holds a cheap `Arc` clone.
+    /// The declared rings, shared by every FR-17 warning of the run, each
+    /// holding a cheap `Arc` clone.
     declared: Arc<[String]>,
     quadrants: Vec<Quadrant>,
     /// Each name's key, the line it first appears on and its spelling there,
@@ -502,17 +496,14 @@ struct Builder {
     items: Vec<Item>,
 }
 
-impl Builder {
-    fn new(header: Header, rings: &RingSet, off_radar: OffRadar) -> Self {
+impl<'r> Builder<'r> {
+    fn new(header: Header, rings: &'r RingSet, off_radar: OffRadar) -> Self {
         Self {
             at: Positions::of(&header),
             header,
-            ring_keys: rings.rings.iter().map(|r| normalise(r)).collect(),
-            unplotted_keys: rings.unplotted.iter().map(|r| normalise(r)).collect(),
-            source: rings.source,
+            rings,
             off_radar,
-            declared: Arc::from(rings.rings.as_slice()),
-            rings: rings.rings.clone(),
+            declared: Arc::from(rings.rings()),
             quadrants: Vec::new(),
             names: Vec::new(),
             items: Vec::new(),
@@ -526,8 +517,8 @@ impl Builder {
         Catalogue {
             columns: self.header.columns,
             quadrants: self.quadrants,
-            rings: self.rings,
-            ring_source: self.source,
+            rings: self.rings.rings().to_vec(),
+            ring_source: self.rings.source(),
             items: self.items,
         }
     }
@@ -645,23 +636,23 @@ impl Builder {
     /// naming where the ring set came from (D-61), unless FR-107 names the
     /// value as a ring kept off the radar.
     fn ring(&self, value: &str, warn: &mut impl FnMut(usize, RowKind)) -> Option<usize> {
-        let key = normalise(value);
-        let found = self.ring_keys.iter().position(|k| *k == key);
-        if found.is_none() && !self.unplotted_keys.contains(&key) {
-            warn(
-                self.at.ring,
-                RowKind::UndeclaredRing {
-                    value: value.to_string(),
-                    source: self.source,
-                    rings: Arc::clone(&self.declared),
-                    off_radar: self.off_radar,
-                    // `with_unplotted` refuses an empty list, so an empty
-                    // one means the flag was not given.
-                    suggest_unplotted: self.unplotted_keys.is_empty(),
-                },
-            );
+        match self.rings.classify(value) {
+            RingMatch::Declared(i) => Some(i),
+            RingMatch::Unplotted => None,
+            RingMatch::Unknown => {
+                warn(
+                    self.at.ring,
+                    RowKind::UndeclaredRing {
+                        value: value.to_string(),
+                        source: self.rings.source(),
+                        rings: Arc::clone(&self.declared),
+                        off_radar: self.off_radar,
+                        suggest_unplotted: !self.rings.names_unplotted(),
+                    },
+                );
+                None
+            }
         }
-        found
     }
 }
 
