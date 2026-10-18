@@ -1,16 +1,25 @@
+## [1.13.0] - 2026-10-18
+
+### 🚀 Features
+
+- *(columns)* Warn when a header nearly matches a known column
+
+### 🐛 Bug Fixes
+
+- *(columns)* Allow two edits only for a header longer than the name
+
+### 📚 Documentation
+
+- *(prd)* FR-108 and D-98, near-miss column headers (0.97)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Close rg-prs
 ## [1.12.1] - 2026-10-18
 
 ### 🐛 Bug Fixes
 
-- *(diagnostics)* Grouped FR-90 line names its count's unit (rg-xbp)
-
-### 📚 Documentation
-
-- *(prd)* NFR-9 lists every warning the tool emits (rg-mx8)
-
-### 🧪 Testing
-
-- Linear-time tests compare n with 8n, not a 5 s limit (rg-the)
+- Three small crumbs — FR-90 count unit, load-proof timing tests, NFR-9 (1.12.1) (#130)
 ## [1.12.0] - 2026-10-18
 
 ### 🚀 Features
