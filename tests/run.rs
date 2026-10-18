@@ -1964,3 +1964,23 @@ fn html_ignores_legend_columns() {
     assert_eq!(plain.stderr, flowed.stderr);
     assert_eq!(read(dir.path(), "a.html"), read(dir.path(), "b.html"));
 }
+
+/// FR-108 end to end: a misspelt column warns once, whatever the format
+/// and `--table`, and the run succeeds.
+#[test]
+fn a_misspelt_column_warns_in_every_format() {
+    let csv = "name,quadrant,ring,description,Rationalle,owner\nK,T,Adopt,d,r,o\n";
+    let dir = seeded(&[("radar.csv", csv)]);
+    let expected =
+        "warning: line 1, Rationalle: not a column radargen knows; did you mean 'rationale'?";
+    for args in [
+        &["radar.csv", "-o", "a.html"][..],
+        &["radar.csv", "-o", "b.html", "--table", "all"],
+        &["radar.csv", "-o", "c.svg"],
+        &["radar.csv", "-o", "d.png"],
+    ] {
+        let ran = run_in(dir.path(), args);
+        assert!(ran.ok(), "{args:?}: {}", ran.stderr);
+        assert_eq!(ran.lines(), [expected], "{args:?}");
+    }
+}

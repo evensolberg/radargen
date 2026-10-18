@@ -143,6 +143,14 @@ pub enum RowKind {
         /// The text and what it lacks.
         lacking: Lacking,
     },
+    /// FR-108: a header cell, on the header's line, whose name is not a
+    /// known column but nearly is one. One per header, not per row.
+    NearMiss {
+        /// The header cell as the CSV had it.
+        heading: String,
+        /// The known column it nearly names.
+        known: ColumnKind,
+    },
 }
 
 /// The warnings that concern the render as a whole. They never group: FR-88
@@ -377,6 +385,7 @@ enum Class {
     DuplicateName,
     Undisplayable,
     Unnamed,
+    NearMiss,
     /// The format rides here, as a ring set's source does: one run writes
     /// one format.
     MissingGlyphs(OutputFormat),
@@ -395,6 +404,7 @@ impl RowKind {
             Self::Undisplayable { .. } => Class::Undisplayable,
             Self::UnnamedValue { .. } => Class::Unnamed,
             Self::MissingGlyphs { lacking, .. } => Class::MissingGlyphs(lacking.format),
+            Self::NearMiss { .. } => Class::NearMiss,
         }
     }
 
@@ -412,6 +422,8 @@ impl RowKind {
             // A header name is CSV text (FR-18's extra columns); it is escaped
             // with the rest of the line.
             Self::Undisplayable { column, .. } | Self::UnnamedValue { column } => column,
+            // The header as written, so the author finds the cell to fix.
+            Self::NearMiss { heading, .. } => trim(heading),
         }
     }
 
@@ -426,9 +438,10 @@ impl RowKind {
             | Self::RefusedLink { value }
             | Self::DuplicateName { value, .. }
             | Self::UnnamedValue { column: value } => Some(value),
-            Self::EmptyDescription | Self::Undisplayable { .. } | Self::MissingGlyphs { .. } => {
-                None
-            }
+            Self::EmptyDescription
+            | Self::Undisplayable { .. }
+            | Self::MissingGlyphs { .. }
+            | Self::NearMiss { .. } => None,
         }
     }
 
@@ -477,6 +490,12 @@ impl RowKind {
                 "this column has no name in the header row, so its value is not shown; add a header name, or delete the value".into()
             }
             Self::MissingGlyphs { lacking, .. } => lacking.to_string(),
+            // True under either --table: the column is never read, though
+            // `--table all` publishes it (FR-106, D-98).
+            Self::NearMiss { known, .. } => format!(
+                "not a column radargen knows; did you mean '{}'?",
+                known.as_str()
+            ),
         }
     }
 }
@@ -931,6 +950,19 @@ fn grouped(class: Class, members: &[Member]) -> String {
         Class::Unnamed => format!(
             "{n} values are under columns with no name in the header row — {}; none is shown, so add a header name, or delete the values",
             tallied(members, str::to_string)
+        ),
+        // Every member is on the header's line, so each is named by its
+        // header, in column order, with its suggestion.
+        Class::NearMiss => format!(
+            "{n} header names are not columns radargen knows — {}",
+            comma_list(members.iter().filter_map(|m| match m.kind {
+                RowKind::NearMiss { heading, known } => Some(format!(
+                    "{} (did you mean {}?)",
+                    trim(heading),
+                    known.as_str()
+                )),
+                _ => None,
+            }))
         ),
     }
 }

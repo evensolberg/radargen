@@ -1,7 +1,7 @@
 ---
 id: rg-c5z
 title: 'HTML: let the key''s top peek above the fold'
-status: open
+status: closed
 type: idea
 priority: 4
 tags:
@@ -9,7 +9,8 @@ tags:
 - layout
 - ux
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-18
+closed_reason: 'maintainer: keep the radar size; no peek'
 phase: ''
 ---
 

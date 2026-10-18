@@ -607,6 +607,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "skrifa",
+ "strsim",
  "tempfile",
  "thiserror",
  "unicode-properties",

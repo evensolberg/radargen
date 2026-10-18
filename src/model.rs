@@ -295,7 +295,8 @@ impl Catalogue {
 /// NFR-16 tier two: every missing required column (FR-5) and every empty
 /// `name`, `quadrant` or `ring` (FR-6) is returned together, in line order
 /// then column order. Rows are checked before any is built, so an `Err`
-/// comes with no warning from this stage. `csv::parse`'s FR-4 errors and
+/// comes with no row warning from this stage; FR-108's header warnings come
+/// first, since a misspelt required column is why FR-5 fails. `csv::parse`'s FR-4 errors and
 /// FR-90 warnings are separate: `pipeline.rs` merges both stages' errors in
 /// NFR-11's order and prints them after the warnings.
 ///
@@ -312,6 +313,7 @@ pub fn build_catalogue(
     w: &mut Warnings,
 ) -> Result<Catalogue, Vec<RowError>> {
     let header = Header::of(&table.header);
+    warn_near_misses(&header, table.header_line, w);
     none_or_all(
         [
             header.missing(table.header_line),
@@ -322,6 +324,40 @@ pub fn build_catalogue(
         .collect(),
     )?;
     Ok(Builder::new(header, rings, off_radar).build(&table.records, w))
+}
+
+/// FR-108: one warning per header cell whose name nearly matches a known
+/// column the header lacks. A repeat is FR-4's error already, so only its
+/// first occurrence warns.
+fn warn_near_misses(header: &Header, line: usize, w: &mut Warnings) {
+    let taken: Vec<ColumnKind> = header
+        .columns
+        .iter()
+        .map(|c| c.kind)
+        .filter(|&k| k != ColumnKind::Other)
+        .collect();
+    let mut seen: Vec<String> = Vec::new();
+    for column in header
+        .columns
+        .iter()
+        .filter(|c| c.kind == ColumnKind::Other)
+    {
+        let key = normalise(&column.heading);
+        if seen.contains(&key) {
+            continue;
+        }
+        if let Some(known) = ColumnKind::near_miss(&key, &taken) {
+            w.push(Warning::Row {
+                line,
+                column: column.position,
+                kind: RowKind::NearMiss {
+                    heading: column.heading.clone(),
+                    known,
+                },
+            });
+        }
+        seen.push(key);
+    }
 }
 
 /// `Ok` when there are no errors, else every one of them.
@@ -921,6 +957,69 @@ mod tests {
     }
 
     // --- The header: FR-5, FR-27, FR-78, FR-93 ---
+
+    /// FR-108's warnings `csv`'s header raises, as (column, heading, known).
+    fn near_misses(csv: &str) -> Vec<(usize, String, ColumnKind)> {
+        let mut w = Warnings::default();
+        let (table, _) = parse(csv, &mut w).expect("parses");
+        let rings = parse_rings(None).expect("valid rings");
+        let _ = build_catalogue(&table, &rings, OffRadar::Listed, &mut w);
+        w.as_slice()
+            .iter()
+            .filter_map(|warning| match warning {
+                Warning::Row {
+                    line: 1,
+                    column,
+                    kind: RowKind::NearMiss { heading, known },
+                } => Some((*column, heading.clone(), *known)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// FR-108: each near-miss header warns at line 1, its column, matched
+    /// under FR-76; known and unrelated columns, and FR-93's unnamed one,
+    /// stay silent.
+    #[test]
+    fn near_miss_headers_warn_at_their_column() {
+        let found = near_misses(
+            "name,quadrant,ring,description,RATIONALLE,owner,,Last Affirmed,link\nK,T,Adopt,d,r,o,,2026-01-01,\n",
+        );
+        assert_eq!(
+            found,
+            [
+                (4, "RATIONALLE".to_string(), ColumnKind::Rationale),
+                (7, "Last Affirmed".to_string(), ColumnKind::LastAffirmed),
+            ]
+        );
+    }
+
+    /// FR-108 beside FR-5: a misspelt required column fails the run, and the
+    /// warning says which header was meant.
+    #[test]
+    fn a_misspelt_required_column_warns_beside_its_error() {
+        let csv = "name,quadrant,ring,descripton\nK,T,Adopt,d\n";
+        assert_eq!(errors(csv), [missing(ColumnKind::Description)]);
+        assert_eq!(
+            near_misses(csv),
+            [(3, "descripton".to_string(), ColumnKind::Description)]
+        );
+    }
+
+    /// FR-108 beside FR-4: a repeated header is already an error, so only
+    /// its first occurrence warns; a known column the header has is no
+    /// candidate.
+    #[test]
+    fn a_repeated_or_taken_near_miss_warns_once_or_not_at_all() {
+        assert_eq!(
+            near_misses("name,quadrant,ring,description,rationalle,Rationalle\nK,T,Adopt,d,r,r\n"),
+            [(4, "rationalle".to_string(), ColumnKind::Rationale)]
+        );
+        assert_eq!(
+            near_misses("name,quadrant,ring,description,rationale,rationalle\nK,T,Adopt,d,r,r\n"),
+            []
+        );
+    }
 
     /// FR-78's columns in header order; FR-93 drops the unnamed one.
     #[test]

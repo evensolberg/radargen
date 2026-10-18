@@ -1478,3 +1478,41 @@ fn the_unplotted_rings_hint_is_left_out_once_the_flag_is_given() {
         "line 37, ring: 'Adpot' is not in --rings (Adopt, Trial), so the row is left off the page; to plot it, add it to --rings; --table all lists it, but also publishes every other column"
     );
 }
+
+/// FR-108 on the header cell at `column`, written `heading`.
+fn near_miss(column: usize, heading: &str, known: ColumnKind) -> Warning {
+    at(
+        1,
+        column,
+        RowKind::NearMiss {
+            heading: heading.into(),
+            known,
+        },
+    )
+}
+
+/// FR-108: the header as written, trimmed, and the column it nearly names.
+#[test]
+fn a_near_miss_header_names_the_column_it_nearly_is() {
+    assert_eq!(
+        near_miss(4, " Rationalle ", ColumnKind::Rationale).to_string(),
+        "line 1, Rationalle: not a column radargen knows; did you mean 'rationale'?"
+    );
+}
+
+/// FR-108 groups as NFR-20 does: one line at the first, each header with
+/// its suggestion in column order, and a row warning after it (NFR-11).
+#[test]
+fn near_misses_group_into_one_line_before_the_rows() {
+    let mut w = Warnings::default();
+    w.push(at(2, 3, RowKind::EmptyDescription));
+    w.push(near_miss(6, "exit date", ColumnKind::ExitDate));
+    w.push(near_miss(4, "Rationalle", ColumnKind::Rationale));
+    assert_eq!(
+        w.render(),
+        vec![
+            "warning: 2 header names are not columns radargen knows — Rationalle (did you mean rationale?), exit date (did you mean exit_date?)",
+            "warning: line 2, description: empty; the detail panel omits it",
+        ]
+    );
+}
