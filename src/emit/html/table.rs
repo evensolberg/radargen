@@ -65,11 +65,13 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted, publish: Table) ->
         .iter()
         .map(|&c| column_heading(catalogue, c))
         .collect();
-    // FR-106: `radar` lists FR-34's plotted items alone; `all` follows them
-    // with the unplotted rows (FR-78).
-    let rows = match publish {
-        Table::Radar => plotted.items.clone(),
-        Table::All => plotted.table_rows(),
+    // FR-106: `radar` lists FR-34's plotted items alone, under its own
+    // heading, and says when there are none; `all` follows them with the
+    // unplotted rows (FR-78), and its empty body, from a headers-only CSV,
+    // is left as it was, so its page is unchanged byte for byte.
+    let (rows, heading, says_empty) = match publish {
+        Table::Radar => (plotted.items.clone(), RADAR_HEADING, true),
+        Table::All => (plotted.table_rows(), ALL_HEADING, false),
     };
     let mut body: String = rows
         .into_iter()
@@ -79,14 +81,9 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted, publish: Table) ->
             Some(row(catalogue, &columns, item, number))
         })
         .collect();
-    // `all`'s empty body, from a headers-only CSV, is left as it was.
-    if body.is_empty() && publish == Table::Radar {
+    if body.is_empty() && says_empty {
         body = [EMPTY_OPEN, &(columns.len() + 1).to_string(), EMPTY_REST].concat();
     }
-    let heading = match publish {
-        Table::Radar => RADAR_HEADING,
-        Table::All => ALL_HEADING,
-    };
     [
         OPEN_HEADING,
         HEADING_ID,
@@ -121,7 +118,7 @@ fn order(catalogue: &Catalogue, publish: Table) -> Vec<usize> {
         catalogue
             .columns
             .get(*c)
-            .is_some_and(|column| publish.keeps(column.kind))
+            .is_some_and(|column| publish == Table::All || column.kind != ColumnKind::Other)
     };
     let rest = (0..catalogue.columns.len()).filter(|c| !first.contains(c) && published(c));
     first.iter().copied().chain(rest).collect()

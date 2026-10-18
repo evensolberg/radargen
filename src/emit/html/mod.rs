@@ -5,7 +5,6 @@ mod chrome;
 mod css;
 mod table;
 
-use crate::columns::ColumnKind;
 use crate::emit::OUTPUT_VERSION;
 use crate::emit::UNTITLED;
 use crate::escape::xml_text;
@@ -36,18 +35,6 @@ pub enum Table {
     /// Every row, including those not on the radar, and every column with a
     /// header name. Anyone with the page can read them.
     All,
-}
-
-impl Table {
-    /// Whether the table publishes a column of `kind` (FR-106): `radar`
-    /// keeps the columns radargen reads, `all` every named one.
-    #[must_use]
-    pub fn keeps(self, kind: ColumnKind) -> bool {
-        match self {
-            Self::Radar => kind != ColumnKind::Other,
-            Self::All => true,
-        }
-    }
 }
 
 const DOCTYPE_OPEN: &str = "<!DOCTYPE html>\n<html lang=\"en\"";

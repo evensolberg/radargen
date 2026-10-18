@@ -242,8 +242,8 @@ fn the_table_long_help_says_what_each_value_publishes() {
         block,
         [
             "--table <TABLE>",
-            "What an HTML page's table and detail panels publish.",
-            "Accepted in any letter case. PNG and SVG have no table.",
+            "What an HTML page's table publishes.",
+            "It also decides what the detail panels show. Accepted in any letter case. PNG and SVG have no table.",
             "Possible values:",
             "- radar: Only the rows the radar draws and the columns radargen reads",
             "- all:   Every row, including those not on the radar, and every column with a header name. Anyone with the page can read them",
