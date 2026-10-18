@@ -1119,12 +1119,8 @@ summary:focus-visible,.table-scroll:focus-visible,a:focus-visible,th button:focu
     skip.textContent = hidden ? N.skipTable : N.skipLegend;
   };
   legendToggle.addEventListener('click', () => {
-    // A press can swap the arrangements (D-97) and change the page's
-    // height; the button stays where it was on screen.
-    const before = legendToggle.getBoundingClientRect().top;
     if (isLegendHidden()) root.removeAttribute(N.legendState);
     else root.setAttribute(N.legendState, N.legendHidden);
-    scrollBy(0, legendToggle.getBoundingClientRect().top - before);
     showLegendState();
     if (focusLost()) legendToggle.focus();
   });
