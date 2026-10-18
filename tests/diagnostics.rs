@@ -1254,43 +1254,20 @@ fn fr95_names_a_quadrant_or_a_ring() {
 }
 
 /// FR-105 gives the breakpoint and names the label that sets the wide
-/// document's width as FR-95 names it (D-94), a ring with its source.
+/// radar's width as FR-95 names its own (D-94); the ring phrases are
+/// FR-95's tests'.
 #[test]
 fn fr105_gives_the_breakpoint_and_names_the_label() {
-    let cases = [
-        (
-            RenderKind::WideBeyondLaptops {
-                binding: Binding::Quadrant(
-                    " Platforms and Infrastructure Shared Across Every Product Team ".into(),
-                ),
-                breakpoint: 1477,
-            },
-            "the wide layout needs a screen at least 1477 pixels wide, so 1440-pixel laptops get the narrow layout; a shorter name for quadrant 'Platforms and Infrastructure Shared Across Every Product Team' would fix it",
-        ),
-        (
-            RenderKind::WideBeyondLaptops {
-                binding: Binding::Ring {
-                    name: " Under evaluation ".into(),
-                    source: RingSource::Default,
-                },
-                breakpoint: 2000,
-            },
-            "the wide layout needs a screen at least 2000 pixels wide, so 1440-pixel laptops get the narrow layout; a shorter name for ring 'Under evaluation' (a default ring, so pass --rings to rename it) would fix it",
-        ),
-        (
-            RenderKind::WideBeyondLaptops {
-                binding: Binding::Ring {
-                    name: " Under evaluation ".into(),
-                    source: RingSource::Flag,
-                },
-                breakpoint: 1441,
-            },
-            "the wide layout needs a screen at least 1441 pixels wide, so 1440-pixel laptops get the narrow layout; a shorter name for ring 'Under evaluation' in --rings would fix it",
-        ),
-    ];
-    for (kind, expected) in cases {
-        assert_eq!(Warning::Render(kind).to_string(), expected);
-    }
+    assert_eq!(
+        Warning::Render(RenderKind::WideBeyondLaptops {
+            binding: Binding::Quadrant(
+                " Platforms and Infrastructure Shared Across Every Product Team ".into(),
+            ),
+            breakpoint: 1477,
+        })
+        .to_string(),
+        "the wide layout needs a screen at least 1477 pixels wide, so 1440-pixel laptops get the narrow layout; a shorter name for quadrant 'Platforms and Infrastructure Shared Across Every Product Team' would fix it"
+    );
 }
 
 /// NFR-12 and SC-25: the output carries `major.minor`, never the patch.
@@ -1330,13 +1307,14 @@ fn io_reasons_read_one_way() {
 }
 
 /// rg-iqm: a ring that sets the narrow width is named with where it came
-/// from (D-73), so the fix points at the right place.
+/// from (D-73), so the fix points at the right place, and trimmed, either
+/// way.
 #[test]
 fn fr95_names_where_a_ring_came_from() {
     let message = |source| {
         Warning::Render(RenderKind::NarrowWidened {
             binding: Binding::Ring {
-                name: "Under evaluation".into(),
+                name: " Under evaluation ".into(),
                 source,
             },
             width: 600,

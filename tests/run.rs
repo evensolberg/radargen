@@ -203,11 +203,12 @@ fn a_quadrant_name_wider_than_any_screen_still_renders() {
 /// The width in pixels at and below which `page` shows the narrow
 /// arrangement: one below FR-69's breakpoint.
 fn narrow_query_px(page: &str) -> u32 {
-    page.split("(max-width: ")
-        .nth(1)
-        .and_then(|rest| rest.split("px)").next())
-        .and_then(|px| px.parse::<u32>().ok())
-        .expect("a narrow query")
+    let query = html::narrow_query(page);
+    query
+        .strip_prefix("(max-width: ")
+        .and_then(|rest| rest.strip_suffix("px)"))
+        .and_then(|px| px.parse().ok())
+        .unwrap_or_else(|| panic!("a max-width query in pixels: {query}"))
 }
 
 /// FR-105: a quadrant name long enough to put FR-69's breakpoint past a
@@ -226,13 +227,8 @@ fn a_breakpoint_past_a_laptop_warns_on_html_only() {
     assert!(ran.ok(), "{}", ran.stderr);
     let breakpoint = narrow_query_px(&read(dir.path(), "radar.html")) + 1;
     assert!(breakpoint > 1440, "the breakpoint is {breakpoint} px");
-    assert_starts(
-        &ran,
-        &[
-            "warning: the wide layout needs ",
-            "warning: the narrow layout is ",
-        ],
-    );
+    // Two lines; the first is checked in full below.
+    assert_starts(&ran, &["", "warning: the narrow layout is "]);
     assert_eq!(
         ran.lines().first().copied().unwrap_or_default(),
         format!(

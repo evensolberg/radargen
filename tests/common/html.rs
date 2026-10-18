@@ -172,6 +172,21 @@ pub fn tags(html: &str) -> Vec<Tag> {
         .collect()
 }
 
+/// FR-69's narrow media query as `<main>` carries it for the script: the
+/// page's one source of it, which the stylesheet swaps on too.
+pub fn narrow_query(page: &str) -> String {
+    tags(&outside(page))
+        .into_iter()
+        .find(|t| t.name == "main")
+        .and_then(|main| {
+            main.attributes
+                .into_iter()
+                .find(|(k, _)| k == "data-narrow-query")
+        })
+        .map(|(_, query)| query)
+        .expect("<main> carries the narrow query")
+}
+
 /// NFR-5 by allowlist: the page's own tags and attributes are its
 /// vocabulary, the SVGs' elements the serialiser's, no element anywhere
 /// carries an attribute that fetches, and the stylesheet fetches nothing but
