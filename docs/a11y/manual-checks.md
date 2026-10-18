@@ -11,7 +11,7 @@ created_date: 2026-10-13
 synopsis: "What only a person with a screen reader, a real browser's zoom or a keyboard on a real machine can judge, step by step, with the announcement to expect at each step and a results table to fill in before tagging 1.0.0. The automated audit (scripts/a11y-audit.mjs) covers everything a browser can measure; this covers the rest."
 status: draft
 type: Guide
-revision: "1.11"
+revision: "1.12"
 review_date:
 reviewed_by: []
 completed_date:
@@ -77,6 +77,8 @@ The expected names come from `three-quadrant.csv`.
    - *Expect (sighted, narrow window):* with the legend below the fold, the icon changes on each press.
    - *Expect (sighted, mouse):* hovering shows "Hide legend" as a tooltip. After a press, move the pointer off the button and back on: it shows "Show legend".
    - *Expect:* the name is read once, with no description or delayed hint repeating it.
+   - *Expect, at a window between the two breakpoints* (`interaction.html` at about 650 px wide, which shows the narrow arrangement)*:* Enter on the button hides the legend and the page switches to the wide arrangement, once, with no flicker back; focus stays on the button, which is read again as "Show legend, button" or not at all, never as a marker or the page. Enter again shows the legend and switches back to narrow, focus still on the button (D-97).
+   - *Expect, at that width, with a marker's panel open:* the switch leaves the panel open; Close returns focus to the same marker in the arrangement now shown.
 10. **The table** (`interaction.html`). Open *The table* and browse into it.
    - *Expect:* "Items on the radar, region", then a table with its row and column counts. A page rendered with `--table all` reads "Every item, region" instead.
    - *Expect:* moving across a row reads each cell with its column header; moving down a column reads the row header (the name).
@@ -167,3 +169,4 @@ The expected names come from `three-quadrant.csv`.
 | 1.9 | 2026-10-17 | Step 9 covers browse mode, a hidden start, the narrow icon change and a fail rule for silent renames; the skip-link-to-table check moves there from step 7 (RG-102 review). |
 | 1.10 | 2026-10-17 | Steps 8 and 9: the icon buttons' hover tooltips (rg-7gd). |
 | 1.11 | 2026-10-17 | Steps 10 and 12: the default table's heading is "Items on the radar", "Every item" under `--table all`, which alone lists the unplotted row (FR-106, rg-fgf). |
+| 1.12 | 2026-10-18 | Step 9: a press between the two breakpoints switches the arrangement, focus staying on the button, and an open panel survives it (D-97, rg-dok). |
