@@ -62,10 +62,10 @@ radargen radar.csv -o radar.html --rings "Hold, Assess, Trial, Adopt"
 
 The list replaces the default set rather than adding to it. A ring name cannot contain a comma, and an empty or repeated entry is an error. The innermost ring has the least room, about a tenth of the outermost, so put the ring that holds the fewest items there.
 
-A row whose ring is not in the list is left off the radar and the legend, with a warning naming the rings it could have used. By default it is left out of the HTML page's table too; `--table all` keeps it there, marked as not on the radar. So one CSV can track more than the radar shows: rows with a ring such as `In Use` or `Retired` stay on record in the CSV, and in the table with `--table all`, while the radar shows only the rings you declare. Each run warns about them in one line, which counts the rows under each ring, unless you name those rings in `--unplotted-rings`:
+A row whose ring is not in the list is left off the radar and the legend, with a warning naming the rings it could have used. By default it is left out of the HTML page's table too; `--table all` keeps it there, marked as not on the radar. So one CSV can track more than the radar shows: rows with a ring such as `In Use` or `Rejected` stay on record in the CSV, and in the table with `--table all`, while the radar shows only the rings you declare. Each run warns about them in one line, which counts the rows under each ring, unless you name those rings in `--unplotted-rings`:
 
 ```sh
-radargen radar.csv -o radar.html --unplotted-rings "In Use, Retired"
+radargen radar.csv -o radar.html --unplotted-rings "In Use, Rejected"
 ```
 
 Their rows are then left off the radar the same way, without the warning. Any other ring outside the list still warns, so a typo such as `Adpot` is still caught. `--unplotted-rings` is parsed and matched like `--rings`, a ring cannot be in both, and without `--rings` it cannot name a default ring, since those are drawn. A name no row uses is fine, so the same command works for every edition.

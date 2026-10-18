@@ -77,10 +77,10 @@ Which band the item sits in. The value must be one of the declared rings, matche
 
 A row whose ring is not declared is **not an error**. It is left off the radar, and you get a warning naming the declared rings. By default it is left off the page too; with `--table all` it appears in the table view flagged "not on the radar". Usually the value is a typo (`Adpot`), or a ring missing from `--rings`.
 
-If the CSV is also a register with rows that never belong on the radar, such as `In Use` or `Retired`, name those rings in `--unplotted-rings`. Their rows are left off the radar the same way, with no warning, and any other undeclared ring still warns, so a typo is still caught:
+If the CSV is also a register with rows that never belong on the radar, such as `In Use` or `Rejected`, name those rings in `--unplotted-rings`. Their rows are left off the radar the same way, with no warning, and any other undeclared ring still warns, so a typo is still caught:
 
 ```text
-radargen radar.csv -o radar.html --unplotted-rings "In Use, Retired"
+radargen radar.csv -o radar.html --unplotted-rings "In Use, Rejected"
 ```
 
 `--unplotted-rings` is parsed like `--rings` and matched the same way. A ring cannot be in both lists, and without `--rings` it cannot be a default ring either, since those are drawn. A name that no row uses is fine.
@@ -161,7 +161,7 @@ A web address for the item, such as the product's home page: `https://www.terraf
 
 - **A line break inside a cell** (Alt+Enter in Excel) becomes a space in a name, quadrant, ring, qualifier, status or date, and is kept as a line break in a description, domain, rationale or your own columns.
 - **Leading and trailing spaces, and extra spaces inside a value, are ignored** for matching. Names, quadrants and rings are shown trimmed and with single spaces, and the other short fields (qualifier, status, dates, link) are shown trimmed; a description, domain, rationale or your own column is shown exactly as written, spaces and blank lines included.
-- **Characters that cannot be displayed are removed, with a warning naming the line and column.** These are control characters other than tab and line break, and the invisible characters that reverse the direction of text. The same applies to `--title`, `--subtitle` and `--rings`.
+- **Characters that cannot be displayed are removed, with a warning naming the line and column.** These are control characters other than tab and line break, and the invisible characters that reverse the direction of text. The same applies to `--title`, `--subtitle`, `--rings` and `--unplotted-rings`.
 - **Anything else is shown as written.** Characters such as `<`, `&` and `"` are safe and appear literally. Names in Latin, Greek and Cyrillic scripts, including Vietnamese, draw with the built-in font. Other scripts, and emoji, show in the HTML page in the reader's own fonts, but a PNG or SVG draws them as boxes, with a warning.
 
 ## Errors and warnings
@@ -214,4 +214,4 @@ Kubernetes,Platforms,Adopt,"Container orchestration.",default,Containers,"Defaul
 | 1.4 | 2026-10-12 | The detail panel is live (FR-38). |
 | 1.5 | 2026-10-17 | The warning for a page that gives laptops the narrow layout (FR-105); "narrow layout" for the phone layout; both layout warnings marked HTML only. |
 | 1.6 | 2026-10-17 | The page publishes what the radar draws by default: other columns and undeclared-ring rows reach the table and detail panel only with `--table all` (FR-106, D-95; rg-fgf). The default table's heading is *Items on the radar*, and the panel shows every field the table lists (rg-fgf review). |
-| 1.7 | 2026-10-17 | `--unplotted-rings`: rings whose rows stay off the radar without a warning, while other undeclared rings still warn (FR-107, D-96; rg-4bq). |
+| 1.7 | 2026-10-18 | `--unplotted-rings`: rings whose rows stay off the radar without a warning, while other undeclared rings still warn (FR-107, D-96; rg-4bq). |
