@@ -83,8 +83,8 @@ pub(crate) fn is_untagged_format(c: char) -> bool {
         && !matches!(c, '\u{e0001}' | '\u{e0020}'..='\u{e007f}')
 }
 
-/// FR-76: **one normalisation rule**, applied to every value read from the CSV
-/// or from `--rings`.
+/// FR-76: **one normalisation rule**, applied to every value read from the CSV,
+/// from `--rings` or from `--unplotted-rings`.
 ///
 /// Both operands of a comparison get [`tidy`] and are then folded
 /// case-insensitively. Folding is Unicode's default lowercase mapping —

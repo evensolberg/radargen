@@ -1,32 +1,37 @@
+## [1.10.0] - 2026-10-18
+
+### 🚀 Features
+
+- *(rings)* Keep named rings off the radar unwarned (--unplotted-rings)
+
+### 🐛 Bug Fixes
+
+- *(diagnostics)* One FR-17 phrasing; hint only without the flag
+
+### 📚 Documentation
+
+- *(prd)* Specify --unplotted-rings (FR-107, D-96)
+- *(prd)* Rest D-96 on habituation; cross-source overlap
+- *(prd)* Record FR-17's unified wording in revision 0.92
+
+### 🚜 Refactor
+
+- *(rings)* RingSet classifies ring values and owns its keys
+- *(rings)* Drop RingSet's unplotted names; say "not drawn"
+
+### 🧪 Testing
+
+- Fold and trim rg-4bq's FR-107 tests
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Close rg-4bq
+- *(crumbs)* Note FR-107's config duties on rg-u6u
 ## [1.9.0] - 2026-10-17
 
 ### 🚀 Features
 
-- *(html)* --table radar|all, publishing the radar by default
-- *(html)* Say what the default table holds, and what all costs
-
-### 📚 Documentation
-
-- *(prd)* FR-106 and D-95, the table publishes the radar (0.91)
-- The default table's heading, empty state and limits (rg-fgf)
-- *(architecture)* FR-17's warning carries where the row went
-
-### 🚜 Refactor
-
-- *(diagnostics)* Pass where off-radar rows go in at render time
-- *(diagnostics)* Carry where the row went on the FR-17 warning
-- *(html)* One match for the table's rows, heading, empty state
-
-### 🧪 Testing
-
-- *(a11y)* Audit a default page and a nothing-plotted one
-- Trim the --table tests' scaffolding and repeats
-- *(a11y)* Audit only what --table radar changes
-
-### ⚙️ Miscellaneous Tasks
-
-- *(crumbs)* Rg-fgf defaults to --table radar (maintainer, 2026-10-17)
-- *(crumbs)* Close rg-fgf, --table radar|all shipped
+- *(html)* [**breaking**] The table publishes the radar by default (1.9.0) (#126)
 ## [1.8.0] - 2026-10-17
 
 ### 🚀 Features

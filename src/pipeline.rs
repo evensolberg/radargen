@@ -141,8 +141,8 @@ fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
 }
 
 /// NFR-16 tier one, in order: FR-52's extension, FR-62's directory, D-74's
-/// same-file check, then the flag values, cleaned (FR-90), and the rings
-/// (FR-63, every violation together).
+/// same-file check, then the flag values, cleaned (FR-90), the rings
+/// (FR-63, every violation together) and the unplotted rings (FR-107).
 fn config(
     cli: &Cli,
     input: &Path,
@@ -162,8 +162,21 @@ fn config(
         .rings
         .as_deref()
         .map(|rings| clean_flag(Flag::Rings, rings, warnings));
-    let rings = parse_rings(declared.as_deref())
+    let unplotted = cli
+        .unplotted_rings
+        .as_deref()
+        .map(|rings| clean_flag(Flag::UnplottedRings, rings, warnings));
+    let mut rings = parse_rings(declared.as_deref())
         .map_err(|errors| errors.into_iter().map(Fatal::from).collect::<Vec<_>>())?;
+    // FR-107: checked against the declared set, so only once that parsed.
+    if let Some(list) = &unplotted {
+        rings = rings.with_unplotted(list).map_err(|errors| {
+            errors
+                .into_iter()
+                .map(Fatal::UnplottedRings)
+                .collect::<Vec<_>>()
+        })?;
+    }
     // Plan RG-018A Ruling 7: the next flag after --rings, every problem in
     // the file at once (FR-102), each its own line.
     let colours = match &cli.palette {

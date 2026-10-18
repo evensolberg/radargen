@@ -1,12 +1,12 @@
 //! `--rings` parsing and validation (FR-12–FR-15, FR-63).
 
-use radargen::rings::{RingSource, RingsError, parse_rings};
+use radargen::rings::{RingMatch, RingSet, RingSource, RingsError, parse_rings};
 
 #[test]
 fn omitting_the_flag_yields_the_in_house_default() {
     // FR-13, edge-to-centre (FR-12, D-60): the lifecycle as it is read.
     assert_eq!(
-        parse_rings(None).expect("default is valid").rings,
+        parse_rings(None).expect("default is valid").rings(),
         vec!["Assess", "Trial", "Adopt", "Retire"]
     );
 }
@@ -15,11 +15,11 @@ fn omitting_the_flag_yields_the_in_house_default() {
 #[test]
 fn the_set_records_its_source() {
     assert_eq!(
-        parse_rings(None).expect("default is valid").source,
+        parse_rings(None).expect("default is valid").source(),
         RingSource::Default
     );
     assert_eq!(
-        parse_rings(Some("Adopt")).expect("valid").source,
+        parse_rings(Some("Adopt")).expect("valid").source(),
         RingSource::Flag
     );
 }
@@ -32,7 +32,7 @@ fn entries_lose_invisible_format_characters_at_their_ends() {
     assert_eq!(
         parse_rings(Some("\u{feff}Adopt\u{200b}, Trial"))
             .expect("valid")
-            .rings,
+            .rings(),
         vec!["Adopt", "Trial"]
     );
     assert!(matches!(
@@ -56,7 +56,7 @@ fn entries_are_trimmed_but_keep_internal_spaces() {
     assert_eq!(
         parse_rings(Some("Adopt, In Use , Retire"))
             .expect("valid")
-            .rings,
+            .rings(),
         vec!["Adopt", "In Use", "Retire"]
     );
 }
@@ -65,7 +65,7 @@ fn entries_are_trimmed_but_keep_internal_spaces() {
 fn a_single_ring_is_valid() {
     // FR-63: the list must yield at least one.
     assert_eq!(
-        parse_rings(Some("Adopt")).expect("valid").rings,
+        parse_rings(Some("Adopt")).expect("valid").rings(),
         vec!["Adopt"]
     );
 }
@@ -133,7 +133,7 @@ fn the_declared_casing_is_what_gets_displayed() {
     // FR-76: normalisation never edits displayed text beyond FR-15's trim —
     // the declared name is what appears as a band label and legend subheading.
     assert_eq!(
-        parse_rings(Some("ADOPT,trial")).expect("valid").rings,
+        parse_rings(Some("ADOPT,trial")).expect("valid").rings(),
         vec!["ADOPT", "trial"]
     );
 }
@@ -183,7 +183,143 @@ fn internal_whitespace_runs_collapse_in_ring_names() {
     assert_eq!(
         parse_rings(Some("Early  Adopt, Trial"))
             .expect("valid")
-            .rings,
+            .rings(),
         vec!["Early Adopt", "Trial"]
     );
+}
+
+// ---- FR-107: `--unplotted-rings`, parsed as `--rings` is.
+
+/// `--rings "Adopt,Trial"` with `list` as `--unplotted-rings`.
+fn unplotted(list: &str) -> Result<RingSet, Vec<RingsError>> {
+    parse_rings(Some("Adopt,Trial"))?.with_unplotted(list)
+}
+
+/// FR-16 and FR-107: a value is a declared ring, by its edge-to-centre
+/// index, an unplotted one, or neither, matched under FR-76; a set says
+/// whether it names any unplotted ring.
+#[test]
+fn a_ring_set_classifies_a_value() {
+    let set = unplotted("In Use").expect("valid");
+    assert!(set.names_unplotted());
+    assert_eq!(set.classify(" trial "), RingMatch::Declared(1));
+    assert_eq!(set.classify("ADOPT"), RingMatch::Declared(0));
+    assert_eq!(set.classify("in   use"), RingMatch::Unplotted);
+    assert_eq!(set.classify("Adpot"), RingMatch::Unknown);
+    let set = parse_rings(None).expect("default");
+    assert!(!set.names_unplotted());
+    assert_eq!(set.classify("In Use"), RingMatch::Unknown);
+    assert_eq!(set.classify("retire"), RingMatch::Declared(3));
+}
+
+/// FR-107 and FR-15: entries are tidied as `--rings`' are, so each matches
+/// under FR-76; the declared rings are untouched.
+#[test]
+fn unplotted_rings_are_a_tidied_comma_list() {
+    let set = unplotted(" In  Use ,rejected,\u{200b}Gone").expect("valid");
+    for value in ["In Use", "REJECTED", "gone"] {
+        assert_eq!(set.classify(value), RingMatch::Unplotted, "{value}");
+    }
+    assert_eq!(set.classify("In"), RingMatch::Unknown);
+    assert_eq!(set.rings(), ["Adopt", "Trial"]);
+    assert_eq!(set.source(), RingSource::Flag);
+}
+
+/// FR-63's checks, with `--rings`' errors: an empty entry, a duplicate
+/// under FR-76 naming its first, and a list with no rings at all.
+#[test]
+fn unplotted_rings_get_fr63s_checks() {
+    assert_eq!(
+        unplotted("In Use,,in use , Rejected"),
+        Err(vec![
+            RingsError::EmptyEntry { index: 2 },
+            RingsError::Duplicate {
+                index: 3,
+                entry: "in use".into(),
+                first_index: 1,
+            },
+        ])
+    );
+    for list in ["", " , "] {
+        assert_eq!(
+            unplotted(list),
+            Err(vec![RingsError::NoneNamed]),
+            "{list:?}"
+        );
+    }
+}
+
+/// FR-107: a ring cannot be both drawn and left off. The match is FR-76's,
+/// and every violation is reported in entry order (NFR-16 tier one).
+#[test]
+fn a_ring_in_both_lists_is_an_error() {
+    assert_eq!(
+        unplotted("In Use, ADOPT ,, trial"),
+        Err(vec![
+            RingsError::Overlap {
+                index: 2,
+                entry: "ADOPT".into(),
+                by: RingSource::Flag,
+            },
+            RingsError::EmptyEntry { index: 3 },
+            RingsError::Overlap {
+                index: 4,
+                entry: "trial".into(),
+                by: RingSource::Flag,
+            },
+        ])
+    );
+}
+
+/// FR-107: the default set is drawn, so naming a default ring is the same
+/// overlap, said as the default set's.
+#[test]
+fn a_default_ring_cannot_be_unplotted() {
+    assert_eq!(
+        parse_rings(None)
+            .expect("default")
+            .with_unplotted("In Use,adopt"),
+        Err(vec![RingsError::Overlap {
+            index: 2,
+            entry: "adopt".into(),
+            by: RingSource::Default,
+        }])
+    );
+}
+
+/// A repeated overlap is reported as the repeat it is, once.
+#[test]
+fn a_repeated_overlap_is_a_duplicate() {
+    assert_eq!(
+        unplotted("Adopt,adopt"),
+        Err(vec![
+            RingsError::Overlap {
+                index: 1,
+                entry: "Adopt".into(),
+                by: RingSource::Flag,
+            },
+            RingsError::Duplicate {
+                index: 2,
+                entry: "adopt".into(),
+                first_index: 1,
+            },
+        ])
+    );
+}
+
+/// An empty `--unplotted-rings` says the flag's verb, `named`, where
+/// `--rings`' says `declared`.
+#[test]
+fn each_flag_words_its_empty_list() {
+    assert_eq!(RingsError::NoneNamed.to_string(), "no rings named");
+    assert_eq!(RingsError::Empty.to_string(), "no rings declared");
+}
+
+/// FR-107: once `--rings` is given, the default set is not drawn, so a
+/// default ring may be unplotted.
+#[test]
+fn a_default_ring_may_be_unplotted_once_rings_replace_the_defaults() {
+    let set = unplotted("Retire").expect("Retire is not drawn");
+    assert!(set.names_unplotted());
+    assert_eq!(set.classify("retire"), RingMatch::Unplotted);
 }

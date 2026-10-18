@@ -63,7 +63,7 @@ fn the_prd_example_builds_with_one_warning() {
     assert_eq!(
         w.render(),
         [
-            "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
+            "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings"
         ]
     );
 }
@@ -132,7 +132,7 @@ fn parse_errors_do_not_suppress_model_warnings() {
     assert_eq!(
         w.render(),
         [
-            "warning: line 3, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
+            "warning: line 3, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings"
         ]
     );
 }
@@ -193,4 +193,42 @@ fn two_link_columns_are_a_duplicate_header() {
             .all(|e| e.contains("link")),
         "{errs:?}"
     );
+}
+
+/// FR-107: a row in a named unplotted ring is off the radar like any other
+/// FR-17 row, matched under FR-76, but has no warning; a typo beside it
+/// still warns, alone (one row) and grouped (two), without suggesting
+/// `--unplotted-rings`, which the author already uses (D-96).
+#[test]
+fn a_named_unplotted_ring_is_off_the_radar_without_a_warning() {
+    let rings = parse_rings(None)
+        .expect("default")
+        .with_unplotted("In Use, Rejected")
+        .expect("valid");
+    for (typos, expected) in [
+        (
+            "Q,T,Adpot,d\n",
+            "warning: line 6, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring to draw (it replaces the defaults)",
+        ),
+        (
+            "Q,T,Adpot,d\nR,T,adpot,d\n",
+            "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 6); all appear in the table view; to plot one, pass --rings with every ring to draw (it replaces the defaults)",
+        ),
+    ] {
+        let csv = format!(
+            "name,quadrant,ring,description\nK,T,Adopt,d\nL,T,In Use,d\nM,T,  in   USE ,d\nN,T,rejected,d\n{typos}"
+        );
+        let mut w = Warnings::default();
+        let (table, errs) = parse(&csv, &mut w).expect("parses");
+        assert!(errs.is_empty(), "{errs:?}");
+        let cat = build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds");
+        let plotted: Vec<_> = cat
+            .items
+            .iter()
+            .filter(|i| i.ring.is_some())
+            .map(|i| i.name.as_str())
+            .collect();
+        assert_eq!(plotted, ["K"], "only the declared ring is plotted");
+        assert_eq!(w.render(), [expected]);
+    }
 }

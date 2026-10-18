@@ -90,9 +90,23 @@ pub struct Cli {
     /// For example "Hold,Assess,Trial,Adopt". The list replaces the default
     /// set, which is Assess, Trial, Adopt, Retire. A row's ring matches in any
     /// case; a row whose ring is not in the list is left off the radar, with
-    /// a warning, and an HTML page's table lists it only with --table all.
+    /// a warning unless --unplotted-rings names it, and an HTML page's table
+    /// lists it only with --table all.
     #[arg(short, long)]
     pub rings: Option<String>,
+
+    // FR-107, D-96: rings kept off the radar on purpose, so FR-17 does not
+    // warn about their rows. Naming them, rather than a switch that ignores
+    // every unknown ring, keeps the warning for a typo. Parsed as --rings is
+    // (FR-15, FR-63). No short form (OQ-2): it is set once per radar.
+    /// Rings to leave off the radar without a warning, separated by commas.
+    ///
+    /// For example "In Use,Rejected". Their rows are treated like any row
+    /// whose ring is not drawn, minus the warning; a ring in neither
+    /// list still warns, so typos show. Case-insensitive. A ring cannot be
+    /// in both lists, nor, without --rings, be a default ring.
+    #[arg(long, value_name = "RINGS")]
+    pub unplotted_rings: Option<String>,
 
     // FR-65: omitted renders nothing at all, with no placeholder or space.
     /// A title shown above the radar.
@@ -255,7 +269,8 @@ pub fn format(output: &Path) -> Result<OutputFormat, Fatal> {
 /// (the set [`displayable`] rejects, the one FR-90 removes from CSV fields) and
 /// warns once, naming `flag`, when it removed any.
 ///
-/// For `--rings` the caller cleans before [`crate::rings::parse_rings`], so
+/// For `--rings` the caller cleans before [`crate::rings::parse_rings`], and
+/// for `--unplotted-rings` before [`crate::rings::RingSet::with_unplotted`], so
 /// FR-63's empty and duplicate checks see the cleaned list; FR-65's
 /// empty-or-whitespace rule likewise applies to the cleaned title.
 pub fn clean_flag(flag: Flag, value: &str, warnings: &mut Warnings) -> String {

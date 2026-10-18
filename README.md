@@ -62,7 +62,13 @@ radargen radar.csv -o radar.html --rings "Hold, Assess, Trial, Adopt"
 
 The list replaces the default set rather than adding to it. A ring name cannot contain a comma, and an empty or repeated entry is an error. The innermost ring has the least room, about a tenth of the outermost, so put the ring that holds the fewest items there.
 
-A row whose ring is not in the list is left off the radar and the legend, with a warning naming the rings it could have used. By default it is left out of the HTML page's table too; `--table all` keeps it there, marked as not on the radar. So one CSV can track more than the radar shows: rows with a ring such as `In Use` or `Retired` stay on record in the CSV, and in the table with `--table all`, while the radar shows only the rings you declare. Each run warns about them in one line, which counts the rows under each ring.
+A row whose ring is not in the list is left off the radar and the legend, with a warning naming the rings it could have used. By default it is left out of the HTML page's table too; `--table all` keeps it there, marked as not on the radar. So one CSV can track more than the radar shows: rows with a ring such as `In Use` or `Rejected` stay on record in the CSV, and in the table with `--table all`, while the radar shows only the rings you declare. Each run warns about them in one line, which counts the rows under each ring, unless you name those rings in `--unplotted-rings`:
+
+```sh
+radargen radar.csv -o radar.html --unplotted-rings "In Use, Rejected"
+```
+
+Their rows are then left off the radar the same way, without the warning. Any other ring outside the list still warns, so a typo such as `Adpot` is still caught. `--unplotted-rings` is parsed and matched like `--rings`, a ring cannot be in both, and without `--rings` it cannot name a default ring, since those are drawn. A name no row uses is fine, so the same command works for every edition.
 
 **The HTML page publishes what the radar draws.** By default its table and detail panels hold only the rows on the radar and the columns listed above, so extra columns and rows not on the radar are left out of the page. Two things about such rows still show: a quadrant used only by rows not on the radar still names a sector and an empty legend group, in every format; and each item carries its CSV line number in the page's source, so gaps in the numbering show that rows were left out, though not what they held. `--table all` publishes every row and column in the page's table and panels; use it only when every row and column may be read by the page's readers. To keep one of radargen's own columns off the page, rename it, for example `rationale` to `internal_rationale`: it becomes an extra column, which the default leaves out. Pages rendered by releases before 1.9.0 contain every row and column; re-render them to withdraw anything not on the radar.
 
@@ -131,6 +137,7 @@ radargen --create-palette <PATH>
 | --- | --- |
 | `-o`, `--output <OUTPUT>` | Where to write the radar. The extension, in any case, picks the format: `.html`, `.png` or `.svg`. |
 | `-r`, `--rings <RINGS>` | The rings, outermost first, separated by commas. Replaces the default `Assess, Trial, Adopt, Retire`. |
+| `--unplotted-rings <RINGS>` | Rings whose rows are left off the radar without a warning, separated by commas. Other undeclared rings still warn. |
 | `-t`, `--title <TITLE>` | A title above the radar. |
 | `-s`, `--subtitle <SUBTITLE>` | A second line under the title, such as the edition's date. |
 | `-T`, `--theme <light\|dark>` | The colours for PNG and SVG; light by default. Not with `--palette`. |
@@ -148,8 +155,8 @@ radargen --create-palette <PATH>
 
 radargen refuses what it cannot read or place, and warns about what it can draw but doubts.
 
-- **Errors** stop the run, and nothing is written. They cover a file that cannot be read or is not UTF-8, a separator other than a comma, an unclosed quote, a missing required column or a repeated header name, an empty `name`, `quadrant` or `ring`, a row with the wrong number of values, a bad `--rings` list or palette file, and an output path radargen cannot use (an unknown extension, a missing folder, or the input CSV itself).
-- **Warnings** still write the output. They cover values radargen does not recognise (a ring, qualifier, status, date or link), an empty description, a repeated name, characters the output cannot display (removed), characters the bundled font lacks (the PNG or SVG being written draws them as boxes), more than six quadrants, a ring and quadrant holding more items than fit comfortably, a quadrant or ring name so long that the page shows only its narrow layout on a common laptop, and widths that make text hard to read.
+- **Errors** stop the run, and nothing is written. They cover a file that cannot be read or is not UTF-8, a separator other than a comma, an unclosed quote, a missing required column or a repeated header name, an empty `name`, `quadrant` or `ring`, a row with the wrong number of values, a bad `--rings` or `--unplotted-rings` list (including a ring in both, or a default ring in `--unplotted-rings` without `--rings`) or palette file, and an output path radargen cannot use (an unknown extension, a missing folder, or the input CSV itself).
+- **Warnings** still write the output. They cover values radargen does not recognise (a ring that `--unplotted-rings` does not name, a qualifier, status, date or link), an empty description, a repeated name, characters the output cannot display (removed), characters the bundled font lacks (the PNG or SVG being written draws them as boxes), more than six quadrants, a ring and quadrant holding more items than fit comfortably, a quadrant or ring name so long that the page shows only its narrow layout on a common laptop, and widths that make text hard to read.
 - **How many at once.** Every row error is reported in one run, after any warnings, and a message about a row names its line, and its column where there is one. Repeats of the same kind are folded into one line. A problem with a flag or with the file as a whole (not UTF-8, an unclosed quote, the wrong separator) stops at the first one, warnings about values wait until no row is missing a name, quadrant or ring, and warnings about the drawing wait until there are no errors.
 - **Exit codes.** 0 when the output is written, even with warnings; 1 for an error; 2 for a command line radargen cannot accept: an unknown, missing or out-of-range flag, or flags that conflict.
 - **Earlier output is safe.** The output is written to a temporary file and renamed into place, so a failed run leaves any earlier file at that path untouched.

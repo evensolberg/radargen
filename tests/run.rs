@@ -28,9 +28,9 @@ const ROW_ERRORS: &str = include_str!("fixtures/row-errors.csv");
 const HEAD: &str = "name,quadrant,ring,description\n";
 /// The PRD example's one warning: FR-17 on its `Rejected` row, as an HTML
 /// page under the default `--table radar` gives it (FR-106).
-const FR17: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column";
+const FR17: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings; --table all lists it, but also publishes every other column";
 /// As [`FR17`], for a PNG or SVG, which has no table.
-const FR17_SNAPSHOT: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set";
+const FR17_SNAPSHOT: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is not on the radar; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings";
 /// FR-106's warning for `--table all` on a PNG or SVG.
 const TABLE_STATIC: &str = "warning: --table all applies to HTML pages; PNG and SVG have no table";
 const NO_HEADER: &str = "error: the CSV has no header row (it is empty or blank); the header must name at least name, quadrant, ring and description";
@@ -679,13 +679,13 @@ fn the_table_publishes_the_radar_unless_asked_for_all() {
     assert_eq!(
         radar.lines(),
         [
-            "warning: line 3, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column"
+            "warning: line 3, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings; --table all lists it, but also publishes every other column"
         ]
     );
     assert_eq!(
         all.lines(),
         [
-            "warning: line 3, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
+            "warning: line 3, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings"
         ]
     );
 }
@@ -702,7 +702,7 @@ fn a_page_with_nothing_plotted_says_so_by_default() {
     assert_eq!(
         ran.lines(),
         [
-            "warning: line 2, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column"
+            "warning: line 2, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings; --table all lists it, but also publishes every other column"
         ]
     );
     let page = read(dir.path(), "radar.html");
@@ -736,7 +736,7 @@ fn the_unlisted_ring_warning_groups_and_names_its_source() {
     assert_eq!(
         ran.lines(),
         [
-            "warning: 2 rows use a ring --rings does not declare (Adopt) — Gone (2, first line 3); they are left off the page; to plot one, add it to --rings; --table all lists them unplotted, but also publishes every other column"
+            "warning: 2 rows use a ring not in --rings (Adopt) — Gone (2, first line 3); they are left off the page; to plot one, add it to --rings; to leave one off without this warning, add it to --unplotted-rings; --table all lists them, but also publishes every other column"
         ]
     );
     let ran = run_in(
@@ -747,7 +747,7 @@ fn the_unlisted_ring_warning_groups_and_names_its_source() {
     assert_eq!(
         ran.lines(),
         [
-            "warning: 2 rows use a ring --rings does not declare (Adopt) — Gone (2, first line 3); none is on the radar; to plot one, add it to --rings"
+            "warning: 2 rows use a ring not in --rings (Adopt) — Gone (2, first line 3); none is on the radar; to plot one, add it to --rings; to leave one off without this warning, add it to --unplotted-rings"
         ]
     );
 }
@@ -1735,4 +1735,167 @@ fn a_palette_page_from_the_binary_has_no_toggle() {
     let page = read(dir.path(), "radar.html");
     assert!(!page.contains("class=\"theme-toggle\""));
     assert!(!html::style(&page).contains("prefers-color-scheme"));
+}
+
+/// FR-107 at the binary: a row in a named unplotted ring is left off the
+/// default page and listed, flagged, under `--table all`, as any off-radar
+/// row is, with no warning; a typo beside it still warns.
+#[test]
+fn unplotted_rings_are_off_the_radar_without_a_warning() {
+    let csv = format!(
+        "{HEAD}Kafka,Tools,Adopt,d\nOld Bus,Tools,in use,kept for the record\nTypo,Tools,Adpot,d\n"
+    );
+    let dir = seeded(&[("radar.csv", &csv)]);
+    let flags = ["--unplotted-rings", "In Use, Rejected"];
+    let radar = run_in(dir.path(), &[&RENDER[..], &flags].concat());
+    assert!(radar.ok(), "{}", radar.stderr);
+    assert_eq!(
+        radar.lines(),
+        [
+            "warning: line 4, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings with every ring to draw (it replaces the defaults); --table all lists it, but also publishes every other column"
+        ]
+    );
+    let page = read(dir.path(), "radar.html");
+    assert!(!page.contains("Old Bus"), "left off the default page");
+    assert!(page.contains(">Kafka<"), "the plotted row is listed");
+
+    let all = run_in(
+        dir.path(),
+        &[
+            &["radar.csv", "-o", "all.html", "--table", "all"][..],
+            &flags,
+        ]
+        .concat(),
+    );
+    assert!(all.ok(), "{}", all.stderr);
+    assert_eq!(
+        all.lines(),
+        [
+            "warning: line 4, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring to draw (it replaces the defaults)"
+        ],
+        "only the typo warns"
+    );
+    let page = read(dir.path(), "all.html");
+    assert!(
+        page.contains("<tr data-row=\"3\" class=\"unplotted\">"),
+        "Old Bus's row is listed as unplotted"
+    );
+    assert!(
+        page.contains("data-row=\"3\">Old Bus<span class=\"visually-hidden\">,</span> <span class=\"flag\">not on the radar</span>"),
+        "and flagged"
+    );
+    assert!(page.contains("kept for the record"), "with its description");
+}
+
+/// FR-107 on PNG and SVG: the rows are not drawn, and nothing warns; the
+/// file is the one drawn without them.
+#[test]
+fn unplotted_rings_are_silent_on_png_and_svg() {
+    let with = format!("{HEAD}Kafka,Tools,Adopt,d\nOld Bus,Tools,Rejected,d\n");
+    let without = format!("{HEAD}Kafka,Tools,Adopt,d\n");
+    let dir = seeded(&[("with.csv", &with), ("without.csv", &without)]);
+    for ext in ["png", "svg"] {
+        let a = format!("a.{ext}");
+        let b = format!("b.{ext}");
+        let ran = run_in(
+            dir.path(),
+            &["with.csv", "-o", &a, "--unplotted-rings", "rejected"],
+        );
+        assert!(ran.ok(), "{ext}: {}", ran.stderr);
+        assert!(ran.stderr.is_empty(), "{ext}: {}", ran.stderr);
+        assert!(run_in(dir.path(), &["without.csv", "-o", &b]).ok());
+        let bytes = |n: &str| fs::read(dir.path().join(n)).expect("written");
+        assert_eq!(bytes(&a), bytes(&b), "{ext}: the row is not drawn");
+    }
+}
+
+/// FR-107: a ring both drawn and left off is a tier-one error, against
+/// `--rings` and against the default set; nothing is written.
+#[test]
+fn a_ring_drawn_and_unplotted_is_refused() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let ran = run_in(
+        dir.path(),
+        &[
+            "radar.csv",
+            "-o",
+            "radar.html",
+            "--rings",
+            "Hold,Adopt",
+            "--unplotted-rings",
+            "In Use, adopt",
+        ],
+    );
+    assert_eq!(ran.code, Some(1));
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: --unplotted-rings: entry 2 'adopt' is also in --rings, which draws it; remove it from one list"
+        ]
+    );
+    let ran = run_in(
+        dir.path(),
+        &[&RENDER[..], &["--unplotted-rings", "Retire,,In Use,in use"]].concat(),
+    );
+    assert_eq!(ran.code, Some(1));
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: --unplotted-rings: entry 1 'Retire' is a default ring, so it is drawn; to leave it off, pass --rings with the rings to draw, without it",
+            "error: --unplotted-rings: entry 2 is empty",
+            "error: --unplotted-rings: entry 4 'in use' repeats entry 3",
+        ]
+    );
+    assert!(!dir.path().join("radar.html").exists(), "nothing written");
+}
+
+/// FR-90 on `--unplotted-rings`: the removal warns naming the flag, and
+/// FR-63's checks see the cleaned list.
+#[test]
+fn unplotted_rings_are_cleaned_before_they_are_checked() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let ran = run_in(
+        dir.path(),
+        &[&RENDER[..], &["--unplotted-rings", "Rejected,\u{1}"]].concat(),
+    );
+    assert_eq!(ran.code, Some(1));
+    assert_eq!(
+        ran.lines(),
+        [
+            "warning: --unplotted-rings: removed U+0001, which the output cannot display",
+            "error: --unplotted-rings: entry 2 is empty",
+        ]
+    );
+    let ran = run_in(
+        dir.path(),
+        &[&RENDER[..], &["--unplotted-rings", "Rejected"]].concat(),
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert!(
+        ran.stderr.is_empty(),
+        "the PRD example's one warning is gone: {}",
+        ran.stderr
+    );
+}
+
+/// NFR-16 tier one, per flag: a bad `--rings` stops the run before
+/// `--unplotted-rings` is checked, so only `--rings` lines print (FR-107).
+#[test]
+fn a_bad_rings_list_is_reported_before_unplotted_rings_are_checked() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let ran = run_in(
+        dir.path(),
+        &[
+            &RENDER[..],
+            &[
+                "--rings",
+                "Adopt,,Trial",
+                "--unplotted-rings",
+                "Adopt,,adopt",
+            ],
+        ]
+        .concat(),
+    );
+    assert_eq!(ran.code, Some(1));
+    assert_eq!(ran.lines(), ["error: --rings: entry 2 is empty"]);
 }
