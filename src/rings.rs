@@ -50,11 +50,9 @@ pub struct RingSet {
     rings: Vec<String>,
     /// Whether the list came from `--rings` or the FR-13 default (D-61).
     source: RingSource,
-    /// FR-107: `--unplotted-rings`, after FR-15's tidy.
-    unplotted: Vec<String>,
     /// `rings` under FR-76, in the same order, for FR-16's match.
     ring_keys: Vec<String>,
-    /// `unplotted` under FR-76.
+    /// FR-107's `--unplotted-rings` under FR-76: all a match needs.
     unplotted_keys: Vec<String>,
 }
 
@@ -164,7 +162,6 @@ impl RingSet {
             ring_keys: keys(&rings),
             rings,
             source,
-            unplotted: Vec::new(),
             unplotted_keys: Vec::new(),
         }
     }
@@ -181,17 +178,11 @@ impl RingSet {
         self.source
     }
 
-    /// FR-107's unplotted rings, as named after FR-15's tidy.
-    #[must_use]
-    pub fn unplotted(&self) -> &[String] {
-        &self.unplotted
-    }
-
     /// Whether `--unplotted-rings` named any ring. An empty list is refused,
     /// so this is whether the flag was given.
     #[must_use]
     pub const fn names_unplotted(&self) -> bool {
-        !self.unplotted.is_empty()
+        !self.unplotted_keys.is_empty()
     }
 
     /// What `value`, a row's ring cell, is to this set under FR-76.
@@ -235,7 +226,6 @@ impl RingSet {
         })?;
         Ok(Self {
             unplotted_keys: keys(&unplotted),
-            unplotted,
             ..self
         })
     }

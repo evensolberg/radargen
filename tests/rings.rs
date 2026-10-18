@@ -212,12 +212,15 @@ fn a_ring_set_classifies_a_value() {
     assert_eq!(set.classify("retire"), RingMatch::Declared(3));
 }
 
-/// FR-107 and FR-15: entries are tidied as `--rings`' are, and keep their
-/// casing; the declared rings are untouched.
+/// FR-107 and FR-15: entries are tidied as `--rings`' are, so each matches
+/// under FR-76; the declared rings are untouched.
 #[test]
 fn unplotted_rings_are_a_tidied_comma_list() {
     let set = unplotted(" In  Use ,rejected,\u{200b}Gone").expect("valid");
-    assert_eq!(set.unplotted(), ["In Use", "rejected", "Gone"]);
+    for value in ["In Use", "REJECTED", "gone"] {
+        assert_eq!(set.classify(value), RingMatch::Unplotted, "{value}");
+    }
+    assert_eq!(set.classify("In"), RingMatch::Unknown);
     assert_eq!(set.rings(), ["Adopt", "Trial"]);
     assert_eq!(set.source(), RingSource::Flag);
 }
@@ -317,5 +320,6 @@ fn each_flag_words_its_empty_list() {
 #[test]
 fn a_default_ring_may_be_unplotted_once_rings_replace_the_defaults() {
     let set = unplotted("Retire").expect("Retire is not drawn");
-    assert_eq!(set.unplotted(), ["Retire"]);
+    assert!(set.names_unplotted());
+    assert_eq!(set.classify("retire"), RingMatch::Unplotted);
 }

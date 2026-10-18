@@ -102,7 +102,7 @@ pub struct Cli {
     /// Rings to leave off the radar without a warning, separated by commas.
     ///
     /// For example "In Use,Rejected". Their rows are treated like any row
-    /// whose ring is not in --rings, minus the warning; a ring in neither
+    /// whose ring is not drawn, minus the warning; a ring in neither
     /// list still warns, so typos show. Case-insensitive. A ring cannot be
     /// in both lists, nor, without --rings, be a default ring.
     #[arg(long, value_name = "RINGS")]
