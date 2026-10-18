@@ -14,7 +14,7 @@
 @media (forced-colors: active){:root,:root[data-theme]{--surface-1:Canvas;--surface-2:Canvas;--text-primary:CanvasText;--text-muted:CanvasText;--stroke-ring:CanvasText;--stroke-divider:CanvasText;--marker-hollow:Canvas;--focus:Highlight;}}
 body{margin:0;line-height:1.4;font-family:"Inter";background:var(--surface-1);color:var(--text-primary)}
 svg{display:block;width:100%;height:auto}
-@media screen{html{scrollbar-gutter:stable}}
+@media screen and (min-width: 536px){html{scrollbar-gutter:stable}}
 .wide{display:grid;grid-template-columns:minmax(0,max(536px,calc((100vh - 46px - 3.05rem - 2px)*670/659.5))) max-content;justify-content:center}
 .wide-title{grid-row:1;grid-column:1/-1;contain:inline-size}
 .wide-title svg{width:670px;max-width:100%}

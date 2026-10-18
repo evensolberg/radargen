@@ -171,10 +171,16 @@ const BODY_OPEN: &str = "body{margin:0;line-height:1.4;font-family:\"";
 const BODY_GROUND: &str = "\";background:var(";
 const BODY_INK: &str = ");color:var(";
 const SVG_RULE: &str = ")}\nsvg{display:block;width:100%;height:auto}\n";
-/// The page's scrollbar keeps its gutter on screen, so a press that swaps
-/// the arrangements (D-97) and changes the page's height never moves the
-/// page sideways. Media queries count the scrollbar, so no breakpoint moves.
-const STABLE_GUTTER: &str = "@media screen{html{scrollbar-gutter:stable}}\n";
+/// The page's scrollbar keeps its gutter on screen from D-97's breakpoint
+/// up, where a press can swap the arrangements and change the page's
+/// height, so the page never moves sideways. Media queries count the
+/// scrollbar, so no breakpoint moves. Below it the narrow arrangement
+/// spans the viewport, which FR-94's `NARROW_HORIZONTAL_INSET_PX` of zero
+/// assumes, so no gutter is reserved there; from the hidden breakpoint up
+/// a narrow SVG the gutter narrows still draws at FR-94's least scale
+/// (`arrange::tests::a_gutter_from_the_hidden_breakpoint_keeps_fr94s_scale`).
+const GUTTER_OPEN: &str = "@media screen and (min-width: ";
+const GUTTER_CLOSE: &str = "px){html{scrollbar-gutter:stable}}\n";
 const GRID_OPEN: &str = ".wide{";
 /// The wide arrangement's default display: its grid (D-85).
 const WIDE_SHOWN: &str = "display:grid";
@@ -354,7 +360,9 @@ pub(super) fn layout(wide: &Wide, narrow_width: f64) -> String {
         BODY_INK,
         Neutral::TextPrimary.as_str(),
         SVG_RULE,
-        STABLE_GUTTER,
+        GUTTER_OPEN,
+        &wide.breakpoint_hidden.to_string(),
+        GUTTER_CLOSE,
         GRID_OPEN,
         WIDE_SHOWN,
         GRID_COLUMNS,

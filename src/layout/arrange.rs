@@ -546,7 +546,7 @@ mod tests {
     use crate::model::Catalogue;
     use crate::order::Plotted;
     use crate::rings::RingSource;
-    use crate::style::{GROWTH_STEP, MAX_GROWTH, WIDE_MIN_VIEWPORT_PX};
+    use crate::style::{GROWTH_STEP, MAX_GROWTH, MIN_PX_PER_UNIT, WIDE_MIN_VIEWPORT_PX};
     use crate::svg::{ItemKey, Semantics};
 
     /// The title and subtitle a fixture is built with.
@@ -1490,6 +1490,24 @@ mod tests {
                 parts.legend.width + CLASSIC_GUTTER <= hidden,
                 "{name}: {} at {hidden}",
                 parts.legend.width
+            );
+        }
+    }
+
+    /// rg-dok: the page reserves its scrollbar's gutter only from the hidden
+    /// breakpoint up. Below it the narrow SVGs span the viewport with no
+    /// inset, as FR-94's `NARROW_HORIZONTAL_INSET_PX` assumes; from it up, a
+    /// narrow document narrowed by a classic gutter, D-71's widened ones
+    /// included, still draws at FR-94's least scale or more.
+    #[test]
+    fn a_gutter_from_the_hidden_breakpoint_keeps_fr94s_scale() {
+        for (name, b) in fixtures() {
+            let narrow = placements(Arrangement::Narrow, &b).width;
+            let hidden = f64::from(wide_parts(&b).breakpoint_hidden());
+            let scale = ((hidden - CLASSIC_GUTTER) / narrow).min(1.0);
+            assert!(
+                scale >= MIN_PX_PER_UNIT,
+                "{name}: {scale} for {narrow} at {hidden}"
             );
         }
     }

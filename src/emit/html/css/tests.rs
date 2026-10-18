@@ -30,7 +30,7 @@ const BUILT_IN: Colours = Colours::BuiltIn(Theme::Light);
 const LAYOUT: &str = concat!(
     "body{margin:0;line-height:1.4;font-family:\"Inter\";background:var(--surface-1);color:var(--text-primary)}\n",
     "svg{display:block;width:100%;height:auto}\n",
-    "@media screen{html{scrollbar-gutter:stable}}\n",
+    "@media screen and (min-width: 536px){html{scrollbar-gutter:stable}}\n",
     ".wide{display:grid;grid-template-columns:minmax(0,max(536px,calc((100vh - 53px - 3.05rem - 2px)*670/640.5))) max-content;justify-content:center}\n",
     ".wide-title{grid-row:1;grid-column:1/-1;contain:inline-size}\n",
     ".wide-title svg{width:670px;max-width:100%}\n",
