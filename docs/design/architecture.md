@@ -313,7 +313,12 @@ numbering, same marker treatments" true by construction rather than by
 discipline. That holds only because the legend wraps the same way in both: its
 maximum width is `NARROW_WIDTH − 2 × MARGIN` in either arrangement (FR-79,
 D-56), so the narrow document always has room for the legend. The radar is
-the one block that can outgrow it (D-71).
+the one block that can outgrow it (D-71). The title is wrapped twice, like
+the key's columns (D-99): `Blocks::new` wraps it last, once the radar's
+growth is settled, at the wide radar part's width less two margins and at the
+narrow document's less two margins. No width depends on the title, only
+heights, so this is no cycle, and the wide measure is never under 380, so a
+title that fits the legend column wraps the same in both.
 
 **FR-69's breakpoint is computed from the wide document, not picked.** The PRD
 calls the value an implementation detail and records that `mockup.html` uses
@@ -333,8 +338,8 @@ switch is therefore where the radar alone reaches `WIDE_MIN_SCALE`
 (`MIN_LEGIBLE_PX / LEGEND_NAME.size`, 0.8): `W − (1 − 0.8) × R` rounded to an
 integer, for a radar part `R` wide (`WideParts::breakpoint`). The title part is
 cut as wide as the radar part, not the whole document (rg-dok): the title wraps
-at the legend column's width (380), well inside it, so it never draws smaller than the
-radar does. PNG and SVG keep the one document. The
+at the radar part's width less two margins (D-99), so it fits by construction
+and never draws smaller than the radar does. PNG and SVG keep the one document. The
 narrow arrangement is never wider than the wide one, though since D-85 the
 breakpoint can fall a few pixels below the narrow document's width, where the
 narrow SVGs simply span the viewport. D-71's widening does not disturb the
