@@ -180,7 +180,7 @@ legend-engines-only:
 # The interactive layer, driven in headless Chromium (RG-015B).
 # interaction.html takes --table all: P3 opens its unplotted row's panel,
 # which only that table lists (FR-106). The nothing-plotted page keeps the
-# default, so its table is empty.
+# default, so its table holds only the "Nothing is on the radar." row.
 interaction: release-build interaction-only
 
 [private]
