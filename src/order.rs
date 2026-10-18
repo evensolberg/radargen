@@ -33,8 +33,10 @@ pub struct Plotted {
 }
 
 impl Plotted {
-    /// FR-78's row order: plotted items in FR-34's order, then unplotted
-    /// ones in CSV order, as indices into [`Catalogue::items`].
+    /// FR-78's row order under `--table all`: plotted items in FR-34's
+    /// order, then unplotted ones in CSV order, as indices into
+    /// [`Catalogue::items`]. The default table lists [`Plotted::items`]
+    /// alone (FR-106).
     #[must_use]
     pub fn table_rows(&self) -> Vec<usize> {
         let unplotted = self

@@ -26,6 +26,17 @@ pub enum Legend {
     Hidden,
 }
 
+/// What the page's table publishes, and so its detail panels (FR-106).
+/// Only HTML reads it: PNG and SVG have no table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum Table {
+    /// Only the rows the radar draws and the columns radargen reads.
+    Radar,
+    /// Every row, including those not on the radar, and every column with a
+    /// header name. Anyone with the page can read them.
+    All,
+}
+
 const DOCTYPE_OPEN: &str = "<!DOCTYPE html>\n<html lang=\"en\"";
 const HEAD_OPEN: &str = ">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"generator\" content=\"";
 const BODY_OPEN: &str = "</style>\n</head>\n<body>\n";
@@ -43,7 +54,7 @@ const BODY_CLOSE: &str = "</body>\n</html>\n";
 
 /// Everything the page is written from: the two arrangements of one
 /// `Blocks` (FR-68), the wide one in its parts (D-85), and the catalogue
-/// and its order, which the table view reads (FR-78).
+/// and its order, which the table view reads (FR-78, FR-106).
 #[derive(Debug, Clone, Copy)]
 pub struct Page<'a> {
     /// The wide arrangement, in the parts HTML lays out (D-85).
@@ -61,6 +72,8 @@ pub struct Page<'a> {
     pub colours: &'a Colours,
     /// RG-102: where the legend starts.
     pub legend: Legend,
+    /// FR-106: what the table publishes.
+    pub table: Table,
 }
 
 /// The page for `input` (FR-68).
@@ -84,6 +97,7 @@ pub fn page(input: &Page<'_>) -> String {
         title,
         colours,
         legend,
+        table,
     } = *input;
     let bound = colours.interactive();
     let toggle = colours.has_toggle();
@@ -139,7 +153,7 @@ pub fn page(input: &Page<'_>) -> String {
         &narrow_parts(narrow, target),
         DIV_CLOSE,
         &chrome::panel(),
-        &table::table(catalogue, plotted),
+        &table::table(catalogue, plotted, table),
         MAIN_CLOSE,
         &chrome::script(),
         BODY_CLOSE,

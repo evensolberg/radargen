@@ -6,8 +6,8 @@ use std::sync::Arc;
 use radargen::cli::OutputFormat;
 use radargen::columns::ColumnKind;
 use radargen::diagnostics::{
-    Binding, DateColumn, Fatal, Flag, Lacking, Position, RenderKind, RowError, RowKind, Separator,
-    Warning, Warnings, column_label,
+    Binding, DateColumn, Fatal, Flag, Lacking, OffRadar, Position, RenderKind, RowError, RowKind,
+    Separator, Warning, Warnings, column_label,
 };
 use radargen::rings::{RingSource, RingsError};
 
@@ -25,16 +25,33 @@ fn defaults() -> Arc<[String]> {
     Arc::from(["Assess", "Trial", "Adopt", "Retire"].map(String::from))
 }
 
-fn ring(line: usize, value: &str) -> Warning {
+/// FR-17 on `line`'s ring `value`, declared by `source`, the row going
+/// where `off_radar` says.
+fn undeclared(line: usize, value: &str, source: RingSource, off_radar: OffRadar) -> Warning {
+    let rings = match source {
+        RingSource::Flag => declared(),
+        RingSource::Default => defaults(),
+    };
     at(
         line,
         2,
         RowKind::UndeclaredRing {
             value: value.into(),
-            source: RingSource::Flag,
-            rings: declared(),
+            source,
+            rings,
+            off_radar,
         },
     )
+}
+
+/// FR-17 under `--rings`, on a `--table all` page.
+fn ring(line: usize, value: &str) -> Warning {
+    undeclared(line, value, RingSource::Flag, OffRadar::Listed)
+}
+
+/// FR-17 under the default rings, on a `--table all` page: `Adpot`.
+fn default_ring(line: usize) -> Warning {
+    undeclared(line, "Adpot", RingSource::Default, OffRadar::Listed)
 }
 
 #[test]
@@ -390,6 +407,7 @@ fn control_characters_in_values_are_shown_escaped() {
                 value: format!("a{c}b"),
                 source: RingSource::Flag,
                 rings: declared(),
+                off_radar: OffRadar::Listed,
             },
         )
         .to_string();
@@ -455,29 +473,91 @@ fn forty_rows_and_a_typo_make_one_ring_line_and_a_duplicate_keeps_its_own() {
 /// author who never passed `--rings` is not told to edit it.
 #[test]
 fn the_ring_warning_names_the_default_ring_set_when_no_flag_declared_one() {
-    let default = |line| {
-        at(
-            line,
-            2,
-            RowKind::UndeclaredRing {
-                value: "Adpot".into(),
-                source: RingSource::Default,
-                rings: defaults(),
-            },
-        )
-    };
     assert_eq!(
-        default(37).to_string(),
+        default_ring(37).to_string(),
         "line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
     );
     let mut w = Warnings::default();
-    w.push(default(4));
-    w.push(default(9));
+    w.push(default_ring(4));
+    w.push(default_ring(9));
     assert_eq!(
         w.render(),
         vec![
             "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); all appear in the table view; to plot one, pass --rings with every ring you want, since --rings replaces the default set"
         ]
+    );
+}
+
+/// FR-17 under FR-106: the message says where the row went, which depends
+/// on the output and on `--table`. An HTML page under the default leaves it
+/// out and says what `--table all` would cost; a PNG or SVG has no table to
+/// name. The grouped line follows suit.
+#[test]
+fn the_ring_warning_says_where_the_row_went() {
+    // Every warning of one run carries the same `off_radar`, so a group
+    // speaks for them all.
+    let rendered = |off_radar: OffRadar, lines: &[usize], flag: bool| {
+        let source = if flag {
+            RingSource::Flag
+        } else {
+            RingSource::Default
+        };
+        let mut w = Warnings::default();
+        for &line in lines {
+            w.push(undeclared(line, "Adpot", source, off_radar));
+        }
+        w.render()
+    };
+    assert_eq!(
+        rendered(OffRadar::Unlisted, &[37], false),
+        [
+            "warning: line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column"
+        ]
+    );
+    assert_eq!(
+        rendered(OffRadar::Unlisted, &[37], true),
+        [
+            "warning: line 37, ring: 'Adpot' is not in --rings (Adopt, Trial), so the row is left off the page; to plot it, add it to --rings; --table all lists it unplotted, but also publishes every other column"
+        ]
+    );
+    assert_eq!(
+        rendered(OffRadar::Undrawn, &[37], false),
+        [
+            "warning: line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
+        ]
+    );
+    assert_eq!(
+        rendered(OffRadar::Undrawn, &[37], true),
+        [
+            "warning: line 37, ring: 'Adpot' is not one of the rings --rings declares (Adopt, Trial); the row is not on the radar; to plot it, add it to --rings"
+        ]
+    );
+    assert_eq!(
+        rendered(OffRadar::Unlisted, &[4, 9], false),
+        [
+            "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); they are left off the page; to plot one, pass --rings listing every ring you want, the defaults included; --table all lists them unplotted, but also publishes every other column"
+        ]
+    );
+    assert_eq!(
+        rendered(OffRadar::Undrawn, &[4, 9], true),
+        [
+            "warning: 2 rows use a ring --rings does not declare (Adopt, Trial) — Adpot (2, first line 4); none is on the radar; to plot one, add it to --rings"
+        ]
+    );
+    assert_eq!(
+        rendered(OffRadar::Listed, &[4, 9], true),
+        [
+            "warning: 2 rows use a ring --rings does not declare (Adopt, Trial) — Adpot (2, first line 4); all appear in the table view; to plot one, add it to --rings"
+        ]
+    );
+}
+
+/// FR-106's warning: `--table all` on a PNG or SVG, which have no table.
+#[test]
+fn table_all_on_a_snapshot_says_it_has_no_table() {
+    assert_eq!(
+        Warning::Render(RenderKind::TableStatic).to_string(),
+        "--table all applies to HTML pages; PNG and SVG have no table"
     );
 }
 

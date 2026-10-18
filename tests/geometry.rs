@@ -4,7 +4,7 @@
 use std::fmt::Write as _;
 
 use radargen::csv::parse::parse;
-use radargen::diagnostics::Warnings;
+use radargen::diagnostics::{OffRadar, Warnings};
 use radargen::layout::geometry::{Geometry, Point, place, warn_crowding};
 use radargen::model::{Catalogue, build_catalogue};
 use radargen::order::{Plotted, resolve};
@@ -238,7 +238,7 @@ fn geometry_warnings_precede_row_warnings() {
     let (table, errs) = parse(&csv(&all), &mut w).expect("parses");
     assert!(errs.is_empty(), "{errs:?}");
     let rings = parse_rings(None).expect("default");
-    let cat = build_catalogue(&table, &rings, &mut w).expect("builds");
+    let cat = build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds");
     warn_crowding(&cat, &resolve(&cat), 1.0, &mut w);
     let lines = w.render();
     let [crowded, rejected] = lines.as_slice() else {

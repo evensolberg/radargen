@@ -26,7 +26,7 @@ mod script;
 mod table;
 mod vocabulary;
 
-use radargen::emit::html::{Legend, Page, page};
+use radargen::emit::html::{Legend, Page, Table, page};
 use radargen::layout::arrange::{
     Arrangement, Blocks, NarrowParts, WideParts, narrow_parts, wide_parts,
 };
@@ -47,7 +47,9 @@ struct Built {
 }
 
 impl Built {
-    /// The page for `wide` and `narrow`, with this catalogue's table.
+    /// The page for `wide` and `narrow`, with this catalogue's table. The
+    /// table is `--table all`'s, so the tests of every row and column read
+    /// the whole catalogue; [`Built::page_table`] chooses.
     fn page_of(&self, wide: &WideParts, narrow: &NarrowParts, title: Option<&str>) -> String {
         self.page_in(
             wide,
@@ -55,10 +57,12 @@ impl Built {
             title,
             &Colours::BuiltIn(Theme::Light),
             Legend::Shown,
+            Table::All,
         )
     }
 
-    /// As [`Built::page_of`], in `colours`.
+    /// As [`Built::page_of`], in `colours`, the legend starting as `legend`
+    /// and the table publishing `table`.
     fn page_in(
         &self,
         wide: &WideParts,
@@ -66,6 +70,7 @@ impl Built {
         title: Option<&str>,
         colours: &Colours,
         legend: Legend,
+        table: Table,
     ) -> String {
         page(&Page {
             wide,
@@ -75,7 +80,21 @@ impl Built {
             title,
             colours,
             legend,
+            table,
         })
+    }
+
+    /// The page for both arrangements of these blocks, titled `title`, its
+    /// table publishing `table`.
+    fn page_table(&self, title: Option<&str>, table: Table) -> String {
+        self.page_in(
+            &wide_parts(&self.blocks),
+            &narrow_parts(&self.blocks),
+            title,
+            &Colours::BuiltIn(Theme::Light),
+            Legend::Shown,
+            table,
+        )
     }
 
     /// The page for both arrangements of these blocks, its legend starting
@@ -87,6 +106,7 @@ impl Built {
             None,
             &Colours::BuiltIn(Theme::Light),
             legend,
+            Table::All,
         )
     }
 
@@ -98,6 +118,7 @@ impl Built {
             None,
             colours,
             Legend::Shown,
+            Table::All,
         )
     }
 

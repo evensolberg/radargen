@@ -1,26 +1,37 @@
+## [1.9.0] - 2026-10-17
+
+### 🚀 Features
+
+- *(html)* --table radar|all, publishing the radar by default
+- *(html)* Say what the default table holds, and what all costs
+
+### 📚 Documentation
+
+- *(prd)* FR-106 and D-95, the table publishes the radar (0.91)
+- The default table's heading, empty state and limits (rg-fgf)
+- *(architecture)* FR-17's warning carries where the row went
+
+### 🚜 Refactor
+
+- *(diagnostics)* Pass where off-radar rows go in at render time
+- *(diagnostics)* Carry where the row went on the FR-17 warning
+- *(html)* One match for the table's rows, heading, empty state
+
+### 🧪 Testing
+
+- *(a11y)* Audit a default page and a nothing-plotted one
+- Trim the --table tests' scaffolding and repeats
+- *(a11y)* Audit only what --table radar changes
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Rg-fgf defaults to --table radar (maintainer, 2026-10-17)
+- *(crumbs)* Close rg-fgf, --table radar|all shipped
 ## [1.8.0] - 2026-10-17
 
 ### 🚀 Features
 
-- *(diagnostics)* Warn when laptops get the narrow page (rg-rv8)
-
-### 🐛 Bug Fixes
-
-- *(diagnostics)* FR-105 review fixes: wording, one breakpoint (rg-rv8)
-
-### 📚 Documentation
-
-- *(prd)* FR-105 and D-94, the laptop breakpoint warning (rg-rv8)
-- *(prd)* Tighten FR-105 and D-94 from the review (rg-rv8)
-
-### 🚜 Refactor
-
-- *(layout)* Compute FR-69's breakpoint once, on WideParts
-- *(a11y)* Read D-71's narrow width from the page, not stderr
-
-### 🧪 Testing
-
-- *(diagnostics)* Read the narrow query from <main>; trim FR-105 pins
+- *(diagnostics)* Warn when laptops get the narrow page (1.8.0) (#125)
 ## [1.7.0] - 2026-10-17
 
 ### 🚀 Features

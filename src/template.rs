@@ -24,7 +24,13 @@ mod tests {
         let (table, errors) = parse(TEMPLATE, &mut warnings).expect("parses");
         assert!(errors.is_empty(), "{errors:?}");
         let rings = parse_rings(None).expect("the default rings");
-        let catalogue = build_catalogue(&table, &rings, &mut warnings).expect("builds");
+        let catalogue = build_catalogue(
+            &table,
+            &rings,
+            crate::diagnostics::OffRadar::Listed,
+            &mut warnings,
+        )
+        .expect("builds");
         (catalogue, warnings)
     }
 

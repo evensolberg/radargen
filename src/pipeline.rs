@@ -16,9 +16,8 @@ use crate::cli::{Cli, OutputFormat, Task, clean_flag, format};
 use crate::csv::decode;
 use crate::csv::parse::parse;
 use crate::decode::NotUtf8;
-use crate::diagnostics::{Fatal, Flag, RenderKind, RowError, Warning, Warnings};
-use crate::emit::html::Legend;
-use crate::emit::html::{Page, page};
+use crate::diagnostics::{Fatal, Flag, OffRadar, RenderKind, RowError, Warning, Warnings};
+use crate::emit::html::{Legend, Page, Table, page};
 use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
 use crate::emit::{png, svg};
@@ -50,6 +49,9 @@ pub struct Config {
     /// RG-102: where an HTML page's legend starts; PNG and SVG warn on
     /// `hidden` and draw it anyway.
     pub legend: Legend,
+    /// FR-106: what an HTML page's table publishes; PNG and SVG warn on
+    /// `all`, having no table.
+    pub table: Table,
     /// FR-57: `--width`, which HTML ignores.
     pub width: Option<u32>,
     /// FR-65, resolved: cleaned (FR-90), trimmed, and `None` when empty.
@@ -130,7 +132,10 @@ fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
     };
     let config = config(cli, input, output, warnings).map_err(Failure::Alone)?;
     let fonts = Fonts::embedded().map_err(Fatal::from)?;
-    let catalogue = catalogue(&config.input, &config.rings, warnings)?;
+    // FR-106: the flags say where an off-radar row goes, so its warning
+    // can say so when it is raised.
+    let off_radar = OffRadar::of(config.format, config.table);
+    let catalogue = catalogue(&config.input, &config.rings, off_radar, warnings)?;
     let bytes = render(&catalogue, &config, &fonts, warnings)?;
     Ok(write_atomic(&config.output, &bytes)?)
 }
@@ -172,6 +177,7 @@ fn config(
         format,
         colours,
         legend: cli.legend,
+        table: cli.table,
         width: cli.width,
         title,
         subtitle,
@@ -237,10 +243,16 @@ fn resolved(flag: Flag, value: Option<&str>, warnings: &mut Warnings) -> Option<
 /// Read, parse and build. A file-level failure is one line (tier one);
 /// row-level errors from both stages are merged and grouped (tier two),
 /// and `parse`'s alone fail the run, since it drops the rows it rejects.
-fn catalogue(path: &Path, rings: &RingSet, warnings: &mut Warnings) -> Result<Catalogue, Failure> {
+fn catalogue(
+    path: &Path,
+    rings: &RingSet,
+    off_radar: OffRadar,
+    warnings: &mut Warnings,
+) -> Result<Catalogue, Failure> {
     let text = decode::read(path)?;
     let (table, mut errors) = parse(&text, warnings)?;
-    let built = build_catalogue(&table, rings, warnings).map_err(|more| errors.extend(more));
+    let built =
+        build_catalogue(&table, rings, off_radar, warnings).map_err(|more| errors.extend(more));
     match built {
         Ok(catalogue) if errors.is_empty() => Ok(catalogue),
         _ => Err(Failure::Rows {
@@ -275,6 +287,10 @@ fn render(
     if config.legend == Legend::Hidden && config.format.is_snapshot() {
         warnings.push(Warning::Render(RenderKind::LegendStatic));
     }
+    // FR-106: nor have they a table to list everything in.
+    if config.table == Table::All && config.format.is_snapshot() {
+        warnings.push(Warning::Render(RenderKind::TableStatic));
+    }
     // FR-104: a static snapshot draws every text with the bundled font
     // alone, so a character it lacks is a box; the page falls back to the
     // reader's fonts, so it is not warned (D-93).
@@ -304,6 +320,7 @@ fn render(
                 title: config.title.as_deref(),
                 colours: &config.colours,
                 legend: config.legend,
+                table: config.table,
             })
             .into_bytes())
         }

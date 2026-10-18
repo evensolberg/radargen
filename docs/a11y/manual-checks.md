@@ -11,7 +11,7 @@ created_date: 2026-10-13
 synopsis: "What only a person with a screen reader, a real browser's zoom or a keyboard on a real machine can judge, step by step, with the announcement to expect at each step and a results table to fill in before tagging 1.0.0. The automated audit (scripts/a11y-audit.mjs) covers everything a browser can measure; this covers the rest."
 status: draft
 type: Guide
-revision: "1.10"
+revision: "1.11"
 review_date:
 reviewed_by: []
 completed_date:
@@ -78,13 +78,13 @@ The expected names come from `three-quadrant.csv`.
    - *Expect (sighted, mouse):* hovering shows "Hide legend" as a tooltip. After a press, move the pointer off the button and back on: it shows "Show legend".
    - *Expect:* the name is read once, with no description or delayed hint repeating it.
 10. **The table** (`interaction.html`). Open *The table* and browse into it.
-   - *Expect:* "Every item, region", then a table with its row and column counts.
+   - *Expect:* "Items on the radar, region", then a table with its row and column counts. A page rendered with `--table all` reads "Every item, region" instead.
    - *Expect:* moving across a row reads each cell with its column header; moving down a column reads the row header (the name).
-   - *Expect:* the unplotted row's button reads "Legacy Bus, not on the radar".
+   - *Expect, on a page rendered with `--table all`:* the unplotted row's button reads "Legacy Bus, not on the radar". The default page leaves that row out.
 11. **Two items with one name** (`interaction.html`).
     - *Expect:* the two "Kafka" markers are told apart by their number and position: "1. Kafka, Moved In; Platforms quadrant, Assess ring" and "6. Kafka, New; Tools quadrant, Adopt ring".
 12. **Browse mode and navigation lists.**
-    - *Expect, NVDA's headings list (Insert+F7) and VoiceOver's rotor (Headings):* level 1 "Technology Radar"; level 2 "Key" and "Legend" (with the legend shown); level 3 each quadrant; level 4 each ring under it; level 2 "Every item".
+    - *Expect, NVDA's headings list (Insert+F7) and VoiceOver's rotor (Headings):* level 1 "Technology Radar"; level 2 "Key" and "Legend" (with the legend shown); level 3 each quadrant; level 4 each ring under it; level 2 "Items on the radar" ("Every item" with `--table all`).
     - *Expect, iOS swipe order:* the same order as Tab.
 13. **Scrolling the panel with keys** (crumb `rg-n54`). In desktop Chrome, Firefox and Safari, at a small window (about 320 by 260), open a long item's panel. With focus on the panel heading:
     - *Expect:* ArrowDown and PageDown scroll the panel's content.
@@ -166,3 +166,4 @@ The expected names come from `three-quadrant.csv`.
 | 1.8 | 2026-10-17 | New step 9: the legend button; step 7 adds the skip link with the legend hidden; later steps renumbered (RG-102). |
 | 1.9 | 2026-10-17 | Step 9 covers browse mode, a hidden start, the narrow icon change and a fail rule for silent renames; the skip-link-to-table check moves there from step 7 (RG-102 review). |
 | 1.10 | 2026-10-17 | Steps 8 and 9: the icon buttons' hover tooltips (rg-7gd). |
+| 1.11 | 2026-10-17 | Steps 10 and 12: the default table's heading is "Items on the radar", "Every item" under `--table all`, which alone lists the unplotted row (FR-106, rg-fgf). |

@@ -1,12 +1,16 @@
-//! FR-41's table view: every CSV row and every named column (FR-78, D-80),
-//! under a visible heading and a native `<details>` toggle, so it needs no
-//! script. PR 15b builds the detail panel from these rows, so each item's
-//! prose is in the page once.
+//! FR-41's table view, under a visible heading and a native `<details>`
+//! toggle, so it needs no script. By default it publishes what the radar
+//! draws, the plotted rows and the columns radargen reads; `--table all`
+//! publishes every CSV row and every named column (FR-78, FR-106, D-80,
+//! D-95). PR 15b builds the detail panel from these rows, so each item's
+//! prose is in the page once, and a row or column left out of the table is
+//! left out of the panel too.
 //!
 //! Every value is escaped where it is written (NFR-6): text with
 //! [`xml_text`], an `href` with [`html_attr`]. Rule fragments are module
 //! constants, as in `css.rs`.
 
+use super::Table;
 use super::chrome::DATA_SELECTED;
 use super::css::{OUTLINE_CLOSE, Wide, capped};
 use crate::escape::{html_attr, xml_text};
@@ -19,8 +23,10 @@ use crate::trim;
 /// The heading's `id`, written once outside both arrangements (architecture
 /// §5's exception): it names the table and its scroll region.
 const HEADING_ID: &str = "table-heading";
-/// The heading's words and the toggle's.
-const HEADING: &str = "Every item";
+/// The default table's heading, which names its region too (FR-106).
+const RADAR_HEADING: &str = "Items on the radar";
+/// `--table all`'s heading, as it was before FR-106.
+const ALL_HEADING: &str = "Every item";
 /// Neutral, since a screen reader adds "collapsed" or "expanded".
 const SUMMARY: &str = "The table";
 
@@ -36,7 +42,7 @@ const TOGGLE_REST: &str = "\"><summary>";
 const OPEN_REGION: &str =
     "</summary>\n<div class=\"table-scroll\" role=\"region\" aria-labelledby=\"";
 /// Only the region is named by the heading: naming the table too would
-/// announce "Every item" a third time in a row.
+/// announce the heading's words a third time in a row.
 const OPEN_TABLE: &str = "\" tabindex=\"0\">\n<table>\n<thead><tr>";
 /// The number column: `#` to the eye, "Number" to a screen reader, which
 /// may read a bare `#` as "pound" or skip it.
@@ -46,16 +52,28 @@ const CLOSE: &str = "</tbody></table></div></details>\n";
 const CLASS_OPEN: &str = " class=\"";
 const CLASS_CLOSE: &str = "\"";
 const NEW_TAB: &str = "<span class=\"visually-hidden\"> (opens in a new tab)</span>";
+/// The default table's one row when nothing is plotted (FR-106), spanning
+/// every column so the region and its skip target stay.
+const EMPTY_OPEN: &str = "<tr><td colspan=\"";
+const EMPTY_REST: &str = "\">Nothing is on the radar.</td></tr>\n";
 
-/// The table view, for `<main>` after both arrangements.
-pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted) -> String {
-    let columns = order(catalogue);
+/// The table view publishing `publish`, for `<main>` after both
+/// arrangements.
+pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted, publish: Table) -> String {
+    let columns = order(catalogue, publish);
     let head: String = columns
         .iter()
         .map(|&c| column_heading(catalogue, c))
         .collect();
-    let body: String = plotted
-        .table_rows()
+    // FR-106: `radar` lists FR-34's plotted items alone, under its own
+    // heading, and says when there are none; `all` follows them with the
+    // unplotted rows (FR-78), and its empty body, from a headers-only CSV,
+    // is left as it was, so its page is unchanged byte for byte.
+    let (rows, heading, says_empty) = match publish {
+        Table::Radar => (plotted.items.clone(), RADAR_HEADING, true),
+        Table::All => (plotted.table_rows(), ALL_HEADING, false),
+    };
+    let mut body: String = rows
         .into_iter()
         .filter_map(|i| {
             let item = catalogue.items.get(i)?;
@@ -63,11 +81,14 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted) -> String {
             Some(row(catalogue, &columns, item, number))
         })
         .collect();
+    if body.is_empty() && says_empty {
+        body = [EMPTY_OPEN, &(columns.len() + 1).to_string(), EMPTY_REST].concat();
+    }
     [
         OPEN_HEADING,
         HEADING_ID,
         "\">",
-        HEADING,
+        heading,
         OPEN_TOGGLE,
         TABLE_VIEW_CLASS,
         TOGGLE_REST,
@@ -86,13 +107,20 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted) -> String {
 
 /// FR-78's columns, as indices into [`Catalogue::columns`]: `name`,
 /// `quadrant`, `ring`, then every other named column in header order,
-/// `description` included (D-80).
-fn order(catalogue: &Catalogue) -> Vec<usize> {
+/// `description` included (D-80). Under `radar`, a column radargen does not
+/// read ([`ColumnKind::Other`]) is left out (FR-106).
+fn order(catalogue: &Catalogue, publish: Table) -> Vec<usize> {
     let first: Vec<usize> = [ColumnKind::Name, ColumnKind::Quadrant, ColumnKind::Ring]
         .into_iter()
         .filter_map(|kind| catalogue.column(kind))
         .collect();
-    let rest = (0..catalogue.columns.len()).filter(|c| !first.contains(c));
+    let published = |c: &usize| {
+        catalogue
+            .columns
+            .get(*c)
+            .is_some_and(|column| publish == Table::All || column.kind != ColumnKind::Other)
+    };
+    let rest = (0..catalogue.columns.len()).filter(|c| !first.contains(c) && published(c));
     first.iter().copied().chain(rest).collect()
 }
 
@@ -107,6 +135,9 @@ fn column_heading(catalogue: &Catalogue, column: usize) -> String {
 
 /// One item's row, keyed on its CSV line as its marker and legend row are
 /// (architecture §5). `number` is FR-18's, `None` for an unplotted row.
+// The unplotted branches here and in `name_cell` and `cell`, and the
+// `.unplotted` and `.flag` rules, serve `--table all` alone; they stay in
+// every page so `all`'s output is unchanged byte for byte (FR-106).
 fn row(catalogue: &Catalogue, columns: &[usize], item: &Item, number: Option<usize>) -> String {
     let class = if number.is_some() {
         ""

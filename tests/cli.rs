@@ -2,7 +2,7 @@
 //! the contract rather than spawning a process.
 
 use clap::Parser;
-use radargen::cli::{Cli, Legend, OutputFormat, Theme};
+use radargen::cli::{Cli, Legend, OutputFormat, Table, Theme};
 use radargen::cli::{Task, clean_flag, format};
 use radargen::diagnostics::{Fatal, Flag, RowKind, Warning, Warnings};
 use radargen::rings::{RingsError, parse_rings};
@@ -183,6 +183,71 @@ fn the_legend_help_lists_shown_and_hidden_only() {
     );
     assert!(
         !long.contains("- show:") && !long.contains("- hide:"),
+        "{long}"
+    );
+}
+
+// ---- --table: what the HTML page's table publishes
+
+#[test]
+fn table_defaults_to_radar_in_any_case() {
+    let cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
+    assert_eq!(cli.table, Table::Radar, "the radar's rows and columns only");
+    for (given, want) in [
+        ("radar", Table::Radar),
+        ("Radar", Table::Radar),
+        ("all", Table::All),
+        ("ALL", Table::All),
+        ("All", Table::All),
+    ] {
+        let cli = parse(&["in.csv", "-o", "e.html", "--table", given]).expect(given);
+        assert_eq!(cli.table, want, "{given}");
+    }
+    assert!(parse(&["in.csv", "-o", "e.html", "--table", "every"]).is_err());
+    assert!(parse(&["in.csv", "-o", "e.html", "--table"]).is_err());
+}
+
+#[test]
+fn the_table_help_lists_radar_and_all() {
+    use clap::CommandFactory;
+    let short = Cli::command().render_help().to_string();
+    let line = short
+        .lines()
+        .find(|l| l.contains("--table"))
+        .expect("--table in -h");
+    assert!(line.contains("[default: radar]"), "{line}");
+    assert!(line.contains("[possible values: radar, all]"), "{line}");
+}
+
+/// The long help says what each value publishes, and that `all` publishes
+/// it to anyone with the page.
+#[test]
+fn the_table_long_help_says_what_each_value_publishes() {
+    use clap::CommandFactory;
+    let long = Cli::command().render_long_help().to_string();
+    let start = long.find("--table <TABLE>").expect("--table in --help");
+    let end = long
+        .get(start..)
+        .and_then(|rest| rest.find("[default: radar]"))
+        .expect("its default")
+        + start;
+    let block: Vec<&str> = long
+        .get(start..end)
+        .unwrap_or_default()
+        .lines()
+        .map(radargen::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
+    assert_eq!(
+        block,
+        [
+            "--table <TABLE>",
+            "What an HTML page's table publishes.",
+            "It also decides what the detail panels show. Accepted in any letter case. PNG and SVG have no table.",
+            "Possible values:",
+            "- radar: Only the rows the radar draws and the columns radargen reads",
+            "- all:   Every row, including those not on the radar, and every column with a header name. Anyone with the page can read them",
+        ],
         "{long}"
     );
 }

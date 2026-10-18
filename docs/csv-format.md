@@ -13,7 +13,7 @@ created_date: 2026-10-12
 synopsis: "How to write the CSV radargen reads: the four required columns and seven optional ones, what each accepts, what is a hard error and what only warns, and how the file must be saved."
 status: active
 type: Guide
-revision: "1.5"
+revision: "1.6"
 review_date:
 reviewed_by: []
 completed_date:
@@ -53,11 +53,11 @@ Columns are found by **name, not position**, so their order in the file does not
 | `status` | no | `New`, `Moved In`, `Moved Out`, `No Change`, or blank | A ring or half-ring on the marker, and the legend |
 | `link` | no | A web address starting `http://` or `https://`, or blank | A link in the table view and the detail panel |
 
-**Any other column is shown in the table view**, under its own header name, so a team can keep its own notes (a ticket reference, an owner, a survey score) in the same file. The radar and legend ignore it. A column whose header cell is empty is dropped; if a row has a value under it, you get a warning.
+**Any other column is left out of the page by default**, so a team can keep its own notes (a ticket reference, an owner, a survey score) in the same file without publishing them. The radar and legend ignore it. With `--table all` it is shown in the table view and the detail panel, under its own header name. A column whose header cell is empty is dropped; if a row has a value under it, you get a warning.
 
 An optional column that is missing, or empty on a row, is simply left out for that item. Nothing is shown as blank or as a dash.
 
-Every row and every column appears in the **table view**, under the *Every item* heading below the radar: open *The table* to see it. Plotted rows come first, numbered as on the radar, then rows the radar cannot plot, flagged "not on the radar". Click a marker, a legend row or a name in the table, or Tab to one and press Enter or Space, and the **detail panel** opens at the bottom of the window with that item's number, name and every field it has. Click it again, press Escape, or use Close to close it.
+Every item on the radar appears in the **table view**, under the *Items on the radar* heading below the radar (*Every item* with `--table all`): open *The table* to see it. By default it lists the plotted rows, numbered as on the radar, with the columns above. With `--table all` it lists every row and every named column: plotted rows first, then rows the radar cannot plot, flagged "not on the radar". A row or column the table leaves out is in no detail panel either. Click a marker, a legend row or a name in the table, or Tab to one and press Enter or Space, and the **detail panel** opens at the bottom of the window with that item's number, name and every field the table lists. Click it again, press Escape, or use Close to close it.
 
 ### `name`
 
@@ -75,7 +75,7 @@ Free text. Every distinct value becomes one sector, so the file decides how many
 
 Which band the item sits in. The value must be one of the declared rings, matched ignoring case and extra spaces.
 
-A row whose ring is not declared is **not an error**. It is left off the radar, it appears in the table view flagged "not on the radar", and you get a warning naming the declared rings. Usually the value is a typo (`Adpot`), or a ring missing from `--rings`.
+A row whose ring is not declared is **not an error**. It is left off the radar, and you get a warning naming the declared rings. By default it is left off the page too; with `--table all` it appears in the table view flagged "not on the radar". Usually the value is a typo (`Adpot`), or a ring missing from `--rings`.
 
 #### Rings
 
@@ -205,3 +205,4 @@ Kubernetes,Platforms,Adopt,"Container orchestration.",default,Containers,"Defaul
 | 1.3 | 2026-10-12 | The table view is live (FR-41, FR-78, D-80). |
 | 1.4 | 2026-10-12 | The detail panel is live (FR-38). |
 | 1.5 | 2026-10-17 | The warning for a page that gives laptops the narrow layout (FR-105); "narrow layout" for the phone layout; both layout warnings marked HTML only. |
+| 1.6 | 2026-10-17 | The page publishes what the radar draws by default: other columns and undeclared-ring rows reach the table and detail panel only with `--table all` (FR-106, D-95; rg-fgf). The default table's heading is *Items on the radar*, and the panel shows every field the table lists (rg-fgf review). |

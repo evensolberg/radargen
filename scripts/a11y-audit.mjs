@@ -1,12 +1,16 @@
 // WCAG 2.1 AA's automatable criteria, audited in a browser (plan RG-015C).
 //
-// Usage: node scripts/a11y-audit.mjs <page.html> <d71.html>
+// Usage: node scripts/a11y-audit.mjs <page.html> <d71.html> <radar.html> <empty.html>
 //
 // The first page is the audit fixture (the interaction fixture plus a ring
-// whose heading wraps, so a wrapped heading's label is read); the second is D-71's, whose
+// whose heading wraps, so a wrapped heading's label is read), rendered with
+// --table all; the second is D-71's, whose
 // narrow arrangement is wider than 480 units, so its narrow targets fall
 // below 24 px at 320 px by design: D-71's recorded 2.5.8 exception. Markers meet 2.5.8
-// through its Equivalent exception (PRD D-81).
+// through its Equivalent exception (PRD D-81). The third is a page under
+// the default --table radar that drops an unplotted row and an extra
+// column, and the fourth one with nothing plotted, whose table holds only
+// its empty-state row (FR-106).
 //
 // Controls are found from the DOM and then looked up in Chromium's
 // accessibility tree, so a control that lost its role is caught, not
@@ -18,9 +22,9 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { SHOWN, SHOWN_ICON, SPILLS, connect, poll, shownIcon } from './cdp.mjs';
 
-const [page, d71] = process.argv.slice(2);
-if (!page || !d71) {
-  console.error('usage: node scripts/a11y-audit.mjs <page.html> <d71.html>');
+const [page, d71, radar, empty] = process.argv.slice(2);
+if (!page || !d71 || !radar || !empty) {
+  console.error('usage: node scripts/a11y-audit.mjs <page.html> <d71.html> <radar.html> <empty.html>');
   process.exit(2);
 }
 const TOLERANCE = 0.05;
@@ -33,6 +37,9 @@ const TARGET_UNITS = 36;
 // The narrowest D-71 fixture whose targets fall short at 320 px by more than
 // the tolerance, so the exception check has something to bound.
 const D71_MIN_WIDTH = (TARGET_UNITS * 320) / (TARGET_PX - TOLERANCE);
+// FR-106: the table's heading, which names its region, per --table.
+const ALL_HEADING = 'Every item';
+const RADAR_HEADING = 'Items on the radar';
 
 const { send, on, close, evaluate, navigate, press } = await connect();
 const thrown = [];
@@ -300,11 +307,16 @@ async function targets(label, { exceptionWidth } = {}) {
   for (const b of html) check(b.w >= TARGET_PX - TOLERANCE && b.h >= TARGET_PX - TOLERANCE, `${label}: ${b.what} is ${b.w.toFixed(2)}×${b.h.toFixed(2)} px`);
 }
 
+// 1.4.10: the page never scrolls sideways.
+async function noSideways(label) {
+  const sideways = await evaluate(`document.documentElement.scrollWidth - innerWidth`);
+  check(sideways <= 0.5, `${label}: the page scrolls sideways by ${sideways} px`);
+}
+
 // 6: reflow and resize (1.4.10, 1.4.4). Chrome's text only.
 async function reflow(label) {
   await openTable(true);
-  const sideways = await evaluate(`document.documentElement.scrollWidth - innerWidth`);
-  check(sideways <= 0.5, `${label}: the page scrolls sideways by ${sideways} px`);
+  await noSideways(label);
   // The skip link is visually hidden until focused, so it is not measured,
   // and the theme toggle shows an icon, its words visually hidden (rg-1ru).
   const spills = await evaluate(`(${SPILLS})('h2, summary, thead th', 0.5)`);
@@ -326,8 +338,16 @@ async function reflow(label) {
   await openTable(false);
 }
 
-// 8: structure (1.3.1, 1.3.2, 2.4.6, 1.1.1).
-async function structure(label) {
+// FR-106: the table's region is named by its heading, which says what the
+// table holds: "Every item" under --table all, "Items on the radar" by
+// default.
+async function tableRegion(label, heading) {
+  const region = await ax(`document.querySelector('.table-scroll')`);
+  check(region.role?.value === 'region' && region.name?.value === heading, `${label}: the table's region is named "${heading}": ${region.role?.value} "${region.name?.value}"`);
+}
+
+// 8: structure (1.3.1, 1.3.2, 2.4.6, 1.1.1). `heading` is the table's.
+async function structure(label, heading = ALL_HEADING) {
   const { result } = await send('Accessibility.getFullAXTree');
   const live = result.nodes.filter((n) => !n.ignored);
   const levels = live.filter((n) => n.role?.value === 'heading').map((n) => prop(n, 'level'));
@@ -364,8 +384,32 @@ async function structure(label) {
   const column = await ax(`document.querySelector('thead th')`);
   check(header.role?.value === 'rowheader', `${label}: the name cell is a row header: ${header.role?.value}`);
   check(column.role?.value === 'columnheader', `${label}: the head cells are column headers: ${column.role?.value}`);
-  const region = await ax(`document.querySelector('.table-scroll')`);
-  check(region.role?.value === 'region' && region.name?.value === 'Every item', `${label}: the table's region is named`);
+  await tableRegion(label, heading);
+  await openTable(false);
+}
+
+// FR-106 with nothing plotted: the default table keeps its headed region
+// and holds one cell, spanning every column, saying nothing is on the radar.
+async function emptyTable(label) {
+  await openTable(true);
+  await tableRegion(label, RADAR_HEADING);
+  const body = await evaluate(`(() => {
+    const rows = [...document.querySelectorAll('.table-scroll tbody tr')];
+    const cell = rows[0]?.querySelector('td');
+    return {
+      rows: rows.length,
+      items: document.querySelectorAll('tr[data-row]').length,
+      span: Number(cell?.getAttribute('colspan')),
+      columns: document.querySelectorAll('.table-scroll thead th').length,
+      text: cell?.textContent,
+    };
+  })()`);
+  check(body.rows === 1 && body.items === 0, `${label}: one row and no item: ${body.rows} rows, ${body.items} items`);
+  check(body.span === body.columns, `${label}: the empty-state cell spans the ${body.columns} columns: ${body.span}`);
+  check(body.text === 'Nothing is on the radar.', `${label}: the empty-state text: "${body.text}"`);
+  const cell = await ax(`document.querySelector('.table-scroll tbody td')`);
+  check(!cell.ignored && cell.role?.value === 'cell', `${label}: the empty-state row is a table cell: ${cell.role?.value}`);
+  await noSideways(label);
   await openTable(false);
 }
 
@@ -586,6 +630,22 @@ try {
       await keyboard(`forced @${width}`);
     });
   }
+  // FR-106: what a default page changes, and only that: the unplotted row
+  // and the extra column are left out, under the table's own heading.
+  for (const width of [1400, 400]) {
+    await run(`--table radar @${width}`, async () => {
+      await load(radar, width);
+      const dropped = await evaluate(`[document.querySelectorAll('tr.unplotted, .flag').length, [...document.querySelectorAll('thead th')].some((h) => h.textContent === 'note')]`);
+      check(dropped[0] === 0 && !dropped[1], `radar @${width}: the unplotted row and the extra column are left out: ${dropped}`);
+      await openTable(true);
+      await tableRegion(`radar @${width}`, RADAR_HEADING);
+      await openTable(false);
+    });
+  }
+  await run('--table radar, nothing plotted @1400', async () => {
+    await load(empty, 1400);
+    await emptyTable('empty @1400');
+  });
   for (const width of [400, 320]) {
     await run(`D-71's exception @${width}`, async () => {
       await load(d71, width);

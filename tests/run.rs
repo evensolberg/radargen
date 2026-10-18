@@ -26,8 +26,13 @@ use tempfile::TempDir;
 const PRD: &str = include_str!("fixtures/three-quadrant.csv");
 const ROW_ERRORS: &str = include_str!("fixtures/row-errors.csv");
 const HEAD: &str = "name,quadrant,ring,description\n";
-/// The PRD example's one warning: FR-17 on its `Rejected` row.
-const FR17: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set";
+/// The PRD example's one warning: FR-17 on its `Rejected` row, as an HTML
+/// page under the default `--table radar` gives it (FR-106).
+const FR17: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column";
+/// As [`FR17`], for a PNG or SVG, which has no table.
+const FR17_SNAPSHOT: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set";
+/// FR-106's warning for `--table all` on a PNG or SVG.
+const TABLE_STATIC: &str = "warning: --table all applies to HTML pages; PNG and SVG have no table";
 const NO_HEADER: &str = "error: the CSV has no header row (it is empty or blank); the header must name at least name, quadrant, ring and description";
 const RENDER: [&str; 3] = ["radar.csv", "-o", "radar.html"];
 
@@ -619,6 +624,160 @@ fn legend_hidden_warns_on_png_and_svg_and_changes_nothing() {
     }
 }
 
+/// FR-106: the default page publishes only what the radar draws. The
+/// unplotted row and the extra column are missing from the table, and so
+/// from every detail panel built from it; `--table all`, in any case, puts
+/// both back. FR-17's warning says which, and where to look.
+#[test]
+fn the_table_publishes_the_radar_unless_asked_for_all() {
+    let csv = "name,quadrant,ring,description,owner team\nKafka,Tools,Adopt,d,Ana Lyst\nDecommissioned Bus,Tools,Rejected,gone for good,Bo Rown\n";
+    let dir = seeded(&[("radar.csv", csv)]);
+    let radar = run_in(dir.path(), &["radar.csv", "-o", "radar.html"]);
+    assert!(radar.ok(), "{}", radar.stderr);
+    let all = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "all.html", "--table", "ALL"],
+    );
+    assert!(all.ok(), "{}", all.stderr);
+    let explicit = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "explicit.html", "--table", "radar"],
+    );
+    assert_eq!(radar.stderr, explicit.stderr);
+    assert_eq!(
+        read(dir.path(), "radar.html"),
+        read(dir.path(), "explicit.html"),
+        "radar is the default"
+    );
+    let page = read(dir.path(), "radar.html");
+    for absent in [
+        "Decommissioned Bus",
+        "gone for good",
+        "owner team",
+        "Ana Lyst",
+        "not on the radar",
+    ] {
+        assert!(!page.contains(absent), "{absent} is published");
+    }
+    assert!(page.contains(">Kafka<"), "the plotted row is");
+    assert!(
+        page.contains(">Items on the radar</h2>"),
+        "the default heading"
+    );
+    let page = read(dir.path(), "all.html");
+    assert!(page.contains(">Every item</h2>"), "all's heading");
+    for present in [
+        "Decommissioned Bus",
+        "gone for good",
+        "owner team",
+        "Ana Lyst",
+        "Bo Rown",
+        "not on the radar",
+    ] {
+        assert!(page.contains(present), "{present} is not published");
+    }
+    assert_eq!(
+        radar.lines(),
+        [
+            "warning: line 3, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column"
+        ]
+    );
+    assert_eq!(
+        all.lines(),
+        [
+            "warning: line 3, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
+        ]
+    );
+}
+
+/// FR-106 and FR-42 at the binary: with nothing plotted, the default page
+/// still renders, its table headed and saying that nothing is on the radar,
+/// and the unplotted row is nowhere in it.
+#[test]
+fn a_page_with_nothing_plotted_says_so_by_default() {
+    let csv = format!("{HEAD}Decommissioned Bus,Tools,Rejected,gone for good\n");
+    let dir = seeded(&[("radar.csv", &csv)]);
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.html"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "warning: line 2, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column"
+        ]
+    );
+    let page = read(dir.path(), "radar.html");
+    assert!(page.contains(">Items on the radar</h2>"), "the heading");
+    assert!(
+        page.contains(
+            "<tbody>\n<tr><td colspan=\"5\">Nothing is on the radar.</td></tr>\n</tbody>"
+        ),
+        "the empty state"
+    );
+    assert!(
+        page.contains("aria-labelledby=\"table-heading\""),
+        "the region stays"
+    );
+    for absent in ["Decommissioned Bus", "gone for good", "data-row=\"2\""] {
+        assert!(!page.contains(absent), "{absent} is published");
+    }
+}
+
+/// FR-106 under `--rings`, and grouped: the hint names what to edit, then
+/// how to list the rows.
+#[test]
+fn the_unlisted_ring_warning_groups_and_names_its_source() {
+    let csv = format!("{HEAD}Kafka,Tools,Adopt,d\nOld,Tools,Gone,d\nOlder,Tools,Gone,d\n");
+    let dir = seeded(&[("radar.csv", &csv)]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.html", "--rings", "Adopt"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "warning: 2 rows use a ring --rings does not declare (Adopt) — Gone (2, first line 3); they are left off the page; to plot one, add it to --rings; --table all lists them unplotted, but also publishes every other column"
+        ]
+    );
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.png", "--rings", "Adopt"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "warning: 2 rows use a ring --rings does not declare (Adopt) — Gone (2, first line 3); none is on the radar; to plot one, add it to --rings"
+        ]
+    );
+}
+
+/// FR-106: PNG and SVG have no table, so `--table all` warns once and
+/// changes nothing, and `--table radar` is silent. FR-17's warning there
+/// names no table at all.
+#[test]
+fn table_all_warns_on_png_and_svg_and_changes_nothing() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    for ext in ["png", "svg"] {
+        let radar = run_in(
+            dir.path(),
+            &["radar.csv", "-o", &format!("b.{ext}"), "--table", "radar"],
+        );
+        let all = run_in(
+            dir.path(),
+            &["radar.csv", "-o", &format!("c.{ext}"), "--table", "all"],
+        );
+        for ran in [&radar, &all] {
+            assert!(ran.ok(), "{ext}: {}", ran.stderr);
+        }
+        assert_eq!(radar.lines(), [FR17_SNAPSHOT], "{ext}: radar is silent");
+        assert_eq!(all.lines(), [TABLE_STATIC, FR17_SNAPSHOT], "{ext}");
+        let bytes =
+            |n: &str| std::fs::read(dir.path().join(format!("{n}.{ext}"))).expect("written");
+        assert_eq!(bytes("b"), bytes("c"), "{ext}: all changes nothing");
+    }
+}
+
 /// FR-104's ending for several missing characters, in the format named.
 fn boxes(format: &str) -> String {
     format!("the {format} draws them as boxes — an HTML page shows them, or transliterate them")
@@ -1142,7 +1301,11 @@ fn renders_an_svg_at_the_width_asked() {
         &["radar.csv", "-o", "max.svg", "--width", "10000"],
     );
     assert!(ran.ok(), "{}", ran.stderr);
-    assert_eq!(ran.lines(), [FR17], "only the example's own warning");
+    assert_eq!(
+        ran.lines(),
+        [FR17_SNAPSHOT],
+        "only the example's own warning"
+    );
     assert_eq!(root_width(&read(dir.path(), "max.svg")), 10_000.0);
 }
 

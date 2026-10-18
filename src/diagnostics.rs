@@ -7,6 +7,7 @@ use std::sync::Arc;
 use crate::cli::OutputFormat;
 use crate::columns::ColumnKind;
 use crate::csv::decode::MAX_BYTES as MAX_CSV_BYTES;
+use crate::emit::html::Table;
 use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::{RingSource, RingsError};
 use crate::starter::Starter;
@@ -76,6 +77,8 @@ pub enum RowKind {
         /// The declared rings, edge-to-centre, shared by every warning of
         /// the run.
         rings: Arc<[String]>,
+        /// Where the run puts the row, which the message says (FR-106).
+        off_radar: OffRadar,
     },
     /// FR-20 — non-blank only; a blank qualifier claims nothing (D-35).
     UnrecognisedQualifier {
@@ -178,6 +181,8 @@ pub enum RenderKind {
     /// RG-102: `--legend hidden` on a PNG or SVG, which always draw the
     /// legend.
     LegendStatic,
+    /// FR-106: `--table all` on a PNG or SVG, which have no table.
+    TableStatic,
     /// D-87: the document is wider than FR-64's ceiling and `--width` was
     /// not given, so the PNG is drawn at the ceiling.
     WidthClamped {
@@ -421,17 +426,12 @@ impl RowKind {
     fn message(&self) -> String {
         let v = self.value().map(trim).unwrap_or_default();
         match self {
-            Self::UndeclaredRing { source, rings, .. } => {
-                let list = rings.join(", ");
-                match source {
-                    RingSource::Default => format!(
-                        "'{v}' is not one of the default rings ({list}); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
-                    ),
-                    RingSource::Flag => format!(
-                        "'{v}' is not one of the rings --rings declares ({list}); the row is in the table view, not on the radar; to plot it, add it to --rings"
-                    ),
-                }
-            }
+            Self::UndeclaredRing {
+                source,
+                rings,
+                off_radar,
+                ..
+            } => off_radar.ring_row(v, *source, &rings.join(", ")),
             Self::UnrecognisedQualifier { .. } => {
                 format!("unrecognised qualifier value '{v}'; drawn solid")
             }
@@ -499,6 +499,9 @@ impl RenderKind {
             Self::LegendStatic => {
                 "--legend hidden applies to HTML pages; PNG and SVG always draw the legend"
                     .to_owned()
+            }
+            Self::TableStatic => {
+                "--table all applies to HTML pages; PNG and SVG have no table".to_owned()
             }
             Self::WidthClamped { natural, drawn } => format!(
                 "the radar is {natural} pixels wide, past --width's limit; the PNG is drawn {drawn} wide, or pass --width to choose"
@@ -659,6 +662,84 @@ fn needs_escape(c: char) -> bool {
 /// rules out of output-affecting code (architecture §7).
 #[derive(Debug, Default)]
 pub struct Warnings(Vec<Warning>);
+
+/// Where a row FR-17 leaves off the radar ends up, which its warning says
+/// (FR-106).
+///
+/// It depends on the output and on `--table`, both known before any row is
+/// read, so each warning carries it, as it carries its source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OffRadar {
+    /// An HTML page under `--table all`: the table lists it, flagged.
+    Listed,
+    /// An HTML page under the default `--table radar`: nowhere on the page.
+    Unlisted,
+    /// A PNG or SVG, which has no table.
+    Undrawn,
+}
+
+impl OffRadar {
+    /// Where a run writing `format` with `--table` set to `table` puts the
+    /// row: in the page's table only under `--table all`, and nowhere in a
+    /// PNG or SVG, which has no table.
+    #[must_use]
+    pub const fn of(format: OutputFormat, table: Table) -> Self {
+        match (format, table) {
+            (OutputFormat::Html, Table::All) => Self::Listed,
+            (OutputFormat::Html, Table::Radar) => Self::Unlisted,
+            (OutputFormat::Png | OutputFormat::Svg, _) => Self::Undrawn,
+        }
+    }
+
+    /// FR-17's message for one row whose ring `v` is not in `list`,
+    /// declared by `source` (D-61).
+    fn ring_row(self, v: &str, source: RingSource, list: &str) -> String {
+        match (self, source) {
+            (Self::Listed, RingSource::Default) => format!(
+                "'{v}' is not one of the default rings ({list}); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
+            ),
+            (Self::Listed, RingSource::Flag) => format!(
+                "'{v}' is not one of the rings --rings declares ({list}); the row is in the table view, not on the radar; to plot it, add it to --rings"
+            ),
+            (Self::Unlisted, RingSource::Default) => format!(
+                "'{v}' is not one of the default rings ({list}), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column"
+            ),
+            (Self::Unlisted, RingSource::Flag) => format!(
+                "'{v}' is not in --rings ({list}), so the row is left off the page; to plot it, add it to --rings; --table all lists it unplotted, but also publishes every other column"
+            ),
+            (Self::Undrawn, RingSource::Default) => format!(
+                "'{v}' is not one of the default rings ({list}); the row is not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
+            ),
+            (Self::Undrawn, RingSource::Flag) => format!(
+                "'{v}' is not one of the rings --rings declares ({list}); the row is not on the radar; to plot it, add it to --rings"
+            ),
+        }
+    }
+
+    /// FR-17's grouped line for `n` rows, their values `tallies`.
+    fn ring_rows(self, n: usize, source: RingSource, list: &str, tallies: &str) -> String {
+        match (self, source) {
+            (Self::Listed, RingSource::Default) => format!(
+                "{n} rows use a ring that is not one of the default rings ({list}) — {tallies}; all appear in the table view; to plot one, pass --rings with every ring you want, since --rings replaces the default set"
+            ),
+            (Self::Listed, RingSource::Flag) => format!(
+                "{n} rows use a ring --rings does not declare ({list}) — {tallies}; all appear in the table view; to plot one, add it to --rings"
+            ),
+            (Self::Unlisted, RingSource::Default) => format!(
+                "{n} rows use a ring that is not one of the default rings ({list}) — {tallies}; they are left off the page; to plot one, pass --rings listing every ring you want, the defaults included; --table all lists them unplotted, but also publishes every other column"
+            ),
+            (Self::Unlisted, RingSource::Flag) => format!(
+                "{n} rows use a ring --rings does not declare ({list}) — {tallies}; they are left off the page; to plot one, add it to --rings; --table all lists them unplotted, but also publishes every other column"
+            ),
+            (Self::Undrawn, RingSource::Default) => format!(
+                "{n} rows use a ring that is not one of the default rings ({list}) — {tallies}; none is on the radar; to plot one, pass --rings with every ring you want, since --rings replaces the default set"
+            ),
+            (Self::Undrawn, RingSource::Flag) => format!(
+                "{n} rows use a ring --rings does not declare ({list}) — {tallies}; none is on the radar; to plot one, add it to --rings"
+            ),
+        }
+    }
+}
 
 impl Warnings {
     /// Records a warning; order is kept until printing (NFR-11).
@@ -827,22 +908,18 @@ fn grouped(class: Class, members: &[Member]) -> String {
 // qual:allow(complexity, error_handling) reason: "a Ring class is built only from UndeclaredRing rows, so a member is always found"
 fn grouped_rings(source: RingSource, members: &[Member]) -> String {
     let n = members.len();
-    let list = members
+    // Every member of one run carries the same rings and the same
+    // `off_radar`, so the first speaks for all.
+    let (list, off_radar) = members
         .iter()
         .find_map(|m| match m.kind {
-            RowKind::UndeclaredRing { rings, .. } => Some(rings.join(", ")),
+            RowKind::UndeclaredRing {
+                rings, off_radar, ..
+            } => Some((rings.join(", "), *off_radar)),
             _ => None,
         })
         .expect("a Ring class holds only UndeclaredRing members");
-    let tallies = tallied(members, normalise);
-    match source {
-        RingSource::Default => format!(
-            "{n} rows use a ring that is not one of the default rings ({list}) — {tallies}; all appear in the table view; to plot one, pass --rings with every ring you want, since --rings replaces the default set"
-        ),
-        RingSource::Flag => format!(
-            "{n} rows use a ring --rings does not declare ({list}) — {tallies}; all appear in the table view; to plot one, add it to --rings"
-        ),
-    }
+    off_radar.ring_rows(n, source, &list, &tallied(members, normalise))
 }
 
 /// NFR-20's enumeration: each distinct value under `key`, in first-occurrence

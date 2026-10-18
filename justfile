@@ -149,7 +149,8 @@ browser-setup:
 # WCAG 1.4.12 text spacing in a browser (plan RG-014C, D-78, rg-497):
 # renders the fixtures and checks every text fits and none overlaps, at five
 # widths, with the four spacing properties applied, in Chromium, Firefox and
-# WebKit.
+# WebKit. table-wide.html takes --table all, so its extra column and
+# unplotted row are in the table it was written to widen (FR-106).
 text-spacing: release-build text-spacing-only
 
 [private]
@@ -161,7 +162,7 @@ text-spacing-only:
         ./target/release/radargen "tests/fixtures/$f.csv" -o "$out/$f.html" --title "Technology Radar" 2>/dev/null
     done
     ./target/release/radargen tests/fixtures/text-spacing-rtl.csv -o "$out/rtl.html" 2>/dev/null
-    ./target/release/radargen tests/fixtures/table-wide.csv -o "$out/table-wide.html" --title "Technology Radar" 2>/dev/null
+    ./target/release/radargen tests/fixtures/table-wide.csv -o "$out/table-wide.html" --title "Technology Radar" --table all 2>/dev/null
     node scripts/text-spacing.mjs "$out" "$out/text-spacing.html:6" "$out/three-quadrant.html:5" "$out/table-wide.html:scroll" "$out/grown.html"
     echo "screenshots in $out (rtl.html is for a look, not checked)"
 
@@ -177,6 +178,9 @@ legend-engines-only:
     node scripts/legend-engines.mjs "$out/legend.html"
 
 # The interactive layer, driven in headless Chromium (RG-015B).
+# interaction.html takes --table all: P3 opens its unplotted row's panel,
+# which only that table lists (FR-106). The nothing-plotted page keeps the
+# default, so its table holds only the "Nothing is on the radar." row.
 interaction: release-build interaction-only
 
 [private]
@@ -184,7 +188,7 @@ interaction-only:
     #!/usr/bin/env bash
     set -euo pipefail
     out="$(mktemp -d)"
-    ./target/release/radargen tests/fixtures/interaction.csv -o "$out/interaction.html" 2>/dev/null
+    ./target/release/radargen tests/fixtures/interaction.csv -o "$out/interaction.html" --table all 2>/dev/null
     ./target/release/radargen tests/fixtures/long-legend.csv -o "$out/long-legend.html" 2>/dev/null
     ./target/release/radargen tests/fixtures/interaction.csv -o "$out/palette.html" --palette docs/product/palette.sample.css 2>/dev/null
     ./target/release/radargen tests/fixtures/interaction.csv -o "$out/hidden.html" --legend hidden 2>/dev/null
@@ -198,6 +202,10 @@ interaction-only:
 # The audit page is interaction.csv plus a row in a ring long enough that
 # its legend heading wraps, declared with a doubled space (rg-cuj): a long
 # ring wraps without widening the radar, which a long quadrant would (D-71).
+# It takes --table all, so the audit reaches the unplotted row and its flag
+# (FR-106). Two default pages follow: table-wide.csv, which drops an
+# unplotted row and an extra column, and a page with nothing plotted,
+# whose table holds only its empty-state row.
 a11y-audit: release-build a11y-audit-only
 
 [private]
@@ -208,9 +216,12 @@ a11y-audit-only:
     trap 'rm -rf "$out"' EXIT
     ring='Retired  after a careful and lengthy evaluation by the architecture board'
     { cat tests/fixtures/interaction.csv; printf 'Delta Lake,Platforms,%s,Lakehouse storage.,,,\n' "$ring"; } > "$out/a11y-audit.csv"
-    ./target/release/radargen "$out/a11y-audit.csv" -o "$out/a11y-audit.html" --rings "Assess,Trial,Adopt,$ring" 2>/dev/null
+    ./target/release/radargen "$out/a11y-audit.csv" -o "$out/a11y-audit.html" --rings "Assess,Trial,Adopt,$ring" --table all 2>/dev/null
     ./target/release/radargen tests/fixtures/d71-wide.csv -o "$out/d71.html" 2>/dev/null
-    node scripts/a11y-audit.mjs "$out/a11y-audit.html" "$out/d71.html"
+    ./target/release/radargen tests/fixtures/table-wide.csv -o "$out/radar.html" 2>/dev/null
+    printf 'name,quadrant,ring,description\nLegacy Bus,Tools,Rejected,Retired.\n' > "$out/empty.csv"
+    ./target/release/radargen "$out/empty.csv" -o "$out/empty.html" 2>/dev/null
+    node scripts/a11y-audit.mjs "$out/a11y-audit.html" "$out/d71.html" "$out/radar.html" "$out/empty.html"
 
 # Screenshots for the release's visual sign-off (RG-015C): each fixture at
 # five widths, three colour modes, panel closed and open. Looked at, not

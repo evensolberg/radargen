@@ -9,7 +9,9 @@
 
 pub use crate::columns::ColumnKind;
 use crate::csv::parse::{Record, Table};
-use crate::diagnostics::{DateColumn, RowError, RowKind, Warning, Warnings, column_label};
+use crate::diagnostics::{
+    DateColumn, OffRadar, RowError, RowKind, Warning, Warnings, column_label,
+};
 pub use crate::link::Link;
 use crate::rings::{RingSet, RingSource};
 use crate::{normalise, single_line, tidy, trim};
@@ -297,12 +299,16 @@ impl Catalogue {
 /// FR-90 warnings are separate: `pipeline.rs` merges both stages' errors in
 /// NFR-11's order and prints them after the warnings.
 ///
+/// `off_radar` is where the run puts a row FR-17 leaves off the radar,
+/// which its warning says (FR-106).
+///
 /// # Errors
 ///
 /// [`RowError::MissingColumn`] and [`RowError::EmptyRequired`].
 pub fn build_catalogue(
     table: &Table,
     rings: &RingSet,
+    off_radar: OffRadar,
     w: &mut Warnings,
 ) -> Result<Catalogue, Vec<RowError>> {
     let header = Header::of(&table.header);
@@ -315,7 +321,7 @@ pub fn build_catalogue(
         .flatten()
         .collect(),
     )?;
-    Ok(Builder::new(header, rings).build(&table.records, w))
+    Ok(Builder::new(header, rings, off_radar).build(&table.records, w))
 }
 
 /// `Ok` when there are no errors, else every one of them.
@@ -479,6 +485,8 @@ struct Builder {
     /// The declared rings under FR-76, for FR-16's match.
     ring_keys: Vec<String>,
     source: RingSource,
+    /// Where the run puts an FR-17 row, for its warning (FR-106).
+    off_radar: OffRadar,
     /// The declared rings, moved into the [`Catalogue`] at the end.
     rings: Vec<String>,
     /// The same rings, shared by every FR-17 warning of the run. Kept apart
@@ -493,12 +501,13 @@ struct Builder {
 }
 
 impl Builder {
-    fn new(header: Header, rings: &RingSet) -> Self {
+    fn new(header: Header, rings: &RingSet, off_radar: OffRadar) -> Self {
         Self {
             at: Positions::of(&header),
             header,
             ring_keys: rings.rings.iter().map(|r| normalise(r)).collect(),
             source: rings.source,
+            off_radar,
             declared: Arc::from(rings.rings.as_slice()),
             rings: rings.rings.clone(),
             quadrants: Vec::new(),
@@ -641,6 +650,7 @@ impl Builder {
                     value: value.to_string(),
                     source: self.source,
                     rings: Arc::clone(&self.declared),
+                    off_radar: self.off_radar,
                 },
             );
         }
@@ -821,7 +831,7 @@ mod tests {
         let (table, errs) = parse(csv, &mut w).expect("parses");
         assert!(errs.is_empty(), "{errs:?}");
         let rings = parse_rings(rings).expect("valid rings");
-        let result = build_catalogue(&table, &rings, &mut w);
+        let result = build_catalogue(&table, &rings, OffRadar::Listed, &mut w);
         (result, w.render())
     }
 
@@ -1082,7 +1092,8 @@ mod tests {
             }],
         };
         let rings = parse_rings(None).expect("default");
-        let errs = build_catalogue(&table, &rings, &mut Warnings::default()).expect_err("fails");
+        let errs = build_catalogue(&table, &rings, OffRadar::Listed, &mut Warnings::default())
+            .expect_err("fails");
         assert_eq!(
             errs.iter().map(RowError::render).collect::<Vec<_>>(),
             [empty(2, ColumnKind::Quadrant), empty(2, ColumnKind::Ring)]
@@ -1260,7 +1271,7 @@ mod tests {
         let mut w = Warnings::default();
         let (table, _) = parse(&csv, &mut w).expect("parses");
         let rings = parse_rings(None).expect("default");
-        let cat = build_catalogue(&table, &rings, &mut w).expect("builds");
+        let cat = build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds");
         assert_eq!(cat.items.len(), 3);
         let firsts: Vec<_> = w
             .as_slice()

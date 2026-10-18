@@ -47,7 +47,7 @@ This writes a CSV with every column radargen reads and five example rows to repl
 | `link` | no | An `http://` or `https://` address | A link in the detail panel and the table |
 
 - **Matching.** Values are matched ignoring case and extra spaces, and shown as written.
-- **Blank and extra columns.** A blank optional cell leaves that field off the page. A column radargen does not use is not an error: it stays off the radar and the legend, and is shown, as written, in the table view. It needs a header name; a value under a column with none is dropped, with a warning. That makes the CSV a place to keep your own tracking alongside the radar, such as an owner, a cost centre or a review date.
+- **Blank and extra columns.** A blank optional cell leaves that field off the page. A column radargen does not use is not an error: it stays off the radar, the legend and, by default, the page; `--table all` shows it, as written, in the HTML page's table and detail panel. It needs a header name; a value under a column with none is dropped, with a warning. That makes the CSV a place to keep your own tracking alongside the radar, such as an owner, a cost centre or a review date.
 - **The file.** UTF-8, with or without a byte-order mark, commas between values, and any line endings. In Excel, use Save As "CSV UTF-8". Files over 64 MiB are refused.
 
 ## Quadrants and rings
@@ -62,19 +62,19 @@ radargen radar.csv -o radar.html --rings "Hold, Assess, Trial, Adopt"
 
 The list replaces the default set rather than adding to it. A ring name cannot contain a comma, and an empty or repeated entry is an error. The innermost ring has the least room, about a tenth of the outermost, so put the ring that holds the fewest items there.
 
-A row whose ring is not in the list is left off the radar and the legend, but kept in the table, marked as not on the radar, with a warning naming the rings it could have used. So one CSV can track more than the radar shows: rows with a ring such as `In Use` or `Retired` stay on record and in the table while the radar shows only the rings you declare. Each run warns about them in one line, which counts the rows under each ring.
+A row whose ring is not in the list is left off the radar and the legend, with a warning naming the rings it could have used. By default it is left out of the HTML page's table too; `--table all` keeps it there, marked as not on the radar. So one CSV can track more than the radar shows: rows with a ring such as `In Use` or `Retired` stay on record in the CSV, and in the table with `--table all`, while the radar shows only the rings you declare. Each run warns about them in one line, which counts the rows under each ring.
 
-**Everything in the CSV is in the HTML page.** Extra columns and rows not on the radar are left out of the PNG and the SVG, but the page's table shows them to anyone who opens it. Keep anything that must stay internal out of a CSV you publish as a page.
+**The HTML page publishes what the radar draws.** By default its table and detail panels hold only the rows on the radar and the columns listed above, so extra columns and rows not on the radar are left out of the page. Two things about such rows still show: a quadrant used only by rows not on the radar still names a sector and an empty legend group, in every format; and each item carries its CSV line number in the page's source, so gaps in the numbering show that rows were left out, though not what they held. `--table all` publishes every row and column in the page's table and panels; use it only when every row and column may be read by the page's readers. To keep one of radargen's own columns off the page, rename it, for example `rationale` to `internal_rationale`: it becomes an extra column, which the default leaves out. Pages rendered by releases before 1.9.0 contain every row and column; re-render them to withdraw anything not on the radar.
 
 ## The HTML page
 
 An `.html` output is one file with its fonts, styles and script inside it. It makes no network requests, so it can be emailed, put on a file share or opened offline.
 
 - **Layout.** On a wide screen the legend sits beside the radar; on a narrow one, below it. The switch happens where the radar would otherwise shrink too far to read, so a radar with a wider legend switches at a wider window.
-- **Legend.** Grouped by quadrant, then by ring in the order you declared them, then by name. Items are numbered across the whole radar in that order, and each marker carries its number. A list-icon button at the top right hides or shows the legend, crossed out while it is hidden; hover over it to see what a press does; the key to marker shapes stays, and the table still lists every item. `--legend hidden` starts the page with it hidden. The choice is not remembered between visits.
+- **Legend.** Grouped by quadrant, then by ring in the order you declared them, then by name. Items are numbered across the whole radar in that order, and each marker carries its number. A list-icon button at the top right hides or shows the legend, crossed out while it is hidden; hover over it to see what a press does; the key to marker shapes stays, and the table still lists every item on the radar. `--legend hidden` starts the page with it hidden. The choice is not remembered between visits.
 - **Markers.** A disc in the quadrant's colour; hollow for `conditional`. `New` adds a full ring around it, `Moved In` a half-ring facing the centre, and `Moved Out` a half-ring facing the edge. A key on the page explains them.
-- **Details.** Clicking a marker, a legend row or a name in the table opens a panel with every filled column for that item. Its Close button, Escape, or activating the item again closes it.
-- **The table.** Under "Every item", below the radar, open "The table" to list every row with every column, including rows not on the radar and columns radargen does not use.
+- **Details.** Clicking a marker, a legend row or a name in the table opens a panel with every filled column the table lists for that item. Its Close button, Escape, or activating the item again closes it.
+- **The table.** Under "Items on the radar", below the radar, open "The table" to list every item on the radar with the columns radargen reads. With `--table all` the heading is "Every item", and the table lists every row with every column, including rows not on the radar and columns radargen does not use. If nothing is on the radar, the default table says so in a single row.
 - **Themes.** The page follows the reader's light or dark setting, and a button at the top right switches between them: a moon while the page is light, a sun while it is dark; hover over it to see what a press does. The choice is not remembered between visits. `--theme` and `--width` do not apply to HTML.
 - **Keyboard and screen readers.** A skip link leads to the legend, or to the table while the legend is hidden. Markers, legend rows and table names are buttons, reached with Tab and activated with Enter or Space. A marker's or legend row's spoken name gives its number, name, any qualifier or status, quadrant and ring.
 - **Without JavaScript** the radar, legend and table still show; the details panel, highlighting, skip link and the legend and theme buttons need it.
@@ -135,6 +135,7 @@ radargen --create-palette <PATH>
 | `-s`, `--subtitle <SUBTITLE>` | A second line under the title, such as the edition's date. |
 | `-T`, `--theme <light\|dark>` | The colours for PNG and SVG; light by default. Not with `--palette`. |
 | `--legend <shown\|hidden>` | Whether an HTML page starts with its legend shown or hidden; shown by default. PNG and SVG always draw it, and warn if asked to hide it. |
+| `--table <radar\|all>` | What an HTML page's table and detail panels list: `radar` (the default), the rows on the radar and the columns radargen reads; `all`, every row and every named column. PNG and SVG have no table, and warn if given `all`. |
 | `-w`, `--width <WIDTH>` | The width in pixels for PNG and SVG, from 320 to 10000. |
 | `-p`, `--palette <FILE>` | Colours from a palette file instead of the built-in themes, in every format. Not with `--theme`. |
 | `--create-template <PATH>` | Write a starter CSV, and render nothing. Given alone. |

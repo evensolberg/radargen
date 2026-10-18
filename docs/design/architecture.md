@@ -82,20 +82,24 @@ something to test for — the wide arrangement is one object, serialised twice.
 `Plotted::items` deliberately drops what cannot be drawn — FR-17's unplotted rows have
 no band, FR-18 gives them no number — and it never carried per-item prose,
 because §6.3 keeps `description`, `domain`, `rationale` and the dates out of the
-shared document (D-26). But **FR-78 requires a table row for every CSV row**,
-unplotted included, carrying every named column the header declared (D-80), and
-**FR-38's detail panel is built from exactly the prose the graphic omits**. Both
-are HTML chrome around the graphic, not part of it. So the HTML emitter takes
-a `Page` — both `Document`s, the `Catalogue`, the `Plotted` order and the title —
-and the static emitters take `(&Document wide)` alone. The detail panel is built
-from the item's table row, so each item's prose is written into the page once
-(D-80). The HTML emitter also reads `Plotted::numbers` (aligned with
-`Catalogue::items`) for FR-78's number column and FR-50's accessible names, and
-`Plotted::table_rows` for FR-78's row order.
+shared document (D-26). But **FR-78 can require a table row for every CSV
+row**, unplotted included, carrying every named column the header declared
+(D-80) — under `--table all`; the default `--table radar` keeps the plotted rows
+and the columns radargen reads (FR-106, D-95) — and **FR-38's detail panel is
+built from exactly the prose the graphic omits**. Both are HTML chrome around
+the graphic, not part of it. So the HTML emitter takes a `Page` — both
+`Document`s, the `Catalogue`, the `Plotted` order, the title and the `Table`
+choice — and the static emitters take `(&Document wide)` alone. The detail
+panel is built from the item's table row, so each item's prose is written into
+the page once (D-80), and the table's choice of rows and columns is the
+panel's too. The HTML emitter also reads `Plotted::numbers` (aligned with
+`Catalogue::items`) for FR-78's number column and FR-50's accessible names,
+and `Plotted::items` or, under `--table all`, `Plotted::table_rows` for the
+table's row order.
 
 **`Catalogue` therefore keeps the CSV's shape, not only its meaning.** FR-27
-ignores unrecognised columns and FR-78 puts every one of them in the table, in
-header order — so an `Item` of named, typed fields cannot serve the table on
+ignores unrecognised columns and FR-78, under `--table all`, puts every one of
+them in the table, in header order — so an `Item` of named, typed fields cannot serve the table on
 its own, and reaching back past the waist to the `Table` would give the HTML
 emitter a second input to keep in step. `Catalogue` carries the named columns
 in header order and, per row, every named cell as written (`Item::cells`, read
@@ -105,11 +109,12 @@ plus `name` and `line`. That makes FR-78's "every optional column the header
 declared" a lookup rather than a re-parse. The quadrant and a plotted ring are
 displayed through their labels (FR-9, FR-15), not their cells, so the table and
 detail panel match the radar and legend. An unnamed column is not in that list;
-FR-93 drops it.
+FR-93 drops it. The default table filters by `ColumnKind`, keeping every column
+but `Other`, so FR-106's cut needs no list of its own.
 
 That asymmetry is not a leak in the waist — it is D-26 expressed as a type
 signature. A static image has nothing to put the prose in, and it is structurally
-incapable of receiving it. SC-19's "unplotted rows reachable" and SC-11's "the
+incapable of receiving it. SC-19's "unplotted rows reachable" under `--table all` and SC-11's "the
 PNG stands alone on the graphic alone" are then both true by construction.
 
 **`Plotted` is index lists into the `Catalogue`, not a copy of it.** `resolve`
@@ -161,7 +166,7 @@ declarations only and are not listed.
 | `src/num.rs` | `fmt_coord()` — NFR-17's rounding, used by every emitter | v1.0 |
 | `src/text.rs` | Shaped measurement and FR-79 wrapping, over **both** of FR-85's faces; shaping, placing and outlining glyphs for the exported SVG (D-88), and the characters a face draws as `.notdef` (FR-104); the only module that reads `skrifa` | *exists* |
 | `src/emit/html/mod.rs` | Self-contained HTML: both arrangements, FR-69's computed media-query switch, FR-56's theme override, inline JS/CSS and font | v1.0 |
-| `src/emit/html/table.rs` | The table view (FR-41, FR-78) — every CSV row, every declared column | v1.0 |
+| `src/emit/html/table.rs` | The table view (FR-41, FR-78, FR-106) — the plotted rows and the columns radargen reads, or under `--table all` every CSV row and every declared column | v1.0 |
 | `src/emit/write.rs` | NFR-14's atomic write: temp file in the same directory, flush, rename; `fs::write`'s permissions, a symlink replaced not followed, a read-only target refused | v1.0 |
 | `src/emit/svg.rs` | The SVG export (FR-54, D-88): FR-57's intrinsic size, the `<title>`, `<desc>` and version comment, around `serialise::standalone` | 1.2 |
 | `src/emit/png.rs` | `resvg` rasterisation: the pixel size (FR-57, D-87) and the image. Its `usvg_options` is shared with the oracle tests, so they rasterise as the export does | 1.1 |
@@ -511,7 +516,7 @@ knows there are two of anything:
   `role=button` is.
 - **Identity travels as `data-row`, carrying the CSV line — not FR-34's number.**
   One key space rather than two: the number is contiguous over plotted items
-  only (FR-18), so it cannot name the unplotted rows FR-78 puts in the table, and
+  only (FR-18), so it cannot name the unplotted rows `--table all` puts in the table, and
   a second key for those would be a second thing to collide. The line is unique
   for every row, stable across renders, and NFR-10 already assigns it. The
   number stays what it is — a label the reader sees. The name is not a key
@@ -633,7 +638,7 @@ signature says whether a stage is capable of warning, which is worth more than
 uniformity.
 
 ```rust
-pub fn build_catalogue(table: &Table, rings: &RingSet, w: &mut Warnings) -> Result<Catalogue, Vec<RowError>>;
+pub fn build_catalogue(table: &Table, rings: &RingSet, off_radar: OffRadar, w: &mut Warnings) -> Result<Catalogue, Vec<RowError>>;
 pub fn layout(cat: &Catalogue, cfg: &Config, w: &mut Warnings) -> Blocks;
 ```
 
@@ -693,6 +698,12 @@ first-occurrence line numbers or require a map keyed by value, and §6 has alrea
 ruled out maps in output-affecting code. Pushing plainly and grouping once at the
 end makes NFR-11's order a stable sort by position, so a stage that pushes a
 line-3 warning after a line-40 one cannot reorder the output.
+FR-17's words depend on where a row it leaves off the radar ends up, which
+only the output and `--table` decide (FR-106). Both are known before any row
+is read, so the pipeline computes an `OffRadar` from the `Config` with
+`OffRadar::of` and passes it to `build_catalogue`, and each FR-17 warning
+carries it beside its ring source. Rendering then needs nothing but the
+warnings.
 
 FR-88's quadrant-count warning carries no CSV line, and NFR-11 puts it **before**
 the line-ordered ones. That is a sort key, not a special case: a warning's
