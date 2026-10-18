@@ -564,8 +564,9 @@ mod tests {
             let scale = size / face.units_per_em();
             for (glyph, at) in shaped.iter().zip(&placed) {
                 assert_eq!(at.glyph, glyph.id);
+                let want = -f64::from(glyph.y_offset) * scale;
                 assert!(
-                    (at.y + f64::from(glyph.y_offset) * scale).abs() < 1e-9,
+                    (at.y - want).abs() < 1e-9,
                     "{weight:?}: glyph {} at y {} for offset {}",
                     glyph.id,
                     at.y,
