@@ -180,9 +180,10 @@ A web address for the item, such as the product's home page: `https://www.terraf
 - a value under an unnamed column;
 - more than six quadrants;
 - a band with more items than fit without overlapping;
-- a quadrant or ring name long enough to make the phone layout too wide.
+- a quadrant or ring name long enough to make the phone layout too wide;
+- a quadrant or ring name long enough that a common laptop gets the phone layout too (HTML only).
 
-Every message about a row names its CSV line, and the column where there is one. Messages about the radar as a whole (too many quadrants, an overfull band, a too-wide phone layout) name what they count instead and print first. Problems with `--title`, `--subtitle` or `--rings` name the flag. Messages go to the terminal's error output and are grouped, so forty rows with the same typo make one line.
+Every message about a row names its CSV line, and the column where there is one. Messages about the radar as a whole (too many quadrants, an overfull band, a too-wide phone layout, a page too wide for a laptop) name what they count instead and print first. Problems with `--title`, `--subtitle` or `--rings` name the flag. Messages go to the terminal's error output and are grouped, so forty rows with the same typo make one line.
 
 ## Example
 

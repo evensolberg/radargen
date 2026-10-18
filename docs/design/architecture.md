@@ -154,7 +154,7 @@ declarations only and are not listed.
 | `src/layout/radar.rs` | Radar block: sectors, bands, markers, labels, FR-70's three scales | v1.0 |
 | `src/layout/legend/` (`mod.rs`, `layout.rs`) | Legend block (FR-35, FR-74, FR-75) | v1.0 |
 | `src/layout/key.rs` | Encoding key (FR-66) | v1.0 |
-| `src/layout/arrange.rs` | Wide and narrow placement (FR-68–FR-71) | v1.0 |
+| `src/layout/arrange.rs` | Wide and narrow placement (FR-68–FR-71); FR-95's and FR-105's render warnings (`warn_narrow`, `warn_wide`), HTML only, each naming the label that sets its arrangement's width (D-73, D-94) | v1.0 |
 | `src/svg/mod.rs` | `Node`, `Document` — the SVG tree. `Node` arrives with the first block that renders (PR 09) and gains variants with each block; `Document` arrives with `arrange` (PR 12) | v1.0 |
 | `src/svg/serialise/` | `serialise(&Document, Target)`: one `<svg>` element, colours bound late for an interactive or static `Target`, interactive-only nodes dropped for static; every attribute through `escape::xml_attr`, every float through `num::fmt_coord` (PR 13). Its `TextMode` writes text as `<text>` or as outlines, and `standalone` is the exported file's root (D-88) | v1.0 |
 | `src/escape.rs` | NFR-6's output contexts 1 to 4, one function each; context 5 is `palette::Hex` | v1.0 |
@@ -332,7 +332,9 @@ breakpoint can fall a few pixels below the narrow document's width, where the
 narrow SVGs simply span the viewport. D-71's widening does not disturb the
 first: the wide width is at least the radar at scale 1 plus its insets,
 and the widest narrow document is the radar at 0.3 plus the same insets, so
-the wide document is never the narrower of the two.
+the wide document is never the narrower of the two. A breakpoint past
+`WIDE_MIN_VIEWPORT_PX` sends laptops to the narrow arrangement, which only
+labels can cause since D-86's growth stops short of it, and FR-105 warns (D-94).
 
 HTML draws the narrow arrangement as two SVGs too (`arrange::narrow_parts`,
 RG-102): the body (title, radar, key and the gap under it) and the legend,
