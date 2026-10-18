@@ -12,7 +12,8 @@ use crate::diagnostics::{Fatal, RenderKind, Warning, Warnings};
 pub use crate::emit::html::{Legend, Table};
 use crate::escape::remove_undisplayable;
 pub use crate::palette::Theme;
-use crate::settings::Origin;
+use crate::settings::file::Loaded;
+use crate::settings::{MergeProblem, Origin, Setting, Settings, pick};
 use crate::starter::Starter;
 use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
 
@@ -62,7 +63,7 @@ impl std::fmt::Display for OutputFormat {
     about = "Render a technology radar from a CSV file to a self-contained HTML page, a PNG image or an SVG file.",
     // clap's own usage would show the CSV as optional and leave out -o,
     // since each is required only without a --create-* flag.
-    override_usage = "radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]\n       radargen --create-template <PATH>\n       radargen --create-palette <PATH>",
+    override_usage = "radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]\n       radargen <CSV_PATH> -c <FILE> [OPTIONS]\n       radargen --create-template <PATH>\n       radargen --create-palette <PATH>",
     long_about = None
 )]
 pub struct Cli {
@@ -78,10 +79,12 @@ pub struct Cli {
     pub csv_path: Option<PathBuf>,
 
     // FR-52: the format comes from the extension, matched ignoring case.
+    // Required unless a --create-* flag stands in for the render, or from
+    // --config's output key (FR-91).
     /// Where to write the radar.
     ///
     /// The extension picks the format: .html, .png or .svg, in any case.
-    #[arg(short, long, required_unless_present = STARTER)]
+    #[arg(short, long, required_unless_present_any = [STARTER, "config"])]
     pub output: Option<PathBuf>,
 
     // FR-12 to FR-15: the list is edge-to-centre and replaces the default
@@ -198,6 +201,22 @@ pub struct Cli {
     #[arg(short, long, value_name = "FILE", conflicts_with = "theme")]
     pub palette: Option<PathBuf>,
 
+    // FR-91, D-57: read only when named, never discovered. `-c` (OQ-2,
+    // provisional in D-57). The keys mean what their flags mean; a flag
+    // here overrides its key, and a relative path in the file is read from
+    // the file's folder. `exclusive` on the --create-* flags keeps it from
+    // them.
+    /// Read settings from a TOML file.
+    ///
+    /// Its keys are output, title, subtitle, rings, unplotted_rings, theme,
+    /// width, legend_columns, legend, table and palette, each meaning what
+    /// its flag means: rings and unplotted_rings are arrays of strings,
+    /// width and legend_columns whole numbers, the rest strings. A flag
+    /// given here overrides its key. A relative path in the file is read
+    /// from the file's own folder.
+    #[arg(short, long, value_name = "FILE")]
+    pub config: Option<PathBuf>,
+
     // FR-99, D-83: the tool writes the template, so it always matches the
     // parser that reads it. `exclusive`, so it never half-renders; no short
     // form, since it is run once per radar.
@@ -229,12 +248,11 @@ pub enum Task<'a> {
     /// `--create-template <path>` or `--create-palette <path>`: write that
     /// file there.
     Create(Starter, &'a Path),
-    /// Render `input` to `output`.
+    /// Render `input`; the output is `-o` or the file's `output` key
+    /// (FR-91).
     Render {
         /// The CSV, as given.
         input: &'a Path,
-        /// `-o`, as given.
-        output: &'a Path,
     },
 }
 
@@ -246,17 +264,53 @@ impl Cli {
     /// [`Fatal::NoTask`] when it asks for none or more than one, which clap
     /// refuses before a `Cli` is built; only one built by hand gets here.
     pub fn task(&self) -> Result<Task<'_>, Fatal> {
-        match (
-            &self.create_template,
-            &self.create_palette,
-            &self.csv_path,
-            &self.output,
-        ) {
-            (Some(path), None, None, None) => Ok(Task::Create(Starter::Template, path)),
-            (None, Some(path), None, None) => Ok(Task::Create(Starter::Palette, path)),
-            (None, None, Some(input), Some(output)) => Ok(Task::Render { input, output }),
+        let renders = self.output.is_some() || self.config.is_some();
+        match (&self.create_template, &self.create_palette, &self.csv_path) {
+            (Some(path), None, None) if !renders => Ok(Task::Create(Starter::Template, path)),
+            (None, Some(path), None) if !renders => Ok(Task::Create(Starter::Palette, path)),
+            (None, None, Some(input)) if renders => Ok(Task::Render { input }),
             _ => Err(Fatal::NoTask),
         }
+    }
+
+    /// FR-91: every setting from its flag, else from `file`, with where it
+    /// came from (NFR-10), and what the merge found wrong (FR-59 across
+    /// sources, a missing output).
+    #[must_use]
+    pub fn settings(&self, file: Option<&Loaded>) -> (Settings, Vec<MergeProblem>) {
+        let settings = Settings {
+            output: pick(Setting::Output, self.output.clone(), file, |v| {
+                v.output.as_ref().map(PathBuf::from)
+            }),
+            title: pick(Setting::Title, self.title.clone(), file, |v| {
+                v.title.clone()
+            }),
+            subtitle: pick(Setting::Subtitle, self.subtitle.clone(), file, |v| {
+                v.subtitle.clone()
+            }),
+            rings: pick(Setting::Rings, self.rings.clone(), file, |v| {
+                v.rings.clone()
+            }),
+            unplotted_rings: pick(
+                Setting::UnplottedRings,
+                self.unplotted_rings.clone(),
+                file,
+                |v| v.unplotted_rings.clone(),
+            ),
+            theme: pick(Setting::Theme, self.theme, file, |v| v.theme),
+            width: pick(Setting::Width, self.width, file, |v| v.width),
+            legend_columns: pick(Setting::LegendColumns, self.legend_columns, file, |v| {
+                v.legend_columns
+            }),
+            legend: pick(Setting::Legend, self.legend, file, |v| v.legend),
+            table: pick(Setting::Table, self.table, file, |v| v.table),
+            palette: pick(Setting::Palette, self.palette.clone(), file, |v| {
+                v.palette.as_ref().map(PathBuf::from)
+            }),
+            dir: file.map(|loaded| loaded.dir.clone()),
+        };
+        let problems = settings.problems(file);
+        (settings, problems)
     }
 }
 

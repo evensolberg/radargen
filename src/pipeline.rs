@@ -151,10 +151,12 @@ pub fn run(cli: &Cli) -> Report {
 
 /// The stages in order, each stopping the run on failure.
 fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
-    let (input, output) = match cli.task()? {
+    let input = match cli.task()? {
         Task::Create(starter, path) => return Ok(starter.create(path)?),
-        Task::Render { input, output } => (input, output),
+        Task::Render { input } => input,
     };
+    // Until the pipeline reads --config (the next task), the output is -o.
+    let output = cli.output.as_deref().ok_or(Fatal::NoTask)?;
     let config = config(cli, input, output, warnings).map_err(Failure::Alone)?;
     let fonts = Fonts::embedded().map_err(Fatal::from)?;
     // FR-106: the flags say where an off-radar row goes, so its warning

@@ -6,9 +6,10 @@ use radargen::cli::{Cli, Legend, OutputFormat, Table, Theme};
 use radargen::cli::{Task, clean_setting, format};
 use radargen::diagnostics::{Fatal, RowKind, Warning, Warnings};
 use radargen::rings::{RingsError, parse_rings};
-use radargen::settings::{Origin, Setting, Source};
+use radargen::settings::file::load;
+use radargen::settings::{Effective, MergeProblem, Origin, Setting, Source, Sourced, resolve};
 use radargen::starter::Starter;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 fn parse(args: &[&str]) -> Result<Cli, clap::Error> {
     Cli::try_parse_from(std::iter::once("radargen").chain(args.iter().copied()))
@@ -781,5 +782,165 @@ fn help_names_each_default() {
     assert!(
         line("--legend-columns").contains(&format!("{DEFAULT_LEGEND_COLUMNS} by default")),
         "{short}"
+    );
+}
+
+fn file(text: &str) -> radargen::settings::file::Loaded {
+    load(text, Path::new("conf/radar.toml")).expect("parses")
+}
+
+fn conf() -> Source {
+    Source::Config(std::sync::Arc::from("conf/radar.toml"))
+}
+
+/// FR-91: the command line wins key by key; the file fills the rest.
+#[test]
+fn a_flag_overrides_its_key_and_only_its_key() {
+    let cli = parse(&["in.csv", "-c", "conf/radar.toml", "--title", "Flag"]).expect("parses");
+    let loaded = file("output = \"r.html\"\ntitle = \"File\"\nsubtitle = \"Q3\"\nwidth = 1920\n");
+    let (s, problems) = cli.settings(Some(&loaded));
+    assert_eq!(problems, []);
+    assert_eq!(
+        s.title,
+        Effective::Given(Sourced {
+            value: "Flag".into(),
+            origin: Origin::flag(Setting::Title)
+        })
+    );
+    assert_eq!(
+        s.subtitle,
+        Effective::Given(Sourced {
+            value: "Q3".into(),
+            origin: Origin::new(Setting::Subtitle, conf())
+        })
+    );
+    assert_eq!(s.width.as_given().map(|w| w.value), Some(1920));
+    assert_eq!(s.theme, Effective::Absent);
+}
+
+/// FR-65, FR-91: an empty --title is given, so it overrides with nothing.
+#[test]
+fn an_empty_title_flag_overrides_the_key() {
+    let cli = parse(&["in.csv", "-c", "r.toml", "--title", ""]).expect("parses");
+    let (s, _) = cli.settings(Some(&file("output = \"r.html\"\ntitle = \"File\"\n")));
+    assert_eq!(s.title.as_given().map(|t| t.value.as_str()), Some(""));
+}
+
+/// Plan RG-019A, Ruling 3: a broken key is Broken, unless a flag overrides it.
+#[test]
+fn a_broken_key_is_broken_unless_a_flag_overrides_it() {
+    let loaded = file("output = \"r.html\"\nwidth = 5\nrings = \"Adopt\"\n");
+    let cli = parse(&["in.csv", "-c", "r.toml", "--width", "800"]).expect("parses");
+    let (s, _) = cli.settings(Some(&loaded));
+    assert_eq!(s.width.as_given().map(|w| w.value), Some(800));
+    assert_eq!(s.rings, Effective::Broken);
+}
+
+/// FR-59 across sources (rg-ahj), and within the file.
+#[test]
+fn a_theme_and_a_palette_conflict_across_sources() {
+    let cases = [
+        (
+            vec!["--theme", "dark"],
+            "output = \"r.png\"\npalette = \"b.css\"\n",
+            Source::Flag,
+            conf(),
+        ),
+        (
+            vec!["--palette", "b.css"],
+            "output = \"r.png\"\ntheme = \"light\"\n",
+            conf(),
+            Source::Flag,
+        ),
+        (
+            vec![],
+            "output = \"r.png\"\ntheme = \"dark\"\npalette = \"b.css\"\n",
+            conf(),
+            conf(),
+        ),
+    ];
+    for (flags, text, theme, palette) in cases {
+        let mut args = vec!["in.csv", "-c", "conf/radar.toml"];
+        args.extend(flags);
+        let (_, problems) = parse(&args).expect("parses").settings(Some(&file(text)));
+        assert_eq!(
+            problems,
+            [MergeProblem::Conflict {
+                theme: Origin::new(Setting::Theme, theme),
+                palette: Origin::new(Setting::Palette, palette),
+            }],
+            "{text}"
+        );
+    }
+}
+
+/// FR-91: -o from one source or the other.
+#[test]
+fn no_output_from_either_source_is_a_problem() {
+    let cli = parse(&["in.csv", "-c", "conf/radar.toml"]).expect("parses without -o");
+    let (_, problems) = cli.settings(Some(&file("title = \"T\"\n")));
+    assert_eq!(
+        problems,
+        [MergeProblem::NoOutput {
+            file: std::sync::Arc::from("conf/radar.toml")
+        }]
+    );
+    // A broken output key says why itself; it is not also missing.
+    let (_, problems) = cli.settings(Some(&file("output = 3\n")));
+    assert_eq!(problems, []);
+}
+
+/// FR-91, Review Focus 2: relative from the file's directory, absolute as
+/// written, `~` literal; a flag's path as given.
+#[test]
+fn paths_resolve_against_their_source() {
+    let dir = Some(Path::new("conf"));
+    let from_file = |p: &str| Sourced {
+        value: PathBuf::from(p),
+        origin: Origin::new(Setting::Output, conf()),
+    };
+    assert_eq!(
+        resolve(dir, &from_file("out/r.html")).0,
+        Path::new("conf/out/r.html")
+    );
+    assert_eq!(
+        resolve(dir, &from_file("~/r.html")).0,
+        Path::new("conf/~/r.html")
+    );
+    let absolute = std::env::temp_dir().join("r.html");
+    let (opened, named) = resolve(dir, &from_file(absolute.to_str().expect("utf-8")));
+    assert_eq!(opened, absolute);
+    assert_eq!(
+        named.to_string(),
+        format!("the output key in conf/radar.toml ({})", absolute.display())
+    );
+    let flag = Sourced {
+        value: PathBuf::from("out/r.html"),
+        origin: Origin::flag(Setting::Output),
+    };
+    assert_eq!(resolve(dir, &flag).0, Path::new("out/r.html"));
+}
+
+/// No file: every flag given is Given from the command line, the rest Absent.
+#[test]
+fn without_a_file_the_flags_are_the_settings() {
+    let cli = parse(&["in.csv", "-o", "r.html", "-r", "A,B"]).expect("parses");
+    let (s, problems) = cli.settings(None);
+    assert_eq!(problems, []);
+    assert_eq!(
+        s.rings.as_given().map(|r| r.origin.source.clone()),
+        Some(Source::Flag)
+    );
+    assert_eq!((s.legend, s.dir), (Effective::Absent, None));
+}
+
+#[test]
+fn config_has_a_short_form_and_stands_in_for_output() {
+    let cli = parse(&["in.csv", "-c", "r.toml"]).expect("-o is not needed with -c");
+    assert_eq!(cli.config.as_deref(), Some(Path::new("r.toml")));
+    assert!(parse(&["in.csv"]).is_err(), "still needed without it");
+    assert!(
+        parse(&["--create-template", "t.csv", "-c", "r.toml"]).is_err(),
+        "given alone"
     );
 }

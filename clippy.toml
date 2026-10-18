@@ -9,3 +9,8 @@ disallowed-methods = [
 # png 0.18 depends on miniz_oxide 0.8 directly and 0.9 through flate2;
 # neither is ours to unify (rg-42m).
 allowed-duplicate-crates = ["miniz_oxide"]
+
+# --config's key names (FR-91), which --help lists in prose: clap prints a
+# doc comment verbatim, so backticks would reach the user. ".." keeps
+# clippy's defaults.
+doc-valid-idents = ["..", "unplotted_rings", "legend_columns"]

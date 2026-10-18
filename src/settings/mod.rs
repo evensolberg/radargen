@@ -8,11 +8,12 @@
 pub mod file;
 
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::emit::html::{Legend, Table};
 use crate::palette::Theme;
+use file::{FileValues, Loaded};
 
 /// FR-56's default.
 pub const DEFAULT_THEME: Theme = Theme::Light;
@@ -275,6 +276,124 @@ impl<T> Effective<T> {
             value: default,
             origin: Origin::new(setting, Source::Default),
         })
+    }
+}
+
+/// Every setting after the merge, paths not yet resolved, so FR-92's
+/// `{edition}` (PR 19b) can expand first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Settings {
+    /// `-o` or `output`.
+    pub output: Effective<PathBuf>,
+    /// `--title` or `title`.
+    pub title: Effective<String>,
+    /// `--subtitle` or `subtitle`.
+    pub subtitle: Effective<String>,
+    /// `--rings` or `rings`, as a comma list.
+    pub rings: Effective<String>,
+    /// `--unplotted-rings` or `unplotted_rings`, as a comma list.
+    pub unplotted_rings: Effective<String>,
+    /// `--theme` or `theme`.
+    pub theme: Effective<Theme>,
+    /// `--width` or `width`.
+    pub width: Effective<u32>,
+    /// `--legend-columns` or `legend_columns`.
+    pub legend_columns: Effective<u8>,
+    /// `--legend` or `legend`.
+    pub legend: Effective<Legend>,
+    /// `--table` or `table`.
+    pub table: Effective<Table>,
+    /// `--palette` or `palette`.
+    pub palette: Effective<PathBuf>,
+    /// The file's directory, which a relative path from it resolves
+    /// against (FR-91); `None` without `--config`.
+    pub dir: Option<PathBuf>,
+}
+
+/// What the merge finds wrong beyond each key's own problems: usage
+/// errors, as clap's would be (FR-59, FR-91).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MergeProblem {
+    /// FR-59 across sources: a theme and a palette, at least one from the
+    /// file, since clap refuses the pair on the command line (rg-ahj).
+    Conflict {
+        /// The theme's origin.
+        theme: Origin,
+        /// The palette's origin.
+        palette: Origin,
+    },
+    /// FR-91: neither `-o` nor an `output` key.
+    NoOutput {
+        /// The file, as named on the command line.
+        file: Arc<str>,
+    },
+}
+
+/// One setting from its flag, else its key in `file`, else absent. A key
+/// with a problem is `Broken`, unless the flag overrides it (FR-91).
+pub fn pick<T>(
+    setting: Setting,
+    flag: Option<T>,
+    file: Option<&Loaded>,
+    from_file: impl FnOnce(&FileValues) -> Option<T>,
+) -> Effective<T> {
+    if let Some(value) = flag {
+        return Effective::Given(Sourced {
+            value,
+            origin: Origin::flag(setting),
+        });
+    }
+    let Some(loaded) = file else {
+        return Effective::Absent;
+    };
+    if loaded.is_broken(setting) {
+        return Effective::Broken;
+    }
+    from_file(&loaded.values).map_or(Effective::Absent, |value| {
+        Effective::Given(Sourced {
+            value,
+            origin: Origin::new(setting, Source::Config(Arc::clone(&loaded.file))),
+        })
+    })
+}
+
+/// FR-91: a path from the file resolves against `dir`, the file's own
+/// directory, unless it is absolute.
+///
+/// One from the command line is used as given, against the working
+/// directory. `~` is never expanded: no shell
+/// reads the file. Returns the path to open, and the path as a message
+/// names it, as written.
+#[must_use]
+pub fn resolve(dir: Option<&Path>, path: &Sourced<PathBuf>) -> (PathBuf, NamedPath) {
+    let opened = match (&path.origin.source, dir) {
+        (Source::Config(_), Some(dir)) if path.value.is_relative() => dir.join(&path.value),
+        _ => path.value.clone(),
+    };
+    let named = NamedPath {
+        origin: path.origin.clone(),
+        shown: path.value.display().to_string(),
+    };
+    (opened, named)
+}
+
+impl Settings {
+    /// FR-59 across sources, then a missing output (FR-91).
+    #[must_use]
+    pub fn problems(&self, file: Option<&Loaded>) -> Vec<MergeProblem> {
+        let mut problems = Vec::new();
+        if let (Effective::Given(theme), Effective::Given(palette)) = (&self.theme, &self.palette) {
+            problems.push(MergeProblem::Conflict {
+                theme: theme.origin.clone(),
+                palette: palette.origin.clone(),
+            });
+        }
+        if let (Effective::Absent, Some(loaded)) = (&self.output, file) {
+            problems.push(MergeProblem::NoOutput {
+                file: Arc::clone(&loaded.file),
+            });
+        }
+        problems
     }
 }
 

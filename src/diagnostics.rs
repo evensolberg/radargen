@@ -1214,7 +1214,9 @@ pub enum Fatal {
     /// FR-60, FR-99, FR-101: a `Cli` asking for no task, or for more than
     /// one. clap refuses such a command line, so only a `Cli` built by hand
     /// reaches this.
-    #[error("give a CSV and -o to render, or --create-template or --create-palette alone")]
+    #[error(
+        "give a CSV and -o or --config to render, or --create-template or --create-palette alone"
+    )]
     NoTask,
     /// FR-99, FR-101: a file to start from never replaces one (D-83, D-91).
     #[error(
