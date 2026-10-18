@@ -5,6 +5,8 @@
 //! (architecture §3); `file` reads the TOML. Nothing here imports `cli` or
 //! `diagnostics`, so the taxonomy can name a source without a cycle.
 
+pub mod file;
+
 use std::fmt;
 use std::path::Path;
 use std::sync::Arc;
