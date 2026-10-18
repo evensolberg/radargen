@@ -136,11 +136,14 @@ fn legend_columns_accepts_one_to_four() {
         parse(&["in.csv", "-o", "e.png"])
             .expect("parses")
             .legend_columns,
-        1
+        None
     );
     for n in ["1", "4"] {
         let cli = parse(&["in.csv", "-o", "e.png", "--legend-columns", n]).expect(n);
-        assert_eq!(cli.legend_columns.to_string(), n);
+        assert_eq!(
+            cli.legend_columns.map(|n| n.to_string()).as_deref(),
+            Some(n)
+        );
     }
 }
 
@@ -159,9 +162,9 @@ fn legend_columns_outside_the_range_is_a_usage_error() {
 #[test]
 fn theme_defaults_to_light_and_ignores_case() {
     let cli = parse(&["in.csv", "-o", "e.png"]).expect("parses");
-    assert_eq!(cli.theme, Theme::Light);
+    assert_eq!(cli.theme, None);
     let cli = parse(&["in.csv", "-o", "e.png", "--theme", "Dark"]).expect("parses");
-    assert_eq!(cli.theme, Theme::Dark);
+    assert_eq!(cli.theme, Some(Theme::Dark));
 }
 
 #[test]
@@ -174,7 +177,7 @@ fn an_unknown_theme_is_a_usage_error() {
 #[test]
 fn legend_defaults_to_shown_and_takes_aliases_in_any_case() {
     let cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
-    assert_eq!(cli.legend, Legend::Shown);
+    assert_eq!(cli.legend, None);
     for (given, want) in [
         ("hidden", Legend::Hidden),
         ("Hidden", Legend::Hidden),
@@ -184,7 +187,7 @@ fn legend_defaults_to_shown_and_takes_aliases_in_any_case() {
         ("show", Legend::Shown),
     ] {
         let cli = parse(&["in.csv", "-o", "e.html", "--legend", given]).expect(given);
-        assert_eq!(cli.legend, want, "{given}");
+        assert_eq!(cli.legend, Some(want), "{given}");
     }
     assert!(parse(&["in.csv", "-o", "e.html", "--legend", "off"]).is_err());
     // No short form: FR-100's --legend-columns may want one.
@@ -216,7 +219,7 @@ fn the_legend_help_lists_shown_and_hidden_only() {
 #[test]
 fn table_defaults_to_radar_in_any_case() {
     let cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
-    assert_eq!(cli.table, Table::Radar, "the radar's rows and columns only");
+    assert_eq!(cli.table, None, "not given");
     for (given, want) in [
         ("radar", Table::Radar),
         ("Radar", Table::Radar),
@@ -225,7 +228,7 @@ fn table_defaults_to_radar_in_any_case() {
         ("All", Table::All),
     ] {
         let cli = parse(&["in.csv", "-o", "e.html", "--table", given]).expect(given);
-        assert_eq!(cli.table, want, "{given}");
+        assert_eq!(cli.table, Some(want), "{given}");
     }
     assert!(parse(&["in.csv", "-o", "e.html", "--table", "every"]).is_err());
     assert!(parse(&["in.csv", "-o", "e.html", "--table"]).is_err());
@@ -239,7 +242,7 @@ fn the_table_help_lists_radar_and_all() {
         .lines()
         .find(|l| l.contains("--table"))
         .expect("--table in -h");
-    assert!(line.contains("[default: radar]"), "{line}");
+    assert!(line.contains("radar by default"), "{line}");
     assert!(line.contains("[possible values: radar, all]"), "{line}");
 }
 
@@ -252,8 +255,8 @@ fn the_table_long_help_says_what_each_value_publishes() {
     let start = long.find("--table <TABLE>").expect("--table in --help");
     let end = long
         .get(start..)
-        .and_then(|rest| rest.find("[default: radar]"))
-        .expect("its default")
+        .and_then(|rest| rest.find("\n  -w, --width"))
+        .expect("the next flag")
         + start;
     let block: Vec<&str> = long
         .get(start..end)
@@ -266,7 +269,7 @@ fn the_table_long_help_says_what_each_value_publishes() {
         block,
         [
             "--table <TABLE>",
-            "What an HTML page's table publishes.",
+            "What an HTML page's table publishes; radar by default.",
             "It also decides what the detail panels show. Accepted in any letter case. PNG and SVG have no table.",
             "Possible values:",
             "- radar: Only the rows the radar draws and the columns radargen reads",
@@ -311,7 +314,7 @@ fn theme_takes_capital_t_and_title_takes_lowercase() {
     ])
     .expect("parses");
     assert_eq!(cli.title.as_deref(), Some("Radar"));
-    assert_eq!(cli.theme, Theme::Dark);
+    assert_eq!(cli.theme, Some(Theme::Dark));
     assert_eq!(cli.width, Some(1920));
 }
 
@@ -733,5 +736,50 @@ fn a_value_from_the_file_names_its_key_when_cleaned() {
     assert_eq!(
         warnings.render(),
         ["warning: the title key in radar.toml: removed U+0001, which the output cannot display"]
+    );
+}
+
+#[test]
+fn an_omitted_flag_is_none_so_a_config_key_can_fill_it() {
+    // rg-ahj: Some means given on the command line, for every flag.
+    let cli = parse(&["in.csv", "-o", "e.png"]).expect("parses");
+    assert_eq!(
+        (cli.theme, cli.legend, cli.table, cli.legend_columns),
+        (None, None, None, None)
+    );
+    let cli = parse(&["in.csv", "-o", "e.png", "--theme", "light"]).expect("parses");
+    assert_eq!(
+        cli.theme,
+        Some(Theme::Light),
+        "an explicit default is still given"
+    );
+}
+
+/// The defaults are written in the help as prose (plan RG-019A, Ruling 1);
+/// this keeps them the ones `settings` applies.
+#[test]
+fn help_names_each_default() {
+    use clap::CommandFactory;
+    use radargen::settings::{DEFAULT_LEGEND_COLUMNS, DEFAULT_TABLE, DEFAULT_THEME};
+    let short = Cli::command().render_help().to_string();
+    let line = |flag: &str| {
+        short
+            .lines()
+            .find(|l| l.contains(flag))
+            .unwrap_or_default()
+            .to_owned()
+    };
+    assert!(
+        line("--theme").contains(&format!("{DEFAULT_THEME:?} by default").to_lowercase()),
+        "{short}"
+    );
+    assert!(line("--legend <").contains("shown by default"), "{short}");
+    assert!(
+        line("--table").contains(&format!("{DEFAULT_TABLE:?} by default").to_lowercase()),
+        "{short}"
+    );
+    assert!(
+        line("--legend-columns").contains(&format!("{DEFAULT_LEGEND_COLUMNS} by default")),
+        "{short}"
     );
 }

@@ -33,7 +33,10 @@ use crate::order::resolve;
 use crate::palette::Colours;
 use crate::palette::file::{self, ReadError};
 use crate::rings::{RingSet, parse_rings};
-use crate::settings::{NamedPath, Origin, Setting, Source, Sourced};
+use crate::settings::{
+    DEFAULT_LEGEND, DEFAULT_LEGEND_COLUMNS, DEFAULT_TABLE, DEFAULT_THEME, Effective, NamedPath,
+    Origin, Setting, Source, Sourced,
+};
 use crate::text::Fonts;
 
 /// The resolved run (architecture §7), read-only once built. The colours
@@ -52,10 +55,10 @@ pub struct Config {
     pub colours: Colours,
     /// RG-102: where an HTML page's legend starts; PNG and SVG warn on
     /// `hidden` and draw it anyway.
-    pub legend: Legend,
+    pub legend: Sourced<Legend>,
     /// FR-106: what an HTML page's table publishes; PNG and SVG warn on
     /// `all`, having no table.
-    pub table: Table,
+    pub table: Sourced<Table>,
     /// FR-57: `--width`, which HTML ignores, with where it came from, so
     /// D-87's remedies can name it.
     pub width: Option<Sourced<u32>>,
@@ -156,7 +159,7 @@ fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
     let fonts = Fonts::embedded().map_err(Fatal::from)?;
     // FR-106: the flags say where an off-radar row goes, so its warning
     // can say so when it is raised.
-    let off_radar = OffRadar::of(config.format, config.table);
+    let off_radar = OffRadar::of(config.format, config.table.value);
     let catalogue = catalogue(&config.input, &config.rings, off_radar, warnings)?;
     let bytes = render(&catalogue, &config, &fonts, warnings)?;
     Ok(write_atomic(&config.output, &config.output_named, &bytes)?)
@@ -224,20 +227,20 @@ fn config(
         Some(path) => file::read(path)
             .map_err(|e| palette_errors(&NamedPath::flag(Setting::Palette, path), e))?
             .into(),
-        None => Colours::BuiltIn(cli.theme),
+        None => Colours::BuiltIn(cli.theme.unwrap_or(DEFAULT_THEME)),
     };
     Ok(Config {
         output: output.to_path_buf(),
         output_named,
         format,
         colours,
-        legend: cli.legend,
-        table: cli.table,
+        legend: flag_or(Setting::Legend, cli.legend, DEFAULT_LEGEND),
+        table: flag_or(Setting::Table, cli.table, DEFAULT_TABLE),
         width: cli.width.map(|value| Sourced {
             value,
             origin: Origin::flag(Setting::Width),
         }),
-        legend_columns: cli.legend_columns,
+        legend_columns: cli.legend_columns.unwrap_or(DEFAULT_LEGEND_COLUMNS),
         title,
         subtitle,
         rings,
@@ -314,6 +317,18 @@ fn output_is_input(output: &Path, named: &NamedPath, input: &Path) -> Result<(),
     }
 }
 
+/// A flag's value, or its default (until the merge supplies a file's).
+fn flag_or<T>(setting: Setting, value: Option<T>, default: T) -> Sourced<T> {
+    value
+        .map_or(Effective::Absent, |value| {
+            Effective::Given(Sourced {
+                value,
+                origin: Origin::flag(setting),
+            })
+        })
+        .or(setting, default)
+}
+
 /// FR-65's resolved value: cleaned (FR-90), trimmed, `None` when empty;
 /// it keeps its origin, so FR-104 can name it.
 fn resolved(text: Sourced<String>, warnings: &mut Warnings) -> Option<Sourced<String>> {
@@ -368,11 +383,11 @@ fn render(
     warn_crowding(catalogue, &plotted, blocks.radar.growth(), warnings);
     // RG-102: a static snapshot has no button to bring a hidden legend
     // back, so it keeps the legend and says so.
-    if config.legend == Legend::Hidden && config.format.is_snapshot() {
+    if config.legend.value == Legend::Hidden && config.format.is_snapshot() {
         warnings.push(Warning::Render(RenderKind::LegendStatic));
     }
     // FR-106: nor have they a table to list everything in.
-    if config.table == Table::All && config.format.is_snapshot() {
+    if config.table.value == Table::All && config.format.is_snapshot() {
         warnings.push(Warning::Render(RenderKind::TableStatic));
     }
     // FR-104: a static snapshot draws every text with the bundled font
@@ -410,8 +425,8 @@ fn render(
                 plotted: &plotted,
                 title: config.title(),
                 colours: &config.colours,
-                legend: config.legend,
-                table: config.table,
+                legend: config.legend.value,
+                table: config.table.value,
             })
             .into_bytes())
         }
