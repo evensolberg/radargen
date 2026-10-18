@@ -518,13 +518,13 @@ fn the_ring_warning_says_where_the_row_went() {
     assert_eq!(
         rendered(OffRadar::Unlisted, &[37], false),
         [
-            "warning: line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is not on the page; to plot it, pass --rings with every ring you want, since --rings replaces the default set; to list it in the table, pass --table all"
+            "warning: line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column"
         ]
     );
     assert_eq!(
         rendered(OffRadar::Unlisted, &[37], true),
         [
-            "warning: line 37, ring: 'Adpot' is not one of the rings --rings declares (Adopt, Trial); the row is not on the page; to plot it, add it to --rings; to list it in the table, pass --table all"
+            "warning: line 37, ring: 'Adpot' is not in --rings (Adopt, Trial), so the row is left off the page; to plot it, add it to --rings; --table all lists it unplotted, but also publishes every other column"
         ]
     );
     assert_eq!(
@@ -542,7 +542,7 @@ fn the_ring_warning_says_where_the_row_went() {
     assert_eq!(
         rendered(OffRadar::Unlisted, &[4, 9], false),
         [
-            "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); none is on the page; to plot one, pass --rings with every ring you want, since --rings replaces the default set; to list them in the table, pass --table all"
+            "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); they are left off the page; to plot one, pass --rings listing every ring you want, the defaults included; --table all lists them unplotted, but also publishes every other column"
         ]
     );
     assert_eq!(

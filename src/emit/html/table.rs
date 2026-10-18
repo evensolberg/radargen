@@ -23,8 +23,10 @@ use crate::trim;
 /// The heading's `id`, written once outside both arrangements (architecture
 /// §5's exception): it names the table and its scroll region.
 const HEADING_ID: &str = "table-heading";
-/// The heading's words and the toggle's.
-const HEADING: &str = "Every item";
+/// The default table's heading, which names its region too (FR-106).
+const RADAR_HEADING: &str = "Items on the radar";
+/// `--table all`'s heading, as it was before FR-106.
+const ALL_HEADING: &str = "Every item";
 /// Neutral, since a screen reader adds "collapsed" or "expanded".
 const SUMMARY: &str = "The table";
 
@@ -40,7 +42,7 @@ const TOGGLE_REST: &str = "\"><summary>";
 const OPEN_REGION: &str =
     "</summary>\n<div class=\"table-scroll\" role=\"region\" aria-labelledby=\"";
 /// Only the region is named by the heading: naming the table too would
-/// announce "Every item" a third time in a row.
+/// announce the heading's words a third time in a row.
 const OPEN_TABLE: &str = "\" tabindex=\"0\">\n<table>\n<thead><tr>";
 /// The number column: `#` to the eye, "Number" to a screen reader, which
 /// may read a bare `#` as "pound" or skip it.
@@ -50,6 +52,10 @@ const CLOSE: &str = "</tbody></table></div></details>\n";
 const CLASS_OPEN: &str = " class=\"";
 const CLASS_CLOSE: &str = "\"";
 const NEW_TAB: &str = "<span class=\"visually-hidden\"> (opens in a new tab)</span>";
+/// The default table's one row when nothing is plotted (FR-106), spanning
+/// every column so the region and its skip target stay.
+const EMPTY_OPEN: &str = "<tr><td colspan=\"";
+const EMPTY_REST: &str = "\">Nothing is on the radar.</td></tr>\n";
 
 /// The table view publishing `publish`, for `<main>` after both
 /// arrangements.
@@ -65,7 +71,7 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted, publish: Table) ->
         Table::Radar => plotted.items.clone(),
         Table::All => plotted.table_rows(),
     };
-    let body: String = rows
+    let mut body: String = rows
         .into_iter()
         .filter_map(|i| {
             let item = catalogue.items.get(i)?;
@@ -73,11 +79,19 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted, publish: Table) ->
             Some(row(catalogue, &columns, item, number))
         })
         .collect();
+    // `all`'s empty body, from a headers-only CSV, is left as it was.
+    if body.is_empty() && publish == Table::Radar {
+        body = [EMPTY_OPEN, &(columns.len() + 1).to_string(), EMPTY_REST].concat();
+    }
+    let heading = match publish {
+        Table::Radar => RADAR_HEADING,
+        Table::All => ALL_HEADING,
+    };
     [
         OPEN_HEADING,
         HEADING_ID,
         "\">",
-        HEADING,
+        heading,
         OPEN_TOGGLE,
         TABLE_VIEW_CLASS,
         TOGGLE_REST,
@@ -104,11 +118,10 @@ fn order(catalogue: &Catalogue, publish: Table) -> Vec<usize> {
         .filter_map(|kind| catalogue.column(kind))
         .collect();
     let published = |c: &usize| {
-        publish == Table::All
-            || catalogue
-                .columns
-                .get(*c)
-                .is_some_and(|column| column.kind != ColumnKind::Other)
+        catalogue
+            .columns
+            .get(*c)
+            .is_some_and(|column| publish.keeps(column.kind))
     };
     let rest = (0..catalogue.columns.len()).filter(|c| !first.contains(c) && published(c));
     first.iter().copied().chain(rest).collect()
@@ -125,6 +138,9 @@ fn column_heading(catalogue: &Catalogue, column: usize) -> String {
 
 /// One item's row, keyed on its CSV line as its marker and legend row are
 /// (architecture §5). `number` is FR-18's, `None` for an unplotted row.
+// The unplotted branches here and in `name_cell` and `cell`, and the
+// `.unplotted` and `.flag` rules, serve `--table all` alone; they stay in
+// every page so `all`'s output is unchanged byte for byte (FR-106).
 fn row(catalogue: &Catalogue, columns: &[usize], item: &Item, number: Option<usize>) -> String {
     let class = if number.is_some() {
         ""

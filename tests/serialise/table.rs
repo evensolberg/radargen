@@ -484,21 +484,75 @@ T-1,Kafka,Tools,Adopt,d,default,Streaming,why,2026-06-01,,New,https://k.example,
     assert!(!page.contains("T-1") && !page.contains("Ana"), "{page}");
 }
 
-/// FR-106 with nothing plotted: the default table is a table with no rows,
-/// under its heading and toggle as ever, and the page is still well formed.
+/// FR-106 with nothing plotted: the default table keeps its heading and
+/// column headings and says so in one row spanning them all, so the region
+/// and its skip target stay. A headers-only CSV reads the same. Under
+/// `all`, the unplotted rows are the table, and a headers-only CSV keeps its
+/// empty body, as before FR-106.
 #[test]
-fn the_radar_table_with_nothing_plotted_is_empty() {
-    let page = build(
+fn the_radar_table_with_nothing_plotted_says_so() {
+    let nothing = build(
         "name,quadrant,ring,description\nOld,Tools,Gone,d\n",
         None,
         None,
-    )
-    .page_table(None, Table::Radar);
-    assert!(keys(&page).is_empty(), "no row");
+    );
+    let page = nothing.page_table(None, Table::Radar);
+    assert!(keys(&page).is_empty(), "no item row");
     assert!(!page.contains("Old"), "the unplotted row is not published");
     assert_eq!(
         headings(&page),
         ["#Number", "name", "quadrant", "ring", "description"]
     );
-    assert!(page.contains("<tbody>\n</tbody>"), "an empty body");
+    assert!(
+        page.contains(
+            "<tbody>\n<tr><td colspan=\"5\">Nothing is on the radar.</td></tr>\n</tbody>"
+        ),
+        "one row spanning the five columns"
+    );
+    assert!(
+        page.contains("class=\"table-scroll\" role=\"region\""),
+        "the region stays"
+    );
+    let all = nothing.page_table(None, Table::All);
+    assert_eq!(keys(&all).len(), 1, "all lists the unplotted row");
+    assert!(!all.contains("Nothing is on the radar."));
+    let empty = build("name,quadrant,ring,description\n", None, None);
+    assert!(
+        empty
+            .page_table(None, Table::Radar)
+            .contains("<td colspan=\"5\">Nothing is on the radar.</td>")
+    );
+    assert!(
+        empty
+            .page_table(None, Table::All)
+            .contains("<tbody>\n</tbody>"),
+        "all's empty body is unchanged"
+    );
+}
+
+/// FR-106: the heading, which names the region, says what the table holds:
+/// the items on the radar by default, every item under `all`.
+#[test]
+fn the_table_heading_names_what_it_holds() {
+    let b = built();
+    let heading = |html: &str| {
+        let doc_html = html.to_owned();
+        let at = doc_html
+            .find("<h2 class=\"table-heading\" id=\"table-heading\">")
+            .expect("the heading");
+        let rest = doc_html.get(at..).unwrap_or_default();
+        let open = rest.find('>').expect("opens") + 1;
+        let close = rest.find("</h2>").expect("closes");
+        rest.get(open..close).unwrap_or_default().to_owned()
+    };
+    assert_eq!(
+        heading(&b.page_table(Some("T"), Table::Radar)),
+        "Items on the radar"
+    );
+    assert_eq!(heading(&b.page_table(Some("T"), Table::All)), "Every item");
+    assert!(
+        b.page_table(Some("T"), Table::Radar)
+            .contains("role=\"region\" aria-labelledby=\"table-heading\""),
+        "the heading names the region"
+    );
 }

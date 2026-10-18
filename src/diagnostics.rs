@@ -680,9 +680,12 @@ impl OffRadar {
     /// FR-17's message for one row whose ring `value` is not in `list`,
     /// declared by `source` (D-61).
     fn ring_row(self, value: &str, source: RingSource, list: &str) -> String {
-        let undeclared = match source {
-            RingSource::Default => format!("'{value}' is not one of the default rings ({list})"),
-            RingSource::Flag => {
+        let undeclared = match (source, self) {
+            (RingSource::Default, _) => {
+                format!("'{value}' is not one of the default rings ({list})")
+            }
+            (RingSource::Flag, Self::Unlisted) => format!("'{value}' is not in --rings ({list})"),
+            (RingSource::Flag, Self::Listed | Self::Undrawn) => {
                 format!("'{value}' is not one of the rings --rings declares ({list})")
             }
         };
@@ -716,8 +719,8 @@ impl OffRadar {
         match (self, one) {
             (Self::Listed, true) => "; the row is in the table view, not on the radar",
             (Self::Listed, false) => "; all appear in the table view",
-            (Self::Unlisted, true) => "; the row is not on the page",
-            (Self::Unlisted, false) => "; none is on the page",
+            (Self::Unlisted, true) => ", so the row is left off the page",
+            (Self::Unlisted, false) => "; they are left off the page",
             (Self::Undrawn, true) => "; the row is not on the radar",
             (Self::Undrawn, false) => "; none is on the radar",
         }
@@ -727,18 +730,26 @@ impl OffRadar {
     fn plot(self, source: RingSource, one: bool) -> String {
         let it = if one { "it" } else { "one" };
         match (source, self) {
-            (RingSource::Default, _) => format!(
+            (RingSource::Default, Self::Unlisted) => format!(
+                "to plot {it}, pass --rings listing every ring you want, the defaults included"
+            ),
+            (RingSource::Default, Self::Listed | Self::Undrawn) => format!(
                 "to plot {it}, pass --rings with every ring you want, since --rings replaces the default set"
             ),
             (RingSource::Flag, _) => format!("to plot {it}, add it to --rings"),
         }
     }
 
-    /// What `--table all` would do with it or them, where it applies.
+    /// What `--table all` would do with it or them, and what it costs,
+    /// where it applies.
     const fn listing(self, one: bool) -> &'static str {
         match (self, one) {
-            (Self::Unlisted, true) => "; to list it in the table, pass --table all",
-            (Self::Unlisted, false) => "; to list them in the table, pass --table all",
+            (Self::Unlisted, true) => {
+                "; --table all lists it unplotted, but also publishes every other column"
+            }
+            (Self::Unlisted, false) => {
+                "; --table all lists them unplotted, but also publishes every other column"
+            }
             (Self::Listed | Self::Undrawn, _) => "",
         }
     }

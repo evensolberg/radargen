@@ -133,12 +133,19 @@ pub struct Cli {
     // for everything, so a CSV that doubles as an internal register is not
     // published whole by default. PNG and SVG have no table, so the pipeline
     // warns on `all` there, as it does on `--legend hidden`. No aliases and
-    // no short form: it is set once per radar, like --legend.
-    /// What an HTML page's table lists.
+    // no short form: it is set once per radar, like --legend. The doc
+    // comment's first line names the panels too, which would push -h past
+    // 120 columns, so -h has a shorter sentence of its own.
+    /// What an HTML page's table and detail panels publish.
     ///
-    /// A row or column the table leaves out is in no detail panel either.
     /// Accepted in any letter case. PNG and SVG have no table.
-    #[arg(long, value_enum, default_value_t = Table::Radar, ignore_case = true)]
+    #[arg(
+        long,
+        value_enum,
+        default_value_t = Table::Radar,
+        ignore_case = true,
+        help = "What an HTML page's table publishes"
+    )]
     pub table: Table,
 
     // FR-57: the height always follows the document's aspect ratio and is

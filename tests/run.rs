@@ -28,7 +28,7 @@ const ROW_ERRORS: &str = include_str!("fixtures/row-errors.csv");
 const HEAD: &str = "name,quadrant,ring,description\n";
 /// The PRD example's one warning: FR-17 on its `Rejected` row, as an HTML
 /// page under the default `--table radar` gives it (FR-106).
-const FR17: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is not on the page; to plot it, pass --rings with every ring you want, since --rings replaces the default set; to list it in the table, pass --table all";
+const FR17: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column";
 /// As [`FR17`], under `--table all`, which lists the row.
 const FR17_ALL: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set";
 /// As [`FR17`], for a PNG or SVG, which has no table.
@@ -662,7 +662,12 @@ fn the_table_publishes_the_radar_unless_asked_for_all() {
         assert!(!page.contains(absent), "{absent} is published");
     }
     assert!(page.contains(">Kafka<"), "the plotted row is");
+    assert!(
+        page.contains(">Items on the radar</h2>"),
+        "the default heading"
+    );
     let page = read(dir.path(), "all.html");
+    assert!(page.contains(">Every item</h2>"), "all's heading");
     for present in [
         "Decommissioned Bus",
         "gone for good",
@@ -676,7 +681,7 @@ fn the_table_publishes_the_radar_unless_asked_for_all() {
     assert_eq!(
         radar.lines(),
         [
-            "warning: line 3, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is not on the page; to plot it, pass --rings with every ring you want, since --rings replaces the default set; to list it in the table, pass --table all"
+            "warning: line 3, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column"
         ]
     );
     assert_eq!(
@@ -685,6 +690,38 @@ fn the_table_publishes_the_radar_unless_asked_for_all() {
             "warning: line 3, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
         ]
     );
+}
+
+/// FR-106 and FR-42 at the binary: with nothing plotted, the default page
+/// still renders, its table headed and saying that nothing is on the radar,
+/// and the unplotted row is nowhere in it.
+#[test]
+fn a_page_with_nothing_plotted_says_so_by_default() {
+    let csv = format!("{HEAD}Decommissioned Bus,Tools,Rejected,gone for good\n");
+    let dir = seeded(&[("radar.csv", &csv)]);
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.html"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "warning: line 2, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column"
+        ]
+    );
+    let page = read(dir.path(), "radar.html");
+    assert!(page.contains(">Items on the radar</h2>"), "the heading");
+    assert!(
+        page.contains(
+            "<tbody>\n<tr><td colspan=\"5\">Nothing is on the radar.</td></tr>\n</tbody>"
+        ),
+        "the empty state"
+    );
+    assert!(
+        page.contains("aria-labelledby=\"table-heading\""),
+        "the region stays"
+    );
+    for absent in ["Decommissioned Bus", "gone for good", "data-row=\"2\""] {
+        assert!(!page.contains(absent), "{absent} is published");
+    }
 }
 
 /// FR-106 under `--rings`, and grouped: the hint names what to edit, then
@@ -701,7 +738,7 @@ fn the_unlisted_ring_warning_groups_and_names_its_source() {
     assert_eq!(
         ran.lines(),
         [
-            "warning: 2 rows use a ring --rings does not declare (Adopt) — Gone (2, first line 3); none is on the page; to plot one, add it to --rings; to list them in the table, pass --table all"
+            "warning: 2 rows use a ring --rings does not declare (Adopt) — Gone (2, first line 3); they are left off the page; to plot one, add it to --rings; --table all lists them unplotted, but also publishes every other column"
         ]
     );
     let ran = run_in(

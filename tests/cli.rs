@@ -219,6 +219,39 @@ fn the_table_help_lists_radar_and_all() {
     assert!(line.contains("[possible values: radar, all]"), "{line}");
 }
 
+/// The long help says what each value publishes, and that `all` publishes
+/// it to anyone with the page.
+#[test]
+fn the_table_long_help_says_what_each_value_publishes() {
+    use clap::CommandFactory;
+    let long = Cli::command().render_long_help().to_string();
+    let start = long.find("--table <TABLE>").expect("--table in --help");
+    let end = long
+        .get(start..)
+        .and_then(|rest| rest.find("[default: radar]"))
+        .expect("its default")
+        + start;
+    let block: Vec<&str> = long
+        .get(start..end)
+        .unwrap_or_default()
+        .lines()
+        .map(radargen::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
+    assert_eq!(
+        block,
+        [
+            "--table <TABLE>",
+            "What an HTML page's table and detail panels publish.",
+            "Accepted in any letter case. PNG and SVG have no table.",
+            "Possible values:",
+            "- radar: Only the rows the radar draws and the columns radargen reads",
+            "- all:   Every row, including those not on the radar, and every column with a header name. Anyone with the page can read them",
+        ],
+        "{long}"
+    );
+}
+
 // ---- OQ-2: short forms where practical. Settled at implementation planning,
 // which §6.6 says is where this belongs.
 

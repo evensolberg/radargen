@@ -62,6 +62,8 @@ pub fn page_attribute(element: &str, name: &str, value: &str, all: &[(String, St
     match (element, name) {
         (_, n) if PAGE_ATTRIBUTES.contains(&n) => true,
         ("h2", "id") => value == "table-heading",
+        // FR-106's empty-state row spans the table's columns.
+        ("td", "colspan") => !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit()),
         ("section", "id") => value == "detail",
         ("main", "data-narrow-query") => value.starts_with("(max-width: "),
         ("html", "data-legend") => value == "hidden",
