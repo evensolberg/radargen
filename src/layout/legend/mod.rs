@@ -65,11 +65,7 @@ impl LegendBlock {
     pub fn new(catalogue: &Catalogue, plotted: &Plotted, fonts: &Fonts) -> Self {
         let layout = layout(catalogue, plotted, fonts);
         Self {
-            size: if layout.entries.is_empty() {
-                Size::default()
-            } else {
-                panel_size(layout.width, layout.height)
-            },
+            size: own_panel(&layout),
             layout,
             columns: Vec::new(),
         }
@@ -200,9 +196,19 @@ impl Block for LegendSpan<'_> {
     }
 }
 
+/// The single column's panel at scale 1, or zero when there is no content
+/// (FR-42: with no quadrants the legend is omitted).
+// qual:allow(iosp) reason: "Size::default is the derived zero, not a step of ours; one FR-42 branch over arithmetic"
+fn own_panel(layout: &Layout) -> Size {
+    if layout.entries.is_empty() {
+        Size::default()
+    } else {
+        panel_size(layout.width, layout.height)
+    }
+}
+
 /// The panel at scale 1 around content `width` by `height`: the content
-/// plus its insets. An empty legend has no panel (FR-42); the caller
-/// decides that.
+/// plus its insets.
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"

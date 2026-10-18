@@ -13,6 +13,7 @@ use std::ops::Range;
 /// With fewer groups than columns there is one column per group; with no
 /// groups, no columns. Every column holds at least one group, so the result
 /// starts at 0 and ascends strictly.
+// qual:allow(complexity, error_handling) reason: "the expect states an invariant: an optimal split always continues"
 pub(super) fn split(
     groups: usize,
     columns: usize,
