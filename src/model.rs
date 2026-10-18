@@ -115,6 +115,9 @@ pub struct Quadrant {
     pub key: String,
     /// FR-9: the ordinally first variant, [`tidy`].
     pub label: String,
+    /// The physical line of the first row that wrote `label`, where a
+    /// warning about the drawn label points (FR-104, NFR-10).
+    pub line: usize,
 }
 
 /// One CSV data row.
@@ -192,6 +195,16 @@ impl Catalogue {
     #[must_use]
     pub fn column(&self, kind: ColumnKind) -> Option<usize> {
         self.columns.iter().position(|c| c.kind == kind)
+    }
+
+    /// The header position of the first column of `kind`, where a warning
+    /// about one of its cells points (NFR-10, NFR-11).
+    #[must_use]
+    pub fn position(&self, kind: ColumnKind) -> Option<usize> {
+        self.columns
+            .iter()
+            .find(|c| c.kind == kind)
+            .map(|c| c.position)
     }
 
     /// The ring `item` is shown under: its declared ring's label when it is
@@ -519,7 +532,7 @@ impl Builder {
         };
         let name = at(self.at.name);
         let name_key = self.name(name, record.line, &mut warn);
-        let quadrant = self.quadrant(at(self.at.quadrant));
+        let quadrant = self.quadrant(at(self.at.quadrant), record.line);
         let ring = self.ring(at(self.at.ring), &mut warn);
         if trim(at(self.at.description)).is_empty() {
             warn(self.at.description, RowKind::EmptyDescription);
@@ -550,10 +563,10 @@ impl Builder {
             .header
             .columns
             .iter()
-            .map(|column| column.position)
             // The ring cell is shown for an unplotted row (FR-17), so it is
             // stored tidied as the declared rings are (D-89).
-            .map(|p| {
+            .map(|column| {
+                let p = column.position;
                 if p == self.at.ring {
                     tidy(at(p))
                 } else {
@@ -592,8 +605,9 @@ impl Builder {
     }
 
     /// FR-8, FR-9: the row's quadrant, added on first sight. The label is
-    /// the ordinally first variant, tidied, whatever order rows come in.
-    fn quadrant(&mut self, value: &str) -> usize {
+    /// the ordinally first variant, tidied, whatever order rows come in, and
+    /// `line` is kept with it while it is the first to write that label.
+    fn quadrant(&mut self, value: &str, line: usize) -> usize {
         let key = normalise(value);
         let label = tidy(value);
         if let Some((i, q)) = self
@@ -607,10 +621,11 @@ impl Builder {
             // cannot call it, since `order.rs` depends on this module.
             if label < q.label {
                 q.label = label;
+                q.line = line;
             }
             return i;
         }
-        self.quadrants.push(Quadrant { key, label });
+        self.quadrants.push(Quadrant { key, label, line });
         self.quadrants.len() - 1
     }
 
@@ -1101,19 +1116,24 @@ mod tests {
     // --- Quadrants, rings and names: FR-8, FR-9, FR-11, FR-16, FR-17, FR-28 ---
 
     /// FR-9: one quadrant per normalised value, labelled by the ordinally
-    /// first variant, trimmed — the same label whatever the row order.
+    /// first variant, trimmed — the same label whatever the row order —
+    /// and pointing at the first row that wrote it (FR-104).
     #[test]
     fn quadrants_group_and_take_the_ordinally_first_label() {
-        for rows in [
-            "a,tool ,Adopt,d\nb,Tool,Adopt,d\nc,TOOL,Adopt,d\n",
-            "c,TOOL,Adopt,d\nb,Tool,Adopt,d\na,tool ,Adopt,d\n",
+        for (rows, line) in [
+            (
+                "a,tool ,Adopt,d\nb,Tool,Adopt,d\nc,TOOL,Adopt,d\nd,TOOL,Adopt,d\n",
+                4,
+            ),
+            ("c,TOOL,Adopt,d\nb,Tool,Adopt,d\na,tool ,Adopt,d\n", 2),
         ] {
             let cat = catalogue(&format!("{HEAD}{rows}"));
             assert_eq!(
                 cat.quadrants,
                 [Quadrant {
                     key: "tool".into(),
-                    label: "TOOL".into()
+                    label: "TOOL".into(),
+                    line,
                 }]
             );
             assert!(cat.items.iter().all(|i| i.quadrant == 0));
@@ -1149,7 +1169,8 @@ mod tests {
             cat.quadrants,
             [Quadrant {
                 key: "tool kit".into(),
-                label: "Tool Kit".into()
+                label: "Tool Kit".into(),
+                line: 2,
             }]
         );
         assert_eq!(cat.items.first().expect("an item").name, "Kafka Streams");
@@ -1584,6 +1605,8 @@ Plain,Tool,adopt,d,,,,no change\n"
         let cat = catalogue("name,,quadrant,ring,description\nOld,,Tool,Adopt,d\n");
         let positions: Vec<usize> = cat.columns.iter().map(|c| c.position).collect();
         assert_eq!(positions, [0, 2, 3, 4]);
+        assert_eq!(cat.position(ColumnKind::Quadrant), Some(2));
+        assert_eq!(cat.position(ColumnKind::Status), None);
     }
 
     /// The unplotted ring is read from the named columns, so an unnamed
@@ -1614,6 +1637,7 @@ Plain,Tool,adopt,d,,,,no change\n"
             quadrants: vec![Quadrant {
                 key: "tool".into(),
                 label: "Tool".into(),
+                line: 2,
             }],
             rings: Vec::new(),
             ring_source: RingSource::Default,
