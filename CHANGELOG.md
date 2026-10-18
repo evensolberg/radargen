@@ -1,42 +1,46 @@
-## [1.7.0] - 2026-10-18
+## [1.8.0] - 2026-10-17
 
 ### 🚀 Features
 
-- *(diagnostics)* Warn when a PNG or SVG lacks a glyph (rg-o25)
+- *(diagnostics)* Warn when laptops get the narrow page (rg-rv8)
 
 ### 🐛 Bug Fixes
 
-- *(text)* Find missing glyphs in one pass, naming visible Cf (rg-o25)
-- *(diagnostics)* Name the format and the fix in FR-104's warning
-- *(glyphs)* Quote --title and --subtitle as the title block draws them
+- *(diagnostics)* FR-105 review fixes: wording, one breakpoint (rg-rv8)
+
+### 📚 Documentation
+
+- *(prd)* FR-105 and D-94, the laptop breakpoint warning (rg-rv8)
+- *(prd)* Tighten FR-105 and D-94 from the review (rg-rv8)
+
+### 🚜 Refactor
+
+- *(layout)* Compute FR-69's breakpoint once, on WideParts
+- *(a11y)* Read D-71's narrow width from the page, not stderr
+
+### 🧪 Testing
+
+- *(diagnostics)* Read the narrow query from <main>; trim FR-105 pins
+## [1.7.0] - 2026-10-17
+
+### 🚀 Features
+
+- *(diagnostics)* Warn when a PNG or SVG lacks a glyph (1.7.0) (#124)
 
 ### 📚 Documentation
 
 - *(prd)* The CSV and palette read caps are runtime failures (rg-nsp) (#121)
 - *(spike)* Re-record the svg-font spike against Inter (rg-35i) (#123)
-- *(prd)* Align FR-104, D-93 and R-7 with the warning as built
-
-### 🚜 Refactor
-
-- *(text)* Name missing glyphs from character-level clusters
-- *(model)* Keep a quadrant's source line and a column lookup
-- *(cli)* Let OutputFormat say it is a snapshot and name itself
-- *(diagnostics)* Carry FR-104's text in one Lacking value
 
 ### 🧪 Testing
 
 - *(text)* Place raises a glyph the shaper raises (rg-sw0) (#122)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(crumbs)* Close rg-o25
-- *(crumbs)* The grouped FR-90 line's count needs a unit
-## [1.6.4] - 2026-10-18
+## [1.6.4] - 2026-10-17
 
 ### 🐛 Bug Fixes
 
 - *(html)* The page controls are not printed (1.6.4) (#120)
-## [1.6.3] - 2026-10-18
+## [1.6.3] - 2026-10-17
 
 ### 🐛 Bug Fixes
 
@@ -114,7 +118,7 @@
 ### ⚙️ Miscellaneous Tasks
 
 - *(crumbs)* Unblock rg-0fm now rg-cdo (PR 18) has shipped
-## [1.3.0] - 2026-10-17
+## [1.3.0] - 2026-10-16
 
 ### 🚀 Features
 
@@ -125,12 +129,12 @@
 - *(prd)* A static output's legend in several columns (0.77) (#100)
 - *(prd)* A starter palette and the --palette file's grammar (0.78) (#103)
 - *(plans)* Record PR 15b, 15c, radar-grows and PR 06 as complete (#104)
-## [1.2.6] - 2026-10-17
+## [1.2.6] - 2026-10-16
 
 ### 🐛 Bug Fixes
 
 - *(html)* Plain text broken mid-word is an image named by its words (1.2.6) (#102)
-## [1.2.5] - 2026-10-17
+## [1.2.5] - 2026-10-16
 
 ### 🐛 Bug Fixes
 
@@ -144,22 +148,22 @@
 
 - *(crumbs)* Fold rg-rqe into rg-kzl
 - *(crumbs)* Unblock rg-cdo now rg-42m (PR 16) has shipped
-## [1.2.4] - 2026-10-17
+## [1.2.4] - 2026-10-16
 
 ### 🐛 Bug Fixes
 
 - *(html)* A heading wrapped between words is named with the space (1.2.4) (#98)
-## [1.2.3] - 2026-10-17
+## [1.2.3] - 2026-10-16
 
 ### 🐛 Bug Fixes
 
 - *(test)* The long-legend check catches a gutter cut from the legend (1.2.3) (#97)
-## [1.2.2] - 2026-10-17
+## [1.2.2] - 2026-10-16
 
 ### 🐛 Bug Fixes
 
 - *(svg)* A token broken mid-word is named whole (1.2.2) (#96)
-## [1.2.1] - 2026-10-17
+## [1.2.1] - 2026-10-16
 
 ### 🐛 Bug Fixes
 
@@ -178,7 +182,7 @@
 ### 🚀 Features
 
 - *(png)* PNG export; --theme and --width take effect (1.1.0) (#90)
-## [1.0.1] - 2026-10-16
+## [1.0.1] - 2026-10-15
 
 ### 🐛 Bug Fixes
 
@@ -187,7 +191,7 @@
 ### ⚙️ Miscellaneous Tasks
 
 - *(release)* Record 1.0.0 as published; close rg-6zu (#88)
-## [1.0.0] - 2026-10-16
+## [1.0.0] - 2026-10-15
 
 ### 🚀 Features
 
@@ -310,7 +314,7 @@
 - Add the GPL-3.0 licence text (#42)
 - *(crumbs)* Reopen rg-6ku now its blockers are closed (#53)
 - *(release)* 1.0.0 (#87)
-## [0.1.0] - 2026-10-09
+## [0.1.0] - 2026-10-08
 
 ### 🚀 Features
 

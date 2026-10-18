@@ -9,8 +9,10 @@ use crate::palette::{Colours, Palette, Theme};
 use crate::text::{FAMILY, Weight};
 
 /// A wide arrangement's parts, the PRD example's widths: a 976.817-unit
-/// document whose radar part is 670 wide, under a 53-unit title.
+/// document whose radar part is 670 wide, under a 53-unit title, so its
+/// breakpoint is 976.817 − 0.2 × 670, rounded.
 const WIDE: Wide = Wide {
+    breakpoint: 843,
     title_height: 53.0,
     radar_width: 670.0,
     radar_height: 640.5,
@@ -116,12 +118,8 @@ fn palettes_override_in_order() {
 #[test]
 fn the_layout_is_exact() {
     assert_eq!(layout(&WIDE, NARROW), LAYOUT);
+    // The query is one below the breakpoint.
     assert_eq!(narrow_query(&WIDE), "(max-width: 842px)");
-    assert_eq!(
-        WIDE.breakpoint(),
-        843,
-        "the query is one below the breakpoint: 976.817 − 0.2 × 670"
-    );
 }
 
 /// D-85: the radar's column fills the window's width or the height under

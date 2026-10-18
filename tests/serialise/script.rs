@@ -2,7 +2,7 @@
 //! breakpoint query it reads, and the page controls only it reveals
 //! (FR-56, FR-98, NFR-4).
 
-use super::html::{outside, tags};
+use super::html::narrow_query;
 use super::{build, prd};
 
 const SCRIPT: &str = include_str!("../../src/emit/html/script.js");
@@ -38,16 +38,7 @@ fn one_script_with_no_attributes_and_the_same_bytes_everywhere() {
 #[test]
 fn main_carries_the_breakpoint_query() {
     let html = prd().page(Some("T"));
-    let main = tags(&outside(&html))
-        .into_iter()
-        .find(|t| t.name == "main")
-        .expect("a main");
-    let query = main
-        .attributes
-        .iter()
-        .find(|(k, _)| k == "data-narrow-query")
-        .map(|(_, v)| v.clone())
-        .expect("the query");
+    let query = narrow_query(&html);
     let css = super::html::style(&html);
     assert!(
         css.contains(&format!("@media {query}{{")),

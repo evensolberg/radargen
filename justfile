@@ -193,8 +193,8 @@ interaction-only:
     node scripts/interaction.mjs "$out/interaction.html" "$out/long-legend.html" "$out/palette.html" "$out/hidden.html" "$out/unplotted-hidden.html"
 
 # WCAG 2.1 AA's automatable criteria in headless Chromium (RG-015C). D-71's
-# fixture is wider than 480 units, so its narrow width is read from FR-95's
-# warning and passed on: the audit bounds D-71's recorded 2.5.8 exception.
+# fixture is wider than 480 units, so the audit reads its narrow width from
+# the page's narrow SVG and bounds D-71's recorded 2.5.8 exception.
 # The audit page is interaction.csv plus a row in a ring long enough that
 # its legend heading wraps, declared with a doubled space (rg-cuj): a long
 # ring wraps without widening the radar, which a long quadrant would (D-71).
@@ -209,8 +209,8 @@ a11y-audit-only:
     ring='Retired  after a careful and lengthy evaluation by the architecture board'
     { cat tests/fixtures/interaction.csv; printf 'Delta Lake,Platforms,%s,Lakehouse storage.,,,\n' "$ring"; } > "$out/a11y-audit.csv"
     ./target/release/radargen "$out/a11y-audit.csv" -o "$out/a11y-audit.html" --rings "Assess,Trial,Adopt,$ring" 2>/dev/null
-    width="$(./target/release/radargen tests/fixtures/d71-wide.csv -o "$out/d71.html" 2>&1 | sed -n 's/.*narrow arrangement is \([0-9]*\) units wide.*/\1/p')"
-    node scripts/a11y-audit.mjs "$out/a11y-audit.html" "$out/d71.html" "$width"
+    ./target/release/radargen tests/fixtures/d71-wide.csv -o "$out/d71.html" 2>/dev/null
+    node scripts/a11y-audit.mjs "$out/a11y-audit.html" "$out/d71.html"
 
 # Screenshots for the release's visual sign-off (RG-015C): each fixture at
 # five widths, three colour modes, panel closed and open. Looked at, not

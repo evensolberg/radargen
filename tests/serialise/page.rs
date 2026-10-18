@@ -8,7 +8,6 @@ use radargen::emit::OUTPUT_VERSION;
 use radargen::emit::html::Legend;
 use radargen::layout::arrange::{NarrowParts, WideParts, narrow_parts, wide_parts};
 use radargen::num::fmt_coord;
-use radargen::style::breakpoint_px;
 
 use super::golden::golden;
 use super::html::{assert_requests_nothing, outside, style, svgs};
@@ -142,8 +141,7 @@ fn one_arrangement_at_a_time() {
     );
     assert!(w < n, "the wide arrangement comes first");
     let css = style(&html);
-    let width = wide.radar.width + wide.legend.width;
-    let query = breakpoint_px(width, wide.radar.width) - 1;
+    let query = wide.breakpoint() - 1;
     for rule in [
         format!(
             ".wide{{display:grid;grid-template-columns:minmax(0,max({f}px,calc((100vh - {t}px - 3.05rem - 2px)*{r}/{h}))) max-content;justify-content:center}}",

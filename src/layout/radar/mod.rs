@@ -283,7 +283,8 @@ impl RadarBlock {
     }
 
     /// The label whose reach left or right sets the radar's width at
-    /// `scale`, for FR-95 (D-73): the first furthest in FR-10 order,
+    /// `scale`, for FR-95 at the narrow scale and FR-105 at 1 (D-73, D-94):
+    /// the first furthest in FR-10 order,
     /// quadrants before rings. `None` only with no labels at all, which
     /// `rings.rs` rules out by refusing an empty ring list.
     #[must_use]

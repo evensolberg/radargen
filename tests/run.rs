@@ -191,22 +191,57 @@ fn a_quadrant_name_wider_than_any_screen_still_renders() {
     let ran = run_in(dir.path(), &RENDER);
     assert!(ran.ok(), "{}", ran.stderr);
     assert!(!ran.stderr.contains("panicked"), "{}", ran.stderr);
-    assert!(
-        ran.stderr.contains("narrow arrangement is"),
-        "{}",
-        ran.stderr
-    );
+    assert!(ran.stderr.contains("narrow layout is"), "{}", ran.stderr);
     let page = read(dir.path(), "radar.html");
     assert_eq!(html::svgs(&page).len(), 6, "four wide parts and two narrow");
     // The case the old 10,000-unit bound refused: the breakpoint, about
     // 0.8 of the document, lies past it.
-    let query = page
-        .split("(max-width: ")
-        .nth(1)
-        .and_then(|rest| rest.split("px)").next())
-        .and_then(|px| px.parse::<u32>().ok())
-        .expect("a narrow query");
+    let query = narrow_query_px(&page);
     assert!(query > 10_000, "the breakpoint is {query} px");
+}
+
+/// The width in pixels at and below which `page` shows the narrow
+/// arrangement: one below FR-69's breakpoint.
+fn narrow_query_px(page: &str) -> u32 {
+    let query = html::narrow_query(page);
+    query
+        .strip_prefix("(max-width: ")
+        .and_then(|rest| rest.strip_suffix("px)"))
+        .and_then(|px| px.parse().ok())
+        .unwrap_or_else(|| panic!("a max-width query in pixels: {query}"))
+}
+
+/// FR-105: a quadrant name long enough to put FR-69's breakpoint past a
+/// laptop warns on the page, giving the breakpoint the page switches at,
+/// beside FR-95's warning (D-94). PNG and SVG draw only the wide
+/// arrangement, so they stay quiet.
+#[test]
+fn a_breakpoint_past_a_laptop_warns_on_html_only() {
+    const QUADRANT: &str =
+        "Platforms and Infrastructure Shared Across Every Product Team in the Group";
+    let csv = format!(
+        "{HEAD}Kafka,{QUADRANT},Adopt,d\nTerraform,Tools,Adopt,d\nPostgres,Data,Adopt,d\nRust,Languages,Adopt,d\n"
+    );
+    let dir = seeded(&[("radar.csv", &csv)]);
+    let ran = run_in(dir.path(), &RENDER);
+    assert!(ran.ok(), "{}", ran.stderr);
+    let breakpoint = narrow_query_px(&read(dir.path(), "radar.html")) + 1;
+    assert!(breakpoint > 1440, "the breakpoint is {breakpoint} px");
+    // Two lines; the first is checked in full below.
+    assert_starts(&ran, &["", "warning: the narrow layout is "]);
+    assert_eq!(
+        ran.lines().first().copied().unwrap_or_default(),
+        format!(
+            "warning: the wide layout needs a screen at least {breakpoint} pixels wide, so 1440-pixel laptops get the narrow layout; a shorter name for quadrant '{QUADRANT}' would fix it"
+        )
+    );
+    for out in ["radar.png", "radar.svg"] {
+        // The fixture's names are all in the bundled font and the PNG is
+        // drawn at its own width, so a snapshot warns about nothing.
+        let snapshot = run_in(dir.path(), &["radar.csv", "-o", out]);
+        assert!(snapshot.ok(), "{out}: {}", snapshot.stderr);
+        assert_eq!(snapshot.stderr, "", "{out}");
+    }
 }
 
 /// A fault, and how to set it up and take it away again.
@@ -668,7 +703,7 @@ fn fr95_reaches_stderr() {
     assert_starts(
         &ran,
         &[
-            "warning: the narrow arrangement is ",
+            "warning: the narrow layout is ",
             "warning: line 3, ring: 'Rejected'",
         ],
     );
@@ -1043,11 +1078,7 @@ fn a_narrow_png_warns_about_small_text() {
 fn a_png_gives_no_narrow_warning() {
     let dir = seeded(&[("radar.csv", &too_wide())]);
     let html = run_in(dir.path(), &RENDER);
-    assert!(
-        html.stderr.contains("narrow arrangement is"),
-        "{}",
-        html.stderr
-    );
+    assert!(html.stderr.contains("narrow layout is"), "{}", html.stderr);
     let png_run = run_in(dir.path(), &["radar.csv", "-o", "radar.png"]);
     assert!(png_run.ok(), "{}", png_run.stderr);
     assert!(

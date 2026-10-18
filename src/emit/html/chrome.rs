@@ -335,7 +335,7 @@ pub(super) fn css(wide: &Wide, toggle: bool) -> String {
         &narrow_query(wide),
         SHEET_RULE,
         GRID_OPEN,
-        &wide.breakpoint().to_string(),
+        &wide.breakpoint.to_string(),
         GRID_RULE,
         SKIP_OVER_PAGE,
         PRINT_NO_CONTROLS,

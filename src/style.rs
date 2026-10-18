@@ -525,7 +525,7 @@ pub fn breakpoint_px(wide_width: f64, radar_width: f64) -> u32 {
     px
 }
 
-/// D-86: whether a wide document `wide_width` units wide, its radar part
+/// D-86 and FR-105: whether a wide document `wide_width` units wide, its radar part
 /// `radar_width`, still shows on a `WIDE_MIN_VIEWPORT_PX` screen.
 ///
 /// A width `breakpoint_px` would refuse (not finite, or under 1) never
@@ -535,7 +535,14 @@ pub fn wide_shows_on_laptops(wide_width: f64, radar_width: f64) -> bool {
     wide_width.is_finite()
         && wide_width >= 1.0
         && (0.0..=wide_width).contains(&radar_width)
-        && breakpoint_px(wide_width, radar_width) <= WIDE_MIN_VIEWPORT_PX
+        && breakpoint_shows_on_laptops(breakpoint_px(wide_width, radar_width))
+}
+
+/// D-86 and FR-105: whether a `WIDE_MIN_VIEWPORT_PX` screen shows the wide
+/// arrangement of a page whose FR-69 breakpoint is `breakpoint` pixels.
+#[must_use]
+pub const fn breakpoint_shows_on_laptops(breakpoint: u32) -> bool {
+    breakpoint <= WIDE_MIN_VIEWPORT_PX
 }
 
 #[cfg(test)]
@@ -784,5 +791,16 @@ mod tests {
         assert!(!wide_shows_on_laptops(f64::NAN, 600.0));
         assert!(!wide_shows_on_laptops(1000.0, f64::NAN));
         assert!(wide_shows_on_laptops(1000.0, 600.0));
+    }
+
+    /// D-86 and FR-105: a breakpoint of exactly `WIDE_MIN_VIEWPORT_PX`
+    /// still shows on a laptop; one pixel more does not.
+    #[test]
+    fn a_breakpoint_at_a_laptop_still_shows_on_laptops() {
+        assert_eq!(breakpoint_px(1440.0, 0.0), WIDE_MIN_VIEWPORT_PX);
+        assert!(wide_shows_on_laptops(1440.0, 0.0));
+        assert!(!wide_shows_on_laptops(1441.0, 0.0));
+        assert!(breakpoint_shows_on_laptops(WIDE_MIN_VIEWPORT_PX));
+        assert!(!breakpoint_shows_on_laptops(WIDE_MIN_VIEWPORT_PX + 1));
     }
 }
