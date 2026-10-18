@@ -81,7 +81,7 @@ An `.html` output is one file with its fonts, styles and script inside it. It ma
 - **Markers.** A disc in the quadrant's colour; hollow for `conditional`. `New` adds a full ring around it, `Moved In` a half-ring facing the centre, and `Moved Out` a half-ring facing the edge. A key on the page explains them.
 - **Details.** Clicking a marker, a legend row or a name in the table opens a panel with every filled column the table lists for that item. Its Close button, Escape, or activating the item again closes it.
 - **The table.** Under "Items on the radar", below the radar, open "The table" to list every item on the radar with the columns radargen reads. With `--table all` the heading is "Every item", and the table lists every row with every column, including rows not on the radar and columns radargen does not use. If nothing is on the radar, the default table says so in a single row.
-- **Themes.** The page follows the reader's light or dark setting, and a button at the top right switches between them: a moon while the page is light, a sun while it is dark; hover over it to see what a press does. The choice is not remembered between visits. `--theme` and `--width` do not apply to HTML.
+- **Themes.** The page follows the reader's light or dark setting, and a button at the top right switches between them: a moon while the page is light, a sun while it is dark; hover over it to see what a press does. The choice is not remembered between visits. `--theme`, `--width` and `--legend-columns` do not apply to HTML.
 - **Keyboard and screen readers.** A skip link leads to the legend, or to the table while the legend is hidden. Markers, legend rows and table names are buttons, reached with Tab and activated with Enter or Space. A marker's or legend row's spoken name gives its number, name, any qualifier or status, quadrant and ring.
 - **Without JavaScript** the radar, legend and table still show; the details panel, highlighting, skip link and the legend and theme buttons need it.
 - **Printing.** The page has no print styles. Use a PNG or an SVG for print.
@@ -98,7 +98,7 @@ radargen radar.csv -o radar.svg --theme dark
 
 Both draw the wide layout: the title, the radar, the key and the full legend, on the theme's background. `--theme light` (the default) or `--theme dark` picks the colours, and `--width` picks the width in pixels, from 320 to 10000, with the height following. Without `--width` the image is the layout's natural width.
 
-- **Long legends.** The legend is drawn in full, so a long one makes a tall image, which a slide then shrinks. A larger `--width`, or splitting the CSV, helps.
+- **Long legends.** The legend is drawn in full, so a long one makes a tall image, which a slide then shrinks. `--legend-columns 2` (up to 4) flows it into columns beside the radar, breaking only between quadrants, for a wider, shorter image (at a fixed `--width` the whole image scales down instead, so its text gets smaller); a larger `--width`, or splitting the CSV, also helps.
 - **Scripts.** The bundled font covers Latin, Greek, Cyrillic and Vietnamese. Names in other scripts, and emoji, draw as boxes, and radargen warns about each text that has them, naming its line and column or its flag, and suggests the HTML page or a transliteration. The HTML page falls back to the reader's fonts, so it draws them and does not warn.
 - **Accessibility.** A PNG has no text alternative, and an SVG placed as an image loses its own. Write alt text where you place it, and link the HTML page or the CSV as the full description.
 
@@ -144,6 +144,7 @@ radargen --create-palette <PATH>
 | `--legend <shown\|hidden>` | Whether an HTML page starts with its legend shown or hidden; shown by default. PNG and SVG always draw it, and warn if asked to hide it. |
 | `--table <radar\|all>` | What an HTML page's table and detail panels list: `radar` (the default), the rows on the radar and the columns radargen reads; `all`, every row and every named column. PNG and SVG have no table, and warn if given `all`. |
 | `-w`, `--width <WIDTH>` | The width in pixels for PNG and SVG, from 320 to 10000. |
+| `--legend-columns <N>` | Flows a PNG or SVG legend into N columns beside the radar, from 1 (the default) to 4, breaking only between quadrants. HTML ignores it. |
 | `-p`, `--palette <FILE>` | Colours from a palette file instead of the built-in themes, in every format. Not with `--theme`. |
 | `--create-template <PATH>` | Write a starter CSV, and render nothing. Given alone. |
 | `--create-palette <PATH>` | Write a starter palette, and render nothing. Given alone. |

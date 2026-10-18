@@ -70,6 +70,18 @@ pub(super) struct Layout {
     /// Every heading, swatch and row in reading order, which is document
     /// and Tab order.
     pub(super) entries: Vec<Entry>,
+    /// Where each quadrant's group starts, in order: what FR-100's columns
+    /// break between.
+    pub(super) groups: Vec<GroupStart>,
+}
+
+/// The start of one quadrant's group in [`Layout::entries`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) struct GroupStart {
+    /// The index of the group's first entry, its swatch.
+    pub(super) entry: usize,
+    /// The baseline of the group's heading.
+    pub(super) baseline: f64,
 }
 
 /// One laid-out piece of the legend.
@@ -112,11 +124,21 @@ pub(super) fn layout(catalogue: &Catalogue, plotted: &Plotted, fonts: &Fonts) ->
         run: heading(TITLE_TIER, LEGEND_TITLE, LEGEND_HEADING_BASELINE, fonts),
         level: TITLE_TIER.level,
     };
-    let entries = titled(title, context.groups());
+    let (groups, starts) = context.groups();
+    let entries = titled(title, groups);
+    // The title, when there is one, comes before every group.
+    let groups = starts
+        .into_iter()
+        .map(|start| GroupStart {
+            entry: start.entry + 1,
+            ..start
+        })
+        .collect();
     Layout {
         width: width(&entries, fonts),
         height: height(&entries),
         entries,
+        groups,
     }
 }
 
@@ -131,15 +153,20 @@ struct Context<'a> {
 
 impl Context<'_> {
     /// Every quadrant's group in FR-10 order, each starting where the last
-    /// left off. The baseline after the last group is not needed: the
-    /// height is the last entry's bottom.
-    fn groups(&self) -> Vec<Entry> {
+    /// left off, and where each starts. The baseline after the last group
+    /// is not needed: the height is the last entry's bottom.
+    fn groups(&self) -> (Vec<Entry>, Vec<GroupStart>) {
         let mut entries = Vec::new();
+        let mut starts = Vec::new();
         let mut baseline = LEGEND_FIRST_GROUP;
         for &q in &self.plotted.quadrants {
+            starts.push(GroupStart {
+                entry: entries.len(),
+                baseline,
+            });
             baseline = self.quadrant(q, baseline, &mut entries);
         }
-        entries
+        (entries, starts)
     }
 
     /// Quadrant `q`'s swatch, heading, rings and rows from `baseline`;
@@ -298,7 +325,7 @@ fn first_row_top(heading_last: f64) -> f64 {
 impl Entry {
     /// The entry's lowest painted extent: a row's bottom, a heading's last
     /// descent, a swatch's lowest point.
-    fn bottom(&self) -> f64 {
+    pub(super) fn bottom(&self) -> f64 {
         match self {
             Self::Heading { run, .. } => run.bottom(),
             Self::Swatch { centre, .. } => centre.y + SWATCH_RADIUS,

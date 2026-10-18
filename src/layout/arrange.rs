@@ -65,6 +65,18 @@ impl Blocks {
         blocks
     }
 
+    /// The blocks with the legend flowed into `columns` columns (FR-100):
+    /// what the static outputs arrange. HTML never asks (D-90), and the
+    /// radar keeps the growth it was given, so SC-7 holds for everything
+    /// but the legend's placement.
+    #[must_use]
+    pub fn with_legend_columns(self, columns: usize) -> Self {
+        Self {
+            legend: self.legend.in_columns(columns),
+            ..self
+        }
+    }
+
     /// D-86: grows the radar by the largest step up to `needed` at which the
     /// wide arrangement still shows on a `WIDE_MIN_VIEWPORT_PX` screen. The
     /// steps end at 1, so when none shows the radar is left ungrown.
@@ -1229,6 +1241,56 @@ mod tests {
         assert!(
             p.rule.to.x + KEY_RULE_STROKE / 2.0 < p.legend.origin.x,
             "{p:?}"
+        );
+    }
+
+    /// FR-100: the legend's columns widen the wide document and shorten
+    /// it to the radar, its key and the tallest column; the radar, the key
+    /// and the legend's corner stay put, and the panel spans every column.
+    #[test]
+    fn legend_columns_trade_height_for_width() {
+        let names: Vec<String> = (0..40).map(|i| format!("Q{}", i % 4)).collect();
+        let one = blocks(
+            &quadrants(&names.iter().map(String::as_str).collect::<Vec<_>>()),
+            TITLED,
+        );
+        let two = one.clone().with_legend_columns(2);
+        let (p1, p2) = (
+            placements(Arrangement::Wide, &one),
+            placements(Arrangement::Wide, &two),
+        );
+        let (l1, l2) = (one.legend.size(1.0), two.legend.size(1.0));
+        assert!(
+            l2.height < l1.height && l2.width > l1.width,
+            "{l1:?} {l2:?}"
+        );
+        assert!(p2.height < p1.height, "{} vs {}", p2.height, p1.height);
+        assert!(
+            close(p2.width - p1.width, l2.width - l1.width),
+            "{} vs {}",
+            p2.width,
+            p1.width
+        );
+        assert!(close(p2.legend_width, l2.width), "{p2:?}");
+        assert_eq!(
+            (p2.radar, p2.key, p2.legend, p2.radar_right),
+            (p1.radar, p1.key, p1.legend, p1.radar_right)
+        );
+        assert!(
+            close(p2.height, p2.legend.origin.y + l2.height + 20.0)
+                || close(
+                    p2.height,
+                    bottom(p2.key, &two.key.grid(p2.key_columns)) + 20.0
+                ),
+            "{p2:?}"
+        );
+        assert_inside(
+            &arrange(Arrangement::Wide, &two).root,
+            Size {
+                width: p2.width,
+                height: p2.height,
+            },
+            fonts(),
         );
     }
 

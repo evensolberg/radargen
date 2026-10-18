@@ -1,7 +1,7 @@
 ---
 id: rg-73h
 title: 'Static outputs: wrap a long legend into several columns'
-status: open
+status: closed
 type: feature
 priority: 3
 tags:
@@ -10,7 +10,8 @@ tags:
 - layout
 - legend
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-18
+closed_reason: 'FR-100 implemented: --legend-columns 1-4 for PNG/SVG'
 phase: v1.x
 ---
 
@@ -23,3 +24,7 @@ Idea: for static outputs, flow legend rows into extra columns when the legend is
 [2026-10-16] Decided (user, 2026-10-16): opt-in flag, not automatic. Default output stays one column; the flag (name and column count/threshold TBD in the PRD) wraps the legend for static outputs.
 
 [2026-10-16] Specified in PRD 0.77 (FR-100, D-90): --legend-columns 1-4, default 1, PNG and SVG only, breaks only between quadrant groups at the shortest tallest column, legend_columns config key. Implementation still to do (v1.x, after the PDF slices).
+
+[start] 2026-10-18 10:23:30
+
+[stop]  2026-10-18 10:37:32  14m 2s

@@ -13,7 +13,7 @@ pub use crate::emit::html::{Legend, Table};
 use crate::escape::remove_undisplayable;
 pub use crate::palette::Theme;
 use crate::starter::Starter;
-use crate::style::{MAX_EXPORT_WIDTH, MIN_EXPORT_WIDTH};
+use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
 
 /// The output format, inferred from the `-o` extension (FR-52).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -164,6 +164,17 @@ pub struct Cli {
     /// window.
     #[arg(short, long, value_parser = clap::value_parser!(u32).range(i64::from(MIN_EXPORT_WIDTH)..=i64::from(MAX_EXPORT_WIDTH)))]
     pub width: Option<u32>,
+
+    // FR-100, D-90: opt-in, so every existing edition renders as it did.
+    // The range is enforced by clap, as --width's is. HTML ignores it
+    // without a word, as it does --width: its legend scrolls beside the
+    // radar. No short form until it earns one (OQ-2).
+    /// Flow a PNG or SVG legend into this many columns beside the radar.
+    ///
+    /// From 1 to 4; columns break only between quadrants. An HTML page
+    /// ignores it.
+    #[arg(long, value_name = "N", default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=i64::from(MAX_LEGEND_COLUMNS)))]
+    pub legend_columns: u8,
 
     // FR-59, D-44: one set of colours for every format, so --theme has
     // nothing to choose between; clap refuses the pair, so the message is
