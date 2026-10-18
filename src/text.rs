@@ -6,7 +6,7 @@
 //! from real font metrics, and SC-7 requires the wrap points baked into the
 //! HTML to match the ones resvg rasterises.
 
-use harfrust::{Direction, FontRef, ShapeOptions, ShaperData, UnicodeBuffer};
+use harfrust::{BufferClusterLevel, Direction, FontRef, ShapeOptions, ShaperData, UnicodeBuffer};
 
 /// FR-85's family name, as `fontdb` registers both vendored faces.
 pub const FAMILY: &str = "Inter";
@@ -33,6 +33,9 @@ pub const TEXT_DESCENT: f64 = 494.0 / 2048.0;
 /// also half the cap height, because 1984 - 494 = 1490 = capHeight, so lining
 /// digits sit centred on a marker or badge.
 pub const NUMBER_CENTRING: f64 = f64::midpoint(TEXT_ASCENT, -TEXT_DESCENT);
+
+/// The glyph a face draws for a character it lacks: the missing-glyph box.
+const NOTDEF: u32 = 0;
 
 /// FR-85 pins exactly two weights; FR-35 separates the legend's levels with
 /// them plus size, letter-spacing and indentation.
@@ -95,6 +98,15 @@ impl Fonts {
             Weight::Regular => &self.regular,
             Weight::SemiBold => &self.semibold,
         }
+    }
+
+    /// The distinct characters of `text` that a PNG or SVG draws as boxes,
+    /// in either weight (FR-104). The two faces map the same characters to
+    /// the same glyphs (`both_faces_map_the_same_characters`), so Regular
+    /// answers for both.
+    #[must_use]
+    pub fn missing(&self, text: &str) -> Vec<char> {
+        self.regular.missing(text)
     }
 }
 
@@ -204,11 +216,18 @@ impl<'a> FontMetrics<'a> {
     /// options, so the two shape identically.
     #[must_use]
     pub fn shape(&self, text: &str) -> Vec<ShapedGlyph> {
+        self.shape_at(text, BufferClusterLevel::default())
+    }
+
+    /// [`Self::shape`] with clusters at `level`: `usvg`'s default for
+    /// drawing, or one per character for [`Self::missing`].
+    fn shape_at(&self, text: &str, level: BufferClusterLevel) -> Vec<ShapedGlyph> {
         // A built shaper borrows the font and its data, so it is built per
         // call rather than stored; `usvg` does the same.
         let shaper = self.data.shaper(&self.font).build();
         let mut buffer = UnicodeBuffer::new();
         buffer.push_str(text);
+        buffer.set_cluster_level(level);
         buffer.set_direction(Direction::LeftToRight);
         buffer.guess_segment_properties();
         let output = shaper.shape(buffer, ShapeOptions::new());
@@ -223,6 +242,48 @@ impl<'a> FontMetrics<'a> {
                 x_offset: position.x_offset,
                 y_offset: position.y_offset,
             })
+            .collect()
+    }
+
+    /// The distinct characters of `text` this face cannot draw, in order of
+    /// first appearance: what a PNG or SVG draws as a missing-glyph box
+    /// (FR-104, D-93).
+    ///
+    /// Shaped, not looked up in the cmap, because the shaper composes and
+    /// decomposes: `e` + U+0302 + U+0301 draws as the precomposed glyph, and
+    /// U+2126 OHM SIGN as the omega the subset has. Clusters are one per
+    /// character, so each `.notdef` glyph's cluster is the byte offset of
+    /// the character it stands for. The shaper hides a default-ignorable
+    /// character it cannot draw rather than drawing `.notdef`, so none is
+    /// named.
+    ///
+    /// # Panics
+    ///
+    /// If a cluster is not the offset of a character in `text`, which the
+    /// shaper guarantees.
+    #[must_use]
+    // qual:allow(complexity, error_handling) reason: "the documented # Panics: a cluster is a character's byte offset"
+    pub fn missing(&self, text: &str) -> Vec<char> {
+        // Glyph order is not text order: a shaper may move a glyph before
+        // the one it follows in the text, so the offsets are sorted.
+        let mut offsets: Vec<u32> = self
+            .shape_at(text, BufferClusterLevel::Characters)
+            .into_iter()
+            .filter(|glyph| glyph.id == NOTDEF)
+            .map(|glyph| glyph.cluster)
+            .collect();
+        offsets.sort_unstable();
+        let mut seen = std::collections::BTreeSet::new();
+        offsets
+            .into_iter()
+            .map(|cluster| {
+                usize::try_from(cluster)
+                    .ok()
+                    .and_then(|at| text.get(at..))
+                    .and_then(|rest| rest.chars().next())
+                    .expect("a cluster is the byte offset of a character in text")
+            })
+            .filter(|&c| seen.insert(c))
             .collect()
     }
 
@@ -621,6 +682,105 @@ mod tests {
                 "no gap inside a cluster"
             );
         }
+    }
+
+    /// FR-104, D-93: either face answers for both, because they map the
+    /// same characters to the same glyphs. If a regenerated subset ever
+    /// splits them, this fails and `Fonts::missing` must ask each text's
+    /// own face.
+    #[test]
+    fn both_faces_map_the_same_characters() {
+        let map = |bytes| {
+            FontRef::new(bytes)
+                .expect("the vendored face parses")
+                .charmap()
+                .mappings()
+                .map(|(c, g)| (c, g.to_u32()))
+                .collect::<Vec<_>>()
+        };
+        let regular = map(REGULAR_TTF);
+        assert!(!regular.is_empty(), "the face maps characters");
+        assert_eq!(regular, map(SEMIBOLD_TTF));
+    }
+
+    /// FR-104: a character with no glyph is missing, each counted once, in
+    /// the order the text first uses it.
+    #[test]
+    fn missing_names_each_character_the_face_lacks_once() {
+        let fonts = Fonts::embedded().expect("loads");
+        for weight in [Weight::Regular, Weight::SemiBold] {
+            let face = fonts.face(weight);
+            assert_eq!(face.missing("Kafka 中文 中"), ['中', '文'], "{weight:?}");
+            assert_eq!(face.missing("عربي"), ['ع', 'ر', 'ب', 'ي'], "{weight:?}");
+            assert_eq!(face.missing("Team 🙂"), ['🙂'], "{weight:?}");
+            assert!(face.missing("").is_empty(), "{weight:?}");
+        }
+    }
+
+    /// FR-104: what the shaper draws as a real glyph, composes, or treats
+    /// as default-ignorable is not missing. Decomposed Vietnamese composes
+    /// to a glyph the subset holds; the joiners and a variation selector
+    /// shape to an invisible glyph.
+    #[test]
+    fn missing_ignores_what_the_face_draws_or_ignores() {
+        let fonts = Fonts::embedded().expect("loads");
+        let face = fonts.face(Weight::Regular);
+        for text in [
+            "Kubernetes",
+            "Tie\u{302}\u{301}ng Vie\u{323}\u{302}t",
+            "Tiếng Việt",
+            "Cafe\u{301} Zu\u{308}rich",
+            "Łódź Ærøskøbing Şişli",
+            "Ελληνικά",
+            "Русский язык",
+            "a\u{200d}b a\u{200c}b a\u{fe0f}b a\u{ad}b a\u{2060}b",
+            "\u{a0}·\u{2009}–—",
+            // Not in the cmap, but canonically equivalent to letters that
+            // are: the shaper decomposes them, a cmap lookup would not.
+            "\u{212b}ngstr\u{f6}m",
+            "5 \u{2126}",
+        ] {
+            let missing = face.missing(text);
+            assert!(missing.is_empty(), "{text:?}: {missing:?}");
+        }
+    }
+
+    /// FR-104: a missing character's own mark or selector is not counted
+    /// with it, and a mark the face lacks on a base it has is the one named.
+    #[test]
+    fn missing_names_the_character_not_its_cluster() {
+        let fonts = Fonts::embedded().expect("loads");
+        let face = fonts.face(Weight::Regular);
+        assert_eq!(face.missing("中\u{fe0f}"), ['中']);
+        assert_eq!(face.missing("q\u{1ab0}"), ['\u{1ab0}']);
+        assert_eq!(face.missing("\u{1ab0}"), ['\u{1ab0}']);
+        // A cluster ends where the next begins: the ohm sign after it is
+        // drawn, as omega, though the cmap lacks it.
+        assert_eq!(face.missing("中\u{2126}"), ['中']);
+        // A prepended concatenation mark is a visible format character, not
+        // a default-ignorable one, so it is named, alone or with a mark it
+        // shares a cluster with.
+        assert_eq!(face.missing("\u{600}"), ['\u{600}']);
+        assert_eq!(face.missing("\u{600}\u{1ab0}"), ['\u{600}', '\u{1ab0}']);
+        assert_eq!(face.missing("\u{6dd}\u{1ab0}"), ['\u{6dd}', '\u{1ab0}']);
+    }
+
+    /// FR-104 on a long name is linear: no cluster's end is searched for
+    /// from every glyph, and no character is compared with every other.
+    #[test]
+    fn missing_runs_in_linear_time() {
+        let fonts = Fonts::embedded().expect("loads");
+        // About 70,000 distinct characters, none in the subset: CJK
+        // Extension A, the unified block and Extension B.
+        let text: String = ('\u{3400}'..='\u{4dbf}')
+            .chain('\u{4e00}'..='\u{9fff}')
+            .chain('\u{20000}'..='\u{2a6df}')
+            .collect();
+        let start = std::time::Instant::now();
+        let missing = fonts.missing(&text);
+        let elapsed = start.elapsed();
+        assert!(elapsed < std::time::Duration::from_secs(5), "{elapsed:?}");
+        assert_eq!(missing.len(), text.chars().count(), "every one is lacking");
     }
 
     /// A shaped glyph has contours; a space has none; an id the face lacks

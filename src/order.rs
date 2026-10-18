@@ -319,6 +319,7 @@ mod tests {
         let q = |key: &str, label: &str| Quadrant {
             key: key.to_string(),
             label: label.to_string(),
+            line: 2,
         };
         let quadrants = [
             q("tool", "Tool"),

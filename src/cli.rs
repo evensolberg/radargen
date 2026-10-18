@@ -27,6 +27,27 @@ pub enum OutputFormat {
     Svg,
 }
 
+impl OutputFormat {
+    /// Whether this is a static snapshot, a PNG or an SVG: it draws the
+    /// legend whatever `--legend` says (RG-102), and with the bundled font
+    /// alone (FR-104).
+    #[must_use]
+    pub const fn is_snapshot(self) -> bool {
+        matches!(self, Self::Png | Self::Svg)
+    }
+}
+
+/// The format as a message names it: `PNG`.
+impl std::fmt::Display for OutputFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Html => "HTML",
+            Self::Png => "PNG",
+            Self::Svg => "SVG",
+        })
+    }
+}
+
 /// The parsed command line: one CSV in, one file out (D-28, §6.6).
 //
 // clap shows every `///` comment below as `--help` text, so those speak to

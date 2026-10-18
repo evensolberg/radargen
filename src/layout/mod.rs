@@ -3,6 +3,7 @@
 pub mod arrange;
 pub mod block;
 pub mod geometry;
+pub mod glyphs;
 pub mod key;
 pub mod legend;
 pub mod marker;
