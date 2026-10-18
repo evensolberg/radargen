@@ -10,12 +10,12 @@
 use std::num::NonZeroUsize;
 
 use crate::diagnostics::{RenderKind, Warning, Warnings};
-use crate::layout::block::{Block, Placement};
+use crate::layout::block::{Block, Placement, Size};
 use crate::layout::geometry::growth_steps;
 use crate::layout::key::KeyBlock;
 use crate::layout::legend::LegendBlock;
 use crate::layout::radar::RadarBlock;
-use crate::layout::title::TitleBlock;
+use crate::layout::title::{Measures, TitleBlock, Wrap};
 use crate::model::Catalogue;
 use crate::order::Plotted;
 use crate::palette::{Neutral, Role};
@@ -47,6 +47,10 @@ impl Blocks {
     /// The four blocks for `catalogue` in `plotted`'s order, each laid out
     /// once (architecture §4), the radar grown to fit its markers (D-86).
     /// `title` and `subtitle` are FR-65's values.
+    ///
+    /// The title is wrapped last, at the widths the grown radar leaves it
+    /// (rg-0ms). No width depends on the title, only heights, so wrapping
+    /// it cannot move what it was measured against.
     #[must_use]
     pub fn new(
         catalogue: &Catalogue,
@@ -55,14 +59,19 @@ impl Blocks {
         subtitle: Option<&str>,
         fonts: &Fonts,
     ) -> Self {
-        let mut blocks = Self {
-            title: TitleBlock::new(title, subtitle, fonts),
-            radar: RadarBlock::new(catalogue, plotted, fonts),
-            key: KeyBlock::new(fonts),
-            legend: LegendBlock::new(catalogue, plotted, fonts),
+        let mut radar = RadarBlock::new(catalogue, plotted, fonts);
+        let legend = LegendBlock::new(catalogue, plotted, fonts);
+        grow_within(&mut radar, &legend);
+        let measures = Measures {
+            wide: wide_extent(&radar, legend.size(1.0)).radar_right - MARGIN - MARGIN,
+            narrow: narrow_width(&radar, narrow_radar_scale(&radar)) - MARGIN - MARGIN,
         };
-        blocks.grow_within(blocks.radar.needed_growth());
-        blocks
+        Self {
+            title: TitleBlock::new(title, subtitle, measures, fonts),
+            radar,
+            key: KeyBlock::new(fonts),
+            legend,
+        }
     }
 
     /// The blocks with the legend flowed into `columns` columns (FR-100):
@@ -76,21 +85,22 @@ impl Blocks {
             ..self
         }
     }
+}
 
-    /// D-86: grows the radar by the largest step up to `needed` at which the
-    /// wide arrangement still shows on a `WIDE_MIN_VIEWPORT_PX` screen. The
-    /// steps end at 1, so when none shows the radar is left ungrown.
-    ///
-    /// Growth widens the wide document, which raises FR-69's breakpoint, so
-    /// the bound is measured on the placed document: labels and the legend
-    /// add width that does not grow.
-    fn grow_within(&mut self, needed: f64) {
-        for g in growth_steps().rev().filter(|&g| g <= needed) {
-            self.radar.set_growth(g);
-            let at = wide(self);
-            if wide_shows_on_laptops(at.width, at.radar_right) {
-                return;
-            }
+/// D-86: grows `radar` by the largest step up to its needed growth at which
+/// the wide arrangement still shows on a `WIDE_MIN_VIEWPORT_PX` screen. The
+/// steps end at 1, so when none shows the radar is left ungrown.
+///
+/// Growth widens the wide document, which raises FR-69's breakpoint, so
+/// the bound is measured on the placed widths: labels and the legend add
+/// width that does not grow.
+fn grow_within(radar: &mut RadarBlock, legend: &LegendBlock) {
+    let needed = radar.needed_growth();
+    for g in growth_steps().rev().filter(|&g| g <= needed) {
+        radar.set_growth(g);
+        let at = wide_extent(radar, legend.size(1.0));
+        if wide_shows_on_laptops(at.width, at.radar_right) {
+            return;
         }
     }
 }
@@ -151,16 +161,24 @@ pub fn arrange(arrangement: Arrangement, blocks: &Blocks) -> Document {
         at.width,
         at.height,
         Point::ORIGIN,
-        nodes(&at, blocks).into(),
+        nodes(&at, title_in(arrangement, blocks), blocks).into(),
     )
+}
+
+/// The title as `arrangement` wraps it (rg-0ms).
+const fn title_in(arrangement: Arrangement, blocks: &Blocks) -> &Wrap {
+    match arrangement {
+        Arrangement::Wide => blocks.title.wide(),
+        Arrangement::Narrow => blocks.title.narrow(),
+    }
 }
 
 /// What [`arrange`] draws at `at`, in document order: title, radar, the
 /// key's rule, key, legend. [`narrow_parts`] splits these same nodes, so its
 /// parts cannot drift from the document.
-fn nodes(at: &Placements, blocks: &Blocks) -> [Node; 5] {
+fn nodes(at: &Placements, title: &Wrap, blocks: &Blocks) -> [Node; 5] {
     [
-        blocks.title.render(at.title),
+        title.render(at.title),
         blocks.radar.render(at.radar),
         rule_node(at.rule),
         blocks.key.grid(at.key_columns).render(at.key),
@@ -191,9 +209,10 @@ fn part(width: f64, height: f64, origin: Point, children: Vec<Node>) -> Document
 /// cut at the radar's right edge and at the key's top rule.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WideParts {
-    /// The title block, as wide as the radar: the title wraps at the legend
-    /// column's width (380), well inside it, and so draws at the radar's
-    /// scale at the hidden breakpoint, not the whole document's (rg-dok).
+    /// The title block, as wide as the radar, which the title wraps within
+    /// by construction, a margin either side (rg-0ms); so it draws at the
+    /// radar's scale at the hidden breakpoint, not the whole document's
+    /// (rg-dok).
     pub title: Document,
     /// The radar, from the left edge to its block's right edge.
     pub radar: Document,
@@ -203,12 +222,13 @@ pub struct WideParts {
     pub legend: Document,
 }
 
-// rg-dok: the title part is cut at the radar's right edge, so the title,
-// wrapped at the legend column's width from the left margin, and its right
-// margin must fit inside the narrowest radar part.
+// rg-0ms: the title wraps within the radar part by construction, at its
+// width less two margins. That measure is never narrower than the narrow
+// document's at `NARROW_WIDTH`, the legend column's, so a title that fits
+// the narrow arrangement wraps the same in both, and as it did before.
 const _: () = assert!(
-    MARGIN + LEGEND_WIDTH_MAX + MARGIN <= RADAR_INSET + MIN_RADAR_WIDTH,
-    "rg-dok: the title must fit inside the radar part it is cut to"
+    RADAR_INSET + MIN_RADAR_WIDTH - MARGIN - MARGIN >= LEGEND_WIDTH_MAX,
+    "rg-0ms: the wide title's measure must be at least the narrow one's"
 );
 // rg-dok (D-97): a hidden legend keeps its column, which the radar and
 // key span, so the widest legend part must fit inside the narrowest hidden
@@ -260,7 +280,7 @@ pub fn wide_parts(blocks: &Blocks) -> WideParts {
             radar_right,
             top,
             Point::ORIGIN,
-            vec![blocks.title.render(at.title)],
+            vec![blocks.title.wide().render(at.title)],
         ),
         radar: part(
             radar_right,
@@ -308,7 +328,7 @@ pub struct NarrowParts {
 pub fn narrow_parts(blocks: &Blocks) -> NarrowParts {
     let at = placements(Arrangement::Narrow, blocks);
     let cut = at.legend.origin.y;
-    let [title, radar, rule, key, legend] = nodes(&at, blocks);
+    let [title, radar, rule, key, legend] = nodes(&at, blocks.title.narrow(), blocks);
     NarrowParts {
         body: part(at.width, cut, Point::ORIGIN, vec![title, radar, rule, key]),
         legend: part(
@@ -378,16 +398,55 @@ fn rule_node(rule: Rule) -> Node {
 pub fn placements(arrangement: Arrangement, blocks: &Blocks) -> Placements {
     match arrangement {
         Arrangement::Wide => wide(blocks),
-        // D-70's floor is on the radar's drawn size, so a grown radar may
-        // shrink further: it draws on a phone as an ungrown one would (D-86).
-        Arrangement::Narrow => narrow(
-            blocks,
-            narrow_scale(
-                &blocks.radar,
-                NARROW_RADAR_COLUMN,
-                NARROW_MIN_SCALE / blocks.radar.growth(),
-            ),
-        ),
+        Arrangement::Narrow => narrow(blocks, narrow_radar_scale(&blocks.radar)),
+    }
+}
+
+/// The narrow radar's scale (FR-70). D-70's floor is on the radar's drawn
+/// size, so a grown radar may shrink further: it draws on a phone as an
+/// ungrown one would (D-86).
+fn narrow_radar_scale(radar: &RadarBlock) -> f64 {
+    narrow_scale(
+        radar,
+        NARROW_RADAR_COLUMN,
+        NARROW_MIN_SCALE / radar.growth(),
+    )
+}
+
+/// The narrow document's width with the radar at `scale`: `NARROW_WIDTH`,
+/// or the radar and its insets when it does not fit its column (D-71).
+fn narrow_width(radar: &RadarBlock, scale: f64) -> f64 {
+    NARROW_WIDTH.max(radar.size(scale).width + RADAR_INSETS)
+}
+
+/// The wide arrangement across: set by the radar and the legend alone,
+/// never by the title or the key, which wrap and flow within it.
+#[derive(Debug, Clone, Copy)]
+struct WideExtent {
+    /// The document's width.
+    width: f64,
+    /// Where the radar block ends on the right.
+    radar_right: f64,
+    /// Where the legend panel starts.
+    legend_x: f64,
+}
+
+/// The legend's content `COLUMN_GAP` after the radar's widest label ink,
+/// for a legend `legend` in size; with no legend, the radar and its insets.
+fn wide_extent(radar: &RadarBlock, legend: Size) -> WideExtent {
+    let radar_right = RADAR_INSET + radar.size(1.0).width;
+    if legend.is_empty() {
+        return WideExtent {
+            width: radar_right + RADAR_INSET,
+            radar_right,
+            legend_x: radar_right,
+        };
+    }
+    let content_x = radar_right - RADAR_LABEL_PAD + COLUMN_GAP;
+    WideExtent {
+        width: content_x + legend.width - LEGEND_PANEL_INSETS_X + MARGIN,
+        radar_right,
+        legend_x: content_x - LEGEND_PANEL_INSET_X,
     }
 }
 
@@ -395,30 +454,24 @@ pub fn placements(arrangement: Arrangement, blocks: &Blocks) -> Placements {
 /// widest label ink; the key under the radar, its rule as wide as the
 /// radar's ink.
 fn wide(blocks: &Blocks) -> Placements {
-    let top = DOC_TOP + blocks.title.size(1.0).height;
+    let top = DOC_TOP + blocks.title.wide().size(1.0).height;
     let radar = blocks.radar.size(1.0);
-    let radar_right = RADAR_INSET + radar.width;
+    let legend = blocks.legend.size(1.0);
+    let WideExtent {
+        width,
+        radar_right,
+        legend_x,
+    } = wide_extent(&blocks.radar, legend);
     let ink_right = radar_right - RADAR_LABEL_PAD;
     let key_y = top + radar.height;
     let key_columns = blocks.key.columns_within(ink_right - MARGIN);
-    let legend = blocks.legend.size(1.0);
-    let (legend_at, width) = if legend.is_empty() {
-        (
-            Point {
-                x: radar_right,
-                y: top,
-            },
-            radar_right + RADAR_INSET,
-        )
-    } else {
-        let content_x = ink_right + COLUMN_GAP;
-        (
-            Point {
-                x: content_x - LEGEND_PANEL_INSET_X,
-                y: top + LEGEND_WIDE_DROP,
-            },
-            content_x + legend.width - LEGEND_PANEL_INSETS_X + MARGIN,
-        )
+    let legend_at = Point {
+        x: legend_x,
+        y: if legend.is_empty() {
+            top
+        } else {
+            top + LEGEND_WIDE_DROP
+        },
     };
     Placements {
         width,
@@ -458,9 +511,9 @@ fn wide(blocks: &Blocks) -> Placements {
 /// document is `NARROW_WIDTH` wide, or as wide as the radar and its insets
 /// when it does not fit its column (D-71).
 fn narrow(blocks: &Blocks, scale: f64) -> Placements {
-    let top = DOC_TOP + blocks.title.size(1.0).height;
+    let top = DOC_TOP + blocks.title.narrow().size(1.0).height;
     let radar = blocks.radar.size(scale);
-    let width = NARROW_WIDTH.max(radar.width + RADAR_INSETS);
+    let width = narrow_width(&blocks.radar, scale);
     let key_y = top + radar.height;
     let rule_end = width - MARGIN;
     let key_columns = blocks.key.columns_within(rule_end - MARGIN);
@@ -881,7 +934,7 @@ mod tests {
     #[test]
     fn wide_places_the_legend_beside_the_radar() {
         let b = blocks(PRD_EXAMPLE, TITLED);
-        assert!(close(b.title.size(1.0).height, 53.0));
+        assert!(close(b.title.wide().size(1.0).height, 53.0));
         let p = placements(Arrangement::Wide, &b);
         let key = b.key.grid(p.key_columns);
         assert!(close(b.radar.size(1.0).width, 660.0) && close(key.size(1.0).height, 98.0));
@@ -1301,7 +1354,7 @@ mod tests {
             let p = placements(arrangement, &b);
             assert!(near(p.title.origin, Point { x: 20.0, y: 10.0 }), "{p:?}");
             assert!(close(p.radar.origin.y, 10.0), "{p:?}");
-            assert!(bounds(&b.title.render(p.title), fonts()).is_none());
+            assert!(bounds(&title_in(arrangement, &b).render(p.title), fonts()).is_none());
         }
         let p = placements(Arrangement::Wide, &b);
         assert!(close(p.legend.origin.y, 16.0), "{p:?}");
@@ -1354,9 +1407,13 @@ mod tests {
         for (name, b) in fixtures() {
             let ink = b.radar.size(1.0).width - 20.0;
             let one = NonZeroUsize::MIN;
-            for width in [b.title.size(1.0).width, b.key.grid(one).size(1.0).width] {
-                assert!(width <= 380.0 && width <= ink, "{name}: {width}");
-            }
+            let key = b.key.grid(one).size(1.0).width;
+            assert!(key <= 380.0 && key <= ink, "{name}: {key}");
+            // rg-0ms: the wide title wraps within the radar part's margins,
+            // inside its labels' ink; the narrow, within the legend column.
+            let (wide, narrow) = (b.title.wide(), b.title.narrow());
+            assert!(wide.size(1.0).width <= ink, "{name}");
+            assert!(narrow.size(1.0).width <= 380.0, "{name}");
             let legend = b.legend.size(1.0).width;
             assert!(
                 legend - 24.0 <= 380.0 && 8.0 + legend <= 412.0,
@@ -1385,7 +1442,7 @@ mod tests {
             let doc = arrange(arrangement, &b);
             let p = placements(arrangement, &b);
             let [title, radar, rule, key, legend] = children(&doc);
-            assert_eq!(*title, b.title.render(p.title));
+            assert_eq!(*title, title_in(arrangement, &b).render(p.title));
             assert_eq!(*radar, b.radar.render(p.radar));
             assert_eq!(*key, b.key.grid(p.key_columns).render(p.key));
             assert_eq!(*legend, b.legend.spanning(p.legend_width).render(p.legend));
@@ -1675,6 +1732,147 @@ mod tests {
                         assert!(key.bottom < legend.top, "{name}: {key:?} {legend:?}");
                     }
                 }
+            }
+        }
+    }
+
+    /// rg-0ms: a title wider than the legend column but narrower than the
+    /// PRD example's radar part (670 less two margins).
+    const MEDIUM_TITLE: &str = "Technology radar for the managed estates, 2026";
+
+    /// The lines `doc`'s title block draws, in order.
+    fn title_lines(doc: &Document) -> Vec<String> {
+        fn lines(node: &Node) -> Vec<String> {
+            match node {
+                Node::Group(g) => g.children.iter().flat_map(lines).collect(),
+                Node::Text { lines, .. } => lines.clone(),
+                _ => Vec::new(),
+            }
+        }
+        lines(first_child(doc))
+    }
+
+    /// The first node `doc`'s root draws: the title, in every document
+    /// that has one.
+    fn first_child(doc: &Document) -> &Node {
+        let Node::Group(root) = &doc.root else {
+            panic!("the root is a group");
+        };
+        root.children.first().expect("the document draws something")
+    }
+
+    /// The fixtures, and long titles over radars of each width.
+    fn titled_fixtures() -> Vec<(&'static str, Blocks)> {
+        let long = "Technology radar ".repeat(12);
+        let long = Titles {
+            title: Some(&long),
+            subtitle: Some(&long),
+        };
+        let mut all = fixtures();
+        all.extend([
+            ("long, widened", blocks(&widened(), long)),
+            ("long, beyond", blocks(&beyond(), long)),
+            ("long, wide radar", blocks(&wide_radar(), long)),
+            ("long, grown", blocks(&innermost("Q", 12), long)),
+        ]);
+        all
+    }
+
+    /// rg-0ms: in each arrangement the title's ink keeps a margin either
+    /// side of the part it is drawn in: the radar part in wide, which is
+    /// what HTML cuts the title to, and the whole document in narrow.
+    #[test]
+    fn the_title_keeps_its_margins_in_both_arrangements() {
+        for (name, b) in titled_fixtures() {
+            let wide = wide_parts(&b);
+            let narrow = arrange(Arrangement::Narrow, &b);
+            for (arrangement, doc, right) in [
+                ("wide", &wide.title, wide.title.width),
+                ("narrow", &narrow, narrow.width),
+            ] {
+                if let Some(ink) = bounds(first_child(doc), fonts()) {
+                    assert!(
+                        ink.left >= MARGIN - 1e-9 && ink.right <= right - MARGIN + 1e-9,
+                        "{name} {arrangement}: {ink:?} in {right}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// rg-0ms: a long title uses the radar part's width in wide, and keeps
+    /// the narrow document's in narrow.
+    #[test]
+    fn a_long_title_wraps_at_the_radar_part() {
+        let b = blocks(
+            PRD_EXAMPLE,
+            Titles {
+                title: Some(MEDIUM_TITLE),
+                subtitle: None,
+            },
+        );
+        assert_eq!(title_lines(&arrange(Arrangement::Wide, &b)), [MEDIUM_TITLE]);
+        assert_eq!(title_lines(&arrange(Arrangement::Narrow, &b)).len(), 2);
+    }
+
+    /// rg-0ms: each arrangement's title is wrapped at exactly its part's
+    /// width less two margins: after D-86's growth in wide, and at D-71's
+    /// widened document in narrow, neither of which is the 630 or 380 an
+    /// ungrown, unwidened radar gives.
+    #[test]
+    fn the_title_wraps_at_its_part_exactly() {
+        let long = "Technology radar ".repeat(12);
+        let titles = Titles {
+            title: Some(&long),
+            subtitle: Some(&long),
+        };
+        for (name, csv) in [("grown", innermost("Q", 12)), ("beyond", beyond())] {
+            let b = blocks(&csv, titles);
+            let wide = wide_parts(&b).title.width - MARGIN - MARGIN;
+            let narrow = arrange(Arrangement::Narrow, &b).width - MARGIN - MARGIN;
+            let wrap = |measure| Wrap::new(titles.title, titles.subtitle, measure, fonts());
+            assert_eq!(b.title.wide(), &wrap(wide), "{name} wide");
+            assert_eq!(b.title.narrow(), &wrap(narrow), "{name} narrow");
+        }
+        let grown = blocks(&innermost("Q", 12), titles);
+        assert!(grown.radar.growth() > 1.0);
+        assert!(wide_parts(&grown).title.width - MARGIN - MARGIN > 630.0);
+        let beyond = blocks(&beyond(), titles);
+        assert!(arrange(Arrangement::Narrow, &beyond).width - MARGIN - MARGIN > LEGEND_WIDTH_MAX);
+    }
+
+    /// rg-0ms: a title that fits the legend column draws the same in both
+    /// arrangements, and the same as before.
+    #[test]
+    fn a_short_title_is_unchanged() {
+        let short = fixtures()
+            .into_iter()
+            .filter(|(_, b)| b.title.wide().size(1.0).width <= LEGEND_WIDTH_MAX);
+        for (name, b) in short {
+            let [wide, ..] = children(&arrange(Arrangement::Wide, &b)).map(Clone::clone);
+            let [narrow, ..] = children(&arrange(Arrangement::Narrow, &b)).map(Clone::clone);
+            assert_eq!(wide, narrow, "{name}");
+        }
+        let b = blocks(PRD_EXAMPLE, TITLED);
+        assert_eq!(
+            title_lines(&arrange(Arrangement::Wide, &b)),
+            ["Technology Radar", "Managed estates, 2026"]
+        );
+    }
+
+    /// rg-0ms (SC-7): HTML's title part and a static output's wide
+    /// document draw the same title, whatever the legend's columns.
+    #[test]
+    fn the_title_wraps_alike_in_html_and_static_outputs() {
+        for (name, b) in titled_fixtures() {
+            let html = wide_parts(&b).title;
+            for columns in [1, 2, 3] {
+                let still = arrange(Arrangement::Wide, &b.clone().with_legend_columns(columns));
+                assert_eq!(
+                    first_child(&html),
+                    first_child(&still),
+                    "{name}, {columns} columns"
+                );
             }
         }
     }
