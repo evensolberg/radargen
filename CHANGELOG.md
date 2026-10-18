@@ -1,32 +1,29 @@
+## [1.11.0] - 2026-10-18
+
+### 🚀 Features
+
+- *(html)* Move the breakpoint while the legend is hidden
+
+### 🐛 Bug Fixes
+
+- *(html)* Keep the legend button still when a press swaps layout
+- *(html)* Reserve the scrollbar gutter only from the hidden breakpoint
+- *(html)* Drop the legend toggle's scroll compensation
+
+### 📚 Documentation
+
+- *(prd)* Rule D-95's empty off-radar quadrant deliberate
+- Specify the legend-hidden breakpoint (D-97)
+- Settle rg-dok's review notes on D-97 and its neighbours
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Close rg-dok
 ## [1.10.0] - 2026-10-18
 
 ### 🚀 Features
 
-- *(rings)* Keep named rings off the radar unwarned (--unplotted-rings)
-
-### 🐛 Bug Fixes
-
-- *(diagnostics)* One FR-17 phrasing; hint only without the flag
-
-### 📚 Documentation
-
-- *(prd)* Specify --unplotted-rings (FR-107, D-96)
-- *(prd)* Rest D-96 on habituation; cross-source overlap
-- *(prd)* Record FR-17's unified wording in revision 0.92
-
-### 🚜 Refactor
-
-- *(rings)* RingSet classifies ring values and owns its keys
-- *(rings)* Drop RingSet's unplotted names; say "not drawn"
-
-### 🧪 Testing
-
-- Fold and trim rg-4bq's FR-107 tests
-
-### ⚙️ Miscellaneous Tasks
-
-- *(crumbs)* Close rg-4bq
-- *(crumbs)* Note FR-107's config duties on rg-u6u
+- *(rings)* Keep named rings off the radar unwarned (1.10.0) (#127)
 ## [1.9.0] - 2026-10-17
 
 ### 🚀 Features
