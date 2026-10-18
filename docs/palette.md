@@ -11,7 +11,7 @@ created_date: 2026-10-17
 synopsis: "How to draw a radar in your own colours with --palette: what the file holds, where each of its colours is drawn, the contrast each needs, and how the quadrant colours cycle."
 status: active
 type: Guide
-revision: "1.2"
+revision: "1.3"
 review_date:
 reviewed_by: []
 completed_date:
@@ -45,10 +45,10 @@ error: --palette brand.css: --series-4 is missing; number series entries from --
 
 A missing colour has no line, since it is not in the file.
 
-A forgotten `;` runs a declaration into the next one. radargen reports the first declaration, says to add the `;` when its value is not a colour, and does not also report the declaration it swallowed as missing, or as a gap in the series:
+A forgotten `;` runs a declaration into the next one. radargen reports it on the first declaration's line and says to add the `;`, then reads the next line as its own declaration and checks it in the same pass, so everything wrong is reported at once. Only a line declaring a custom property (`--name:`) counts; any other line stays part of the value:
 
 ```text
-error: --palette brand.css, line 35: --surface-1: '#FFFFFF…' is not a #RRGGBB colour; it runs onto the next line, so add ; at its end
+error: --palette brand.css, line 35: --surface-1: its value runs onto the next line; add ; at its end
 ```
 
 A character you cannot see in a value, such as a no-break space, is shown escaped, as in `'\u{a0}#0B5FA5'`: delete it and type an ordinary space, or none.
@@ -112,3 +112,4 @@ radargen checks that the file is complete and well formed, never that its colour
 | 1.0 | 2026-10-17 | Initial version (PR 18, rg-cdo). |
 | 1.1 | 2026-10-17 | A forgotten `;` and an escaped invisible character in the messages (rg-8xm). |
 | 1.2 | 2026-10-17 | Start from `--create-palette` rather than copying the sample (rg-0fm). |
+| 1.3 | 2026-10-17 | A forgotten `;` is its own error, and the next line is checked at once (rg-p9a). |

@@ -1,7 +1,7 @@
 ---
 id: rg-x5g
 title: 'PRD: FR-102 note on declarations swallowed by a forgotten ;'
-status: open
+status: closed
 type: task
 priority: 4
 tags:
@@ -9,6 +9,7 @@ tags:
 - palette
 created: 2026-10-17
 updated: 2026-10-17
+closed_reason: 'Superseded by rg-p9a: PRD FR-102 (0.86) states the forgotten-; rule'
 phase: ''
 ---
 
