@@ -154,7 +154,7 @@ A web address for the item, such as the product's home page: `https://www.terraf
 - **A line break inside a cell** (Alt+Enter in Excel) becomes a space in a name, quadrant, ring, qualifier, status or date, and is kept as a line break in a description, domain, rationale or your own columns.
 - **Leading and trailing spaces, and extra spaces inside a value, are ignored** for matching. Names, quadrants and rings are shown trimmed and with single spaces, and the other short fields (qualifier, status, dates, link) are shown trimmed; a description, domain, rationale or your own column is shown exactly as written, spaces and blank lines included.
 - **Characters that cannot be displayed are removed, with a warning naming the line and column.** These are control characters other than tab and line break, and the invisible characters that reverse the direction of text. The same applies to `--title`, `--subtitle` and `--rings`.
-- **Anything else is shown as written.** Characters such as `<`, `&` and `"` are safe and appear literally. Names in Latin, Greek and Cyrillic scripts, including Vietnamese, draw with the built-in font.
+- **Anything else is shown as written.** Characters such as `<`, `&` and `"` are safe and appear literally. Names in Latin, Greek and Cyrillic scripts, including Vietnamese, draw with the built-in font. Other scripts, and emoji, show in the HTML page in the reader's own fonts, but a PNG or SVG draws them as boxes, with a warning.
 
 ## Errors and warnings
 
@@ -176,6 +176,7 @@ A web address for the item, such as the product's home page: `https://www.terraf
 - an empty description;
 - a duplicate name;
 - a removed character;
+- a name, quadrant or ring with characters the bundled font lacks (PNG and SVG only);
 - a value under an unnamed column;
 - more than six quadrants;
 - a band with more items than fit without overlapping;

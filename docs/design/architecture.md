@@ -212,7 +212,7 @@ every HTML edition: about 166 kB, against 117 kB for Latin and Latin Extended
 alone. The script checks the release zip's SHA-256 and pins Python, `fonttools`
 and `brotli`, so a rerun reproduces these bytes. The subset keeps `.notdef`'s
 outline, so a character outside it renders as the tofu box A-4 accepts rather
-than as blank space. R-7's licensing question was answered earlier — Inter
+than as blank space, and FR-104 warns. R-7's licensing question was answered earlier — Inter
 declares no Reserved Font Name, so the subset keeps the name — and R-7 has
 nothing left open but the script-coverage limit A-4 states.
 
@@ -702,10 +702,14 @@ express.
 FR-104's warning comes in both kinds. A text from a CSV cell is a row warning at
 that cell, so it sorts and groups with the others; a text from `--title`,
 `--subtitle` or a `--rings` entry is a render warning naming its flag. It is
-raised at render time, in `layout/glyphs.rs`, because only the PNG and SVG warn
-and only the layout knows what is drawn. No position is carried down for it:
-the catalogue already keeps each item's line and each column's header position
-(`Column::position`), which is all the cell needs (D-93).
+raised at render time, in `layout/glyphs.rs`, because only the PNG and SVG
+warn. Like `warn_crowding`, it rebuilds what is drawn from `Catalogue`,
+`Plotted` and the flags rather than reading `Blocks`; the test
+`every_drawn_text_that_lacks_a_glyph_is_warned` keeps the two in step, by
+matching every boxed line of the drawn document to a warned text. No position
+is carried down for it: each item already keeps its line, and this change gives
+each column its header position (`Column::position`), which is all the cell
+needs (D-93).
 
 ## 8. Where each open question lives
 
