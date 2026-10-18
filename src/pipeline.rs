@@ -64,18 +64,6 @@ pub struct Config {
     pub input: PathBuf,
 }
 
-/// Where a run writing `format` with `--table` set to `table` puts a row
-/// FR-17 leaves off the radar (FR-106): in the page's table only under
-/// `--table all`, and nowhere in a PNG or SVG, which has no table.
-#[must_use]
-pub const fn off_radar(format: OutputFormat, table: Table) -> OffRadar {
-    match (format, table) {
-        (OutputFormat::Html, Table::All) => OffRadar::Listed,
-        (OutputFormat::Html, Table::Radar) => OffRadar::Unlisted,
-        (OutputFormat::Png | OutputFormat::Svg, _) => OffRadar::Undrawn,
-    }
-}
-
 /// Why a run stopped (NFR-16): file and flag errors, each on its own line
 /// (tier one), or row errors, grouped against the table's row count (tier
 /// two). Every stage returns it through `?`, and the run renders it once.
@@ -130,17 +118,8 @@ impl Report {
 pub fn run(cli: &Cli) -> Report {
     let mut warnings = Warnings::default();
     let outcome = steps(cli, &mut warnings).map_err(Failure::render);
-    // FR-17's words depend on where an off-radar row went (FR-106), which
-    // `-o`'s format and --table decide. Without a format the run stopped at
-    // tier one, before any row was read, so no row warning exists and any
-    // value would do.
-    let off_radar = cli
-        .output
-        .as_deref()
-        .and_then(|output| format(output).ok())
-        .map_or(OffRadar::Undrawn, |format| off_radar(format, cli.table));
     Report {
-        warnings: warnings.render(off_radar),
+        warnings: warnings.render(),
         outcome,
     }
 }
@@ -153,7 +132,10 @@ fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
     };
     let config = config(cli, input, output, warnings).map_err(Failure::Alone)?;
     let fonts = Fonts::embedded().map_err(Fatal::from)?;
-    let catalogue = catalogue(&config.input, &config.rings, warnings)?;
+    // FR-106: the flags say where an off-radar row goes, so its warning
+    // can say so when it is raised.
+    let off_radar = OffRadar::of(config.format, config.table);
+    let catalogue = catalogue(&config.input, &config.rings, off_radar, warnings)?;
     let bytes = render(&catalogue, &config, &fonts, warnings)?;
     Ok(write_atomic(&config.output, &bytes)?)
 }
@@ -261,10 +243,16 @@ fn resolved(flag: Flag, value: Option<&str>, warnings: &mut Warnings) -> Option<
 /// Read, parse and build. A file-level failure is one line (tier one);
 /// row-level errors from both stages are merged and grouped (tier two),
 /// and `parse`'s alone fail the run, since it drops the rows it rejects.
-fn catalogue(path: &Path, rings: &RingSet, warnings: &mut Warnings) -> Result<Catalogue, Failure> {
+fn catalogue(
+    path: &Path,
+    rings: &RingSet,
+    off_radar: OffRadar,
+    warnings: &mut Warnings,
+) -> Result<Catalogue, Failure> {
     let text = decode::read(path)?;
     let (table, mut errors) = parse(&text, warnings)?;
-    let built = build_catalogue(&table, rings, warnings).map_err(|more| errors.extend(more));
+    let built =
+        build_catalogue(&table, rings, off_radar, warnings).map_err(|more| errors.extend(more));
     match built {
         Ok(catalogue) if errors.is_empty() => Ok(catalogue),
         _ => Err(Failure::Rows {

@@ -24,7 +24,13 @@ mod tests {
         let (table, errors) = parse(TEMPLATE, &mut warnings).expect("parses");
         assert!(errors.is_empty(), "{errors:?}");
         let rings = parse_rings(None).expect("the default rings");
-        let catalogue = build_catalogue(&table, &rings, &mut warnings).expect("builds");
+        let catalogue = build_catalogue(
+            &table,
+            &rings,
+            crate::diagnostics::OffRadar::Listed,
+            &mut warnings,
+        )
+        .expect("builds");
         (catalogue, warnings)
     }
 
@@ -38,11 +44,7 @@ mod tests {
     #[test]
     fn it_reads_with_no_warning() {
         let (catalogue, warnings) = catalogue();
-        assert!(
-            warnings.is_empty(),
-            "{:?}",
-            warnings.render(crate::diagnostics::OffRadar::Listed)
-        );
+        assert!(warnings.is_empty(), "{:?}", warnings.render());
         assert!(catalogue.items.iter().all(|item| item.ring.is_some()));
     }
 

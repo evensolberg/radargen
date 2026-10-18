@@ -15,7 +15,7 @@ fn the_prd_example_builds_with_one_warning() {
     let (table, errs) = parse(include_str!("fixtures/three-quadrant.csv"), &mut w).expect("parses");
     assert!(errs.is_empty(), "{errs:?}");
     let rings = parse_rings(None).expect("default");
-    let cat = build_catalogue(&table, &rings, &mut w).expect("builds");
+    let cat = build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds");
 
     let quadrants: Vec<_> = cat.quadrants.iter().map(|q| q.label.as_str()).collect();
     assert_eq!(quadrants, ["Tool", "Platform", "Practice"]);
@@ -61,7 +61,7 @@ fn the_prd_example_builds_with_one_warning() {
     assert_eq!(fourth.cell(exit), Some("2027-01-31"));
 
     assert_eq!(
-        w.render(OffRadar::Listed),
+        w.render(),
         [
             "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
         ]
@@ -78,12 +78,9 @@ fn row_errors_from_both_stages_arrive_in_one_run() {
     let (table, parse_errors) =
         parse(include_str!("fixtures/row-errors.csv"), &mut w).expect("parses");
     let rings = parse_rings(None).expect("default");
-    let model_errors = build_catalogue(&table, &rings, &mut w).expect_err("fails");
-    assert!(
-        w.render(OffRadar::Listed).is_empty(),
-        "{:?}",
-        w.render(OffRadar::Listed)
-    );
+    let model_errors =
+        build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect_err("fails");
+    assert!(w.render().is_empty(), "{:?}", w.render());
     let rendered = |errs: &[RowError]| errs.iter().map(RowError::render).collect::<Vec<_>>();
     assert_eq!(
         rendered(&parse_errors),
@@ -115,7 +112,7 @@ fn a_repeated_required_header_reads_the_first() {
     .expect("parses");
     assert_eq!(parse_errors.len(), 1);
     let rings = parse_rings(None).expect("default");
-    let errs = build_catalogue(&table, &rings, &mut w).expect_err("fails");
+    let errs = build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect_err("fails");
     assert_eq!(
         errs.iter().map(RowError::render).collect::<Vec<_>>(),
         ["error: line 2, name: empty; every row needs a name, so fill it in or delete the row"]
@@ -131,9 +128,9 @@ fn parse_errors_do_not_suppress_model_warnings() {
         parse("name,quadrant,ring,description\nK,T\nL,T,Adpot,d\n", &mut w).expect("parses");
     assert_eq!(errs.len(), 1);
     let rings = parse_rings(None).expect("default");
-    build_catalogue(&table, &rings, &mut w).expect("builds");
+    build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds");
     assert_eq!(
-        w.render(OffRadar::Listed),
+        w.render(),
         [
             "warning: line 3, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
         ]
@@ -157,7 +154,7 @@ fn the_link_column_is_read_once_per_row() {
         let (table, errs) = parse(&csv, &mut w).expect("parses");
         assert!(errs.is_empty(), "{errs:?}");
         let rings = parse_rings(None).expect("default");
-        let cat = build_catalogue(&table, &rings, &mut w).expect("builds");
+        let cat = build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds");
         let links: Vec<Option<Link>> = cat.items.iter().map(|i| i.link.clone()).collect();
         assert_eq!(
             links,
@@ -170,7 +167,7 @@ fn the_link_column_is_read_once_per_row() {
             "{header:?}"
         );
         assert_eq!(
-            w.render(OffRadar::Listed),
+            w.render(),
             [
                 "warning: line 3, link: 'javascript:alert(1)' is not an http or https address; shown as text, not a link"
             ],

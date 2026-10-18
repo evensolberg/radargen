@@ -3,7 +3,7 @@
 
 use radargen::columns::ColumnKind;
 use radargen::csv::parse::parse;
-use radargen::diagnostics::{RowError, Warnings};
+use radargen::diagnostics::{OffRadar, RowError, Warnings};
 use radargen::errors::render_errors;
 use radargen::model::build_catalogue;
 use radargen::rings::parse_rings;
@@ -307,7 +307,9 @@ fn a_whole_file_with_errors_from_both_stages() {
     let mut w = Warnings::default();
     let (table, mut errors) = parse(text, &mut w).expect("parses");
     let rings = parse_rings(None).expect("default");
-    errors.extend(build_catalogue(&table, &rings, &mut w).expect_err("rows are empty"));
+    errors.extend(
+        build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect_err("rows are empty"),
+    );
     let lines = render_errors(&errors, table.records.len());
     assert_eq!(
         lines,

@@ -1,7 +1,7 @@
 //! Shared by the whole-file tests: CSV text to a `Catalogue`.
 
 use radargen::csv::parse::parse;
-use radargen::diagnostics::Warnings;
+use radargen::diagnostics::{OffRadar, Warnings};
 use radargen::model::{Catalogue, build_catalogue};
 use radargen::rings::parse_rings;
 
@@ -13,5 +13,5 @@ pub fn catalogue(csv: &str, rings: Option<&str>) -> Catalogue {
     let (table, errs) = parse(csv, &mut w).expect("parses");
     assert!(errs.is_empty(), "{errs:?}");
     let rings = parse_rings(rings).expect("valid rings");
-    build_catalogue(&table, &rings, &mut w).expect("builds")
+    build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds")
 }

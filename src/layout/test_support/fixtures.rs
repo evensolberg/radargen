@@ -44,7 +44,13 @@ pub fn plotted(csv: &str, rings: Option<&str>) -> (Catalogue, Plotted) {
     let (table, errors) = parse(csv, &mut warnings).expect("parses");
     assert!(errors.is_empty(), "{errors:?}");
     let rings = parse_rings(rings).expect("valid rings");
-    let catalogue = build_catalogue(&table, &rings, &mut warnings).expect("builds");
+    let catalogue = build_catalogue(
+        &table,
+        &rings,
+        crate::diagnostics::OffRadar::Listed,
+        &mut warnings,
+    )
+    .expect("builds");
     let order = resolve(&catalogue);
     (catalogue, order)
 }

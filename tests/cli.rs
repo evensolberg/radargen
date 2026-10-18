@@ -4,7 +4,7 @@
 use clap::Parser;
 use radargen::cli::{Cli, Legend, OutputFormat, Table, Theme};
 use radargen::cli::{Task, clean_flag, format};
-use radargen::diagnostics::{Fatal, Flag, OffRadar, RowKind, Warning, Warnings};
+use radargen::diagnostics::{Fatal, Flag, RowKind, Warning, Warnings};
 use radargen::rings::{RingsError, parse_rings};
 use radargen::starter::Starter;
 use std::path::Path;
@@ -301,7 +301,7 @@ fn each_flag_names_itself_in_the_one_character_warning() {
         let mut warnings = Warnings::default();
         assert_eq!(clean_flag(flag, "a\u{1}b", &mut warnings), "ab");
         assert_eq!(
-            warnings.render(OffRadar::Listed),
+            warnings.render(),
             [format!(
                 "warning: {name}: removed U+0001, which the output cannot display"
             )]
@@ -319,7 +319,7 @@ fn each_flag_names_itself_in_the_several_characters_warning() {
         let mut warnings = Warnings::default();
         assert_eq!(clean_flag(flag, "\u{1}a\u{7f}b\u{85}", &mut warnings), "ab");
         assert_eq!(
-            warnings.render(OffRadar::Listed),
+            warnings.render(),
             [format!(
                 "warning: {name}: removed 3 characters the output cannot display, the first U+0001"
             )]
@@ -361,7 +361,7 @@ fn a_flag_warning_renders_before_row_warnings() {
         kind: RowKind::EmptyDescription,
     });
     clean_flag(Flag::Subtitle, "x\u{1}", &mut warnings);
-    let lines = warnings.render(OffRadar::Listed);
+    let lines = warnings.render();
     assert_eq!(lines.len(), 2, "{lines:?}");
     assert!(
         lines

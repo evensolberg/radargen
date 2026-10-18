@@ -30,7 +30,7 @@ fn build(csv: &str) -> (Catalogue, Plotted, Vec<String>) {
     let plotted = resolve(&cat);
     let mut geometry_warnings = Warnings::default();
     warn_crowding(&cat, &plotted, 1.0, &mut geometry_warnings);
-    (cat, plotted, geometry_warnings.render(OffRadar::Listed))
+    (cat, plotted, geometry_warnings.render())
 }
 
 /// `count` rows in one band, named so FR-34 keeps them in row order.
@@ -238,9 +238,9 @@ fn geometry_warnings_precede_row_warnings() {
     let (table, errs) = parse(&csv(&all), &mut w).expect("parses");
     assert!(errs.is_empty(), "{errs:?}");
     let rings = parse_rings(None).expect("default");
-    let cat = build_catalogue(&table, &rings, &mut w).expect("builds");
+    let cat = build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds");
     warn_crowding(&cat, &resolve(&cat), 1.0, &mut w);
-    let lines = w.render(OffRadar::Listed);
+    let lines = w.render();
     let [crowded, rejected] = lines.as_slice() else {
         panic!("expected 2 lines: {lines:?}")
     };
