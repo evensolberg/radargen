@@ -3,6 +3,11 @@
 // the legend button hands focus to the button, and both legends hide. The
 // CDP checks drive Chromium only, which focuses a clicked button.
 //
+// D-97 too: between the two breakpoints a click on the button swaps the
+// arrangements, narrow to wide and back. A focused narrow marker the first
+// click hides hands focus to the button, and the second click, which in
+// WebKit first blurs the button, leaves it there.
+//
 // Playwright's locator.focus() sets up the focused row; the click itself is
 // a real one. Only WebKit tells the guard apart everywhere: Firefox focuses
 // a clicked button except on macOS, so on Linux it passes either way.
@@ -49,10 +54,33 @@ for (const name of ['firefox', 'webkit']) {
     const focused = await page.evaluate(() => document.activeElement?.classList.contains('legend-toggle'));
     const state = legendState(await page.evaluate(LEGEND_PARTS));
     const hidden = state === 'hidden';
+    // D-97: halfway between the breakpoints, read from the page.
+    const width = await page.evaluate(() => {
+      const px = (name) => Number(document.querySelector('main').getAttribute(name).match(/\d+/)[0]) + 1;
+      return Math.round((px('data-narrow-query') + px('data-narrow-query-hidden')) / 2);
+    });
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(url);
+    const arrangement = () =>
+      page.evaluate(() => [...document.querySelectorAll('.arrangement')].find((a) => getComputedStyle(a).display !== 'none')?.classList[1]);
+    const onButton = () => page.evaluate(() => document.activeElement?.classList.contains('legend-toggle'));
+    const startsNarrow = (await arrangement()) === 'narrow';
+    await page.locator('.arrangement.narrow [data-marker]').first().focus();
+    const onMarker = await page.evaluate(() => !!document.activeElement?.closest('.arrangement.narrow [data-marker]'));
+    await page.locator('.legend-toggle').click();
+    const [toWide, wideFocus] = [(await arrangement()) === 'wide', await onButton()];
+    await page.locator('.legend-toggle').click();
+    const [toNarrow, narrowFocus] = [(await arrangement()) === 'narrow', await onButton()];
     for (const [ok, what] of [
       [onRow, 'a legend row had focus before the click'],
       [focused, 'focus moves to the button'],
       [hidden, `both legends hide (saw ${state})`],
+      [startsNarrow, `@${width}: the shown legend gives the narrow arrangement`],
+      [onMarker, `@${width}: a narrow marker had focus before the click`],
+      [toWide, `@${width}: hiding the legend swaps to the wide arrangement`],
+      [wideFocus, `@${width}: focus moves to the button`],
+      [toNarrow, `@${width}: showing it swaps back to narrow`],
+      [narrowFocus, `@${width}: focus stays on the button`],
       [errors.length === 0, `no script errors: ${errors}`],
     ]) {
       console.log(`${ok ? 'ok' : 'FAIL'} ${name}: ${what}`);

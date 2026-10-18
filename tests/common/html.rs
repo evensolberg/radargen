@@ -65,7 +65,9 @@ pub fn page_attribute(element: &str, name: &str, value: &str, all: &[(String, St
         // FR-106's empty-state row spans the table's columns.
         ("td", "colspan") => !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit()),
         ("section", "id") => value == "detail",
-        ("main", "data-narrow-query") => value.starts_with("(max-width: "),
+        ("main", "data-narrow-query" | "data-narrow-query-hidden") => {
+            value.starts_with("(max-width: ")
+        }
         ("html", "data-legend") => value == "hidden",
         ("a", "href") => web && has("target", "_blank") && has("rel", "noopener noreferrer"),
         ("a", "target") => value == "_blank",
@@ -177,16 +179,16 @@ pub fn tags(html: &str) -> Vec<Tag> {
 /// FR-69's narrow media query as `<main>` carries it for the script: the
 /// page's one source of it, which the stylesheet swaps on too.
 pub fn narrow_query(page: &str) -> String {
+    main_attribute(page, "data-narrow-query")
+}
+
+/// The value of `<main>`'s attribute `name`.
+pub fn main_attribute(page: &str, name: &str) -> String {
     tags(&outside(page))
         .into_iter()
         .find(|t| t.name == "main")
-        .and_then(|main| {
-            main.attributes
-                .into_iter()
-                .find(|(k, _)| k == "data-narrow-query")
-        })
-        .map(|(_, query)| query)
-        .expect("<main> carries the narrow query")
+        .and_then(|main| main.attributes.into_iter().find(|(k, _)| k == name))
+        .map_or_else(|| panic!("<main> carries {name}"), |(_, value)| value)
 }
 
 /// NFR-5 by allowlist: the page's own tags and attributes are its

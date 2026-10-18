@@ -2,7 +2,7 @@
 //! breakpoint query it reads, and the page controls only it reveals
 //! (FR-56, FR-98, NFR-4).
 
-use super::html::narrow_query;
+use super::html::{main_attribute, narrow_query};
 use super::{build, prd};
 
 const SCRIPT: &str = include_str!("../../src/emit/html/script.js");
@@ -43,6 +43,13 @@ fn main_carries_the_breakpoint_query() {
     assert!(
         css.contains(&format!("@media {query}{{")),
         "the query the stylesheet swaps on: {query}"
+    );
+    // D-97: and the hidden legend's, on screen only.
+    let hidden = main_attribute(&html, "data-narrow-query-hidden");
+    assert_eq!(hidden, "(max-width: 535px)");
+    assert!(
+        css.contains(&format!("@media screen and {hidden}{{")),
+        "the query the stylesheet swaps on while the legend is hidden: {hidden}"
     );
 }
 

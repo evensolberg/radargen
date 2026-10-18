@@ -3,8 +3,9 @@ use std::collections::BTreeMap;
 use super::super::table::{PROSE_CLASS, TABLE_VIEW_CLASS};
 use super::{
     ARIA_CONTROLS, ARIA_EXPANDED, ARRANGEMENT_CLASS, CLOSE_CLASS, DATA_FOCUSED, DATA_HOVERED,
-    DATA_NARROW_QUERY, DATA_SELECTED, DATA_THEME, EMPTY_CLASS, HEADING_CLASS, JS_CLASS, PANEL_ID,
-    SCRIPT, SKIP_CLASS, SKIP_OVER_PAGE, TO_DARK, TO_LIGHT, TOGGLE_CLASS, controls,
+    DATA_NARROW_QUERY, DATA_NARROW_QUERY_HIDDEN, DATA_SELECTED, DATA_THEME, EMPTY_CLASS,
+    HEADING_CLASS, JS_CLASS, PANEL_ID, SCRIPT, SKIP_CLASS, SKIP_OVER_PAGE, TO_DARK, TO_LIGHT,
+    TOGGLE_CLASS, controls,
 };
 use super::{
     DATA_LEGEND, HIDE_LEGEND, LEGEND_HIDDEN, LEGEND_TOGGLE_CLASS, MOON_CLASS, SHOW_LEGEND,
@@ -61,6 +62,7 @@ fn the_scripts_names_are_the_pages() {
         ("markerIndicator", DATA_MARKER_INDICATOR),
         ("focused", DATA_FOCUSED),
         ("narrowQuery", DATA_NARROW_QUERY),
+        ("narrowQueryHidden", DATA_NARROW_QUERY_HIDDEN),
         ("theme", DATA_THEME),
         ("toDark", TO_DARK),
         ("toLight", TO_LIGHT),
@@ -161,6 +163,7 @@ fn the_panel_sticks_and_shows_focus() {
     let css = super::css(
         &super::super::css::Wide {
             breakpoint: 866,
+            breakpoint_hidden: 536,
             title_height: 53.0,
             radar_width: 670.0,
             radar_height: 640.0,
@@ -181,6 +184,7 @@ fn the_panel_sticks_and_shows_focus() {
 /// The PRD example's wide parts, for the controls' rules.
 const WIDE: super::super::css::Wide = super::super::css::Wide {
     breakpoint: 843,
+    breakpoint_hidden: 536,
     title_height: 53.0,
     radar_width: 670.0,
     radar_height: 640.5,
@@ -320,4 +324,15 @@ fn the_controls_are_not_printed() {
             "{toggle}"
         );
     }
+}
+
+/// FR-69 and D-97: `<main>` carries both narrow queries for the script's
+/// `matchMedia`, the legend-shown one and the hidden legend's, each the
+/// stylesheet's own.
+#[test]
+fn main_carries_both_narrow_queries() {
+    assert_eq!(
+        super::main_open(&WIDE),
+        "<main data-narrow-query=\"(max-width: 842px)\" data-narrow-query-hidden=\"(max-width: 535px)\">\n"
+    );
 }

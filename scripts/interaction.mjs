@@ -290,6 +290,39 @@ try {
   const LEGEND_ICON = `${shownIcon('.legend-toggle')}?.getAttribute('class')`;
   const STATE = `document.documentElement.getAttribute('data-legend')`;
   const BREAKPOINT = `Number(document.querySelector('main').getAttribute('data-narrow-query').match(/\\d+/)[0]) + 1`;
+  // D-97: the breakpoint while the legend is hidden, read the same way.
+  const HIDDEN_BREAKPOINT = `Number(document.querySelector('main').getAttribute('data-narrow-query-hidden').match(/\\d+/)[0]) + 1`;
+  // Which arrangement shows.
+  const ARRANGEMENT = `${SHOWN}?.classList.contains('wide') ? 'wide' : 'narrow'`;
+  const arrangement = () => evaluate(ARRANGEMENT);
+  // A width halfway between the two breakpoints, read from `page`.
+  const between = async (page = url) => {
+    await load(WIDE, { page });
+    const [hidden, shown] = [await evaluate(HIDDEN_BREAKPOINT), await evaluate(BREAKPOINT)];
+    if (hidden >= shown) throw new Error(`the hidden breakpoint ${hidden} is not below the shown ${shown}`);
+    return Math.round((hidden + shown) / 2);
+  };
+  const MID = await between();
+  // The arrangement on each of the next ten frames: a toggle that switched
+  // back and forth would show two.
+  const SETTLED = `new Promise((done) => {
+    const seen = [];
+    const frame = () => {
+      seen.push(${ARRANGEMENT});
+      if (seen.length < 10) requestAnimationFrame(frame);
+      else done([...new Set(seen)]);
+    };
+    requestAnimationFrame(frame);
+  })`;
+  // The wide radar, title and key as drawn, against their natural widths
+  // (the viewBox), and whether the page scrolls sideways.
+  const WIDE_DRAWN = `(() => {
+    const scale = (s) => { const e = document.querySelector(s); return e.getBoundingClientRect().width / e.viewBox.baseVal.width; };
+    return {
+      radar: scale('.wide-radar svg'), title: scale('.wide-title svg'), key: scale('.wide-key svg'),
+      sideways: document.scrollingElement.scrollWidth > innerWidth,
+    };
+  })()`;
 
   // Mouse, Enter and Space each toggle; three presses end hidden, with the
   // name, icon, skip link and attribute in step every time; the key stays.
@@ -393,6 +426,99 @@ try {
     });
   }
 
+  // D-97: between the two breakpoints, hiding the legend switches the
+  // narrow arrangement to the wide one, and showing it switches back, once
+  // each; focus stays on the button, by key and by click. The wide radar,
+  // title and key draw at 0.8 or more there, and nothing scrolls sideways.
+  await scenario('legend toggle across the breakpoints', [MID], async (width) => {
+    for (const how of ['key', 'click']) {
+      await load(width);
+      check((await arrangement()) === 'narrow', `${how}: the shown legend gives the narrow arrangement`);
+      const toggle = () => (how === 'click' ? clickOn('.legend-toggle') : press('Enter'));
+      if (how === 'key') await tabTo((a) => a.cls?.includes('legend-toggle'), 'the legend button');
+      await toggle();
+      check(await allHidden(), `${how}: the press hid the legend, saw ${seen}`);
+      const once = JSON.stringify(await evaluate(SETTLED));
+      check(once === '["wide"]', `${how}: one switch, to wide: ${once}`);
+      check((await active()).cls?.includes('legend-toggle'), `${how}: focus stays on the button: ${JSON.stringify(await active())}`);
+      const drawn = await evaluate(WIDE_DRAWN);
+      check(drawn.radar >= 0.79 && drawn.title >= 0.79 && drawn.key >= 0.79, `${how}: the wide parts draw at 0.8 or more: ${JSON.stringify(drawn)}`);
+      check(!drawn.sideways, `${how}: nothing scrolls sideways`);
+      await toggle();
+      check(await allShown(), `${how}: the second press showed it, saw ${seen}`);
+      const back = JSON.stringify(await evaluate(SETTLED));
+      check(back === '["narrow"]', `${how}: one switch, back to narrow: ${back}`);
+      check((await active()).cls?.includes('legend-toggle'), `${how}: focus is kept on the button: ${JSON.stringify(await active())}`);
+    }
+  });
+
+  // D-97, in Chromium: a click that does not focus the button, as in
+  // WebKit, leaves focus on a narrow marker the switch hides; focus moves
+  // to the button.
+  await scenario('legend toggle across the breakpoints: unfocused click', [MID], async (width) => {
+    await load(width);
+    await tabToMarker(2);
+    await evaluate(`addEventListener('mousedown', (e) => e.preventDefault(), { capture: true, once: true })`);
+    await clickOn('.legend-toggle');
+    check((await arrangement()) === 'wide', `the wide arrangement shows`);
+    check((await active()).cls?.includes('legend-toggle'), `focus moves to the button: ${JSON.stringify(await active())}`);
+  });
+
+  // D-97: while the legend is hidden, a resize across the hidden breakpoint
+  // swaps the arrangements there, and focus follows the item, as at FR-69's
+  // (architecture §5); crossing the shown one changes nothing.
+  await scenario('legend hidden: resize across the hidden breakpoint', [MID], async (width) => {
+    await load(width);
+    const hidden = await evaluate(HIDDEN_BREAKPOINT);
+    await clickOn('.legend-toggle');
+    check((await arrangement()) === 'wide', `wide while hidden`);
+    const a = await tabToMarker(3);
+    check(a.arrangement === 'wide', 'wide marker 3 is focused');
+    await resize(hidden - 20);
+    await eventually(async () => {
+      const b = await active();
+      return b.arrangement === 'narrow' && b.marker === a.marker ? b : undefined;
+    }, `@${hidden - 20}: focus on narrow marker 3`);
+    await resize(hidden + 20);
+    await eventually(async () => {
+      const b = await active();
+      return b.arrangement === 'wide' && b.marker === a.marker ? b : undefined;
+    }, `@${hidden + 20}: focus back on wide marker 3`);
+    const shown = await evaluate(BREAKPOINT);
+    await resize(shown + 20);
+    await evaluate('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))');
+    const b = await active();
+    check(b.arrangement === 'wide' && b.marker === a.marker, `@${shown + 20}: still on wide marker 3: ${JSON.stringify(b)}`);
+  });
+
+  // D-97: with the legend shown, crossing FR-69's breakpoint alone still
+  // moves focus to the item: the shown query, not the hidden one, counts.
+  await scenario('legend shown: resize across the shown breakpoint only', [MID], async (width) => {
+    await load(WIDE);
+    const a = await tabToMarker(3);
+    await resize(width);
+    await eventually(async () => {
+      const b = await active();
+      return b.arrangement === 'narrow' && b.marker === a.marker ? b : undefined;
+    }, 'focus on narrow marker 3');
+  });
+
+  // D-97: a panel open across a toggle-induced switch stays open, its item
+  // selected in the arrangement now shown, and closes to that item there.
+  await scenario('legend toggle across the breakpoints: panel open', [MID], async (width) => {
+    await load(width);
+    const m = await tabToMarker(3);
+    check(m.arrangement === 'narrow', 'narrow marker 3 is focused');
+    await press('Enter');
+    await clickOn('.legend-toggle');
+    check((await arrangement()) === 'wide', `the wide arrangement shows`);
+    check(!(await panelHidden()), 'the panel stays open');
+    check(await evaluate(`document.querySelector('.arrangement.wide [data-marker="${m.marker}"]').hasAttribute('data-selected')`), 'the wide marker is selected');
+    await clickOn('.detail-close');
+    const a = await active();
+    check(a.arrangement === 'wide' && a.marker === m.marker, `Close returns to wide marker 3: ${JSON.stringify(a)}`);
+  });
+
   if (hiddenUrl) {
     // While the legend is hidden, the skip link goes to the table.
     await scenario('legend hidden: skip to the table', [WIDE], async (width) => {
@@ -406,6 +532,19 @@ try {
     // --legend hidden: starts hidden; one press shows it; a reload starts
     // where the author set it (nothing remembered); without script the
     // legend shows and there is no button.
+    // D-97, FR-103: a page started hidden, between the breakpoints, loads
+    // wide; without script, or printed, the legend shows, so it is narrow.
+    await scenario('legend starts hidden between the breakpoints', [await between(hiddenUrl)], async (width) => {
+      await load(width, { page: hiddenUrl });
+      check((await arrangement()) === 'wide', `it loads wide`);
+      check(await allHidden(), `with the legend hidden`);
+      await send('Emulation.setEmulatedMedia', { media: 'print' });
+      check((await arrangement()) === 'narrow' && (await allShown()), `printed, the legend shows, so narrow`);
+      await send('Emulation.setEmulatedMedia', { media: '' });
+      await load(width, { page: hiddenUrl, script: false });
+      check((await arrangement()) === 'narrow' && (await allShown()), `without script, the legend shows, so narrow`);
+    });
+
     await scenario('legend starts hidden', [WIDE, NARROW], async (width) => {
       await load(width, { page: hiddenUrl });
       check(await allHidden(), 'starts hidden');

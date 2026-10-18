@@ -71,6 +71,8 @@ const INSET_CLOSE: &str = "px;box-sizing:border-box}\n";
 pub(super) struct Wide {
     /// FR-69's breakpoint, the parts' own (`WideParts::breakpoint`).
     pub(super) breakpoint: u32,
+    /// D-97's, while the legend is hidden (`WideParts::breakpoint_hidden`).
+    pub(super) breakpoint_hidden: u32,
     /// The title part's height; it spans the whole width.
     pub(super) title_height: f64,
     /// The radar part's width, which the key's part shares.
@@ -86,16 +88,12 @@ impl Wide {
     pub(super) fn of(parts: &WideParts) -> Self {
         Self {
             breakpoint: parts.breakpoint(),
+            breakpoint_hidden: parts.breakpoint_hidden(),
             title_height: parts.title.height,
             radar_width: parts.radar.width,
             radar_height: parts.radar.height,
             legend_width: parts.legend.width,
         }
-    }
-
-    /// The whole wide document's width.
-    pub(super) fn width(self) -> f64 {
-        self.radar_width + self.legend_width
     }
 
     /// The radar column's cap: the width at which the radar is as tall as
@@ -350,7 +348,7 @@ pub(super) fn layout(wide: &Wide, narrow_width: f64) -> String {
         &wide.radar_cap(),
         GRID_CLOSE,
         &class(WIDE_TITLE, TITLE_RULE),
-        &svg_width(WIDE_TITLE, wide.width(), NATURAL_CLOSE),
+        &svg_width(WIDE_TITLE, wide.radar_width, NATURAL_CLOSE),
         &class(WIDE_RADAR, RADAR_RULE),
         &class(WIDE_KEY, KEY_RULE),
         &svg_width(WIDE_KEY, wide.radar_width, NATURAL_CLOSE),
@@ -379,6 +377,17 @@ pub(super) const NOT_SHOWN: &str = "display:none";
 /// radar's own size widen them.
 const SPAN_TRACKS: &str = "grid-column:1/-1;contain:inline-size";
 const MAX_WIDTH: &str = "max-width:";
+/// The key's cap: the span, and never wider than the radar above it.
+const KEY_MAX_OPEN: &str = "max-width:min(100%,";
+const KEY_MAX_CLOSE: &str = ")";
+/// The arrangements' containers' classes, as the page writes them.
+const WIDE_ARRANGEMENT: &str = "wide";
+const NARROW_ARRANGEMENT: &str = "narrow";
+/// D-97's query, on screen only, as the hiding rules are.
+const SCREEN_AND: &str = "@media screen and ";
+const WIDE_SHOWN: &str = "display:grid";
+const NARROW_SHOWN: &str = "display:block";
+const RULE_END: &str = "}";
 
 /// RG-102: while the legend is hidden, it is gone from both arrangements.
 ///
@@ -386,14 +395,25 @@ const MAX_WIDTH: &str = "max-width:";
 /// of the tab order and the accessibility tree, so the grid's tracks, the
 /// legend's scrollbar gutter included, never change and nothing moves
 /// sideways. The radar spans both tracks, its SVG keeping its cap, so it
-/// grows only into width the legend was holding back. The narrow legend,
-/// last in its column, is simply removed. Only under the script's class,
-/// since without script nothing can bring the legend back (FR-98's rule),
-/// and only on screen, since a printout has no button either.
+/// grows only into width the legend was holding back, and the key spans
+/// them with it, never wider than the radar (rg-dok): below FR-69's
+/// breakpoint the radar's own column alone would shrink it past 0.8. The
+/// narrow legend, last in its column, is simply removed. Only under the
+/// script's class, since without script nothing can bring the legend back
+/// (FR-98's rule), and only on screen, since a printout has no button
+/// either.
+///
+/// The arrangements then swap at D-97's breakpoint, not FR-69's: the wide
+/// one shows by default and the narrow one below [`narrow_query_hidden`],
+/// as `layout`'s default and query do, at a specificity that outranks
+/// them. Defaulting to wide rather than writing a `min-width` query keeps
+/// the gap at fractional zoom on the wide side, where the script's
+/// `matchMedia` of the same query puts it.
 pub(super) fn legend_hiding(wide: &Wide) -> String {
     let on = [":root.", JS_CLASS, &attr(&legend_hidden_attr()), " ."].concat();
     let part = |class: &str| [on.as_str(), class].concat();
-    let (legend, radar) = (part(WIDE_LEGEND), part(WIDE_RADAR));
+    let (legend, radar, key) = (part(WIDE_LEGEND), part(WIDE_RADAR), part(WIDE_KEY));
+    let (wide_box, narrow_box) = (part(WIDE_ARRANGEMENT), part(NARROW_ARRANGEMENT));
     [
         SCREEN_OPEN,
         &rule(&[legend.as_str(), ",", &legend, " *"].concat(), INVISIBLE),
@@ -403,7 +423,26 @@ pub(super) fn legend_hiding(wide: &Wide) -> String {
             &[radar.as_str(), " svg"].concat(),
             &[MAX_WIDTH, &wide.radar_cap()].concat(),
         ),
+        &rule(&key, SPAN_TRACKS),
+        &rule(
+            &[key.as_str(), " svg"].concat(),
+            &[KEY_MAX_OPEN, &wide.radar_cap(), KEY_MAX_CLOSE].concat(),
+        ),
+        &rule(&wide_box, WIDE_SHOWN),
+        &rule(&narrow_box, NOT_SHOWN),
         SCREEN_CLOSE,
+        SCREEN_AND,
+        &narrow_query_hidden(wide),
+        LBRACE,
+        &wide_box,
+        LBRACE,
+        NOT_SHOWN,
+        RULE_END,
+        &narrow_box,
+        LBRACE,
+        NARROW_SHOWN,
+        RULE_END,
+        RBRACE,
     ]
     .concat()
 }
@@ -418,9 +457,20 @@ pub(super) fn legend_hiding(wide: &Wide) -> String {
 /// classic scrollbar counts towards the width, so at exactly `B` the wide
 /// radar draws a little under the floor; accepted.
 pub(super) fn narrow_query(wide: &Wide) -> String {
+    max_width_below(wide.breakpoint)
+}
+
+/// [`narrow_query`] while the legend is hidden: one below D-97's
+/// breakpoint, for the stylesheet and the script alike.
+pub(super) fn narrow_query_hidden(wide: &Wide) -> String {
+    max_width_below(wide.breakpoint_hidden)
+}
+
+/// `(max-width: …)` one pixel below `breakpoint`.
+fn max_width_below(breakpoint: u32) -> String {
     [
         "(max-width: ",
-        &wide.breakpoint.saturating_sub(1).to_string(),
+        &breakpoint.saturating_sub(1).to_string(),
         "px)",
     ]
     .concat()

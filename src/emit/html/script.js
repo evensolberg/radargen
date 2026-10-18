@@ -29,6 +29,7 @@
     prose: 'prose',
     tableView: 'table-view',
     narrowQuery: 'data-narrow-query',
+    narrowQueryHidden: 'data-narrow-query-hidden',
     theme: 'data-theme',
     toDark: 'Switch to dark theme',
     toLight: 'Switch to light theme',
@@ -111,16 +112,26 @@
     if (el.getClientRects().length > 0) state.focus = null;
   });
 
+  const isLegendHidden = () => root.getAttribute(N.legendState) === N.legendHidden;
+
   // A breakpoint change hides the arrangement holding the focus; focus the
   // same item in the one now shown. When the change event fires, Chromium
   // may not yet have moved focus off the hidden element, so focus counts as
-  // lost by focusLost(), which that late blur cannot fool.
-  matchMedia(main.getAttribute(N.narrowQuery)).addEventListener('change', () => {
+  // lost by focusLost(), which that late blur cannot fool. The page swaps
+  // at one breakpoint while the legend shows and at a lower one while it is
+  // hidden (D-97), so only the query for the legend's state counts. A press
+  // that swaps them changes neither query; its handler sees to focus.
+  const narrowShown = matchMedia(main.getAttribute(N.narrowQuery));
+  const narrowHidden = matchMedia(main.getAttribute(N.narrowQueryHidden));
+  const swapped = (event) => {
+    if (event.target !== (isLegendHidden() ? narrowHidden : narrowShown)) return;
     if (!state.focus || !focusLost()) return;
     const { key, kind } = state.focus;
     const el = shown()?.querySelector(by(kind, key));
     if (el) el.focus();
-  });
+  };
+  narrowShown.addEventListener('change', swapped);
+  narrowHidden.addEventListener('change', swapped);
 
   // FR-38's panel, built from the item's table row (D-80): its heading is
   // the number and name, and each non-empty cell after the name becomes a
@@ -358,7 +369,6 @@
   // shown, or to the table while the legend is hidden.
   const skip = document.querySelector('.' + N.skip);
   const plotted = !!document.querySelector('[' + N.legend + ']');
-  const isLegendHidden = () => root.getAttribute(N.legendState) === N.legendHidden;
   skip.addEventListener('click', () => {
     if (isLegendHidden()) details.querySelector('summary').focus();
     else shown()?.querySelector('[' + N.legend + ']')?.focus();

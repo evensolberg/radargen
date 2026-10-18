@@ -7,7 +7,10 @@
 //! Rule fragments are module constants, as in `css.rs`.
 
 use super::Legend;
-use super::css::{HIDDEN_BOX, NOT_SHOWN, OUTLINE_CLOSE, Wide, attr, capped, narrow_query, rule};
+use super::css::{
+    HIDDEN_BOX, NOT_SHOWN, OUTLINE_CLOSE, Wide, attr, capped, narrow_query, narrow_query_hidden,
+    rule,
+};
 use crate::escape::html_attr;
 use crate::palette::Neutral;
 
@@ -17,6 +20,9 @@ pub(super) const SCRIPT: &str = include_str!("script.js");
 /// `<main>`'s attribute holding FR-69's narrow query for the script's
 /// `matchMedia`, so `css::narrow_query` stays its one source.
 pub(super) const DATA_NARROW_QUERY: &str = "data-narrow-query";
+/// `<main>`'s attribute holding D-97's, the narrow query while the legend
+/// is hidden, from `css::narrow_query_hidden`.
+pub(super) const DATA_NARROW_QUERY_HIDDEN: &str = "data-narrow-query-hidden";
 /// The root attribute the theme toggle sets (FR-56); `css::palettes`
 /// declares its overrides.
 pub(super) const DATA_THEME: &str = "data-theme";
@@ -101,9 +107,21 @@ const LABEL_OPEN: &str = "<span class=\"visually-hidden\">";
 const TOGGLE_END: &str = "</span></button>";
 const CONTROLS_CLOSE: &str = "</div>\n";
 
-/// `<main>`'s start tag, carrying the narrow query.
-pub(super) fn main_open(query: &str) -> String {
-    ["<main ", DATA_NARROW_QUERY, "=", &html_attr(query), ">\n"].concat()
+/// `<main>`'s start tag, carrying both narrow queries: FR-69's, and D-97's
+/// while the legend is hidden.
+pub(super) fn main_open(wide: &Wide) -> String {
+    [
+        "<main ",
+        DATA_NARROW_QUERY,
+        "=",
+        &html_attr(&narrow_query(wide)),
+        " ",
+        DATA_NARROW_QUERY_HIDDEN,
+        "=",
+        &html_attr(&narrow_query_hidden(wide)),
+        ">\n",
+    ]
+    .concat()
 }
 
 /// The skip link, the legend button (RG-102) named for where the legend
