@@ -10,7 +10,8 @@ use crate::csv::decode::MAX_BYTES as MAX_CSV_BYTES;
 use crate::emit::html::Table;
 use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::RingsError;
-use crate::settings::{NamedPath, Origin, Setting, Source};
+use crate::settings::file::{Expected, KeyProblem, MAX_BYTES as CONFIG_MAX_BYTES};
+use crate::settings::{MergeProblem, NamedPath, Origin, Setting, Source};
 use crate::starter::Starter;
 use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX, WIDE_MIN_VIEWPORT_PX};
 use crate::text::FontError;
@@ -581,6 +582,116 @@ fn smaller_width(source: &Source) -> String {
     match source {
         Source::Config(file) => format!("set the width key in {file} smaller"),
         Source::Flag | Source::Default => "pass a smaller --width".to_owned(),
+    }
+}
+
+impl Fatal {
+    /// Whether this is a usage error, which exits with clap's status: the
+    /// file's key problems, FR-59 across sources, and a missing output
+    /// (FR-91, plan RG-019A).
+    #[must_use]
+    pub const fn is_usage(&self) -> bool {
+        matches!(
+            self,
+            Self::ConfigKey { .. } | Self::Conflict { .. } | Self::NoOutput { .. }
+        )
+    }
+}
+
+impl From<MergeProblem> for Fatal {
+    fn from(problem: MergeProblem) -> Self {
+        match problem {
+            MergeProblem::Conflict { theme, palette } => Self::Conflict { theme, palette },
+            MergeProblem::NoOutput { file } => Self::NoOutput { file },
+        }
+    }
+}
+
+/// `--config radar.toml, line 3: …`, or without the line.
+fn located(file: &str, line: Option<usize>, message: &str) -> String {
+    line.map_or_else(
+        || format!("--config {file}: {message}"),
+        |line| format!("--config {file}, line {line}: {message}"),
+    )
+}
+
+/// clap's left-hand side: `the argument '--theme <THEME>'`, or the key.
+fn conflicting(origin: &Origin) -> String {
+    match origin.source {
+        Source::Config(_) => origin.to_string(),
+        Source::Flag | Source::Default => format!("the argument {}", origin.usage()),
+    }
+}
+
+/// `a string`, `an integer`: TOML's type names with their article.
+fn article(found: &str) -> String {
+    let an = matches!(found.chars().next(), Some('a' | 'e' | 'i' | 'o' | 'u'));
+    format!("{} {found}", if an { "an" } else { "a" })
+}
+
+/// FR-91: one key's problem, named by the key and the file (NFR-10).
+fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
+    let key = |setting: Setting| Origin::new(setting, Source::Config(Arc::clone(file)));
+    match problem {
+        KeyProblem::Unknown { key: name } => {
+            let keys: Vec<&str> = Setting::ALL.iter().map(|s| s.key()).collect();
+            let (last, rest) = keys.split_last().map_or(("", &[][..]), |(l, r)| (*l, r));
+            format!(
+                "--config {file}: unknown key '{name}'; the keys are {} and {last}",
+                rest.join(", ")
+            )
+        }
+        KeyProblem::WrongType { setting, found } => {
+            let wanted = match setting.expected() {
+                Expected::String => "a string",
+                Expected::Integer => "an integer",
+                Expected::Strings => "an array of strings, such as [\"Adopt\", \"Trial\"]",
+            };
+            format!(
+                "{}: must be {wanted}, not {}",
+                key(*setting),
+                article(found)
+            )
+        }
+        KeyProblem::EntryType {
+            setting,
+            index,
+            found,
+        } => {
+            format!(
+                "{}: entry {index} must be a string, not {}",
+                key(*setting),
+                article(found)
+            )
+        }
+        KeyProblem::Comma {
+            setting,
+            index,
+            entry,
+        } => format!(
+            "{}: entry {index} '{entry}' holds a comma; give each ring as its own entry",
+            key(*setting)
+        ),
+        KeyProblem::NotAValue {
+            setting,
+            value,
+            possible,
+        } => format!(
+            "invalid value '{value}' for {} [possible values: {}]",
+            key(*setting),
+            possible.join(", ")
+        ),
+        KeyProblem::OutOfRange {
+            setting,
+            value,
+            min,
+            max,
+        } => {
+            format!(
+                "invalid value '{value}' for {}: {value} is not in {min}..={max}",
+                key(*setting)
+            )
+        }
     }
 }
 
@@ -1218,6 +1329,63 @@ pub enum Fatal {
         "give a CSV and -o or --config to render, or --create-template or --create-palette alone"
     )]
     NoTask,
+    /// NFR-15, FR-91: the `--config` file does not exist or cannot be read.
+    #[error("--config {file}: cannot be read: {}", io_reason(source))]
+    ConfigUnreadable {
+        /// The file as named.
+        file: Arc<str>,
+        /// The underlying I/O failure.
+        #[source]
+        source: std::io::Error,
+    },
+    /// NFR-15: the `--config` file passes its cap.
+    #[error("--config {file}: larger than {} MiB; a config file is a few hundred bytes, so check the path", CONFIG_MAX_BYTES >> 20)]
+    ConfigTooLarge {
+        /// The file as named.
+        file: Arc<str>,
+    },
+    /// NFR-15: the `--config` file is not UTF-8, or holds a NUL.
+    #[error("--config {file}, line {line}: not UTF-8 text; re-save the file as UTF-8")]
+    ConfigNotUtf8 {
+        /// The file as named.
+        file: Arc<str>,
+        /// The line holding the first bad byte.
+        line: usize,
+    },
+    /// NFR-15, FR-91: the file is not TOML, at the parser's line if any.
+    #[error("{}", located(file, *line, message))]
+    ConfigSyntax {
+        /// The file as named.
+        file: Arc<str>,
+        /// The parser's line, if it gives one.
+        line: Option<usize>,
+        /// The parser's message, on one line.
+        message: String,
+    },
+    /// FR-91: one key's problem, a usage error.
+    #[error("{}", key_problem(file, problem))]
+    ConfigKey {
+        /// The file as named.
+        file: Arc<str>,
+        /// What is wrong with which key.
+        problem: KeyProblem,
+    },
+    /// FR-59 across sources (rg-ahj), in clap's words, a usage error.
+    #[error("{} cannot be used with {}", conflicting(theme), palette.usage())]
+    Conflict {
+        /// The theme's origin.
+        theme: Origin,
+        /// The palette's origin.
+        palette: Origin,
+    },
+    /// FR-91: neither `-o` nor `output`, in clap's words, a usage error.
+    #[error(
+        "the following required arguments were not provided: --output <OUTPUT>, or the output key in {file}"
+    )]
+    NoOutput {
+        /// The file as named.
+        file: Arc<str>,
+    },
     /// FR-99, FR-101: a file to start from never replaces one (D-83, D-91).
     #[error(
         "{} {path}: already exists; radargen never replaces a file, so choose another path",

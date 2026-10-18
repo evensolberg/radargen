@@ -2,6 +2,8 @@
 //! stderr and stdout, its exit status, and what lands at `-o` (NFR-8, NFR-11,
 //! NFR-16, FR-62, SC-18).
 
+#[path = "common/binary.rs"]
+mod binary;
 #[path = "common/html.rs"]
 mod html;
 #[path = "common/palette.rs"]
@@ -12,16 +14,15 @@ mod version;
 use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 use radargen::layout::geometry::Geometry;
 use radargen::palette::{Palette, Role, Theme};
 use radargen::starter::Starter;
 use radargen::style::MAX_GROWTH;
 
+use binary::{Ran, run_in, seeded, snapshot};
 use palette::{SAMPLE, quadrants, with_series};
 use resvg::tiny_skia::Pixmap;
-use tempfile::TempDir;
 
 const PRD: &str = include_str!("fixtures/three-quadrant.csv");
 const ROW_ERRORS: &str = include_str!("fixtures/row-errors.csv");
@@ -35,64 +36,6 @@ const FR17_SNAPSHOT: &str = "warning: line 8, ring: 'Rejected' is not one of the
 const TABLE_STATIC: &str = "warning: --table all applies to HTML pages; PNG and SVG have no table";
 const NO_HEADER: &str = "error: the CSV has no header row (it is empty or blank); the header must name at least name, quadrant, ring and description";
 const RENDER: [&str; 3] = ["radar.csv", "-o", "radar.html"];
-
-/// One run of the binary.
-struct Ran {
-    code: Option<i32>,
-    stdout: String,
-    stderr: String,
-}
-
-impl Ran {
-    fn ok(&self) -> bool {
-        self.code == Some(0)
-    }
-
-    fn lines(&self) -> Vec<&str> {
-        self.stderr.lines().collect()
-    }
-}
-
-/// `radargen args…` run in `dir`, so every path in a message is relative.
-fn run_in(dir: &Path, args: &[&str]) -> Ran {
-    let out = Command::new(env!("CARGO_BIN_EXE_radargen"))
-        .args(args)
-        .current_dir(dir)
-        .output()
-        .expect("the binary runs");
-    Ran {
-        code: out.status.code(),
-        stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
-        stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
-    }
-}
-
-/// A directory holding `files`.
-fn seeded(files: &[(&str, &str)]) -> TempDir {
-    let dir = tempfile::tempdir().expect("tempdir");
-    for (name, text) in files {
-        fs::write(dir.path().join(name), text).expect("seeds");
-    }
-    dir
-}
-
-/// Every entry in `dir`, with a file's bytes, sorted: what a failed run must
-/// leave as it was.
-fn snapshot(dir: &Path) -> Vec<(String, Option<Vec<u8>>)> {
-    let mut entries: Vec<_> = fs::read_dir(dir)
-        .expect("lists")
-        .map(|entry| {
-            let path = entry.expect("an entry").path();
-            let name = path.display().to_string();
-            (
-                name,
-                path.is_file().then(|| fs::read(&path).expect("reads")),
-            )
-        })
-        .collect();
-    entries.sort();
-    entries
-}
 
 /// stderr is one line per prefix, each starting with its prefix, in order.
 fn assert_starts(ran: &Ran, prefixes: &[&str]) {

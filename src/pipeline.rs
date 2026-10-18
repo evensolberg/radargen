@@ -11,6 +11,7 @@
 
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::cli::{Cli, OutputFormat, Task, clean_setting, format};
 use crate::csv::decode;
@@ -32,10 +33,11 @@ use crate::model::{Catalogue, build_catalogue};
 use crate::order::resolve;
 use crate::palette::Colours;
 use crate::palette::file::{self, ReadError};
-use crate::rings::{RingSet, parse_rings};
+use crate::rings::{RingSet, parse_ring_list, parse_rings};
+use crate::settings::file as config_file;
 use crate::settings::{
     DEFAULT_LEGEND, DEFAULT_LEGEND_COLUMNS, DEFAULT_TABLE, DEFAULT_THEME, Effective, NamedPath,
-    Origin, Setting, Source, Sourced,
+    Origin, Setting, Settings, Source, Sourced, resolve as resolve_path,
 };
 use crate::text::Fonts;
 
@@ -98,10 +100,16 @@ enum Failure {
 }
 
 impl Failure {
-    fn render(self) -> Vec<String> {
+    fn render(self) -> Failed {
         match self {
-            Self::Alone(errors) => errors.iter().map(Fatal::render).collect(),
-            Self::Rows { errors, rows } => render_errors(&errors, rows),
+            Self::Alone(errors) => Failed {
+                usage: errors.iter().any(Fatal::is_usage),
+                lines: errors.iter().map(Fatal::render).collect(),
+            },
+            Self::Rows { errors, rows } => Failed {
+                lines: render_errors(&errors, rows),
+                usage: false,
+            },
         }
     }
 }
@@ -112,28 +120,53 @@ impl From<Fatal> for Failure {
     }
 }
 
+/// clap's exit status for a usage error. FR-91 gives the file's key
+/// problems, FR-59 across sources and a missing output the same status as
+/// the flag errors they mirror.
+const USAGE_STATUS: u8 = 2;
+
+/// A run that wrote nothing: its error lines, and whether any error was a
+/// usage error.
+#[derive(Debug)]
+pub struct Failed {
+    /// Rendered error lines, in print order.
+    pub lines: Vec<String>,
+    /// Whether the run exits with clap's usage status.
+    pub usage: bool,
+}
+
 /// What a run printed (NFR-11).
 #[derive(Debug)]
 pub struct Report {
     /// Rendered warning lines, in print order.
     pub warnings: Vec<String>,
-    /// `Ok` when `-o` was written; otherwise the rendered error lines.
-    pub outcome: Result<(), Vec<String>>,
+    /// `Ok` when the output was written; otherwise the rendered error
+    /// lines, and whether any was a usage error.
+    pub outcome: Result<(), Failed>,
 }
 
 impl Report {
     /// Every line to print, in order: the warnings, then the errors
     /// (NFR-11).
     pub fn lines(&self) -> impl Iterator<Item = &str> {
-        let errors = self.outcome.as_ref().err().into_iter().flatten();
+        let errors = self
+            .outcome
+            .as_ref()
+            .err()
+            .into_iter()
+            .flat_map(|f| &f.lines);
         self.warnings.iter().chain(errors).map(String::as_str)
     }
 
-    /// The exit status NFR-8 gives the run: 0 when `-o` was written, 1
-    /// otherwise.
+    /// NFR-8's exit status: 0 when the output was written, 2 for a usage
+    /// error (clap's, and FR-91's), 1 otherwise.
     #[must_use]
     pub const fn status(&self) -> u8 {
-        if self.outcome.is_ok() { 0 } else { 1 }
+        match &self.outcome {
+            Ok(()) => 0,
+            Err(failed) if failed.usage => USAGE_STATUS,
+            Err(_) => 1,
+        }
     }
 }
 
@@ -155,9 +188,7 @@ fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
         Task::Create(starter, path) => return Ok(starter.create(path)?),
         Task::Render { input } => input,
     };
-    // Until the pipeline reads --config (the next task), the output is -o.
-    let output = cli.output.as_deref().ok_or(Fatal::NoTask)?;
-    let config = config(cli, input, output, warnings).map_err(Failure::Alone)?;
+    let config = config(cli, input, warnings).map_err(Failure::Alone)?;
     let fonts = Fonts::embedded().map_err(Fatal::from)?;
     // FR-106: the flags say where an off-radar row goes, so its warning
     // can say so when it is raised.
@@ -167,87 +198,207 @@ fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
     Ok(write_atomic(&config.output, &config.output_named, &bytes)?)
 }
 
-/// NFR-16 tier one, in order: FR-52's extension, FR-62's directory, D-74's
-/// same-file check, then the flag values, cleaned (FR-90), the rings
-/// (FR-63, every violation together) and the unplotted rings (FR-107).
-fn config(
-    cli: &Cli,
-    input: &Path,
-    output: &Path,
-    warnings: &mut Warnings,
-) -> Result<Config, Vec<Fatal>> {
-    let output_named = NamedPath::flag(Setting::Output, output);
-    let format = output_checks(output, &output_named, input)?;
-    let title = cli
-        .title
-        .clone()
-        .map(|value| Sourced {
-            value,
-            origin: Origin::flag(Setting::Title),
-        })
-        .and_then(|t| resolved(t, warnings));
-    let subtitle = cli
-        .subtitle
-        .clone()
-        .map(|value| Sourced {
-            value,
-            origin: Origin::flag(Setting::Subtitle),
-        })
-        .and_then(|t| resolved(t, warnings));
-    let declared = cli
-        .rings
-        .as_deref()
-        .map(|rings| clean_setting(&Origin::flag(Setting::Rings), rings, warnings));
-    let unplotted = cli
-        .unplotted_rings
-        .as_deref()
-        .map(|rings| clean_setting(&Origin::flag(Setting::UnplottedRings), rings, warnings));
-    let mut rings = parse_rings(declared.as_deref()).map_err(|errors| {
-        errors
-            .into_iter()
-            .map(|error| Fatal::Rings {
-                origin: Origin::flag(Setting::Rings),
-                error,
-            })
-            .collect::<Vec<_>>()
-    })?;
-    // FR-107: checked against the declared set, so only once that parsed.
-    if let Some(list) = &unplotted {
-        rings = rings.with_unplotted(list).map_err(|errors| {
-            errors
-                .into_iter()
-                .map(|error| Fatal::UnplottedRings {
-                    origin: Origin::flag(Setting::UnplottedRings),
-                    error,
-                })
-                .collect::<Vec<_>>()
-        })?;
+/// The run's settings, in FR-92's order: the merge (FR-91), FR-90 on the
+/// text values, paths resolved against their sources, then NFR-16 tier
+/// one's checks: FR-52, FR-62 and D-74 on the output, FR-63 on the rings,
+/// FR-107, FR-102 on the palette.
+fn config(cli: &Cli, input: &Path, warnings: &mut Warnings) -> Result<Config, Vec<Fatal>> {
+    // FR-91: read only when named; unreadable or not TOML stops the run
+    // alone (NFR-15).
+    let loaded = match &cli.config {
+        Some(path) => Some(config_file::read(path).map_err(|e| vec![config_error(path, e)])?),
+        None => None,
+    };
+    let (settings, merged) = cli.settings(loaded.as_ref());
+    let mut gate = Gate::default();
+    if let Some(loaded) = &loaded {
+        gate.errors
+            .extend(loaded.problems.iter().map(|problem| Fatal::ConfigKey {
+                file: Arc::clone(&loaded.file),
+                problem: problem.clone(),
+            }));
     }
-    // Plan RG-018A Ruling 7: the next flag after --rings, every problem in
-    // the file at once (FR-102), each its own line.
-    let colours = match &cli.palette {
-        Some(path) => file::read(path)
-            .map_err(|e| palette_errors(&NamedPath::flag(Setting::Palette, path), e))?
-            .into(),
-        None => Colours::BuiltIn(cli.theme.unwrap_or(DEFAULT_THEME)),
+    gate.errors.extend(merged.into_iter().map(Fatal::from));
+    let Settings {
+        output,
+        title,
+        subtitle,
+        rings,
+        unplotted_rings,
+        theme,
+        width,
+        legend_columns,
+        legend,
+        table,
+        palette,
+        dir,
+    } = settings;
+    // FR-90 first, every warning naming the value's source.
+    let title = title.given().and_then(|t| resolved(t, warnings));
+    let subtitle = subtitle.given().and_then(|s| resolved(s, warnings));
+    let rings = rings.map(|r| cleaned(r, warnings));
+    let unplotted = unplotted_rings.map(|r| cleaned(r, warnings));
+    // FR-92 (PR 19b): `{edition}` expands in the output, title and subtitle
+    // here, after FR-90 and before any path resolves.
+    let output = output.as_given().map(|o| resolve_path(dir.as_deref(), o));
+    let palette_path = palette.as_given().map(|p| resolve_path(dir.as_deref(), p));
+    let format = match &output {
+        Some((path, named)) => {
+            gate.check(&named.origin.source, output_checks(path, named, input))?
+        }
+        None => None,
+    };
+    let declared = match &rings {
+        Effective::Broken => None,
+        other => {
+            let given = other.as_given();
+            gate.check(
+                given.map_or(&Source::Default, |r| &r.origin.source),
+                ring_set(given),
+            )?
+        }
+    };
+    // FR-107: the ring set is checked first; without one there is nothing
+    // to check the list against.
+    let ring_set = match (declared, &unplotted) {
+        (Some(set), Effective::Given(list)) => {
+            gate.check(&list.origin.source, unplotted_set(set, list))?
+        }
+        (Some(set), Effective::Absent) => Some(set),
+        _ => None,
+    };
+    let colours = match (&palette_path, &palette) {
+        (Some((path, named)), _) => gate
+            .check(
+                &named.origin.source,
+                file::read(path).map_err(|e| palette_errors(named, e)),
+            )?
+            .map(Colours::from),
+        (None, Effective::Broken) => None,
+        (None, _) => Some(Colours::BuiltIn(
+            theme.or(Setting::Theme, DEFAULT_THEME).value,
+        )),
+    };
+    // With no error recorded, no setting is broken and every check passed,
+    // so each value below is present; the `else` returns the errors that
+    // explain why one is not.
+    let (true, Some(format), Some((output, output_named)), Some(rings), Some(colours)) =
+        (gate.errors.is_empty(), format, output, ring_set, colours)
+    else {
+        return Err(gate.errors);
     };
     Ok(Config {
-        output: output.to_path_buf(),
+        output,
         output_named,
         format,
         colours,
-        legend: flag_or(Setting::Legend, cli.legend, DEFAULT_LEGEND),
-        table: flag_or(Setting::Table, cli.table, DEFAULT_TABLE),
-        width: cli.width.map(|value| Sourced {
-            value,
-            origin: Origin::flag(Setting::Width),
-        }),
-        legend_columns: cli.legend_columns.unwrap_or(DEFAULT_LEGEND_COLUMNS),
+        legend: legend.or(Setting::Legend, DEFAULT_LEGEND),
+        table: table.or(Setting::Table, DEFAULT_TABLE),
+        width: width.given(),
+        legend_columns: legend_columns
+            .or(Setting::LegendColumns, DEFAULT_LEGEND_COLUMNS)
+            .value,
         title,
         subtitle,
         rings,
         input: input.to_path_buf(),
     })
+}
+
+/// FR-90 on a comma list, before FR-63 reads it.
+fn cleaned(list: Sourced<String>, warnings: &mut Warnings) -> Sourced<String> {
+    Sourced {
+        value: clean_setting(&list.origin, &list.value, warnings),
+        origin: list.origin,
+    }
+}
+
+/// FR-63 on the declared rings, from the flag or the file, or FR-13's
+/// default set when neither gave any.
+fn ring_set(declared: Option<&Sourced<String>>) -> Result<RingSet, Vec<Fatal>> {
+    let (parsed, origin) = declared.map_or_else(
+        || {
+            (
+                parse_rings(None),
+                Origin::new(Setting::Rings, Source::Default),
+            )
+        },
+        |list| {
+            (
+                parse_ring_list(&list.value, list.origin.source.clone()),
+                list.origin.clone(),
+            )
+        },
+    );
+    parsed.map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|error| Fatal::Rings {
+                origin: origin.clone(),
+                error,
+            })
+            .collect()
+    })
+}
+
+/// FR-107 on `list`, against `set`, whatever the sources of each.
+fn unplotted_set(set: RingSet, list: &Sourced<String>) -> Result<RingSet, Vec<Fatal>> {
+    set.with_unplotted(&list.value).map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|error| Fatal::UnplottedRings {
+                origin: list.origin.clone(),
+                error,
+            })
+            .collect()
+    })
+}
+
+/// A `--config` file's read failure, named by the file (NFR-15).
+fn config_error(path: &Path, error: config_file::ReadError) -> Fatal {
+    let file: Arc<str> = Arc::from(path.display().to_string());
+    match error {
+        config_file::ReadError::Unreadable(source) => Fatal::ConfigUnreadable { file, source },
+        config_file::ReadError::TooLarge => Fatal::ConfigTooLarge { file },
+        config_file::ReadError::NotUtf8(NotUtf8 { line }) => Fatal::ConfigNotUtf8 { file, line },
+        config_file::ReadError::Syntax { line, message } => Fatal::ConfigSyntax {
+            file,
+            line,
+            message,
+        },
+    }
+}
+
+/// NFR-16 tier one across sources (FR-91): every error is kept. A failed
+/// check on a command-line value stops the run, as the first flag to fail
+/// always has. One on a value from the file lets the checks go on, so
+/// every problem the file causes is reported in one run (plan RG-019A,
+/// Ruling 3).
+#[derive(Default)]
+struct Gate {
+    errors: Vec<Fatal>,
+}
+
+impl Gate {
+    /// `result`'s value; or, recording its errors, `None` to go on, or
+    /// every error so far to stop.
+    fn check<T>(
+        &mut self,
+        source: &Source,
+        result: Result<T, Vec<Fatal>>,
+    ) -> Result<Option<T>, Vec<Fatal>> {
+        match result {
+            Ok(value) => Ok(Some(value)),
+            Err(errors) => {
+                self.errors.extend(errors);
+                if matches!(source, Source::Config(_)) {
+                    Ok(None)
+                } else {
+                    Err(std::mem::take(&mut self.errors))
+                }
+            }
+        }
+    }
 }
 
 /// A palette file's read failure as tier-one errors, named by its flag or
@@ -317,18 +468,6 @@ fn output_is_input(output: &Path, named: &NamedPath, input: &Path) -> Result<(),
     } else {
         Ok(())
     }
-}
-
-/// A flag's value, or its default (until the merge supplies a file's).
-fn flag_or<T>(setting: Setting, value: Option<T>, default: T) -> Sourced<T> {
-    value
-        .map_or(Effective::Absent, |value| {
-            Effective::Given(Sourced {
-                value,
-                origin: Origin::flag(setting),
-            })
-        })
-        .or(setting, default)
 }
 
 /// FR-65's resolved value: cleaned (FR-90), trimmed, `None` when empty;
@@ -478,7 +617,7 @@ fn render(
 mod tests {
     use super::*;
 
-    fn report(outcome: Result<(), Vec<String>>) -> Report {
+    fn report(outcome: Result<(), Failed>) -> Report {
         Report {
             warnings: vec!["warning: w".into()],
             outcome,
@@ -487,7 +626,10 @@ mod tests {
 
     #[test]
     fn warnings_print_before_errors() {
-        let failed = report(Err(vec!["error: e".into()]));
+        let failed = report(Err(Failed {
+            lines: vec!["error: e".into()],
+            usage: false,
+        }));
         assert_eq!(
             failed.lines().collect::<Vec<_>>(),
             ["warning: w", "error: e"]
@@ -498,6 +640,21 @@ mod tests {
     #[test]
     fn only_a_written_run_exits_zero() {
         assert_eq!(report(Ok(())).status(), 0);
-        assert_eq!(report(Err(Vec::new())).status(), 1);
+        assert_eq!(
+            report(Err(Failed {
+                lines: vec!["error: e".into()],
+                usage: false,
+            }))
+            .status(),
+            1
+        );
+        assert_eq!(
+            report(Err(Failed {
+                lines: vec![],
+                usage: true,
+            }))
+            .status(),
+            2
+        );
     }
 }

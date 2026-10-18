@@ -1,0 +1,304 @@
+//! `--config` end to end (FR-91, SC-26): what a run with a TOML file
+//! writes, says and exits with.
+
+#[path = "common/binary.rs"]
+mod binary;
+
+use std::fs;
+
+use binary::{run_in, seeded, snapshot};
+
+const CSV: &str = "name,quadrant,ring,description\nKafka,Tool,Adopt,d\nVault,Platform,Hold,d\n";
+
+/// SC-26: title, rings and output from a file render the same bytes as
+/// the three flags.
+#[test]
+fn a_config_renders_what_its_flags_render() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        (
+            "radar.toml",
+            "output = \"a.html\"\ntitle = \"Radar\"\nrings = [\"Hold\", \"Adopt\"]\n",
+        ),
+    ]);
+    let file = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    let flags = run_in(
+        dir.path(),
+        &[
+            "radar.csv",
+            "-o",
+            "b.html",
+            "-t",
+            "Radar",
+            "-r",
+            "Hold,Adopt",
+        ],
+    );
+    assert!(file.ok() && flags.ok(), "{}{}", file.stderr, flags.stderr);
+    assert_eq!(file.stderr, flags.stderr);
+    assert_eq!(
+        fs::read(dir.path().join("a.html")).ok(),
+        fs::read(dir.path().join("b.html")).ok()
+    );
+}
+
+/// SC-26: a flag overrides its key; `--title ""` renders no title (FR-65).
+#[test]
+fn a_flag_overrides_its_key() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("radar.toml", "output = \"a.svg\"\ntitle = \"File title\"\n"),
+    ]);
+    assert!(
+        run_in(
+            dir.path(),
+            &["radar.csv", "-c", "radar.toml", "-t", "Flag title"]
+        )
+        .ok()
+    );
+    let svg = fs::read_to_string(dir.path().join("a.svg")).expect("written");
+    assert!(
+        svg.contains("<title>Flag title</title>") && !svg.contains("File title"),
+        "{svg}"
+    );
+    assert!(
+        run_in(
+            dir.path(),
+            &["radar.csv", "-c", "radar.toml", "-t", "", "-o", "b.svg"]
+        )
+        .ok()
+    );
+    let untitled = run_in(dir.path(), &["radar.csv", "-o", "c.svg"]);
+    assert!(untitled.ok());
+    assert_eq!(
+        fs::read(dir.path().join("b.svg")).ok(),
+        fs::read(dir.path().join("c.svg")).ok()
+    );
+}
+
+/// SC-26 and Ruling 3: every key problem in one run, with clap's status,
+/// and nothing written.
+#[test]
+fn every_problem_in_the_file_is_reported_together() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        (
+            "radar.toml",
+            "output = \"a.png\"\nring = [\"Adopt\"]\nwidth = 1920.0\ntheme = \"sepia\"\n",
+        ),
+    ]);
+    let before = snapshot(dir.path());
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    assert_eq!(ran.code, Some(2), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: invalid value 'sepia' for the theme key in radar.toml [possible values: light, dark]",
+            "error: the width key in radar.toml: must be an integer, not a float",
+            "error: --config radar.toml: unknown key 'ring'; the keys are output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table and palette",
+        ]
+    );
+    assert_eq!(snapshot(dir.path()), before);
+}
+
+/// Ruling 3: a value from the file failing a later check does not stop the
+/// others, and they exit as their flags do.
+#[test]
+fn every_check_on_the_file_s_values_runs() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        (
+            "radar.toml",
+            "output = \"a.pdf\"\nrings = [\"Adopt\", \"adopt\"]\npalette = \"missing.css\"\n",
+        ),
+    ]);
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    let lines = ran.lines();
+    let [output, rings, palette] = lines.as_slice() else {
+        panic!("three errors: {lines:?}");
+    };
+    assert_eq!(
+        *output,
+        "error: the output key in radar.toml (a.pdf): the output file name must end in .html, .png or .svg"
+    );
+    assert_eq!(
+        *rings,
+        "error: the rings key in radar.toml: entry 2 'adopt' repeats entry 1"
+    );
+    assert!(
+        palette.starts_with("error: the palette key in radar.toml (missing.css): cannot be read: "),
+        "{lines:?}"
+    );
+}
+
+/// NFR-16: a failing flag still stops the run, after what the file caused.
+#[test]
+fn a_failing_flag_stops_the_run() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        (
+            "radar.toml",
+            "output = \"a.pdf\"\npalette = \"missing.css\"\n",
+        ),
+    ]);
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml", "-r", "A,,B"]);
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: the output key in radar.toml (a.pdf): the output file name must end in .html, .png or .svg",
+            "error: --rings: entry 2 is empty",
+        ]
+    );
+}
+
+/// SC-26, FR-59 across sources (rg-ahj): exit 2, clap's words.
+#[test]
+fn a_theme_key_with_a_palette_flag_is_a_usage_error() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("b.css", radargen::starter::Starter::Palette.contents()),
+        ("radar.toml", "output = \"a.png\"\ntheme = \"dark\"\n"),
+    ]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-c", "radar.toml", "-p", "b.css"],
+    );
+    assert_eq!(ran.code, Some(2));
+    assert_eq!(
+        ran.lines(),
+        ["error: the theme key in radar.toml cannot be used with '--palette <FILE>'"]
+    );
+}
+
+/// SC-26: a relative palette resolves beside the file, run from elsewhere;
+/// so does the output.
+#[test]
+fn paths_in_the_file_resolve_beside_it() {
+    let dir = seeded(&[("radar.csv", CSV)]);
+    fs::create_dir(dir.path().join("conf")).expect("mkdir");
+    fs::write(
+        dir.path().join("conf/b.css"),
+        radargen::starter::Starter::Palette.contents(),
+    )
+    .expect("seeds");
+    fs::write(
+        dir.path().join("conf/radar.toml"),
+        "output = \"out.png\"\npalette = \"b.css\"\n",
+    )
+    .expect("seeds");
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "conf/radar.toml"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert_eq!(ran.stdout, "", "NFR-11: everything goes to stderr");
+    assert!(dir.path().join("conf/out.png").is_file());
+}
+
+/// Review Focus 2: `~` is a folder name like any other.
+#[test]
+fn a_tilde_is_not_expanded() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("radar.toml", "output = \"~/r.html\"\n"),
+    ]);
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    assert_eq!(ran.code, Some(1));
+    assert_eq!(
+        ran.lines(),
+        ["error: the output key in radar.toml (~/r.html): the directory ~ does not exist"]
+    );
+}
+
+/// SC-26: with neither -o nor output, a usage error.
+#[test]
+fn no_output_anywhere_is_a_usage_error() {
+    let dir = seeded(&[("radar.csv", CSV), ("radar.toml", "title = \"T\"\n")]);
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    assert_eq!(ran.code, Some(2));
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: the following required arguments were not provided: --output <OUTPUT>, or the output key in radar.toml"
+        ]
+    );
+}
+
+/// SC-26: an unparsable file names its line; NFR-15's status.
+#[test]
+fn an_unparsable_file_names_its_line() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("radar.toml", "output = \"a.html\"\n\ntitle = = 1\n"),
+    ]);
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    assert_eq!(ran.code, Some(1));
+    let lines = ran.lines();
+    assert!(
+        matches!(lines.as_slice(), [only] if only.starts_with("error: --config radar.toml, line 3: ")),
+        "{lines:?}"
+    );
+}
+
+/// Review Focus 5: a directory, a missing file and /dev/zero.
+#[test]
+fn an_unreadable_config_is_a_runtime_failure() {
+    let dir = seeded(&[("radar.csv", CSV)]);
+    fs::create_dir(dir.path().join("d.toml")).expect("mkdir");
+    for (config, says) in [
+        ("d.toml", "cannot be read: "),
+        ("none.toml", "cannot be read: "),
+    ] {
+        let ran = run_in(dir.path(), &["radar.csv", "-c", config]);
+        assert_eq!(ran.code, Some(1), "{config}");
+        assert!(
+            ran.stderr
+                .starts_with(&format!("error: --config {config}: {says}")),
+            "{}",
+            ran.stderr
+        );
+    }
+    if cfg!(unix) {
+        let ran = run_in(dir.path(), &["radar.csv", "-c", "/dev/zero"]);
+        assert_eq!(
+            ran.lines(),
+            [
+                "error: --config /dev/zero: larger than 1 MiB; a config file is a few hundred bytes, so check the path"
+            ]
+        );
+    }
+}
+
+/// FR-107 across sources, and FR-17 and FR-90 naming the key.
+#[test]
+fn ring_diagnostics_name_the_key_and_file() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        (
+            "radar.toml",
+            "output = \"a.png\"\nrings = [\"Adopt\"]\ntitle = \"R\\u0001\"\n",
+        ),
+    ]);
+    let ran = run_in(
+        dir.path(),
+        &[
+            "radar.csv",
+            "-c",
+            "radar.toml",
+            "--unplotted-rings",
+            "In Use,Adopt",
+        ],
+    );
+    assert_eq!(
+        ran.lines(),
+        [
+            "warning: the title key in radar.toml: removed U+0001, which the output cannot display",
+            "error: --unplotted-rings: entry 2 'Adopt' is also in the rings key in radar.toml, which draws it; remove it from one list",
+        ]
+    );
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert!(
+        ran.stderr.contains("line 3, ring: 'Hold' is not in the rings key in radar.toml (Adopt); the row is not on the radar; to plot it, add it to the rings key in radar.toml"),
+        "{}",
+        ran.stderr
+    );
+}

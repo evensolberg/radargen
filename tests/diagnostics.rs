@@ -11,6 +11,7 @@ use radargen::diagnostics::{
     Separator, Warning, Warnings, column_label,
 };
 use radargen::rings::RingsError;
+use radargen::settings::file::KeyProblem;
 use radargen::settings::{NamedPath, Origin, Setting, Source};
 
 const fn at(line: usize, column: usize, kind: RowKind) -> Warning {
@@ -1676,5 +1677,127 @@ fn a_small_png_names_the_width_key() {
     assert_eq!(
         unreadable.to_string(),
         "at 800 pixels wide the PNG's text is too small to read, at any width; fewer or shorter names would help"
+    );
+}
+
+/// FR-91's key messages, each naming the key and the file; clap's words
+/// where clap would have checked the flag (plan RG-019A, Ruling 4).
+#[test]
+fn config_messages() {
+    let file: std::sync::Arc<str> = std::sync::Arc::from("radar.toml");
+    let key = |problem| Fatal::ConfigKey {
+        file: file.clone(),
+        problem,
+    };
+    let cases = [
+        (
+            key(KeyProblem::Unknown { key: "ring".into() }),
+            "error: --config radar.toml: unknown key 'ring'; the keys are output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table and palette",
+        ),
+        (
+            key(KeyProblem::WrongType {
+                setting: Setting::Rings,
+                found: "string",
+            }),
+            "error: the rings key in radar.toml: must be an array of strings, such as [\"Adopt\", \"Trial\"], not a string",
+        ),
+        (
+            key(KeyProblem::WrongType {
+                setting: Setting::Width,
+                found: "float",
+            }),
+            "error: the width key in radar.toml: must be an integer, not a float",
+        ),
+        (
+            key(KeyProblem::EntryType {
+                setting: Setting::Rings,
+                index: 2,
+                found: "integer",
+            }),
+            "error: the rings key in radar.toml: entry 2 must be a string, not an integer",
+        ),
+        (
+            key(KeyProblem::Comma {
+                setting: Setting::Rings,
+                index: 1,
+                entry: "Adopt,Trial".into(),
+            }),
+            "error: the rings key in radar.toml: entry 1 'Adopt,Trial' holds a comma; give each ring as its own entry",
+        ),
+        (
+            key(KeyProblem::NotAValue {
+                setting: Setting::Theme,
+                value: "sepia".into(),
+                possible: vec!["light".into(), "dark".into()],
+            }),
+            "error: invalid value 'sepia' for the theme key in radar.toml [possible values: light, dark]",
+        ),
+        (
+            key(KeyProblem::OutOfRange {
+                setting: Setting::Width,
+                value: 5,
+                min: 320,
+                max: 10_000,
+            }),
+            "error: invalid value '5' for the width key in radar.toml: 5 is not in 320..=10000",
+        ),
+    ];
+    for (fatal, expected) in cases {
+        assert_eq!(fatal.render(), expected);
+    }
+    assert!(key(KeyProblem::Unknown { key: "x".into() }).is_usage());
+}
+
+/// FR-59 across sources, a missing output, and the file's runtime
+/// failures (NFR-15), each naming the file.
+#[test]
+fn config_file_messages() {
+    let file: std::sync::Arc<str> = std::sync::Arc::from("radar.toml");
+    let cases = [
+        (
+            Fatal::Conflict {
+                theme: Origin::new(Setting::Theme, radar_toml()),
+                palette: Origin::flag(Setting::Palette),
+            },
+            "error: the theme key in radar.toml cannot be used with '--palette <FILE>'",
+        ),
+        (
+            Fatal::Conflict {
+                theme: Origin::flag(Setting::Theme),
+                palette: Origin::new(Setting::Palette, radar_toml()),
+            },
+            "error: the argument '--theme <THEME>' cannot be used with the palette key in radar.toml",
+        ),
+        (
+            Fatal::NoOutput { file: file.clone() },
+            "error: the following required arguments were not provided: --output <OUTPUT>, or the output key in radar.toml",
+        ),
+        (
+            Fatal::ConfigTooLarge { file: file.clone() },
+            "error: --config radar.toml: larger than 1 MiB; a config file is a few hundred bytes, so check the path",
+        ),
+        (
+            Fatal::ConfigNotUtf8 {
+                file: file.clone(),
+                line: 4,
+            },
+            "error: --config radar.toml, line 4: not UTF-8 text; re-save the file as UTF-8",
+        ),
+        (
+            Fatal::ConfigSyntax {
+                file: file.clone(),
+                line: Some(3),
+                message: "duplicate key".into(),
+            },
+            "error: --config radar.toml, line 3: duplicate key",
+        ),
+    ];
+    for (fatal, expected) in cases {
+        assert_eq!(fatal.render(), expected);
+    }
+    assert!(Fatal::NoOutput { file: file.clone() }.is_usage());
+    assert!(
+        !Fatal::ConfigTooLarge { file }.is_usage(),
+        "NFR-15: a runtime failure"
     );
 }
