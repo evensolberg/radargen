@@ -57,7 +57,7 @@ Columns are found by **name, not position**, so their order in the file does not
 
 An optional column that is missing, or empty on a row, is simply left out for that item. Nothing is shown as blank or as a dash.
 
-Every item on the radar appears in the **table view**, under the *Every item* heading below the radar: open *The table* to see it. By default it lists the plotted rows, numbered as on the radar, with the columns above. With `--table all` it lists every row and every named column: plotted rows first, then rows the radar cannot plot, flagged "not on the radar". A row or column the table leaves out is in no detail panel either. Click a marker, a legend row or a name in the table, or Tab to one and press Enter or Space, and the **detail panel** opens at the bottom of the window with that item's number, name and every field it has. Click it again, press Escape, or use Close to close it.
+Every item on the radar appears in the **table view**, under the *Items on the radar* heading below the radar (*Every item* with `--table all`): open *The table* to see it. By default it lists the plotted rows, numbered as on the radar, with the columns above. With `--table all` it lists every row and every named column: plotted rows first, then rows the radar cannot plot, flagged "not on the radar". A row or column the table leaves out is in no detail panel either. Click a marker, a legend row or a name in the table, or Tab to one and press Enter or Space, and the **detail panel** opens at the bottom of the window with that item's number, name and every field the table lists. Click it again, press Escape, or use Close to close it.
 
 ### `name`
 
@@ -205,4 +205,4 @@ Kubernetes,Platforms,Adopt,"Container orchestration.",default,Containers,"Defaul
 | 1.3 | 2026-10-12 | The table view is live (FR-41, FR-78, D-80). |
 | 1.4 | 2026-10-12 | The detail panel is live (FR-38). |
 | 1.5 | 2026-10-17 | The warning for a page that gives laptops the narrow layout (FR-105); "narrow layout" for the phone layout; both layout warnings marked HTML only. |
-| 1.6 | 2026-10-17 | The page publishes what the radar draws by default: other columns and undeclared-ring rows reach the table and detail panel only with `--table all` (FR-106, D-95; rg-fgf). |
+| 1.6 | 2026-10-17 | The page publishes what the radar draws by default: other columns and undeclared-ring rows reach the table and detail panel only with `--table all` (FR-106, D-95; rg-fgf). The default table's heading is *Items on the radar*, and the panel shows every field the table lists (rg-fgf review). |

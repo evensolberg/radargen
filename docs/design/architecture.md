@@ -698,10 +698,11 @@ first-occurrence line numbers or require a map keyed by value, and §6 has alrea
 ruled out maps in output-affecting code. Pushing plainly and grouping once at the
 end makes NFR-11's order a stable sort by position, so a stage that pushes a
 line-3 warning after a line-40 one cannot reorder the output.
-`Warnings` also holds the run's `OffRadar`: where a row FR-17 leaves off the
-radar ends up, which that warning's words depend on and only the output and
-`--table` decide (FR-106). The pipeline sets it once the flags are read, before
-any row is built; a row warning shown alone reads as `--table all` does.
+FR-17's words depend on where a row it leaves off the radar ends up, which
+only the output and `--table` decide (FR-106). That is an `OffRadar`, passed
+to `Warnings::render` and `Warning::text` rather than held: the pipeline
+computes it from `-o`'s format and `--table` with one pure function, so no
+warning is ever worded for a mode nobody named.
 
 FR-88's quadrant-count warning carries no CSV line, and NFR-11 puts it **before**
 the line-ordered ones. That is a sort key, not a special case: a warning's
