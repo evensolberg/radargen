@@ -894,7 +894,7 @@ fn grouped(class: Class, members: &[Member]) -> String {
                 Some(match count {
                     1 => format!("{column} on line {} ({})", m.line, code_point(*first)),
                     c => format!(
-                        "{column} on line {} ({c}, first {})",
+                        "{column} on line {} ({c} characters, first {})",
                         m.line,
                         code_point(*first)
                     ),
