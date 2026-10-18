@@ -200,13 +200,58 @@ fn a_quadrant_name_wider_than_any_screen_still_renders() {
     assert_eq!(html::svgs(&page).len(), 6, "four wide parts and two narrow");
     // The case the old 10,000-unit bound refused: the breakpoint, about
     // 0.8 of the document, lies past it.
-    let query = page
-        .split("(max-width: ")
+    let query = narrow_query_px(&page);
+    assert!(query > 10_000, "the breakpoint is {query} px");
+}
+
+/// The width in pixels at and below which `page` shows the narrow
+/// arrangement: one below FR-69's breakpoint.
+fn narrow_query_px(page: &str) -> u32 {
+    page.split("(max-width: ")
         .nth(1)
         .and_then(|rest| rest.split("px)").next())
         .and_then(|px| px.parse::<u32>().ok())
-        .expect("a narrow query");
-    assert!(query > 10_000, "the breakpoint is {query} px");
+        .expect("a narrow query")
+}
+
+/// FR-105: a quadrant name long enough to put FR-69's breakpoint past a
+/// laptop warns on the page, giving the breakpoint the page switches at,
+/// beside FR-95's warning (D-94). PNG and SVG draw only the wide
+/// arrangement, so they stay quiet.
+#[test]
+fn a_breakpoint_past_a_laptop_warns_on_html_only() {
+    const QUADRANT: &str =
+        "Platforms and Infrastructure Shared Across Every Product Team in the Group";
+    let csv = format!(
+        "{HEAD}Kafka,{QUADRANT},Adopt,d\nTerraform,Tools,Adopt,d\nPostgres,Data,Adopt,d\nRust,Languages,Adopt,d\n"
+    );
+    let dir = seeded(&[("radar.csv", &csv)]);
+    let ran = run_in(dir.path(), &RENDER);
+    assert!(ran.ok(), "{}", ran.stderr);
+    let breakpoint = narrow_query_px(&read(dir.path(), "radar.html")) + 1;
+    assert!(breakpoint > 1440, "the breakpoint is {breakpoint} px");
+    assert_starts(
+        &ran,
+        &[
+            "warning: the wide arrangement, ",
+            "warning: the narrow arrangement is ",
+        ],
+    );
+    assert_eq!(
+        ran.lines().first().copied().unwrap_or_default(),
+        format!(
+            "warning: the wide arrangement, the radar beside its legend, shows only on screens at least {breakpoint} pixels wide, so narrower ones, common 1440-pixel laptops included, get the narrow arrangement; a shorter name for quadrant '{QUADRANT}' would fix it"
+        )
+    );
+    for out in ["radar.png", "radar.svg"] {
+        let snapshot = run_in(dir.path(), &["radar.csv", "-o", out]);
+        assert!(snapshot.ok(), "{out}: {}", snapshot.stderr);
+        assert!(
+            !snapshot.stderr.contains("wide arrangement"),
+            "{out}: {}",
+            snapshot.stderr
+        );
+    }
 }
 
 /// A fault, and how to set it up and take it away again.

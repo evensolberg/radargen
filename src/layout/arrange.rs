@@ -22,7 +22,7 @@ use crate::palette::{Neutral, Role};
 use crate::style::{
     COLUMN_GAP, DOC_TOP, KEY_RULE_STROKE, KEY_TO_LEGEND, LEGEND_PANEL_INSET_X,
     LEGEND_PANEL_INSETS_X, LEGEND_WIDE_DROP, MARGIN, NARROW_MAX_WIDTH, NARROW_MIN_SCALE,
-    NARROW_RADAR_COLUMN, NARROW_WIDTH, RADAR_INSET, RADAR_INSETS, RADAR_LABEL_PAD,
+    NARROW_RADAR_COLUMN, NARROW_WIDTH, RADAR_INSET, RADAR_INSETS, RADAR_LABEL_PAD, breakpoint_px,
     wide_shows_on_laptops,
 };
 use crate::svg::{Document, Group, Node, Paint, Point, Semantics};
@@ -280,6 +280,25 @@ pub fn warn_narrow(blocks: &Blocks, warnings: &mut Warnings) {
     }
 }
 
+/// FR-105: one warning when FR-69's breakpoint is past a
+/// `WIDE_MIN_VIEWPORT_PX` screen, so laptops get the narrow arrangement,
+/// naming the label that sets the wide radar's width (D-94).
+///
+/// D-86 never grows the radar past the bound, so only labels, which draw at
+/// natural size and never wrap (FR-79), put it there.
+pub fn warn_wide(blocks: &Blocks, warnings: &mut Warnings) {
+    let at = wide(blocks);
+    if wide_shows_on_laptops(at.width, at.radar_right) {
+        return;
+    }
+    if let Some(binding) = blocks.radar.binding_label(at.radar.scale) {
+        warnings.push(Warning::Render(RenderKind::WideBeyondLaptops {
+            binding,
+            breakpoint: breakpoint_px(at.width, at.radar_right),
+        }));
+    }
+}
+
 /// `width` rounded up to a whole unit, as FR-95 reports it.
 const fn whole_units(width: f64) -> u32 {
     crate::num::saturating_u32(width.ceil())
@@ -481,7 +500,7 @@ mod tests {
     use crate::model::Catalogue;
     use crate::order::Plotted;
     use crate::rings::RingSource;
-    use crate::style::{GROWTH_STEP, MAX_GROWTH};
+    use crate::style::{GROWTH_STEP, MAX_GROWTH, WIDE_MIN_VIEWPORT_PX};
     use crate::svg::{ItemKey, Semantics};
 
     /// The title and subtitle a fixture is built with.
@@ -1000,6 +1019,87 @@ mod tests {
         for csv in [thoughtworks(), PRD_EXAMPLE.to_owned()] {
             assert_eq!(narrow_warnings(&blocks(&csv, TITLED)), [], "{csv}");
         }
+    }
+
+    /// FR-105's warnings for `b`.
+    fn wide_warnings(b: &Blocks) -> Vec<Warning> {
+        let mut warnings = Warnings::default();
+        warn_wide(b, &mut warnings);
+        warnings.as_slice().to_vec()
+    }
+
+    /// FR-105's one warning for `b`, with `binding` and `b`'s own
+    /// breakpoint, which must be past a laptop.
+    fn wide_warned(b: &Blocks, binding: Binding) -> Vec<Warning> {
+        let at = placements(Arrangement::Wide, b);
+        let breakpoint = breakpoint_px(at.width, at.radar_right);
+        assert!(breakpoint > WIDE_MIN_VIEWPORT_PX, "{breakpoint}");
+        vec![Warning::Render(RenderKind::WideBeyondLaptops {
+            binding,
+            breakpoint,
+        })]
+    }
+
+    /// FR-105: a breakpoint past a laptop is one warning, giving it and
+    /// naming the label that sets the wide radar's width (D-94).
+    #[test]
+    fn fr105_names_the_binding_quadrant_and_the_breakpoint() {
+        let long = "W".repeat(70);
+        let b = blocks(&quadrants(&["A", "B", "C", &long]), TITLED);
+        assert_eq!(wide_warnings(&b), wide_warned(&b, Binding::Quadrant(long)));
+    }
+
+    /// D-73 holds in the wide arrangement too: a long enough `--rings`
+    /// entry sets its width with a short quadrant, or with none.
+    #[test]
+    fn fr105_names_a_binding_ring() {
+        let ring = "W".repeat(170);
+        let rings = format!("{ring},Adopt");
+        for csv in [quadrants(&["Tools"]), HEAD.to_owned()] {
+            let b = with_rings(&csv, &rings);
+            let binding = Binding::Ring {
+                name: ring.clone(),
+                source: RingSource::Flag,
+            };
+            assert_eq!(wide_warnings(&b), wide_warned(&b, binding), "{csv}");
+        }
+    }
+
+    /// D-94: the label named is the one that binds the wide radar, drawn at
+    /// scale 1, which need not be the one FR-95 names at the narrow
+    /// arrangement's scale. With three quadrants FR-10's second sits at 6
+    /// o'clock, where a label reaches only half its width; on a diagonal
+    /// the rim's reach counts too, and more of it at scale 1.
+    #[test]
+    fn fr105_names_the_label_binding_the_wide_radar() {
+        let diagonal = format!("A{}", "W".repeat(60));
+        let six = format!("B{}", "W".repeat(130));
+        let b = blocks(&quadrants(&[&diagonal, &six, "C"]), TITLED);
+        assert_eq!(narrowed(&b).0, Binding::Quadrant(six));
+        assert_eq!(
+            wide_warnings(&b),
+            wide_warned(&b, Binding::Quadrant(diagonal))
+        );
+    }
+
+    /// FR-105 is quiet wherever the wide arrangement shows on a laptop:
+    /// ordinary names, a narrow arrangement FR-95 warns about, and D-86's
+    /// growth, which stops short of passing the bound.
+    #[test]
+    fn fr105_is_quiet_on_laptops() {
+        let long = "W".repeat(30);
+        for csv in [
+            thoughtworks(),
+            PRD_EXAMPLE.to_owned(),
+            widened(),
+            innermost("Q", 12),
+            innermost(&long, 12),
+        ] {
+            let b = blocks(&csv, TITLED);
+            assert!(shows(&b), "{csv}");
+            assert_eq!(wide_warnings(&b), [], "{csv}");
+        }
+        assert_eq!(narrow_warnings(&blocks(&widened(), TITLED)).len(), 1);
     }
 
     #[test]

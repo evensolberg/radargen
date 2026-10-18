@@ -10,7 +10,7 @@ use crate::csv::decode::MAX_BYTES as MAX_CSV_BYTES;
 use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::{RingSource, RingsError};
 use crate::starter::Starter;
-use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX};
+use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX, WIDE_MIN_VIEWPORT_PX};
 use crate::text::FontError;
 use crate::{is_untagged_format, normalise, trim};
 
@@ -165,6 +165,16 @@ pub enum RenderKind {
         /// The narrow document's width, rounded up to a whole unit.
         width: u32,
     },
+    /// FR-105: FR-69's breakpoint is past `WIDE_MIN_VIEWPORT_PX`, so a
+    /// laptop gets the narrow arrangement, and `binding` sets the wide
+    /// document's width (D-94).
+    WideBeyondLaptops {
+        /// The label whose reach sets the wide radar's width.
+        binding: Binding,
+        /// The breakpoint: the narrowest screen, in pixels, that shows the
+        /// wide arrangement.
+        breakpoint: u32,
+    },
     /// RG-102: `--legend hidden` on a PNG or SVG, which always draw the
     /// legend.
     LegendStatic,
@@ -252,6 +262,27 @@ pub enum Binding {
         /// `--rings`, or the default set.
         source: RingSource,
     },
+}
+
+impl Binding {
+    /// The label as FR-95 and FR-105 name it for the fix: trimmed and
+    /// single-quoted, a ring with where to rename it (D-73).
+    fn fix(&self) -> String {
+        match self {
+            Self::Quadrant(name) => format!("quadrant '{}'", trim(name)),
+            Self::Ring {
+                name,
+                source: RingSource::Flag,
+            } => format!("ring '{}' in --rings", trim(name)),
+            Self::Ring {
+                name,
+                source: RingSource::Default,
+            } => format!(
+                "ring '{}' (a default ring, so pass --rings to rename it)",
+                trim(name)
+            ),
+        }
+    }
 }
 
 /// A command-line flag a warning names: FR-90 cleans its value, and FR-104
@@ -454,25 +485,17 @@ impl RenderKind {
                 trim(quadrant),
                 trim(ring)
             ),
-            Self::NarrowWidened { binding, width } => {
-                let fix = match binding {
-                    Binding::Quadrant(name) => format!("quadrant '{}'", trim(name)),
-                    Binding::Ring {
-                        name,
-                        source: RingSource::Flag,
-                    } => format!("ring '{}' in --rings", trim(name)),
-                    Binding::Ring {
-                        name,
-                        source: RingSource::Default,
-                    } => format!(
-                        "ring '{}' (a default ring, so pass --rings to rename it)",
-                        trim(name)
-                    ),
-                };
-                format!(
-                    "the narrow arrangement is {width} units wide, past the {NARROW_MAX_WIDTH} its legend rows and marker targets are sized for, so on a {NARROW_MIN_VIEWPORT_PX}-pixel screen they fall below {MIN_TARGET_PX} pixels; a shorter name for {fix} would fix it"
-                )
-            }
+            Self::NarrowWidened { binding, width } => format!(
+                "the narrow arrangement is {width} units wide, past the {NARROW_MAX_WIDTH} its legend rows and marker targets are sized for, so on a {NARROW_MIN_VIEWPORT_PX}-pixel screen they fall below {MIN_TARGET_PX} pixels; a shorter name for {} would fix it",
+                binding.fix()
+            ),
+            Self::WideBeyondLaptops {
+                binding,
+                breakpoint,
+            } => format!(
+                "the wide arrangement, the radar beside its legend, shows only on screens at least {breakpoint} pixels wide, so narrower ones, common {WIDE_MIN_VIEWPORT_PX}-pixel laptops included, get the narrow arrangement; a shorter name for {} would fix it",
+                binding.fix()
+            ),
             Self::LegendStatic => {
                 "--legend hidden applies to HTML pages; PNG and SVG always draw the legend"
                     .to_owned()

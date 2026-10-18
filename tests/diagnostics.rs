@@ -1253,6 +1253,46 @@ fn fr95_names_a_quadrant_or_a_ring() {
     }
 }
 
+/// FR-105 gives the breakpoint and names the label that sets the wide
+/// document's width as FR-95 names it (D-94), a ring with its source.
+#[test]
+fn fr105_gives_the_breakpoint_and_names_the_label() {
+    let cases = [
+        (
+            RenderKind::WideBeyondLaptops {
+                binding: Binding::Quadrant(
+                    " Platforms and Infrastructure Shared Across Every Product Team ".into(),
+                ),
+                breakpoint: 1477,
+            },
+            "the wide arrangement, the radar beside its legend, shows only on screens at least 1477 pixels wide, so narrower ones, common 1440-pixel laptops included, get the narrow arrangement; a shorter name for quadrant 'Platforms and Infrastructure Shared Across Every Product Team' would fix it",
+        ),
+        (
+            RenderKind::WideBeyondLaptops {
+                binding: Binding::Ring {
+                    name: "Under evaluation".into(),
+                    source: RingSource::Default,
+                },
+                breakpoint: 2000,
+            },
+            "the wide arrangement, the radar beside its legend, shows only on screens at least 2000 pixels wide, so narrower ones, common 1440-pixel laptops included, get the narrow arrangement; a shorter name for ring 'Under evaluation' (a default ring, so pass --rings to rename it) would fix it",
+        ),
+        (
+            RenderKind::WideBeyondLaptops {
+                binding: Binding::Ring {
+                    name: "Under evaluation".into(),
+                    source: RingSource::Flag,
+                },
+                breakpoint: 1441,
+            },
+            "the wide arrangement, the radar beside its legend, shows only on screens at least 1441 pixels wide, so narrower ones, common 1440-pixel laptops included, get the narrow arrangement; a shorter name for ring 'Under evaluation' in --rings would fix it",
+        ),
+    ];
+    for (kind, expected) in cases {
+        assert_eq!(Warning::Render(kind).to_string(), expected);
+    }
+}
+
 /// NFR-12 and SC-25: the output carries `major.minor`, never the patch.
 #[test]
 fn output_version_has_no_patch() {

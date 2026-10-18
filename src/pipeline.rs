@@ -23,7 +23,9 @@ use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
 use crate::emit::{png, svg};
 use crate::errors::render_errors;
-use crate::layout::arrange::{Arrangement, Blocks, arrange, narrow_parts, warn_narrow, wide_parts};
+use crate::layout::arrange::{
+    Arrangement, Blocks, arrange, narrow_parts, warn_narrow, warn_wide, wide_parts,
+};
 use crate::layout::geometry::warn_crowding;
 use crate::layout::glyphs::warn_missing_glyphs;
 use crate::layout::title::shown;
@@ -248,7 +250,7 @@ fn catalogue(path: &Path, rings: &RingSet, warnings: &mut Warnings) -> Result<Ca
     }
 }
 
-/// The order, the render warnings (FR-88, FR-89, FR-95, FR-104, D-87), the blocks
+/// The order, the render warnings (FR-88, FR-89, FR-95, FR-104, FR-105, D-87), the blocks
 /// built once, and the output: the page around both arrangements (FR-68),
 /// or the wide arrangement as a PNG or an SVG (FR-71).
 fn render(
@@ -289,7 +291,9 @@ fn render(
     }
     match config.format {
         OutputFormat::Html => {
-            // FR-95 concerns the narrow arrangement, which only HTML carries.
+            // FR-105 and FR-95 concern the switch between the arrangements
+            // and the narrow one, which only HTML carries.
+            warn_wide(&blocks, warnings);
             warn_narrow(&blocks, warnings);
             Ok(page(&Page {
                 wide: &wide_parts(&blocks),
