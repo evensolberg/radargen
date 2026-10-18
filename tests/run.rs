@@ -1984,3 +1984,19 @@ fn a_misspelt_column_warns_in_every_format() {
         assert_eq!(ran.lines(), [expected], "{args:?}");
     }
 }
+
+/// FR-108 beside FR-5: a misspelt required column fails the run, and the
+/// near-miss warning prints before the error, naming the column meant.
+#[test]
+fn a_misspelt_required_column_fails_with_its_near_miss_warning() {
+    let dir = seeded(&[("radar.csv", "name,quadrant,ring,descripton\nK,T,Adopt,d\n")]);
+    let ran = run_in(dir.path(), &RENDER);
+    assert!(!ran.ok(), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "warning: line 1, descripton: not a column radargen knows; did you mean 'description'?",
+            "error: line 1: the header has no 'description' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description",
+        ]
+    );
+}

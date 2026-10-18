@@ -186,7 +186,7 @@ A web address for the item, such as the product's home page: `https://www.terraf
 - a removed character;
 - a name or quadrant with characters the bundled font lacks (PNG and SVG only);
 - a value under an unnamed column;
-- a header one or two letters from a column radargen reads, naming the column it probably meant (one letter for `name`, `ring` and `link`);
+- a header one or two letters from a column radargen reads, naming the column it probably meant (two letters only when the header is the longer, so `state` is not taken for `status`);
 - more than six quadrants;
 - a band with more items than fit without overlapping;
 - a quadrant name or `--rings` entry long enough to make the narrow layout too wide (HTML only);

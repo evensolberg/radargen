@@ -296,9 +296,9 @@ impl Catalogue {
 /// `name`, `quadrant` or `ring` (FR-6) is returned together, in line order
 /// then column order. Rows are checked before any is built, so an `Err`
 /// comes with no row warning from this stage; FR-108's header warnings come
-/// first, since a misspelt required column is why FR-5 fails. `csv::parse`'s FR-4 errors and
-/// FR-90 warnings are separate: `pipeline.rs` merges both stages' errors in
-/// NFR-11's order and prints them after the warnings.
+/// first, since a misspelt required column is why FR-5 fails. `csv::parse`'s
+/// FR-4 errors and FR-90 warnings are separate: `pipeline.rs` merges both
+/// stages' errors in NFR-11's order and prints them after the warnings.
 ///
 /// `off_radar` is where the run puts a row FR-17 leaves off the radar,
 /// which its warning says (FR-106).
@@ -1197,8 +1197,10 @@ mod tests {
         );
     }
 
-    /// No warning from the model when it fails; `parse`'s FR-90 warnings
-    /// are already pushed and stay.
+    /// No row warning from the model when it fails; `parse`'s FR-90 warnings
+    /// are already pushed and stay. FR-108's header warnings are the one
+    /// exception: they are pushed before the check, and this header has
+    /// none.
     #[test]
     fn errors_push_no_model_warnings() {
         let csv = format!("{HEAD},T,Nope,\nK\u{1},T,Adopt,d\n");

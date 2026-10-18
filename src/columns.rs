@@ -61,30 +61,35 @@ impl ColumnKind {
     /// misspelling of, among those not in `taken` — the columns the header
     /// already has, which it cannot have meant.
     ///
-    /// A near miss is within the candidate's tolerance by Damerau–Levenshtein
-    /// distance, so a transposition is one edit. Of several, the fewest edits
-    /// wins, then the first in [`ColumnKind::KNOWN`]'s order (D-98). A known
-    /// name is read, so it is no near miss.
+    /// `key` is a header [`ColumnKind::of`] does not know; the caller sees
+    /// to that. A near miss is within the candidate's tolerance by
+    /// Damerau–Levenshtein distance, so a transposition is one edit. Of
+    /// several, the fewest edits wins, then the first in
+    /// [`ColumnKind::KNOWN`]'s order (D-98).
     pub(crate) fn near_miss(key: &str, taken: &[Self]) -> Option<Self> {
-        if Self::of(key) != Self::Other {
-            return None;
-        }
+        let length = key.chars().count();
         Self::KNOWN
             .into_iter()
             .filter(|k| !taken.contains(k))
             .map(|k| (strsim::damerau_levenshtein(key, k.as_str()), k))
-            .filter(|&(edits, k)| edits <= k.tolerance())
+            .filter(|&(edits, k)| edits <= k.tolerance(length))
             // `min_by_key` keeps the first of equal minima: KNOWN's order.
             .min_by_key(|&(edits, _)| edits)
             .map(|(_, k)| k)
     }
 
-    /// FR-108's guard: a short name is one edit from many ordinary words
-    /// (`note` is two from `name`), so it allows one edit, a longer one two.
-    const fn tolerance(self) -> usize {
+    /// FR-108's guard, for a header of `length` characters: one edit,
+    /// unless the name is longer than four characters and the header longer
+    /// than the name, which allows two. A short name is two edits from many
+    /// ordinary words (`note`, `name`), and so is a header no longer than
+    /// the name, by changing letters rather than adding them (`state`,
+    /// `status`); a doubled or stray letter makes a header longer.
+    const fn tolerance(self, length: usize) -> usize {
         /// The longest name that allows only one edit: `name`, `ring`, `link`.
         const SHORT: usize = 4;
-        if self.as_str().len() <= SHORT { 1 } else { 2 }
+        // Known names are ASCII, so bytes are characters.
+        let name = self.as_str().len();
+        if name > SHORT && length > name { 2 } else { 1 }
     }
 
     /// The canonical header name; empty for [`ColumnKind::Other`].
@@ -120,7 +125,6 @@ mod tests {
     fn one_or_two_edits_from_a_long_name_is_a_near_miss() {
         assert_eq!(near("rationalle"), Some(ColumnKind::Rationale));
         assert_eq!(near("descripton"), Some(ColumnKind::Description));
-        assert_eq!(near("descriptn"), Some(ColumnKind::Description));
         assert_eq!(near("last affirmed"), Some(ColumnKind::LastAffirmed));
         assert_eq!(near("rationaleee"), Some(ColumnKind::Rationale));
         assert_eq!(near("rationaleeee"), None, "three edits");
@@ -145,12 +149,33 @@ mod tests {
         assert_eq!(near("rate"), None);
     }
 
-    /// A known name is read, so it is not a near miss of anything; nor is
-    /// a column far from every known name (D-95).
+    /// FR-108's length guard: a header shorter than the name, or as long,
+    /// allows one edit, so a register's `state` is not `status`; only a
+    /// longer header, with letters to spare, allows two.
     #[test]
-    fn known_and_unrelated_names_are_not_near_misses() {
-        assert_eq!(near("rationale"), None);
-        assert_eq!(near("ring"), None);
+    fn a_header_no_longer_than_the_name_allows_one_edit() {
+        for key in ["state", "main", "remain", "descriptn"] {
+            assert_eq!(near(key), None, "{key}");
+        }
+        // One dropped letter is within any tolerance, so `stats` is still a
+        // hint for `status`, accepted (D-98).
+        assert_eq!(near("stats"), Some(ColumnKind::Status));
+        for (key, known) in [
+            ("descripton", ColumnKind::Description),
+            ("rationalle", ColumnKind::Rationale),
+            ("lastaffirmed", ColumnKind::LastAffirmed),
+            ("exit date", ColumnKind::ExitDate),
+            ("rings", ColumnKind::Ring),
+            ("statuses", ColumnKind::Status),
+        ] {
+            assert_eq!(near(key), Some(known), "{key}");
+        }
+    }
+
+    /// A column far from every known name is no near miss (D-95). An exact
+    /// name never gets here: the caller passes only unknown headers.
+    #[test]
+    fn unrelated_names_are_not_near_misses() {
         assert_eq!(near("owner"), None);
         assert_eq!(near("notes"), None);
     }
