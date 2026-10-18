@@ -307,17 +307,15 @@ fn the_controls_height_the_radar_cap_allows_for() {
 }
 
 /// rg-kw7: a printout has no use for the page's buttons, so the controls
-/// bar is not printed, on any page.
+/// bar is not printed, on any page. The rule overrides the bar's by order,
+/// so it comes last.
 #[test]
 fn the_controls_are_not_printed() {
     for toggle in [true, false] {
         assert!(
-            super::css(&WIDE, toggle).contains(super::PRINT_NO_CONTROLS),
+            super::css(&WIDE, toggle)
+                .ends_with(&[SKIP_OVER_PAGE, super::PRINT_NO_CONTROLS].concat()),
             "{toggle}"
         );
     }
-    assert_eq!(
-        super::PRINT_NO_CONTROLS,
-        ["@media print{", ".page-controls", "{display:none}}\n"].concat()
-    );
 }

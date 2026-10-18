@@ -276,7 +276,8 @@ fn legend_button() -> String {
 }
 
 /// rg-kw7: the page's buttons do nothing on paper, so the controls bar is
-/// not printed.
+/// not printed. It must follow `BAR_OPEN`, which it overrides by order, not
+/// specificity.
 pub(super) const PRINT_NO_CONTROLS: &str = "@media print{.page-controls{display:none}}\n";
 
 /// The controls' rules, capped and inset like the table view.

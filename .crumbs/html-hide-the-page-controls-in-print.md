@@ -2,7 +2,7 @@
 id: rg-kw7
 title: 'HTML: hide the page controls in print'
 status: in_progress
-type: idea
+type: bug
 priority: 4
 tags:
 - html
