@@ -44,6 +44,10 @@ pub struct RingSet {
     pub rings: Vec<String>,
     /// Whether the list came from `--rings` or the FR-13 default (D-61).
     pub source: RingSource,
+    /// FR-107: `--unplotted-rings`, after FR-15's tidy. A row in one is off
+    /// the radar as any FR-17 row is, but raises no warning. None of them is
+    /// in `rings`.
+    pub unplotted: Vec<String>,
 }
 
 /// FR-63 violations. Each is a hard error naming the offending entry; none
@@ -72,6 +76,31 @@ pub enum RingsError {
     /// The list yielded no rings at all.
     #[error("no rings declared")]
     Empty,
+    /// FR-107: an `--unplotted-rings` entry the ring set declares, so it
+    /// would be both drawn and left off. `by` is where the ring set came
+    /// from, which says what to edit (D-61). Never raised for `--rings`.
+    #[error("entry {index} '{entry}' {}", overlap(*.by))]
+    Overlap {
+        /// The entry's own 1-based position in `--unplotted-rings`.
+        index: usize,
+        /// The offending text as written, tidied.
+        entry: String,
+        /// `--rings`, or the default set.
+        by: RingSource,
+    },
+}
+
+/// What FR-107's overlap says after the entry: the default set has no list
+/// to remove the ring from, so it says how to declare one without it.
+const fn overlap(by: RingSource) -> &'static str {
+    match by {
+        RingSource::Flag => {
+            "is also in --rings; a ring is either drawn or left off the radar, so remove it from one of the two"
+        }
+        RingSource::Default => {
+            "is a default ring, so it is drawn; to leave it off the radar, pass --rings listing the rings to draw, without it"
+        }
+    }
 }
 
 /// Parse `--rings`, or the FR-13 default when the flag is absent.
@@ -94,9 +123,49 @@ pub fn parse_rings(declared: Option<&str>) -> Result<RingSet, Vec<RingsError>> {
         return Ok(RingSet {
             rings: DEFAULT_RINGS.iter().map(|r| (*r).to_string()).collect(),
             source: RingSource::Default,
+            unplotted: Vec::new(),
         });
     };
+    Ok(RingSet {
+        rings: parse_list(list, |_, _, _| None)?,
+        source: RingSource::Flag,
+        unplotted: Vec::new(),
+    })
+}
 
+impl RingSet {
+    /// FR-107: this set with `list`, `--unplotted-rings`, as the rings left
+    /// off the radar without a warning. The list is parsed as `--rings` is,
+    /// FR-63's checks included.
+    ///
+    /// # Errors
+    ///
+    /// Every FR-63 violation, and every entry this set declares, the
+    /// default set included, as [`RingsError::Overlap`], in entry order
+    /// (NFR-16 tier one).
+    pub fn with_unplotted(self, list: &str) -> Result<Self, Vec<RingsError>> {
+        let declared: Vec<String> = self.rings.iter().map(|r| normalise(r)).collect();
+        let unplotted = parse_list(list, |index, entry, key| {
+            declared
+                .iter()
+                .any(|d| d == key)
+                .then(|| RingsError::Overlap {
+                    index,
+                    entry: entry.to_string(),
+                    by: self.source,
+                })
+        })?;
+        Ok(Self { unplotted, ..self })
+    }
+}
+
+/// A comma list under FR-15 and FR-63, with `check` asked about each entry
+/// that is neither empty nor a duplicate: its 1-based position, its tidied
+/// text and its FR-76 key.
+fn parse_list(
+    list: &str,
+    check: impl Fn(usize, &str, &str) -> Option<RingsError>,
+) -> Result<Vec<String>, Vec<RingsError>> {
     let mut rings: Vec<String> = Vec::new();
     // Each ring first declared, normalised, with its 1-based entry, so a
     // duplicate names where the ring was first declared.
@@ -117,6 +186,7 @@ pub fn parse_rings(declared: Option<&str>) -> Result<RingSet, Vec<RingsError>> {
             });
             continue;
         }
+        errors.extend(check(i + 1, &entry, &key));
         seen.push((key, i + 1));
         rings.push(entry);
     }
@@ -124,10 +194,7 @@ pub fn parse_rings(declared: Option<&str>) -> Result<RingSet, Vec<RingsError>> {
         return Err(vec![RingsError::Empty]);
     }
     if errors.is_empty() {
-        Ok(RingSet {
-            rings,
-            source: RingSource::Flag,
-        })
+        Ok(rings)
     } else {
         Err(errors)
     }

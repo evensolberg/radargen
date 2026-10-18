@@ -1,6 +1,6 @@
 //! `--rings` parsing and validation (FR-12–FR-15, FR-63).
 
-use radargen::rings::{RingSource, RingsError, parse_rings};
+use radargen::rings::{RingSet, RingSource, RingsError, parse_rings};
 
 #[test]
 fn omitting_the_flag_yields_the_in_house_default() {
@@ -185,5 +185,131 @@ fn internal_whitespace_runs_collapse_in_ring_names() {
             .expect("valid")
             .rings,
         vec!["Early Adopt", "Trial"]
+    );
+}
+
+// ---- FR-107: `--unplotted-rings`, parsed as `--rings` is.
+
+/// `--rings "Adopt,Trial"` with `list` as `--unplotted-rings`.
+fn unplotted(list: &str) -> Result<RingSet, Vec<RingsError>> {
+    parse_rings(Some("Adopt,Trial"))?.with_unplotted(list)
+}
+
+/// No `--unplotted-rings` names none.
+#[test]
+fn a_ring_set_names_no_unplotted_rings_by_default() {
+    let none: [String; 0] = [];
+    assert_eq!(parse_rings(None).expect("default").unplotted, none);
+    assert_eq!(parse_rings(Some("Adopt")).expect("valid").unplotted, none);
+}
+
+/// FR-107 and FR-15: entries are tidied as `--rings`' are, and keep their
+/// casing; the declared rings are untouched.
+#[test]
+fn unplotted_rings_are_a_tidied_comma_list() {
+    let set = unplotted(" In  Use ,retired,\u{200b}Gone").expect("valid");
+    assert_eq!(set.unplotted, ["In Use", "retired", "Gone"]);
+    assert_eq!(set.rings, ["Adopt", "Trial"]);
+    assert_eq!(set.source, RingSource::Flag);
+}
+
+/// FR-63's checks, with `--rings`' errors: an empty entry, a duplicate
+/// under FR-76 naming its first, and a list with no rings at all.
+#[test]
+fn unplotted_rings_get_fr63s_checks() {
+    assert_eq!(
+        unplotted("In Use,,in use , Retired"),
+        Err(vec![
+            RingsError::EmptyEntry { index: 2 },
+            RingsError::Duplicate {
+                index: 3,
+                entry: "in use".into(),
+                first_index: 1,
+            },
+        ])
+    );
+    for list in ["", " , "] {
+        assert_eq!(unplotted(list), Err(vec![RingsError::Empty]), "{list:?}");
+    }
+}
+
+/// FR-107: a ring cannot be both drawn and left off. The match is FR-76's,
+/// and every violation is reported in entry order (NFR-16 tier one).
+#[test]
+fn a_ring_in_both_lists_is_an_error() {
+    assert_eq!(
+        unplotted("In Use, ADOPT ,, trial"),
+        Err(vec![
+            RingsError::Overlap {
+                index: 2,
+                entry: "ADOPT".into(),
+                by: RingSource::Flag,
+            },
+            RingsError::EmptyEntry { index: 3 },
+            RingsError::Overlap {
+                index: 4,
+                entry: "trial".into(),
+                by: RingSource::Flag,
+            },
+        ])
+    );
+}
+
+/// FR-107: the default set is drawn, so naming a default ring is the same
+/// overlap, said as the default set's.
+#[test]
+fn a_default_ring_cannot_be_unplotted() {
+    assert_eq!(
+        parse_rings(None)
+            .expect("default")
+            .with_unplotted("In Use,adopt"),
+        Err(vec![RingsError::Overlap {
+            index: 2,
+            entry: "adopt".into(),
+            by: RingSource::Default,
+        }])
+    );
+}
+
+/// A repeated overlap is reported as the repeat it is, once.
+#[test]
+fn a_repeated_overlap_is_a_duplicate() {
+    assert_eq!(
+        unplotted("Adopt,adopt"),
+        Err(vec![
+            RingsError::Overlap {
+                index: 1,
+                entry: "Adopt".into(),
+                by: RingSource::Flag,
+            },
+            RingsError::Duplicate {
+                index: 2,
+                entry: "adopt".into(),
+                first_index: 1,
+            },
+        ])
+    );
+}
+
+/// The messages `--unplotted-rings:` prefixes.
+#[test]
+fn the_overlap_messages_say_what_to_edit() {
+    let flag = RingsError::Overlap {
+        index: 2,
+        entry: "Adopt".into(),
+        by: RingSource::Flag,
+    };
+    assert_eq!(
+        flag.to_string(),
+        "entry 2 'Adopt' is also in --rings; a ring is either drawn or left off the radar, so remove it from one of the two"
+    );
+    let default = RingsError::Overlap {
+        index: 1,
+        entry: "Adopt".into(),
+        by: RingSource::Default,
+    };
+    assert_eq!(
+        default.to_string(),
+        "entry 1 'Adopt' is a default ring, so it is drawn; to leave it off the radar, pass --rings listing the rings to draw, without it"
     );
 }

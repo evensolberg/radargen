@@ -67,8 +67,9 @@ impl fmt::Display for DateColumn {
 /// the CSV had them; display trims them (FR-76) and escapes control characters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RowKind {
-    /// FR-17. `source` is what the message says to edit (D-61); `rings` are
-    /// the declared rings it lists, so the author sees what would match.
+    /// FR-17, for a ring neither declared nor named by `--unplotted-rings`
+    /// (FR-107). `source` is what the message says to edit (D-61); `rings`
+    /// are the declared rings it lists, so the author sees what would match.
     UndeclaredRing {
         /// The ring cell as the CSV had it.
         value: String,
@@ -303,6 +304,9 @@ pub enum Flag {
     Subtitle,
     /// `--rings` (FR-12).
     Rings,
+    /// `--unplotted-rings` (FR-107). Its rings are never drawn, so FR-104
+    /// has nothing to check; only FR-90 names it.
+    UnplottedRings,
 }
 
 impl fmt::Display for Flag {
@@ -311,6 +315,7 @@ impl fmt::Display for Flag {
             Self::Title => "--title",
             Self::Subtitle => "--subtitle",
             Self::Rings => "--rings",
+            Self::UnplottedRings => "--unplotted-rings",
         })
     }
 }
@@ -692,26 +697,27 @@ impl OffRadar {
     }
 
     /// FR-17's message for one row whose ring `v` is not in `list`,
-    /// declared by `source` (D-61).
+    /// declared by `source` (D-61). Each ends naming `--unplotted-rings`,
+    /// which keeps a deliberate off-radar ring quiet (FR-107).
     fn ring_row(self, v: &str, source: RingSource, list: &str) -> String {
         match (self, source) {
             (Self::Listed, RingSource::Default) => format!(
-                "'{v}' is not one of the default rings ({list}); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
+                "'{v}' is not one of the default rings ({list}); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set; to keep it off without a warning, name it in --unplotted-rings"
             ),
             (Self::Listed, RingSource::Flag) => format!(
-                "'{v}' is not one of the rings --rings declares ({list}); the row is in the table view, not on the radar; to plot it, add it to --rings"
+                "'{v}' is not one of the rings --rings declares ({list}); the row is in the table view, not on the radar; to plot it, add it to --rings; to keep it off without a warning, name it in --unplotted-rings"
             ),
             (Self::Unlisted, RingSource::Default) => format!(
-                "'{v}' is not one of the default rings ({list}), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column"
+                "'{v}' is not one of the default rings ({list}), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column; to keep it off without a warning, name it in --unplotted-rings"
             ),
             (Self::Unlisted, RingSource::Flag) => format!(
-                "'{v}' is not in --rings ({list}), so the row is left off the page; to plot it, add it to --rings; --table all lists it unplotted, but also publishes every other column"
+                "'{v}' is not in --rings ({list}), so the row is left off the page; to plot it, add it to --rings; --table all lists it unplotted, but also publishes every other column; to keep it off without a warning, name it in --unplotted-rings"
             ),
             (Self::Undrawn, RingSource::Default) => format!(
-                "'{v}' is not one of the default rings ({list}); the row is not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
+                "'{v}' is not one of the default rings ({list}); the row is not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set; to keep it off without a warning, name it in --unplotted-rings"
             ),
             (Self::Undrawn, RingSource::Flag) => format!(
-                "'{v}' is not one of the rings --rings declares ({list}); the row is not on the radar; to plot it, add it to --rings"
+                "'{v}' is not one of the rings --rings declares ({list}); the row is not on the radar; to plot it, add it to --rings; to keep it off without a warning, name it in --unplotted-rings"
             ),
         }
     }
@@ -720,22 +726,22 @@ impl OffRadar {
     fn ring_rows(self, n: usize, source: RingSource, list: &str, tallies: &str) -> String {
         match (self, source) {
             (Self::Listed, RingSource::Default) => format!(
-                "{n} rows use a ring that is not one of the default rings ({list}) — {tallies}; all appear in the table view; to plot one, pass --rings with every ring you want, since --rings replaces the default set"
+                "{n} rows use a ring that is not one of the default rings ({list}) — {tallies}; all appear in the table view; to plot one, pass --rings with every ring you want, since --rings replaces the default set; to keep one off without a warning, name it in --unplotted-rings"
             ),
             (Self::Listed, RingSource::Flag) => format!(
-                "{n} rows use a ring --rings does not declare ({list}) — {tallies}; all appear in the table view; to plot one, add it to --rings"
+                "{n} rows use a ring --rings does not declare ({list}) — {tallies}; all appear in the table view; to plot one, add it to --rings; to keep one off without a warning, name it in --unplotted-rings"
             ),
             (Self::Unlisted, RingSource::Default) => format!(
-                "{n} rows use a ring that is not one of the default rings ({list}) — {tallies}; they are left off the page; to plot one, pass --rings listing every ring you want, the defaults included; --table all lists them unplotted, but also publishes every other column"
+                "{n} rows use a ring that is not one of the default rings ({list}) — {tallies}; they are left off the page; to plot one, pass --rings listing every ring you want, the defaults included; --table all lists them unplotted, but also publishes every other column; to keep one off without a warning, name it in --unplotted-rings"
             ),
             (Self::Unlisted, RingSource::Flag) => format!(
-                "{n} rows use a ring --rings does not declare ({list}) — {tallies}; they are left off the page; to plot one, add it to --rings; --table all lists them unplotted, but also publishes every other column"
+                "{n} rows use a ring --rings does not declare ({list}) — {tallies}; they are left off the page; to plot one, add it to --rings; --table all lists them unplotted, but also publishes every other column; to keep one off without a warning, name it in --unplotted-rings"
             ),
             (Self::Undrawn, RingSource::Default) => format!(
-                "{n} rows use a ring that is not one of the default rings ({list}) — {tallies}; none is on the radar; to plot one, pass --rings with every ring you want, since --rings replaces the default set"
+                "{n} rows use a ring that is not one of the default rings ({list}) — {tallies}; none is on the radar; to plot one, pass --rings with every ring you want, since --rings replaces the default set; to keep one off without a warning, name it in --unplotted-rings"
             ),
             (Self::Undrawn, RingSource::Flag) => format!(
-                "{n} rows use a ring --rings does not declare ({list}) — {tallies}; none is on the radar; to plot one, add it to --rings"
+                "{n} rows use a ring --rings does not declare ({list}) — {tallies}; none is on the radar; to plot one, add it to --rings; to keep one off without a warning, name it in --unplotted-rings"
             ),
         }
     }
@@ -1018,6 +1024,9 @@ pub enum Fatal {
     /// FR-63, NFR-16 tier one.
     #[error("--rings: {0}")]
     Rings(#[from] RingsError),
+    /// FR-107's checks, FR-63's among them, NFR-16 tier one.
+    #[error("--unplotted-rings: {0}")]
+    UnplottedRings(RingsError),
     /// FR-102, FR-86, FR-87: one problem in the `--palette` file; a file
     /// reports every one (NFR-16 tier one).
     #[error("{}", palette_problem(path, error))]

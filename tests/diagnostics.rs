@@ -59,7 +59,7 @@ fn each_row_kind_has_its_per_row_message() {
     let cases = [
         (
             ring(37, "Adpot"),
-            "line 37, ring: 'Adpot' is not one of the rings --rings declares (Adopt, Trial); the row is in the table view, not on the radar; to plot it, add it to --rings",
+            "line 37, ring: 'Adpot' is not one of the rings --rings declares (Adopt, Trial); the row is in the table view, not on the radar; to plot it, add it to --rings; to keep it off without a warning, name it in --unplotted-rings",
         ),
         (
             at(
@@ -463,7 +463,7 @@ fn forty_rows_and_a_typo_make_one_ring_line_and_a_duplicate_keeps_its_own() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 41 rows use a ring --rings does not declare (Adopt, Trial) — In Use (40, first line 4), Adpot (1, line 37); all appear in the table view; to plot one, add it to --rings",
+            "warning: 41 rows use a ring --rings does not declare (Adopt, Trial) — In Use (40, first line 4), Adpot (1, line 37); all appear in the table view; to plot one, add it to --rings; to keep one off without a warning, name it in --unplotted-rings",
             "warning: line 50, name: 'Kafka' repeats line 9's name 'Kafka' (names match ignoring case and extra spaces); both are drawn, so rename or delete one if they are the same item",
         ]
     );
@@ -475,7 +475,7 @@ fn forty_rows_and_a_typo_make_one_ring_line_and_a_duplicate_keeps_its_own() {
 fn the_ring_warning_names_the_default_ring_set_when_no_flag_declared_one() {
     assert_eq!(
         default_ring(37).to_string(),
-        "line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
+        "line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set; to keep it off without a warning, name it in --unplotted-rings"
     );
     let mut w = Warnings::default();
     w.push(default_ring(4));
@@ -483,7 +483,7 @@ fn the_ring_warning_names_the_default_ring_set_when_no_flag_declared_one() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); all appear in the table view; to plot one, pass --rings with every ring you want, since --rings replaces the default set"
+            "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); all appear in the table view; to plot one, pass --rings with every ring you want, since --rings replaces the default set; to keep one off without a warning, name it in --unplotted-rings"
         ]
     );
 }
@@ -511,43 +511,43 @@ fn the_ring_warning_says_where_the_row_went() {
     assert_eq!(
         rendered(OffRadar::Unlisted, &[37], false),
         [
-            "warning: line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column"
+            "warning: line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings listing every ring you want, the defaults included; --table all lists it unplotted, but also publishes every other column; to keep it off without a warning, name it in --unplotted-rings"
         ]
     );
     assert_eq!(
         rendered(OffRadar::Unlisted, &[37], true),
         [
-            "warning: line 37, ring: 'Adpot' is not in --rings (Adopt, Trial), so the row is left off the page; to plot it, add it to --rings; --table all lists it unplotted, but also publishes every other column"
+            "warning: line 37, ring: 'Adpot' is not in --rings (Adopt, Trial), so the row is left off the page; to plot it, add it to --rings; --table all lists it unplotted, but also publishes every other column; to keep it off without a warning, name it in --unplotted-rings"
         ]
     );
     assert_eq!(
         rendered(OffRadar::Undrawn, &[37], false),
         [
-            "warning: line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
+            "warning: line 37, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set; to keep it off without a warning, name it in --unplotted-rings"
         ]
     );
     assert_eq!(
         rendered(OffRadar::Undrawn, &[37], true),
         [
-            "warning: line 37, ring: 'Adpot' is not one of the rings --rings declares (Adopt, Trial); the row is not on the radar; to plot it, add it to --rings"
+            "warning: line 37, ring: 'Adpot' is not one of the rings --rings declares (Adopt, Trial); the row is not on the radar; to plot it, add it to --rings; to keep it off without a warning, name it in --unplotted-rings"
         ]
     );
     assert_eq!(
         rendered(OffRadar::Unlisted, &[4, 9], false),
         [
-            "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); they are left off the page; to plot one, pass --rings listing every ring you want, the defaults included; --table all lists them unplotted, but also publishes every other column"
+            "warning: 2 rows use a ring that is not one of the default rings (Assess, Trial, Adopt, Retire) — Adpot (2, first line 4); they are left off the page; to plot one, pass --rings listing every ring you want, the defaults included; --table all lists them unplotted, but also publishes every other column; to keep one off without a warning, name it in --unplotted-rings"
         ]
     );
     assert_eq!(
         rendered(OffRadar::Undrawn, &[4, 9], true),
         [
-            "warning: 2 rows use a ring --rings does not declare (Adopt, Trial) — Adpot (2, first line 4); none is on the radar; to plot one, add it to --rings"
+            "warning: 2 rows use a ring --rings does not declare (Adopt, Trial) — Adpot (2, first line 4); none is on the radar; to plot one, add it to --rings; to keep one off without a warning, name it in --unplotted-rings"
         ]
     );
     assert_eq!(
         rendered(OffRadar::Listed, &[4, 9], true),
         [
-            "warning: 2 rows use a ring --rings does not declare (Adopt, Trial) — Adpot (2, first line 4); all appear in the table view; to plot one, add it to --rings"
+            "warning: 2 rows use a ring --rings does not declare (Adopt, Trial) — Adpot (2, first line 4); all appear in the table view; to plot one, add it to --rings; to keep one off without a warning, name it in --unplotted-rings"
         ]
     );
 }
@@ -568,7 +568,7 @@ fn a_class_with_one_occurrence_prints_the_per_row_message() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: line 37, ring: 'Adpot' is not one of the rings --rings declares (Adopt, Trial); the row is in the table view, not on the radar; to plot it, add it to --rings",
+            "warning: line 37, ring: 'Adpot' is not one of the rings --rings declares (Adopt, Trial); the row is in the table view, not on the radar; to plot it, add it to --rings; to keep it off without a warning, name it in --unplotted-rings",
         ]
     );
 }
@@ -582,7 +582,7 @@ fn values_group_under_fr_76_normalisation() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 3 rows use a ring --rings does not declare (Adopt, Trial) — In Use (3, first line 4); all appear in the table view; to plot one, add it to --rings",
+            "warning: 3 rows use a ring --rings does not declare (Adopt, Trial) — In Use (3, first line 4); all appear in the table view; to plot one, add it to --rings; to keep one off without a warning, name it in --unplotted-rings",
         ]
     );
 }
@@ -610,7 +610,7 @@ fn render_level_warnings_come_first_and_never_group() {
             "warning: 9 quadrants; the radar reads best with 3 to 6, so sectors narrow and labels may crowd",
             "warning: quadrant 'A', ring 'Adopt': 12 items; about 10 fit comfortably, so some markers overlap",
             "warning: quadrant 'B', ring 'Adopt': 11 items; about 10 fit comfortably, so some markers overlap",
-            "warning: line 2, ring: 'X' is not one of the rings --rings declares (Adopt, Trial); the row is in the table view, not on the radar; to plot it, add it to --rings",
+            "warning: line 2, ring: 'X' is not one of the rings --rings declares (Adopt, Trial); the row is in the table view, not on the radar; to plot it, add it to --rings; to keep it off without a warning, name it in --unplotted-rings",
         ]
     );
 }
@@ -808,7 +808,7 @@ fn grouped_values_order_by_first_line_not_push_order() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 3 rows use a ring --rings does not declare (Adopt, Trial) — In Use (2, first line 4), Adpot (1, line 37); all appear in the table view; to plot one, add it to --rings",
+            "warning: 3 rows use a ring --rings does not declare (Adopt, Trial) — In Use (2, first line 4), Adpot (1, line 37); all appear in the table view; to plot one, add it to --rings; to keep one off without a warning, name it in --unplotted-rings",
         ]
     );
 }

@@ -141,7 +141,7 @@ declarations only and are not listed.
 | `src/pipeline.rs` | The run: `Config` built once from `Cli`, the stages in §2's order, the three failure points (§7), and the rendered `Report` | v1.0 |
 | `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52). In v1.1, also the `--config` merge under the command-line flags and `{edition}` expansion, both before any other validation (FR-91, FR-92) | *exists* |
 | `src/diagnostics.rs` | `Fatal`, `RowError`, `Warning`, `Warnings` — the taxonomy and NFR-20 grouping | v1.0 |
-| `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17) | *exists* |
+| `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17); `--unplotted-rings`, parsed the same way and refused where it names a declared ring (FR-107) | *exists* |
 | `src/csv/decode.rs` | `read`, the CSV stage's one file read (FR-1, FR-61), capped at 64 MiB and refused as `Fatal::CsvTooLarge` (rg-w5k); the bytes become text through `decode.rs` | v1.0 |
 | `src/csv/parse.rs` | String → `Table` (header and records); header, field counts (FR-3, FR-4); removal of undisplayable characters, with a warning, before any other check except the blank-record test (FR-90, FR-3), using `escape::displayable` so both modules share one set | v1.0 |
 | `src/model.rs` | `Item`, `Catalogue`; column validation, quadrant grouping and ring matching (FR-5–FR-29); the named columns in header order and every row's cells (FR-27, FR-78); unnamed columns dropped, with a warning when they hold a value (FR-93); `accessible_name()` (FR-50, FR-75); each row's link (FR-96) | *exists* |
@@ -646,7 +646,7 @@ pub fn layout(cat: &Catalogue, cfg: &Config, w: &mut Warnings) -> Blocks;
 two: row-level errors are **collected across the whole file** and reported
 together, so a 200-row export is not fixed one error per run. Tier one — flag
 and file errors — returns a `Vec<Fatal>`, every violation of the one flag or
-file that failed (`--rings`, a `--palette` file), and aborts, because nothing
+file that failed (`--rings`, `--unplotted-rings`, a `--palette` file), and aborts, because nothing
 parsed.
 The two tiers are separate types, so the grouping code below matches only the
 errors it groups, and a tier-one error cannot reach it.
@@ -661,12 +661,15 @@ line-without-column position — FR-4's mismatched row, FR-5 on the header's
 line — ordered before the same line's column positions.
 
 `build_catalogue` takes the ring set because matching a row's ring is part of
-what the row means (FR-16), and FR-17's warning names the set's source. It
+what the row means (FR-16), and FR-17's warning names the set's source. The
+set also carries `--unplotted-rings` (FR-107): a row matching one of those,
+under FR-76, is off the radar as any FR-17 row is, with no warning, so the
+catalogue cannot tell the two apart and nothing below it needs to. It
 checks every row before building any, so its `Err` comes with no warning of its
 own; warnings other stages already pushed still print, before the errors
 (NFR-11).
 
-`Config` is the resolved run: the input path, the `RingSet` (the ring list and its source, FR-17), the
+`Config` is the resolved run: the input path, the `RingSet` (the ring list, its source and the unplotted rings, FR-17, FR-107), the
 colours (`Colours`: the built-in themes and `--theme`'s choice, or a `--palette` file's one set), the width, the title strings. Only `build_catalogue` reads the `RingSet`; stages below read `Catalogue::rings`. It is built once in
 `pipeline.rs` from `Cli` plus `rings.rs` plus `palette/` and is read-only
 thereafter, so no stage below can reinterpret a flag differently from another.

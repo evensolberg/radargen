@@ -13,7 +13,7 @@ created_date: 2026-10-12
 synopsis: "How to write the CSV radargen reads: the four required columns and seven optional ones, what each accepts, what is a hard error and what only warns, and how the file must be saved."
 status: active
 type: Guide
-revision: "1.6"
+revision: "1.7"
 review_date:
 reviewed_by: []
 completed_date:
@@ -76,6 +76,14 @@ Free text. Every distinct value becomes one sector, so the file decides how many
 Which band the item sits in. The value must be one of the declared rings, matched ignoring case and extra spaces.
 
 A row whose ring is not declared is **not an error**. It is left off the radar, and you get a warning naming the declared rings. By default it is left off the page too; with `--table all` it appears in the table view flagged "not on the radar". Usually the value is a typo (`Adpot`), or a ring missing from `--rings`.
+
+If the CSV is also a register with rows that never belong on the radar, such as `In Use` or `Retired`, name those rings in `--unplotted-rings`. Their rows are left off the radar the same way, with no warning, and any other undeclared ring still warns, so a typo is still caught:
+
+```text
+radargen radar.csv -o radar.html --unplotted-rings "In Use, Retired"
+```
+
+`--unplotted-rings` is parsed like `--rings` and matched the same way. A ring cannot be in both lists, and without `--rings` it cannot be a default ring either, since those are drawn. A name that no row uses is fine.
 
 #### Rings
 
@@ -169,7 +177,7 @@ A web address for the item, such as the product's home page: `https://www.terraf
 
 **A warning is printed and the radar is still written.** These are warnings:
 
-- an undeclared ring;
+- an undeclared ring, unless `--unplotted-rings` names it;
 - an unrecognised qualifier or status;
 - a `link` that is not an `http` or `https` address;
 - a date that does not parse;
@@ -206,3 +214,4 @@ Kubernetes,Platforms,Adopt,"Container orchestration.",default,Containers,"Defaul
 | 1.4 | 2026-10-12 | The detail panel is live (FR-38). |
 | 1.5 | 2026-10-17 | The warning for a page that gives laptops the narrow layout (FR-105); "narrow layout" for the phone layout; both layout warnings marked HTML only. |
 | 1.6 | 2026-10-17 | The page publishes what the radar draws by default: other columns and undeclared-ring rows reach the table and detail panel only with `--table all` (FR-106, D-95; rg-fgf). The default table's heading is *Items on the radar*, and the panel shows every field the table lists (rg-fgf review). |
+| 1.7 | 2026-10-17 | `--unplotted-rings`: rings whose rows stay off the radar without a warning, while other undeclared rings still warn (FR-107, D-96; rg-4bq). |

@@ -601,3 +601,74 @@ fn palette_with_theme_is_a_usage_error() {
 fn palette_alone_is_not_a_conflict() {
     assert!(parse(&["in.csv", "-o", "e.png", "-p", "b.css"]).is_ok());
 }
+
+// ---- FR-107: --unplotted-rings
+
+/// A comma list kept as written for `rings::RingSet::with_unplotted`, long
+/// form only (OQ-2), and absent unless given.
+#[test]
+fn unplotted_rings_take_a_list_and_no_short_form() {
+    let cli = parse(&[
+        "in.csv",
+        "-o",
+        "e.html",
+        "--unplotted-rings",
+        "In Use, Retired",
+    ])
+    .expect("parses");
+    assert_eq!(cli.unplotted_rings.as_deref(), Some("In Use, Retired"));
+    let cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
+    assert_eq!(cli.unplotted_rings, None);
+    assert!(parse(&["in.csv", "-o", "e.html", "-u", "In Use"]).is_err());
+}
+
+#[test]
+fn unplotted_rings_name_themselves_in_the_cleaning_warning() {
+    let mut warnings = Warnings::default();
+    assert_eq!(
+        clean_flag(Flag::UnplottedRings, "In\u{1} Use", &mut warnings),
+        "In Use"
+    );
+    assert_eq!(
+        warnings.render(),
+        ["warning: --unplotted-rings: removed U+0001, which the output cannot display"]
+    );
+}
+
+/// The help says what the flag does, that a ring in neither list still
+/// warns, and the overlap rule; `--rings`' help points at it.
+#[test]
+fn the_unplotted_rings_help_says_what_still_warns() {
+    use clap::CommandFactory;
+    let long = Cli::command().render_long_help().to_string();
+    let start = long
+        .find("--unplotted-rings <RINGS>")
+        .expect("--unplotted-rings in --help");
+    let end = long
+        .get(start..)
+        .and_then(|rest| rest.find("--title <TITLE>"))
+        .expect("the next flag")
+        + start;
+    let block: Vec<&str> = long
+        .get(start..end)
+        .unwrap_or_default()
+        .lines()
+        .map(radargen::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with("-t,"))
+        .collect();
+    assert_eq!(
+        block,
+        [
+            "--unplotted-rings <RINGS>",
+            "Rings to leave off the radar without a warning, separated by commas.",
+            "For example \"In Use,Retired\". A row in one of them is left off the radar as any row whose ring is not in --rings is, but without the warning; a ring in neither list still warns, so a typo shows. Matched in any case. A ring cannot be in both lists, nor be a default ring when --rings is not given.",
+        ],
+        "{long}"
+    );
+    let rings = long.find("-r, --rings <RINGS>").expect("--rings");
+    assert!(
+        long.get(rings..start)
+            .is_some_and(|h| h.contains("with a warning unless --unplotted-rings names it")),
+        "{long}"
+    );
+}

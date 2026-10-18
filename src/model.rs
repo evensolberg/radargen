@@ -484,6 +484,8 @@ struct Builder {
     at: Positions,
     /// The declared rings under FR-76, for FR-16's match.
     ring_keys: Vec<String>,
+    /// FR-107's unplotted rings under FR-76: off the radar, unwarned.
+    unplotted_keys: Vec<String>,
     source: RingSource,
     /// Where the run puts an FR-17 row, for its warning (FR-106).
     off_radar: OffRadar,
@@ -506,6 +508,7 @@ impl Builder {
             at: Positions::of(&header),
             header,
             ring_keys: rings.rings.iter().map(|r| normalise(r)).collect(),
+            unplotted_keys: rings.unplotted.iter().map(|r| normalise(r)).collect(),
             source: rings.source,
             off_radar,
             declared: Arc::from(rings.rings.as_slice()),
@@ -639,11 +642,12 @@ impl Builder {
     }
 
     /// FR-16, FR-17: the declared ring the value matches, or a warning
-    /// naming where the ring set came from (D-61).
+    /// naming where the ring set came from (D-61), unless FR-107 names the
+    /// value as a ring kept off the radar.
     fn ring(&self, value: &str, warn: &mut impl FnMut(usize, RowKind)) -> Option<usize> {
         let key = normalise(value);
         let found = self.ring_keys.iter().position(|k| *k == key);
-        if found.is_none() {
+        if found.is_none() && !self.unplotted_keys.contains(&key) {
             warn(
                 self.at.ring,
                 RowKind::UndeclaredRing {
@@ -1251,14 +1255,14 @@ mod tests {
         assert_eq!(
             warnings,
             [
-                "warning: line 2, ring: 'In Use' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set"
+                "warning: line 2, ring: 'In Use' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set; to keep it off without a warning, name it in --unplotted-rings"
             ]
         );
         let (_, warnings) = build_with(&csv, Some("Adopt,Hold"));
         assert_eq!(
             warnings,
             [
-                "warning: line 2, ring: 'In Use' is not one of the rings --rings declares (Adopt, Hold); the row is in the table view, not on the radar; to plot it, add it to --rings"
+                "warning: line 2, ring: 'In Use' is not one of the rings --rings declares (Adopt, Hold); the row is in the table view, not on the radar; to plot it, add it to --rings; to keep it off without a warning, name it in --unplotted-rings"
             ]
         );
     }
@@ -1543,7 +1547,7 @@ mod tests {
             warnings(csv),
             [
                 "warning: line 2, column 2 (B): this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
-                "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set",
+                "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set; to keep it off without a warning, name it in --unplotted-rings",
                 "warning: line 2, description: removed U+0001, which the output cannot display",
                 "warning: line 3, description: empty; the detail panel omits it",
             ]
@@ -1559,7 +1563,7 @@ mod tests {
             warnings("name,quadrant,,,ring,description\nK,T,,\u{1},Adpot,d\n"),
             [
                 "warning: line 2, column 4 (D): removed U+0001, which the output cannot display",
-                "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set",
+                "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring you want, since --rings replaces the default set; to keep it off without a warning, name it in --unplotted-rings",
             ]
         );
     }
