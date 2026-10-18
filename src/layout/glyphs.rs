@@ -5,6 +5,7 @@
 use crate::cli::OutputFormat;
 use crate::columns::ColumnKind;
 use crate::diagnostics::{Flag, Lacking, RenderKind, RowKind, Warning, Warnings};
+use crate::layout::title::shown;
 use crate::model::Catalogue;
 use crate::order::Plotted;
 use crate::rings::RingSource;
@@ -35,9 +36,10 @@ pub fn warn_missing_glyphs(
 ) {
     let lacking = |text: &str| lacking(text, format, fonts);
     for (flag, value) in [(Flag::Title, title), (Flag::Subtitle, subtitle)] {
-        // As the title block draws it: one space per run of whitespace, so
-        // a tab, which the shaper would draw as a box, is not checked.
-        if let Some(lacking) = value.map(words).as_deref().and_then(lacking) {
+        // As the title block draws it: FR-76's trim, then one space per run
+        // of whitespace, so a tab, which the shaper would draw as a box, is
+        // not checked.
+        if let Some(lacking) = shown(value).map(words).as_deref().and_then(lacking) {
             warnings.push(Warning::Render(RenderKind::FlagMissingGlyphs {
                 flag,
                 lacking,
@@ -211,6 +213,18 @@ mod tests {
                 flag(Flag::Rings, lacks("採用", '採', 2)),
                 flag(Flag::Rings, lacks("Hold 🙂", '🙂', 1)),
             ]
+        );
+    }
+
+    /// The title block drops FR-76's trimmable edge characters before it
+    /// draws, so the warning quotes the title without them; an empty one is
+    /// not drawn at all.
+    #[test]
+    fn a_title_is_quoted_as_the_title_block_draws_it() {
+        let csv = format!("{HEAD}Kafka,Tools,Adopt,d\n");
+        assert_eq!(
+            warned(&csv, None, Some("\u{feff}雷达\u{200b} "), Some(" \u{200b}")),
+            [flag(Flag::Title, lacks("雷达", '雷', 2))]
         );
     }
 
