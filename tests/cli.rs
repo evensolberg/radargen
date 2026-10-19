@@ -242,7 +242,7 @@ fn the_table_help_lists_radar_and_all() {
         .lines()
         .find(|l| l.contains("--table"))
         .expect("--table in -h");
-    assert!(line.contains("radar by default"), "{line}");
+    assert!(line.contains("the default is radar"), "{line}");
     assert!(line.contains("[possible values: radar, all]"), "{line}");
 }
 
@@ -269,7 +269,7 @@ fn the_table_long_help_says_what_each_value_publishes() {
         block,
         [
             "--table <TABLE>",
-            "What an HTML page's table publishes; radar by default.",
+            "What an HTML page's table publishes; the default is radar.",
             "It also decides what the detail panels show. Accepted in any letter case. PNG and SVG have no table.",
             "Possible values:",
             "- radar: Only the rows the radar draws and the columns radargen reads",
@@ -575,6 +575,10 @@ fn usage_names_every_form() {
     use clap::CommandFactory;
     let help = Cli::command().render_help().to_string();
     assert!(help.contains("radargen <CSV_PATH> -o <OUTPUT>"), "{help}");
+    assert!(
+        help.contains("radargen <CSV_PATH> -c <FILE> [OPTIONS]"),
+        "{help}"
+    );
     assert!(help.contains("radargen --create-template <PATH>"), "{help}");
     assert!(help.contains("radargen --create-palette <PATH>"), "{help}");
 }
@@ -770,16 +774,19 @@ fn help_names_each_default() {
             .to_owned()
     };
     assert!(
-        line("--theme").contains(&format!("{DEFAULT_THEME:?} by default").to_lowercase()),
-        "{short}"
-    );
-    assert!(line("--legend <").contains("shown by default"), "{short}");
-    assert!(
-        line("--table").contains(&format!("{DEFAULT_TABLE:?} by default").to_lowercase()),
+        line("--theme").contains(&format!("the default is {DEFAULT_THEME:?}").to_lowercase()),
         "{short}"
     );
     assert!(
-        line("--legend-columns").contains(&format!("{DEFAULT_LEGEND_COLUMNS} by default")),
+        line("--legend <").contains("the default is shown"),
+        "{short}"
+    );
+    assert!(
+        line("--table").contains(&format!("the default is {DEFAULT_TABLE:?}").to_lowercase()),
+        "{short}"
+    );
+    assert!(
+        line("--legend-columns").contains(&format!("the default is {DEFAULT_LEGEND_COLUMNS}")),
         "{short}"
     );
 }
@@ -949,5 +956,34 @@ fn config_has_a_short_form_and_stands_in_for_output() {
     assert!(
         parse(&["--create-template", "t.csv", "-c", "r.toml"]).is_err(),
         "given alone"
+    );
+}
+
+/// QA review M-1: `--config`'s help lists every key FR-91 does, so a new
+/// key cannot be left out of it.
+#[test]
+fn config_help_lists_every_key() {
+    use clap::CommandFactory;
+    let long = Cli::command().render_long_help().to_string();
+    let start = long.find("--config <FILE>").expect("--config in --help");
+    let paragraph = long
+        .get(start..)
+        .and_then(|rest| rest.split("\n\n  ").next())
+        .unwrap_or_default()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for setting in Setting::ALL {
+        assert!(
+            paragraph.contains(&format!("{},", setting.key()))
+                || paragraph.contains(&format!("{} ", setting.key())),
+            "{} missing: {paragraph}",
+            setting.key()
+        );
+    }
+    assert!(paragraph.contains("integers"), "{paragraph}");
+    assert!(
+        paragraph.contains("arrays of strings, such as"),
+        "{paragraph}"
     );
 }

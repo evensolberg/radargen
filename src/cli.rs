@@ -98,7 +98,7 @@ pub struct Cli {
     // the courtesy FR-52 gives `.PNG`. `-T`, not `-t`, which is `--title`:
     // both appear in §6.6's canonical PNG invocation, so both earn a short
     // form (OQ-2).
-    /// The theme for PNG and SVG; light by default.
+    /// The theme for PNG and SVG; the default is light.
     ///
     /// Not with --palette, which gives the colours itself. Written in any
     /// case. An HTML page carries both themes and follows the reader's
@@ -111,7 +111,7 @@ pub struct Cli {
     // `show` and `hide` read naturally too, so they are accepted without
     // being advertised. No short form: a page's start is set once per
     // edition, and FR-100's --legend-columns may want one.
-    /// Where an HTML page's legend starts; shown by default.
+    /// How an HTML page's legend starts; the default is shown.
     ///
     /// Accepted in any letter case. The page has a button to show or hide
     /// it either way. PNG and SVG always draw the legend.
@@ -123,7 +123,7 @@ pub struct Cli {
     // published whole by default. PNG and SVG have no table, so the pipeline
     // warns on `all` there, as it does on `--legend hidden`. No aliases and
     // no short form: it is set once per radar, like --legend.
-    /// What an HTML page's table publishes; radar by default.
+    /// What an HTML page's table publishes; the default is radar.
     ///
     /// It also decides what the detail panels show. Accepted in any letter
     /// case. PNG and SVG have no table.
@@ -144,7 +144,7 @@ pub struct Cli {
     // The range is enforced by clap, as --width's is. HTML ignores it
     // without a word, as it does --width: its legend scrolls beside the
     // radar. No short form until it earns one (OQ-2).
-    /// Flow a PNG or SVG legend into this many columns beside the radar; 1 by default.
+    /// Flow a PNG or SVG legend into this many columns beside the radar; the default is 1.
     ///
     /// From 1 to 4; columns break only between quadrants. An HTML page
     /// ignores it.
@@ -173,15 +173,10 @@ pub struct Cli {
     // here overrides its key, and a relative path in the file is read from
     // the file's folder. `exclusive` on the --create-* flags keeps it from
     // them.
+    // The long help is a constant, since its TOML example would read as an
+    // intra-doc link in a doc comment.
     /// Read settings from a TOML file.
-    ///
-    /// Its keys are output, title, subtitle, rings, unplotted_rings, theme,
-    /// width, legend_columns, legend, table and palette, each meaning what
-    /// its flag means: rings and unplotted_rings are arrays of strings,
-    /// width and legend_columns whole numbers, the rest strings. A flag
-    /// given here overrides its key. A relative path in the file is read
-    /// from the file's own folder.
-    #[arg(short, long, value_name = "FILE")]
+    #[arg(short, long, value_name = "FILE", long_help = CONFIG_HELP)]
     pub config: Option<PathBuf>,
 
     // FR-99, D-83: the tool writes the template, so it always matches the
@@ -205,6 +200,15 @@ pub struct Cli {
     #[arg(long, value_name = "PATH", exclusive = true, group = STARTER)]
     pub create_palette: Option<PathBuf>,
 }
+
+/// `--config`'s long help (UX review 8).
+const CONFIG_HELP: &str = "Read settings from a TOML file.\n\n\
+Its keys are output, title, subtitle, rings, unplotted_rings, theme, width, \
+legend_columns, legend, table and palette, each meaning what its flag means. \
+rings and unplotted_rings are arrays of strings, such as [\"Hold\", \"Adopt\"]; \
+width and legend_columns are integers; the rest are strings. Any other key is \
+an error. A flag on the command line overrides its key. A relative path in the \
+file is read from the file's own folder; ~ is not expanded.";
 
 /// The group of flags that each stand in for a render (FR-60).
 const STARTER: &str = "starter";
