@@ -970,3 +970,60 @@ fn a_palette_on_one_line_is_read_whole() {
     }
     assert!(parse(&format!(":root{{{body}--series-1:#000001}}")).is_ok());
 }
+
+/// Ruling B: a redacted error quotes nothing from the file, keeps its
+/// line, and says what is wrong in the same message table.
+#[test]
+fn a_redacted_error_quotes_nothing() {
+    let secret = "SECRET_TOKEN=ghp_x";
+    let errors = [
+        PaletteError::OtherRule {
+            line: 1,
+            selector: secret.into(),
+        },
+        PaletteError::TextOutside {
+            line: 2,
+            text: secret.into(),
+        },
+        PaletteError::Malformed {
+            line: 3,
+            text: secret.into(),
+        },
+        PaletteError::Unknown {
+            line: 4,
+            name: secret.into(),
+        },
+        PaletteError::Duplicate {
+            line: 5,
+            name: secret.into(),
+            first: 1,
+        },
+        PaletteError::NotHex {
+            line: 6,
+            name: secret.into(),
+            value: secret.into(),
+        },
+        PaletteError::MissingSemicolon {
+            line: 7,
+            name: secret.into(),
+        },
+    ];
+    for error in errors {
+        let redacted = error.redacted();
+        let shown = redacted.to_string();
+        assert!(
+            !shown.contains("SECRET") && !shown.contains("''"),
+            "{shown}"
+        );
+        assert_eq!(redacted.line(), error.line());
+    }
+    assert_eq!(
+        PaletteError::TextOutside {
+            line: 2,
+            text: secret.into()
+        }
+        .redacted()
+        .to_string(),
+        "text is outside the :root rule; delete it"
+    );
+}

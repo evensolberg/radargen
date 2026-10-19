@@ -765,7 +765,7 @@ fn quotes(expected: Expected, found: &str) -> &'static str {
 /// name any file, so its text could be a secret (ruling B).
 fn palette_problem(palette: &NamedPath, error: &PaletteError) -> String {
     let message = if palette.origin.source.is_config() {
-        error.unquoted()
+        error.redacted().to_string()
     } else {
         error.to_string()
     };

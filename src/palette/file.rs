@@ -40,7 +40,10 @@ pub enum PaletteError {
         line: usize,
     },
     /// Any rule but the first `:root`: another selector, or an at-rule.
-    #[error("'{selector}' is not allowed; a palette is one :root rule and nothing else")]
+    #[error(
+        "{} is not allowed; a palette is one :root rule and nothing else",
+        quoted(selector, "a rule other than :root")
+    )]
     OtherRule {
         /// Where it starts.
         line: usize,
@@ -54,7 +57,7 @@ pub enum PaletteError {
         line: usize,
     },
     /// Text that is neither a comment nor part of a rule.
-    #[error("'{text}' is outside the :root rule; delete it")]
+    #[error("{} is outside the :root rule; delete it", quoted(text, "text"))]
     TextOutside {
         /// Where it starts.
         line: usize,
@@ -62,7 +65,10 @@ pub enum PaletteError {
         text: String,
     },
     /// A declaration with no `:`, or an empty name.
-    #[error("'{text}' is not a declaration; write --name: #RRGGBB;")]
+    #[error(
+        "{} is not a declaration; write --name: #RRGGBB;",
+        quoted(text, "this line")
+    )]
     Malformed {
         /// Where it starts.
         line: usize,
@@ -70,7 +76,11 @@ pub enum PaletteError {
         text: String,
     },
     /// A property that is not one of FR-82's roles or `--series-N`.
-    #[error("{name} is not a palette property; the properties are {}", PROPERTIES)]
+    #[error(
+        "{} is not a palette property; the properties are {}",
+        or_else(name, "this property"),
+        PROPERTIES
+    )]
     Unknown {
         /// Where it is declared.
         line: usize,
@@ -78,7 +88,7 @@ pub enum PaletteError {
         name: String,
     },
     /// A property declared again; both lines are named (FR-102).
-    #[error("{name} repeats line {first}; keep one")]
+    #[error("{} repeats line {first}; keep one", or_else(name, "this property"))]
     Duplicate {
         /// The repeat's line.
         line: usize,
@@ -88,7 +98,11 @@ pub enum PaletteError {
         first: usize,
     },
     /// FR-86: a value that is not `#RRGGBB`.
-    #[error("{name}: '{value}' is not a #RRGGBB colour")]
+    #[error(
+        "{}: {} is not a #RRGGBB colour",
+        or_else(name, "this property"),
+        quoted(value, "its value")
+    )]
     NotHex {
         /// Where it is declared.
         line: usize,
@@ -100,7 +114,10 @@ pub enum PaletteError {
     /// A value runs onto a later line that declares a property: a forgotten
     /// `;` (rg-8xm). The value ends at that line, which is read as the next
     /// declaration, so it is checked in the same pass (rg-p9a).
-    #[error("{name}: its value runs onto the next line; add ; at its end")]
+    #[error(
+        "{}: its value runs onto the next line; add ; at its end",
+        or_else(name, "this property")
+    )]
     MissingSemicolon {
         /// Where the declaration missing its `;` is.
         line: usize,
@@ -127,35 +144,48 @@ pub enum PaletteError {
     },
 }
 
+/// An excerpt in single quotes, or `instead` when a redacted error left
+/// it out.
+fn quoted(excerpt: &str, instead: &str) -> String {
+    if excerpt.is_empty() {
+        instead.to_owned()
+    } else {
+        format!("'{excerpt}'")
+    }
+}
+
+/// A property name as written, or `instead` when a redacted error left it
+/// out.
+const fn or_else<'a>(name: &'a str, instead: &'a str) -> &'a str {
+    if name.is_empty() { instead } else { name }
+}
+
 impl PaletteError {
-    /// The message without any text from the file: what is wrong and how
-    /// to fix it, for a palette a `--config` file named, which may be any
-    /// file at all (security review F1, the maintainer's ruling B).
+    /// This error with every excerpt left out, for a palette a `--config`
+    /// file named, which may be any file at all (security review F1, the
+    /// maintainer's ruling B): its message says what is wrong and on which
+    /// line, from the same table, and quotes nothing.
     #[must_use]
-    pub fn unquoted(&self) -> String {
-        match self {
-            Self::OtherRule { .. } => {
-                "a rule other than :root is not allowed; a palette is one :root rule and nothing else"
-                    .to_owned()
-            }
-            Self::TextOutside { .. } => "text outside the :root rule; delete it".to_owned(),
-            Self::Malformed { .. } => {
-                "a line that is not a declaration; write --name: #RRGGBB;".to_owned()
-            }
-            Self::Unknown { .. } => format!(
-                "a property that is not a palette property; the properties are {PROPERTIES}"
-            ),
-            Self::Duplicate { first, .. } => format!("a property repeats line {first}; keep one"),
-            Self::NotHex { .. } => "a value that is not a #RRGGBB colour".to_owned(),
-            Self::MissingSemicolon { .. } => {
-                "a value runs onto the next line; add ; at its end".to_owned()
+    pub fn redacted(&self) -> Self {
+        let mut redacted = self.clone();
+        match &mut redacted {
+            Self::OtherRule { selector: text, .. }
+            | Self::TextOutside { text, .. }
+            | Self::Malformed { text, .. }
+            | Self::Unknown { name: text, .. }
+            | Self::Duplicate { name: text, .. }
+            | Self::MissingSemicolon { name: text, .. } => text.clear(),
+            Self::NotHex { name, value, .. } => {
+                name.clear();
+                value.clear();
             }
             Self::UnclosedComment { .. }
             | Self::UnclosedRule { .. }
             | Self::SecondRoot { .. }
             | Self::MissingRole { .. }
-            | Self::MissingSeries { .. } => self.to_string(),
+            | Self::MissingSeries { .. } => {}
         }
+        redacted
     }
 
     /// The line the problem is on, as the file is written; `None` for a
