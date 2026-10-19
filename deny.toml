@@ -18,3 +18,14 @@ confidence-threshold = 0.9
 unused-allowed-license = "allow"
 # radargen itself is copyleft by choice; the rule is about what it depends on.
 exceptions = [{ crate = "radargen", allow = ["GPL-3.0-or-later"] }]
+
+# Security review F6: crates come from crates.io only, never an unknown
+# registry or a git repository.
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+
+# Security review F6: a second version of a crate is reported, not
+# refused; png's two miniz_oxide versions are not ours to unify (rg-42m).
+[bans]
+multiple-versions = "warn"
