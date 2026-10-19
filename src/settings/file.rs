@@ -611,8 +611,14 @@ mod tests {
                 "{text}"
             );
         }
-        assert_eq!(Setting::LegendColumns.expected(), super::super::Expected::Integer);
-        assert_eq!(Setting::UnplottedRings.expected(), super::super::Expected::Strings);
+        assert_eq!(
+            Setting::LegendColumns.expected(),
+            super::super::Expected::Integer
+        );
+        assert_eq!(
+            Setting::UnplottedRings.expected(),
+            super::super::Expected::Strings
+        );
     }
 
     /// QA review M-2: a file at the cap reads; one byte more does not.
