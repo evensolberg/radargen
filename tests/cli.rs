@@ -987,3 +987,80 @@ fn config_help_lists_every_key() {
         "{paragraph}"
     );
 }
+
+/// QA review I-3, I-4 and the precedence matrix: for every setting, a flag
+/// beats its key, and without the flag the key is read.
+#[test]
+fn every_flag_beats_its_key_and_every_key_is_read() {
+    let text = "output = \"f.html\"\ntitle = \"F\"\nsubtitle = \"F\"\nrings = [\"F\"]\n\
+                unplotted_rings = [\"G\"]\ntheme = \"dark\"\nwidth = 2000\nlegend_columns = 3\n\
+                legend = \"hidden\"\ntable = \"all\"\n";
+    let loaded = file(text);
+    let flags = [
+        "in.csv",
+        "-c",
+        "r.toml",
+        "-o",
+        "x.html",
+        "-t",
+        "X",
+        "-s",
+        "X",
+        "-r",
+        "X",
+        "--unplotted-rings",
+        "Y",
+        "-T",
+        "light",
+        "-w",
+        "1000",
+        "--legend-columns",
+        "2",
+        "--legend",
+        "shown",
+        "--table",
+        "radar",
+    ];
+    let (s, problems) = parse(&flags).expect("parses").settings(Some(&loaded));
+    assert_eq!(problems, []);
+    assert_eq!(
+        s.output.as_given().map(|v| v.origin.source.clone()),
+        Some(Source::Flag)
+    );
+    assert_eq!(s.title.as_given().map(|v| v.value.as_str()), Some("X"));
+    assert_eq!(s.subtitle.as_given().map(|v| v.value.as_str()), Some("X"));
+    assert_eq!(s.rings.as_given().map(|v| v.value.as_str()), Some("X"));
+    assert_eq!(
+        s.unplotted_rings.as_given().map(|v| v.value.as_str()),
+        Some("Y")
+    );
+    assert_eq!(s.theme.as_given().map(|v| v.value), Some(Theme::Light));
+    assert_eq!(s.width.as_given().map(|v| v.value), Some(1000));
+    assert_eq!(s.legend_columns.as_given().map(|v| v.value), Some(2));
+    assert_eq!(s.legend.as_given().map(|v| v.value), Some(Legend::Shown));
+    assert_eq!(s.table.as_given().map(|v| v.value), Some(Table::Radar));
+    let (s, problems) = parse(&["in.csv", "-c", "r.toml"])
+        .expect("parses")
+        .settings(Some(&loaded));
+    assert_eq!(problems, []);
+    assert_eq!(
+        s.output.as_given().map(|v| v.value.clone()),
+        Some(PathBuf::from("f.html"))
+    );
+    assert_eq!(s.title.as_given().map(|v| v.value.as_str()), Some("F"));
+    assert_eq!(s.subtitle.as_given().map(|v| v.value.as_str()), Some("F"));
+    assert_eq!(s.rings.as_given().map(|v| v.value.as_str()), Some("F"));
+    assert_eq!(
+        s.unplotted_rings.as_given().map(|v| v.value.as_str()),
+        Some("G")
+    );
+    assert_eq!(s.theme.as_given().map(|v| v.value), Some(Theme::Dark));
+    assert_eq!(s.width.as_given().map(|v| v.value), Some(2000));
+    assert_eq!(s.legend_columns.as_given().map(|v| v.value), Some(3));
+    assert_eq!(s.legend.as_given().map(|v| v.value), Some(Legend::Hidden));
+    assert_eq!(s.table.as_given().map(|v| v.value), Some(Table::All));
+    assert_eq!(
+        s.title.as_given().map(|v| v.origin.source.clone()),
+        Some(Source::Config(std::sync::Arc::from("conf/radar.toml")))
+    );
+}

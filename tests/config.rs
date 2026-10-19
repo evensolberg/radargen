@@ -143,6 +143,7 @@ fn a_failing_flag_stops_the_run() {
         ),
     ]);
     let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml", "-r", "A,,B"]);
+    assert_eq!(ran.code, Some(1), "neither error is a usage error");
     assert_eq!(
         ran.lines(),
         [
@@ -301,6 +302,7 @@ fn an_unreadable_config_is_a_runtime_failure() {
     }
     if cfg!(unix) {
         let ran = run_in(dir.path(), &["radar.csv", "-c", "/dev/zero"]);
+        assert_eq!(ran.code, Some(1), "{}", ran.stderr);
         assert_eq!(
             ran.lines(),
             [
@@ -528,4 +530,155 @@ fn key_problems_are_clipped_and_capped() {
     );
     let clipped = format!("unknown key '{}…'", "k".repeat(40));
     assert!(lines.iter().any(|l| l.contains(&clipped)), "{lines:?}");
+}
+
+/// QA review I-1: key problems and a failed check on a file value are
+/// reported in one run, and any usage error makes it exit 2.
+#[test]
+fn key_problems_and_later_checks_report_together() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("radar.toml", "output = \"a.pdf\"\nwidth = 1.5\n"),
+    ]);
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    assert_eq!(ran.code, Some(2), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: the width key in radar.toml: must be an integer, not a float",
+            "error: the output key in radar.toml (a.pdf): the output file name must end in .html, .png or .svg",
+        ]
+    );
+}
+
+/// Review I-4 (FR-91, Ruling 2): a broken key fails the run even when its
+/// flag overrides it, so the file is valid on its own.
+#[test]
+fn a_broken_key_fails_though_a_flag_overrides_it() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("radar.toml", "output = \"a.png\"\nwidth = 5\n"),
+    ]);
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml", "-w", "1920"]);
+    assert_eq!(ran.code, Some(2), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        ["error: the width key in radar.toml: 5 is out of range; use 320 to 10000"]
+    );
+    assert!(!dir.path().join("a.png").exists());
+}
+
+/// QA review I-3 and M-5: a file's unplotted_rings is read through the
+/// merge, a flag overrides it, and an overlap within the file lets the
+/// palette check after it run.
+#[test]
+fn a_file_s_unplotted_rings_key_is_read() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        (
+            "quiet.toml",
+            "output = \"a.png\"\nrings = [\"Adopt\"]\nunplotted_rings = [\"Hold\"]\n",
+        ),
+        (
+            "both.toml",
+            "output = \"b.png\"\nrings = [\"Adopt\"]\nunplotted_rings = [\"Adopt\"]\npalette = \"missing.css\"\n",
+        ),
+    ]);
+    let quiet = run_in(dir.path(), &["radar.csv", "-c", "quiet.toml"]);
+    assert!(quiet.ok(), "{}", quiet.stderr);
+    assert!(
+        !quiet.stderr.contains("'Hold'"),
+        "the key silences FR-17: {}",
+        quiet.stderr
+    );
+    let flag = run_in(
+        dir.path(),
+        &[
+            "radar.csv",
+            "-c",
+            "quiet.toml",
+            "--unplotted-rings",
+            "Retired",
+        ],
+    );
+    assert!(flag.ok(), "{}", flag.stderr);
+    assert!(
+        flag.stderr.contains("'Hold'"),
+        "the flag replaces the key: {}",
+        flag.stderr
+    );
+    let both = run_in(dir.path(), &["radar.csv", "-c", "both.toml"]);
+    assert_eq!(both.code, Some(1), "{}", both.stderr);
+    let lines = both.lines();
+    let [overlap, palette] = lines.as_slice() else {
+        panic!("two errors: {lines:?}");
+    };
+    assert_eq!(
+        *overlap,
+        "error: the unplotted_rings key in both.toml: entry 1 'Adopt' is also in the rings key in both.toml, which draws it; remove it from one list"
+    );
+    assert!(
+        palette.starts_with("error: the palette key in both.toml (missing.css): cannot be read: "),
+        "{lines:?}"
+    );
+}
+
+/// QA review I-4 and I-5: a file's legend_columns and table render what
+/// their flags render, and a flag beats the key.
+#[test]
+fn a_file_s_legend_columns_and_table_render_as_their_flags() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("radar.toml", "legend_columns = 3\ntable = \"all\"\n"),
+    ]);
+    let read = |name: &str| fs::read(dir.path().join(name)).ok();
+    let run = |args: &[&str]| {
+        let ran = run_in(dir.path(), args);
+        assert!(ran.ok(), "{}", ran.stderr);
+    };
+    run(&["radar.csv", "-c", "radar.toml", "-o", "k.png"]);
+    run(&["radar.csv", "-o", "f.png", "--legend-columns", "3"]);
+    assert_eq!(read("k.png"), read("f.png"));
+    run(&[
+        "radar.csv",
+        "-c",
+        "radar.toml",
+        "-o",
+        "o.png",
+        "--legend-columns",
+        "2",
+    ]);
+    run(&["radar.csv", "-o", "t.png", "--legend-columns", "2"]);
+    assert_eq!(read("o.png"), read("t.png"), "the flag beats the key");
+    run(&["radar.csv", "-c", "radar.toml", "-o", "k.html"]);
+    run(&["radar.csv", "-o", "f.html", "--table", "all"]);
+    assert_eq!(read("k.html"), read("f.html"));
+    assert!(
+        fs::read_to_string(dir.path().join("k.html"))
+            .unwrap_or_default()
+            .contains("Every item"),
+        "table = all publishes every item"
+    );
+}
+
+/// QA review M-4 and M-6: NFR-15's exit status for a file that is not
+/// UTF-8, and D-74 through the output key.
+#[test]
+fn a_non_utf8_config_and_an_output_key_on_the_input_exit_1() {
+    let dir = seeded(&[("in.html", CSV), ("same.toml", "output = \"in.html\"\n")]);
+    fs::write(dir.path().join("latin.toml"), b"title = \"\xe9\"\n").expect("seeds");
+    let ran = run_in(dir.path(), &["in.html", "-c", "latin.toml", "-o", "a.svg"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        ["error: --config latin.toml, line 1: not UTF-8 text; re-save the file as UTF-8"]
+    );
+    let ran = run_in(dir.path(), &["in.html", "-c", "same.toml"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: the output key in same.toml (in.html): is the input CSV; choose another output path"
+        ]
+    );
 }

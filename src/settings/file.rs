@@ -591,7 +591,83 @@ mod tests {
         );
     }
 
-    /// Review Focus 1: Notepad's BOM and CRLF.
+    /// QA review I-2, Rust review M7: every key's type is checked where it
+    /// is wired, and `legend` and `table` refuse a name as `theme` does.
+    #[test]
+    fn every_key_refuses_the_wrong_type() {
+        for (text, setting, found) in [
+            ("output = 1", Setting::Output, "integer"),
+            ("title = 1", Setting::Title, "integer"),
+            ("subtitle = 1", Setting::Subtitle, "integer"),
+            ("rings = 1", Setting::Rings, "integer"),
+            (
+                "unplotted_rings = \"Hold\"",
+                Setting::UnplottedRings,
+                "string",
+            ),
+            ("theme = 1", Setting::Theme, "integer"),
+            ("width = \"1920\"", Setting::Width, "string"),
+            ("legend_columns = \"3\"", Setting::LegendColumns, "string"),
+            ("legend = true", Setting::Legend, "boolean"),
+            ("table = 1.5", Setting::Table, "float"),
+            ("palette = 3", Setting::Palette, "integer"),
+        ] {
+            let l = loaded(text);
+            assert_eq!(
+                l.problems,
+                [KeyProblem::WrongType { setting, found }],
+                "{text}"
+            );
+            assert!(l.is_broken(setting), "{text}");
+        }
+        for (text, setting, possible) in [
+            ("legend = \"nope\"", Setting::Legend, ["shown", "hidden"]),
+            ("table = \"nope\"", Setting::Table, ["radar", "all"]),
+        ] {
+            assert_eq!(
+                loaded(text).problems,
+                [KeyProblem::NotAValue {
+                    setting,
+                    value: "nope".into(),
+                    possible: possible.map(String::from).to_vec(),
+                }],
+                "{text}"
+            );
+        }
+        assert_eq!(Setting::LegendColumns.expected(), Expected::Integer);
+        assert_eq!(Setting::UnplottedRings.expected(), Expected::Strings);
+    }
+
+    /// QA review M-2: a file at the cap reads; one byte more does not.
+    #[test]
+    fn a_file_at_the_cap_reads() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("radar.toml");
+        std::fs::write(&path, vec![b'#'; MAX_BYTES]).expect("writes");
+        assert!(read(&path).is_ok());
+    }
+
+    /// QA review M-3: the file is decoded as the CSV is, so a NUL or a
+    /// bad byte past the first line is named by its own line.
+    #[test]
+    fn a_nul_or_bad_byte_is_named_by_its_line() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("radar.toml");
+        for bytes in [
+            &b"title = \"a\"\n\nsubtitle = \"\0\"\n"[..],
+            &b"title = \"a\"\n\nsubtitle = \"\xff\"\n"[..],
+        ] {
+            std::fs::write(&path, bytes).expect("writes");
+            assert!(matches!(
+                read(&path),
+                Err(ReadError::NotUtf8(NotUtf8 { line: 3 }))
+            ));
+        }
+    }
+
+    /// Review Focus 1: Notepad's BOM and CRLF parse, and a syntax error
+    /// after CRLF lines names the line an editor shows. (TOML refuses a
+    /// lone CR, so CRLF is the only line end that differs from LF.)
     #[test]
     fn a_bom_and_crlf_parse_and_lines_count_as_an_editor_does() {
         let dir = tempfile::tempdir().expect("tempdir");
