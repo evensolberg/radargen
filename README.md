@@ -171,7 +171,7 @@ radargen entries.csv -c radar.toml
 radargen entries.csv -c radar.toml --title "Draft"   # a flag overrides its key
 ```
 
-- **Keys.** Each key means what its flag means. `rings` and `unplotted_rings` are arrays of strings, such as `["Hold", "Adopt"]`; `width` and `legend_columns` are integers; the rest are strings. Any other key is an error. With no `output` key, pass `-o`.
+- **Keys.** Each key means what its flag means. `rings` and `unplotted_rings` are arrays of strings, such as `["Adopt", "Trial"]`; `width` and `legend_columns` are integers; the rest are strings. Any other key is an error. With no `output` key, pass `-o`.
 - **Flags win.** A flag on the command line overrides its key. `--palette` also drops the file's `theme`, and `--theme` its `palette`; a file holding both is an error. Every key is checked even when a flag overrides it, so a file with `width = 5` fails with `--width 1920` too: the file is valid or not on its own.
 - **Paths.** A relative `output` or `palette` is relative to the file's own folder, wherever you run the command; `~` is not expanded. A path in the file must name a regular file, not a pipe, device or folder, and errors about a palette the file names never quote its contents. radargen reads the file only when `-c` names it.
 - **Errors.** A problem with a key names the key and the file. Every key problem, and every check on the file's values, is reported in one run, unless a value on the command line fails first.

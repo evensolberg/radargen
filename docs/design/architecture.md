@@ -152,8 +152,8 @@ declarations only and are not listed.
 | `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52). Also `Cli::settings`, the `--config` merge under the command line, key by key, recording each setting's source (FR-91, NFR-10); PR 19b adds `{edition}` (FR-92) | *exists* |
 | `src/diagnostics.rs` | `Fatal`, `RowError`, `Warning`, `Warnings` — the taxonomy and NFR-20 grouping | v1.0 |
 | `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17); `--unplotted-rings`, parsed the same way and refused where it names a declared ring (FR-107); its source is `settings::Source`, and `parse_ring_list` takes a file's list | *exists* |
-| `src/options.rs` | The choices a run is made with: `OutputFormat`, `Legend`, `Table`. A leaf, importing nothing from the crate, so `settings`, `diagnostics` and the emitters name them without a cycle; `cli` and `emit::html` re-export them (RG-019A review I-2) | 1.15 |
-| `src/settings/mod.rs` | Where a value came from: `Source`, `Setting`, `Origin`, `Sourced`, `NamedPath`, `Expected`; a setting after the merge, `Effective`; the defaults; `resolve`, FR-91's path rule; `Settings::displace`, FR-59's flag-over-key rule; `MergeProblem`, both `theme` and `palette` in the file and a missing output (RG-019A). Imports only `options`, `palette::Theme` and its own `file` | 1.15 |
+| `src/options.rs` | The choices a run is made with: `OutputFormat`, `Legend`, `Table`. A leaf, importing nothing from the crate, so `settings`, `diagnostics` and the emitters name them without a cycle; every user imports `crate::options` directly (RG-019A review I-2) | 1.15 |
+| `src/settings/mod.rs` | Where a value came from: `Source`, `Setting`, `Origin`, `Sourced`, `NamedPath` and `Origin`'s source-dependent remedy wording (`set_to`, `smaller`); a setting after the merge, `Effective`; the defaults; `resolve`, FR-91's path rule; `Settings::displace`, FR-59's flag-over-key rule (RG-019A). Imports only `options`, `palette::Theme` and its own `file` | 1.15 |
 | `src/settings/file.rs` | The `--config` TOML file: read capped at 1 MiB and decoded as the CSV is, every key type- and value-checked as clap checks its flag, unknown keys with their near miss, every problem collected. Imports `decode`, `options`, `palette::Theme` and `style`, and nothing from `diagnostics`, directly or through another module (RG-019A) | 1.15 |
 | `src/csv/decode.rs` | `read`, the CSV stage's one file read (FR-1, FR-61), capped at 64 MiB and refused as `Fatal::CsvTooLarge` (rg-w5k); the bytes become text through `decode.rs` | v1.0 |
 | `src/csv/parse.rs` | String → `Table` (header and records); header, field counts (FR-3, FR-4); removal of undisplayable characters, with a warning, before any other check except the blank-record test (FR-90, FR-3), using `escape::displayable` so both modules share one set | v1.0 |
@@ -687,8 +687,9 @@ run before any row is read, because nothing parsed.
 Tier one has to collect across sources too (FR-91, NFR-16), which
 `pipeline::Gate` does. It holds every error so far, starting with the
 `--config` file's key problems (`Fatal::ConfigKey`, at most 20 and then a
-count) and the merge's (`MergeProblem`: `theme` and `palette` both in the
-file, no output). `Gate::check` takes a check's result and its value's
+count) and the merge's, from `pipeline::merge_errors`: `Fatal::Conflict`
+when the file itself holds both `theme` and `palette`, whatever the
+flags, and `Fatal::NoOutput`. `Gate::check` takes a check's result and its value's
 `Source`: an error from a `Source::Config` value is recorded and the run
 goes on, and one from the command line or the default returns everything
 recorded. A key with a problem is `Effective::Broken` unless its flag
