@@ -30,3 +30,7 @@ PRD v0.39 FR-91/FR-92, D-57/D-58, SC-26/SC-27, v1.1. TOML config (serde + toml c
 [start] 2026-10-18 16:02:12
 
 [2026-10-18] PR 19a (RG-019A) implements --config; this crumb stays open for PR 19b (--edition, {edition}).
+
+[2026-10-18] Decided (maintainer, 2026-10-18, from the PR 19a review): (1) the command line wins over the opposing key: -p drops a file theme, --theme drops a file palette; both from one source stays FR-59. (2) A palette read from the config file never has its content quoted in errors, and config-sourced paths must be regular files (no FIFO/tty/stdin); paths may still point anywhere.
+
+[2026-10-18] For PR 19b, from the PR 19a architecture review (M-9): (a) when {edition} fails on the file's output, drop the output as Effective::Broken does, so FR-52/FR-62 do not report the unexpanded path; (b) a command-line -o is an OsString-backed PathBuf, so expanding it needs to_str() and a rule for non-UTF-8 paths, on which the PRD is silent; (c) the title and subtitle reach the seam already trimmed by shown(), harmless since {edition} is never whitespace, but the order comment should say so.

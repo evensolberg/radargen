@@ -100,7 +100,7 @@ These are this plan's decisions where the PRD is silent. Reviewers: challenge an
    - From the command line or the default, both keep `--width`.
    - `WidthClamped` fires only when no width was given, so it keeps `--width`.
 10. **Remedies that name a flag the author did not use keep the flag:** FR-17's `add it to --unplotted-rings` and `--table all lists it`. A flag always overrides, so the remedy works, and FR-17 fixes those words.
-11. **The merge lives in `cli.rs`** (`Cli::settings`), as architecture §3 says. The types and the file live in `settings/`, so that `diagnostics`, `rings` and `emit` can name a source without importing the clap surface. `settings` imports nothing from `cli` or `diagnostics`, so no module cycle is added.
+11. **The merge lives in `cli.rs`** (`Cli::settings`), as architecture §3 says. The types and the file live in `settings/`, so that `diagnostics`, `rings` and `emit` can name a source without importing the clap surface. `settings` imports nothing from `cli` or `diagnostics`. *Corrected after the review (1.1):* the first cut imported `Legend` and `Table` from `emit::html`, which closed the cycles `rings → settings → emit::html → model → rings` and the same through `diagnostics`; the option enums moved to the leaf `src/options.rs`, so no cycle is added.
 12. **rg-qag:** `legend` and `table` from the file are silent on PNG and SVG. `theme`, `width` and `legend_columns` are already silent on HTML (FR-56, FR-57, FR-100, and `pipeline::render`'s `with_legend_columns` comment), so nothing changes for them.
 
 ## Review Focus
@@ -3060,3 +3060,4 @@ git commit -m "docs: --config in the README and architecture" \
 | Revision | Date | Notes |
 | --- | --- | --- |
 | 1.0 | 2026-10-18 | Initial plan. |
+| 1.1 | 2026-10-18 | Ruling 11 corrected after the five-agent review (I-2): the module cycle it said was not added was, and `options.rs` removes it. |
