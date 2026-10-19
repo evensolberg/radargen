@@ -21,9 +21,7 @@ use crate::cli::{Cli, Task, clean_setting};
 use crate::csv::decode;
 use crate::csv::parse::parse;
 use crate::decode::NotUtf8;
-use crate::diagnostics::{
-    Fatal, MAX_KEY_PROBLEMS, OffRadar, ReadFile, RenderKind, RowError, Warning, Warnings,
-};
+use crate::diagnostics::{Fatal, OffRadar, ReadFile, RenderKind, RowError, Warning, Warnings};
 use crate::emit::html::{Page, page};
 use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
@@ -41,7 +39,7 @@ use crate::order::resolve;
 use crate::palette::file::{self, ReadError};
 use crate::palette::{Colours, Theme};
 use crate::rings::{RingSet, default_rings, parse_ring_list};
-use crate::settings::file as config_file;
+use crate::settings::file::{self as config_file, MAX_KEY_PROBLEMS};
 use crate::settings::{
     DEFAULT_LEGEND, DEFAULT_LEGEND_COLUMNS, DEFAULT_TABLE, DEFAULT_THEME, Effective, NamedPath,
     Origin, Setting, Settings, Source, Sourced, resolve as resolve_path,

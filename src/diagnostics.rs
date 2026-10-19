@@ -306,27 +306,6 @@ impl fmt::Display for Binding {
     }
 }
 
-/// The most key problems a run lists; the rest are counted (security
-/// review F5), so a file of a million bad keys prints a screen, not a
-/// flood.
-pub const MAX_KEY_PROBLEMS: usize = 20;
-
-/// The most characters of a key or value a message echoes (security
-/// review F5), as a palette's excerpt does.
-const ECHO_CHARS: usize = 40;
-
-/// `text`, cut at [`ECHO_CHARS`] characters with `…` when anything was
-/// left out.
-fn clipped(text: &str) -> String {
-    let mut chars = text.chars();
-    let head: String = chars.by_ref().take(ECHO_CHARS).collect();
-    if chars.next().is_some() {
-        format!("{head}…")
-    } else {
-        head
-    }
-}
-
 /// A file the run reads, which the output must not replace (D-74).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReadFile {
@@ -702,7 +681,7 @@ fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
         } => format!(
             "{}: entry {index} '{}' holds a comma; give each ring as its own entry",
             key(*setting),
-            clipped(entry)
+            entry
         ),
         KeyProblem::NotAValue {
             setting,
@@ -710,7 +689,7 @@ fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
             possible,
         } => format!(
             "invalid value '{}' for {} [possible values: {}]",
-            clipped(value),
+            value,
             key(*setting),
             possible.join(", ")
         ),
@@ -734,16 +713,12 @@ fn unknown_key(file: &str, key: &str, near: Option<Setting>, table: bool) -> Str
         |s| format!("; did you mean '{}'? The keys", s.key()),
     );
     let section = if table {
-        format!(
-            "; keys go at the top of the file, not under [{}]",
-            clipped(key)
-        )
+        format!("; keys go at the top of the file, not under [{key}]")
     } else {
         String::new()
     };
     format!(
-        "--config {file}: unknown key '{}'{guess} are {}{section}",
-        clipped(key),
+        "--config {file}: unknown key '{key}'{guess} are {}{section}",
         known_keys()
     )
 }
@@ -1359,7 +1334,8 @@ pub enum Fatal {
         /// The path, by its key, as written.
         path: NamedPath,
     },
-    /// Security review F5: past [`MAX_KEY_PROBLEMS`], the rest are counted.
+    /// Security review F5: past [`crate::settings::file::MAX_KEY_PROBLEMS`],
+    /// the rest are counted.
     #[error("--config {file}: and {more} more key problems")]
     ConfigMore {
         /// The file as named.

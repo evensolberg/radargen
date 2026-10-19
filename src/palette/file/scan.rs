@@ -7,8 +7,9 @@ use std::ops::Range;
 const COMMENT_OPEN: &str = "/*";
 const COMMENT_CLOSE: &str = "*/";
 
-/// How much of an unexpected selector, name or value a message quotes.
-pub(super) const EXCERPT_CHARS: usize = 40;
+/// How much of an unexpected selector, name or value a message quotes: the
+/// crate's one echo limit.
+pub(super) const EXCERPT_CHARS: usize = crate::ECHO_CHARS;
 
 /// CSS whitespace (CSS Syntax §4.2).
 pub(super) const fn css_space(c: char) -> bool {

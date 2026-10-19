@@ -19,6 +19,12 @@ use crate::decode::{NotUtf8, decode, line_at, read_capped};
 use crate::options::{Legend, Table};
 use crate::palette::Theme;
 use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
+use crate::{ECHO_CHARS, clip};
+
+/// The most key problems a run lists; the rest are counted (security
+/// review F5), so a file of a million bad keys prints a screen, not a
+/// flood.
+pub const MAX_KEY_PROBLEMS: usize = 20;
 
 /// The largest file read. A config is a few hundred bytes, so 1 MiB stops
 /// a wrong path such as `/dev/zero` (NFR-15), as a palette's cap does.
@@ -240,7 +246,9 @@ fn check(table: &toml::Table) -> (FileValues, Vec<KeyProblem>) {
         .filter_map(|(setting, value)| take(&mut values, setting, value).err())
         .flatten()
         .collect();
-    problems.extend(unknown(table));
+    // Only the problems a run prints get a guess (efficiency review 1).
+    let guesses = MAX_KEY_PROBLEMS.saturating_sub(problems.len());
+    problems.extend(unknown(table, guesses));
     (values, problems)
 }
 
@@ -269,41 +277,26 @@ fn take(v: &mut FileValues, setting: Setting, value: &Value) -> Result<(), Vec<K
     }
 }
 
-/// Every key FR-91 does not list, so a typo is not ignored.
-fn unknown(table: &toml::Table) -> impl Iterator<Item = KeyProblem> + '_ {
+/// Every key FR-91 does not list, so a typo is not ignored; the first
+/// `guesses` get a near miss.
+fn unknown(table: &toml::Table, guesses: usize) -> impl Iterator<Item = KeyProblem> + '_ {
     table
         .iter()
         .filter(|(key, _)| !Setting::ALL.iter().any(|s| s.key() == key.as_str()))
-        .map(|(key, value)| KeyProblem::Unknown {
-            key: key.clone(),
-            near: near_miss(key),
+        .enumerate()
+        .map(move |(i, (key, value))| KeyProblem::Unknown {
+            key: clip(key, ECHO_CHARS),
+            near: if i < guesses { near_miss(key) } else { None },
             table: value.is_table(),
         })
 }
 
 /// The key `key` is one or two edits from, as FR-108 guesses a column
-/// (D-98): a hyphen for an underscore and a capital count as no edit, a
-/// transposition as one, and only a key longer than four characters, given
-/// longer still, allows two. Of several, the fewest edits wins, then
-/// FR-91's order.
+/// (D-98, [`crate::columns::nearest`]): a hyphen for an underscore and a
+/// capital count as no edit.
 fn near_miss(key: &str) -> Option<Setting> {
-    /// The longest key that allows only one edit.
-    const SHORT: usize = 4;
     let spelled = key.replace('-', "_").to_lowercase();
-    let length = spelled.chars().count();
-    Setting::ALL
-        .into_iter()
-        .map(|s| (strsim::damerau_levenshtein(&spelled, s.key()), s))
-        .filter(|&(edits, s)| {
-            let allowed = if s.key().len() > SHORT && length > s.key().len() {
-                2
-            } else {
-                1
-            };
-            edits <= allowed
-        })
-        .min_by_key(|&(edits, _)| edits)
-        .map(|(_, s)| s)
+    crate::columns::nearest(&spelled, Setting::ALL, Setting::key)
 }
 
 /// A path key's string, refused when empty (Rust review M6).
@@ -349,7 +342,7 @@ fn named<T: ValueEnum>(setting: Setting, value: &Value) -> Result<T, Vec<KeyProb
     T::from_str(&text, true).map_err(|_| {
         vec![KeyProblem::NotAValue {
             setting,
-            value: text,
+            value: clip(&text, ECHO_CHARS),
             possible: T::value_variants()
                 .iter()
                 .filter_map(ValueEnum::to_possible_value)
@@ -375,7 +368,7 @@ fn list(setting: Setting, value: &Value) -> Result<String, Vec<KeyProblem>> {
                 problems.push(KeyProblem::Comma {
                     setting,
                     index: i + 1,
-                    entry: s.clone(),
+                    entry: clip(s, ECHO_CHARS),
                 });
             }
             Value::String(s) => names.push(s.as_str()),
@@ -712,6 +705,30 @@ mod tests {
             unknown("csv = \"r.csv\""),
             [KeyProblem::Unknown {
                 key: "csv".into(),
+                near: None,
+                table: false,
+            }]
+        );
+    }
+
+    /// Efficiency review 1: only the problems a run prints get a guess,
+    /// and an echoed key is stored cut at 40 characters (security F5).
+    #[test]
+    fn only_printed_unknown_keys_are_guessed_and_keys_are_clipped() {
+        let junk: Vec<String> = (0..MAX_KEY_PROBLEMS)
+            .map(|i| format!("a{i:02} = 1"))
+            .collect();
+        let problems = loaded(&format!("{}\ntitel = 1\n", junk.join("\n"))).problems;
+        assert!(
+            matches!(problems.last(), Some(KeyProblem::Unknown { key, near: None, .. }) if key == "titel"),
+            "{problems:?}"
+        );
+        let long = "k".repeat(1 << 16);
+        let problems = loaded(&format!("{long} = 1\n")).problems;
+        assert_eq!(
+            problems,
+            [KeyProblem::Unknown {
+                key: format!("{}…", "k".repeat(40)),
                 near: None,
                 table: false,
             }]

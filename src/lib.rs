@@ -76,6 +76,22 @@ pub fn single_line(value: &str) -> String {
         .join(" ")
 }
 
+/// The most characters of a value from a file a message quotes: a
+/// palette's excerpt (Review Focus 5) and a config file's key or value
+/// (security review F5).
+pub(crate) const ECHO_CHARS: usize = 40;
+
+/// `text` cut at `max` characters, with `…` when anything was left out.
+pub(crate) fn clip(text: &str, max: usize) -> String {
+    let mut chars = text.chars();
+    let head: String = chars.by_ref().take(max).collect();
+    if chars.next().is_some() {
+        format!("{head}…")
+    } else {
+        head
+    }
+}
+
 /// Whitespace, or a format character that is not a tag character.
 fn trimmable(c: char) -> bool {
     c.is_whitespace() || is_untagged_format(c)
