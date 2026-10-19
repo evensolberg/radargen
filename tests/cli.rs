@@ -1,6 +1,9 @@
 //! CLI surface (§6.6). Parsed via clap's `try_parse_from`, so the tests assert
 //! the contract rather than spawning a process.
 
+#[path = "common/source.rs"]
+mod source;
+
 use clap::Parser;
 use radargen::cli::{Cli, Task, Theme, clean_setting};
 use radargen::diagnostics::{Fatal, RowKind, Warning, Warnings};
@@ -742,10 +745,7 @@ fn the_unplotted_rings_help_says_what_still_warns() {
 #[test]
 fn a_value_from_the_file_names_its_key_when_cleaned() {
     let mut warnings = Warnings::default();
-    let origin = Origin::new(
-        Setting::Title,
-        Source::Config(std::sync::Arc::from("radar.toml")),
-    );
+    let origin = Origin::new(Setting::Title, source::config("radar.toml"));
     assert_eq!(clean_setting(&origin, "a\u{1}b", &mut warnings), "ab");
     assert_eq!(
         warnings.render(),
@@ -806,7 +806,7 @@ fn file(text: &str) -> radargen::settings::file::Loaded {
 }
 
 fn conf() -> Source {
-    Source::Config(std::sync::Arc::from("conf/radar.toml"))
+    source::config("conf/radar.toml")
 }
 
 /// FR-91: the command line wins key by key; the file fills the rest.
@@ -1071,6 +1071,6 @@ fn every_flag_beats_its_key_and_every_key_is_read() {
     assert_eq!(s.table.as_given().map(|v| v.value), Some(Table::All));
     assert_eq!(
         s.title.as_given().map(|v| v.origin.source.clone()),
-        Some(Source::Config(std::sync::Arc::from("conf/radar.toml")))
+        Some(source::config("conf/radar.toml"))
     );
 }

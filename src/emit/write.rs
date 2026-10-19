@@ -87,11 +87,11 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use crate::settings::Setting;
+    use crate::settings::{Origin, Setting};
 
     /// `path` as `-o` names it.
     fn named(path: &Path) -> NamedPath {
-        NamedPath::flag(Setting::Output, path)
+        NamedPath::new(Origin::flag(Setting::Output), path)
     }
 
     /// The names in `dir`, sorted.

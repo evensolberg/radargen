@@ -223,7 +223,7 @@ pub fn load(text: &str, path: &Path) -> Result<Loaded, ReadError> {
 /// (FR-17), the one spelling every message about it uses.
 #[must_use]
 pub fn file_name(path: &Path) -> Arc<str> {
-    Arc::from(path.display().to_string())
+    Arc::from(super::as_written(path))
 }
 
 /// A parser message as one line: its lines joined with `; `.

@@ -1,6 +1,9 @@
 //! The diagnostic contract (architecture §10): exact messages, NFR-11 order,
 //! NFR-20 grouping. SC-10's golden tests later pin the same text end to end.
 
+#[path = "common/source.rs"]
+mod source;
+
 use std::path::Path;
 use std::sync::Arc;
 
@@ -963,13 +966,13 @@ fn fatal_messages() {
     let cases = [
         (
             Fatal::UnrecognisedExtension {
-                output: NamedPath::flag(Setting::Output, Path::new("radar.pdf")),
+                output: NamedPath::new(Origin::flag(Setting::Output), Path::new("radar.pdf")),
             },
             "error: -o radar.pdf: the output file name must end in .html, .png or .svg",
         ),
         (
             Fatal::UnrecognisedExtension {
-                output: NamedPath::flag(Setting::Output, Path::new("radar")),
+                output: NamedPath::new(Origin::flag(Setting::Output), Path::new("radar")),
             },
             "error: -o radar: the output file name must end in .html, .png or .svg",
         ),
@@ -1069,7 +1072,7 @@ fn csv_file_messages() {
         ),
         (
             Fatal::Unwritable {
-                output: NamedPath::flag(Setting::Output, Path::new("out/radar.html")),
+                output: NamedPath::new(Origin::flag(Setting::Output), Path::new("out/radar.html")),
                 source: std::io::Error::new(
                     std::io::ErrorKind::PermissionDenied,
                     "permission denied",
@@ -1263,14 +1266,14 @@ fn pipeline_messages() {
     let cases = [
         (
             Fatal::MissingDirectory {
-                output: NamedPath::flag(Setting::Output, Path::new("out/radar.html")),
+                output: NamedPath::new(Origin::flag(Setting::Output), Path::new("out/radar.html")),
                 dir: "out".into(),
             },
             "error: -o out/radar.html: the directory out does not exist",
         ),
         (
             Fatal::OutputIsInput {
-                output: NamedPath::flag(Setting::Output, Path::new("radar.csv")),
+                output: NamedPath::new(Origin::flag(Setting::Output), Path::new("radar.csv")),
                 input: ReadFile::Csv,
             },
             "error: -o radar.csv: is the input CSV; choose another output path",
@@ -1278,10 +1281,7 @@ fn pipeline_messages() {
         (
             Fatal::MissingDirectory {
                 output: NamedPath {
-                    origin: Origin::new(
-                        Setting::Output,
-                        Source::Config(Arc::from("conf/radar.toml")),
-                    ),
+                    origin: Origin::new(Setting::Output, source::config("conf/radar.toml")),
                     shown: "out/radar.html".into(),
                 },
                 dir: "conf/out".into(),
@@ -1291,7 +1291,7 @@ fn pipeline_messages() {
         (
             Fatal::UnrecognisedExtension {
                 output: NamedPath {
-                    origin: Origin::new(Setting::Output, Source::Config(Arc::from("radar.toml"))),
+                    origin: Origin::new(Setting::Output, source::config("radar.toml")),
                     shown: "radar.pdf".into(),
                 },
             },
@@ -1300,7 +1300,7 @@ fn pipeline_messages() {
         (
             Fatal::PaletteTooLarge {
                 palette: NamedPath {
-                    origin: Origin::new(Setting::Palette, Source::Config(Arc::from("radar.toml"))),
+                    origin: Origin::new(Setting::Palette, source::config("radar.toml")),
                     shown: "brand.css".into(),
                 },
             },
@@ -1433,7 +1433,7 @@ fn io_reasons_read_one_way() {
     let windows = std::io::Error::other("The system cannot find the path specified. (os error 3)");
     assert_eq!(
         Fatal::Unwritable {
-            output: NamedPath::flag(Setting::Output, Path::new("out.html")),
+            output: NamedPath::new(Origin::flag(Setting::Output), Path::new("out.html")),
             source: unix,
         }
         .render(),
@@ -1573,7 +1573,7 @@ fn near_misses_group_into_one_line_before_the_rows() {
 }
 
 fn radar_toml() -> Source {
-    Source::Config(std::sync::Arc::from("radar.toml"))
+    source::config("radar.toml")
 }
 
 /// FR-107's two cross-source examples, word for word.

@@ -616,11 +616,12 @@ impl From<MergeProblem> for Fatal {
     }
 }
 
-/// `--config radar.toml, line 3: …`, or without the line.
-fn located(file: &str, line: Option<usize>, message: &str) -> String {
+/// `name, line 3: message`, or `name: message` without a line: a
+/// config file's syntax error and a palette's problem.
+fn at_line(name: impl fmt::Display, line: Option<usize>, message: impl fmt::Display) -> String {
     line.map_or_else(
-        || format!("--config {file}: {message}"),
-        |line| format!("--config {file}, line {line}: {message}"),
+        || format!("{name}: {message}"),
+        |line| format!("{name}, line {line}: {message}"),
     )
 }
 
@@ -744,10 +745,7 @@ fn palette_problem(palette: &NamedPath, error: &PaletteError) -> String {
     } else {
         error.to_string()
     };
-    error.line().map_or_else(
-        || format!("{palette}: {message}"),
-        |line| format!("{palette}, line {line}: {message}"),
-    )
+    at_line(palette, error.line(), message)
 }
 
 /// A column as NFR-10 names it: `column 6 (F)`.
@@ -1429,7 +1427,7 @@ pub enum Fatal {
         line: usize,
     },
     /// NFR-15, FR-91: the file is not TOML, at the parser's line if any.
-    #[error("{}", located(file, *line, message))]
+    #[error("{}", at_line(format_args!("--config {file}"), *line, message))]
     ConfigSyntax {
         /// The file as named.
         file: Arc<str>,

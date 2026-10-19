@@ -1,6 +1,7 @@
 //! `--rings` parsing and validation (FR-12–FR-15, FR-63).
 
-use std::sync::Arc;
+#[path = "common/source.rs"]
+mod source;
 
 use radargen::rings::{RingMatch, RingSet, RingsError, default_rings, parse_ring_list};
 use radargen::settings::{Origin, Source};
@@ -333,7 +334,7 @@ fn a_default_ring_may_be_unplotted_once_rings_replace_the_defaults() {
 /// the flag's checks, and the set remembers the file (FR-17).
 #[test]
 fn a_config_ring_list_is_parsed_as_the_flag_is() {
-    let file = Source::Config(Arc::from("radar.toml"));
+    let file = source::config("radar.toml");
     let set = parse_ring_list(" Hold ,Adopt", file.clone()).expect("parses");
     assert_eq!(set.rings(), ["Hold", "Adopt"]);
     assert_eq!(set.origin().source, file);
@@ -352,8 +353,7 @@ fn a_config_ring_list_is_parsed_as_the_flag_is() {
 /// FR-107's overlap names a file's ring set by its key and file.
 #[test]
 fn an_overlap_with_a_config_ring_set_names_its_key() {
-    let set =
-        parse_ring_list("Adopt,Hold", Source::Config(Arc::from("radar.toml"))).expect("parses");
+    let set = parse_ring_list("Adopt,Hold", source::config("radar.toml")).expect("parses");
     let errors = set.with_unplotted("Adopt").expect_err("overlaps");
     assert_eq!(
         errors.first().map(ToString::to_string).as_deref(),

@@ -261,18 +261,23 @@ pub struct NamedPath {
     pub shown: String,
 }
 
-impl NamedPath {
-    /// `path` given to `setting`'s flag.
-    #[must_use]
-    pub fn flag(setting: Setting, path: &Path) -> Self {
-        Self {
-            origin: Origin::flag(setting),
-            shown: path.display().to_string(),
-        }
-    }
+/// A path as every message shows it: as written, never resolved (plan
+/// RG-018A, R1). The one spelling, for a path setting and the config file.
+#[must_use]
+pub fn as_written(path: &Path) -> String {
+    path.display().to_string()
 }
 
 impl NamedPath {
+    /// `path` from `origin`, shown as written.
+    #[must_use]
+    pub fn new(origin: Origin, path: &Path) -> Self {
+        Self {
+            origin,
+            shown: as_written(path),
+        }
+    }
+
     /// What a message adds when a path from the file starts with `~`, which
     /// no shell expanded (FR-91, UX review 5); empty otherwise.
     #[must_use]
@@ -445,10 +450,7 @@ pub fn resolve(dir: Option<&Path>, path: &Sourced<PathBuf>) -> (PathBuf, NamedPa
         }
         _ => path.value.clone(),
     };
-    let named = NamedPath {
-        origin: path.origin.clone(),
-        shown: path.value.display().to_string(),
-    };
+    let named = NamedPath::new(path.origin.clone(), &path.value);
     (opened, named)
 }
 
@@ -552,7 +554,7 @@ mod tests {
     #[test]
     fn a_named_path_shows_the_path_as_written() {
         assert_eq!(
-            NamedPath::flag(Setting::Output, Path::new("out/radar.html")).to_string(),
+            NamedPath::new(Origin::flag(Setting::Output), Path::new("out/radar.html")).to_string(),
             "-o out/radar.html"
         );
         let named = NamedPath {
