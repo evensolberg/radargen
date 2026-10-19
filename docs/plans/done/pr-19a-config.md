@@ -10,12 +10,12 @@ crumb_id: rg-u6u
 document_title: "PR 19a — --config <file.toml>: Implementation Plan"
 created_date: 2026-10-18
 synopsis: "-c, --config <file.toml> supplies flag values from a TOML file, merged under the command line key by key. Every setting records where its value came from (flag, the key with its file, or the default), and every diagnostic that names a setting names that source. Every key is type- and value-checked as clap checks its flag, and every problem the file causes is reported in one run. Relative paths in the file resolve against the file's directory. Folds in rg-ahj (FR-59 across sources) and rg-qag (a file's format-specific keys are silent where they do not apply). --edition and {edition} are PR 19b."
-status: draft
+status: complete
 type: Plan
 revision: "1.0"
 review_date:
 reviewed_by: []
-completed_date:
+completed_date: 2026-10-19
 comments: "Scoped by the maintainer, 2026-10-18: PR 19a is --config only, with every key FR-91 lists; FR-92 is PR 19b. Task 1 amends the PRD to 0.100 (rg-qag and FR-91's open points). The release is a minor bump, done by the orchestrator, not by this plan."
 ---
 # PR 19a — `--config <file.toml>`: Implementation Plan

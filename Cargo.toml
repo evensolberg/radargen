@@ -1,6 +1,6 @@
 [package]
 name = "radargen"
-version = "1.14.0"
+version = "1.15.0"
 edition = "2024"
 rust-version = "1.97"
 description = "Render a technology radar from CSV to a self-contained HTML page, a PNG image or an SVG file"
