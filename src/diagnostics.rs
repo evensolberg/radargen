@@ -216,22 +216,24 @@ pub enum RenderKind {
         /// Where the width came from, which the remedy names (NFR-10).
         width_origin: Origin,
     },
-    /// FR-90 on a flag value: one per flag, however many characters it lost.
-    FlagUndisplayable {
+    /// FR-90 on a setting's value, from the command line or the file: one
+    /// per value, however many characters it lost.
+    SettingUndisplayable {
         /// The setting whose value it is, and where that value came from
         /// (NFR-10).
-        flag: Origin,
+        origin: Origin,
         /// The first character the value lost.
         first: char,
         /// How many characters the value lost in all.
         count: usize,
     },
-    /// FR-104 on a flag value: one per drawn text, so one per `--rings`
-    /// entry, however many characters it lacks.
-    FlagMissingGlyphs {
+    /// FR-104 on a setting's value, from the command line or the file: one
+    /// per drawn text, so one per ring entry, however many characters it
+    /// lacks.
+    SettingMissingGlyphs {
         /// The setting whose value it is, and where that value came from
         /// (NFR-10).
-        flag: Origin,
+        origin: Origin,
         /// The text, the value or one `--rings` entry, and what it lacks.
         lacking: Lacking,
     },
@@ -536,19 +538,23 @@ impl RenderKind {
                 legible_from,
                 width_origin,
             } => small_text(*width, *legible_from, width_origin),
-            Self::FlagUndisplayable {
-                flag,
+            Self::SettingUndisplayable {
+                origin,
                 first,
                 count: 1,
             } => format!(
-                "{flag}: removed {}, which the output cannot display",
+                "{origin}: removed {}, which the output cannot display",
                 code_point(*first)
             ),
-            Self::FlagUndisplayable { flag, first, count } => format!(
-                "{flag}: removed {count} characters the output cannot display, the first {}",
+            Self::SettingUndisplayable {
+                origin,
+                first,
+                count,
+            } => format!(
+                "{origin}: removed {count} characters the output cannot display, the first {}",
                 code_point(*first)
             ),
-            Self::FlagMissingGlyphs { flag, lacking } => format!("{flag}: {lacking}"),
+            Self::SettingMissingGlyphs { origin, lacking } => format!("{origin}: {lacking}"),
         }
     }
 }

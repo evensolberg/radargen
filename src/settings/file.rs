@@ -200,6 +200,9 @@ pub fn read(path: &Path) -> Result<Loaded, ReadError> {
 
 /// [`read`] from text already decoded, `path` naming the file.
 ///
+/// Public as a test seam: tests build a [`Loaded`] from text without the
+/// file system. The binary calls only [`read`].
+///
 /// # Errors
 ///
 /// [`ReadError::Syntax`] when `text` is not TOML.

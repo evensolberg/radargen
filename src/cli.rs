@@ -205,7 +205,7 @@ pub struct Cli {
 const CONFIG_HELP: &str = "Read settings from a TOML file.\n\n\
 Its keys are output, title, subtitle, rings, unplotted_rings, theme, width, \
 legend_columns, legend, table and palette, each meaning what its flag means. \
-rings and unplotted_rings are arrays of strings, such as [\"Hold\", \"Adopt\"]; \
+rings and unplotted_rings are arrays of strings, such as [\"Adopt\", \"Trial\"]; \
 width and legend_columns are integers; the rest are strings. Any other key is \
 an error. A flag on the command line overrides its key. A relative path in the \
 file is read from the file's own folder; ~ is not expanded.";
@@ -299,8 +299,8 @@ impl Cli {
 pub fn clean_setting(origin: &Origin, value: &str, warnings: &mut Warnings) -> String {
     let mut cleaned = value.to_string();
     if let Some((first, count)) = remove_undisplayable(&mut cleaned) {
-        warnings.push(Warning::Render(RenderKind::FlagUndisplayable {
-            flag: origin.clone(),
+        warnings.push(Warning::Render(RenderKind::SettingUndisplayable {
+            origin: origin.clone(),
             first,
             count,
         }));

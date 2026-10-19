@@ -273,15 +273,15 @@ fn missing_glyphs_have_their_per_row_message() {
 fn missing_glyphs_in_a_flag_name_the_flag() {
     let cases = [
         (
-            RenderKind::FlagMissingGlyphs {
-                flag: Origin::flag(Setting::Title),
+            RenderKind::SettingMissingGlyphs {
+                origin: Origin::flag(Setting::Title),
                 lacking: lacking("雷达 2026", '雷', 2, OutputFormat::Svg),
             },
             "--title: '雷达 2026' has 2 characters the bundled font lacks, the first U+96F7 雷; the SVG draws them as boxes — an HTML page shows them, or transliterate them".to_owned(),
         ),
         (
-            RenderKind::FlagMissingGlyphs {
-                flag: Origin::flag(Setting::Rings),
+            RenderKind::SettingMissingGlyphs {
+                origin: Origin::flag(Setting::Rings),
                 lacking: lacking("採用", '採', 2, OutputFormat::Png),
             },
             format!(
@@ -289,8 +289,8 @@ fn missing_glyphs_in_a_flag_name_the_flag() {
             ),
         ),
         (
-            RenderKind::FlagMissingGlyphs {
-                flag: Origin::flag(Setting::Subtitle),
+            RenderKind::SettingMissingGlyphs {
+                origin: Origin::flag(Setting::Subtitle),
                 lacking: lacking("Q3 🙂", '🙂', 1, OutputFormat::Png),
             },
             format!("--subtitle: 'Q3 🙂' has U+1F642 🙂, which the bundled font lacks; {PNG_ONE}"),

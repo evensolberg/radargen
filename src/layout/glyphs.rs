@@ -44,8 +44,8 @@ pub fn warn_missing_glyphs(
             .as_deref()
             .and_then(lacking)
         {
-            warnings.push(Warning::Render(RenderKind::FlagMissingGlyphs {
-                flag: text.origin.clone(),
+            warnings.push(Warning::Render(RenderKind::SettingMissingGlyphs {
+                origin: text.origin.clone(),
                 lacking,
             }));
         }
@@ -56,8 +56,8 @@ pub fn warn_missing_glyphs(
         let origin = catalogue.ring_origin.clone();
         for ring in &catalogue.rings {
             if let Some(lacking) = lacking(ring) {
-                warnings.push(Warning::Render(RenderKind::FlagMissingGlyphs {
-                    flag: origin.clone(),
+                warnings.push(Warning::Render(RenderKind::SettingMissingGlyphs {
+                    origin: origin.clone(),
                     lacking,
                 }));
             }
@@ -161,8 +161,8 @@ mod tests {
     }
 
     const fn flag(setting: Setting, lacking: Lacking) -> Warning {
-        Warning::Render(RenderKind::FlagMissingGlyphs {
-            flag: Origin::flag(setting),
+        Warning::Render(RenderKind::SettingMissingGlyphs {
+            origin: Origin::flag(setting),
             lacking,
         })
     }
@@ -253,8 +253,8 @@ mod tests {
         );
         assert_eq!(
             warnings.as_slice(),
-            [Warning::Render(RenderKind::FlagMissingGlyphs {
-                flag: Origin::new(Setting::Rings, source),
+            [Warning::Render(RenderKind::SettingMissingGlyphs {
+                origin: Origin::new(Setting::Rings, source),
                 lacking: lacks("採用", '採', 2),
             })]
         );
@@ -382,7 +382,7 @@ mod tests {
                     kind: RowKind::MissingGlyphs { lacking, .. },
                     ..
                 }
-                | Warning::Render(RenderKind::FlagMissingGlyphs { lacking, .. }) => {
+                | Warning::Render(RenderKind::SettingMissingGlyphs { lacking, .. }) => {
                     Some(lacking.text)
                 }
                 _ => None,

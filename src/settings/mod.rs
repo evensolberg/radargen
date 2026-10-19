@@ -398,9 +398,8 @@ pub fn pick<T>(
 /// directory, unless it is absolute.
 ///
 /// One from the command line is used as given, against the working
-/// directory. `~` is never expanded: no shell
-/// reads the file. Returns the path to open, and the path as a message
-/// names it, as written.
+/// directory. `~` is never expanded: no shell reads the file. Returns the
+/// path to open, and the path as a message names it, as written.
 #[must_use]
 pub fn resolve(dir: Option<&Path>, path: &Sourced<PathBuf>) -> (PathBuf, NamedPath) {
     let opened = match dir {

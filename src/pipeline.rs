@@ -7,10 +7,9 @@
 //! a value from `--config` lets the later checks run, so one run reports
 //! every problem the file causes (FR-91); a file that cannot be read stops
 //! it at once. Row-level errors from both CSV stages are merged and
-//! grouped; a failed
-//! write is the third failure point (§7). Warnings collected up to any of
-//! them still print, before the errors (NFR-11), and nothing is written
-//! unless every stage succeeded (NFR-8).
+//! grouped; a failed write is the third failure point (§7). Warnings
+//! collected up to any of them still print, before the errors (NFR-11), and
+//! nothing is written unless every stage succeeded (NFR-8).
 #![deny(clippy::print_stdout)]
 
 use std::io;
@@ -61,15 +60,14 @@ pub struct Config {
     pub format: OutputFormat,
     /// FR-56, FR-59: the built-in themes, or a `--palette` file's one set.
     pub colours: Colours,
-    /// RG-102: where an HTML page's legend starts; PNG and SVG warn on
-    /// `hidden` and draw it anyway.
+    /// RG-102: where an HTML page's legend starts. PNG and SVG draw it
+    /// anyway, and warn only when `hidden` came from the flag (D-100).
     pub legend: Sourced<Legend>,
-    /// FR-106: what an HTML page's table publishes; PNG and SVG warn on
-    /// `all`, having no table.
+    /// FR-106: what an HTML page's table publishes. PNG and SVG have no
+    /// table, and warn only when `all` came from the flag (D-100).
     pub table: Sourced<Table>,
-    /// FR-57: the width from `--width` or the file, which HTML ignores, with
-    /// where it came from, so
-    /// D-87's remedies can name it.
+    /// FR-57: the width from `--width` or the file, which HTML ignores,
+    /// with where it came from, so D-87's remedies can name it.
     pub width: Option<Sourced<u32>>,
     /// FR-100: the legend's columns from `--legend-columns`, the file or the
     /// default, which HTML ignores.
