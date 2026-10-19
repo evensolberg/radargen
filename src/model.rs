@@ -847,8 +847,7 @@ fn is_iso_date(s: &str) -> bool {
 mod tests {
     use super::*;
     use crate::csv::parse::parse;
-    use crate::rings::{default_rings, parse_ring_list};
-    use crate::settings::Source;
+    use crate::rings::default_rings;
 
     const HEAD: &str = "name,quadrant,ring,description\n";
     const FULL: &str = "name,quadrant,ring,description,qualifier,last_affirmed,exit_date,status\n";
@@ -866,9 +865,7 @@ mod tests {
         let mut w = Warnings::default();
         let (table, errs) = parse(csv, &mut w).expect("parses");
         assert!(errs.is_empty(), "{errs:?}");
-        let rings = rings
-            .map_or_else(|| Ok(default_rings()), |r| parse_ring_list(r, Source::Flag))
-            .expect("valid rings");
+        let rings = crate::rings::flag_or_default(rings);
         let result = build_catalogue(&table, &rings, OffRadar::Listed, &mut w);
         (result, w.render())
     }

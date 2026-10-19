@@ -108,6 +108,19 @@ pub fn default_rings() -> RingSet {
     )
 }
 
+/// A test's ring set: `list` as `--rings`, or the default set without
+/// one.
+///
+/// # Panics
+///
+/// If `list` breaks FR-63: a test fixture's rings are valid.
+#[cfg(test)]
+pub(crate) fn flag_or_default(list: Option<&str>) -> RingSet {
+    list.map_or_else(default_rings, |r| {
+        parse_ring_list(r, Source::Flag).expect("valid rings")
+    })
+}
+
 /// FR-63 on `list`, a comma list from `source`: `--rings`, or a
 /// `--config` file's `rings` entries joined with commas, so both forms get
 /// the same tidy, checks and entry numbers (FR-91).
