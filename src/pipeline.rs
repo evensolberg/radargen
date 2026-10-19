@@ -200,7 +200,11 @@ fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
     let fonts = Fonts::embedded().map_err(Fatal::from)?;
     // FR-106: the flags say where an off-radar row goes, so its warning
     // can say so when it is raised.
-    let off_radar = OffRadar::of(config.format, config.table.value);
+    let off_radar = OffRadar::of(
+        config.format,
+        config.table.value,
+        config.table.origin.is_flag(),
+    );
     let catalogue = catalogue(&config.input, &config.rings, off_radar, warnings)?;
     let bytes = render(&catalogue, &config, &fonts, warnings)?;
     Ok(write_atomic(&config.output, &config.output_named, &bytes)?)

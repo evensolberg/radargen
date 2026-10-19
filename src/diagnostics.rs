@@ -584,8 +584,8 @@ fn small_text(width: u32, legible_from: Option<u32>, origin: &Origin) -> String 
         },
         |from| {
             format!(
-                "at {width} pixels wide the PNG's text is too small to read; {} or more keeps it legible",
-                origin.set_to(from)
+                "at {width} pixels wide the PNG's text is too small to read; {} keeps it legible",
+                origin.set_to(from, " or more")
             )
         },
     )
@@ -859,8 +859,13 @@ pub struct Warnings(Vec<Warning>);
 pub enum OffRadar {
     /// An HTML page under `--table all`: the table lists it, flagged.
     Listed,
-    /// An HTML page under the default `--table radar`: nowhere on the page.
+    /// An HTML page under `--table radar` from a file or the default:
+    /// nowhere on the page.
     Unlisted,
+    /// As [`OffRadar::Unlisted`], with `--table radar` given on the command
+    /// line, which overrides any table key, so the table remedy names the
+    /// flag (final review M-3).
+    UnlistedByFlag,
     /// A PNG or SVG, which has no table.
     Undrawn,
 }
@@ -868,11 +873,13 @@ pub enum OffRadar {
 impl OffRadar {
     /// Where a run writing `format` with `--table` set to `table` puts the
     /// row: in the page's table only under `--table all`, and nowhere in a
-    /// PNG or SVG, which has no table.
+    /// PNG or SVG, which has no table. `by_flag` says the table came from
+    /// the command line.
     #[must_use]
-    pub const fn of(format: OutputFormat, table: Table) -> Self {
+    pub const fn of(format: OutputFormat, table: Table, by_flag: bool) -> Self {
         match (format, table) {
             (OutputFormat::Html, Table::All) => Self::Listed,
+            (OutputFormat::Html, Table::Radar) if by_flag => Self::UnlistedByFlag,
             (OutputFormat::Html, Table::Radar) => Self::Unlisted,
             (OutputFormat::Png | OutputFormat::Svg, _) => Self::Undrawn,
         }
@@ -888,7 +895,7 @@ impl OffRadar {
         };
         let went = match self {
             Self::Listed => "; the row is in the table view, not on the radar",
-            Self::Unlisted => ", so the row is left off the page",
+            Self::Unlisted | Self::UnlistedByFlag => ", so the row is left off the page",
             Self::Undrawn => "; the row is not on the radar",
         };
         format!("{fact}{went}{}", self.remedies(origin, suggest, "it", "it"))
@@ -910,7 +917,7 @@ impl OffRadar {
         };
         let went = match self {
             Self::Listed => "all appear in the table view",
-            Self::Unlisted => "they are left off the page",
+            Self::Unlisted | Self::UnlistedByFlag => "they are left off the page",
             Self::Undrawn => "none is on the radar",
         };
         format!(
@@ -938,7 +945,22 @@ impl OffRadar {
             Source::Config(_) => "add it to that list".to_owned(),
         };
         let quiet = origin.sibling(Setting::UnplottedRings);
-        let all = origin.sibling(Setting::Table).set_to("all");
+        // The table remedy names the table's own flag when the command
+        // line set it, since that overrides any key (final review M-3);
+        // otherwise the table follows the ring set's source.
+        let table = if self == Self::UnlistedByFlag {
+            Origin::flag(Setting::Table)
+        } else {
+            origin.sibling(Setting::Table)
+        };
+        // A file's table remedy is a suggestion, worded as one (final
+        // review M-1); the flag's stays "--table all lists".
+        let lists = if table.source.is_config() {
+            "would list"
+        } else {
+            "lists"
+        };
+        let all = table.set_to("all", "");
         let mut text = format!("; to plot {one}, {plot}");
         if suggest {
             write!(
@@ -947,10 +969,10 @@ impl OffRadar {
             )
             .expect("a String takes any write");
         }
-        if self == Self::Unlisted {
+        if matches!(self, Self::Unlisted | Self::UnlistedByFlag) {
             write!(
                 text,
-                "; {all} lists {them}, but also publishes every other column"
+                "; {all} {lists} {them}, but also publishes every other column"
             )
             .expect("a String takes any write");
         }

@@ -761,3 +761,29 @@ fn a_file_with_both_theme_and_palette_fails_even_with_a_flag() {
         );
     }
 }
+
+/// Final review M-3: `--table radar` on the command line overrides any
+/// table key, so FR-17's table remedy names the flag, not the file.
+#[test]
+fn a_table_flag_withholds_the_table_remedy() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("r.toml", "output = \"a.html\"\nrings = [\"Adopt\"]\n"),
+    ]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-c", "r.toml", "--table", "radar"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert!(
+        ran.stderr.contains("'Hold' is not in the rings key in r.toml (Adopt), so the row is left off the page; to plot it, add it to that list; to leave it off without this warning, add it to the unplotted_rings key in r.toml; --table all lists it, but also publishes every other column\n"),
+        "{}",
+        ran.stderr
+    );
+    let plain = run_in(dir.path(), &["radar.csv", "-c", "r.toml"]);
+    assert!(
+        plain.stderr.contains("; setting table = \"all\" in r.toml would list it, but also publishes every other column"),
+        "{}",
+        plain.stderr
+    );
+}

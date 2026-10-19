@@ -996,7 +996,7 @@ fn fatal_messages() {
                 height: 12_000,
                 width_origin: Origin::new(Setting::Width, radar_toml()),
             },
-            "error: a 10000 by 12000 pixel PNG is too large to draw; set the width key in radar.toml smaller",
+            "error: a 10000 by 12000 pixel PNG is too large to draw; set a smaller width in radar.toml",
         ),
         (
             Fatal::Rings {
@@ -1652,7 +1652,7 @@ fn an_undeclared_ring_from_a_file_names_the_file_s_keys() {
     let row = quiet_hint(4, "Adpot", radar_toml(), OffRadar::Unlisted, true);
     assert_eq!(
         row.to_string(),
-        "line 4, ring: 'Adpot' is not in the rings key in radar.toml (Adopt, Trial), so the row is left off the page; to plot it, add it to that list; to leave it off without this warning, add it to the unplotted_rings key in radar.toml; table = \"all\" in radar.toml lists it, but also publishes every other column"
+        "line 4, ring: 'Adpot' is not in the rings key in radar.toml (Adopt, Trial), so the row is left off the page; to plot it, add it to that list; to leave it off without this warning, add it to the unplotted_rings key in radar.toml; setting table = \"all\" in radar.toml would list it, but also publishes every other column"
     );
 }
 
@@ -1679,7 +1679,7 @@ fn a_small_png_names_the_width_key() {
     });
     assert_eq!(
         warning.to_string(),
-        "at 800 pixels wide the PNG's text is too small to read; width = 1200 in radar.toml or more keeps it legible"
+        "at 800 pixels wide the PNG's text is too small to read; setting width = 1200 or more in radar.toml keeps it legible"
     );
     let unreadable = Warning::Render(RenderKind::PngTextSmall {
         width: 800,

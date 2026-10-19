@@ -171,31 +171,37 @@ impl Origin {
         }
     }
 
-    /// How to set it to `value`: `--width 1200`, or `width = 1200 in
-    /// radar.toml`, a string quoted as TOML writes it. The one place a
-    /// remedy's wording depends on the source.
+    /// How to set it to `value`, with `tail` (such as " or more") after
+    /// the value: `--width 1200 or more`, or `setting width = 1200 or more
+    /// in radar.toml`. A string value is quoted, with `"` and `\` escaped
+    /// as a TOML basic string needs. The one place a remedy's wording
+    /// depends on the source; the caller places the verb that follows.
     #[must_use]
-    pub fn set_to(&self, value: impl fmt::Display) -> String {
+    pub fn set_to(&self, value: impl fmt::Display, tail: &str) -> String {
         match &self.source {
             Source::Config(file) => {
                 let key = self.setting.key();
                 match self.setting {
-                    Setting::Width | Setting::LegendColumns => format!("{key} = {value} in {file}"),
-                    _ => format!("{key} = \"{value}\" in {file}"),
+                    Setting::Width | Setting::LegendColumns => {
+                        format!("setting {key} = {value}{tail} in {file}")
+                    }
+                    _ => {
+                        let text = value.to_string().replace('\\', "\\\\").replace('"', "\\\"");
+                        format!("setting {key} = \"{text}\"{tail} in {file}")
+                    }
                 }
             }
-            Source::Flag | Source::Default => format!("{} {value}", self.setting.flag()),
+            Source::Flag | Source::Default => format!("{} {value}{tail}", self.setting.flag()),
         }
     }
 
-    /// How to make it smaller: `pass a smaller --width`, or `set the width
-    /// key in radar.toml smaller`.
+    /// How to make it smaller: `pass a smaller --width`, or `set a smaller
+    /// width in radar.toml`.
     #[must_use]
     pub fn smaller(&self) -> String {
-        if self.source.is_config() {
-            format!("set {self} smaller")
-        } else {
-            format!("pass a smaller {}", self.setting.flag())
+        match &self.source {
+            Source::Config(file) => format!("set a smaller {} in {file}", self.setting.key()),
+            Source::Flag | Source::Default => format!("pass a smaller {}", self.setting.flag()),
         }
     }
 }
@@ -480,6 +486,26 @@ mod tests {
         assert_eq!(
             Origin::new(Setting::UnplottedRings, file).to_string(),
             "the unplotted_rings key in conf/radar.toml"
+        );
+    }
+
+    /// Final review M-1, M-2 and M-5: the caller places the tail, a
+    /// string is quoted and escaped, and the flag form is unchanged.
+    #[test]
+    fn set_to_and_smaller_word_each_source() {
+        let file = Origin::new(Setting::Width, Source::Config(Arc::from("r.toml")));
+        assert_eq!(
+            file.set_to(1200, " or more"),
+            "setting width = 1200 or more in r.toml"
+        );
+        assert_eq!(file.smaller(), "set a smaller width in r.toml");
+        let flag = Origin::flag(Setting::Width);
+        assert_eq!(flag.set_to(1200, " or more"), "--width 1200 or more");
+        assert_eq!(flag.smaller(), "pass a smaller --width");
+        let title = Origin::new(Setting::Title, Source::Config(Arc::from("r.toml")));
+        assert_eq!(
+            title.set_to(r#"a "b" \c"#, ""),
+            r#"setting title = "a \"b\" \\c" in r.toml"#
         );
     }
 
