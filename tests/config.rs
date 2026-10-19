@@ -787,3 +787,29 @@ fn a_table_flag_withholds_the_table_remedy() {
         plain.stderr
     );
 }
+
+/// Final review M-7 (ruling B): a palette the config names may be any
+/// file, so its errors are capped as key problems are; a flag palette
+/// still lists every one.
+#[test]
+fn a_config_palette_s_errors_are_capped() {
+    let props: Vec<String> = (0..30).map(|i| format!("  --x{i}: #000000;")).collect();
+    let junk = format!(":root {{\n{}\n}}\n", props.join("\n"));
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("junk.css", &junk),
+        ("radar.toml", "output = \"a.svg\"\npalette = \"junk.css\"\n"),
+    ]);
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    let lines = ran.lines();
+    assert_eq!(lines.len(), 21, "{lines:?}");
+    assert!(
+        lines.last().is_some_and(|l| l
+            .starts_with("error: the palette key in radar.toml (junk.css): and ")
+            && l.ends_with(" more palette problems")),
+        "{lines:?}"
+    );
+    let flag = run_in(dir.path(), &["radar.csv", "-o", "b.svg", "-p", "junk.css"]);
+    assert!(flag.lines().len() > 21, "{}", flag.stderr);
+}

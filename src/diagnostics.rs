@@ -1364,6 +1364,15 @@ pub enum Fatal {
         /// How many were not listed.
         more: usize,
     },
+    /// Final review M-7 (ruling B): a palette a `--config` file names may
+    /// be any file, so past the key problems' cap its errors are counted.
+    #[error("{palette}: and {more} more palette problems")]
+    PaletteMore {
+        /// The palette, by its key, as written.
+        palette: NamedPath,
+        /// How many were not listed.
+        more: usize,
+    },
     /// NFR-15: an embedded font face does not parse.
     #[error(transparent)]
     Font(#[from] FontError),

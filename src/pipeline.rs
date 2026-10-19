@@ -509,13 +509,29 @@ fn palette_errors(palette: &NamedPath, error: ReadError) -> Vec<Fatal> {
             palette: palette.clone(),
             line,
         }],
-        ReadError::Invalid(errors) => errors
-            .into_iter()
-            .map(|error| Fatal::Palette {
-                palette: palette.clone(),
-                error,
-            })
-            .collect(),
+        ReadError::Invalid(errors) => {
+            // A palette the config names may be any file, so its errors
+            // are capped as key problems are (final review M-7, ruling B);
+            // a flag's palette is the author's own and lists every one.
+            let cap = if palette.origin.source.is_config() {
+                MAX_KEY_PROBLEMS
+            } else {
+                usize::MAX
+            };
+            let more = errors.len().saturating_sub(cap);
+            errors
+                .into_iter()
+                .take(cap)
+                .map(|error| Fatal::Palette {
+                    palette: palette.clone(),
+                    error,
+                })
+                .chain((more > 0).then(|| Fatal::PaletteMore {
+                    palette: palette.clone(),
+                    more,
+                }))
+                .collect()
+        }
     }
 }
 
