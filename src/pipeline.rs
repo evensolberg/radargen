@@ -2,8 +2,12 @@
 //! [`Config`], then the CSV, the catalogue, the order, the layout and the
 //! page, then the write.
 //!
-//! Failures follow NFR-16's tiers. Flag and file errors stop the run at once;
-//! row-level errors from both CSV stages are merged and grouped; a failed
+//! Failures follow NFR-16's tiers. A setting's errors are collected by a
+//! gate: a failed check on a command-line value stops the run, while one on
+//! a value from `--config` lets the later checks run, so one run reports
+//! every problem the file causes (FR-91); a file that cannot be read stops
+//! it at once. Row-level errors from both CSV stages are merged and
+//! grouped; a failed
 //! write is the third failure point (§7). Warnings collected up to any of
 //! them still print, before the errors (NFR-11), and nothing is written
 //! unless every stage succeeded (NFR-8).
@@ -35,7 +39,7 @@ use crate::model::{Catalogue, build_catalogue};
 use crate::order::resolve;
 use crate::palette::file::{self, ReadError};
 use crate::palette::{Colours, Theme};
-use crate::rings::{RingSet, parse_ring_list, parse_rings};
+use crate::rings::{RingSet, default_rings, parse_ring_list};
 use crate::settings::file as config_file;
 use crate::settings::{
     DEFAULT_LEGEND, DEFAULT_LEGEND_COLUMNS, DEFAULT_TABLE, DEFAULT_THEME, Effective, NamedPath,
@@ -48,12 +52,13 @@ use crate::text::Fonts;
 /// (FR-102).
 #[derive(Debug)]
 pub struct Config {
-    /// `-o`, as given.
+    /// The output to write: `-o` as given, or the file's `output` key
+    /// resolved against the file's folder (FR-91).
     pub output: PathBuf,
     /// How a message names the output: its flag or key, and the path as
     /// written.
     pub output_named: NamedPath,
-    /// FR-52: what `-o`'s extension asks for.
+    /// FR-52: what the output's extension asks for.
     pub format: OutputFormat,
     /// FR-56, FR-59: the built-in themes, or a `--palette` file's one set.
     pub colours: Colours,
@@ -63,10 +68,12 @@ pub struct Config {
     /// FR-106: what an HTML page's table publishes; PNG and SVG warn on
     /// `all`, having no table.
     pub table: Sourced<Table>,
-    /// FR-57: `--width`, which HTML ignores, with where it came from, so
+    /// FR-57: the width from `--width` or the file, which HTML ignores, with
+    /// where it came from, so
     /// D-87's remedies can name it.
     pub width: Option<Sourced<u32>>,
-    /// FR-100: `--legend-columns`, which HTML ignores.
+    /// FR-100: the legend's columns from `--legend-columns`, the file or the
+    /// default, which HTML ignores.
     pub legend_columns: u8,
     /// FR-65, resolved: cleaned (FR-90), trimmed, and `None` when empty,
     /// with its origin, so FR-104 can name it.
@@ -243,13 +250,20 @@ fn config(cli: &Cli, input: &Path, warnings: &mut Warnings) -> Result<Config, Ve
         None => None,
     };
     let ring_set = checked_rings(&mut gate, &rings, &unplotted)?;
-    let colours = checked_colours(&mut gate, palette_path.as_ref(), &palette, theme)?;
+    let palette_broken = palette == Effective::Broken;
+    let colours = checked_colours(&mut gate, palette_path.as_ref(), palette_broken, theme)?;
     // With no error recorded, no setting is broken and every check passed,
     // so each value below is present; the `else` returns the errors that
     // explain why one is not.
     let (true, Some(format), Some((output, output_named)), Some(rings), Some(colours)) =
         (gate.errors.is_empty(), format, output, ring_set, colours)
     else {
+        // Every path to a missing value records its error first, so an
+        // empty gate here would be a silent failure (Rust review M2).
+        debug_assert!(
+            !gate.errors.is_empty(),
+            "a setting is missing with no error recorded"
+        );
         return Err(gate.errors);
     };
     Ok(Config {
@@ -333,14 +347,15 @@ fn checked_rings(
 }
 
 /// FR-102 on the palette, from the flag or the file; else the built-in
-/// themes with FR-56's theme. A broken `palette` key gives none.
+/// themes with FR-56's theme. A broken `palette` key gives none: its key
+/// problem is already recorded.
 fn checked_colours(
     gate: &mut Gate,
     path: Option<&(PathBuf, NamedPath)>,
-    palette: &Effective<PathBuf>,
+    palette_broken: bool,
     theme: Effective<Theme>,
 ) -> Result<Option<Colours>, Vec<Fatal>> {
-    Ok(match (path, palette) {
+    Ok(match (path, palette_broken) {
         (Some((path, named)), _) => gate
             .check(
                 &named.origin.source,
@@ -349,8 +364,8 @@ fn checked_colours(
                     .and_then(|()| file::read(path).map_err(|e| palette_errors(named, e))),
             )?
             .map(Colours::from),
-        (None, Effective::Broken) => None,
-        (None, _) => Some(Colours::BuiltIn(
+        (None, true) => None,
+        (None, false) => Some(Colours::BuiltIn(
             theme.or(Setting::Theme, DEFAULT_THEME).value,
         )),
     })
@@ -370,7 +385,7 @@ fn ring_set(declared: Option<&Sourced<String>>) -> Result<RingSet, Vec<Fatal>> {
     let (parsed, origin) = declared.map_or_else(
         || {
             (
-                parse_rings(None),
+                Ok(default_rings()),
                 Origin::new(Setting::Rings, Source::Default),
             )
         },
@@ -407,7 +422,7 @@ fn unplotted_set(set: RingSet, list: &Sourced<String>) -> Result<RingSet, Vec<Fa
 
 /// A `--config` file's read failure, named by the file (NFR-15).
 fn config_error(path: &Path, error: config_file::ReadError) -> Fatal {
-    let file: Arc<str> = Arc::from(path.display().to_string());
+    let file = config_file::file_name(path);
     match error {
         config_file::ReadError::Unreadable(source) => Fatal::ConfigUnreadable { file, source },
         config_file::ReadError::TooLarge => Fatal::ConfigTooLarge { file },
@@ -514,7 +529,7 @@ fn regular(path: &Path, named: &NamedPath) -> Result<(), Fatal> {
     }
 }
 
-/// FR-62: `-o`'s directory must exist. Only a directory that is not there
+/// FR-62: the output's directory must exist. Only a directory that is not there
 /// is this error; one that is a file or cannot be searched is left to the
 /// write, which stays the final authority, so a directory removed after
 /// this check still fails cleanly there.
@@ -529,7 +544,9 @@ fn missing_directory(output: &Path, named: &NamedPath) -> Result<(), Fatal> {
     }
 }
 
-/// D-74: `-o` must not be the input CSV. Files are compared by identity
+/// D-74: the output must not be a file the run reads: the input CSV, the
+/// `--config` file or the palette (security review F2). Files are compared
+/// by identity
 /// (device and inode, or volume and file index on Windows), so `./`, `..`,
 /// symlinks, case and hard links are all caught, and no path spelling needs
 /// resolving. A path that cannot be opened is not the input.

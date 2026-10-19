@@ -72,35 +72,6 @@ impl Loaded {
     }
 }
 
-/// The type FR-91 gives a key.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Expected {
-    /// A string.
-    String,
-    /// An integer: `width`, `legend_columns`.
-    Integer,
-    /// An array of strings: `rings`, `unplotted_rings`.
-    Strings,
-}
-
-impl Setting {
-    /// The TOML type FR-91 gives this setting's key.
-    #[must_use]
-    pub const fn expected(self) -> Expected {
-        match self {
-            Self::Width | Self::LegendColumns => Expected::Integer,
-            Self::Rings | Self::UnplottedRings => Expected::Strings,
-            Self::Output
-            | Self::Title
-            | Self::Subtitle
-            | Self::Theme
-            | Self::Legend
-            | Self::Table
-            | Self::Palette => Expected::String,
-        }
-    }
-}
-
 /// One key's problem (FR-91), each a usage error.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyProblem {
@@ -235,11 +206,18 @@ pub fn load(text: &str, path: &Path) -> Result<Loaded, ReadError> {
         })?;
     let (values, problems) = check(&table);
     Ok(Loaded {
-        file: Arc::from(path.display().to_string()),
+        file: file_name(path),
         dir: path.parent().unwrap_or_else(|| Path::new("")).to_path_buf(),
         values,
         problems,
     })
+}
+
+/// The file as messages name it: the path as given on the command line
+/// (FR-17), the one spelling every message about it uses.
+#[must_use]
+pub fn file_name(path: &Path) -> Arc<str> {
+    Arc::from(path.display().to_string())
 }
 
 /// A parser message as one line: its lines joined with `; `.
@@ -268,8 +246,7 @@ fn check(table: &toml::Table) -> (FileValues, Vec<KeyProblem>) {
 
 /// `setting`'s key, `value`, checked and stored in `values`; or its
 /// problems, leaving `values` without it.
-fn take(values: &mut FileValues, setting: Setting, value: &Value) -> Result<(), Vec<KeyProblem>> {
-    let v = values;
+fn take(v: &mut FileValues, setting: Setting, value: &Value) -> Result<(), Vec<KeyProblem>> {
     match setting {
         Setting::Output => path(setting, value).map(|s| v.output = Some(s)),
         Setting::Title => string(setting, value).map(|s| v.title = Some(s)),
@@ -634,8 +611,8 @@ mod tests {
                 "{text}"
             );
         }
-        assert_eq!(Setting::LegendColumns.expected(), Expected::Integer);
-        assert_eq!(Setting::UnplottedRings.expected(), Expected::Strings);
+        assert_eq!(Setting::LegendColumns.expected(), super::super::Expected::Integer);
+        assert_eq!(Setting::UnplottedRings.expected(), super::super::Expected::Strings);
     }
 
     /// QA review M-2: a file at the cap reads; one byte more does not.

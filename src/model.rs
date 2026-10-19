@@ -847,7 +847,8 @@ fn is_iso_date(s: &str) -> bool {
 mod tests {
     use super::*;
     use crate::csv::parse::parse;
-    use crate::rings::parse_rings;
+    use crate::rings::{default_rings, parse_ring_list};
+    use crate::settings::Source;
 
     const HEAD: &str = "name,quadrant,ring,description\n";
     const FULL: &str = "name,quadrant,ring,description,qualifier,last_affirmed,exit_date,status\n";
@@ -865,7 +866,9 @@ mod tests {
         let mut w = Warnings::default();
         let (table, errs) = parse(csv, &mut w).expect("parses");
         assert!(errs.is_empty(), "{errs:?}");
-        let rings = parse_rings(rings).expect("valid rings");
+        let rings = rings
+            .map_or_else(|| Ok(default_rings()), |r| parse_ring_list(r, Source::Flag))
+            .expect("valid rings");
         let result = build_catalogue(&table, &rings, OffRadar::Listed, &mut w);
         (result, w.render())
     }
@@ -963,7 +966,7 @@ mod tests {
     fn near_misses(csv: &str) -> Vec<(usize, String, ColumnKind)> {
         let mut w = Warnings::default();
         let (table, _) = parse(csv, &mut w).expect("parses");
-        let rings = parse_rings(None).expect("valid rings");
+        let rings = default_rings();
         let _ = build_catalogue(&table, &rings, OffRadar::Listed, &mut w);
         w.as_slice()
             .iter()
@@ -1189,7 +1192,7 @@ mod tests {
                 fields: vec!["K".into()],
             }],
         };
-        let rings = parse_rings(None).expect("default");
+        let rings = default_rings();
         let errs = build_catalogue(&table, &rings, OffRadar::Listed, &mut Warnings::default())
             .expect_err("fails");
         assert_eq!(
@@ -1370,7 +1373,7 @@ mod tests {
         let csv = format!("{HEAD}Kafka,T,Adopt,d\nkafka ,T,Trial,d\nKAFKA,T,Assess,d\n");
         let mut w = Warnings::default();
         let (table, _) = parse(&csv, &mut w).expect("parses");
-        let rings = parse_rings(None).expect("default");
+        let rings = default_rings();
         let cat = build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds");
         assert_eq!(cat.items.len(), 3);
         let firsts: Vec<_> = w

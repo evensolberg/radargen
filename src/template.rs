@@ -16,14 +16,14 @@ mod tests {
     use crate::csv::parse::parse;
     use crate::diagnostics::Warnings;
     use crate::model::{Catalogue, Qualifier, Status, build_catalogue};
-    use crate::rings::{DEFAULT_RINGS, parse_rings};
+    use crate::rings::{DEFAULT_RINGS, default_rings};
 
     /// The template as the default rings read it, and what that warned.
     fn catalogue() -> (Catalogue, Warnings) {
         let mut warnings = Warnings::default();
         let (table, errors) = parse(TEMPLATE, &mut warnings).expect("parses");
         assert!(errors.is_empty(), "{errors:?}");
-        let rings = parse_rings(None).expect("the default rings");
+        let rings = default_rings();
         let catalogue = build_catalogue(
             &table,
             &rings,

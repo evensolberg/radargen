@@ -16,7 +16,7 @@ pub const DEFAULT_RINGS: [&str; 4] = ["Assess", "Trial", "Adopt", "Retire"];
 ///
 /// **Invariant:** no unplotted ring matches a declared one under FR-76, so
 /// a ring is either drawn or kept off, never both. The fields are private,
-/// so only [`parse_rings`], which names none unplotted, and
+/// so only [`default_rings`] and [`parse_ring_list`], which name none unplotted, and
 /// [`RingSet::with_unplotted`], which refuses any overlap, can build one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RingSet {
@@ -99,13 +99,24 @@ fn overlap(by: &Source) -> String {
     }
 }
 
-/// Parse `--rings`, or the FR-13 default when the flag is absent.
+/// FR-13's default set, edge-to-centre, for a run that declares none.
+#[must_use]
+pub fn default_rings() -> RingSet {
+    RingSet::declared(
+        DEFAULT_RINGS.iter().map(|r| (*r).to_string()).collect(),
+        Source::Default,
+    )
+}
+
+/// FR-63 on `list`, a comma list from `source`: `--rings`, or a
+/// `--config` file's `rings` entries joined with commas, so both forms get
+/// the same tidy, checks and entry numbers (FR-91).
 ///
 /// Entries get FR-76's trim at their ends (FR-15) and a run of whitespace
 /// inside is one space ([`tidy`]), so a multi-word ring name keeps its
-/// words. The declared casing is
-/// preserved: it is what appears as a band label and legend subheading, and
-/// FR-76 only ever tidies a label, never re-cases one.
+/// words. The declared casing is preserved: it is what appears as a band
+/// label and legend subheading, and FR-76 only ever tidies a label, never
+/// re-cases one.
 ///
 /// # Errors
 ///
@@ -114,23 +125,6 @@ fn overlap(by: &Source) -> String {
 /// normalisation, the latter naming where the ring was first declared. A
 /// list with no rings at all is the single [`RingsError::Empty`] rather
 /// than one empty entry per comma.
-pub fn parse_rings(declared: Option<&str>) -> Result<RingSet, Vec<RingsError>> {
-    let Some(list) = declared else {
-        return Ok(RingSet::declared(
-            DEFAULT_RINGS.iter().map(|r| (*r).to_string()).collect(),
-            Source::Default,
-        ));
-    };
-    parse_ring_list(list, Source::Flag)
-}
-
-/// FR-63 on `list`, a comma list from `source`: `--rings`, or a
-/// `--config` file's `rings` entries joined with commas, so both forms get
-/// the same tidy, checks and entry numbers (FR-91).
-///
-/// # Errors
-///
-/// As [`parse_rings`].
 pub fn parse_ring_list(list: &str, source: Source) -> Result<RingSet, Vec<RingsError>> {
     Ok(RingSet::declared(parse_list(list, |_, _, _| None)?, source))
 }

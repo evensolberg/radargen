@@ -10,8 +10,8 @@ use crate::options::OutputFormat;
 use crate::options::Table;
 use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::RingsError;
-use crate::settings::file::{Expected, KeyProblem, MAX_BYTES as CONFIG_MAX_BYTES};
-use crate::settings::{MergeProblem, NamedPath, Origin, Setting, Source};
+use crate::settings::file::{KeyProblem, MAX_BYTES as CONFIG_MAX_BYTES};
+use crate::settings::{Expected, MergeProblem, NamedPath, Origin, Setting, Source};
 use crate::starter::Starter;
 use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX, WIDE_MIN_VIEWPORT_PX};
 use crate::text::FontError;
@@ -1040,9 +1040,10 @@ impl Warnings {
                 Warning::Render(_) => lines.push(format!("warning: {w}")),
                 Warning::Row { line, kind, .. } => {
                     let member = Member { line: *line, kind };
-                    match classes.iter_mut().find(|(c, _)| *c == kind.class()) {
+                    let class = kind.class();
+                    match classes.iter_mut().find(|(c, _)| *c == class) {
                         Some((_, members)) => members.push(member),
-                        None => classes.push((kind.class(), vec![member])),
+                        None => classes.push((class, vec![member])),
                     }
                 }
             }

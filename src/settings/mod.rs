@@ -110,6 +110,35 @@ impl Setting {
     }
 }
 
+/// The type FR-91 gives a key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Expected {
+    /// A string.
+    String,
+    /// An integer: `width`, `legend_columns`.
+    Integer,
+    /// An array of strings: `rings`, `unplotted_rings`.
+    Strings,
+}
+
+impl Setting {
+    /// The TOML type FR-91 gives this setting's key.
+    #[must_use]
+    pub const fn expected(self) -> Expected {
+        match self {
+            Self::Width | Self::LegendColumns => Expected::Integer,
+            Self::Rings | Self::UnplottedRings => Expected::Strings,
+            Self::Output
+            | Self::Title
+            | Self::Subtitle
+            | Self::Theme
+            | Self::Legend
+            | Self::Table
+            | Self::Palette => Expected::String,
+        }
+    }
+}
+
 /// A setting and where its value came from: its effective source
 /// (NFR-10).
 #[derive(Debug, Clone, PartialEq, Eq)]

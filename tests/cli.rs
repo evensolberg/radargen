@@ -5,7 +5,7 @@ use clap::Parser;
 use radargen::cli::{Cli, Legend, OutputFormat, Table, Theme};
 use radargen::cli::{Task, clean_setting, format};
 use radargen::diagnostics::{Fatal, RowKind, Warning, Warnings};
-use radargen::rings::{RingsError, parse_rings};
+use radargen::rings::{RingsError, parse_ring_list};
 use radargen::settings::file::load;
 use radargen::settings::{Effective, MergeProblem, Origin, Setting, Source, Sourced, resolve};
 use radargen::starter::Starter;
@@ -390,7 +390,7 @@ fn rings_are_cleaned_before_fr_63_checks_them() {
         &mut warnings,
     );
     assert_eq!(
-        parse_rings(Some(&cleaned)),
+        parse_ring_list(&cleaned, Source::Flag),
         Err(vec![RingsError::EmptyEntry { index: 2 }])
     );
 }

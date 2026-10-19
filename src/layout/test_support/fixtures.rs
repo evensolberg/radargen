@@ -4,7 +4,8 @@ use crate::csv::parse::parse;
 use crate::diagnostics::Warnings;
 use crate::model::{Catalogue, build_catalogue};
 use crate::order::{Plotted, resolve};
-use crate::rings::parse_rings;
+use crate::rings::{default_rings, parse_ring_list};
+use crate::settings::Source;
 
 /// The PRD's three-quadrant example (§12), shared by every block's tests.
 pub const PRD_EXAMPLE: &str = include_str!("../../../tests/fixtures/three-quadrant.csv");
@@ -43,7 +44,9 @@ pub fn plotted(csv: &str, rings: Option<&str>) -> (Catalogue, Plotted) {
     let mut warnings = Warnings::default();
     let (table, errors) = parse(csv, &mut warnings).expect("parses");
     assert!(errors.is_empty(), "{errors:?}");
-    let rings = parse_rings(rings).expect("valid rings");
+    let rings = rings
+        .map_or_else(|| Ok(default_rings()), |r| parse_ring_list(r, Source::Flag))
+        .expect("valid rings");
     let catalogue = build_catalogue(
         &table,
         &rings,
