@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use crate::diagnostics::{Fatal, RenderKind, Warning, Warnings};
 use crate::escape::remove_undisplayable;
-pub use crate::options::{Legend, OutputFormat, Table};
+use crate::options::{Legend, Table};
 pub use crate::palette::Theme;
 use crate::settings::file::Loaded;
 use crate::settings::{MergeProblem, Origin, Setting, Settings, pick};
@@ -283,24 +283,6 @@ impl Cli {
         settings.displace();
         let problems = settings.problems(file);
         (settings, problems)
-    }
-}
-
-/// FR-52: format from the output's extension, matched case-insensitively;
-/// `None` for any other or a missing extension. The caller names the
-/// output by its source (NFR-10).
-#[must_use]
-pub fn format(output: &Path) -> Option<OutputFormat> {
-    let ext = output
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-    match ext.as_str() {
-        "html" => Some(OutputFormat::Html),
-        "png" => Some(OutputFormat::Png),
-        "svg" => Some(OutputFormat::Svg),
-        _ => None,
     }
 }
 

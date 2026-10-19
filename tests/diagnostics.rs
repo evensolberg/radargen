@@ -4,12 +4,12 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use radargen::cli::OutputFormat;
 use radargen::columns::ColumnKind;
 use radargen::diagnostics::{
     Binding, DateColumn, Fatal, Lacking, OffRadar, Position, ReadFile, RenderKind, RowError,
     RowKind, Separator, Warning, Warnings, column_label,
 };
+use radargen::options::OutputFormat;
 use radargen::rings::RingsError;
 use radargen::settings::file::KeyProblem;
 use radargen::settings::{NamedPath, Origin, Setting, Source};

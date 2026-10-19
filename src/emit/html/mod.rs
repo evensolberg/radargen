@@ -5,7 +5,7 @@ mod chrome;
 mod css;
 mod table;
 
-pub use crate::options::{Legend, Table};
+use crate::options::{Legend, Table};
 
 use crate::emit::OUTPUT_VERSION;
 use crate::emit::UNTITLED;

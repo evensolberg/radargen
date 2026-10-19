@@ -3,7 +3,9 @@
 //!
 //! A leaf, importing nothing from the crate, so the settings vocabulary,
 //! the diagnostics and the emitters can all name them without a module
-//! cycle (plan RG-019A, review I-2). `cli` and `emit::html` re-export them.
+//! cycle (plan RG-019A, review I-2).
+
+use std::path::Path;
 
 /// The output format, inferred from the `-o` extension (FR-52).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,6 +20,24 @@ pub enum OutputFormat {
 }
 
 impl OutputFormat {
+    /// FR-52: the format the output's extension asks for, matched
+    /// case-insensitively; `None` for any other or a missing extension.
+    /// The caller names the output by its source (NFR-10).
+    #[must_use]
+    pub fn from_path(output: &Path) -> Option<Self> {
+        let ext = output
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        match ext.as_str() {
+            "html" => Some(Self::Html),
+            "png" => Some(Self::Png),
+            "svg" => Some(Self::Svg),
+            _ => None,
+        }
+    }
+
     /// Whether this is a static snapshot, a PNG or an SVG: it draws the
     /// legend whatever `--legend` says (RG-102), and with the bundled font
     /// alone (FR-104).

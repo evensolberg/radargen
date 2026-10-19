@@ -2,9 +2,9 @@
 //! the contract rather than spawning a process.
 
 use clap::Parser;
-use radargen::cli::{Cli, Legend, OutputFormat, Table, Theme};
-use radargen::cli::{Task, clean_setting, format};
+use radargen::cli::{Cli, Task, Theme, clean_setting};
 use radargen::diagnostics::{Fatal, RowKind, Warning, Warnings};
+use radargen::options::{Legend, OutputFormat, Table};
 use radargen::rings::{RingsError, parse_ring_list};
 use radargen::settings::file::load;
 use radargen::settings::{Effective, MergeProblem, Origin, Setting, Source, Sourced, resolve};
@@ -53,7 +53,7 @@ fn exactly_one_csv_is_accepted() {
 fn html_is_inferred_from_the_output_extension() {
     let cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
     assert_eq!(
-        format(cli.output.as_deref().expect("-o")).expect("recognised"),
+        OutputFormat::from_path(cli.output.as_deref().expect("-o")).expect("recognised"),
         OutputFormat::Html
     );
 }
@@ -63,7 +63,7 @@ fn extension_matching_ignores_case() {
     // FR-52 extends this courtesy explicitly; `.HTML` is the v1.0 case.
     let cli = parse(&["in.csv", "-o", "e.HTML"]).expect("parses");
     assert_eq!(
-        format(cli.output.as_deref().expect("-o")).expect("recognised"),
+        OutputFormat::from_path(cli.output.as_deref().expect("-o")).expect("recognised"),
         OutputFormat::Html
     );
 }
@@ -72,13 +72,19 @@ fn extension_matching_ignores_case() {
 fn png_and_svg_are_formats() {
     for path in ["r.png", "R.PNG", "r.Png"] {
         assert!(
-            matches!(format(Path::new(path)), Some(OutputFormat::Png)),
+            matches!(
+                OutputFormat::from_path(Path::new(path)),
+                Some(OutputFormat::Png)
+            ),
             "{path}"
         );
     }
     for path in ["e.svg", "E.SVG", "e.Svg"] {
         assert!(
-            matches!(format(Path::new(path)), Some(OutputFormat::Svg)),
+            matches!(
+                OutputFormat::from_path(Path::new(path)),
+                Some(OutputFormat::Svg)
+            ),
             "{path}"
         );
     }
@@ -103,7 +109,11 @@ fn png_and_svg_are_snapshots_named_in_capitals() {
 fn an_unrecognised_or_absent_extension_is_a_different_error() {
     for path in ["e.jpg", "e", "e."] {
         let cli = parse(&["in.csv", "-o", path]).expect("parses");
-        assert_eq!(format(cli.output.as_deref().expect("-o")), None, "{path}");
+        assert_eq!(
+            OutputFormat::from_path(cli.output.as_deref().expect("-o")),
+            None,
+            "{path}"
+        );
     }
 }
 

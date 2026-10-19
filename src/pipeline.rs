@@ -17,14 +17,14 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::cli::{Cli, OutputFormat, Task, clean_setting, format};
+use crate::cli::{Cli, Task, clean_setting};
 use crate::csv::decode;
 use crate::csv::parse::parse;
 use crate::decode::NotUtf8;
 use crate::diagnostics::{
     Fatal, MAX_KEY_PROBLEMS, OffRadar, ReadFile, RenderKind, RowError, Warning, Warnings,
 };
-use crate::emit::html::{Legend, Page, Table, page};
+use crate::emit::html::{Page, page};
 use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
 use crate::emit::{png, svg};
@@ -36,6 +36,7 @@ use crate::layout::geometry::warn_crowding;
 use crate::layout::glyphs::warn_missing_glyphs;
 use crate::layout::title::shown;
 use crate::model::{Catalogue, build_catalogue};
+use crate::options::{Legend, OutputFormat, Table};
 use crate::order::resolve;
 use crate::palette::file::{self, ReadError};
 use crate::palette::{Colours, Theme};
@@ -502,7 +503,7 @@ fn output_checks(
     reads: &[(&Path, ReadFile)],
 ) -> Result<OutputFormat, Vec<Fatal>> {
     let checked = || -> Result<OutputFormat, Fatal> {
-        let format = format(path).ok_or_else(|| Fatal::UnrecognisedExtension {
+        let format = OutputFormat::from_path(path).ok_or_else(|| Fatal::UnrecognisedExtension {
             output: named.clone(),
         })?;
         missing_directory(path, named)?;

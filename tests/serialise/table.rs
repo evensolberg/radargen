@@ -8,8 +8,8 @@
 //! FR-34's order is not CSV order, the unplotted row sits mid-file, and a
 //! multi-line record early on makes a row's line differ from its index.
 
-use radargen::emit::html::Table;
 use radargen::model::{Link, NOT_ON_THE_RADAR};
+use radargen::options::Table;
 use roxmltree::Node;
 
 use super::{Built, build, parse};
