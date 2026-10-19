@@ -9,46 +9,13 @@ use clap::Parser;
 use std::path::{Path, PathBuf};
 
 use crate::diagnostics::{Fatal, RenderKind, Warning, Warnings};
-pub use crate::emit::html::{Legend, Table};
 use crate::escape::remove_undisplayable;
+pub use crate::options::{Legend, OutputFormat, Table};
 pub use crate::palette::Theme;
 use crate::settings::file::Loaded;
 use crate::settings::{MergeProblem, Origin, Setting, Settings, pick};
 use crate::starter::Starter;
 use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
-
-/// The output format, inferred from the `-o` extension (FR-52).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OutputFormat {
-    /// `.html`: the shared document the radar is embedded in (FR-52).
-    Html,
-    /// `.png`: the wide arrangement as a raster image (FR-55, FR-71).
-    Png,
-    /// `.svg`: the wide arrangement as a standalone SVG, its text outlined
-    /// (FR-54, D-88).
-    Svg,
-}
-
-impl OutputFormat {
-    /// Whether this is a static snapshot, a PNG or an SVG: it draws the
-    /// legend whatever `--legend` says (RG-102), and with the bundled font
-    /// alone (FR-104).
-    #[must_use]
-    pub const fn is_snapshot(self) -> bool {
-        matches!(self, Self::Png | Self::Svg)
-    }
-}
-
-/// The format as a message names it: `PNG`.
-impl std::fmt::Display for OutputFormat {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Self::Html => "HTML",
-            Self::Png => "PNG",
-            Self::Svg => "SVG",
-        })
-    }
-}
 
 /// The parsed command line: one CSV in, one file out (D-28, §6.6).
 //

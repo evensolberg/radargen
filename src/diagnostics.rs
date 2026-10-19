@@ -4,10 +4,10 @@
 use std::fmt::{self, Write as _};
 use std::sync::Arc;
 
-use crate::cli::OutputFormat;
 use crate::columns::ColumnKind;
 use crate::csv::decode::MAX_BYTES as MAX_CSV_BYTES;
-use crate::emit::html::Table;
+use crate::options::OutputFormat;
+use crate::options::Table;
 use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::RingsError;
 use crate::settings::file::{Expected, KeyProblem, MAX_BYTES as CONFIG_MAX_BYTES};

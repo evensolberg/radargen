@@ -2,11 +2,11 @@
 //! bundled font lacks, so the static output draws a box where the HTML page
 //! would fall back to the reader's fonts (D-93).
 
-use crate::cli::OutputFormat;
 use crate::columns::ColumnKind;
 use crate::diagnostics::{Lacking, RenderKind, RowKind, Warning, Warnings};
 use crate::layout::title::shown;
 use crate::model::Catalogue;
+use crate::options::OutputFormat;
 use crate::order::Plotted;
 use crate::settings::{Origin, Setting, Source, Sourced};
 use crate::text::{Fonts, words};

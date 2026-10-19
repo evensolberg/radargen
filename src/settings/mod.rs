@@ -11,7 +11,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::emit::html::{Legend, Table};
+use crate::options::{Legend, Table};
 use crate::palette::Theme;
 use file::{FileValues, Loaded};
 

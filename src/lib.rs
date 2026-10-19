@@ -14,6 +14,7 @@ pub mod layout;
 pub mod link;
 pub mod model;
 pub mod num;
+pub mod options;
 pub mod order;
 pub mod palette;
 pub mod pipeline;

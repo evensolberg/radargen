@@ -16,7 +16,7 @@ use toml::Value;
 
 use super::Setting;
 use crate::decode::{NotUtf8, decode, line_at, read_capped};
-use crate::emit::html::{Legend, Table};
+use crate::options::{Legend, Table};
 use crate::palette::Theme;
 use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
 
