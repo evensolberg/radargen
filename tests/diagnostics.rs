@@ -1755,18 +1755,8 @@ fn config_file_messages() {
     let file: std::sync::Arc<str> = std::sync::Arc::from("radar.toml");
     let cases = [
         (
-            Fatal::Conflict {
-                theme: Origin::new(Setting::Theme, radar_toml()),
-                palette: Origin::flag(Setting::Palette),
-            },
-            "error: the theme key in radar.toml cannot be used with '--palette <FILE>'",
-        ),
-        (
-            Fatal::Conflict {
-                theme: Origin::flag(Setting::Theme),
-                palette: Origin::new(Setting::Palette, radar_toml()),
-            },
-            "error: the argument '--theme <THEME>' cannot be used with the palette key in radar.toml",
+            Fatal::Conflict { file: file.clone() },
+            "error: --config radar.toml: the theme and palette keys cannot be used together; a palette replaces the theme, so remove one",
         ),
         (
             Fatal::NoOutput { file: file.clone() },

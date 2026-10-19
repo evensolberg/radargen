@@ -92,32 +92,20 @@ impl Setting {
         self.names().1
     }
 
-    /// The flag as clap's usage errors write it, value name included, so a
-    /// message about the file reads as clap's would (FR-59, FR-91).
-    #[must_use]
-    pub const fn usage(self) -> &'static str {
-        self.names().2
-    }
-
-    /// The flag, the key and clap's usage spelling, together, so the three
-    /// cannot drift apart.
-    const fn names(self) -> (&'static str, &'static str, &'static str) {
+    /// The flag and the key, together, so the two cannot drift apart.
+    const fn names(self) -> (&'static str, &'static str) {
         match self {
-            Self::Output => ("-o", "output", "--output <OUTPUT>"),
-            Self::Title => ("--title", "title", "--title <TITLE>"),
-            Self::Subtitle => ("--subtitle", "subtitle", "--subtitle <SUBTITLE>"),
-            Self::Rings => ("--rings", "rings", "--rings <RINGS>"),
-            Self::UnplottedRings => (
-                "--unplotted-rings",
-                "unplotted_rings",
-                "--unplotted-rings <RINGS>",
-            ),
-            Self::Theme => ("--theme", "theme", "--theme <THEME>"),
-            Self::Width => ("--width", "width", "--width <WIDTH>"),
-            Self::LegendColumns => ("--legend-columns", "legend_columns", "--legend-columns <N>"),
-            Self::Legend => ("--legend", "legend", "--legend <LEGEND>"),
-            Self::Table => ("--table", "table", "--table <TABLE>"),
-            Self::Palette => ("--palette", "palette", "--palette <FILE>"),
+            Self::Output => ("-o", "output"),
+            Self::Title => ("--title", "title"),
+            Self::Subtitle => ("--subtitle", "subtitle"),
+            Self::Rings => ("--rings", "rings"),
+            Self::UnplottedRings => ("--unplotted-rings", "unplotted_rings"),
+            Self::Theme => ("--theme", "theme"),
+            Self::Width => ("--width", "width"),
+            Self::LegendColumns => ("--legend-columns", "legend_columns"),
+            Self::Legend => ("--legend", "legend"),
+            Self::Table => ("--table", "table"),
+            Self::Palette => ("--palette", "palette"),
         }
     }
 }
@@ -143,16 +131,6 @@ impl Origin {
     #[must_use]
     pub const fn flag(setting: Setting) -> Self {
         Self::new(setting, Source::Flag)
-    }
-
-    /// How clap-style usage errors name it: `'--theme <THEME>'` for a
-    /// flag, as clap does, and the key with its file otherwise (FR-59).
-    #[must_use]
-    pub fn usage(&self) -> String {
-        match self.source {
-            Source::Config(_) => self.to_string(),
-            Source::Flag | Source::Default => format!("'{}'", self.setting.usage()),
-        }
     }
 }
 
@@ -300,13 +278,12 @@ pub struct Settings {
 /// errors, as clap's would be (FR-59, FR-91).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MergeProblem {
-    /// FR-59 across sources: a theme and a palette, at least one from the
-    /// file, since clap refuses the pair on the command line (rg-ahj).
+    /// FR-59 within the file: a `theme` key and a `palette` key. Across
+    /// sources the flag wins instead ([`Settings::displace`]), and clap
+    /// refuses the pair on the command line.
     Conflict {
-        /// The theme's origin.
-        theme: Origin,
-        /// The palette's origin.
-        palette: Origin,
+        /// The file, as named on the command line.
+        file: Arc<str>,
     },
     /// FR-91: neither `-o` nor an `output` key.
     NoOutput {
@@ -363,15 +340,38 @@ pub fn resolve(dir: Option<&Path>, path: &Sourced<PathBuf>) -> (PathBuf, NamedPa
     (opened, named)
 }
 
+/// Whether `value` came from the command line.
+fn by_flag<T>(value: &Effective<T>) -> bool {
+    value
+        .as_given()
+        .is_some_and(|given| given.origin.source == Source::Flag)
+}
+
 impl Settings {
-    /// FR-59 across sources, then a missing output (FR-91).
+    /// FR-59 across sources (rg-ahj; the maintainer's ruling, 2026-10-18):
+    /// the command line wins over the opposing key, so `--palette` drops
+    /// the file's `theme` and `--theme` drops its `palette`. The dropped key
+    /// is still checked (FR-91), but nothing reads its value.
+    pub fn displace(&mut self) {
+        if by_flag(&self.palette) && !by_flag(&self.theme) {
+            self.theme = Effective::Absent;
+        }
+        if by_flag(&self.theme) && !by_flag(&self.palette) {
+            self.palette = Effective::Absent;
+        }
+    }
+
+    /// FR-59 within the file, then a missing output (FR-91). Call after
+    /// [`Settings::displace`], so a theme and palette both still given
+    /// both came from the file.
     #[must_use]
     pub fn problems(&self, file: Option<&Loaded>) -> Vec<MergeProblem> {
         let mut problems = Vec::new();
-        if let (Effective::Given(theme), Effective::Given(palette)) = (&self.theme, &self.palette) {
+        if let (Effective::Given(_), Effective::Given(_), Some(loaded)) =
+            (&self.theme, &self.palette, file)
+        {
             problems.push(MergeProblem::Conflict {
-                theme: theme.origin.clone(),
-                palette: palette.origin.clone(),
+                file: Arc::clone(&loaded.file),
             });
         }
         if let (Effective::Absent, Some(loaded)) = (&self.output, file) {
@@ -434,14 +434,8 @@ mod tests {
             "--rings"
         );
         assert_eq!(
-            Origin::new(Setting::UnplottedRings, file.clone()).to_string(),
+            Origin::new(Setting::UnplottedRings, file).to_string(),
             "the unplotted_rings key in conf/radar.toml"
-        );
-        // clap's spelling on the command line; the key's in the file.
-        assert_eq!(Origin::flag(Setting::Palette).usage(), "'--palette <FILE>'");
-        assert_eq!(
-            Origin::new(Setting::Theme, file).usage(),
-            "the theme key in conf/radar.toml"
         );
     }
 

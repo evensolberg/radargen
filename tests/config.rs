@@ -152,22 +152,63 @@ fn a_failing_flag_stops_the_run() {
     );
 }
 
-/// SC-26, FR-59 across sources (rg-ahj): exit 2, clap's words.
+/// FR-59 across sources (rg-ahj, the maintainer's ruling of 2026-10-18):
+/// a flag wins over the opposing key, rendering what the flag alone
+/// renders; both keys in the file are a usage error; both flags are clap's.
 #[test]
-fn a_theme_key_with_a_palette_flag_is_a_usage_error() {
+fn a_flag_wins_over_the_opposing_key() {
+    let palette = radargen::starter::Starter::Palette.contents();
     let dir = seeded(&[
         ("radar.csv", CSV),
-        ("b.css", radargen::starter::Starter::Palette.contents()),
-        ("radar.toml", "output = \"a.png\"\ntheme = \"dark\"\n"),
+        ("b.css", palette),
+        ("theme.toml", "output = \"a.png\"\ntheme = \"dark\"\n"),
+        (
+            "palette.toml",
+            "output = \"c.png\"\npalette = \"missing.css\"\n",
+        ),
+        (
+            "both.toml",
+            "output = \"e.png\"\ntheme = \"dark\"\npalette = \"b.css\"\n",
+        ),
     ]);
-    let ran = run_in(
-        dir.path(),
-        &["radar.csv", "-c", "radar.toml", "-p", "b.css"],
+    let run = |args: &[&str]| run_in(dir.path(), args);
+    let read = |name: &str| fs::read(dir.path().join(name)).ok();
+    // -p drops the file's theme.
+    let keyed = run(&["radar.csv", "-c", "theme.toml", "-p", "b.css"]);
+    let flagged = run(&["radar.csv", "-o", "b.png", "-p", "b.css"]);
+    assert!(
+        keyed.ok() && flagged.ok(),
+        "{}{}",
+        keyed.stderr,
+        flagged.stderr
     );
-    assert_eq!(ran.code, Some(2));
+    assert_eq!(read("a.png"), read("b.png"));
+    // --theme drops the file's palette, which is then never read.
+    let keyed = run(&["radar.csv", "-c", "palette.toml", "-T", "dark"]);
+    let flagged = run(&["radar.csv", "-o", "d.png", "-T", "dark"]);
+    assert!(
+        keyed.ok() && flagged.ok(),
+        "{}{}",
+        keyed.stderr,
+        flagged.stderr
+    );
+    assert_eq!(read("c.png"), read("d.png"));
+    // Both in the file: FR-59's error, saying what to remove.
+    let both = run(&["radar.csv", "-c", "both.toml"]);
+    assert_eq!(both.code, Some(2), "{}", both.stderr);
     assert_eq!(
-        ran.lines(),
-        ["error: the theme key in radar.toml cannot be used with '--palette <FILE>'"]
+        both.lines(),
+        [
+            "error: --config both.toml: the theme and palette keys cannot be used together; a palette replaces the theme, so remove one"
+        ]
+    );
+    // Both on the command line: clap's own error.
+    let flags = run(&["radar.csv", "-c", "theme.toml", "-T", "dark", "-p", "b.css"]);
+    assert_eq!(flags.code, Some(2), "{}", flags.stderr);
+    assert!(
+        flags.stderr.contains("cannot be used with"),
+        "{}",
+        flags.stderr
     );
 }
 

@@ -599,7 +599,7 @@ impl Fatal {
 impl From<MergeProblem> for Fatal {
     fn from(problem: MergeProblem) -> Self {
         match problem {
-            MergeProblem::Conflict { theme, palette } => Self::Conflict { theme, palette },
+            MergeProblem::Conflict { file } => Self::Conflict { file },
             MergeProblem::NoOutput { file } => Self::NoOutput { file },
         }
     }
@@ -611,14 +611,6 @@ fn located(file: &str, line: Option<usize>, message: &str) -> String {
         || format!("--config {file}: {message}"),
         |line| format!("--config {file}, line {line}: {message}"),
     )
-}
-
-/// clap's left-hand side: `the argument '--theme <THEME>'`, or the key.
-fn conflicting(origin: &Origin) -> String {
-    match origin.source {
-        Source::Config(_) => origin.to_string(),
-        Source::Flag | Source::Default => format!("the argument {}", origin.usage()),
-    }
 }
 
 /// `a string`, `an integer`: TOML's type names with their article.
@@ -1375,13 +1367,14 @@ pub enum Fatal {
         /// What is wrong with which key.
         problem: KeyProblem,
     },
-    /// FR-59 across sources (rg-ahj), in clap's words, a usage error.
-    #[error("{} cannot be used with {}", conflicting(theme), palette.usage())]
+    /// FR-59 within the file: a `theme` key and a `palette` key, a usage
+    /// error. Across sources the flag wins, so only the file conflicts.
+    #[error(
+        "--config {file}: the theme and palette keys cannot be used together; a palette replaces the theme, so remove one"
+    )]
     Conflict {
-        /// The theme's origin.
-        theme: Origin,
-        /// The palette's origin.
-        palette: Origin,
+        /// The file as named.
+        file: Arc<str>,
     },
     /// FR-91: neither `-o` nor `output`, in clap's words, a usage error.
     #[error(

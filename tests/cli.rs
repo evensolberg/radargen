@@ -835,42 +835,50 @@ fn a_broken_key_is_broken_unless_a_flag_overrides_it() {
     assert_eq!(s.rings, Effective::Broken);
 }
 
-/// FR-59 across sources (rg-ahj), and within the file.
+/// FR-59 across sources (rg-ahj), as the maintainer ruled on 2026-10-18:
+/// the command line wins over the opposing key, so `-p` drops the file's
+/// `theme` and `--theme` drops its `palette`; both in the file conflict,
+/// and both on the command line are clap's error.
 #[test]
-fn a_theme_and_a_palette_conflict_across_sources() {
-    let cases = [
-        (
-            vec!["--theme", "dark"],
-            "output = \"r.png\"\npalette = \"b.css\"\n",
-            Source::Flag,
-            conf(),
-        ),
-        (
-            vec!["--palette", "b.css"],
-            "output = \"r.png\"\ntheme = \"light\"\n",
-            conf(),
-            Source::Flag,
-        ),
-        (
-            vec![],
-            "output = \"r.png\"\ntheme = \"dark\"\npalette = \"b.css\"\n",
-            conf(),
-            conf(),
-        ),
-    ];
-    for (flags, text, theme, palette) in cases {
+fn a_flag_drops_the_opposing_key_and_both_keys_conflict() {
+    let args = |flags: &[&'static str]| {
         let mut args = vec!["in.csv", "-c", "conf/radar.toml"];
-        args.extend(flags);
-        let (_, problems) = parse(&args).expect("parses").settings(Some(&file(text)));
-        assert_eq!(
-            problems,
-            [MergeProblem::Conflict {
-                theme: Origin::new(Setting::Theme, theme),
-                palette: Origin::new(Setting::Palette, palette),
-            }],
-            "{text}"
-        );
-    }
+        args.extend_from_slice(flags);
+        parse(&args).expect("parses")
+    };
+    let (s, problems) =
+        args(&["-p", "b.css"]).settings(Some(&file("output = \"r.png\"\ntheme = \"dark\"\n")));
+    assert_eq!(problems, []);
+    assert_eq!(s.theme, Effective::Absent, "the file's theme is dropped");
+    assert_eq!(
+        s.palette.as_given().map(|p| p.origin.source.clone()),
+        Some(Source::Flag)
+    );
+    let (s, problems) = args(&["--theme", "dark"])
+        .settings(Some(&file("output = \"r.png\"\npalette = \"b.css\"\n")));
+    assert_eq!(problems, []);
+    assert_eq!(
+        s.palette,
+        Effective::Absent,
+        "the file's palette is dropped"
+    );
+    assert_eq!(s.theme.as_given().map(|t| t.value), Some(Theme::Dark));
+    let (_, problems) = args(&[]).settings(Some(&file(
+        "output = \"r.png\"\ntheme = \"dark\"\npalette = \"b.css\"\n",
+    )));
+    assert_eq!(
+        problems,
+        [MergeProblem::Conflict {
+            file: std::sync::Arc::from("conf/radar.toml")
+        }]
+    );
+    assert_eq!(
+        parse(&["in.csv", "-c", "c.toml", "-T", "dark", "-p", "b.css"])
+            .map_err(|e| e.kind())
+            .err(),
+        Some(clap::error::ErrorKind::ArgumentConflict),
+        "both flags stay clap's error"
+    );
 }
 
 /// FR-91: -o from one source or the other.

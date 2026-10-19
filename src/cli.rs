@@ -245,7 +245,7 @@ impl Cli {
     /// sources, a missing output).
     #[must_use]
     pub fn settings(&self, file: Option<&Loaded>) -> (Settings, Vec<MergeProblem>) {
-        let settings = Settings {
+        let mut settings = Settings {
             output: pick(Setting::Output, self.output.clone(), file, |v| {
                 v.output.as_ref().map(PathBuf::from)
             }),
@@ -276,6 +276,7 @@ impl Cli {
             }),
             dir: file.map(|loaded| loaded.dir.clone()),
         };
+        settings.displace();
         let problems = settings.problems(file);
         (settings, problems)
     }
