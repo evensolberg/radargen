@@ -139,9 +139,11 @@ declarations only and are not listed.
 | `src/lib.rs` | Crate root, lint gate. `normalise()` — FR-76's single rule, stated once; `trim()` — FR-76's trim (D-61); `tidy()` — the trim plus one space per internal whitespace run, the display form of a label or name (D-89) | *exists* |
 | `src/main.rs` | Parse args, call `pipeline::run`, print its report to stderr, map the outcome to the exit code (NFR-8) | v1.0 |
 | `src/pipeline.rs` | The run: `Config` built once from `Cli`, the stages in §2's order, the three failure points (§7), and the rendered `Report` | v1.0 |
-| `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52). In v1.1, also the `--config` merge under the command-line flags and `{edition}` expansion, both before any other validation (FR-91, FR-92) | *exists* |
+| `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52). Also `Cli::settings`, the `--config` merge under the command line, key by key, recording each setting's source (FR-91, NFR-10); PR 19b adds `{edition}` (FR-92) | *exists* |
 | `src/diagnostics.rs` | `Fatal`, `RowError`, `Warning`, `Warnings` — the taxonomy and NFR-20 grouping | v1.0 |
-| `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17); `--unplotted-rings`, parsed the same way and refused where it names a declared ring (FR-107) | *exists* |
+| `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17); `--unplotted-rings`, parsed the same way and refused where it names a declared ring (FR-107); its source is `settings::Source`, and `parse_ring_list` takes a file's list | *exists* |
+| `src/settings/mod.rs` | Where a value came from: `Source`, `Setting`, `Origin`, `Sourced`, `NamedPath`; a setting after the merge, `Effective`; the defaults; `resolve`, FR-91's path rule; `MergeProblem`, FR-59 across sources and a missing output (RG-019A) | 1.15 |
+| `src/settings/file.rs` | The `--config` TOML file: read capped at 1 MiB and decoded as the CSV is, every key type- and value-checked as clap checks its flag, every problem collected; imports nothing from `diagnostics` (RG-019A) | 1.15 |
 | `src/csv/decode.rs` | `read`, the CSV stage's one file read (FR-1, FR-61), capped at 64 MiB and refused as `Fatal::CsvTooLarge` (rg-w5k); the bytes become text through `decode.rs` | v1.0 |
 | `src/csv/parse.rs` | String → `Table` (header and records); header, field counts (FR-3, FR-4); removal of undisplayable characters, with a warning, before any other check except the blank-record test (FR-90, FR-3), using `escape::displayable` so both modules share one set | v1.0 |
 | `src/model.rs` | `Item`, `Catalogue`; column validation, quadrant grouping and ring matching (FR-5–FR-29); the named columns in header order and every row's cells (FR-27, FR-78); unnamed columns dropped, with a warning when they hold a value (FR-93); `accessible_name()` (FR-50, FR-75); each row's link (FR-96) | *exists* |
@@ -692,7 +694,7 @@ own; warnings other stages already pushed still print, before the errors
 (NFR-11).
 
 `Config` is the resolved run: the input path, the `RingSet` (the ring list, its source and the unplotted rings, FR-17, FR-107), the
-colours (`Colours`: the built-in themes and `--theme`'s choice, or a `--palette` file's one set), the width, the title strings. Only `build_catalogue` reads the `RingSet`; stages below read `Catalogue::rings`. It is built once in
+colours (`Colours`: the built-in themes and `--theme`'s choice, or a `--palette` file's one set), the width, the title strings, the legend and the table. The title, subtitle, width, legend and table carry their `Origin`, and the output its `NamedPath`, so a diagnostic names its source (NFR-10). Only `build_catalogue` reads the `RingSet`; stages below read `Catalogue::rings`. It is built once in
 `pipeline.rs` from `Cli` plus `rings.rs` plus `palette/` and is read-only
 thereafter, so no stage below can reinterpret a flag differently from another.
 

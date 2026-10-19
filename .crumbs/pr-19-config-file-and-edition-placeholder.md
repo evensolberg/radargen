@@ -28,3 +28,5 @@ PRD v0.39 FR-91/FR-92, D-57/D-58, SC-26/SC-27, v1.1. TOML config (serde + toml c
 [2026-10-18] Decided (maintainer, 2026-10-18): split into PR 19a (--config, folding in rg-ahj, rg-qag and the keys added since: legend, table, unplotted_rings, legend_columns) and PR 19b (--edition and {edition}). Full process: plan, five-agent review, simplify, final review.
 
 [start] 2026-10-18 16:02:12
+
+[2026-10-18] PR 19a (RG-019A) implements --config; this crumb stays open for PR 19b (--edition, {edition}).

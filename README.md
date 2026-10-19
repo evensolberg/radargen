@@ -129,6 +129,7 @@ A palette is one set of colours, so an HTML page drawn with one has no theme but
 
 ```text
 radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]
+radargen <CSV_PATH> -c <FILE> [OPTIONS]
 radargen --create-template <PATH>
 radargen --create-palette <PATH>
 ```
@@ -146,20 +147,40 @@ radargen --create-palette <PATH>
 | `-w`, `--width <WIDTH>` | The width in pixels for PNG and SVG, from 320 to 10000. |
 | `--legend-columns <N>` | Flows a PNG or SVG legend into N columns beside the radar, from 1 (the default) to 4, breaking only between quadrants. HTML ignores it. |
 | `-p`, `--palette <FILE>` | Colours from a palette file instead of the built-in themes, in every format. Not with `--theme`. |
+| `-c`, `--config <FILE>` | Read settings from a TOML file: `output`, `title`, `subtitle`, `rings`, `unplotted_rings`, `theme`, `width`, `legend_columns`, `legend`, `table` and `palette`. A flag on the command line overrides its key. |
 | `--create-template <PATH>` | Write a starter CSV, and render nothing. Given alone. |
 | `--create-palette <PATH>` | Write a starter palette, and render nothing. Given alone. |
 | `-h`, `--help` / `-V`, `--version` | Help, and the version. |
 
 `radargen --help` gives the same with more detail.
 
+## A config file
+
+Keep a radar's settings beside its CSV, so every edition renders the same way:
+
+```toml
+# radar.toml
+output = "radar.png"
+title = "Technology Radar"
+rings = ["Hold", "Assess", "Trial", "Adopt"]
+width = 1920
+```
+
+```sh
+radargen entries.csv -c radar.toml
+radargen entries.csv -c radar.toml --title "Draft"   # a flag overrides its key
+```
+
+Each key means what its flag means. `rings` and `unplotted_rings` are lists of strings, `width` and `legend_columns` whole numbers, and the rest strings. A relative `output` or `palette` is read from the file's own folder, wherever you run the command; `~` is not expanded. radargen reads the file only when `-c` names it. An unknown key, a value of the wrong type or one its flag would refuse is an error naming the key and the file, and every problem in the file is reported in one run. `legend` and `table` apply to HTML pages, and are ignored without a warning for PNG and SVG, so one file can serve every format.
+
 ## Errors and warnings
 
 radargen refuses what it cannot read or place, and warns about what it can draw but doubts.
 
-- **Errors** stop the run, and nothing is written. They cover a file that cannot be read or is not UTF-8, a separator other than a comma, an unclosed quote, a missing required column or a repeated header name, an empty `name`, `quadrant` or `ring`, a row with the wrong number of values, a bad `--rings` or `--unplotted-rings` list (including a ring in both, or a default ring in `--unplotted-rings` without `--rings`) or palette file, and an output path radargen cannot use (an unknown extension, a missing folder, or the input CSV itself).
+- **Errors** stop the run, and nothing is written. They cover a file that cannot be read or is not UTF-8, a separator other than a comma, an unclosed quote, a missing required column or a repeated header name, an empty `name`, `quadrant` or `ring`, a row with the wrong number of values, a bad `--rings` or `--unplotted-rings` list (including a ring in both, or a default ring in `--unplotted-rings` without `--rings`) or palette file, a config file that cannot be read or is not TOML, and an output path radargen cannot use (an unknown extension, a missing folder, or the input CSV itself).
 - **Warnings** still write the output. They cover values radargen does not recognise (a ring that `--unplotted-rings` does not name, a qualifier, status, date or link), a column name one or two letters from one radargen reads (such as `rationalle`; it names the column you probably meant), an empty description, a repeated name, characters the output cannot display (removed), characters the bundled font lacks (the PNG or SVG being written draws them as boxes), more than six quadrants, a ring and quadrant holding more items than fit comfortably, a quadrant or ring name so long that the page shows only its narrow layout on a common laptop, and widths that make text hard to read.
 - **How many at once.** Every row error is reported in one run, after any warnings, and a message about a row names its line, and its column where there is one. Repeats of the same kind are folded into one line. A problem with a flag or with the file as a whole (not UTF-8, an unclosed quote, the wrong separator) stops at the first one, warnings about values wait until no row is missing a name, quadrant or ring, and warnings about the drawing wait until there are no errors.
-- **Exit codes.** 0 when the output is written, even with warnings; 1 for an error; 2 for a command line radargen cannot accept: an unknown, missing or out-of-range flag, or flags that conflict.
+- **Exit codes.** 0 when the output is written, even with warnings; 1 for an error; 2 for a command line or config file radargen cannot accept: an unknown, missing or out-of-range flag or key, a key of the wrong type, or settings that conflict.
 - **Earlier output is safe.** The output is written to a temporary file and renamed into place, so a failed run leaves any earlier file at that path untouched.
 
 The same CSV, flags and radargen version always produce the same bytes, so an edition can be regenerated and compared.
