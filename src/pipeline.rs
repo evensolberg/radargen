@@ -311,14 +311,14 @@ fn merged(cli: &Cli) -> Result<(Settings, Gate), Vec<Fatal>> {
 }
 
 /// What the merge finds wrong beyond each key's own problems, usage errors
-/// as clap's would be: FR-59 within the file (across sources the flag won,
-/// in [`Settings::displace`], and clap refuses both flags), then neither
-/// `-o` nor an `output` key (FR-91).
+/// as clap's would be: FR-59 within the file, then neither `-o` nor an
+/// `output` key (FR-91). The conflict is judged from the file's own values,
+/// not the merge's, so a file holding both keys is an error whatever flags
+/// are given, as a file is valid or not on its own (D-100, final review
+/// I-2); across sources the flag wins ([`Settings::displace`]), and clap
+/// refuses both flags.
 fn merge_errors(settings: &Settings, loaded: &config_file::Loaded) -> Vec<Fatal> {
-    let both = matches!(
-        (&settings.theme, &settings.palette),
-        (Effective::Given(_), Effective::Given(_))
-    );
+    let both = loaded.values.theme.is_some() && loaded.values.palette.is_some();
     let none = settings.output == Effective::Absent;
     let file = || Arc::clone(&loaded.file);
     both.then(|| Fatal::Conflict { file: file() })

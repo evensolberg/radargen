@@ -733,3 +733,31 @@ fn a_fifo_palette_with_an_existing_output_is_refused_not_awaited() {
         "hung, or wrong exit"
     );
 }
+
+/// Final review I-2 (D-100(1), FR-91): a file holding both theme and
+/// palette is FR-59's error whatever flags are given, since a file is
+/// valid or not on its own.
+#[test]
+fn a_file_with_both_theme_and_palette_fails_even_with_a_flag() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("b.css", radargen::starter::Starter::Palette.contents()),
+        (
+            "radar.toml",
+            "output = \"a.svg\"\ntheme = \"dark\"\npalette = \"b.css\"\n",
+        ),
+    ]);
+    for flag in [["-p", "b.css"], ["-T", "light"]] {
+        let mut args = vec!["radar.csv", "-c", "radar.toml"];
+        args.extend(flag);
+        let ran = run_in(dir.path(), &args);
+        assert_eq!(ran.code, Some(2), "{flag:?}: {}", ran.stderr);
+        assert_eq!(
+            ran.lines(),
+            [
+                "error: --config radar.toml: the theme and palette keys cannot be used together; a palette replaces the theme, so remove one"
+            ],
+            "{flag:?}"
+        );
+    }
+}
