@@ -52,7 +52,7 @@ fn quiet_hint(
         2,
         RowKind::UndeclaredRing {
             value: value.into(),
-            source,
+            origin: Origin::rings(source),
             rings,
             off_radar,
             suggest_unplotted,
@@ -983,7 +983,7 @@ fn fatal_messages() {
             Fatal::ImageTooLarge {
                 width: 10_000,
                 height: 12_000,
-                width_source: Source::Flag,
+                width_origin: Origin::new(Setting::Width, Source::Flag),
             },
             "error: a 10000 by 12000 pixel PNG is too large to draw; pass a smaller --width",
         ),
@@ -991,7 +991,7 @@ fn fatal_messages() {
             Fatal::ImageTooLarge {
                 width: 10_000,
                 height: 12_000,
-                width_source: radar_toml(),
+                width_origin: Origin::new(Setting::Width, radar_toml()),
             },
             "error: a 10000 by 12000 pixel PNG is too large to draw; set the width key in radar.toml smaller",
         ),
@@ -1341,7 +1341,7 @@ fn d87_warnings_name_their_widths() {
             RenderKind::PngTextSmall {
                 width: 320,
                 legible_from: Some(821),
-                width_source: Source::Flag,
+                width_origin: Origin::new(Setting::Width, Source::Flag),
             },
             "at 320 pixels wide the PNG's text is too small to read; --width 821 or more keeps it legible",
         ),
@@ -1349,7 +1349,7 @@ fn d87_warnings_name_their_widths() {
             RenderKind::PngTextSmall {
                 width: 10_000,
                 legible_from: None,
-                width_source: Source::Default,
+                width_origin: Origin::new(Setting::Width, Source::Default),
             },
             "at 10000 pixels wide the PNG's text is too small to read, at any --width; fewer or shorter names would help",
         ),
@@ -1384,7 +1384,7 @@ fn fr95_names_a_quadrant_or_a_ring() {
             RenderKind::NarrowWidened {
                 binding: Binding::Ring {
                     name: "Under evaluation by the architecture board".into(),
-                    source: Source::Flag,
+                    origin: Origin::rings(Source::Flag),
                 },
                 width: 750,
             },
@@ -1458,7 +1458,7 @@ fn fr95_names_where_a_ring_came_from() {
         Warning::Render(RenderKind::NarrowWidened {
             binding: Binding::Ring {
                 name: " Under evaluation ".into(),
-                source,
+                origin: Origin::rings(source),
             },
             width: 600,
         })
@@ -1584,7 +1584,7 @@ fn an_overlap_across_sources_names_both_sides() {
         error: RingsError::Overlap {
             index: 2,
             entry: "Adopt".into(),
-            by: Source::Flag,
+            by: Origin::rings(Source::Flag),
         },
     };
     assert_eq!(
@@ -1596,7 +1596,7 @@ fn an_overlap_across_sources_names_both_sides() {
         error: RingsError::Overlap {
             index: 1,
             entry: "Adopt".into(),
-            by: radar_toml(),
+            by: Origin::rings(radar_toml()),
         },
     };
     assert_eq!(
@@ -1661,7 +1661,7 @@ fn an_undeclared_ring_from_a_file_names_the_file_s_keys() {
 fn a_binding_ring_from_a_file_names_its_key() {
     let binding = Binding::Ring {
         name: "Very long ring".into(),
-        source: radar_toml(),
+        origin: Origin::rings(radar_toml()),
     };
     assert_eq!(
         binding.to_string(),
@@ -1675,16 +1675,16 @@ fn a_small_png_names_the_width_key() {
     let warning = Warning::Render(RenderKind::PngTextSmall {
         width: 800,
         legible_from: Some(1200),
-        width_source: radar_toml(),
+        width_origin: Origin::new(Setting::Width, radar_toml()),
     });
     assert_eq!(
         warning.to_string(),
-        "at 800 pixels wide the PNG's text is too small to read; setting the width key in radar.toml to 1200 or more keeps it legible"
+        "at 800 pixels wide the PNG's text is too small to read; width = 1200 in radar.toml or more keeps it legible"
     );
     let unreadable = Warning::Render(RenderKind::PngTextSmall {
         width: 800,
         legible_from: None,
-        width_source: radar_toml(),
+        width_origin: Origin::new(Setting::Width, radar_toml()),
     });
     assert_eq!(
         unreadable.to_string(),

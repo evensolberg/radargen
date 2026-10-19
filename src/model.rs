@@ -14,7 +14,7 @@ use crate::diagnostics::{
 };
 pub use crate::link::Link;
 use crate::rings::{RingMatch, RingSet};
-use crate::settings::Source;
+use crate::settings::Origin;
 use crate::{normalise, single_line, tidy, trim};
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -188,7 +188,7 @@ pub struct Catalogue {
     pub rings: Vec<String>,
     /// Where the rings were declared, so a warning about one names it
     /// (FR-17, FR-95, D-73).
-    pub ring_source: Source,
+    pub ring_origin: Origin,
     /// Every row as an item, in CSV order.
     pub items: Vec<Item>,
 }
@@ -555,7 +555,7 @@ impl<'r> Builder<'r> {
             columns: self.header.columns,
             quadrants: self.quadrants,
             rings: self.rings.rings().to_vec(),
-            ring_source: self.rings.source().clone(),
+            ring_origin: self.rings.origin().clone(),
             items: self.items,
         }
     }
@@ -681,7 +681,7 @@ impl<'r> Builder<'r> {
                     self.at.ring,
                     RowKind::UndeclaredRing {
                         value: value.to_string(),
-                        source: self.rings.source().clone(),
+                        origin: self.rings.origin().clone(),
                         rings: Arc::clone(&self.declared),
                         off_radar: self.off_radar,
                         suggest_unplotted: !self.rings.names_unplotted(),
@@ -1751,7 +1751,7 @@ Plain,Tool,adopt,d,,,,no change\n"
                 line: 2,
             }],
             rings: Vec::new(),
-            ring_source: Source::Default,
+            ring_origin: Origin::rings(crate::settings::Source::Default),
             items: vec![Item {
                 line: 2,
                 name: "Old".into(),

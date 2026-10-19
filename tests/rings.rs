@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use radargen::rings::{RingMatch, RingSet, RingsError, default_rings, parse_ring_list};
-use radargen::settings::Source;
+use radargen::settings::{Origin, Source};
 
 #[test]
 fn omitting_the_flag_yields_the_in_house_default() {
@@ -17,12 +17,13 @@ fn omitting_the_flag_yields_the_in_house_default() {
 /// FR-17 (D-61): the warning names where the rings came from.
 #[test]
 fn the_set_records_its_source() {
-    assert_eq!(default_rings().source(), &Source::Default);
+    assert_eq!(default_rings().origin().source, Source::Default);
     assert_eq!(
         parse_ring_list("Adopt", Source::Flag)
             .expect("valid")
-            .source(),
-        &Source::Flag
+            .origin()
+            .source,
+        Source::Flag
     );
 }
 
@@ -228,7 +229,7 @@ fn unplotted_rings_are_a_tidied_comma_list() {
     }
     assert_eq!(set.classify("In"), RingMatch::Unknown);
     assert_eq!(set.rings(), ["Adopt", "Trial"]);
-    assert_eq!(set.source(), &Source::Flag);
+    assert_eq!(set.origin().source, Source::Flag);
 }
 
 /// FR-63's checks, with `--rings`' errors: an empty entry, a duplicate
@@ -265,13 +266,13 @@ fn a_ring_in_both_lists_is_an_error() {
             RingsError::Overlap {
                 index: 2,
                 entry: "ADOPT".into(),
-                by: Source::Flag,
+                by: Origin::rings(Source::Flag),
             },
             RingsError::EmptyEntry { index: 3 },
             RingsError::Overlap {
                 index: 4,
                 entry: "trial".into(),
-                by: Source::Flag,
+                by: Origin::rings(Source::Flag),
             },
         ])
     );
@@ -286,7 +287,7 @@ fn a_default_ring_cannot_be_unplotted() {
         Err(vec![RingsError::Overlap {
             index: 2,
             entry: "adopt".into(),
-            by: Source::Default,
+            by: Origin::rings(Source::Default),
         }])
     );
 }
@@ -300,7 +301,7 @@ fn a_repeated_overlap_is_a_duplicate() {
             RingsError::Overlap {
                 index: 1,
                 entry: "Adopt".into(),
-                by: Source::Flag,
+                by: Origin::rings(Source::Flag),
             },
             RingsError::Duplicate {
                 index: 2,
@@ -335,7 +336,7 @@ fn a_config_ring_list_is_parsed_as_the_flag_is() {
     let file = Source::Config(Arc::from("radar.toml"));
     let set = parse_ring_list(" Hold ,Adopt", file.clone()).expect("parses");
     assert_eq!(set.rings(), ["Hold", "Adopt"]);
-    assert_eq!(set.source(), &file);
+    assert_eq!(set.origin().source, file);
     assert_eq!(
         parse_ring_list("Adopt,adopt", file.clone()),
         Err(vec![RingsError::Duplicate {

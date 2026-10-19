@@ -4,7 +4,7 @@
 //! from the names, so it is declared rather than derived (D-4). The list is
 //! **edge-to-centre** (FR-12, D-60): the first entry is the outermost band.
 
-use crate::settings::{Origin, Setting, Source};
+use crate::settings::{Origin, Source};
 use crate::{normalise, tidy};
 
 /// FR-13: the in-house lifecycle, edge-to-centre, so it reads as written:
@@ -24,7 +24,7 @@ pub struct RingSet {
     /// subheadings.
     rings: Vec<String>,
     /// `--rings`, a `--config` file's key, or the FR-13 default (D-61).
-    source: Source,
+    origin: Origin,
     /// `rings` under FR-76, in the same order, for FR-16's match.
     ring_keys: Vec<String>,
     /// FR-107's `--unplotted-rings` under FR-76: all a match needs.
@@ -82,20 +82,19 @@ pub enum RingsError {
         /// The offending text as written, tidied.
         entry: String,
         /// `--rings`, a `--config` file's key, or the default set.
-        by: Source,
+        by: Origin,
     },
 }
 
 /// What FR-107's overlap says after the entry: the ring set's list by its
 /// effective source, or, for the default set, which has no list to remove
 /// the ring from, how to declare one without it.
-fn overlap(by: &Source) -> String {
-    match by {
+fn overlap(by: &Origin) -> String {
+    match by.source {
         Source::Default => "is a default ring, so it is drawn; to leave it off, pass --rings with the rings to draw, without it".to_owned(),
-        named => format!(
-            "is also in {}, which draws it; remove it from one list",
-            Origin::new(Setting::Rings, named.clone())
-        ),
+        Source::Flag | Source::Config(_) => {
+            format!("is also in {by}, which draws it; remove it from one list")
+        }
     }
 }
 
@@ -153,7 +152,7 @@ impl RingSet {
         Self {
             ring_keys: keys(&rings),
             rings,
-            source,
+            origin: Origin::rings(source),
             unplotted_keys: Vec::new(),
         }
     }
@@ -164,11 +163,11 @@ impl RingSet {
         &self.rings
     }
 
-    /// The ring set's source (D-61): `--rings`, a `--config` file's key,
-    /// or the FR-13 default.
+    /// Where the ring set came from (D-61): `--rings`, a `--config` file's
+    /// key, or the FR-13 default.
     #[must_use]
-    pub const fn source(&self) -> &Source {
-        &self.source
+    pub const fn origin(&self) -> &Origin {
+        &self.origin
     }
 
     /// Whether `--unplotted-rings` named any ring. An empty list is refused,
@@ -206,7 +205,7 @@ impl RingSet {
                 .then(|| RingsError::Overlap {
                     index,
                     entry: entry.to_string(),
-                    by: self.source.clone(),
+                    by: self.origin.clone(),
                 })
         })
         // `parse_list` returns `Empty` only alone.

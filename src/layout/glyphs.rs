@@ -8,7 +8,7 @@ use crate::layout::title::shown;
 use crate::model::Catalogue;
 use crate::options::OutputFormat;
 use crate::order::Plotted;
-use crate::settings::{Origin, Setting, Source, Sourced};
+use crate::settings::{Source, Sourced};
 use crate::text::{Fonts, words};
 
 /// FR-104: one warning per drawn text with characters the bundled font
@@ -52,8 +52,8 @@ pub fn warn_missing_glyphs(
     }
     // FR-104: a ring the author wrote, on the command line or in the file;
     // the default rings are the font's own.
-    if catalogue.ring_source != Source::Default {
-        let origin = Origin::new(Setting::Rings, catalogue.ring_source.clone());
+    if catalogue.ring_origin.source != Source::Default {
+        let origin = catalogue.ring_origin.clone();
         for ring in &catalogue.rings {
             if let Some(lacking) = lacking(ring) {
                 warnings.push(Warning::Render(RenderKind::FlagMissingGlyphs {
@@ -110,6 +110,7 @@ mod tests {
     use crate::layout::arrange::{Arrangement, Blocks, arrange};
     use crate::layout::block::fonts;
     use crate::layout::test_support::{HEAD, HEAD_META, groups, plotted};
+    use crate::settings::{Origin, Setting};
     use crate::svg::Node;
 
     /// The warnings for `csv`, `--rings` and the title flags, for a PNG.
@@ -239,7 +240,7 @@ mod tests {
         let csv = format!("{HEAD}Kafka,Tools,採用,d\n");
         let (mut catalogue, order) = plotted(&csv, Some("採用,Trial"));
         let source = Source::Config(std::sync::Arc::from("radar.toml"));
-        catalogue.ring_source = source.clone();
+        catalogue.ring_origin = Origin::rings(source.clone());
         let mut warnings = Warnings::default();
         warn_missing_glyphs(
             &catalogue,

@@ -36,6 +36,14 @@ pub enum Source {
     Default,
 }
 
+impl Source {
+    /// Whether the value came from a `--config` file.
+    #[must_use]
+    pub const fn is_config(&self) -> bool {
+        matches!(self, Self::Config(_))
+    }
+}
+
 /// The settings FR-91 lists, each a flag and a key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Setting {
@@ -161,6 +169,64 @@ impl Origin {
     pub const fn flag(setting: Setting) -> Self {
         Self::new(setting, Source::Flag)
     }
+
+    /// The ring set from `source` (FR-17, D-61).
+    #[must_use]
+    pub const fn rings(source: Source) -> Self {
+        Self::new(Setting::Rings, source)
+    }
+
+    /// Another setting from the same source, for a remedy that names a
+    /// sibling: `--unplotted-rings`, or the `unplotted_rings` key in the
+    /// same file (UX review 4).
+    #[must_use]
+    pub fn sibling(&self, setting: Setting) -> Self {
+        Self::new(setting, self.source.clone())
+    }
+
+    /// Whether the value came from the command line.
+    #[must_use]
+    pub fn is_flag(&self) -> bool {
+        self.source == Source::Flag
+    }
+
+    /// The bare name an author edits: the flag, or the key in a file.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        if self.source.is_config() {
+            self.setting.key()
+        } else {
+            self.setting.flag()
+        }
+    }
+
+    /// How to set it to `value`: `--width 1200`, or `width = 1200 in
+    /// radar.toml`, a string quoted as TOML writes it. The one place a
+    /// remedy's wording depends on the source.
+    #[must_use]
+    pub fn set_to(&self, value: impl fmt::Display) -> String {
+        match &self.source {
+            Source::Config(file) => {
+                let key = self.setting.key();
+                match self.setting {
+                    Setting::Width | Setting::LegendColumns => format!("{key} = {value} in {file}"),
+                    _ => format!("{key} = \"{value}\" in {file}"),
+                }
+            }
+            Source::Flag | Source::Default => format!("{} {value}", self.setting.flag()),
+        }
+    }
+
+    /// How to make it smaller: `pass a smaller --width`, or `set the width
+    /// key in radar.toml smaller`.
+    #[must_use]
+    pub fn smaller(&self) -> String {
+        if self.source.is_config() {
+            format!("set {self} smaller")
+        } else {
+            format!("pass a smaller {}", self.setting.flag())
+        }
+    }
 }
 
 /// How a message names it: `--title`, or `the title key in radar.toml`
@@ -212,20 +278,20 @@ impl NamedPath {
     #[must_use]
     pub fn tilde_note(&self) -> &'static str {
         let tilde = self.shown == "~" || self.shown.starts_with("~/");
-        match self.origin.source {
-            Source::Config(_) if tilde => {
-                "; ~ is not expanded in a config file, so write the full path"
-            }
-            _ => "",
+        if tilde && self.origin.source.is_config() {
+            "; ~ is not expanded in a config file, so write the full path"
+        } else {
+            ""
         }
     }
 }
 
 impl fmt::Display for NamedPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.origin.source {
-            Source::Config(_) => write!(f, "{} ({})", self.origin, self.shown),
-            Source::Flag | Source::Default => write!(f, "{} {}", self.origin, self.shown),
+        if self.origin.source.is_config() {
+            write!(f, "{} ({})", self.origin, self.shown)
+        } else {
+            write!(f, "{} {}", self.origin, self.shown)
         }
     }
 }
@@ -373,8 +439,10 @@ pub fn pick<T>(
 /// names it, as written.
 #[must_use]
 pub fn resolve(dir: Option<&Path>, path: &Sourced<PathBuf>) -> (PathBuf, NamedPath) {
-    let opened = match (&path.origin.source, dir) {
-        (Source::Config(_), Some(dir)) if path.value.is_relative() => dir.join(&path.value),
+    let opened = match dir {
+        Some(dir) if path.origin.source.is_config() && path.value.is_relative() => {
+            dir.join(&path.value)
+        }
         _ => path.value.clone(),
     };
     let named = NamedPath {
@@ -386,9 +454,7 @@ pub fn resolve(dir: Option<&Path>, path: &Sourced<PathBuf>) -> (PathBuf, NamedPa
 
 /// Whether `value` came from the command line.
 fn by_flag<T>(value: &Effective<T>) -> bool {
-    value
-        .as_given()
-        .is_some_and(|given| given.origin.source == Source::Flag)
+    value.as_given().is_some_and(|given| given.origin.is_flag())
 }
 
 impl Settings {

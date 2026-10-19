@@ -384,12 +384,7 @@ fn cleaned(list: Sourced<String>, warnings: &mut Warnings) -> Sourced<String> {
 /// default set when neither gave any.
 fn ring_set(declared: Option<&Sourced<String>>) -> Result<RingSet, Vec<Fatal>> {
     let (parsed, origin) = declared.map_or_else(
-        || {
-            (
-                Ok(default_rings()),
-                Origin::new(Setting::Rings, Source::Default),
-            )
-        },
+        || (Ok(default_rings()), Origin::rings(Source::Default)),
         |list| {
             (
                 parse_ring_list(&list.value, list.origin.source.clone()),
@@ -458,7 +453,7 @@ impl Gate {
             Ok(value) => Ok(Some(value)),
             Err(errors) => {
                 self.errors.extend(errors);
-                if matches!(source, Source::Config(_)) {
+                if source.is_config() {
                     Ok(None)
                 } else {
                     Err(std::mem::take(&mut self.errors))
@@ -522,8 +517,13 @@ fn output_checks(
 /// does not exist is left to the read or the write; a flag's path is the
 /// author's own, so it is not checked.
 fn regular(path: &Path, named: &NamedPath) -> Result<(), Fatal> {
-    match (&named.origin.source, std::fs::metadata(path)) {
-        (Source::Config(_), Ok(meta)) if !meta.is_file() => Err(Fatal::NotRegular {
+    // The source first, so a run without a config pays no stat
+    // (efficiency review 3).
+    if !named.origin.source.is_config() {
+        return Ok(());
+    }
+    match std::fs::metadata(path) {
+        Ok(meta) if !meta.is_file() => Err(Fatal::NotRegular {
             path: named.clone(),
         }),
         _ => Ok(()),
@@ -604,14 +604,13 @@ fn catalogue(
 /// The same value from --config is silent, since one file serves every
 /// format a radar is rendered to (D-100, rg-qag).
 fn warn_static_flags(config: &Config, warnings: &mut Warnings) {
-    let from_flag = |origin: &Origin| origin.source == Source::Flag;
     if !config.format.is_snapshot() {
         return;
     }
-    if config.legend.value == Legend::Hidden && from_flag(&config.legend.origin) {
+    if config.legend.value == Legend::Hidden && config.legend.origin.is_flag() {
         warnings.push(Warning::Render(RenderKind::LegendStatic));
     }
-    if config.table.value == Table::All && from_flag(&config.table.origin) {
+    if config.table.value == Table::All && config.table.origin.is_flag() {
         warnings.push(Warning::Render(RenderKind::TableStatic));
     }
 }
@@ -679,15 +678,15 @@ fn render(
         }
         OutputFormat::Png => {
             let wide = arrange(Arrangement::Wide, &blocks);
-            let width_source = config
-                .width
-                .as_ref()
-                .map_or(Source::Default, |w| w.origin.source.clone());
+            let width_origin = config.width.as_ref().map_or_else(
+                || Origin::new(Setting::Width, Source::Default),
+                |w| w.origin.clone(),
+            );
             let size = png::pixel_size(&wide, config.width.as_ref().map(|w| w.value)).map_err(
                 |png::TooLarge { width, height }| Fatal::ImageTooLarge {
                     width,
                     height,
-                    width_source: width_source.clone(),
+                    width_origin: width_origin.clone(),
                 },
             )?;
             if let Some(natural) = size.clamped() {
@@ -700,7 +699,7 @@ fn render(
                 warnings.push(Warning::Render(RenderKind::PngTextSmall {
                     width: size.width(),
                     legible_from,
-                    width_source,
+                    width_origin,
                 }));
             }
             png::rasterise(&wide, &config.colours.snapshot(), size)
