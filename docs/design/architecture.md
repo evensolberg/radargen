@@ -42,10 +42,20 @@ it into a build failure instead.
 ## 2. Pipeline
 
 One direction, no cycles. Each stage is a pure function of its input plus the
-diagnostics it may add. The exceptions are the two file reads,
-`csv::decode::read` for the input and `palette::file::read` for a `--palette`
-file, so their errors can name the path (NFR-10); `decode::decode`, which both
-call, is pure.
+diagnostics it may add. The exceptions are the three file reads,
+`csv::decode::read` for the input, `palette::file::read` for a palette and
+`settings::file::read` for a `--config` file, so their errors can name the
+path (NFR-10); `decode::decode`, which all three call, is pure, and the last
+two share `decode::read_capped`.
+
+A run's settings come from the command line merged over the `--config`
+file (FR-91), then pass through a **gate** that collects every tier-one
+error (§7): each key's problems first, then the checks on what the values
+name, in this order — the output (FR-52, FR-62, the regular-file rule,
+D-74), the ring set (FR-63), the unplotted rings (FR-107), the palette
+(FR-102). A check that fails on a value from the file records its errors
+and the next check runs; one that fails on a command-line value stops the
+run with everything recorded so far.
 
 ```text
   bytes                                                       §6.1
@@ -139,9 +149,12 @@ declarations only and are not listed.
 | `src/lib.rs` | Crate root, lint gate. `normalise()` — FR-76's single rule, stated once; `trim()` — FR-76's trim (D-61); `tidy()` — the trim plus one space per internal whitespace run, the display form of a label or name (D-89) | *exists* |
 | `src/main.rs` | Parse args, call `pipeline::run`, print its report to stderr, map the outcome to the exit code (NFR-8) | v1.0 |
 | `src/pipeline.rs` | The run: `Config` built once from `Cli`, the stages in §2's order, the three failure points (§7), and the rendered `Report` | v1.0 |
-| `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52). In v1.1, also the `--config` merge under the command-line flags and `{edition}` expansion, both before any other validation (FR-91, FR-92) | *exists* |
+| `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52). Also `Cli::settings`, the `--config` merge under the command line, key by key, recording each setting's source (FR-91, NFR-10); PR 19b adds `{edition}` (FR-92) | *exists* |
 | `src/diagnostics.rs` | `Fatal`, `RowError`, `Warning`, `Warnings` — the taxonomy and NFR-20 grouping | v1.0 |
-| `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17); `--unplotted-rings`, parsed the same way and refused where it names a declared ring (FR-107) | *exists* |
+| `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17); `--unplotted-rings`, parsed the same way and refused where it names a declared ring (FR-107); its source is `settings::Source`, and `parse_ring_list` takes a file's list | *exists* |
+| `src/options.rs` | The choices a run is made with: `OutputFormat`, `Legend`, `Table`. A leaf, importing nothing from the crate, so `settings`, `diagnostics` and the emitters name them without a cycle; every user imports `crate::options` directly (RG-019A review I-2) | 1.15 |
+| `src/settings/mod.rs` | Where a value came from: `Source`, `Setting`, `Origin`, `Sourced`, `NamedPath` and `Origin`'s source-dependent remedy wording (`set_to`, `smaller`); a setting after the merge, `Effective`; the defaults; `resolve`, FR-91's path rule; `Settings::displace`, FR-59's flag-over-key rule (RG-019A). Imports only `options`, `palette::Theme` and its own `file` | 1.15 |
+| `src/settings/file.rs` | The `--config` TOML file: read capped at 1 MiB and decoded as the CSV is, every key type- and value-checked as clap checks its flag, unknown keys with their near miss, every problem collected. Imports `decode`, `options`, `palette::Theme` and `style`, and nothing from `diagnostics`, directly or through another module (RG-019A) | 1.15 |
 | `src/csv/decode.rs` | `read`, the CSV stage's one file read (FR-1, FR-61), capped at 64 MiB and refused as `Fatal::CsvTooLarge` (rg-w5k); the bytes become text through `decode.rs` | v1.0 |
 | `src/csv/parse.rs` | String → `Table` (header and records); header, field counts (FR-3, FR-4); removal of undisplayable characters, with a warning, before any other check except the blank-record test (FR-90, FR-3), using `escape::displayable` so both modules share one set | v1.0 |
 | `src/model.rs` | `Item`, `Catalogue`; column validation, quadrant grouping and ring matching (FR-5–FR-29); the named columns in header order and every row's cells (FR-27, FR-78); unnamed columns dropped, with a warning when they hold a value (FR-93); `accessible_name()` (FR-50, FR-75); each row's link (FR-96) | *exists* |
@@ -667,9 +680,29 @@ pub fn layout(cat: &Catalogue, cfg: &Config, w: &mut Warnings) -> Blocks;
 `Result<_, Vec<RowError>>` rather than `Result<_, Fatal>` is NFR-16's tier
 two: row-level errors are **collected across the whole file** and reported
 together, so a 200-row export is not fixed one error per run. Tier one — flag
-and file errors — returns a `Vec<Fatal>`, every violation of the one flag or
-file that failed (`--rings`, `--unplotted-rings`, a `--palette` file), and aborts, because nothing
-parsed.
+and file errors — returns a `Vec<Fatal>`, every violation of the flag or file
+that failed (`--rings`, `--unplotted-rings`, a palette file), and stops the
+run before any row is read, because nothing parsed.
+
+Tier one has to collect across sources too (FR-91, NFR-16), which
+`pipeline::Gate` does. It holds every error so far, starting with the
+`--config` file's key problems (`Fatal::ConfigKey`, at most 20 and then a
+count) and the merge's, from `pipeline::merge_errors`: `Fatal::Conflict`
+when the file itself holds both `theme` and `palette`, whatever the
+flags, and `Fatal::NoOutput`. `Gate::check` takes a check's result and its value's
+`Source`: an error from a `Source::Config` value is recorded and the run
+goes on, and one from the command line or the default returns everything
+recorded. A key with a problem is `Effective::Broken` unless its flag
+overrides it, and every check that would read a broken setting is skipped,
+so no error describes a value nobody wrote (the default ring set never
+stands in for a mistyped `rings`); FR-107 is skipped when the ring set
+failed. `config` ends by returning the gate's errors if it holds any,
+with a debug assertion that a missing value always has one.
+
+The exit status follows the errors (NFR-8): `Fatal::is_usage` marks the
+ones FR-91 checks as clap would (`ConfigKey`, `ConfigMore`, `Conflict`,
+`NoOutput`), and `pipeline::Failed` carries whether any was a usage error,
+so a run with one exits 2, clap's status, and otherwise 1.
 The two tiers are separate types, so the grouping code below matches only the
 errors it groups, and a tier-one error cannot reach it.
 
@@ -692,8 +725,8 @@ own; warnings other stages already pushed still print, before the errors
 (NFR-11).
 
 `Config` is the resolved run: the input path, the `RingSet` (the ring list, its source and the unplotted rings, FR-17, FR-107), the
-colours (`Colours`: the built-in themes and `--theme`'s choice, or a `--palette` file's one set), the width, the title strings. Only `build_catalogue` reads the `RingSet`; stages below read `Catalogue::rings`. It is built once in
-`pipeline.rs` from `Cli` plus `rings.rs` plus `palette/` and is read-only
+colours (`Colours`: the built-in themes and `--theme`'s choice, or a `--palette` file's one set), the width, the title strings, the legend and the table. The title, subtitle, width, legend and table carry their `Origin`, and the output its `NamedPath`, so a diagnostic names its source (NFR-10). Only `build_catalogue` reads the `RingSet`; stages below read `Catalogue::rings`. It is built once in
+`pipeline.rs` from `Cli` and the `--config` merge (`settings`) plus `rings.rs` plus `palette/` and is read-only
 thereafter, so no stage below can reinterpret a flag differently from another.
 
 **There is a third failure point below both tiers, and NFR-14 makes it the
@@ -778,7 +811,7 @@ interface that has not been agreed. Each step is testable when it lands.
 
 | # | Step | Unblocked by | §14.2 line |
 | --- | --- | --- | --- |
-| 0 | `text.rs`, `cli.rs`, `rings.rs` | — | spike, scaffold — **done** |
+| 0 | `text.rs`, `cli.rs`, `rings.rs`, and from 1.15 `options.rs` and `settings/` beneath `rings.rs` | — | spike, scaffold — **done** |
 | 1 | `diagnostics.rs`, `escape.rs`, `num.rs`, `style.rs`, `palette/` (built-ins) | nothing — pure, leaf modules (from 1.3, `diagnostics.rs` also names `palette::file`'s error, which imports nothing back) | scaffold |
 | 2 | `csv/`, `model.rs`, `order.rs` | 1 | CSV parsing and validation |
 | 3 | `layout/geometry.rs` | 1, 2 | layout engine |

@@ -1,12 +1,16 @@
 //! `--rings` parsing and validation (FR-12–FR-15, FR-63).
 
-use radargen::rings::{RingMatch, RingSet, RingSource, RingsError, parse_rings};
+#[path = "common/source.rs"]
+mod source;
+
+use radargen::rings::{RingMatch, RingSet, RingsError, default_rings, parse_ring_list};
+use radargen::settings::{Origin, Source};
 
 #[test]
 fn omitting_the_flag_yields_the_in_house_default() {
     // FR-13, edge-to-centre (FR-12, D-60): the lifecycle as it is read.
     assert_eq!(
-        parse_rings(None).expect("default is valid").rings(),
+        default_rings().rings(),
         vec!["Assess", "Trial", "Adopt", "Retire"]
     );
 }
@@ -14,13 +18,13 @@ fn omitting_the_flag_yields_the_in_house_default() {
 /// FR-17 (D-61): the warning names where the rings came from.
 #[test]
 fn the_set_records_its_source() {
+    assert_eq!(default_rings().origin().source, Source::Default);
     assert_eq!(
-        parse_rings(None).expect("default is valid").source(),
-        RingSource::Default
-    );
-    assert_eq!(
-        parse_rings(Some("Adopt")).expect("valid").source(),
-        RingSource::Flag
+        parse_ring_list("Adopt", Source::Flag)
+            .expect("valid")
+            .origin()
+            .source,
+        Source::Flag
     );
 }
 
@@ -30,17 +34,17 @@ fn the_set_records_its_source() {
 #[test]
 fn entries_lose_invisible_format_characters_at_their_ends() {
     assert_eq!(
-        parse_rings(Some("\u{feff}Adopt\u{200b}, Trial"))
+        parse_ring_list("\u{feff}Adopt\u{200b}, Trial", Source::Flag)
             .expect("valid")
             .rings(),
         vec!["Adopt", "Trial"]
     );
     assert!(matches!(
-        parse_rings(Some("Adopt,\u{200b}")).expect_err("empty entry")[..],
+        parse_ring_list("Adopt,\u{200b}", Source::Flag).expect_err("empty entry")[..],
         [RingsError::EmptyEntry { index: 2 }]
     ));
     assert!(matches!(
-        parse_rings(Some("Adopt,\u{200b}adopt")).expect_err("duplicate")[..],
+        parse_ring_list("Adopt,\u{200b}adopt", Source::Flag).expect_err("duplicate")[..],
         [RingsError::Duplicate {
             index: 2,
             first_index: 1,
@@ -54,7 +58,7 @@ fn entries_are_trimmed_but_keep_internal_spaces() {
     // FR-15: `"Adopt, Trial"` and `"Adopt,Trial"` parse identically, while a
     // multi-word ring name survives intact.
     assert_eq!(
-        parse_rings(Some("Adopt, In Use , Retire"))
+        parse_ring_list("Adopt, In Use , Retire", Source::Flag)
             .expect("valid")
             .rings(),
         vec!["Adopt", "In Use", "Retire"]
@@ -65,7 +69,9 @@ fn entries_are_trimmed_but_keep_internal_spaces() {
 fn a_single_ring_is_valid() {
     // FR-63: the list must yield at least one.
     assert_eq!(
-        parse_rings(Some("Adopt")).expect("valid").rings(),
+        parse_ring_list("Adopt", Source::Flag)
+            .expect("valid")
+            .rings(),
         vec!["Adopt"]
     );
 }
@@ -74,7 +80,7 @@ fn a_single_ring_is_valid() {
 fn an_empty_entry_is_rejected_and_names_its_position() {
     // FR-63: an empty entry would draw a nameless band.
     assert_eq!(
-        parse_rings(Some("Adopt,,Trial")),
+        parse_ring_list("Adopt,,Trial", Source::Flag),
         Err(vec![RingsError::EmptyEntry { index: 2 }])
     );
 }
@@ -83,7 +89,7 @@ fn an_empty_entry_is_rejected_and_names_its_position() {
 fn an_all_empty_list_is_one_error_not_one_per_comma() {
     for list in ["", "   ", ",", " , ,"] {
         assert_eq!(
-            parse_rings(Some(list)),
+            parse_ring_list(list, Source::Flag),
             Err(vec![RingsError::Empty]),
             "{list:?}"
         );
@@ -96,7 +102,7 @@ fn a_duplicate_is_rejected_under_the_matching_rule() {
     // so `Adopt` and `adopt ` collide. A duplicate would make FR-16's match
     // ambiguous and FR-32's band order undefined.
     assert_eq!(
-        parse_rings(Some("Adopt,Trial,adopt ")),
+        parse_ring_list("Adopt,Trial,adopt ", Source::Flag),
         Err(vec![RingsError::Duplicate {
             index: 3,
             entry: "adopt".into(),
@@ -110,7 +116,7 @@ fn a_duplicate_is_rejected_under_the_matching_rule() {
 #[test]
 fn every_violation_is_reported_in_entry_order() {
     assert_eq!(
-        parse_rings(Some("Adopt,,Trial,adopt, ,TRIAL")),
+        parse_ring_list("Adopt,,Trial,adopt, ,TRIAL", Source::Flag),
         Err(vec![
             RingsError::EmptyEntry { index: 2 },
             RingsError::Duplicate {
@@ -133,7 +139,9 @@ fn the_declared_casing_is_what_gets_displayed() {
     // FR-76: normalisation never edits displayed text beyond FR-15's trim —
     // the declared name is what appears as a band label and legend subheading.
     assert_eq!(
-        parse_rings(Some("ADOPT,trial")).expect("valid").rings(),
+        parse_ring_list("ADOPT,trial", Source::Flag)
+            .expect("valid")
+            .rings(),
         vec!["ADOPT", "trial"]
     );
 }
@@ -143,7 +151,7 @@ fn the_declared_casing_is_what_gets_displayed() {
 #[test]
 fn every_repeat_names_the_first_declaration() {
     assert_eq!(
-        parse_rings(Some("a,A,a")),
+        parse_ring_list("a,A,a", Source::Flag),
         Err(vec![
             RingsError::Duplicate {
                 index: 2,
@@ -164,7 +172,7 @@ fn every_repeat_names_the_first_declaration() {
 #[test]
 fn entry_numbers_count_empty_entries() {
     assert_eq!(
-        parse_rings(Some(",a,A")),
+        parse_ring_list(",a,A", Source::Flag),
         Err(vec![
             RingsError::EmptyEntry { index: 1 },
             RingsError::Duplicate {
@@ -181,7 +189,7 @@ fn entry_numbers_count_empty_entries() {
 #[test]
 fn internal_whitespace_runs_collapse_in_ring_names() {
     assert_eq!(
-        parse_rings(Some("Early  Adopt, Trial"))
+        parse_ring_list("Early  Adopt, Trial", Source::Flag)
             .expect("valid")
             .rings(),
         vec!["Early Adopt", "Trial"]
@@ -192,7 +200,7 @@ fn internal_whitespace_runs_collapse_in_ring_names() {
 
 /// `--rings "Adopt,Trial"` with `list` as `--unplotted-rings`.
 fn unplotted(list: &str) -> Result<RingSet, Vec<RingsError>> {
-    parse_rings(Some("Adopt,Trial"))?.with_unplotted(list)
+    parse_ring_list("Adopt,Trial", Source::Flag)?.with_unplotted(list)
 }
 
 /// FR-16 and FR-107: a value is a declared ring, by its edge-to-centre
@@ -206,7 +214,7 @@ fn a_ring_set_classifies_a_value() {
     assert_eq!(set.classify("ADOPT"), RingMatch::Declared(0));
     assert_eq!(set.classify("in   use"), RingMatch::Unplotted);
     assert_eq!(set.classify("Adpot"), RingMatch::Unknown);
-    let set = parse_rings(None).expect("default");
+    let set = default_rings();
     assert!(!set.names_unplotted());
     assert_eq!(set.classify("In Use"), RingMatch::Unknown);
     assert_eq!(set.classify("retire"), RingMatch::Declared(3));
@@ -222,7 +230,7 @@ fn unplotted_rings_are_a_tidied_comma_list() {
     }
     assert_eq!(set.classify("In"), RingMatch::Unknown);
     assert_eq!(set.rings(), ["Adopt", "Trial"]);
-    assert_eq!(set.source(), RingSource::Flag);
+    assert_eq!(set.origin().source, Source::Flag);
 }
 
 /// FR-63's checks, with `--rings`' errors: an empty entry, a duplicate
@@ -259,13 +267,13 @@ fn a_ring_in_both_lists_is_an_error() {
             RingsError::Overlap {
                 index: 2,
                 entry: "ADOPT".into(),
-                by: RingSource::Flag,
+                by: Origin::rings(Source::Flag),
             },
             RingsError::EmptyEntry { index: 3 },
             RingsError::Overlap {
                 index: 4,
                 entry: "trial".into(),
-                by: RingSource::Flag,
+                by: Origin::rings(Source::Flag),
             },
         ])
     );
@@ -276,13 +284,11 @@ fn a_ring_in_both_lists_is_an_error() {
 #[test]
 fn a_default_ring_cannot_be_unplotted() {
     assert_eq!(
-        parse_rings(None)
-            .expect("default")
-            .with_unplotted("In Use,adopt"),
+        default_rings().with_unplotted("In Use,adopt"),
         Err(vec![RingsError::Overlap {
             index: 2,
             entry: "adopt".into(),
-            by: RingSource::Default,
+            by: Origin::rings(Source::Default),
         }])
     );
 }
@@ -296,7 +302,7 @@ fn a_repeated_overlap_is_a_duplicate() {
             RingsError::Overlap {
                 index: 1,
                 entry: "Adopt".into(),
-                by: RingSource::Flag,
+                by: Origin::rings(Source::Flag),
             },
             RingsError::Duplicate {
                 index: 2,
@@ -322,4 +328,37 @@ fn a_default_ring_may_be_unplotted_once_rings_replace_the_defaults() {
     let set = unplotted("Retire").expect("Retire is not drawn");
     assert!(set.names_unplotted());
     assert_eq!(set.classify("retire"), RingMatch::Unplotted);
+}
+
+/// FR-91: a file's rings, joined as the flag would hold them, get exactly
+/// the flag's checks, and the set remembers the file (FR-17).
+#[test]
+fn a_config_ring_list_is_parsed_as_the_flag_is() {
+    let file = source::config("radar.toml");
+    let set = parse_ring_list(" Hold ,Adopt", file.clone()).expect("parses");
+    assert_eq!(set.rings(), ["Hold", "Adopt"]);
+    assert_eq!(set.origin().source, file);
+    assert_eq!(
+        parse_ring_list("Adopt,adopt", file.clone()),
+        Err(vec![RingsError::Duplicate {
+            index: 2,
+            entry: "adopt".into(),
+            first_index: 1
+        }])
+    );
+    // `rings = []`, joined, is FR-63's one no-rings error.
+    assert_eq!(parse_ring_list("", file), Err(vec![RingsError::Empty]));
+}
+
+/// FR-107's overlap names a file's ring set by its key and file.
+#[test]
+fn an_overlap_with_a_config_ring_set_names_its_key() {
+    let set = parse_ring_list("Adopt,Hold", source::config("radar.toml")).expect("parses");
+    let errors = set.with_unplotted("Adopt").expect_err("overlaps");
+    assert_eq!(
+        errors.first().map(ToString::to_string).as_deref(),
+        Some(
+            "entry 1 'Adopt' is also in the rings key in radar.toml, which draws it; remove it from one list"
+        )
+    );
 }

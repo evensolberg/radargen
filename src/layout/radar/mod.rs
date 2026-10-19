@@ -24,7 +24,7 @@ use crate::layout::geometry::{Geometry, growth, polar};
 use crate::model::Catalogue;
 use crate::order::Plotted;
 use crate::palette::{Neutral, Role};
-use crate::rings::RingSource;
+use crate::settings::Origin;
 use crate::style::{
     DIVIDER_RADIUS, GRID_STROKE, LABEL_HALO, MIN_RADAR_WIDTH, QUADRANT_LABEL,
     QUADRANT_LABEL_RADIUS, RADAR_FLOOR, RING_LABEL, TextStyle,
@@ -161,7 +161,7 @@ pub struct RadarBlock {
     /// In declared order, outermost first (D-60).
     rings: Vec<Label>,
     /// Where the rings were declared, for FR-95 (D-73).
-    ring_source: RingSource,
+    ring_origin: Origin,
     /// In FR-34's order.
     markers: Vec<Marker>,
     /// How much the geometry has grown to fit the markers (D-86): 1 until
@@ -222,7 +222,7 @@ impl RadarBlock {
             geometry,
             quadrants,
             rings,
-            ring_source: catalogue.ring_source,
+            ring_origin: catalogue.ring_origin.clone(),
             markers: markers(catalogue, plotted),
             growth: 1.0,
         }
@@ -257,10 +257,7 @@ impl RadarBlock {
     /// text and, for a ring, where it was declared: quadrants in FR-10 order,
     /// then rings. The one
     /// source for both the radar's width and the label that sets it.
-    fn reaches_x(
-        &self,
-        r: RadarScale,
-    ) -> impl Iterator<Item = (f64, Option<RingSource>, &str)> + '_ {
+    fn reaches_x(&self, r: RadarScale) -> impl Iterator<Item = (f64, Option<&Origin>, &str)> + '_ {
         let quadrants = self
             .quadrants
             .iter()
@@ -268,7 +265,7 @@ impl RadarBlock {
         let rings = self.rings.iter().map(move |l| {
             (
                 ring_reach_x(l.width, r),
-                Some(self.ring_source),
+                Some(&self.ring_origin),
                 l.text.as_str(),
             )
         });
@@ -294,7 +291,10 @@ impl RadarBlock {
             .map(|(_, ring, text)| {
                 let name = text.to_owned();
                 match ring {
-                    Some(source) => Binding::Ring { name, source },
+                    Some(origin) => Binding::Ring {
+                        name,
+                        origin: origin.clone(),
+                    },
                     None => Binding::Quadrant(name),
                 }
             })
@@ -1431,7 +1431,7 @@ mod tests {
             b.binding_label(NARROW_MIN_SCALE),
             Some(Binding::Ring {
                 name: ring,
-                source: RingSource::Flag,
+                origin: Origin::rings(crate::settings::Source::Flag),
             })
         );
     }

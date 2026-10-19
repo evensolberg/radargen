@@ -5,6 +5,8 @@ mod chrome;
 mod css;
 mod table;
 
+use crate::options::{Legend, Table};
+
 use crate::emit::OUTPUT_VERSION;
 use crate::emit::UNTITLED;
 use crate::escape::xml_text;
@@ -13,29 +15,6 @@ use crate::model::Catalogue;
 use crate::order::Plotted;
 use crate::palette::Colours;
 use crate::svg::{Document, Target, serialise};
-
-/// Where the page's legend starts (RG-102). Only HTML reads it: PNG and
-/// SVG always draw the legend.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
-pub enum Legend {
-    /// The legend shows.
-    #[value(alias = "show")]
-    Shown,
-    /// The legend starts hidden, with a button to show it.
-    #[value(alias = "hide")]
-    Hidden,
-}
-
-/// What the page's table publishes, and so its detail panels (FR-106).
-/// Only HTML reads it: PNG and SVG have no table.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
-pub enum Table {
-    /// Only the rows the radar draws and the columns radargen reads.
-    Radar,
-    /// Every row, including those not on the radar, and every column with a
-    /// header name. Anyone with the page can read them.
-    All,
-}
 
 const DOCTYPE_OPEN: &str = "<!DOCTYPE html>\n<html lang=\"en\"";
 const HEAD_OPEN: &str = ">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"generator\" content=\"";

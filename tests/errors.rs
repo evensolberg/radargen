@@ -6,7 +6,7 @@ use radargen::csv::parse::parse;
 use radargen::diagnostics::{OffRadar, RowError, Warnings};
 use radargen::errors::render_errors;
 use radargen::model::build_catalogue;
-use radargen::rings::parse_rings;
+use radargen::rings::default_rings;
 
 /// A mismatched row against a two-column header with no unnamed column.
 const fn row(line: usize, found: usize) -> RowError {
@@ -306,7 +306,7 @@ fn a_whole_file_with_errors_from_both_stages() {
                 f,Tools,Adopt,x,y\n";
     let mut w = Warnings::default();
     let (table, mut errors) = parse(text, &mut w).expect("parses");
-    let rings = parse_rings(None).expect("default");
+    let rings = default_rings();
     errors.extend(
         build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect_err("rows are empty"),
     );

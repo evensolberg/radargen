@@ -1,15 +1,21 @@
 //! The diagnostic contract (architecture §10): exact messages, NFR-11 order,
 //! NFR-20 grouping. SC-10's golden tests later pin the same text end to end.
 
+#[path = "common/source.rs"]
+mod source;
+
+use std::path::Path;
 use std::sync::Arc;
 
-use radargen::cli::OutputFormat;
 use radargen::columns::ColumnKind;
 use radargen::diagnostics::{
-    Binding, DateColumn, Fatal, Flag, Lacking, OffRadar, Position, RenderKind, RowError, RowKind,
-    Separator, Warning, Warnings, column_label,
+    Binding, DateColumn, Fatal, Lacking, OffRadar, Position, ReadFile, RenderKind, RowError,
+    RowKind, Separator, Warning, Warnings, column_label,
 };
-use radargen::rings::{RingSource, RingsError};
+use radargen::options::OutputFormat;
+use radargen::rings::RingsError;
+use radargen::settings::file::KeyProblem;
+use radargen::settings::{NamedPath, Origin, Setting, Source};
 
 const fn at(line: usize, column: usize, kind: RowKind) -> Warning {
     Warning::Row { line, column, kind }
@@ -27,7 +33,7 @@ fn defaults() -> Arc<[String]> {
 
 /// FR-17 on `line`'s ring `value`, declared by `source`, the row going
 /// where `off_radar` says, in a run with no `--unplotted-rings`.
-fn undeclared(line: usize, value: &str, source: RingSource, off_radar: OffRadar) -> Warning {
+fn undeclared(line: usize, value: &str, source: Source, off_radar: OffRadar) -> Warning {
     quiet_hint(line, value, source, off_radar, true)
 }
 
@@ -36,20 +42,20 @@ fn undeclared(line: usize, value: &str, source: RingSource, off_radar: OffRadar)
 fn quiet_hint(
     line: usize,
     value: &str,
-    source: RingSource,
+    source: Source,
     off_radar: OffRadar,
     suggest_unplotted: bool,
 ) -> Warning {
     let rings = match source {
-        RingSource::Flag => declared(),
-        RingSource::Default => defaults(),
+        Source::Flag | Source::Config(_) => declared(),
+        Source::Default => defaults(),
     };
     at(
         line,
         2,
         RowKind::UndeclaredRing {
             value: value.into(),
-            source,
+            origin: Origin::rings(source),
             rings,
             off_radar,
             suggest_unplotted,
@@ -59,12 +65,12 @@ fn quiet_hint(
 
 /// FR-17 under `--rings`, on a `--table all` page.
 fn ring(line: usize, value: &str) -> Warning {
-    undeclared(line, value, RingSource::Flag, OffRadar::Listed)
+    undeclared(line, value, Source::Flag, OffRadar::Listed)
 }
 
 /// FR-17 under the default rings, on a `--table all` page: `Adpot`.
 fn default_ring(line: usize) -> Warning {
-    undeclared(line, "Adpot", RingSource::Default, OffRadar::Listed)
+    undeclared(line, "Adpot", Source::Default, OffRadar::Listed)
 }
 
 #[test]
@@ -267,15 +273,15 @@ fn missing_glyphs_have_their_per_row_message() {
 fn missing_glyphs_in_a_flag_name_the_flag() {
     let cases = [
         (
-            RenderKind::FlagMissingGlyphs {
-                flag: Flag::Title,
+            RenderKind::SettingMissingGlyphs {
+                origin: Origin::flag(Setting::Title),
                 lacking: lacking("雷达 2026", '雷', 2, OutputFormat::Svg),
             },
             "--title: '雷达 2026' has 2 characters the bundled font lacks, the first U+96F7 雷; the SVG draws them as boxes — an HTML page shows them, or transliterate them".to_owned(),
         ),
         (
-            RenderKind::FlagMissingGlyphs {
-                flag: Flag::Rings,
+            RenderKind::SettingMissingGlyphs {
+                origin: Origin::flag(Setting::Rings),
                 lacking: lacking("採用", '採', 2, OutputFormat::Png),
             },
             format!(
@@ -283,8 +289,8 @@ fn missing_glyphs_in_a_flag_name_the_flag() {
             ),
         ),
         (
-            RenderKind::FlagMissingGlyphs {
-                flag: Flag::Subtitle,
+            RenderKind::SettingMissingGlyphs {
+                origin: Origin::flag(Setting::Subtitle),
                 lacking: lacking("Q3 🙂", '🙂', 1, OutputFormat::Png),
             },
             format!("--subtitle: 'Q3 🙂' has U+1F642 🙂, which the bundled font lacks; {PNG_ONE}"),
@@ -500,14 +506,10 @@ fn the_ring_warning_says_where_the_row_went() {
     // Every warning of one run carries the same `off_radar`, so a group
     // speaks for them all.
     let rendered = |off_radar: OffRadar, lines: &[usize], flag: bool| {
-        let source = if flag {
-            RingSource::Flag
-        } else {
-            RingSource::Default
-        };
+        let source = if flag { Source::Flag } else { Source::Default };
         let mut w = Warnings::default();
         for &line in lines {
-            w.push(undeclared(line, "Adpot", source, off_radar));
+            w.push(undeclared(line, "Adpot", source.clone(), off_radar));
         }
         w.render()
     };
@@ -964,13 +966,13 @@ fn fatal_messages() {
     let cases = [
         (
             Fatal::UnrecognisedExtension {
-                path: "radar.pdf".into(),
+                output: NamedPath::new(Origin::flag(Setting::Output), Path::new("radar.pdf")),
             },
             "error: -o radar.pdf: the output file name must end in .html, .png or .svg",
         ),
         (
             Fatal::UnrecognisedExtension {
-                path: "radar".into(),
+                output: NamedPath::new(Origin::flag(Setting::Output), Path::new("radar")),
             },
             "error: -o radar: the output file name must end in .html, .png or .svg",
         ),
@@ -984,31 +986,52 @@ fn fatal_messages() {
             Fatal::ImageTooLarge {
                 width: 10_000,
                 height: 12_000,
+                width_origin: Origin::new(Setting::Width, Source::Flag),
             },
             "error: a 10000 by 12000 pixel PNG is too large to draw; pass a smaller --width",
         ),
         (
-            Fatal::from(RingsError::EmptyEntry { index: 2 }),
+            Fatal::ImageTooLarge {
+                width: 10_000,
+                height: 12_000,
+                width_origin: Origin::new(Setting::Width, radar_toml()),
+            },
+            "error: a 10000 by 12000 pixel PNG is too large to draw; set a smaller width in radar.toml",
+        ),
+        (
+            Fatal::Rings {
+                origin: Origin::flag(Setting::Rings),
+                error: RingsError::EmptyEntry { index: 2 },
+            },
             "error: --rings: entry 2 is empty",
         ),
         (
-            Fatal::from(RingsError::Duplicate {
-                index: 3,
-                entry: "adopt".into(),
-                first_index: 1,
-            }),
+            Fatal::Rings {
+                origin: Origin::flag(Setting::Rings),
+                error: RingsError::Duplicate {
+                    index: 3,
+                    entry: "adopt".into(),
+                    first_index: 1,
+                },
+            },
             "error: --rings: entry 3 'adopt' repeats entry 1",
         ),
         (
-            Fatal::from(RingsError::Empty),
+            Fatal::Rings {
+                origin: Origin::flag(Setting::Rings),
+                error: RingsError::Empty,
+            },
             "error: --rings: no rings declared",
         ),
         (
-            Fatal::from(RingsError::Duplicate {
-                index: 2,
-                entry: "a\nerror: forged".into(),
-                first_index: 1,
-            }),
+            Fatal::Rings {
+                origin: Origin::flag(Setting::Rings),
+                error: RingsError::Duplicate {
+                    index: 2,
+                    entry: "a\nerror: forged".into(),
+                    first_index: 1,
+                },
+            },
             r"error: --rings: entry 2 'a\nerror: forged' repeats entry 1",
         ),
     ];
@@ -1049,7 +1072,7 @@ fn csv_file_messages() {
         ),
         (
             Fatal::Unwritable {
-                path: "out/radar.html".into(),
+                output: NamedPath::new(Origin::flag(Setting::Output), Path::new("out/radar.html")),
                 source: std::io::Error::new(
                     std::io::ErrorKind::PermissionDenied,
                     "permission denied",
@@ -1243,16 +1266,45 @@ fn pipeline_messages() {
     let cases = [
         (
             Fatal::MissingDirectory {
-                path: "out/radar.html".into(),
+                output: NamedPath::new(Origin::flag(Setting::Output), Path::new("out/radar.html")),
                 dir: "out".into(),
             },
             "error: -o out/radar.html: the directory out does not exist",
         ),
         (
             Fatal::OutputIsInput {
-                path: "radar.csv".into(),
+                output: NamedPath::new(Origin::flag(Setting::Output), Path::new("radar.csv")),
+                input: ReadFile::Csv,
             },
             "error: -o radar.csv: is the input CSV; choose another output path",
+        ),
+        (
+            Fatal::MissingDirectory {
+                output: NamedPath {
+                    origin: Origin::new(Setting::Output, source::config("conf/radar.toml")),
+                    shown: "out/radar.html".into(),
+                },
+                dir: "conf/out".into(),
+            },
+            "error: the output key in conf/radar.toml (out/radar.html): the directory conf/out does not exist",
+        ),
+        (
+            Fatal::UnrecognisedExtension {
+                output: NamedPath {
+                    origin: Origin::new(Setting::Output, source::config("radar.toml")),
+                    shown: "radar.pdf".into(),
+                },
+            },
+            "error: the output key in radar.toml (radar.pdf): the output file name must end in .html, .png or .svg",
+        ),
+        (
+            Fatal::PaletteTooLarge {
+                palette: NamedPath {
+                    origin: Origin::new(Setting::Palette, source::config("radar.toml")),
+                    shown: "brand.css".into(),
+                },
+            },
+            "error: the palette key in radar.toml (brand.css): larger than 1 MiB; a palette is a few hundred bytes, so check the path",
         ),
     ];
     for (fatal, expected) in cases {
@@ -1289,6 +1341,7 @@ fn d87_warnings_name_their_widths() {
             RenderKind::PngTextSmall {
                 width: 320,
                 legible_from: Some(821),
+                width_origin: Origin::new(Setting::Width, Source::Flag),
             },
             "at 320 pixels wide the PNG's text is too small to read; --width 821 or more keeps it legible",
         ),
@@ -1296,6 +1349,7 @@ fn d87_warnings_name_their_widths() {
             RenderKind::PngTextSmall {
                 width: 10_000,
                 legible_from: None,
+                width_origin: Origin::new(Setting::Width, Source::Default),
             },
             "at 10000 pixels wide the PNG's text is too small to read, at any --width; fewer or shorter names would help",
         ),
@@ -1330,7 +1384,7 @@ fn fr95_names_a_quadrant_or_a_ring() {
             RenderKind::NarrowWidened {
                 binding: Binding::Ring {
                     name: "Under evaluation by the architecture board".into(),
-                    source: RingSource::Flag,
+                    origin: Origin::rings(Source::Flag),
                 },
                 width: 750,
             },
@@ -1379,7 +1433,7 @@ fn io_reasons_read_one_way() {
     let windows = std::io::Error::other("The system cannot find the path specified. (os error 3)");
     assert_eq!(
         Fatal::Unwritable {
-            path: "out.html".into(),
+            output: NamedPath::new(Origin::flag(Setting::Output), Path::new("out.html")),
             source: unix,
         }
         .render(),
@@ -1404,17 +1458,17 @@ fn fr95_names_where_a_ring_came_from() {
         Warning::Render(RenderKind::NarrowWidened {
             binding: Binding::Ring {
                 name: " Under evaluation ".into(),
-                source,
+                origin: Origin::rings(source),
             },
             width: 600,
         })
         .to_string()
     };
     assert!(
-        message(RingSource::Flag)
+        message(Source::Flag)
             .ends_with("a shorter name for ring 'Under evaluation' in --rings would fix it")
     );
-    assert!(message(RingSource::Default).ends_with(
+    assert!(message(Source::Default).ends_with(
         "a shorter name for ring 'Under evaluation' (a default ring, so pass --rings to rename it) would fix it"
     ));
 }
@@ -1454,15 +1508,16 @@ fn the_unplotted_rings_hint_is_left_out_once_the_flag_is_given() {
     let quiet = "to leave it off without this warning, add it to --unplotted-rings";
     let quiet_one = "to leave one off without this warning, add it to --unplotted-rings";
     for off_radar in [OffRadar::Listed, OffRadar::Unlisted, OffRadar::Undrawn] {
-        for source in [RingSource::Flag, RingSource::Default] {
-            let row = |suggest| quiet_hint(37, "Adpot", source, off_radar, suggest).to_string();
+        for source in [Source::Flag, Source::Default] {
+            let row =
+                |suggest| quiet_hint(37, "Adpot", source.clone(), off_radar, suggest).to_string();
             let with = row(true);
             assert!(with.contains(quiet), "{with}");
             assert_eq!(row(false), with.replacen(&format!("; {quiet}"), "", 1));
             let grouped = |suggest| {
                 let mut w = Warnings::default();
-                w.push(quiet_hint(4, "Adpot", source, off_radar, suggest));
-                w.push(quiet_hint(9, "Adpot", source, off_radar, suggest));
+                w.push(quiet_hint(4, "Adpot", source.clone(), off_radar, suggest));
+                w.push(quiet_hint(9, "Adpot", source.clone(), off_radar, suggest));
                 w.render()
             };
             let [with] = grouped(true).try_into().expect("one line");
@@ -1474,7 +1529,7 @@ fn the_unplotted_rings_hint_is_left_out_once_the_flag_is_given() {
         }
     }
     assert_eq!(
-        quiet_hint(37, "Adpot", RingSource::Flag, OffRadar::Unlisted, false).to_string(),
+        quiet_hint(37, "Adpot", Source::Flag, OffRadar::Unlisted, false).to_string(),
         "line 37, ring: 'Adpot' is not in --rings (Adopt, Trial), so the row is left off the page; to plot it, add it to --rings; --table all lists it, but also publishes every other column"
     );
 }
@@ -1514,5 +1569,291 @@ fn near_misses_group_into_one_line_before_the_rows() {
             "warning: 2 header names are not columns radargen knows — Rationalle (did you mean rationale?), exit date (did you mean exit_date?)",
             "warning: line 2, description: empty; the detail panel omits it",
         ]
+    );
+}
+
+fn radar_toml() -> Source {
+    source::config("radar.toml")
+}
+
+/// FR-107's two cross-source examples, word for word.
+#[test]
+fn an_overlap_across_sources_names_both_sides() {
+    let key_vs_flag = Fatal::UnplottedRings {
+        origin: Origin::new(Setting::UnplottedRings, radar_toml()),
+        error: RingsError::Overlap {
+            index: 2,
+            entry: "Adopt".into(),
+            by: Origin::rings(Source::Flag),
+        },
+    };
+    assert_eq!(
+        key_vs_flag.render(),
+        "error: the unplotted_rings key in radar.toml: entry 2 'Adopt' is also in --rings, which draws it; remove it from one list"
+    );
+    let flag_vs_key = Fatal::UnplottedRings {
+        origin: Origin::flag(Setting::UnplottedRings),
+        error: RingsError::Overlap {
+            index: 1,
+            entry: "Adopt".into(),
+            by: Origin::rings(radar_toml()),
+        },
+    };
+    assert_eq!(
+        flag_vs_key.render(),
+        "error: --unplotted-rings: entry 1 'Adopt' is also in the rings key in radar.toml, which draws it; remove it from one list"
+    );
+    let rings = Fatal::Rings {
+        origin: Origin::new(Setting::Rings, radar_toml()),
+        error: RingsError::Empty,
+    };
+    assert_eq!(
+        rings.render(),
+        "error: the rings key in radar.toml: no rings declared"
+    );
+}
+
+/// FR-17 names a file's ring set by its key and file, alone and grouped,
+/// and says to edit that list (D-61).
+#[test]
+fn an_undeclared_ring_names_the_rings_key() {
+    let one = quiet_hint(4, "Adpot", radar_toml(), OffRadar::Undrawn, true);
+    assert_eq!(
+        one.to_string(),
+        "line 4, ring: 'Adpot' is not in the rings key in radar.toml (Adopt, Trial); the row is not on the radar; to plot it, add it to that list; to leave it off without this warning, add it to the unplotted_rings key in radar.toml"
+    );
+    let mut warnings = Warnings::default();
+    warnings.push(quiet_hint(
+        4,
+        "Adpot",
+        radar_toml(),
+        OffRadar::Undrawn,
+        false,
+    ));
+    warnings.push(quiet_hint(
+        9,
+        "Adpot",
+        radar_toml(),
+        OffRadar::Undrawn,
+        false,
+    ));
+    assert_eq!(
+        warnings.render(),
+        [
+            "warning: 2 rows use a ring not in the rings key in radar.toml (Adopt, Trial) — Adpot (2, first line 4); none is on the radar; to plot one, add it to that list"
+        ]
+    );
+}
+
+/// UX review 4: a ring set from the file names the file's keys in every
+/// remedy, and its rings key only once.
+#[test]
+fn an_undeclared_ring_from_a_file_names_the_file_s_keys() {
+    let row = quiet_hint(4, "Adpot", radar_toml(), OffRadar::Unlisted, true);
+    assert_eq!(
+        row.to_string(),
+        "line 4, ring: 'Adpot' is not in the rings key in radar.toml (Adopt, Trial), so the row is left off the page; to plot it, add it to that list; to leave it off without this warning, add it to the unplotted_rings key in radar.toml; setting table = \"all\" in radar.toml would list it, but also publishes every other column"
+    );
+}
+
+/// FR-95 and FR-105 name a ring from a file by its key and file.
+#[test]
+fn a_binding_ring_from_a_file_names_its_key() {
+    let binding = Binding::Ring {
+        name: "Very long ring".into(),
+        origin: Origin::rings(radar_toml()),
+    };
+    assert_eq!(
+        binding.to_string(),
+        "ring 'Very long ring' in the rings key in radar.toml"
+    );
+}
+
+/// D-87's remedy names where the width came from (plan RG-019A, Ruling 9).
+#[test]
+fn a_small_png_names_the_width_key() {
+    let warning = Warning::Render(RenderKind::PngTextSmall {
+        width: 800,
+        legible_from: Some(1200),
+        width_origin: Origin::new(Setting::Width, radar_toml()),
+    });
+    assert_eq!(
+        warning.to_string(),
+        "at 800 pixels wide the PNG's text is too small to read; setting width = 1200 or more in radar.toml keeps it legible"
+    );
+    let unreadable = Warning::Render(RenderKind::PngTextSmall {
+        width: 800,
+        legible_from: None,
+        width_origin: Origin::new(Setting::Width, radar_toml()),
+    });
+    assert_eq!(
+        unreadable.to_string(),
+        "at 800 pixels wide the PNG's text is too small to read, at any width; fewer or shorter names would help"
+    );
+}
+
+/// FR-91's key messages, each naming the key and the file; clap's words
+/// where clap would have checked the flag (plan RG-019A, Ruling 4).
+#[test]
+fn config_messages() {
+    let file: std::sync::Arc<str> = std::sync::Arc::from("radar.toml");
+    let key = |problem| Fatal::ConfigKey {
+        file: file.clone(),
+        problem,
+    };
+    let cases = [
+        (
+            key(KeyProblem::Unknown {
+                key: "ring".into(),
+                near: Some(Setting::Rings),
+                table: false,
+            }),
+            "error: --config radar.toml: unknown key 'ring'; did you mean 'rings'? The keys are output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table and palette",
+        ),
+        (
+            key(KeyProblem::WrongType {
+                setting: Setting::Rings,
+                found: "string",
+            }),
+            "error: the rings key in radar.toml: must be an array of strings, such as [\"Adopt\", \"Trial\"], not a string",
+        ),
+        (
+            key(KeyProblem::WrongType {
+                setting: Setting::Width,
+                found: "float",
+            }),
+            "error: the width key in radar.toml: must be an integer, not a float",
+        ),
+        (
+            key(KeyProblem::EntryType {
+                setting: Setting::Rings,
+                index: 2,
+                found: "integer",
+            }),
+            "error: the rings key in radar.toml: entry 2 must be a string, not an integer",
+        ),
+        (
+            key(KeyProblem::Comma {
+                setting: Setting::Rings,
+                index: 1,
+                entry: "Adopt,Trial".into(),
+            }),
+            "error: the rings key in radar.toml: entry 1 'Adopt,Trial' holds a comma; give each ring as its own entry",
+        ),
+        (
+            key(KeyProblem::NotAValue {
+                setting: Setting::Theme,
+                value: "sepia".into(),
+                possible: vec!["light".into(), "dark".into()],
+            }),
+            "error: invalid value 'sepia' for the theme key in radar.toml [possible values: light, dark]",
+        ),
+        (
+            key(KeyProblem::OutOfRange {
+                setting: Setting::Width,
+                value: 5,
+                min: 320,
+                max: 10_000,
+            }),
+            "error: the width key in radar.toml: 5 is out of range; use 320 to 10000",
+        ),
+    ];
+    for (fatal, expected) in cases {
+        assert_eq!(fatal.render(), expected);
+    }
+    assert!(
+        key(KeyProblem::Unknown {
+            key: "x".into(),
+            near: None,
+            table: false
+        })
+        .is_usage()
+    );
+}
+
+/// UX review 3 and 11, Rust review M6: the hints a key problem adds.
+#[test]
+fn config_hint_messages() {
+    let file: std::sync::Arc<str> = std::sync::Arc::from("radar.toml");
+    let key = |problem| Fatal::ConfigKey {
+        file: file.clone(),
+        problem,
+    };
+    let cases = [
+        (
+            key(KeyProblem::Unknown {
+                key: "radar".into(),
+                near: None,
+                table: true,
+            }),
+            "error: --config radar.toml: unknown key 'radar'; the keys are output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table and palette; keys go at the top of the file, not under [radar]",
+        ),
+        (
+            key(KeyProblem::WrongType {
+                setting: Setting::Title,
+                found: "integer",
+            }),
+            "error: the title key in radar.toml: must be a string, not an integer; put the value in quotes",
+        ),
+        (
+            key(KeyProblem::WrongType {
+                setting: Setting::LegendColumns,
+                found: "string",
+            }),
+            "error: the legend_columns key in radar.toml: must be an integer, not a string; remove the quotes",
+        ),
+        (
+            key(KeyProblem::Empty {
+                setting: Setting::Output,
+            }),
+            "error: the output key in radar.toml: is empty; give a file name, or remove the key",
+        ),
+    ];
+    for (fatal, expected) in cases {
+        assert_eq!(fatal.render(), expected);
+    }
+}
+
+/// FR-59 across sources, a missing output, and the file's runtime
+/// failures (NFR-15), each naming the file.
+#[test]
+fn config_file_messages() {
+    let file: std::sync::Arc<str> = std::sync::Arc::from("radar.toml");
+    let cases = [
+        (
+            Fatal::Conflict { file: file.clone() },
+            "error: --config radar.toml: the theme and palette keys cannot be used together; a palette replaces the theme, so remove one",
+        ),
+        (
+            Fatal::NoOutput { file: file.clone() },
+            "error: no output: pass -o <OUTPUT>, or add an output key to radar.toml, such as output = \"radar.html\"",
+        ),
+        (
+            Fatal::ConfigTooLarge { file: file.clone() },
+            "error: --config radar.toml: larger than 1 MiB; a config file is a few hundred bytes, so check the path",
+        ),
+        (
+            Fatal::ConfigNotUtf8 {
+                file: file.clone(),
+                line: 4,
+            },
+            "error: --config radar.toml, line 4: not UTF-8 text; re-save the file as UTF-8",
+        ),
+        (
+            Fatal::ConfigSyntax {
+                file: file.clone(),
+                line: Some(3),
+                message: "duplicate key".into(),
+            },
+            "error: --config radar.toml, line 3: duplicate key",
+        ),
+    ];
+    for (fatal, expected) in cases {
+        assert_eq!(fatal.render(), expected);
+    }
+    assert!(Fatal::NoOutput { file: file.clone() }.is_usage());
+    assert!(
+        !Fatal::ConfigTooLarge { file }.is_usage(),
+        "NFR-15: a runtime failure"
     );
 }

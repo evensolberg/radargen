@@ -5,9 +5,9 @@
 use std::collections::BTreeSet;
 
 use radargen::emit::OUTPUT_VERSION;
-use radargen::emit::html::{Legend, Table};
 use radargen::layout::arrange::{NarrowParts, WideParts, narrow_parts, wide_parts};
 use radargen::num::fmt_coord;
+use radargen::options::{Legend, Table};
 
 use super::golden::golden;
 use super::html::{assert_requests_nothing, outside, style, svgs};

@@ -8,7 +8,7 @@ use radargen::diagnostics::{OffRadar, Warnings};
 use radargen::layout::geometry::{Geometry, Point, place, warn_crowding};
 use radargen::model::{Catalogue, build_catalogue};
 use radargen::order::{Plotted, resolve};
-use radargen::rings::parse_rings;
+use radargen::rings::default_rings;
 
 #[path = "common/catalogue.rs"]
 mod catalogue;
@@ -237,7 +237,7 @@ fn geometry_warnings_precede_row_warnings() {
     let mut w = Warnings::default();
     let (table, errs) = parse(&csv(&all), &mut w).expect("parses");
     assert!(errs.is_empty(), "{errs:?}");
-    let rings = parse_rings(None).expect("default");
+    let rings = default_rings();
     let cat = build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds");
     warn_crowding(&cat, &resolve(&cat), 1.0, &mut w);
     let lines = w.render();

@@ -1,7 +1,7 @@
 ---
 id: rg-u6u
 title: 'PR 19: --config file and --edition placeholder'
-status: open
+status: in_progress
 type: feature
 priority: 2
 tags:
@@ -24,3 +24,13 @@ PRD v0.39 FR-91/FR-92, D-57/D-58, SC-26/SC-27, v1.1. TOML config (serde + toml c
 [2026-10-11] From PRD v0.46 NFR-10 (D-64, was rg-s71): any diagnostic about a configurable setting names its effective source — flag, --config key with file, or default. Record the source per setting during the cli.rs merge rather than as a ring-only field.
 
 [2026-10-18] rg-4bq (FR-107, D-96) adds an unplotted_rings key to FR-91, spec only. PR 19 must (1) check FR-107's overlap after the merge, across sources, naming both sides by effective source: the entry as --unplotted-rings or the unplotted_rings key with its file, the ring set as --rings, the rings key with its file, or the default set (FR-107's examples); (2) keep the accepted gap: a file's unplotted_rings cannot be cleared from the command line, since --unplotted-rings "" is FR-107's 'no rings named' error.
+
+[2026-10-18] Decided (maintainer, 2026-10-18): split into PR 19a (--config, folding in rg-ahj, rg-qag and the keys added since: legend, table, unplotted_rings, legend_columns) and PR 19b (--edition and {edition}). Full process: plan, five-agent review, simplify, final review.
+
+[start] 2026-10-18 16:02:12
+
+[2026-10-18] PR 19a (RG-019A) implements --config; this crumb stays open for PR 19b (--edition, {edition}).
+
+[2026-10-18] Decided (maintainer, 2026-10-18, from the PR 19a review): (1) the command line wins over the opposing key: -p drops a file theme, --theme drops a file palette; both from one source stays FR-59. (2) A palette read from the config file never has its content quoted in errors, and config-sourced paths must be regular files (no FIFO/tty/stdin); paths may still point anywhere.
+
+[2026-10-18] For PR 19b, from the PR 19a architecture review (M-9): (a) when {edition} fails on the file's output, drop the output as Effective::Broken does, so FR-52/FR-62 do not report the unexpanded path; (b) a command-line -o is an OsString-backed PathBuf, so expanding it needs to_str() and a rule for non-UTF-8 paths, on which the PRD is silent; (c) the title and subtitle reach the seam already trimmed by shown(), harmless since {edition} is never whitespace, but the order comment should say so.

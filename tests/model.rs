@@ -4,7 +4,7 @@
 use radargen::csv::parse::parse;
 use radargen::diagnostics::{OffRadar, RowError, Warnings};
 use radargen::model::{ColumnKind, Link, Qualifier, Status, build_catalogue};
-use radargen::rings::parse_rings;
+use radargen::rings::default_rings;
 
 /// PRD §6.1.6's example, architecture §10's `three-quadrant.csv` (SC-2):
 /// three quadrants, every optional column empty at least once, and one row
@@ -14,7 +14,7 @@ fn the_prd_example_builds_with_one_warning() {
     let mut w = Warnings::default();
     let (table, errs) = parse(include_str!("fixtures/three-quadrant.csv"), &mut w).expect("parses");
     assert!(errs.is_empty(), "{errs:?}");
-    let rings = parse_rings(None).expect("default");
+    let rings = default_rings();
     let cat = build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds");
 
     let quadrants: Vec<_> = cat.quadrants.iter().map(|q| q.label.as_str()).collect();
@@ -77,7 +77,7 @@ fn row_errors_from_both_stages_arrive_in_one_run() {
     let mut w = Warnings::default();
     let (table, parse_errors) =
         parse(include_str!("fixtures/row-errors.csv"), &mut w).expect("parses");
-    let rings = parse_rings(None).expect("default");
+    let rings = default_rings();
     let model_errors =
         build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect_err("fails");
     assert!(w.render().is_empty(), "{:?}", w.render());
@@ -111,7 +111,7 @@ fn a_repeated_required_header_reads_the_first() {
     )
     .expect("parses");
     assert_eq!(parse_errors.len(), 1);
-    let rings = parse_rings(None).expect("default");
+    let rings = default_rings();
     let errs = build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect_err("fails");
     assert_eq!(
         errs.iter().map(RowError::render).collect::<Vec<_>>(),
@@ -127,7 +127,7 @@ fn parse_errors_do_not_suppress_model_warnings() {
     let (table, errs) =
         parse("name,quadrant,ring,description\nK,T\nL,T,Adpot,d\n", &mut w).expect("parses");
     assert_eq!(errs.len(), 1);
-    let rings = parse_rings(None).expect("default");
+    let rings = default_rings();
     build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds");
     assert_eq!(
         w.render(),
@@ -153,7 +153,7 @@ fn the_link_column_is_read_once_per_row() {
         let mut w = Warnings::default();
         let (table, errs) = parse(&csv, &mut w).expect("parses");
         assert!(errs.is_empty(), "{errs:?}");
-        let rings = parse_rings(None).expect("default");
+        let rings = default_rings();
         let cat = build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds");
         let links: Vec<Option<Link>> = cat.items.iter().map(|i| i.link.clone()).collect();
         assert_eq!(
@@ -201,8 +201,7 @@ fn two_link_columns_are_a_duplicate_header() {
 /// `--unplotted-rings`, which the author already uses (D-96).
 #[test]
 fn a_named_unplotted_ring_is_off_the_radar_without_a_warning() {
-    let rings = parse_rings(None)
-        .expect("default")
+    let rings = default_rings()
         .with_unplotted("In Use, Rejected")
         .expect("valid");
     for (typos, expected) in [

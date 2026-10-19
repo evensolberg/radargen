@@ -32,6 +32,50 @@ pub enum ColumnKind {
     Other,
 }
 
+/// D-98's guess, shared by FR-108's columns and FR-91's keys: the first
+/// of `candidates` that `key`, already normalised by the caller, is
+/// probably a misspelling of.
+///
+/// A near miss is within the candidate's tolerance by Damerau–Levenshtein
+/// distance, so a transposition is one edit. The tolerance is one edit,
+/// unless the name is longer than four characters and `key` longer than
+/// the name, which allows two: a short name is two edits from many
+/// ordinary words (`note`, `name`), and so is a key no longer than the
+/// name, by changing letters rather than adding them (`state`, `status`);
+/// a doubled or stray letter makes a key longer. Of several, the fewest
+/// edits wins, then the first in `candidates`' order. A candidate more
+/// than two characters longer or shorter is skipped before any distance is
+/// computed, since it cannot be within two edits, so a huge key costs
+/// nothing (efficiency review 1).
+pub(crate) fn nearest<T: Copy>(
+    key: &str,
+    candidates: impl IntoIterator<Item = T>,
+    name: impl Fn(T) -> &'static str,
+) -> Option<T> {
+    /// The longest name that allows only one edit: `name`, `ring`, `link`.
+    const SHORT: usize = 4;
+    /// The most edits any candidate allows.
+    const MOST: usize = 2;
+    let length = key.chars().count();
+    candidates
+        .into_iter()
+        // Names are ASCII, so bytes are characters.
+        .filter(|&c| name(c).len().abs_diff(length) <= MOST)
+        .map(|c| (strsim::damerau_levenshtein(key, name(c)), c))
+        .filter(|&(edits, c)| {
+            let size = name(c).len();
+            edits
+                <= if size > SHORT && length > size {
+                    MOST
+                } else {
+                    1
+                }
+        })
+        // `min_by_key` keeps the first of equal minima: the given order.
+        .min_by_key(|&(edits, _)| edits)
+        .map(|(_, c)| c)
+}
+
 impl ColumnKind {
     /// Every known kind, so the header names are written once, in
     /// [`ColumnKind::as_str`].
@@ -67,29 +111,11 @@ impl ColumnKind {
     /// several, the fewest edits wins, then the first in
     /// [`ColumnKind::KNOWN`]'s order (D-98).
     pub(crate) fn near_miss(key: &str, taken: &[Self]) -> Option<Self> {
-        let length = key.chars().count();
-        Self::KNOWN
-            .into_iter()
-            .filter(|k| !taken.contains(k))
-            .map(|k| (strsim::damerau_levenshtein(key, k.as_str()), k))
-            .filter(|&(edits, k)| edits <= k.tolerance(length))
-            // `min_by_key` keeps the first of equal minima: KNOWN's order.
-            .min_by_key(|&(edits, _)| edits)
-            .map(|(_, k)| k)
-    }
-
-    /// FR-108's guard, for a header of `length` characters: one edit,
-    /// unless the name is longer than four characters and the header longer
-    /// than the name, which allows two. A short name is two edits from many
-    /// ordinary words (`note`, `name`), and so is a header no longer than
-    /// the name, by changing letters rather than adding them (`state`,
-    /// `status`); a doubled or stray letter makes a header longer.
-    const fn tolerance(self, length: usize) -> usize {
-        /// The longest name that allows only one edit: `name`, `ring`, `link`.
-        const SHORT: usize = 4;
-        // Known names are ASCII, so bytes are characters.
-        let name = self.as_str().len();
-        if name > SHORT && length > name { 2 } else { 1 }
+        nearest(
+            key,
+            Self::KNOWN.into_iter().filter(|k| !taken.contains(k)),
+            Self::as_str,
+        )
     }
 
     /// The canonical header name; empty for [`ColumnKind::Other`].

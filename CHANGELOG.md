@@ -1,20 +1,74 @@
+## [1.15.0] - 2026-10-19
+
+### 🚀 Features
+
+- *(settings)* A setting's value and where it came from
+- *(settings)* Read and check a --config TOML file
+- *(cli)* Merge --config under the command line, key by key
+- *(config)* -c, --config <file.toml> (FR-91)
+- *(config)* A file's legend and table keys are silent on PNG/SVG
+- *(config)* A theme or palette flag wins over the opposing key
+
+### 🐛 Bug Fixes
+
+- *(config)* Guard what a config file's paths can read and echo
+- *(config)* Key and path messages say how to fix them
+- *(config)* D-74 never opens a pipe, so a FIFO palette cannot hang
+- *(config)* A file's theme and palette conflict whatever the flags
+- *(config)* Config remedies read as sentences; table flag named
+- *(config)* Cap a config-named palette's errors at 20
+
+### 📚 Documentation
+
+- *(a11y)* Indent step 10's bullets under its number (#136)
+- *(plans)* PR 19a plan, --config <file.toml> (RG-019A)
+- *(prd)* 0.100, a config's format keys are silent (rg-qag)
+- --config in the README and architecture
+- *(cli)* --config's help, and defaults as "the default is"
+- *(prd)* 0.101, the PR 19a review's rulings
+- The review's README, architecture and plan corrections
+- Architecture after simplify; crumb for the /dev/fd path hint
+
+### 🚜 Refactor
+
+- *(rings)* One Source for the ring set, worded for a file
+- *(diagnostics)* FR-90 and FR-104 name a setting's origin
+- *(diagnostics)* Output and palette errors name their source
+- *(png)* Width remedies name the width's source
+- *(cli)* Every overridable flag is an Option (rg-ahj)
+- *(config)* Keep rustqual at its baseline
+- *(options)* A leaf module for Legend, Table and OutputFormat
+- *(config)* The review's Rust minors
+- *(rings)* One test helper for an optional --rings fixture
+- *(options)* Import options directly; OutputFormat::from_path
+- *(csv)* Read the CSV through decode::read_capped
+- *(settings)* Rings and width carry an Origin end to end
+- *(palette)* One message table, redacted by emptying excerpts
+- *(config)* Share D-98's near miss and the 40-character clip
+- *(settings)* One path spelling and one optional-line helper
+- *(config)* Flatten the merge's shape and config's body
+- *(diagnostics)* Setting* render kinds; docs say what code does
+
+### 🎨 Styling
+
+- *(settings)* Cargo fmt the moved Expected assertions
+
+### 🧪 Testing
+
+- *(config)* Pin every key's wiring, precedence and mixed failures
+- *(browser)* Button-stays-put follows the system's scrollbars
+- *(config)* Render SVG where rasterising is not the subject
+
+### ⚙️ Miscellaneous Tasks
+
+- *(build)* Optimise the shaping crates in the dev profile (rg-c9v) (#134)
+- *(crumbs)* Retarget rg-v1o's manual checks to 1.14.0 (#135)
+- *(deny)* Check sources and bans in just ci
 ## [1.14.0] - 2026-10-18
 
 ### 🚀 Features
 
-- *(title)* Wrap the title at its arrangement's width
-
-### 📚 Documentation
-
-- *(prd)* Record the title's wrap per arrangement (D-99, 0.99)
-
-### 🧪 Testing
-
-- *(title)* Pin the wrap measures to grown and widened parts
-
-### ⚙️ Miscellaneous Tasks
-
-- *(crumbs)* Close rg-0ms
+- *(title)* Wrap the title at its arrangement's width (1.14.0) (#133)
 ## [1.13.1] - 2026-10-18
 
 ### 🐛 Bug Fixes

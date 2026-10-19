@@ -8,20 +8,16 @@
 
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
-use std::fs::File;
-use std::io::{self, Read as _};
+use std::io;
 use std::path::Path;
 
 use super::{Hex, Neutral, Palette};
-use crate::decode::{NotUtf8, decode};
+use crate::decode::{NotUtf8, decode, read_capped};
 use scan::{Lines, block_len, css_space, css_trim, excerpt, uncommented};
 
 /// The largest file read (plan RG-018A, R4): the sample is 2 kB, and ten
 /// thousand series entries fit in 300 kB.
 pub const MAX_BYTES: usize = 1 << 20;
-/// What [`read`] reads at most: one byte past the cap, to tell a file at
-/// the cap from one beyond it.
-const READ_CAP: u64 = (1 << 20) + 1;
 
 /// The properties a palette may declare, as an unknown-property message
 /// lists them.
@@ -44,7 +40,10 @@ pub enum PaletteError {
         line: usize,
     },
     /// Any rule but the first `:root`: another selector, or an at-rule.
-    #[error("'{selector}' is not allowed; a palette is one :root rule and nothing else")]
+    #[error(
+        "{} is not allowed; a palette is one :root rule and nothing else",
+        quoted(selector, "a rule other than :root")
+    )]
     OtherRule {
         /// Where it starts.
         line: usize,
@@ -58,7 +57,7 @@ pub enum PaletteError {
         line: usize,
     },
     /// Text that is neither a comment nor part of a rule.
-    #[error("'{text}' is outside the :root rule; delete it")]
+    #[error("{} is outside the :root rule; delete it", quoted(text, "text"))]
     TextOutside {
         /// Where it starts.
         line: usize,
@@ -66,7 +65,10 @@ pub enum PaletteError {
         text: String,
     },
     /// A declaration with no `:`, or an empty name.
-    #[error("'{text}' is not a declaration; write --name: #RRGGBB;")]
+    #[error(
+        "{} is not a declaration; write --name: #RRGGBB;",
+        quoted(text, "this line")
+    )]
     Malformed {
         /// Where it starts.
         line: usize,
@@ -74,7 +76,11 @@ pub enum PaletteError {
         text: String,
     },
     /// A property that is not one of FR-82's roles or `--series-N`.
-    #[error("{name} is not a palette property; the properties are {}", PROPERTIES)]
+    #[error(
+        "{} is not a palette property; the properties are {}",
+        or_else(name, "this property"),
+        PROPERTIES
+    )]
     Unknown {
         /// Where it is declared.
         line: usize,
@@ -82,7 +88,7 @@ pub enum PaletteError {
         name: String,
     },
     /// A property declared again; both lines are named (FR-102).
-    #[error("{name} repeats line {first}; keep one")]
+    #[error("{} repeats line {first}; keep one", or_else(name, "this property"))]
     Duplicate {
         /// The repeat's line.
         line: usize,
@@ -92,7 +98,11 @@ pub enum PaletteError {
         first: usize,
     },
     /// FR-86: a value that is not `#RRGGBB`.
-    #[error("{name}: '{value}' is not a #RRGGBB colour")]
+    #[error(
+        "{}: {} is not a #RRGGBB colour",
+        or_else(name, "this property"),
+        quoted(value, "its value")
+    )]
     NotHex {
         /// Where it is declared.
         line: usize,
@@ -104,7 +114,10 @@ pub enum PaletteError {
     /// A value runs onto a later line that declares a property: a forgotten
     /// `;` (rg-8xm). The value ends at that line, which is read as the next
     /// declaration, so it is checked in the same pass (rg-p9a).
-    #[error("{name}: its value runs onto the next line; add ; at its end")]
+    #[error(
+        "{}: its value runs onto the next line; add ; at its end",
+        or_else(name, "this property")
+    )]
     MissingSemicolon {
         /// Where the declaration missing its `;` is.
         line: usize,
@@ -131,7 +144,50 @@ pub enum PaletteError {
     },
 }
 
+/// An excerpt in single quotes, or `instead` when a redacted error left
+/// it out.
+fn quoted(excerpt: &str, instead: &str) -> String {
+    if excerpt.is_empty() {
+        instead.to_owned()
+    } else {
+        format!("'{excerpt}'")
+    }
+}
+
+/// A property name as written, or `instead` when a redacted error left it
+/// out.
+const fn or_else<'a>(name: &'a str, instead: &'a str) -> &'a str {
+    if name.is_empty() { instead } else { name }
+}
+
 impl PaletteError {
+    /// This error with every excerpt left out, for a palette a `--config`
+    /// file named, which may be any file at all (security review F1, the
+    /// maintainer's ruling B): its message says what is wrong and on which
+    /// line, from the same table, and quotes nothing.
+    #[must_use]
+    pub fn redacted(&self) -> Self {
+        let mut redacted = self.clone();
+        match &mut redacted {
+            Self::OtherRule { selector: text, .. }
+            | Self::TextOutside { text, .. }
+            | Self::Malformed { text, .. }
+            | Self::Unknown { name: text, .. }
+            | Self::Duplicate { name: text, .. }
+            | Self::MissingSemicolon { name: text, .. } => text.clear(),
+            Self::NotHex { name, value, .. } => {
+                name.clear();
+                value.clear();
+            }
+            Self::UnclosedComment { .. }
+            | Self::UnclosedRule { .. }
+            | Self::SecondRoot { .. }
+            | Self::MissingRole { .. }
+            | Self::MissingSeries { .. } => {}
+        }
+        redacted
+    }
+
     /// The line the problem is on, as the file is written; `None` for a
     /// missing role or series, which has no line.
     #[must_use]
@@ -183,13 +239,9 @@ pub enum ReadError {
 ///
 /// A [`ReadError`] saying what kept the file from being a palette.
 pub fn read(path: &Path) -> Result<Palette, ReadError> {
-    let mut bytes = Vec::new();
-    File::open(path)
-        .and_then(|file| file.take(READ_CAP).read_to_end(&mut bytes))
-        .map_err(ReadError::Unreadable)?;
-    if bytes.len() > MAX_BYTES {
-        return Err(ReadError::TooLarge);
-    }
+    let bytes = read_capped(path, MAX_BYTES)
+        .map_err(ReadError::Unreadable)?
+        .ok_or(ReadError::TooLarge)?;
     let text = decode(&bytes).map_err(ReadError::NotUtf8)?;
     parse(&text).map_err(ReadError::Invalid)
 }

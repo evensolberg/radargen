@@ -1,13 +1,18 @@
 //! CLI surface (§6.6). Parsed via clap's `try_parse_from`, so the tests assert
 //! the contract rather than spawning a process.
 
+#[path = "common/source.rs"]
+mod source;
+
 use clap::Parser;
-use radargen::cli::{Cli, Legend, OutputFormat, Table, Theme};
-use radargen::cli::{Task, clean_flag, format};
-use radargen::diagnostics::{Fatal, Flag, RowKind, Warning, Warnings};
-use radargen::rings::{RingsError, parse_rings};
+use radargen::cli::{Cli, Task, Theme, clean_setting};
+use radargen::diagnostics::{Fatal, RowKind, Warning, Warnings};
+use radargen::options::{Legend, OutputFormat, Table};
+use radargen::rings::{RingsError, parse_ring_list};
+use radargen::settings::file::load;
+use radargen::settings::{Effective, Origin, Setting, Source, Sourced, resolve};
 use radargen::starter::Starter;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 fn parse(args: &[&str]) -> Result<Cli, clap::Error> {
     Cli::try_parse_from(std::iter::once("radargen").chain(args.iter().copied()))
@@ -51,7 +56,7 @@ fn exactly_one_csv_is_accepted() {
 fn html_is_inferred_from_the_output_extension() {
     let cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
     assert_eq!(
-        format(cli.output.as_deref().expect("-o")).expect("recognised"),
+        OutputFormat::from_path(cli.output.as_deref().expect("-o")).expect("recognised"),
         OutputFormat::Html
     );
 }
@@ -61,7 +66,7 @@ fn extension_matching_ignores_case() {
     // FR-52 extends this courtesy explicitly; `.HTML` is the v1.0 case.
     let cli = parse(&["in.csv", "-o", "e.HTML"]).expect("parses");
     assert_eq!(
-        format(cli.output.as_deref().expect("-o")).expect("recognised"),
+        OutputFormat::from_path(cli.output.as_deref().expect("-o")).expect("recognised"),
         OutputFormat::Html
     );
 }
@@ -70,13 +75,19 @@ fn extension_matching_ignores_case() {
 fn png_and_svg_are_formats() {
     for path in ["r.png", "R.PNG", "r.Png"] {
         assert!(
-            matches!(format(Path::new(path)), Ok(OutputFormat::Png)),
+            matches!(
+                OutputFormat::from_path(Path::new(path)),
+                Some(OutputFormat::Png)
+            ),
             "{path}"
         );
     }
     for path in ["e.svg", "E.SVG", "e.Svg"] {
         assert!(
-            matches!(format(Path::new(path)), Ok(OutputFormat::Svg)),
+            matches!(
+                OutputFormat::from_path(Path::new(path)),
+                Some(OutputFormat::Svg)
+            ),
             "{path}"
         );
     }
@@ -101,10 +112,11 @@ fn png_and_svg_are_snapshots_named_in_capitals() {
 fn an_unrecognised_or_absent_extension_is_a_different_error() {
     for path in ["e.jpg", "e", "e."] {
         let cli = parse(&["in.csv", "-o", path]).expect("parses");
-        match format(cli.output.as_deref().expect("-o")) {
-            Err(Fatal::UnrecognisedExtension { path: named }) => assert_eq!(named, path),
-            other => panic!("{path} should be unrecognised: {other:?}"),
-        }
+        assert_eq!(
+            OutputFormat::from_path(cli.output.as_deref().expect("-o")),
+            None,
+            "{path}"
+        );
     }
 }
 
@@ -138,11 +150,14 @@ fn legend_columns_accepts_one_to_four() {
         parse(&["in.csv", "-o", "e.png"])
             .expect("parses")
             .legend_columns,
-        1
+        None
     );
     for n in ["1", "4"] {
         let cli = parse(&["in.csv", "-o", "e.png", "--legend-columns", n]).expect(n);
-        assert_eq!(cli.legend_columns.to_string(), n);
+        assert_eq!(
+            cli.legend_columns.map(|n| n.to_string()).as_deref(),
+            Some(n)
+        );
     }
 }
 
@@ -159,11 +174,10 @@ fn legend_columns_outside_the_range_is_a_usage_error() {
 // ---- FR-56: --theme, case-insensitive, default light
 
 #[test]
-fn theme_defaults_to_light_and_ignores_case() {
-    let cli = parse(&["in.csv", "-o", "e.png"]).expect("parses");
-    assert_eq!(cli.theme, Theme::Light);
+fn theme_ignores_case() {
+    // Omitted, it is None: `an_omitted_flag_is_none_so_a_config_key_can_fill_it`.
     let cli = parse(&["in.csv", "-o", "e.png", "--theme", "Dark"]).expect("parses");
-    assert_eq!(cli.theme, Theme::Dark);
+    assert_eq!(cli.theme, Some(Theme::Dark));
 }
 
 #[test]
@@ -176,7 +190,7 @@ fn an_unknown_theme_is_a_usage_error() {
 #[test]
 fn legend_defaults_to_shown_and_takes_aliases_in_any_case() {
     let cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
-    assert_eq!(cli.legend, Legend::Shown);
+    assert_eq!(cli.legend, None);
     for (given, want) in [
         ("hidden", Legend::Hidden),
         ("Hidden", Legend::Hidden),
@@ -186,7 +200,7 @@ fn legend_defaults_to_shown_and_takes_aliases_in_any_case() {
         ("show", Legend::Shown),
     ] {
         let cli = parse(&["in.csv", "-o", "e.html", "--legend", given]).expect(given);
-        assert_eq!(cli.legend, want, "{given}");
+        assert_eq!(cli.legend, Some(want), "{given}");
     }
     assert!(parse(&["in.csv", "-o", "e.html", "--legend", "off"]).is_err());
     // No short form: FR-100's --legend-columns may want one.
@@ -218,7 +232,7 @@ fn the_legend_help_lists_shown_and_hidden_only() {
 #[test]
 fn table_defaults_to_radar_in_any_case() {
     let cli = parse(&["in.csv", "-o", "e.html"]).expect("parses");
-    assert_eq!(cli.table, Table::Radar, "the radar's rows and columns only");
+    assert_eq!(cli.table, None, "not given");
     for (given, want) in [
         ("radar", Table::Radar),
         ("Radar", Table::Radar),
@@ -227,7 +241,7 @@ fn table_defaults_to_radar_in_any_case() {
         ("All", Table::All),
     ] {
         let cli = parse(&["in.csv", "-o", "e.html", "--table", given]).expect(given);
-        assert_eq!(cli.table, want, "{given}");
+        assert_eq!(cli.table, Some(want), "{given}");
     }
     assert!(parse(&["in.csv", "-o", "e.html", "--table", "every"]).is_err());
     assert!(parse(&["in.csv", "-o", "e.html", "--table"]).is_err());
@@ -241,7 +255,7 @@ fn the_table_help_lists_radar_and_all() {
         .lines()
         .find(|l| l.contains("--table"))
         .expect("--table in -h");
-    assert!(line.contains("[default: radar]"), "{line}");
+    assert!(line.contains("the default is radar"), "{line}");
     assert!(line.contains("[possible values: radar, all]"), "{line}");
 }
 
@@ -254,8 +268,8 @@ fn the_table_long_help_says_what_each_value_publishes() {
     let start = long.find("--table <TABLE>").expect("--table in --help");
     let end = long
         .get(start..)
-        .and_then(|rest| rest.find("[default: radar]"))
-        .expect("its default")
+        .and_then(|rest| rest.find("\n  -w, --width"))
+        .expect("the next flag")
         + start;
     let block: Vec<&str> = long
         .get(start..end)
@@ -268,7 +282,7 @@ fn the_table_long_help_says_what_each_value_publishes() {
         block,
         [
             "--table <TABLE>",
-            "What an HTML page's table publishes.",
+            "What an HTML page's table publishes; the default is radar.",
             "It also decides what the detail panels show. Accepted in any letter case. PNG and SVG have no table.",
             "Possible values:",
             "- radar: Only the rows the radar draws and the columns radargen reads",
@@ -313,19 +327,22 @@ fn theme_takes_capital_t_and_title_takes_lowercase() {
     ])
     .expect("parses");
     assert_eq!(cli.title.as_deref(), Some("Radar"));
-    assert_eq!(cli.theme, Theme::Dark);
+    assert_eq!(cli.theme, Some(Theme::Dark));
     assert_eq!(cli.width, Some(1920));
 }
 
 #[test]
 fn each_flag_names_itself_in_the_one_character_warning() {
     for (flag, name) in [
-        (Flag::Title, "--title"),
-        (Flag::Subtitle, "--subtitle"),
-        (Flag::Rings, "--rings"),
+        (Setting::Title, "--title"),
+        (Setting::Subtitle, "--subtitle"),
+        (Setting::Rings, "--rings"),
     ] {
         let mut warnings = Warnings::default();
-        assert_eq!(clean_flag(flag, "a\u{1}b", &mut warnings), "ab");
+        assert_eq!(
+            clean_setting(&Origin::flag(flag), "a\u{1}b", &mut warnings),
+            "ab"
+        );
         assert_eq!(
             warnings.render(),
             [format!(
@@ -338,12 +355,15 @@ fn each_flag_names_itself_in_the_one_character_warning() {
 #[test]
 fn each_flag_names_itself_in_the_several_characters_warning() {
     for (flag, name) in [
-        (Flag::Title, "--title"),
-        (Flag::Subtitle, "--subtitle"),
-        (Flag::Rings, "--rings"),
+        (Setting::Title, "--title"),
+        (Setting::Subtitle, "--subtitle"),
+        (Setting::Rings, "--rings"),
     ] {
         let mut warnings = Warnings::default();
-        assert_eq!(clean_flag(flag, "\u{1}a\u{7f}b\u{85}", &mut warnings), "ab");
+        assert_eq!(
+            clean_setting(&Origin::flag(flag), "\u{1}a\u{7f}b\u{85}", &mut warnings),
+            "ab"
+        );
         assert_eq!(
             warnings.render(),
             [format!(
@@ -357,23 +377,33 @@ fn each_flag_names_itself_in_the_several_characters_warning() {
 fn a_clean_value_is_unchanged_and_silent() {
     let mut warnings = Warnings::default();
     let value = "Tab\there, Ærø 日本\nline";
-    assert_eq!(clean_flag(Flag::Title, value, &mut warnings), value);
+    assert_eq!(
+        clean_setting(&Origin::flag(Setting::Title), value, &mut warnings),
+        value
+    );
     assert!(warnings.is_empty());
 }
 
 #[test]
 fn a_title_of_only_undisplayable_characters_cleans_to_empty() {
     let mut warnings = Warnings::default();
-    assert_eq!(clean_flag(Flag::Title, "\u{1}", &mut warnings), "");
+    assert_eq!(
+        clean_setting(&Origin::flag(Setting::Title), "\u{1}", &mut warnings),
+        ""
+    );
     assert_eq!(warnings.as_slice().len(), 1);
 }
 
 #[test]
 fn rings_are_cleaned_before_fr_63_checks_them() {
     let mut warnings = Warnings::default();
-    let cleaned = clean_flag(Flag::Rings, "Adopt,\u{1},Hold", &mut warnings);
+    let cleaned = clean_setting(
+        &Origin::flag(Setting::Rings),
+        "Adopt,\u{1},Hold",
+        &mut warnings,
+    );
     assert_eq!(
-        parse_rings(Some(&cleaned)),
+        parse_ring_list(&cleaned, Source::Flag),
         Err(vec![RingsError::EmptyEntry { index: 2 }])
     );
 }
@@ -386,7 +416,7 @@ fn a_flag_warning_renders_before_row_warnings() {
         column: 0,
         kind: RowKind::EmptyDescription,
     });
-    clean_flag(Flag::Subtitle, "x\u{1}", &mut warnings);
+    clean_setting(&Origin::flag(Setting::Subtitle), "x\u{1}", &mut warnings);
     let lines = warnings.render();
     assert_eq!(lines.len(), 2, "{lines:?}");
     assert!(
@@ -403,7 +433,11 @@ fn a_flag_warning_renders_before_row_warnings() {
 fn a_bidi_override_is_removed_from_a_title() {
     let mut warnings = Warnings::default();
     assert_eq!(
-        clean_flag(Flag::Title, "Radar\u{202e}2026", &mut warnings),
+        clean_setting(
+            &Origin::flag(Setting::Title),
+            "Radar\u{202e}2026",
+            &mut warnings
+        ),
         "Radar2026"
     );
     assert_eq!(warnings.as_slice().len(), 1);
@@ -554,6 +588,10 @@ fn usage_names_every_form() {
     use clap::CommandFactory;
     let help = Cli::command().render_help().to_string();
     assert!(help.contains("radargen <CSV_PATH> -o <OUTPUT>"), "{help}");
+    assert!(
+        help.contains("radargen <CSV_PATH> -c <FILE> [OPTIONS]"),
+        "{help}"
+    );
     assert!(help.contains("radargen --create-template <PATH>"), "{help}");
     assert!(help.contains("radargen --create-palette <PATH>"), "{help}");
 }
@@ -652,7 +690,11 @@ fn unplotted_rings_take_a_list_and_no_short_form() {
 fn unplotted_rings_name_themselves_in_the_cleaning_warning() {
     let mut warnings = Warnings::default();
     assert_eq!(
-        clean_flag(Flag::UnplottedRings, "In\u{1} Use", &mut warnings),
+        clean_setting(
+            &Origin::flag(Setting::UnplottedRings),
+            "In\u{1} Use",
+            &mut warnings
+        ),
         "In Use"
     );
     assert_eq!(
@@ -696,5 +738,325 @@ fn the_unplotted_rings_help_says_what_still_warns() {
         long.get(rings..start)
             .is_some_and(|h| h.contains("with a warning unless --unplotted-rings names it")),
         "{long}"
+    );
+}
+
+/// FR-90 names a value from the file by its key and file (NFR-10).
+#[test]
+fn a_value_from_the_file_names_its_key_when_cleaned() {
+    let mut warnings = Warnings::default();
+    let origin = Origin::new(Setting::Title, source::config("radar.toml"));
+    assert_eq!(clean_setting(&origin, "a\u{1}b", &mut warnings), "ab");
+    assert_eq!(
+        warnings.render(),
+        ["warning: the title key in radar.toml: removed U+0001, which the output cannot display"]
+    );
+}
+
+#[test]
+fn an_omitted_flag_is_none_so_a_config_key_can_fill_it() {
+    // rg-ahj: Some means given on the command line, for every flag.
+    let cli = parse(&["in.csv", "-o", "e.png"]).expect("parses");
+    assert_eq!(
+        (cli.theme, cli.legend, cli.table, cli.legend_columns),
+        (None, None, None, None)
+    );
+    let cli = parse(&["in.csv", "-o", "e.png", "--theme", "light"]).expect("parses");
+    assert_eq!(
+        cli.theme,
+        Some(Theme::Light),
+        "an explicit default is still given"
+    );
+}
+
+/// The defaults are written in the help as prose (plan RG-019A, Ruling 1);
+/// this keeps them the ones `settings` applies.
+#[test]
+fn help_names_each_default() {
+    use clap::CommandFactory;
+    use radargen::settings::{DEFAULT_LEGEND_COLUMNS, DEFAULT_TABLE, DEFAULT_THEME};
+    let short = Cli::command().render_help().to_string();
+    let line = |flag: &str| {
+        short
+            .lines()
+            .find(|l| l.contains(flag))
+            .unwrap_or_default()
+            .to_owned()
+    };
+    assert!(
+        line("--theme").contains(&format!("the default is {DEFAULT_THEME:?}").to_lowercase()),
+        "{short}"
+    );
+    assert!(
+        line("--legend <").contains("the default is shown"),
+        "{short}"
+    );
+    assert!(
+        line("--table").contains(&format!("the default is {DEFAULT_TABLE:?}").to_lowercase()),
+        "{short}"
+    );
+    assert!(
+        line("--legend-columns").contains(&format!("the default is {DEFAULT_LEGEND_COLUMNS}")),
+        "{short}"
+    );
+}
+
+fn file(text: &str) -> radargen::settings::file::Loaded {
+    load(text, Path::new("conf/radar.toml")).expect("parses")
+}
+
+fn conf() -> Source {
+    source::config("conf/radar.toml")
+}
+
+/// FR-91: the command line wins key by key; the file fills the rest.
+#[test]
+fn a_flag_overrides_its_key_and_only_its_key() {
+    let cli = parse(&["in.csv", "-c", "conf/radar.toml", "--title", "Flag"]).expect("parses");
+    let loaded = file("output = \"r.html\"\ntitle = \"File\"\nsubtitle = \"Q3\"\nwidth = 1920\n");
+    let s = cli.settings(Some(&loaded));
+    assert_eq!(
+        s.title,
+        Effective::Given(Sourced {
+            value: "Flag".into(),
+            origin: Origin::flag(Setting::Title)
+        })
+    );
+    assert_eq!(
+        s.subtitle,
+        Effective::Given(Sourced {
+            value: "Q3".into(),
+            origin: Origin::new(Setting::Subtitle, conf())
+        })
+    );
+    assert_eq!(s.width.as_given().map(|w| w.value), Some(1920));
+    assert_eq!(s.theme, Effective::Absent);
+}
+
+/// FR-65, FR-91: an empty --title is given, so it overrides with nothing.
+#[test]
+fn an_empty_title_flag_overrides_the_key() {
+    let cli = parse(&["in.csv", "-c", "r.toml", "--title", ""]).expect("parses");
+    let s = cli.settings(Some(&file("output = \"r.html\"\ntitle = \"File\"\n")));
+    assert_eq!(s.title.as_given().map(|t| t.value.as_str()), Some(""));
+}
+
+/// Plan RG-019A, Ruling 3: a broken key is Broken, unless a flag overrides it.
+#[test]
+fn a_broken_key_is_broken_unless_a_flag_overrides_it() {
+    let loaded = file("output = \"r.html\"\nwidth = 5\nrings = \"Adopt\"\n");
+    let cli = parse(&["in.csv", "-c", "r.toml", "--width", "800"]).expect("parses");
+    let s = cli.settings(Some(&loaded));
+    assert_eq!(s.width.as_given().map(|w| w.value), Some(800));
+    assert_eq!(s.rings, Effective::Broken);
+}
+
+/// FR-59 across sources (rg-ahj), as the maintainer ruled on 2026-10-18:
+/// the command line wins over the opposing key, so `-p` drops the file's
+/// `theme` and `--theme` drops its `palette`; both in the file conflict,
+/// and both on the command line are clap's error.
+#[test]
+fn a_flag_drops_the_opposing_key_and_both_keys_conflict() {
+    let args = |flags: &[&'static str]| {
+        let mut args = vec!["in.csv", "-c", "conf/radar.toml"];
+        args.extend_from_slice(flags);
+        parse(&args).expect("parses")
+    };
+    let s = args(&["-p", "b.css"]).settings(Some(&file("output = \"r.png\"\ntheme = \"dark\"\n")));
+    assert_eq!(s.theme, Effective::Absent, "the file's theme is dropped");
+    assert_eq!(
+        s.palette.as_given().map(|p| p.origin.source.clone()),
+        Some(Source::Flag)
+    );
+    let s = args(&["--theme", "dark"])
+        .settings(Some(&file("output = \"r.png\"\npalette = \"b.css\"\n")));
+    assert_eq!(
+        s.palette,
+        Effective::Absent,
+        "the file's palette is dropped"
+    );
+    assert_eq!(s.theme.as_given().map(|t| t.value), Some(Theme::Dark));
+    let s = args(&[]).settings(Some(&file(
+        "output = \"r.png\"\ntheme = \"dark\"\npalette = \"b.css\"\n",
+    )));
+    assert!(
+        s.theme.as_given().is_some() && s.palette.as_given().is_some(),
+        "both from the file stay, for the pipeline to refuse (FR-59)"
+    );
+    assert_eq!(
+        parse(&["in.csv", "-c", "c.toml", "-T", "dark", "-p", "b.css"])
+            .map_err(|e| e.kind())
+            .err(),
+        Some(clap::error::ErrorKind::ArgumentConflict),
+        "both flags stay clap's error"
+    );
+}
+
+/// FR-91: -o from one source or the other; with neither it is absent, and
+/// a broken key is broken, not also absent (the pipeline reports each).
+#[test]
+fn an_output_is_absent_from_both_sources_or_broken() {
+    let cli = parse(&["in.csv", "-c", "conf/radar.toml"]).expect("parses without -o");
+    assert_eq!(
+        cli.settings(Some(&file("title = \"T\"\n"))).output,
+        Effective::Absent
+    );
+    assert_eq!(
+        cli.settings(Some(&file("output = 3\n"))).output,
+        Effective::Broken
+    );
+}
+
+/// FR-91, Review Focus 2: relative from the file's directory, absolute as
+/// written, `~` literal; a flag's path as given.
+#[test]
+fn paths_resolve_against_their_source() {
+    let dir = Some(Path::new("conf"));
+    let from_file = |p: &str| Sourced {
+        value: PathBuf::from(p),
+        origin: Origin::new(Setting::Output, conf()),
+    };
+    assert_eq!(
+        resolve(dir, &from_file("out/r.html")).0,
+        Path::new("conf/out/r.html")
+    );
+    assert_eq!(
+        resolve(dir, &from_file("~/r.html")).0,
+        Path::new("conf/~/r.html")
+    );
+    let absolute = std::env::temp_dir().join("r.html");
+    let (opened, named) = resolve(dir, &from_file(absolute.to_str().expect("utf-8")));
+    assert_eq!(opened, absolute);
+    assert_eq!(
+        named.to_string(),
+        format!("the output key in conf/radar.toml ({})", absolute.display())
+    );
+    let flag = Sourced {
+        value: PathBuf::from("out/r.html"),
+        origin: Origin::flag(Setting::Output),
+    };
+    assert_eq!(resolve(dir, &flag).0, Path::new("out/r.html"));
+}
+
+/// No file: every flag given is Given from the command line, the rest Absent.
+#[test]
+fn without_a_file_the_flags_are_the_settings() {
+    let cli = parse(&["in.csv", "-o", "r.html", "-r", "A,B"]).expect("parses");
+    let s = cli.settings(None);
+    assert_eq!(
+        s.rings.as_given().map(|r| r.origin.source.clone()),
+        Some(Source::Flag)
+    );
+    assert_eq!((s.legend, s.dir), (Effective::Absent, None));
+}
+
+#[test]
+fn config_has_a_short_form_and_stands_in_for_output() {
+    let cli = parse(&["in.csv", "-c", "r.toml"]).expect("-o is not needed with -c");
+    assert_eq!(cli.config.as_deref(), Some(Path::new("r.toml")));
+    assert!(parse(&["in.csv"]).is_err(), "still needed without it");
+    assert!(
+        parse(&["--create-template", "t.csv", "-c", "r.toml"]).is_err(),
+        "given alone"
+    );
+}
+
+/// QA review M-1: `--config`'s help lists every key FR-91 does, so a new
+/// key cannot be left out of it.
+#[test]
+fn config_help_lists_every_key() {
+    use clap::CommandFactory;
+    let long = Cli::command().render_long_help().to_string();
+    let start = long.find("--config <FILE>").expect("--config in --help");
+    let paragraph = long
+        .get(start..)
+        .and_then(|rest| rest.split("\n\n  ").next())
+        .unwrap_or_default()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for setting in Setting::ALL {
+        assert!(
+            paragraph.contains(&format!("{},", setting.key()))
+                || paragraph.contains(&format!("{} ", setting.key())),
+            "{} missing: {paragraph}",
+            setting.key()
+        );
+    }
+    assert!(paragraph.contains("integers"), "{paragraph}");
+    assert!(
+        paragraph.contains("arrays of strings, such as"),
+        "{paragraph}"
+    );
+}
+
+/// A setting's value, if given.
+fn val<T: Clone>(setting: &Effective<T>) -> Option<T> {
+    setting.as_given().map(|given| given.value.clone())
+}
+
+/// QA review I-3, I-4 and the precedence matrix: for every setting, a flag
+/// beats its key, and without the flag the key is read.
+#[test]
+fn every_flag_beats_its_key_and_every_key_is_read() {
+    let text = "output = \"f.html\"\ntitle = \"F\"\nsubtitle = \"F\"\nrings = [\"F\"]\n\
+                unplotted_rings = [\"G\"]\ntheme = \"dark\"\nwidth = 2000\nlegend_columns = 3\n\
+                legend = \"hidden\"\ntable = \"all\"\n";
+    let loaded = file(text);
+    let flags = [
+        "in.csv",
+        "-c",
+        "r.toml",
+        "-o",
+        "x.html",
+        "-t",
+        "X",
+        "-s",
+        "X",
+        "-r",
+        "X",
+        "--unplotted-rings",
+        "Y",
+        "-T",
+        "light",
+        "-w",
+        "1000",
+        "--legend-columns",
+        "2",
+        "--legend",
+        "shown",
+        "--table",
+        "radar",
+    ];
+    let s = parse(&flags).expect("parses").settings(Some(&loaded));
+    assert_eq!(
+        s.output.as_given().map(|v| v.origin.source.clone()),
+        Some(Source::Flag)
+    );
+    assert_eq!(val(&s.title).as_deref(), Some("X"));
+    assert_eq!(val(&s.subtitle).as_deref(), Some("X"));
+    assert_eq!(val(&s.rings).as_deref(), Some("X"));
+    assert_eq!(val(&s.unplotted_rings).as_deref(), Some("Y"));
+    assert_eq!(val(&s.theme), Some(Theme::Light));
+    assert_eq!(val(&s.width), Some(1000));
+    assert_eq!(val(&s.legend_columns), Some(2));
+    assert_eq!(val(&s.legend), Some(Legend::Shown));
+    assert_eq!(val(&s.table), Some(Table::Radar));
+    let s = parse(&["in.csv", "-c", "r.toml"])
+        .expect("parses")
+        .settings(Some(&loaded));
+    assert_eq!(val(&s.output), Some(PathBuf::from("f.html")));
+    assert_eq!(val(&s.title).as_deref(), Some("F"));
+    assert_eq!(val(&s.subtitle).as_deref(), Some("F"));
+    assert_eq!(val(&s.rings).as_deref(), Some("F"));
+    assert_eq!(val(&s.unplotted_rings).as_deref(), Some("G"));
+    assert_eq!(val(&s.theme), Some(Theme::Dark));
+    assert_eq!(val(&s.width), Some(2000));
+    assert_eq!(val(&s.legend_columns), Some(3));
+    assert_eq!(val(&s.legend), Some(Legend::Hidden));
+    assert_eq!(val(&s.table), Some(Table::All));
+    assert_eq!(
+        s.title.as_given().map(|v| v.origin.source.clone()),
+        Some(source::config("conf/radar.toml"))
     );
 }

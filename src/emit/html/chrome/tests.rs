@@ -11,7 +11,7 @@ use super::{
     DATA_LEGEND, HIDE_LEGEND, LEGEND_HIDDEN, LEGEND_TOGGLE_CLASS, MOON_CLASS, SHOW_LEGEND,
     SKIP_TO_LEGEND, SKIP_TO_TABLE, SUN_CLASS,
 };
-use crate::emit::html::Legend;
+use crate::options::Legend;
 use crate::svg::serialise::{
     DATA_HIT, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR, DATA_ROW,
 };

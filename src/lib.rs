@@ -14,10 +14,12 @@ pub mod layout;
 pub mod link;
 pub mod model;
 pub mod num;
+pub mod options;
 pub mod order;
 pub mod palette;
 pub mod pipeline;
 pub mod rings;
+pub mod settings;
 pub mod starter;
 pub mod style;
 pub mod svg;
@@ -72,6 +74,22 @@ pub fn single_line(value: &str) -> String {
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// The most characters of a value from a file a message quotes: a
+/// palette's excerpt (Review Focus 5) and a config file's key or value
+/// (security review F5).
+pub(crate) const ECHO_CHARS: usize = 40;
+
+/// `text` cut at `max` characters, with `…` when anything was left out.
+pub(crate) fn clip(text: &str, max: usize) -> String {
+    let mut chars = text.chars();
+    let head: String = chars.by_ref().take(max).collect();
+    if chars.next().is_some() {
+        format!("{head}…")
+    } else {
+        head
+    }
 }
 
 /// Whitespace, or a format character that is not a tag character.

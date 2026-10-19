@@ -4,52 +4,27 @@
 //! from the names, so it is declared rather than derived (D-4). The list is
 //! **edge-to-centre** (FR-12, D-60): the first entry is the outermost band.
 
-use std::fmt;
-
+use crate::settings::{Origin, Source};
 use crate::{normalise, tidy};
 
 /// FR-13: the in-house lifecycle, edge-to-centre, so it reads as written:
 /// Assess -> Trial -> Adopt -> Retire.
 pub const DEFAULT_RINGS: [&str; 4] = ["Assess", "Trial", "Adopt", "Retire"];
 
-/// Where the ring set came from. FR-17's warning names it, so an author
-/// told a ring is undeclared knows what to edit (D-61).
-///
-/// `--config`'s `rings` key (FR-91) adds a variant when PR 19 adds the
-/// file; that variant names the file as given on the command line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RingSource {
-    /// `--rings` on the command line.
-    Flag,
-    /// FR-13's default, when nothing declared a ring set.
-    Default,
-}
-
-/// How FR-17's warning names it: `not declared by {source}`.
-// qual:allow(dry, boilerplate) reason: "deriving Display needs a crate (strum, derive_more) for one two-variant enum"
-impl fmt::Display for RingSource {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Flag => "--rings",
-            Self::Default => "the default ring set",
-        })
-    }
-}
-
 /// The declared rings, edge-to-centre (FR-12), where they came from, and
 /// the rings FR-107 keeps off the radar.
 ///
 /// **Invariant:** no unplotted ring matches a declared one under FR-76, so
 /// a ring is either drawn or kept off, never both. The fields are private,
-/// so only [`parse_rings`], which names none unplotted, and
+/// so only [`default_rings`] and [`parse_ring_list`], which name none unplotted, and
 /// [`RingSet::with_unplotted`], which refuses any overlap, can build one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RingSet {
     /// As declared, after FR-15's trim: the band labels and legend
     /// subheadings.
     rings: Vec<String>,
-    /// Whether the list came from `--rings` or the FR-13 default (D-61).
-    source: RingSource,
+    /// `--rings`, a `--config` file's key, or the FR-13 default (D-61).
+    origin: Origin,
     /// `rings` under FR-76, in the same order, for FR-16's match.
     ring_keys: Vec<String>,
     /// FR-107's `--unplotted-rings` under FR-76: all a match needs.
@@ -100,35 +75,60 @@ pub enum RingsError {
     /// FR-107: an `--unplotted-rings` entry the ring set declares, so it
     /// would be both drawn and left off. `by` is where the ring set came
     /// from, which says what to edit (D-61). Never raised for `--rings`.
-    #[error("entry {index} '{entry}' {}", overlap(*.by))]
+    #[error("entry {index} '{entry}' {}", overlap(.by))]
     Overlap {
         /// The entry's own 1-based position in `--unplotted-rings`.
         index: usize,
         /// The offending text as written, tidied.
         entry: String,
-        /// `--rings`, or the default set.
-        by: RingSource,
+        /// `--rings`, a `--config` file's key, or the default set.
+        by: Origin,
     },
 }
 
-/// What FR-107's overlap says after the entry: the default set has no list
-/// to remove the ring from, so it says how to declare one without it.
-const fn overlap(by: RingSource) -> &'static str {
-    match by {
-        RingSource::Flag => "is also in --rings, which draws it; remove it from one list",
-        RingSource::Default => {
-            "is a default ring, so it is drawn; to leave it off, pass --rings with the rings to draw, without it"
+/// What FR-107's overlap says after the entry: the ring set's list by its
+/// effective source, or, for the default set, which has no list to remove
+/// the ring from, how to declare one without it.
+fn overlap(by: &Origin) -> String {
+    match by.source {
+        Source::Default => "is a default ring, so it is drawn; to leave it off, pass --rings with the rings to draw, without it".to_owned(),
+        Source::Flag | Source::Config(_) => {
+            format!("is also in {by}, which draws it; remove it from one list")
         }
     }
 }
 
-/// Parse `--rings`, or the FR-13 default when the flag is absent.
+/// FR-13's default set, edge-to-centre, for a run that declares none.
+#[must_use]
+pub fn default_rings() -> RingSet {
+    RingSet::declared(
+        DEFAULT_RINGS.iter().map(|r| (*r).to_string()).collect(),
+        Source::Default,
+    )
+}
+
+/// A test's ring set: `list` as `--rings`, or the default set without
+/// one.
+///
+/// # Panics
+///
+/// If `list` breaks FR-63: a test fixture's rings are valid.
+#[cfg(test)]
+pub(crate) fn flag_or_default(list: Option<&str>) -> RingSet {
+    list.map_or_else(default_rings, |r| {
+        parse_ring_list(r, Source::Flag).expect("valid rings")
+    })
+}
+
+/// FR-63 on `list`, a comma list from `source`: `--rings`, or a
+/// `--config` file's `rings` entries joined with commas, so both forms get
+/// the same tidy, checks and entry numbers (FR-91).
 ///
 /// Entries get FR-76's trim at their ends (FR-15) and a run of whitespace
 /// inside is one space ([`tidy`]), so a multi-word ring name keeps its
-/// words. The declared casing is
-/// preserved: it is what appears as a band label and legend subheading, and
-/// FR-76 only ever tidies a label, never re-cases one.
+/// words. The declared casing is preserved: it is what appears as a band
+/// label and legend subheading, and FR-76 only ever tidies a label, never
+/// re-cases one.
 ///
 /// # Errors
 ///
@@ -137,17 +137,8 @@ const fn overlap(by: RingSource) -> &'static str {
 /// normalisation, the latter naming where the ring was first declared. A
 /// list with no rings at all is the single [`RingsError::Empty`] rather
 /// than one empty entry per comma.
-pub fn parse_rings(declared: Option<&str>) -> Result<RingSet, Vec<RingsError>> {
-    let Some(list) = declared else {
-        return Ok(RingSet::declared(
-            DEFAULT_RINGS.iter().map(|r| (*r).to_string()).collect(),
-            RingSource::Default,
-        ));
-    };
-    Ok(RingSet::declared(
-        parse_list(list, |_, _, _| None)?,
-        RingSource::Flag,
-    ))
+pub fn parse_ring_list(list: &str, source: Source) -> Result<RingSet, Vec<RingsError>> {
+    Ok(RingSet::declared(parse_list(list, |_, _, _| None)?, source))
 }
 
 /// FR-76's keys for `names`, in order: what every ring comparison reads.
@@ -157,11 +148,11 @@ fn keys(names: &[String]) -> Vec<String> {
 
 impl RingSet {
     /// `rings` from `source`, with none unplotted.
-    fn declared(rings: Vec<String>, source: RingSource) -> Self {
+    fn declared(rings: Vec<String>, source: Source) -> Self {
         Self {
             ring_keys: keys(&rings),
             rings,
-            source,
+            origin: Origin::rings(source),
             unplotted_keys: Vec::new(),
         }
     }
@@ -172,10 +163,11 @@ impl RingSet {
         &self.rings
     }
 
-    /// Whether the rings came from `--rings` or the FR-13 default (D-61).
+    /// Where the ring set came from (D-61): `--rings`, a `--config` file's
+    /// key, or the FR-13 default.
     #[must_use]
-    pub const fn source(&self) -> RingSource {
-        self.source
+    pub const fn origin(&self) -> &Origin {
+        &self.origin
     }
 
     /// Whether `--unplotted-rings` named any ring. An empty list is refused,
@@ -213,7 +205,7 @@ impl RingSet {
                 .then(|| RingsError::Overlap {
                     index,
                     entry: entry.to_string(),
-                    by: self.source,
+                    by: self.origin.clone(),
                 })
         })
         // `parse_list` returns `Empty` only alone.

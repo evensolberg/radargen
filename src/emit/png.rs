@@ -64,13 +64,23 @@ impl PixelSize {
     }
 }
 
+/// D-87: the image `pixel_size` would draw is past `MAX_PNG_PIXELS`. The
+/// pipeline names the remedy, which depends on where the width came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TooLarge {
+    /// The width in pixels.
+    pub width: u32,
+    /// The height in pixels.
+    pub height: u32,
+}
+
 /// FR-57: `requested`, or the document's own width rounded up and
 /// clamped to `MAX_EXPORT_WIDTH` (D-87); the height in proportion.
 ///
 /// # Errors
 ///
-/// [`Fatal::ImageTooLarge`] past `MAX_PNG_PIXELS` (D-87).
-pub fn pixel_size(document: &Document, requested: Option<u32>) -> Result<PixelSize, Fatal> {
+/// [`TooLarge`] past `MAX_PNG_PIXELS` (D-87).
+pub fn pixel_size(document: &Document, requested: Option<u32>) -> Result<PixelSize, TooLarge> {
     let natural = saturating_u32(document.width.ceil());
     let (width, clamped) = match requested {
         Some(width) => (width, None),
@@ -79,7 +89,7 @@ pub fn pixel_size(document: &Document, requested: Option<u32>) -> Result<PixelSi
     };
     let height = saturating_u32(document.height_at(f64::from(width)).round()).max(1);
     if u64::from(width) * u64::from(height) > u64::from(MAX_PNG_PIXELS) {
-        return Err(Fatal::ImageTooLarge { width, height });
+        return Err(TooLarge { width, height });
     }
     let legibility = if f64::from(width) / document.width < WIDE_MIN_SCALE {
         let from = saturating_u32((document.width * WIDE_MIN_SCALE).ceil());
@@ -250,7 +260,7 @@ mod tests {
         assert!(
             matches!(
                 err,
-                Fatal::ImageTooLarge {
+                TooLarge {
                     width: 10_000,
                     height: 10_001
                 }
@@ -266,7 +276,7 @@ mod tests {
         assert!(
             matches!(
                 err,
-                Fatal::ImageTooLarge {
+                TooLarge {
                     width: 10_000,
                     height: 200_000
                 }

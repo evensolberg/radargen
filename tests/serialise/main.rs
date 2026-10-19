@@ -26,11 +26,12 @@ mod script;
 mod table;
 mod vocabulary;
 
-use radargen::emit::html::{Legend, Page, Table, page};
+use radargen::emit::html::{Page, page};
 use radargen::layout::arrange::{
     Arrangement, Blocks, NarrowParts, WideParts, narrow_parts, wide_parts,
 };
 use radargen::model::Catalogue;
+use radargen::options::{Legend, Table};
 use radargen::order::{Plotted, resolve};
 use radargen::palette::{Colours, Palette, Theme};
 use radargen::svg::Target;

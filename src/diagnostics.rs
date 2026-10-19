@@ -4,12 +4,14 @@
 use std::fmt::{self, Write as _};
 use std::sync::Arc;
 
-use crate::cli::OutputFormat;
 use crate::columns::ColumnKind;
 use crate::csv::decode::MAX_BYTES as MAX_CSV_BYTES;
-use crate::emit::html::Table;
+use crate::options::OutputFormat;
+use crate::options::Table;
 use crate::palette::file::{MAX_BYTES, PaletteError};
-use crate::rings::{RingSource, RingsError};
+use crate::rings::RingsError;
+use crate::settings::file::{KeyProblem, MAX_BYTES as CONFIG_MAX_BYTES};
+use crate::settings::{NamedPath, Origin, Setting, Source};
 use crate::starter::Starter;
 use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX, WIDE_MIN_VIEWPORT_PX};
 use crate::text::FontError;
@@ -68,13 +70,14 @@ impl fmt::Display for DateColumn {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RowKind {
     /// FR-17, for a ring neither declared nor named by `--unplotted-rings`
-    /// (FR-107). `source` is what the message says to edit (D-61); `rings`
+    /// (FR-107). `origin` is what the message says to edit (D-61); `rings`
     /// are the declared rings it lists, so the author sees what would match.
     UndeclaredRing {
         /// The ring cell as the CSV had it.
         value: String,
-        /// Whether the ring list came from `--rings` or the default (D-61).
-        source: RingSource,
+        /// Where the ring list came from: `--rings`, a file's key, or the
+        /// default (D-61).
+        origin: Origin,
         /// The declared rings, edge-to-centre, shared by every warning of
         /// the run.
         rings: Arc<[String]>,
@@ -210,21 +213,27 @@ pub enum RenderKind {
         width: u32,
         /// The least width that keeps it legible, if one within FR-64 does.
         legible_from: Option<u32>,
+        /// Where the width came from, which the remedy names (NFR-10).
+        width_origin: Origin,
     },
-    /// FR-90 on a flag value: one per flag, however many characters it lost.
-    FlagUndisplayable {
-        /// The flag whose value lost characters.
-        flag: Flag,
+    /// FR-90 on a setting's value, from the command line or the file: one
+    /// per value, however many characters it lost.
+    SettingUndisplayable {
+        /// The setting whose value it is, and where that value came from
+        /// (NFR-10).
+        origin: Origin,
         /// The first character the value lost.
         first: char,
         /// How many characters the value lost in all.
         count: usize,
     },
-    /// FR-104 on a flag value: one per drawn text, so one per `--rings`
-    /// entry, however many characters it lacks.
-    FlagMissingGlyphs {
-        /// The flag the text came from.
-        flag: Flag,
+    /// FR-104 on a setting's value, from the command line or the file: one
+    /// per drawn text, so one per ring entry, however many characters it
+    /// lacks.
+    SettingMissingGlyphs {
+        /// The setting whose value it is, and where that value came from
+        /// (NFR-10).
+        origin: Origin,
         /// The text, the value or one `--rings` entry, and what it lacks.
         lacking: Lacking,
     },
@@ -278,8 +287,8 @@ pub enum Binding {
     Ring {
         /// The ring's name.
         name: String,
-        /// `--rings`, or the default set.
-        source: RingSource,
+        /// `--rings`, a file's key, or the default set.
+        origin: Origin,
     },
 }
 
@@ -289,45 +298,34 @@ impl fmt::Display for Binding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Quadrant(name) => write!(f, "quadrant '{}'", trim(name)),
-            Self::Ring {
-                name,
-                source: RingSource::Flag,
-            } => write!(f, "ring '{}' in --rings", trim(name)),
-            Self::Ring {
-                name,
-                source: RingSource::Default,
-            } => write!(
+            Self::Ring { name, origin } if origin.source == Source::Default => write!(
                 f,
                 "ring '{}' (a default ring, so pass --rings to rename it)",
                 trim(name)
             ),
+            Self::Ring { name, origin } => write!(f, "ring '{}' in {origin}", trim(name)),
         }
     }
 }
 
-/// A command-line flag a warning names: FR-90 cleans its value, and FR-104
-/// checks that a PNG or SVG can draw it. `--config` keys arrive with PR 19
-/// and will name themselves the same way.
+/// A file the run reads, which the output must not replace (D-74).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Flag {
-    /// `--title` (FR-65).
-    Title,
-    /// `--subtitle` (FR-65).
-    Subtitle,
-    /// `--rings` (FR-12).
-    Rings,
-    /// `--unplotted-rings` (FR-107). Its rings are never drawn, so FR-104
-    /// has nothing to check; only FR-90 names it.
-    UnplottedRings,
+pub enum ReadFile {
+    /// The input CSV.
+    Csv,
+    /// The `--config` file.
+    Config,
+    /// The palette, from `--palette` or the file's key.
+    Palette,
 }
 
-impl fmt::Display for Flag {
+/// How D-74's message names it.
+impl fmt::Display for ReadFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            Self::Title => "--title",
-            Self::Subtitle => "--subtitle",
-            Self::Rings => "--rings",
-            Self::UnplottedRings => "--unplotted-rings",
+            Self::Csv => "the input CSV",
+            Self::Config => "the --config file",
+            Self::Palette => "the palette file",
         })
     }
 }
@@ -372,11 +370,11 @@ impl fmt::Display for Warning {
 
 /// NFR-20's warning classes: one per row kind, except that the two date
 /// columns are separate classes, so each grouped line names its column.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Class {
-    /// One run declares one ring set, so the source never splits a class;
+    /// One run declares one ring set, so its origin never splits a class;
     /// it rides here so the grouped line can name it.
-    Ring(RingSource),
+    Ring(Origin),
     Qualifier,
     Status,
     Date(DateColumn),
@@ -392,9 +390,9 @@ enum Class {
 }
 
 impl RowKind {
-    const fn class(&self) -> Class {
+    fn class(&self) -> Class {
         match self {
-            Self::UndeclaredRing { source, .. } => Class::Ring(*source),
+            Self::UndeclaredRing { origin, .. } => Class::Ring(origin.clone()),
             Self::UnrecognisedQualifier { .. } => Class::Qualifier,
             Self::UnrecognisedStatus { .. } => Class::Status,
             Self::UnparsableDate { column, .. } => Class::Date(*column),
@@ -449,12 +447,12 @@ impl RowKind {
         let v = self.value().map(trim).unwrap_or_default();
         match self {
             Self::UndeclaredRing {
-                source,
+                origin,
                 rings,
                 off_radar,
                 suggest_unplotted,
                 ..
-            } => off_radar.ring_row(v, *source, &rings.join(", "), *suggest_unplotted),
+            } => off_radar.ring_row(v, origin, &rings.join(", "), *suggest_unplotted),
             Self::UnrecognisedQualifier { .. } => {
                 format!("unrecognised qualifier value '{v}'; drawn solid")
             }
@@ -537,29 +535,26 @@ impl RenderKind {
             ),
             Self::PngTextSmall {
                 width,
-                legible_from: Some(from),
-            } => format!(
-                "at {width} pixels wide the PNG's text is too small to read; --width {from} or more keeps it legible"
-            ),
-            Self::PngTextSmall {
-                width,
-                legible_from: None,
-            } => format!(
-                "at {width} pixels wide the PNG's text is too small to read, at any --width; fewer or shorter names would help"
-            ),
-            Self::FlagUndisplayable {
-                flag,
+                legible_from,
+                width_origin,
+            } => small_text(*width, *legible_from, width_origin),
+            Self::SettingUndisplayable {
+                origin,
                 first,
                 count: 1,
             } => format!(
-                "{flag}: removed {}, which the output cannot display",
+                "{origin}: removed {}, which the output cannot display",
                 code_point(*first)
             ),
-            Self::FlagUndisplayable { flag, first, count } => format!(
-                "{flag}: removed {count} characters the output cannot display, the first {}",
+            Self::SettingUndisplayable {
+                origin,
+                first,
+                count,
+            } => format!(
+                "{origin}: removed {count} characters the output cannot display, the first {}",
                 code_point(*first)
             ),
-            Self::FlagMissingGlyphs { flag, lacking } => format!("{flag}: {lacking}"),
+            Self::SettingMissingGlyphs { origin, lacking } => format!("{origin}: {lacking}"),
         }
     }
 }
@@ -583,12 +578,181 @@ fn io_reason(error: &std::io::Error) -> String {
     })
 }
 
-/// A palette problem as stderr shows it: located when it has a line.
-fn palette_problem(path: &str, error: &PaletteError) -> String {
-    error.line().map_or_else(
-        || format!("--palette {path}: {error}"),
-        |line| format!("--palette {path}, line {line}: {error}"),
+/// D-87's small-text warning, its remedy naming the width by its origin
+/// (plan RG-019A, Ruling 9).
+fn small_text(width: u32, legible_from: Option<u32>, origin: &Origin) -> String {
+    legible_from.map_or_else(
+        || {
+            format!(
+                "at {width} pixels wide the PNG's text is too small to read, at any {}; fewer or shorter names would help",
+                origin.name()
+            )
+        },
+        |from| {
+            format!(
+                "at {width} pixels wide the PNG's text is too small to read; {} keeps it legible",
+                origin.set_to(from, " or more")
+            )
+        },
     )
+}
+
+impl Fatal {
+    /// Whether this is a usage error, which exits with clap's status: the
+    /// file's key problems, FR-59 across sources, and a missing output
+    /// (FR-91, plan RG-019A).
+    #[must_use]
+    pub const fn is_usage(&self) -> bool {
+        matches!(
+            self,
+            Self::ConfigKey { .. }
+                | Self::ConfigMore { .. }
+                | Self::Conflict { .. }
+                | Self::NoOutput { .. }
+        )
+    }
+}
+
+/// `name, line 3: message`, or `name: message` without a line: a
+/// config file's syntax error and a palette's problem.
+fn at_line(name: impl fmt::Display, line: Option<usize>, message: impl fmt::Display) -> String {
+    line.map_or_else(
+        || format!("{name}: {message}"),
+        |line| format!("{name}, line {line}: {message}"),
+    )
+}
+
+/// `a string`, `an integer`: TOML's type names with their article.
+fn article(found: &str) -> String {
+    let an = matches!(found.chars().next(), Some('a' | 'e' | 'i' | 'o' | 'u'));
+    format!("{} {found}", if an { "an" } else { "a" })
+}
+
+/// FR-91's keys, in its order, as a sentence lists them: `output, …, table
+/// and palette`.
+fn known_keys() -> String {
+    let keys: Vec<&str> = Setting::ALL.iter().map(|s| s.key()).collect();
+    let (last, rest) = keys.split_last().map_or(("", &[][..]), |(l, r)| (*l, r));
+    format!("{} and {last}", rest.join(", "))
+}
+
+/// The type FR-91 gives a key, as its wrong-type message asks for it.
+const fn wanted(setting: Setting) -> &'static str {
+    match setting {
+        Setting::Width | Setting::LegendColumns => "an integer",
+        Setting::Rings | Setting::UnplottedRings => {
+            "an array of strings, such as [\"Adopt\", \"Trial\"]"
+        }
+        Setting::Output
+        | Setting::Title
+        | Setting::Subtitle
+        | Setting::Theme
+        | Setting::Legend
+        | Setting::Table
+        | Setting::Palette => "a string",
+    }
+}
+
+/// FR-91: one key's problem, named by the key and the file (NFR-10).
+fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
+    let key = |setting: Setting| Origin::new(setting, Source::Config(Arc::clone(file)));
+    match problem {
+        KeyProblem::Unknown { key, near, table } => unknown_key(file, key, *near, *table),
+        KeyProblem::WrongType { setting, found } => format!(
+            "{}: must be {}, not {}{}",
+            key(*setting),
+            wanted(*setting),
+            article(found),
+            quotes(*setting, found)
+        ),
+        KeyProblem::Empty { setting } => format!(
+            "{}: is empty; give a file name, or remove the key",
+            key(*setting)
+        ),
+        KeyProblem::EntryType {
+            setting,
+            index,
+            found,
+        } => {
+            format!(
+                "{}: entry {index} must be a string, not {}",
+                key(*setting),
+                article(found)
+            )
+        }
+        KeyProblem::Comma {
+            setting,
+            index,
+            entry,
+        } => format!(
+            "{}: entry {index} '{}' holds a comma; give each ring as its own entry",
+            key(*setting),
+            entry
+        ),
+        KeyProblem::NotAValue {
+            setting,
+            value,
+            possible,
+        } => format!(
+            "invalid value '{}' for {} [possible values: {}]",
+            value,
+            key(*setting),
+            possible.join(", ")
+        ),
+        KeyProblem::OutOfRange {
+            setting,
+            value,
+            min,
+            max,
+        } => format!(
+            "{}: {value} is out of range; use {min} to {max}",
+            key(*setting)
+        ),
+    }
+}
+
+/// FR-91's unknown key, with the key it is near (UX review 3) and, for a
+/// table such as `[radar]`, where keys go.
+fn unknown_key(file: &str, key: &str, near: Option<Setting>, table: bool) -> String {
+    let guess = near.map_or_else(
+        || "; the keys".to_owned(),
+        |s| format!("; did you mean '{}'? The keys", s.key()),
+    );
+    let section = if table {
+        format!("; keys go at the top of the file, not under [{key}]")
+    } else {
+        String::new()
+    };
+    format!(
+        "--config {file}: unknown key '{key}'{guess} are {}{section}",
+        known_keys()
+    )
+}
+
+/// UX review 11: a wrong type that missing or extra quotes explain.
+fn quotes(setting: Setting, found: &str) -> &'static str {
+    let integer = matches!(setting, Setting::Width | Setting::LegendColumns);
+    let list = matches!(setting, Setting::Rings | Setting::UnplottedRings);
+    match found {
+        "integer" | "float" | "boolean" | "datetime" if !integer && !list => {
+            "; put the value in quotes"
+        }
+        "string" if integer => "; remove the quotes",
+        _ => "",
+    }
+}
+
+/// A palette problem as stderr shows it: located when it has a line.
+///
+/// A palette from a `--config` file quotes nothing from it: the key may
+/// name any file, so its text could be a secret (ruling B).
+fn palette_problem(palette: &NamedPath, error: &PaletteError) -> String {
+    let message = if palette.origin.source.is_config() {
+        error.redacted().to_string()
+    } else {
+        error.to_string()
+    };
+    at_line(palette, error.line(), message)
 }
 
 /// A column as NFR-10 names it: `column 6 (F)`.
@@ -701,8 +865,13 @@ pub struct Warnings(Vec<Warning>);
 pub enum OffRadar {
     /// An HTML page under `--table all`: the table lists it, flagged.
     Listed,
-    /// An HTML page under the default `--table radar`: nowhere on the page.
+    /// An HTML page under `--table radar` from a file or the default:
+    /// nowhere on the page.
     Unlisted,
+    /// As [`OffRadar::Unlisted`], with `--table radar` given on the command
+    /// line, which overrides any table key, so the table remedy names the
+    /// flag (final review M-3).
+    UnlistedByFlag,
     /// A PNG or SVG, which has no table.
     Undrawn,
 }
@@ -710,54 +879,56 @@ pub enum OffRadar {
 impl OffRadar {
     /// Where a run writing `format` with `--table` set to `table` puts the
     /// row: in the page's table only under `--table all`, and nowhere in a
-    /// PNG or SVG, which has no table.
+    /// PNG or SVG, which has no table. `by_flag` says the table came from
+    /// the command line.
     #[must_use]
-    pub const fn of(format: OutputFormat, table: Table) -> Self {
+    pub const fn of(format: OutputFormat, table: Table, by_flag: bool) -> Self {
         match (format, table) {
             (OutputFormat::Html, Table::All) => Self::Listed,
+            (OutputFormat::Html, Table::Radar) if by_flag => Self::UnlistedByFlag,
             (OutputFormat::Html, Table::Radar) => Self::Unlisted,
             (OutputFormat::Png | OutputFormat::Svg, _) => Self::Undrawn,
         }
     }
 
     /// FR-17's message for one row whose ring `v` is not in `list`,
-    /// declared by `source` (D-61): the fact, then the remedies.
-    fn ring_row(self, v: &str, source: RingSource, list: &str, suggest: bool) -> String {
-        let fact = match source {
-            RingSource::Flag => format!("'{v}' is not in --rings ({list})"),
-            RingSource::Default => format!("'{v}' is not one of the default rings ({list})"),
+    /// declared by `origin` (D-61): the fact, then the remedies.
+    fn ring_row(self, v: &str, origin: &Origin, list: &str, suggest: bool) -> String {
+        let fact = if origin.source == Source::Default {
+            format!("'{v}' is not one of the default rings ({list})")
+        } else {
+            format!("'{v}' is not in {origin} ({list})")
         };
         let went = match self {
             Self::Listed => "; the row is in the table view, not on the radar",
-            Self::Unlisted => ", so the row is left off the page",
+            Self::Unlisted | Self::UnlistedByFlag => ", so the row is left off the page",
             Self::Undrawn => "; the row is not on the radar",
         };
-        format!("{fact}{went}{}", self.remedies(source, suggest, "it", "it"))
+        format!("{fact}{went}{}", self.remedies(origin, suggest, "it", "it"))
     }
 
     /// FR-17's grouped line for `n` rows, their values `tallies`.
     fn ring_rows(
         self,
         n: usize,
-        source: RingSource,
+        origin: &Origin,
         list: &str,
         tallies: &str,
         suggest: bool,
     ) -> String {
-        let fact = match source {
-            RingSource::Flag => format!("{n} rows use a ring not in --rings ({list})"),
-            RingSource::Default => {
-                format!("{n} rows use a ring that is not one of the default rings ({list})")
-            }
+        let fact = if origin.source == Source::Default {
+            format!("{n} rows use a ring that is not one of the default rings ({list})")
+        } else {
+            format!("{n} rows use a ring not in {origin} ({list})")
         };
         let went = match self {
             Self::Listed => "all appear in the table view",
-            Self::Unlisted => "they are left off the page",
+            Self::Unlisted | Self::UnlistedByFlag => "they are left off the page",
             Self::Undrawn => "none is on the radar",
         };
         format!(
             "{fact} — {tallies}; {went}{}",
-            self.remedies(source, suggest, "one", "them")
+            self.remedies(origin, suggest, "one", "them")
         )
     }
 
@@ -765,26 +936,49 @@ impl OffRadar {
     /// row, how to keep it off quietly (only when `suggest`, D-96), and,
     /// last, what `--table all` would also publish (FR-106). `one` names
     /// the row and `them` the rows `--table all` lists.
-    fn remedies(self, source: RingSource, suggest: bool, one: &str, them: &str) -> String {
+    fn remedies(self, origin: &Origin, suggest: bool, one: &str, them: &str) -> String {
         // `write!` rather than `push_str(&format!(..))`, which clippy's
         // `format_push_string` refuses; writing to a `String` cannot fail.
-        let mut text = match source {
-            RingSource::Flag => format!("; to plot {one}, add it to --rings"),
-            RingSource::Default => format!(
-                "; to plot {one}, pass --rings with every ring to draw (it replaces the defaults)"
-            ),
+        // The sibling settings come from the ring set's source, so a ring
+        // set from the file names the file's keys (UX review 4). Only the
+        // default set's plot remedy is its own; a file's says "that list",
+        // since the fact before it already named the rings key.
+        let plot = match origin.source {
+            Source::Default => {
+                "pass --rings with every ring to draw (it replaces the defaults)".to_owned()
+            }
+            Source::Flag => format!("add it to {origin}"),
+            Source::Config(_) => "add it to that list".to_owned(),
         };
+        let quiet = origin.sibling(Setting::UnplottedRings);
+        // The table remedy names the table's own flag when the command
+        // line set it, since that overrides any key (final review M-3);
+        // otherwise the table follows the ring set's source.
+        let table = if self == Self::UnlistedByFlag {
+            Origin::flag(Setting::Table)
+        } else {
+            origin.sibling(Setting::Table)
+        };
+        // A file's table remedy is a suggestion, worded as one (final
+        // review M-1); the flag's stays "--table all lists".
+        let lists = if table.source.is_config() {
+            "would list"
+        } else {
+            "lists"
+        };
+        let all = table.set_to("all", "");
+        let mut text = format!("; to plot {one}, {plot}");
         if suggest {
             write!(
                 text,
-                "; to leave {one} off without this warning, add it to --unplotted-rings"
+                "; to leave {one} off without this warning, add it to {quiet}"
             )
             .expect("a String takes any write");
         }
-        if self == Self::Unlisted {
+        if matches!(self, Self::Unlisted | Self::UnlistedByFlag) {
             write!(
                 text,
-                "; --table all lists {them}, but also publishes every other column"
+                "; {all} {lists} {them}, but also publishes every other column"
             )
             .expect("a String takes any write");
         }
@@ -828,9 +1022,10 @@ impl Warnings {
                 Warning::Render(_) => lines.push(format!("warning: {w}")),
                 Warning::Row { line, kind, .. } => {
                     let member = Member { line: *line, kind };
-                    match classes.iter_mut().find(|(c, _)| *c == kind.class()) {
+                    let class = kind.class();
+                    match classes.iter_mut().find(|(c, _)| *c == class) {
                         Some((_, members)) => members.push(member),
-                        None => classes.push((kind.class(), vec![member])),
+                        None => classes.push((class, vec![member])),
                     }
                 }
             }
@@ -838,7 +1033,7 @@ impl Warnings {
         for (class, members) in &classes {
             let text = match members.as_slice() {
                 [only] => only.per_row(),
-                _ => grouped(*class, members),
+                _ => grouped(class, members),
             };
             lines.push(format!("warning: {}", escape_controls(&text)));
         }
@@ -863,10 +1058,10 @@ impl Member<'_> {
     }
 }
 
-fn grouped(class: Class, members: &[Member]) -> String {
+fn grouped(class: &Class, members: &[Member]) -> String {
     let n = members.len();
     match class {
-        Class::Ring(source) => grouped_rings(source, members),
+        Class::Ring(origin) => grouped_rings(origin, members),
         Class::Qualifier => format!(
             "{n} rows have an unrecognised qualifier — {}; each is drawn solid",
             tallied(members, normalise)
@@ -944,7 +1139,7 @@ fn grouped(class: Class, members: &[Member]) -> String {
                     ),
                 })
             })),
-            boxes(format, n)
+            boxes(*format, n)
         ),
         // FR-93 counts values, each column with its count and first line.
         Class::Unnamed => format!(
@@ -970,7 +1165,7 @@ fn grouped(class: Class, members: &[Member]) -> String {
 /// FR-17's grouped line: it lists the declared rings and says what to edit,
 /// which depends on where the ring set came from (D-61).
 // qual:allow(complexity, error_handling) reason: "a Ring class is built only from UndeclaredRing rows, so a member is always found"
-fn grouped_rings(source: RingSource, members: &[Member]) -> String {
+fn grouped_rings(origin: &Origin, members: &[Member]) -> String {
     let n = members.len();
     // Every member of one run carries the same rings, `off_radar` and
     // `suggest_unplotted`, so the first speaks for all.
@@ -986,7 +1181,7 @@ fn grouped_rings(source: RingSource, members: &[Member]) -> String {
             _ => None,
         })
         .expect("a Ring class holds only UndeclaredRing members");
-    off_radar.ring_rows(n, source, &list, &tallied(members, normalise), suggest)
+    off_radar.ring_rows(n, origin, &list, &tallied(members, normalise), suggest)
 }
 
 /// NFR-20's enumeration: each distinct value under `key`, in first-occurrence
@@ -1077,66 +1272,112 @@ impl fmt::Display for Separator {
 #[derive(Debug, thiserror::Error)]
 pub enum Fatal {
     /// FR-52: the `-o` extension is absent or names a format we do not write.
-    #[error("-o {path}: the output file name must end in .html, .png or .svg")]
+    #[error("{output}: the output file name must end in .html, .png or .svg")]
     UnrecognisedExtension {
-        /// The `-o` argument as given.
-        path: String,
+        /// The output, by its flag or key, as written.
+        output: NamedPath,
     },
-    /// FR-63, NFR-16 tier one.
-    #[error("--rings: {0}")]
-    Rings(#[from] RingsError),
-    /// FR-107's checks, FR-63's among them, NFR-16 tier one.
-    #[error("--unplotted-rings: {0}")]
-    UnplottedRings(RingsError),
+    /// FR-63 on the ring set, from `--rings` or a `--config` file's key
+    /// (NFR-16 tier one, NFR-10).
+    #[error("{origin}: {error}")]
+    Rings {
+        /// Where the list came from.
+        origin: Origin,
+        /// What is wrong with it.
+        error: RingsError,
+    },
+    /// FR-107's checks, FR-63's among them, named by the list's source.
+    #[error("{origin}: {error}")]
+    UnplottedRings {
+        /// Where the list came from.
+        origin: Origin,
+        /// What is wrong with it.
+        error: RingsError,
+    },
     /// FR-102, FR-86, FR-87: one problem in the `--palette` file; a file
     /// reports every one (NFR-16 tier one).
-    #[error("{}", palette_problem(path, error))]
+    #[error("{}", palette_problem(palette, error))]
     Palette {
-        /// The file as the author named it.
-        path: String,
+        /// The file, by its flag or key, as the author named it.
+        palette: NamedPath,
         /// What is wrong, and where.
         error: PaletteError,
     },
     /// NFR-15: the `--palette` file does not exist or cannot be read.
-    #[error("--palette {path}: cannot be read: {}", io_reason(source))]
+    #[error(
+        "{palette}: cannot be read: {}{}",
+        io_reason(source),
+        palette.tilde_note()
+    )]
     PaletteUnreadable {
-        /// The file as the author named it.
-        path: String,
+        /// The file, by its flag or key, as the author named it.
+        palette: NamedPath,
         /// The underlying I/O failure.
         #[source]
         source: std::io::Error,
     },
     /// NFR-15, FR-102: the `--palette` file is not UTF-8, or holds a NUL.
-    #[error("--palette {path}, line {line}: not UTF-8 text; re-save the file as UTF-8")]
+    #[error("{palette}, line {line}: not UTF-8 text; re-save the file as UTF-8")]
     PaletteNotUtf8 {
-        /// The file as the author named it.
-        path: String,
+        /// The file, by its flag or key, as the author named it.
+        palette: NamedPath,
         /// The physical line holding the first bad byte.
         line: usize,
     },
     /// NFR-15, plan RG-018A R4: the `--palette` file passes the cap, so it
     /// is not a palette, or never ends (`/dev/zero`).
     #[error(
-        "--palette {path}: larger than {} MiB; a palette is a few hundred bytes, so check the path",
+        "{palette}: larger than {} MiB; a palette is a few hundred bytes, so check the path",
         MAX_BYTES >> 20
     )]
     PaletteTooLarge {
-        /// The file as the author named it.
-        path: String,
+        /// The file, by its flag or key, as the author named it.
+        palette: NamedPath,
     },
     /// FR-62: `-o`'s directory does not exist; the tool does not create it.
-    #[error("-o {path}: the directory {dir} does not exist")]
+    #[error("{output}: the directory {dir} does not exist{}", output.tilde_note())]
     MissingDirectory {
-        /// The `-o` argument as given.
-        path: String,
+        /// The output, by its flag or key, as written.
+        output: NamedPath,
         /// The directory part of it.
         dir: String,
     },
-    /// FR-62, D-74: `-o` is the input CSV, which the page would replace.
-    #[error("-o {path}: is the input CSV; choose another output path")]
+    /// FR-62, D-74: the output is a file the run reads, which the write
+    /// would replace: the CSV, the `--config` file or the palette.
+    #[error("{output}: is {input}; choose another output path")]
     OutputIsInput {
-        /// The `-o` argument as given.
-        path: String,
+        /// The output, by its flag or key, as written.
+        output: NamedPath,
+        /// Which file it is.
+        input: ReadFile,
+    },
+    /// The maintainer's ruling B (security review F4): a path from a
+    /// `--config` file names a regular file, so a pipe, a terminal or a
+    /// folder is never read or waited on.
+    #[error(
+        "{path}: not a regular file; a path in a config file must name a file, not a device, pipe or folder"
+    )]
+    NotRegular {
+        /// The path, by its key, as written.
+        path: NamedPath,
+    },
+    /// Security review F5: past [`crate::settings::file::MAX_KEY_PROBLEMS`],
+    /// the rest are counted.
+    #[error("--config {file}: and {more} more key problems")]
+    ConfigMore {
+        /// The file as named.
+        file: Arc<str>,
+        /// How many were not listed.
+        more: usize,
+    },
+    /// Final review M-7 (ruling B): a palette a `--config` file names may
+    /// be any file, so past the key problems' cap its errors are counted.
+    #[error("{palette}: and {more} more palette problems")]
+    PaletteMore {
+        /// The palette, by its key, as written.
+        palette: NamedPath,
+        /// How many were not listed.
+        more: usize,
     },
     /// NFR-15: an embedded font face does not parse.
     #[error(transparent)]
@@ -1163,10 +1404,10 @@ pub enum Fatal {
     /// NFR-15: the output cannot be written: its directory is missing or
     /// unwritable, the path names a directory or a read-only file, or the
     /// disk is full. Nothing at `-o` has changed (NFR-14).
-    #[error("-o {path}: cannot be written: {}", io_reason(source))]
+    #[error("{output}: cannot be written: {}", io_reason(source))]
     Unwritable {
-        /// The `-o` argument as given.
-        path: String,
+        /// The output, by its flag or key, as written.
+        output: NamedPath,
         /// The underlying I/O failure.
         #[source]
         source: std::io::Error,
@@ -1181,18 +1422,83 @@ pub enum Fatal {
         reason: String,
     },
     /// D-87: the image would pass `MAX_PNG_PIXELS`.
-    #[error("a {width} by {height} pixel PNG is too large to draw; pass a smaller --width")]
+    #[error(
+        "a {width} by {height} pixel PNG is too large to draw; {}",
+        width_origin.smaller()
+    )]
     ImageTooLarge {
         /// The width in pixels.
         width: u32,
         /// The height in pixels.
         height: u32,
+        /// Where the width came from, which the remedy names (NFR-10).
+        width_origin: Origin,
     },
     /// FR-60, FR-99, FR-101: a `Cli` asking for no task, or for more than
     /// one. clap refuses such a command line, so only a `Cli` built by hand
     /// reaches this.
-    #[error("give a CSV and -o to render, or --create-template or --create-palette alone")]
+    #[error(
+        "give a CSV and -o or --config to render, or --create-template or --create-palette alone"
+    )]
     NoTask,
+    /// NFR-15, FR-91: the `--config` file does not exist or cannot be read.
+    #[error("--config {file}: cannot be read: {}", io_reason(source))]
+    ConfigUnreadable {
+        /// The file as named.
+        file: Arc<str>,
+        /// The underlying I/O failure.
+        #[source]
+        source: std::io::Error,
+    },
+    /// NFR-15: the `--config` file passes its cap.
+    #[error("--config {file}: larger than {} MiB; a config file is a few hundred bytes, so check the path", CONFIG_MAX_BYTES >> 20)]
+    ConfigTooLarge {
+        /// The file as named.
+        file: Arc<str>,
+    },
+    /// NFR-15: the `--config` file is not UTF-8, or holds a NUL.
+    #[error("--config {file}, line {line}: not UTF-8 text; re-save the file as UTF-8")]
+    ConfigNotUtf8 {
+        /// The file as named.
+        file: Arc<str>,
+        /// The line holding the first bad byte.
+        line: usize,
+    },
+    /// NFR-15, FR-91: the file is not TOML, at the parser's line if any.
+    #[error("{}", at_line(format_args!("--config {file}"), *line, message))]
+    ConfigSyntax {
+        /// The file as named.
+        file: Arc<str>,
+        /// The parser's line, if it gives one.
+        line: Option<usize>,
+        /// The parser's message, on one line.
+        message: String,
+    },
+    /// FR-91: one key's problem, a usage error.
+    #[error("{}", key_problem(file, problem))]
+    ConfigKey {
+        /// The file as named.
+        file: Arc<str>,
+        /// What is wrong with which key.
+        problem: KeyProblem,
+    },
+    /// FR-59 within the file: a `theme` key and a `palette` key, a usage
+    /// error. Across sources the flag wins, so only the file conflicts.
+    #[error(
+        "--config {file}: the theme and palette keys cannot be used together; a palette replaces the theme, so remove one"
+    )]
+    Conflict {
+        /// The file as named.
+        file: Arc<str>,
+    },
+    /// FR-91: neither `-o` nor `output`, in clap's words, a usage error.
+    #[error(
+        "no output: pass -o <OUTPUT>, or add an output key to {file}, such as output = \"radar.html\""
+    )]
+    NoOutput {
+        /// The file as named.
+        file: Arc<str>,
+    },
     /// FR-99, FR-101: a file to start from never replaces one (D-83, D-91).
     #[error(
         "{} {path}: already exists; radargen never replaces a file, so choose another path",

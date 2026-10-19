@@ -13,7 +13,8 @@ use crate::diagnostics::{
     DateColumn, OffRadar, RowError, RowKind, Warning, Warnings, column_label,
 };
 pub use crate::link::Link;
-use crate::rings::{RingMatch, RingSet, RingSource};
+use crate::rings::{RingMatch, RingSet};
+use crate::settings::Origin;
 use crate::{normalise, single_line, tidy, trim};
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -187,7 +188,7 @@ pub struct Catalogue {
     pub rings: Vec<String>,
     /// Where the rings were declared, so a warning about one names it
     /// (FR-17, FR-95, D-73).
-    pub ring_source: RingSource,
+    pub ring_origin: Origin,
     /// Every row as an item, in CSV order.
     pub items: Vec<Item>,
 }
@@ -554,7 +555,7 @@ impl<'r> Builder<'r> {
             columns: self.header.columns,
             quadrants: self.quadrants,
             rings: self.rings.rings().to_vec(),
-            ring_source: self.rings.source(),
+            ring_origin: self.rings.origin().clone(),
             items: self.items,
         }
     }
@@ -680,7 +681,7 @@ impl<'r> Builder<'r> {
                     self.at.ring,
                     RowKind::UndeclaredRing {
                         value: value.to_string(),
-                        source: self.rings.source(),
+                        origin: self.rings.origin().clone(),
                         rings: Arc::clone(&self.declared),
                         off_radar: self.off_radar,
                         suggest_unplotted: !self.rings.names_unplotted(),
@@ -846,7 +847,7 @@ fn is_iso_date(s: &str) -> bool {
 mod tests {
     use super::*;
     use crate::csv::parse::parse;
-    use crate::rings::parse_rings;
+    use crate::rings::default_rings;
 
     const HEAD: &str = "name,quadrant,ring,description\n";
     const FULL: &str = "name,quadrant,ring,description,qualifier,last_affirmed,exit_date,status\n";
@@ -864,7 +865,7 @@ mod tests {
         let mut w = Warnings::default();
         let (table, errs) = parse(csv, &mut w).expect("parses");
         assert!(errs.is_empty(), "{errs:?}");
-        let rings = parse_rings(rings).expect("valid rings");
+        let rings = crate::rings::flag_or_default(rings);
         let result = build_catalogue(&table, &rings, OffRadar::Listed, &mut w);
         (result, w.render())
     }
@@ -962,7 +963,7 @@ mod tests {
     fn near_misses(csv: &str) -> Vec<(usize, String, ColumnKind)> {
         let mut w = Warnings::default();
         let (table, _) = parse(csv, &mut w).expect("parses");
-        let rings = parse_rings(None).expect("valid rings");
+        let rings = default_rings();
         let _ = build_catalogue(&table, &rings, OffRadar::Listed, &mut w);
         w.as_slice()
             .iter()
@@ -1188,7 +1189,7 @@ mod tests {
                 fields: vec!["K".into()],
             }],
         };
-        let rings = parse_rings(None).expect("default");
+        let rings = default_rings();
         let errs = build_catalogue(&table, &rings, OffRadar::Listed, &mut Warnings::default())
             .expect_err("fails");
         assert_eq!(
@@ -1369,7 +1370,7 @@ mod tests {
         let csv = format!("{HEAD}Kafka,T,Adopt,d\nkafka ,T,Trial,d\nKAFKA,T,Assess,d\n");
         let mut w = Warnings::default();
         let (table, _) = parse(&csv, &mut w).expect("parses");
-        let rings = parse_rings(None).expect("default");
+        let rings = default_rings();
         let cat = build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds");
         assert_eq!(cat.items.len(), 3);
         let firsts: Vec<_> = w
@@ -1750,7 +1751,7 @@ Plain,Tool,adopt,d,,,,no change\n"
                 line: 2,
             }],
             rings: Vec::new(),
-            ring_source: RingSource::Default,
+            ring_origin: Origin::rings(crate::settings::Source::Default),
             items: vec![Item {
                 line: 2,
                 name: "Old".into(),
