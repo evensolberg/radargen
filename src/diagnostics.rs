@@ -310,6 +310,49 @@ impl fmt::Display for Binding {
     }
 }
 
+/// The most key problems a run lists; the rest are counted (security
+/// review F5), so a file of a million bad keys prints a screen, not a
+/// flood.
+pub const MAX_KEY_PROBLEMS: usize = 20;
+
+/// The most characters of a key or value a message echoes (security
+/// review F5), as a palette's excerpt does.
+const ECHO_CHARS: usize = 40;
+
+/// `text`, cut at [`ECHO_CHARS`] characters with `…` when anything was
+/// left out.
+fn clipped(text: &str) -> String {
+    let mut chars = text.chars();
+    let head: String = chars.by_ref().take(ECHO_CHARS).collect();
+    if chars.next().is_some() {
+        format!("{head}…")
+    } else {
+        head
+    }
+}
+
+/// A file the run reads, which the output must not replace (D-74).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadFile {
+    /// The input CSV.
+    Csv,
+    /// The `--config` file.
+    Config,
+    /// The palette, from `--palette` or the file's key.
+    Palette,
+}
+
+/// How D-74's message names it.
+impl fmt::Display for ReadFile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Csv => "the input CSV",
+            Self::Config => "the --config file",
+            Self::Palette => "the palette file",
+        })
+    }
+}
+
 /// One warning. Split by kind, so a row warning always has a line and a
 /// render-level one never claims one (NFR-10) — by type, not by a check.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -591,7 +634,10 @@ impl Fatal {
     pub const fn is_usage(&self) -> bool {
         matches!(
             self,
-            Self::ConfigKey { .. } | Self::Conflict { .. } | Self::NoOutput { .. }
+            Self::ConfigKey { .. }
+                | Self::ConfigMore { .. }
+                | Self::Conflict { .. }
+                | Self::NoOutput { .. }
         )
     }
 }
@@ -641,7 +687,8 @@ fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
     let key = |setting: Setting| Origin::new(setting, Source::Config(Arc::clone(file)));
     match problem {
         KeyProblem::Unknown { key: name } => format!(
-            "--config {file}: unknown key '{name}'; the keys are {}",
+            "--config {file}: unknown key '{}'; the keys are {}",
+            clipped(name),
             known_keys()
         ),
         KeyProblem::WrongType { setting, found } => format!(
@@ -666,15 +713,17 @@ fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
             index,
             entry,
         } => format!(
-            "{}: entry {index} '{entry}' holds a comma; give each ring as its own entry",
-            key(*setting)
+            "{}: entry {index} '{}' holds a comma; give each ring as its own entry",
+            key(*setting),
+            clipped(entry)
         ),
         KeyProblem::NotAValue {
             setting,
             value,
             possible,
         } => format!(
-            "invalid value '{value}' for {} [possible values: {}]",
+            "invalid value '{}' for {} [possible values: {}]",
+            clipped(value),
             key(*setting),
             possible.join(", ")
         ),
@@ -693,10 +742,17 @@ fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
 }
 
 /// A palette problem as stderr shows it: located when it has a line.
+///
+/// A palette from a `--config` file quotes nothing from it: the key may
+/// name any file, so its text could be a secret (ruling B).
 fn palette_problem(palette: &NamedPath, error: &PaletteError) -> String {
+    let message = match palette.origin.source {
+        Source::Config(_) => error.unquoted(),
+        Source::Flag | Source::Default => error.to_string(),
+    };
     error.line().map_or_else(
-        || format!("{palette}: {error}"),
-        |line| format!("{palette}, line {line}: {error}"),
+        || format!("{palette}: {message}"),
+        |line| format!("{palette}, line {line}: {message}"),
     )
 }
 
@@ -1258,11 +1314,32 @@ pub enum Fatal {
         /// The directory part of it.
         dir: String,
     },
-    /// FR-62, D-74: `-o` is the input CSV, which the page would replace.
-    #[error("{output}: is the input CSV; choose another output path")]
+    /// FR-62, D-74: the output is a file the run reads, which the write
+    /// would replace: the CSV, the `--config` file or the palette.
+    #[error("{output}: is {input}; choose another output path")]
     OutputIsInput {
         /// The output, by its flag or key, as written.
         output: NamedPath,
+        /// Which file it is.
+        input: ReadFile,
+    },
+    /// The maintainer's ruling B (security review F4): a path from a
+    /// `--config` file names a regular file, so a pipe, a terminal or a
+    /// folder is never read or waited on.
+    #[error(
+        "{path}: not a regular file; a path in a config file must name a file, not a device, pipe or folder"
+    )]
+    NotRegular {
+        /// The path, by its key, as written.
+        path: NamedPath,
+    },
+    /// Security review F5: past [`MAX_KEY_PROBLEMS`], the rest are counted.
+    #[error("--config {file}: and {more} more key problems")]
+    ConfigMore {
+        /// The file as named.
+        file: Arc<str>,
+        /// How many were not listed.
+        more: usize,
     },
     /// NFR-15: an embedded font face does not parse.
     #[error(transparent)]

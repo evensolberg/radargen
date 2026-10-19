@@ -394,3 +394,136 @@ fn a_file_s_format_keys_are_silent_where_they_do_not_apply() {
         "the HTML page honours the file's legend"
     );
 }
+
+/// Security review F1 (the maintainer's ruling B): a palette named by the
+/// config file may be any file, so its errors never quote its text; the
+/// same file given as `--palette` still quotes it, as the author typed it.
+#[test]
+fn a_config_palette_error_quotes_nothing_from_the_file() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("secret.env", "SECRET_TOKEN=ghp_abcdef\n"),
+        (
+            "radar.toml",
+            "output = \"a.png\"\npalette = \"secret.env\"\n",
+        ),
+    ]);
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert!(!ran.stderr.contains("ghp_"), "{}", ran.stderr);
+    assert!(!ran.stderr.contains("SECRET"), "{}", ran.stderr);
+    assert!(
+        ran.stderr
+            .contains("error: the palette key in radar.toml (secret.env), line 1: "),
+        "{}",
+        ran.stderr
+    );
+    let flag = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "b.png", "-p", "secret.env"],
+    );
+    assert!(flag.stderr.contains("ghp_abcdef"), "{}", flag.stderr);
+}
+
+/// Security review F4 (ruling B): a path from the config file must be a
+/// regular file, so a pipe, a terminal or a folder is refused, never read
+/// or waited on.
+#[test]
+fn a_config_path_must_be_a_regular_file() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        (
+            "stdin.toml",
+            "output = \"a.png\"\npalette = \"/dev/stdin\"\n",
+        ),
+        ("folder.toml", "output = \"out.html\"\n"),
+    ]);
+    fs::create_dir(dir.path().join("out.html")).expect("mkdir");
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "stdin.toml"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: the palette key in stdin.toml (/dev/stdin): not a regular file; a path in a config file must name a file, not a device, pipe or folder"
+        ]
+    );
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "folder.toml"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: the output key in folder.toml (out.html): not a regular file; a path in a config file must name a file, not a device, pipe or folder"
+        ]
+    );
+    if cfg!(unix) {
+        let made = std::process::Command::new("mkfifo")
+            .arg(dir.path().join("p.css"))
+            .status()
+            .is_ok_and(|s| s.success());
+        if made {
+            fs::write(
+                dir.path().join("fifo.toml"),
+                "output = \"a.png\"\npalette = \"p.css\"\n",
+            )
+            .expect("seeds");
+            let ran = run_in(dir.path(), &["radar.csv", "-c", "fifo.toml"]);
+            assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+            assert!(ran.stderr.contains("not a regular file"), "{}", ran.stderr);
+        }
+    }
+}
+
+/// Security review F2: D-74 covers every file the run reads, so the
+/// output can be neither the config file nor the palette.
+#[test]
+fn the_output_cannot_be_the_config_or_the_palette() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("b.html", radargen::starter::Starter::Palette.contents()),
+        ("p.toml", "output = \"b.html\"\npalette = \"b.html\"\n"),
+        ("self.svg", "output = \"self.svg\"\n"),
+    ]);
+    let before = snapshot(dir.path());
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "p.toml"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: the output key in p.toml (b.html): is the palette file; choose another output path"
+        ]
+    );
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "self.svg"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: the output key in self.svg (self.svg): is the --config file; choose another output path"
+        ]
+    );
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "b.html", "-p", "b.html"]);
+    assert_eq!(
+        ran.lines(),
+        ["error: -o b.html: is the palette file; choose another output path"]
+    );
+    assert_eq!(snapshot(dir.path()), before);
+}
+
+/// Security review F5: an echoed key or value is cut at 40 characters, and
+/// past 20 key problems the rest are counted, not listed.
+#[test]
+fn key_problems_are_clipped_and_capped() {
+    let long = "k".repeat(100);
+    let keys: Vec<String> = (0..24).map(|i| format!("x{i:02} = 1")).collect();
+    let text = format!("output = \"a.png\"\n{long} = 1\n{}\n", keys.join("\n"));
+    let dir = seeded(&[("radar.csv", CSV), ("radar.toml", &text)]);
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    assert_eq!(ran.code, Some(2), "{}", ran.stderr);
+    let lines = ran.lines();
+    assert_eq!(lines.len(), 21, "{lines:?}");
+    assert!(
+        lines.contains(&"error: --config radar.toml: and 5 more key problems"),
+        "{lines:?}"
+    );
+    let clipped = format!("unknown key '{}…'", "k".repeat(40));
+    assert!(lines.iter().any(|l| l.contains(&clipped)), "{lines:?}");
+}

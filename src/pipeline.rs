@@ -17,7 +17,9 @@ use crate::cli::{Cli, OutputFormat, Task, clean_setting, format};
 use crate::csv::decode;
 use crate::csv::parse::parse;
 use crate::decode::NotUtf8;
-use crate::diagnostics::{Fatal, OffRadar, RenderKind, RowError, Warning, Warnings};
+use crate::diagnostics::{
+    Fatal, MAX_KEY_PROBLEMS, OffRadar, ReadFile, RenderKind, RowError, Warning, Warnings,
+};
 use crate::emit::html::{Legend, Page, Table, page};
 use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
@@ -229,7 +231,14 @@ fn config(cli: &Cli, input: &Path, warnings: &mut Warnings) -> Result<Config, Ve
     let palette_path = palette.as_given().map(|p| resolve_path(dir.as_deref(), p));
     let format = match &output {
         Some((path, named)) => {
-            gate.check(&named.origin.source, output_checks(path, named, input))?
+            let mut reads = vec![(input, ReadFile::Csv)];
+            reads.extend(cli.config.as_deref().map(|c| (c, ReadFile::Config)));
+            reads.extend(
+                palette_path
+                    .as_ref()
+                    .map(|(p, _)| (p.as_path(), ReadFile::Palette)),
+            );
+            gate.check(&named.origin.source, output_checks(path, named, &reads))?
         }
         None => None,
     };
@@ -278,11 +287,23 @@ fn merged(cli: &Cli) -> Result<(Settings, Gate), Vec<Fatal>> {
 }
 
 /// The file's key problems, each named by its key and the file (FR-91).
+///
+/// Past [`MAX_KEY_PROBLEMS`] the rest are counted, not listed (security
+/// review F5).
 fn key_errors(loaded: &config_file::Loaded) -> impl Iterator<Item = Fatal> + '_ {
-    loaded.problems.iter().map(|problem| Fatal::ConfigKey {
+    let more = loaded.problems.len().saturating_sub(MAX_KEY_PROBLEMS);
+    let listed = loaded
+        .problems
+        .iter()
+        .take(MAX_KEY_PROBLEMS)
+        .map(|problem| Fatal::ConfigKey {
+            file: Arc::clone(&loaded.file),
+            problem: problem.clone(),
+        });
+    listed.chain((more > 0).then(|| Fatal::ConfigMore {
         file: Arc::clone(&loaded.file),
-        problem: problem.clone(),
-    })
+        more,
+    }))
 }
 
 /// FR-63 on the ring set, then FR-107 on the unplotted rings against it;
@@ -323,7 +344,9 @@ fn checked_colours(
         (Some((path, named)), _) => gate
             .check(
                 &named.origin.source,
-                file::read(path).map_err(|e| palette_errors(named, e)),
+                regular(path, named)
+                    .map_err(|e| vec![e])
+                    .and_then(|()| file::read(path).map_err(|e| palette_errors(named, e))),
             )?
             .map(Colours::from),
         (None, Effective::Broken) => None,
@@ -455,18 +478,40 @@ fn palette_errors(palette: &NamedPath, error: ReadError) -> Vec<Fatal> {
     }
 }
 
-/// FR-52's extension, FR-62's directory and D-74's same-file check on the
-/// output, the first to fail alone (NFR-16 tier one).
-fn output_checks(path: &Path, named: &NamedPath, input: &Path) -> Result<OutputFormat, Vec<Fatal>> {
+/// FR-52's extension, FR-62's directory, ruling B's regular file and
+/// D-74's same-file check against every file the run `reads`, the first
+/// to fail alone (NFR-16 tier one).
+fn output_checks(
+    path: &Path,
+    named: &NamedPath,
+    reads: &[(&Path, ReadFile)],
+) -> Result<OutputFormat, Vec<Fatal>> {
     let checked = || -> Result<OutputFormat, Fatal> {
         let format = format(path).ok_or_else(|| Fatal::UnrecognisedExtension {
             output: named.clone(),
         })?;
         missing_directory(path, named)?;
-        output_is_input(path, named, input)?;
+        regular(path, named)?;
+        reads
+            .iter()
+            .try_for_each(|&(read, which)| output_is_input(path, named, read, which))?;
         Ok(format)
     };
     checked().map_err(|e| vec![e])
+}
+
+/// The maintainer's ruling B (security review F4): a path from a
+/// `--config` file that exists must be a regular file, so a pipe, a
+/// terminal or a folder is refused before anything opens it. A path that
+/// does not exist is left to the read or the write; a flag's path is the
+/// author's own, so it is not checked.
+fn regular(path: &Path, named: &NamedPath) -> Result<(), Fatal> {
+    match (&named.origin.source, std::fs::metadata(path)) {
+        (Source::Config(_), Ok(meta)) if !meta.is_file() => Err(Fatal::NotRegular {
+            path: named.clone(),
+        }),
+        _ => Ok(()),
+    }
 }
 
 /// FR-62: `-o`'s directory must exist. Only a directory that is not there
@@ -488,10 +533,16 @@ fn missing_directory(output: &Path, named: &NamedPath) -> Result<(), Fatal> {
 /// (device and inode, or volume and file index on Windows), so `./`, `..`,
 /// symlinks, case and hard links are all caught, and no path spelling needs
 /// resolving. A path that cannot be opened is not the input.
-fn output_is_input(output: &Path, named: &NamedPath, input: &Path) -> Result<(), Fatal> {
+fn output_is_input(
+    output: &Path,
+    named: &NamedPath,
+    input: &Path,
+    which: ReadFile,
+) -> Result<(), Fatal> {
     if same_file::is_same_file(output, input).unwrap_or(false) {
         Err(Fatal::OutputIsInput {
             output: named.clone(),
+            input: which,
         })
     } else {
         Ok(())

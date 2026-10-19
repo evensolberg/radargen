@@ -7,8 +7,8 @@ use std::sync::Arc;
 use radargen::cli::OutputFormat;
 use radargen::columns::ColumnKind;
 use radargen::diagnostics::{
-    Binding, DateColumn, Fatal, Lacking, OffRadar, Position, RenderKind, RowError, RowKind,
-    Separator, Warning, Warnings, column_label,
+    Binding, DateColumn, Fatal, Lacking, OffRadar, Position, ReadFile, RenderKind, RowError,
+    RowKind, Separator, Warning, Warnings, column_label,
 };
 use radargen::rings::RingsError;
 use radargen::settings::file::KeyProblem;
@@ -1271,6 +1271,7 @@ fn pipeline_messages() {
         (
             Fatal::OutputIsInput {
                 output: NamedPath::flag(Setting::Output, Path::new("radar.csv")),
+                input: ReadFile::Csv,
             },
             "error: -o radar.csv: is the input CSV; choose another output path",
         ),

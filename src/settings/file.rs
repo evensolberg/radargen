@@ -564,6 +564,17 @@ mod tests {
         assert_eq!((l.values, l.problems), (FileValues::default(), vec![]));
     }
 
+    /// Security review F3: deep nesting is TOML's own error, not a crash.
+    #[test]
+    fn deep_nesting_is_a_syntax_error() {
+        let text = format!("title = {}", "[".repeat(600_000));
+        assert!(text.len() < MAX_BYTES);
+        assert!(matches!(
+            load(&text, Path::new("r.toml")),
+            Err(ReadError::Syntax { .. })
+        ));
+    }
+
     #[test]
     fn a_large_or_unreadable_file_is_refused() {
         let dir = tempfile::tempdir().expect("tempdir");

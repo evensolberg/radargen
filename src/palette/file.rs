@@ -128,6 +128,36 @@ pub enum PaletteError {
 }
 
 impl PaletteError {
+    /// The message without any text from the file: what is wrong and how
+    /// to fix it, for a palette a `--config` file named, which may be any
+    /// file at all (security review F1, the maintainer's ruling B).
+    #[must_use]
+    pub fn unquoted(&self) -> String {
+        match self {
+            Self::OtherRule { .. } => {
+                "a rule other than :root is not allowed; a palette is one :root rule and nothing else"
+                    .to_owned()
+            }
+            Self::TextOutside { .. } => "text outside the :root rule; delete it".to_owned(),
+            Self::Malformed { .. } => {
+                "a line that is not a declaration; write --name: #RRGGBB;".to_owned()
+            }
+            Self::Unknown { .. } => format!(
+                "a property that is not a palette property; the properties are {PROPERTIES}"
+            ),
+            Self::Duplicate { first, .. } => format!("a property repeats line {first}; keep one"),
+            Self::NotHex { .. } => "a value that is not a #RRGGBB colour".to_owned(),
+            Self::MissingSemicolon { .. } => {
+                "a value runs onto the next line; add ; at its end".to_owned()
+            }
+            Self::UnclosedComment { .. }
+            | Self::UnclosedRule { .. }
+            | Self::SecondRoot { .. }
+            | Self::MissingRole { .. }
+            | Self::MissingSeries { .. } => self.to_string(),
+        }
+    }
+
     /// The line the problem is on, as the file is written; `None` for a
     /// missing role or series, which has no line.
     #[must_use]
