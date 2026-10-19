@@ -8,20 +8,16 @@
 
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
-use std::fs::File;
-use std::io::{self, Read as _};
+use std::io;
 use std::path::Path;
 
 use super::{Hex, Neutral, Palette};
-use crate::decode::{NotUtf8, decode};
+use crate::decode::{NotUtf8, decode, read_capped};
 use scan::{Lines, block_len, css_space, css_trim, excerpt, uncommented};
 
 /// The largest file read (plan RG-018A, R4): the sample is 2 kB, and ten
 /// thousand series entries fit in 300 kB.
 pub const MAX_BYTES: usize = 1 << 20;
-/// What [`read`] reads at most: one byte past the cap, to tell a file at
-/// the cap from one beyond it.
-const READ_CAP: u64 = (1 << 20) + 1;
 
 /// The properties a palette may declare, as an unknown-property message
 /// lists them.
@@ -183,13 +179,9 @@ pub enum ReadError {
 ///
 /// A [`ReadError`] saying what kept the file from being a palette.
 pub fn read(path: &Path) -> Result<Palette, ReadError> {
-    let mut bytes = Vec::new();
-    File::open(path)
-        .and_then(|file| file.take(READ_CAP).read_to_end(&mut bytes))
-        .map_err(ReadError::Unreadable)?;
-    if bytes.len() > MAX_BYTES {
-        return Err(ReadError::TooLarge);
-    }
+    let bytes = read_capped(path, MAX_BYTES)
+        .map_err(ReadError::Unreadable)?
+        .ok_or(ReadError::TooLarge)?;
     let text = decode(&bytes).map_err(ReadError::NotUtf8)?;
     parse(&text).map_err(ReadError::Invalid)
 }

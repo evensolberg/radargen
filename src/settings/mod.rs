@@ -83,55 +83,41 @@ impl Setting {
     /// The flag as a message names it.
     #[must_use]
     pub const fn flag(self) -> &'static str {
-        match self {
-            Self::Output => "-o",
-            Self::Title => "--title",
-            Self::Subtitle => "--subtitle",
-            Self::Rings => "--rings",
-            Self::UnplottedRings => "--unplotted-rings",
-            Self::Theme => "--theme",
-            Self::Width => "--width",
-            Self::LegendColumns => "--legend-columns",
-            Self::Legend => "--legend",
-            Self::Table => "--table",
-            Self::Palette => "--palette",
-        }
+        self.names().0
     }
 
     /// The key in a `--config` file (FR-91).
     #[must_use]
     pub const fn key(self) -> &'static str {
-        match self {
-            Self::Output => "output",
-            Self::Title => "title",
-            Self::Subtitle => "subtitle",
-            Self::Rings => "rings",
-            Self::UnplottedRings => "unplotted_rings",
-            Self::Theme => "theme",
-            Self::Width => "width",
-            Self::LegendColumns => "legend_columns",
-            Self::Legend => "legend",
-            Self::Table => "table",
-            Self::Palette => "palette",
-        }
+        self.names().1
     }
 
     /// The flag as clap's usage errors write it, value name included, so a
     /// message about the file reads as clap's would (FR-59, FR-91).
     #[must_use]
     pub const fn usage(self) -> &'static str {
+        self.names().2
+    }
+
+    /// The flag, the key and clap's usage spelling, together, so the three
+    /// cannot drift apart.
+    const fn names(self) -> (&'static str, &'static str, &'static str) {
         match self {
-            Self::Output => "--output <OUTPUT>",
-            Self::Title => "--title <TITLE>",
-            Self::Subtitle => "--subtitle <SUBTITLE>",
-            Self::Rings => "--rings <RINGS>",
-            Self::UnplottedRings => "--unplotted-rings <RINGS>",
-            Self::Theme => "--theme <THEME>",
-            Self::Width => "--width <WIDTH>",
-            Self::LegendColumns => "--legend-columns <N>",
-            Self::Legend => "--legend <LEGEND>",
-            Self::Table => "--table <TABLE>",
-            Self::Palette => "--palette <FILE>",
+            Self::Output => ("-o", "output", "--output <OUTPUT>"),
+            Self::Title => ("--title", "title", "--title <TITLE>"),
+            Self::Subtitle => ("--subtitle", "subtitle", "--subtitle <SUBTITLE>"),
+            Self::Rings => ("--rings", "rings", "--rings <RINGS>"),
+            Self::UnplottedRings => (
+                "--unplotted-rings",
+                "unplotted_rings",
+                "--unplotted-rings <RINGS>",
+            ),
+            Self::Theme => ("--theme", "theme", "--theme <THEME>"),
+            Self::Width => ("--width", "width", "--width <WIDTH>"),
+            Self::LegendColumns => ("--legend-columns", "legend_columns", "--legend-columns <N>"),
+            Self::Legend => ("--legend", "legend", "--legend <LEGEND>"),
+            Self::Table => ("--table", "table", "--table <TABLE>"),
+            Self::Palette => ("--palette", "palette", "--palette <FILE>"),
         }
     }
 }

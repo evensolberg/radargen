@@ -1,6 +1,12 @@
-//! Bytes to text (FR-2, FR-61), for every file the tool reads: the CSV and a
-//! `--palette` file (FR-102). No transcoding and no encoding flag: a
-//! non-UTF-8 file is an error that says how to fix it (D-27).
+//! Bytes to text (FR-2, FR-61), for every file the tool reads.
+//!
+//! The CSV, a `--palette` file (FR-102) and a `--config` file (FR-91). No
+//! transcoding and no encoding flag: a non-UTF-8 file is an error that says
+//! how to fix it (D-27).
+
+use std::fs::File;
+use std::io::{self, Read as _};
+use std::path::Path;
 
 /// FR-2: the UTF-8 byte-order mark.
 const BOM: &[u8] = b"\xEF\xBB\xBF";
@@ -32,6 +38,23 @@ pub fn decode(bytes: &[u8]) -> Result<String, NotUtf8> {
         });
     }
     Ok(text.to_string())
+}
+
+/// The bytes of the file at `path`, read through a cap so a wrong path such
+/// as `/dev/zero` ends (NFR-15): `None` when it is larger than `max` bytes.
+///
+/// At most one byte past `max` is read. The file is not checked to be a
+/// regular file, so a process substitution works.
+///
+/// # Errors
+///
+/// The I/O error when the file cannot be opened or read, a directory
+/// included.
+pub fn read_capped(path: &Path, max: usize) -> io::Result<Option<Vec<u8>>> {
+    let cap = u64::try_from(max).map_or(u64::MAX, |max| max.saturating_add(1));
+    let mut bytes = Vec::new();
+    File::open(path)?.take(cap).read_to_end(&mut bytes)?;
+    Ok((bytes.len() <= max).then_some(bytes))
 }
 
 /// The 1-based physical line holding byte `offset`, counting LF, CRLF and a
@@ -114,5 +137,20 @@ mod tests {
         assert_eq!(decode(b"a\r\nb\r\n\xE9"), Err(NotUtf8 { line: 3 }));
         assert_eq!(decode(b"a\rb\r\xE9"), Err(NotUtf8 { line: 3 }));
         assert_eq!(decode(b"a\r\n\r\n\xE9"), Err(NotUtf8 { line: 3 }));
+    }
+
+    /// A file at the cap reads whole, and one byte past it is told apart,
+    /// without reading more than one byte beyond (NFR-15).
+    #[test]
+    fn a_capped_read_tells_a_file_at_the_cap_from_one_past_it() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("f");
+        std::fs::write(&path, b"abcd").expect("writes");
+        assert_eq!(
+            read_capped(&path, 4).expect("reads"),
+            Some(b"abcd".to_vec())
+        );
+        assert_eq!(read_capped(&path, 3).expect("reads"), None);
+        assert!(read_capped(dir.path(), 4).is_err(), "a directory");
     }
 }

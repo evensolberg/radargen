@@ -31,8 +31,8 @@ use crate::layout::glyphs::warn_missing_glyphs;
 use crate::layout::title::shown;
 use crate::model::{Catalogue, build_catalogue};
 use crate::order::resolve;
-use crate::palette::Colours;
 use crate::palette::file::{self, ReadError};
+use crate::palette::{Colours, Theme};
 use crate::rings::{RingSet, parse_ring_list, parse_rings};
 use crate::settings::file as config_file;
 use crate::settings::{
@@ -203,22 +203,7 @@ fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
 /// one's checks: FR-52, FR-62 and D-74 on the output, FR-63 on the rings,
 /// FR-107, FR-102 on the palette.
 fn config(cli: &Cli, input: &Path, warnings: &mut Warnings) -> Result<Config, Vec<Fatal>> {
-    // FR-91: read only when named; unreadable or not TOML stops the run
-    // alone (NFR-15).
-    let loaded = match &cli.config {
-        Some(path) => Some(config_file::read(path).map_err(|e| vec![config_error(path, e)])?),
-        None => None,
-    };
-    let (settings, merged) = cli.settings(loaded.as_ref());
-    let mut gate = Gate::default();
-    if let Some(loaded) = &loaded {
-        gate.errors
-            .extend(loaded.problems.iter().map(|problem| Fatal::ConfigKey {
-                file: Arc::clone(&loaded.file),
-                problem: problem.clone(),
-            }));
-    }
-    gate.errors.extend(merged.into_iter().map(Fatal::from));
+    let (settings, mut gate) = merged(cli)?;
     let Settings {
         output,
         title,
@@ -248,37 +233,8 @@ fn config(cli: &Cli, input: &Path, warnings: &mut Warnings) -> Result<Config, Ve
         }
         None => None,
     };
-    let declared = match &rings {
-        Effective::Broken => None,
-        other => {
-            let given = other.as_given();
-            gate.check(
-                given.map_or(&Source::Default, |r| &r.origin.source),
-                ring_set(given),
-            )?
-        }
-    };
-    // FR-107: the ring set is checked first; without one there is nothing
-    // to check the list against.
-    let ring_set = match (declared, &unplotted) {
-        (Some(set), Effective::Given(list)) => {
-            gate.check(&list.origin.source, unplotted_set(set, list))?
-        }
-        (Some(set), Effective::Absent) => Some(set),
-        _ => None,
-    };
-    let colours = match (&palette_path, &palette) {
-        (Some((path, named)), _) => gate
-            .check(
-                &named.origin.source,
-                file::read(path).map_err(|e| palette_errors(named, e)),
-            )?
-            .map(Colours::from),
-        (None, Effective::Broken) => None,
-        (None, _) => Some(Colours::BuiltIn(
-            theme.or(Setting::Theme, DEFAULT_THEME).value,
-        )),
-    };
+    let ring_set = checked_rings(&mut gate, &rings, &unplotted)?;
+    let colours = checked_colours(&mut gate, palette_path.as_ref(), &palette, theme)?;
     // With no error recorded, no setting is broken and every check passed,
     // so each value below is present; the `else` returns the errors that
     // explain why one is not.
@@ -302,6 +258,78 @@ fn config(cli: &Cli, input: &Path, warnings: &mut Warnings) -> Result<Config, Ve
         subtitle,
         rings,
         input: input.to_path_buf(),
+    })
+}
+
+/// FR-91: the `--config` file, read only when named, merged under the
+/// command line, with the file's key problems and the merge's own as the
+/// gate's first errors. A file that cannot be read or is not TOML stops the
+/// run alone (NFR-15).
+fn merged(cli: &Cli) -> Result<(Settings, Gate), Vec<Fatal>> {
+    let loaded = match &cli.config {
+        Some(path) => Some(config_file::read(path).map_err(|e| vec![config_error(path, e)])?),
+        None => None,
+    };
+    let (settings, merged) = cli.settings(loaded.as_ref());
+    let mut gate = Gate::default();
+    gate.errors.extend(loaded.iter().flat_map(key_errors));
+    gate.errors.extend(merged.into_iter().map(Fatal::from));
+    Ok((settings, gate))
+}
+
+/// The file's key problems, each named by its key and the file (FR-91).
+fn key_errors(loaded: &config_file::Loaded) -> impl Iterator<Item = Fatal> + '_ {
+    loaded.problems.iter().map(|problem| Fatal::ConfigKey {
+        file: Arc::clone(&loaded.file),
+        problem: problem.clone(),
+    })
+}
+
+/// FR-63 on the ring set, then FR-107 on the unplotted rings against it;
+/// a broken `rings` key skips both, since the ring set is checked first.
+fn checked_rings(
+    gate: &mut Gate,
+    rings: &Effective<String>,
+    unplotted: &Effective<String>,
+) -> Result<Option<RingSet>, Vec<Fatal>> {
+    let declared = match rings {
+        Effective::Broken => None,
+        other => {
+            let given = other.as_given();
+            gate.check(
+                given.map_or(&Source::Default, |r| &r.origin.source),
+                ring_set(given),
+            )?
+        }
+    };
+    Ok(match (declared, unplotted) {
+        (Some(set), Effective::Given(list)) => {
+            gate.check(&list.origin.source, unplotted_set(set, list))?
+        }
+        (Some(set), Effective::Absent) => Some(set),
+        _ => None,
+    })
+}
+
+/// FR-102 on the palette, from the flag or the file; else the built-in
+/// themes with FR-56's theme. A broken `palette` key gives none.
+fn checked_colours(
+    gate: &mut Gate,
+    path: Option<&(PathBuf, NamedPath)>,
+    palette: &Effective<PathBuf>,
+    theme: Effective<Theme>,
+) -> Result<Option<Colours>, Vec<Fatal>> {
+    Ok(match (path, palette) {
+        (Some((path, named)), _) => gate
+            .check(
+                &named.origin.source,
+                file::read(path).map_err(|e| palette_errors(named, e)),
+            )?
+            .map(Colours::from),
+        (None, Effective::Broken) => None,
+        (None, _) => Some(Colours::BuiltIn(
+            theme.or(Setting::Theme, DEFAULT_THEME).value,
+        )),
     })
 }
 
@@ -502,6 +530,23 @@ fn catalogue(
     }
 }
 
+/// RG-102, FR-106: a static snapshot has no button to bring a hidden
+/// legend back, nor a table, so a flag asking for either is warned about.
+/// The same value from --config is silent, since one file serves every
+/// format a radar is rendered to (D-100, rg-qag).
+fn warn_static_flags(config: &Config, warnings: &mut Warnings) {
+    let from_flag = |origin: &Origin| origin.source == Source::Flag;
+    if !config.format.is_snapshot() {
+        return;
+    }
+    if config.legend.value == Legend::Hidden && from_flag(&config.legend.origin) {
+        warnings.push(Warning::Render(RenderKind::LegendStatic));
+    }
+    if config.table.value == Table::All && from_flag(&config.table.origin) {
+        warnings.push(Warning::Render(RenderKind::TableStatic));
+    }
+}
+
 /// The order, the render warnings (FR-88, FR-89, FR-95, FR-104, FR-105, D-87), the blocks
 /// built once, and the output: the page around both arrangements (FR-68),
 /// or the wide arrangement as a PNG or an SVG (FR-71).
@@ -522,23 +567,7 @@ fn render(
     // FR-89 at the growth the radar is drawn with (D-86): only what still
     // overlaps is reported.
     warn_crowding(catalogue, &plotted, blocks.radar.growth(), warnings);
-    // RG-102, FR-106: a static snapshot has no button to bring a hidden
-    // legend back, nor a table, so a flag asking for either is warned
-    // about. The same value from --config is silent, since one file serves
-    // every format a radar is rendered to (D-100, rg-qag).
-    let from_flag = |origin: &Origin| origin.source == Source::Flag;
-    if config.legend.value == Legend::Hidden
-        && from_flag(&config.legend.origin)
-        && config.format.is_snapshot()
-    {
-        warnings.push(Warning::Render(RenderKind::LegendStatic));
-    }
-    if config.table.value == Table::All
-        && from_flag(&config.table.origin)
-        && config.format.is_snapshot()
-    {
-        warnings.push(Warning::Render(RenderKind::TableStatic));
-    }
+    warn_static_flags(config, warnings);
     // FR-104: a static snapshot draws every text with the bundled font
     // alone, so a character it lacks is a box; the page falls back to the
     // reader's fonts, so it is not warned (D-93).

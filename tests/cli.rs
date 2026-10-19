@@ -161,9 +161,8 @@ fn legend_columns_outside_the_range_is_a_usage_error() {
 // ---- FR-56: --theme, case-insensitive, default light
 
 #[test]
-fn theme_defaults_to_light_and_ignores_case() {
-    let cli = parse(&["in.csv", "-o", "e.png"]).expect("parses");
-    assert_eq!(cli.theme, None);
+fn theme_ignores_case() {
+    // Omitted, it is None: `an_omitted_flag_is_none_so_a_config_key_can_fill_it`.
     let cli = parse(&["in.csv", "-o", "e.png", "--theme", "Dark"]).expect("parses");
     assert_eq!(cli.theme, Some(Theme::Dark));
 }

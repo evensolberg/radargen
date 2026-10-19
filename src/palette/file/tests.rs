@@ -597,13 +597,6 @@ fn an_at_rule_before_root_is_named_as_one() {
     );
 }
 
-/// `READ_CAP` is one byte past `MAX_BYTES`, so a file at the cap reads whole
-/// and one past it is told apart.
-#[test]
-fn the_read_cap_is_one_past_the_limit() {
-    assert_eq!(u64::try_from(MAX_BYTES + 1), Ok(READ_CAP));
-}
-
 /// rg-8xm, rg-p9a: a value that runs onto the next line is a forgotten
 /// `;`, and the message says how to end it.
 #[test]

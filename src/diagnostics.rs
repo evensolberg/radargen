@@ -515,32 +515,9 @@ impl RenderKind {
             ),
             Self::PngTextSmall {
                 width,
-                legible_from: Some(from),
-                width_source: Source::Config(file),
-            } => format!(
-                "at {width} pixels wide the PNG's text is too small to read; setting the width key in {file} to {from} or more keeps it legible"
-            ),
-            Self::PngTextSmall {
-                width,
-                legible_from: None,
-                width_source: Source::Config(_),
-            } => format!(
-                "at {width} pixels wide the PNG's text is too small to read, at any width; fewer or shorter names would help"
-            ),
-            Self::PngTextSmall {
-                width,
-                legible_from: Some(from),
-                width_source: _,
-            } => format!(
-                "at {width} pixels wide the PNG's text is too small to read; --width {from} or more keeps it legible"
-            ),
-            Self::PngTextSmall {
-                width,
-                legible_from: None,
-                width_source: _,
-            } => format!(
-                "at {width} pixels wide the PNG's text is too small to read, at any --width; fewer or shorter names would help"
-            ),
+                legible_from,
+                width_source,
+            } => small_text(*width, *legible_from, width_source),
             Self::FlagUndisplayable {
                 flag,
                 first,
@@ -575,6 +552,27 @@ fn io_reason(error: &std::io::Error) -> String {
     chars.next().map_or_else(String::new, |first| {
         first.to_lowercase().chain(chars).collect()
     })
+}
+
+/// D-87's small-text warning, its remedy naming the width as its source
+/// does (plan RG-019A, Ruling 9).
+fn small_text(width: u32, legible_from: Option<u32>, source: &Source) -> String {
+    let (set, any) = match source {
+        Source::Config(file) => (format!("setting the width key in {file} to"), "width"),
+        Source::Flag | Source::Default => ("--width".to_owned(), "--width"),
+    };
+    legible_from.map_or_else(
+        || {
+            format!(
+                "at {width} pixels wide the PNG's text is too small to read, at any {any}; fewer or shorter names would help"
+            )
+        },
+        |from| {
+            format!(
+                "at {width} pixels wide the PNG's text is too small to read; {set} {from} or more keeps it legible"
+            )
+        },
+    )
 }
 
 /// D-87's remedy for an image too large to draw.
@@ -629,30 +627,37 @@ fn article(found: &str) -> String {
     format!("{} {found}", if an { "an" } else { "a" })
 }
 
+/// FR-91's keys, in its order, as a sentence lists them: `output, …, table
+/// and palette`.
+fn known_keys() -> String {
+    let keys: Vec<&str> = Setting::ALL.iter().map(|s| s.key()).collect();
+    let (last, rest) = keys.split_last().map_or(("", &[][..]), |(l, r)| (*l, r));
+    format!("{} and {last}", rest.join(", "))
+}
+
+/// The type FR-91 gives a key, as its wrong-type message asks for it.
+const fn wanted(expected: Expected) -> &'static str {
+    match expected {
+        Expected::String => "a string",
+        Expected::Integer => "an integer",
+        Expected::Strings => "an array of strings, such as [\"Adopt\", \"Trial\"]",
+    }
+}
+
 /// FR-91: one key's problem, named by the key and the file (NFR-10).
 fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
     let key = |setting: Setting| Origin::new(setting, Source::Config(Arc::clone(file)));
     match problem {
-        KeyProblem::Unknown { key: name } => {
-            let keys: Vec<&str> = Setting::ALL.iter().map(|s| s.key()).collect();
-            let (last, rest) = keys.split_last().map_or(("", &[][..]), |(l, r)| (*l, r));
-            format!(
-                "--config {file}: unknown key '{name}'; the keys are {} and {last}",
-                rest.join(", ")
-            )
-        }
-        KeyProblem::WrongType { setting, found } => {
-            let wanted = match setting.expected() {
-                Expected::String => "a string",
-                Expected::Integer => "an integer",
-                Expected::Strings => "an array of strings, such as [\"Adopt\", \"Trial\"]",
-            };
-            format!(
-                "{}: must be {wanted}, not {}",
-                key(*setting),
-                article(found)
-            )
-        }
+        KeyProblem::Unknown { key: name } => format!(
+            "--config {file}: unknown key '{name}'; the keys are {}",
+            known_keys()
+        ),
+        KeyProblem::WrongType { setting, found } => format!(
+            "{}: must be {}, not {}",
+            key(*setting),
+            wanted(setting.expected()),
+            article(found)
+        ),
         KeyProblem::EntryType {
             setting,
             index,

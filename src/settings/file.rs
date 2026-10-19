@@ -7,8 +7,7 @@
 //! Imports nothing from `diagnostics`: the pipeline names each problem by
 //! its key and file (plan RG-018A, R1).
 
-use std::fs::File;
-use std::io::{self, Read as _};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -16,7 +15,7 @@ use clap::ValueEnum;
 use toml::Value;
 
 use super::Setting;
-use crate::decode::{NotUtf8, decode, line_at};
+use crate::decode::{NotUtf8, decode, line_at, read_capped};
 use crate::emit::html::{Legend, Table};
 use crate::palette::Theme;
 use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
@@ -24,8 +23,6 @@ use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
 /// The largest file read. A config is a few hundred bytes, so 1 MiB stops
 /// a wrong path such as `/dev/zero` (NFR-15), as a palette's cap does.
 pub const MAX_BYTES: usize = 1 << 20;
-/// One byte past the cap, to tell a file at the cap from one beyond it.
-const READ_CAP: u64 = (1 << 20) + 1;
 
 /// The values of the keys that passed their checks.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -204,13 +201,9 @@ pub enum ReadError {
 /// UTF-8, or is not TOML. Key problems are not errors here: they are in
 /// [`Loaded::problems`], so the run can report them with everything else.
 pub fn read(path: &Path) -> Result<Loaded, ReadError> {
-    let mut bytes = Vec::new();
-    File::open(path)
-        .and_then(|file| file.take(READ_CAP).read_to_end(&mut bytes))
-        .map_err(ReadError::Unreadable)?;
-    if bytes.len() > MAX_BYTES {
-        return Err(ReadError::TooLarge);
-    }
+    let bytes = read_capped(path, MAX_BYTES)
+        .map_err(ReadError::Unreadable)?
+        .ok_or(ReadError::TooLarge)?;
     let text = decode(&bytes).map_err(ReadError::NotUtf8)?;
     load(&text, path)
 }
@@ -249,43 +242,49 @@ fn one_line(message: &str) -> String {
 /// Every key FR-91 lists, in its order, then every other key, sorted
 /// (`toml::Table` is ordered by key without `preserve_order`).
 fn check(table: &toml::Table) -> (FileValues, Vec<KeyProblem>) {
-    let mut v = FileValues::default();
-    let mut problems = Vec::new();
-    for setting in Setting::ALL {
-        let Some(value) = table.get(setting.key()) else {
-            continue;
-        };
-        let checked = match setting {
-            Setting::Output => string(setting, value).map(|s| v.output = Some(s)),
-            Setting::Title => string(setting, value).map(|s| v.title = Some(s)),
-            Setting::Subtitle => string(setting, value).map(|s| v.subtitle = Some(s)),
-            Setting::Palette => string(setting, value).map(|s| v.palette = Some(s)),
-            Setting::Rings => list(setting, value).map(|s| v.rings = Some(s)),
-            Setting::UnplottedRings => list(setting, value).map(|s| v.unplotted_rings = Some(s)),
-            Setting::Theme => named(setting, value).map(|t| v.theme = Some(t)),
-            Setting::Legend => named(setting, value).map(|l| v.legend = Some(l)),
-            Setting::Table => named(setting, value).map(|t| v.table = Some(t)),
-            Setting::Width => integer(
-                setting,
-                value,
-                i64::from(MIN_EXPORT_WIDTH),
-                i64::from(MAX_EXPORT_WIDTH),
-            )
-            .map(|n| v.width = u32::try_from(n).ok()),
-            Setting::LegendColumns => integer(setting, value, 1, i64::from(MAX_LEGEND_COLUMNS))
-                .map(|n| v.legend_columns = u8::try_from(n).ok()),
-        };
-        if let Err(found) = checked {
-            problems.extend(found);
-        }
+    let mut values = FileValues::default();
+    let mut problems: Vec<KeyProblem> = Setting::ALL
+        .into_iter()
+        .filter_map(|setting| table.get(setting.key()).map(|value| (setting, value)))
+        .filter_map(|(setting, value)| take(&mut values, setting, value).err())
+        .flatten()
+        .collect();
+    problems.extend(unknown(table));
+    (values, problems)
+}
+
+/// `setting`'s key, `value`, checked and stored in `values`; or its
+/// problems, leaving `values` without it.
+fn take(values: &mut FileValues, setting: Setting, value: &Value) -> Result<(), Vec<KeyProblem>> {
+    let v = values;
+    match setting {
+        Setting::Output => string(setting, value).map(|s| v.output = Some(s)),
+        Setting::Title => string(setting, value).map(|s| v.title = Some(s)),
+        Setting::Subtitle => string(setting, value).map(|s| v.subtitle = Some(s)),
+        Setting::Palette => string(setting, value).map(|s| v.palette = Some(s)),
+        Setting::Rings => list(setting, value).map(|s| v.rings = Some(s)),
+        Setting::UnplottedRings => list(setting, value).map(|s| v.unplotted_rings = Some(s)),
+        Setting::Theme => named(setting, value).map(|t| v.theme = Some(t)),
+        Setting::Legend => named(setting, value).map(|l| v.legend = Some(l)),
+        Setting::Table => named(setting, value).map(|t| v.table = Some(t)),
+        Setting::Width => integer(
+            setting,
+            value,
+            i64::from(MIN_EXPORT_WIDTH),
+            i64::from(MAX_EXPORT_WIDTH),
+        )
+        .map(|n| v.width = u32::try_from(n).ok()),
+        Setting::LegendColumns => integer(setting, value, 1, i64::from(MAX_LEGEND_COLUMNS))
+            .map(|n| v.legend_columns = u8::try_from(n).ok()),
     }
-    problems.extend(
-        table
-            .keys()
-            .filter(|key| !Setting::ALL.iter().any(|s| s.key() == key.as_str()))
-            .map(|key| KeyProblem::Unknown { key: key.clone() }),
-    );
-    (v, problems)
+}
+
+/// Every key FR-91 does not list, so a typo is not ignored.
+fn unknown(table: &toml::Table) -> impl Iterator<Item = KeyProblem> + '_ {
+    table
+        .keys()
+        .filter(|key| !Setting::ALL.iter().any(|s| s.key() == key.as_str()))
+        .map(|key| KeyProblem::Unknown { key: key.clone() })
 }
 
 fn wrong(setting: Setting, value: &Value) -> Vec<KeyProblem> {
