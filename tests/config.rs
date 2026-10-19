@@ -686,3 +686,50 @@ fn a_broken_output_key_is_not_also_missing() {
         ]
     );
 }
+
+/// Final review I-1: D-74's same-file check must not open a pipe, so a
+/// FIFO palette from the config is refused even when the output already
+/// exists. Bounded in time, so a regression fails rather than hangs.
+#[cfg(unix)]
+#[test]
+fn a_fifo_palette_with_an_existing_output_is_refused_not_awaited() {
+    use std::process::{Command, Stdio};
+    use std::time::{Duration, Instant};
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("r.svg", "an earlier edition"),
+        ("radar.toml", "output = \"r.svg\"\npalette = \"p.css\"\n"),
+    ]);
+    let made = Command::new("mkfifo")
+        .arg(dir.path().join("p.css"))
+        .status()
+        .is_ok_and(|s| s.success());
+    if !made {
+        return;
+    }
+    let mut child = Command::new(env!("CARGO_BIN_EXE_radargen"))
+        .args(["radar.csv", "-c", "radar.toml"])
+        .current_dir(dir.path())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("the binary runs");
+    let start = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().expect("waits") {
+            break Some(status);
+        }
+        if start.elapsed() > Duration::from_secs(10) {
+            child.kill().expect("kills");
+            child.wait().expect("reaps");
+            break None;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    assert_eq!(
+        status.and_then(|s| s.code()),
+        Some(1),
+        "hung, or wrong exit"
+    );
+}

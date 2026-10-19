@@ -531,7 +531,9 @@ fn output_checks(
         regular(path, named)?;
         // One handle on the output, compared with each file the run reads
         // (efficiency review 4).
-        let handle = same_file::Handle::from_path(path).ok();
+        let handle = is_regular(path)
+            .then(|| same_file::Handle::from_path(path).ok())
+            .flatten();
         reads
             .iter()
             .try_for_each(|&(read, which)| output_is_input(handle.as_ref(), named, read, which))?;
@@ -542,9 +544,11 @@ fn output_checks(
 
 /// The maintainer's ruling B (security review F4): a path from a
 /// `--config` file that exists must be a regular file, so a pipe, a
-/// terminal or a folder is refused before anything opens it. A path that
-/// does not exist is left to the read or the write; a flag's path is the
-/// author's own, so it is not checked.
+/// terminal or a folder is refused rather than read or waited on. Nothing
+/// before it opens a path that is not a regular file: D-74's check skips
+/// one ([`output_is_input`]). A path that does not exist is left to the
+/// read or the write; a flag's path is the author's own, so it is not
+/// checked.
 fn regular(path: &Path, named: &NamedPath) -> Result<(), Fatal> {
     // The source first, so a run without a config pays no stat
     // (efficiency review 3).
@@ -574,21 +578,32 @@ fn missing_directory(output: &Path, named: &NamedPath) -> Result<(), Fatal> {
     }
 }
 
+/// Whether `path` names a regular file, following symlinks; `false` when
+/// it cannot be read.
+fn is_regular(path: &Path) -> bool {
+    std::fs::metadata(path).is_ok_and(|meta| meta.is_file())
+}
+
 /// D-74: the output must not be a file the run reads: the input CSV, the
 /// `--config` file or the palette (security review F2). Files are compared
-/// by identity
-/// (device and inode, or volume and file index on Windows), so `./`, `..`,
-/// symlinks, case and hard links are all caught, and no path spelling needs
-/// resolving. A path that cannot be opened is not the input, and an output
-/// that cannot be opened (`output` is `None`) is none of them.
+/// by identity (device and inode, or volume and file index on Windows), so
+/// `./`, `..`, symlinks, case and hard links are all caught, and no path
+/// spelling needs resolving. A path that cannot be opened is not the input,
+/// and an output that cannot be opened (`output` is `None`) is none of
+/// them.
+///
+/// Only a regular file is opened: opening a pipe blocks until a writer
+/// comes, and a pipe, a terminal or a folder can never be the same file as
+/// a regular output, so it is skipped (final review I-1).
 fn output_is_input(
     output: Option<&same_file::Handle>,
     named: &NamedPath,
     input: &Path,
     which: ReadFile,
 ) -> Result<(), Fatal> {
-    let same = output
-        .is_some_and(|out| same_file::Handle::from_path(input).is_ok_and(|read| &read == out));
+    let same = output.is_some_and(|out| {
+        is_regular(input) && same_file::Handle::from_path(input).is_ok_and(|read| &read == out)
+    });
     if same {
         Err(Fatal::OutputIsInput {
             output: named.clone(),
