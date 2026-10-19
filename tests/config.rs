@@ -95,7 +95,7 @@ fn every_problem_in_the_file_is_reported_together() {
         [
             "error: invalid value 'sepia' for the theme key in radar.toml [possible values: light, dark]",
             "error: the width key in radar.toml: must be an integer, not a float",
-            "error: --config radar.toml: unknown key 'ring'; the keys are output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table and palette",
+            "error: --config radar.toml: unknown key 'ring'; did you mean 'rings'? The keys are output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table and palette",
         ]
     );
     assert_eq!(snapshot(dir.path()), before);
@@ -245,7 +245,9 @@ fn a_tilde_is_not_expanded() {
     assert_eq!(ran.code, Some(1));
     assert_eq!(
         ran.lines(),
-        ["error: the output key in radar.toml (~/r.html): the directory ~ does not exist"]
+        [
+            "error: the output key in radar.toml (~/r.html): the directory ~ does not exist; ~ is not expanded in a config file, so write the full path"
+        ]
     );
 }
 
@@ -258,7 +260,7 @@ fn no_output_anywhere_is_a_usage_error() {
     assert_eq!(
         ran.lines(),
         [
-            "error: the following required arguments were not provided: --output <OUTPUT>, or the output key in radar.toml"
+            "error: no output: pass -o <OUTPUT>, or add an output key to radar.toml, such as output = \"radar.html\""
         ]
     );
 }
@@ -338,7 +340,7 @@ fn ring_diagnostics_name_the_key_and_file() {
     let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
     assert!(ran.ok(), "{}", ran.stderr);
     assert!(
-        ran.stderr.contains("line 3, ring: 'Hold' is not in the rings key in radar.toml (Adopt); the row is not on the radar; to plot it, add it to the rings key in radar.toml"),
+        ran.stderr.contains("line 3, ring: 'Hold' is not in the rings key in radar.toml (Adopt); the row is not on the radar; to plot it, add it to that list; to leave it off without this warning, add it to the unplotted_rings key in radar.toml"),
         "{}",
         ran.stderr
     );

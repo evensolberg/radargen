@@ -1620,7 +1620,7 @@ fn an_undeclared_ring_names_the_rings_key() {
     let one = quiet_hint(4, "Adpot", radar_toml(), OffRadar::Undrawn, true);
     assert_eq!(
         one.to_string(),
-        "line 4, ring: 'Adpot' is not in the rings key in radar.toml (Adopt, Trial); the row is not on the radar; to plot it, add it to the rings key in radar.toml; to leave it off without this warning, add it to --unplotted-rings"
+        "line 4, ring: 'Adpot' is not in the rings key in radar.toml (Adopt, Trial); the row is not on the radar; to plot it, add it to that list; to leave it off without this warning, add it to the unplotted_rings key in radar.toml"
     );
     let mut warnings = Warnings::default();
     warnings.push(quiet_hint(
@@ -1640,8 +1640,19 @@ fn an_undeclared_ring_names_the_rings_key() {
     assert_eq!(
         warnings.render(),
         [
-            "warning: 2 rows use a ring not in the rings key in radar.toml (Adopt, Trial) — Adpot (2, first line 4); none is on the radar; to plot one, add it to the rings key in radar.toml"
+            "warning: 2 rows use a ring not in the rings key in radar.toml (Adopt, Trial) — Adpot (2, first line 4); none is on the radar; to plot one, add it to that list"
         ]
+    );
+}
+
+/// UX review 4: a ring set from the file names the file's keys in every
+/// remedy, and its rings key only once.
+#[test]
+fn an_undeclared_ring_from_a_file_names_the_file_s_keys() {
+    let row = quiet_hint(4, "Adpot", radar_toml(), OffRadar::Unlisted, true);
+    assert_eq!(
+        row.to_string(),
+        "line 4, ring: 'Adpot' is not in the rings key in radar.toml (Adopt, Trial), so the row is left off the page; to plot it, add it to that list; to leave it off without this warning, add it to the unplotted_rings key in radar.toml; table = \"all\" in radar.toml lists it, but also publishes every other column"
     );
 }
 
@@ -1692,8 +1703,12 @@ fn config_messages() {
     };
     let cases = [
         (
-            key(KeyProblem::Unknown { key: "ring".into() }),
-            "error: --config radar.toml: unknown key 'ring'; the keys are output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table and palette",
+            key(KeyProblem::Unknown {
+                key: "ring".into(),
+                near: Some(Setting::Rings),
+                table: false,
+            }),
+            "error: --config radar.toml: unknown key 'ring'; did you mean 'rings'? The keys are output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table and palette",
         ),
         (
             key(KeyProblem::WrongType {
@@ -1740,13 +1755,63 @@ fn config_messages() {
                 min: 320,
                 max: 10_000,
             }),
-            "error: invalid value '5' for the width key in radar.toml: 5 is not in 320..=10000",
+            "error: the width key in radar.toml: 5 is out of range; use 320 to 10000",
         ),
     ];
     for (fatal, expected) in cases {
         assert_eq!(fatal.render(), expected);
     }
-    assert!(key(KeyProblem::Unknown { key: "x".into() }).is_usage());
+    assert!(
+        key(KeyProblem::Unknown {
+            key: "x".into(),
+            near: None,
+            table: false
+        })
+        .is_usage()
+    );
+}
+
+/// UX review 3 and 11, Rust review M6: the hints a key problem adds.
+#[test]
+fn config_hint_messages() {
+    let file: std::sync::Arc<str> = std::sync::Arc::from("radar.toml");
+    let key = |problem| Fatal::ConfigKey {
+        file: file.clone(),
+        problem,
+    };
+    let cases = [
+        (
+            key(KeyProblem::Unknown {
+                key: "radar".into(),
+                near: None,
+                table: true,
+            }),
+            "error: --config radar.toml: unknown key 'radar'; the keys are output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table and palette; keys go at the top of the file, not under [radar]",
+        ),
+        (
+            key(KeyProblem::WrongType {
+                setting: Setting::Title,
+                found: "integer",
+            }),
+            "error: the title key in radar.toml: must be a string, not an integer; put the value in quotes",
+        ),
+        (
+            key(KeyProblem::WrongType {
+                setting: Setting::LegendColumns,
+                found: "string",
+            }),
+            "error: the legend_columns key in radar.toml: must be an integer, not a string; remove the quotes",
+        ),
+        (
+            key(KeyProblem::Empty {
+                setting: Setting::Output,
+            }),
+            "error: the output key in radar.toml: is empty; give a file name, or remove the key",
+        ),
+    ];
+    for (fatal, expected) in cases {
+        assert_eq!(fatal.render(), expected);
+    }
 }
 
 /// FR-59 across sources, a missing output, and the file's runtime
@@ -1761,7 +1826,7 @@ fn config_file_messages() {
         ),
         (
             Fatal::NoOutput { file: file.clone() },
-            "error: the following required arguments were not provided: --output <OUTPUT>, or the output key in radar.toml",
+            "error: no output: pass -o <OUTPUT>, or add an output key to radar.toml, such as output = \"radar.html\"",
         ),
         (
             Fatal::ConfigTooLarge { file: file.clone() },

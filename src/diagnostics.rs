@@ -686,16 +686,17 @@ const fn wanted(expected: Expected) -> &'static str {
 fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
     let key = |setting: Setting| Origin::new(setting, Source::Config(Arc::clone(file)));
     match problem {
-        KeyProblem::Unknown { key: name } => format!(
-            "--config {file}: unknown key '{}'; the keys are {}",
-            clipped(name),
-            known_keys()
-        ),
+        KeyProblem::Unknown { key, near, table } => unknown_key(file, key, *near, *table),
         KeyProblem::WrongType { setting, found } => format!(
-            "{}: must be {}, not {}",
+            "{}: must be {}, not {}{}",
             key(*setting),
             wanted(setting.expected()),
-            article(found)
+            article(found),
+            quotes(setting.expected(), found)
+        ),
+        KeyProblem::Empty { setting } => format!(
+            "{}: is empty; give a file name, or remove the key",
+            key(*setting)
         ),
         KeyProblem::EntryType {
             setting,
@@ -732,12 +733,43 @@ fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
             value,
             min,
             max,
-        } => {
-            format!(
-                "invalid value '{value}' for {}: {value} is not in {min}..={max}",
-                key(*setting)
-            )
+        } => format!(
+            "{}: {value} is out of range; use {min} to {max}",
+            key(*setting)
+        ),
+    }
+}
+
+/// FR-91's unknown key, with the key it is near (UX review 3) and, for a
+/// table such as `[radar]`, where keys go.
+fn unknown_key(file: &str, key: &str, near: Option<Setting>, table: bool) -> String {
+    let guess = near.map_or_else(
+        || "; the keys".to_owned(),
+        |s| format!("; did you mean '{}'? The keys", s.key()),
+    );
+    let section = if table {
+        format!(
+            "; keys go at the top of the file, not under [{}]",
+            clipped(key)
+        )
+    } else {
+        String::new()
+    };
+    format!(
+        "--config {file}: unknown key '{}'{guess} are {}{section}",
+        clipped(key),
+        known_keys()
+    )
+}
+
+/// UX review 11: a wrong type that missing or extra quotes explain.
+fn quotes(expected: Expected, found: &str) -> &'static str {
+    match (expected, found) {
+        (Expected::String, "integer" | "float" | "boolean" | "datetime") => {
+            "; put the value in quotes"
         }
+        (Expected::Integer, "string") => "; remove the quotes",
+        _ => "",
     }
 }
 
@@ -933,23 +965,38 @@ impl OffRadar {
     fn remedies(self, source: &Source, suggest: bool, one: &str, them: &str) -> String {
         // `write!` rather than `push_str(&format!(..))`, which clippy's
         // `format_push_string` refuses; writing to a `String` cannot fail.
-        let mut text = match source {
-            Source::Default => format!(
-                "; to plot {one}, pass --rings with every ring to draw (it replaces the defaults)"
+        // A ring set from the file names the file's keys, since that is
+        // what its author edits (UX review 4); the fact before this already
+        // named its rings key, so the plot remedy says "that list".
+        let (plot, quiet, all) = match source {
+            Source::Default => (
+                "pass --rings with every ring to draw (it replaces the defaults)".to_owned(),
+                "--unplotted-rings".to_owned(),
+                "--table all".to_owned(),
             ),
-            named => format!("; to plot {one}, add it to {}", ring_list(named)),
+            Source::Flag => (
+                format!("add it to {}", ring_list(source)),
+                "--unplotted-rings".to_owned(),
+                "--table all".to_owned(),
+            ),
+            Source::Config(file) => (
+                "add it to that list".to_owned(),
+                format!("the unplotted_rings key in {file}"),
+                format!("table = \"all\" in {file}"),
+            ),
         };
+        let mut text = format!("; to plot {one}, {plot}");
         if suggest {
             write!(
                 text,
-                "; to leave {one} off without this warning, add it to --unplotted-rings"
+                "; to leave {one} off without this warning, add it to {quiet}"
             )
             .expect("a String takes any write");
         }
         if self == Self::Unlisted {
             write!(
                 text,
-                "; --table all lists {them}, but also publishes every other column"
+                "; {all} lists {them}, but also publishes every other column"
             )
             .expect("a String takes any write");
         }
@@ -1280,7 +1327,11 @@ pub enum Fatal {
         error: PaletteError,
     },
     /// NFR-15: the `--palette` file does not exist or cannot be read.
-    #[error("{palette}: cannot be read: {}", io_reason(source))]
+    #[error(
+        "{palette}: cannot be read: {}{}",
+        io_reason(source),
+        palette.tilde_note()
+    )]
     PaletteUnreadable {
         /// The file, by its flag or key, as the author named it.
         palette: NamedPath,
@@ -1307,7 +1358,7 @@ pub enum Fatal {
         palette: NamedPath,
     },
     /// FR-62: `-o`'s directory does not exist; the tool does not create it.
-    #[error("{output}: the directory {dir} does not exist")]
+    #[error("{output}: the directory {dir} does not exist{}", output.tilde_note())]
     MissingDirectory {
         /// The output, by its flag or key, as written.
         output: NamedPath,
@@ -1455,7 +1506,7 @@ pub enum Fatal {
     },
     /// FR-91: neither `-o` nor `output`, in clap's words, a usage error.
     #[error(
-        "the following required arguments were not provided: --output <OUTPUT>, or the output key in {file}"
+        "no output: pass -o <OUTPUT>, or add an output key to {file}, such as output = \"radar.html\""
     )]
     NoOutput {
         /// The file as named.

@@ -177,6 +177,21 @@ impl NamedPath {
     }
 }
 
+impl NamedPath {
+    /// What a message adds when a path from the file starts with `~`, which
+    /// no shell expanded (FR-91, UX review 5); empty otherwise.
+    #[must_use]
+    pub fn tilde_note(&self) -> &'static str {
+        let tilde = self.shown == "~" || self.shown.starts_with("~/");
+        match self.origin.source {
+            Source::Config(_) if tilde => {
+                "; ~ is not expanded in a config file, so write the full path"
+            }
+            _ => "",
+        }
+    }
+}
+
 impl fmt::Display for NamedPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.origin.source {

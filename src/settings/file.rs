@@ -108,6 +108,18 @@ pub enum KeyProblem {
     Unknown {
         /// The key as written.
         key: String,
+        /// The key it is one or two edits from, a hyphen for an underscore
+        /// counting as none, as FR-108 guesses a column (UX review 3).
+        near: Option<Setting>,
+        /// Whether its value is a table, such as `[radar]`, which puts
+        /// every key under it.
+        table: bool,
+    },
+    /// An empty `output` or `palette`, which would name the file's own
+    /// folder (Rust review M6).
+    Empty {
+        /// The key's setting.
+        setting: Setting,
     },
     /// The value is not of the key's type; `found` is TOML's name for it.
     WrongType {
@@ -167,7 +179,8 @@ impl KeyProblem {
             | Self::EntryType { setting, .. }
             | Self::Comma { setting, .. }
             | Self::NotAValue { setting, .. }
-            | Self::OutOfRange { setting, .. } => Some(*setting),
+            | Self::OutOfRange { setting, .. }
+            | Self::Empty { setting } => Some(*setting),
         }
     }
 }
@@ -258,10 +271,10 @@ fn check(table: &toml::Table) -> (FileValues, Vec<KeyProblem>) {
 fn take(values: &mut FileValues, setting: Setting, value: &Value) -> Result<(), Vec<KeyProblem>> {
     let v = values;
     match setting {
-        Setting::Output => string(setting, value).map(|s| v.output = Some(s)),
+        Setting::Output => path(setting, value).map(|s| v.output = Some(s)),
         Setting::Title => string(setting, value).map(|s| v.title = Some(s)),
         Setting::Subtitle => string(setting, value).map(|s| v.subtitle = Some(s)),
-        Setting::Palette => string(setting, value).map(|s| v.palette = Some(s)),
+        Setting::Palette => path(setting, value).map(|s| v.palette = Some(s)),
         Setting::Rings => list(setting, value).map(|s| v.rings = Some(s)),
         Setting::UnplottedRings => list(setting, value).map(|s| v.unplotted_rings = Some(s)),
         Setting::Theme => named(setting, value).map(|t| v.theme = Some(t)),
@@ -282,9 +295,46 @@ fn take(values: &mut FileValues, setting: Setting, value: &Value) -> Result<(), 
 /// Every key FR-91 does not list, so a typo is not ignored.
 fn unknown(table: &toml::Table) -> impl Iterator<Item = KeyProblem> + '_ {
     table
-        .keys()
-        .filter(|key| !Setting::ALL.iter().any(|s| s.key() == key.as_str()))
-        .map(|key| KeyProblem::Unknown { key: key.clone() })
+        .iter()
+        .filter(|(key, _)| !Setting::ALL.iter().any(|s| s.key() == key.as_str()))
+        .map(|(key, value)| KeyProblem::Unknown {
+            key: key.clone(),
+            near: near_miss(key),
+            table: value.is_table(),
+        })
+}
+
+/// The key `key` is one or two edits from, as FR-108 guesses a column
+/// (D-98): a hyphen for an underscore and a capital count as no edit, a
+/// transposition as one, and only a key longer than four characters, given
+/// longer still, allows two. Of several, the fewest edits wins, then
+/// FR-91's order.
+fn near_miss(key: &str) -> Option<Setting> {
+    /// The longest key that allows only one edit.
+    const SHORT: usize = 4;
+    let spelled = key.replace('-', "_").to_lowercase();
+    let length = spelled.chars().count();
+    Setting::ALL
+        .into_iter()
+        .map(|s| (strsim::damerau_levenshtein(&spelled, s.key()), s))
+        .filter(|&(edits, s)| {
+            let allowed = if s.key().len() > SHORT && length > s.key().len() {
+                2
+            } else {
+                1
+            };
+            edits <= allowed
+        })
+        .min_by_key(|&(edits, _)| edits)
+        .map(|(_, s)| s)
+}
+
+/// A path key's string, refused when empty (Rust review M6).
+fn path(setting: Setting, value: &Value) -> Result<String, Vec<KeyProblem>> {
+    let text = string(setting, value)?;
+    Some(text)
+        .filter(|t| !t.is_empty())
+        .ok_or_else(|| vec![KeyProblem::Empty { setting }])
 }
 
 fn wrong(setting: Setting, value: &Value) -> Vec<KeyProblem> {
@@ -439,9 +489,15 @@ mod tests {
                     min: 1,
                     max: 4
                 },
-                KeyProblem::Unknown { key: "ring".into() },
                 KeyProblem::Unknown {
-                    key: "zebra".into()
+                    key: "ring".into(),
+                    near: Some(Setting::Rings),
+                    table: false,
+                },
+                KeyProblem::Unknown {
+                    key: "zebra".into(),
+                    near: None,
+                    table: false,
                 },
             ]
         );
@@ -562,6 +618,63 @@ mod tests {
     fn an_empty_file_has_no_values_and_no_problems() {
         let l = loaded("");
         assert_eq!((l.values, l.problems), (FileValues::default(), vec![]));
+    }
+
+    /// UX review 3: an unknown key names the key it is near, a hyphen for
+    /// an underscore included, and says when it is a table.
+    #[test]
+    fn an_unknown_key_names_its_near_miss() {
+        let unknown = |text: &str| loaded(text).problems;
+        assert_eq!(
+            unknown("unplotted-rings = [\"In Use\"]"),
+            [KeyProblem::Unknown {
+                key: "unplotted-rings".into(),
+                near: Some(Setting::UnplottedRings),
+                table: false,
+            }]
+        );
+        assert_eq!(
+            unknown("titel = \"x\""),
+            [KeyProblem::Unknown {
+                key: "titel".into(),
+                near: Some(Setting::Title),
+                table: false,
+            }]
+        );
+        assert_eq!(
+            unknown("[radar]\ntitle = \"x\""),
+            [KeyProblem::Unknown {
+                key: "radar".into(),
+                near: None,
+                table: true,
+            }]
+        );
+        assert_eq!(
+            unknown("csv = \"r.csv\""),
+            [KeyProblem::Unknown {
+                key: "csv".into(),
+                near: None,
+                table: false,
+            }]
+        );
+    }
+
+    /// Rust review M6: an empty path key is its own problem, not a path
+    /// that resolves to the file's folder.
+    #[test]
+    fn an_empty_path_key_is_a_problem() {
+        assert_eq!(
+            loaded("output = \"\"\npalette = \"\"\ntitle = \"\"").problems,
+            [
+                KeyProblem::Empty {
+                    setting: Setting::Output
+                },
+                KeyProblem::Empty {
+                    setting: Setting::Palette
+                },
+            ],
+            "an empty title is allowed: it shows no title (FR-65)"
+        );
     }
 
     /// Security review F3: deep nesting is TOML's own error, not a crash.
