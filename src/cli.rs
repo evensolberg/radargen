@@ -13,7 +13,7 @@ use crate::escape::remove_undisplayable;
 use crate::options::{Legend, Table};
 pub use crate::palette::Theme;
 use crate::settings::file::Loaded;
-use crate::settings::{MergeProblem, Origin, Setting, Settings, pick};
+use crate::settings::{Origin, Setting, Settings, pick};
 use crate::starter::Starter;
 use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
 
@@ -245,13 +245,12 @@ impl Cli {
     }
 
     /// FR-91: every setting from its flag, else from `file`, with where it
-    /// came from (NFR-10), and what the merge found wrong (FR-59 across
-    /// sources, a missing output).
+    /// came from (NFR-10); a flag displaces the opposing key (FR-59).
     #[must_use]
-    pub fn settings(&self, file: Option<&Loaded>) -> (Settings, Vec<MergeProblem>) {
+    pub fn settings(&self, file: Option<&Loaded>) -> Settings {
         let mut settings = Settings {
             output: pick(Setting::Output, self.output.clone(), file, |v| {
-                v.output.as_ref().map(PathBuf::from)
+                v.output.clone()
             }),
             title: pick(Setting::Title, self.title.clone(), file, |v| {
                 v.title.clone()
@@ -276,13 +275,12 @@ impl Cli {
             legend: pick(Setting::Legend, self.legend, file, |v| v.legend),
             table: pick(Setting::Table, self.table, file, |v| v.table),
             palette: pick(Setting::Palette, self.palette.clone(), file, |v| {
-                v.palette.as_ref().map(PathBuf::from)
+                v.palette.clone()
             }),
             dir: file.map(|loaded| loaded.dir.clone()),
         };
         settings.displace();
-        let problems = settings.problems(file);
-        (settings, problems)
+        settings
     }
 }
 

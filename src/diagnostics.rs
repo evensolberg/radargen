@@ -11,7 +11,7 @@ use crate::options::Table;
 use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::RingsError;
 use crate::settings::file::{KeyProblem, MAX_BYTES as CONFIG_MAX_BYTES};
-use crate::settings::{Expected, MergeProblem, NamedPath, Origin, Setting, Source};
+use crate::settings::{NamedPath, Origin, Setting, Source};
 use crate::starter::Starter;
 use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX, WIDE_MIN_VIEWPORT_PX};
 use crate::text::FontError;
@@ -607,15 +607,6 @@ impl Fatal {
     }
 }
 
-impl From<MergeProblem> for Fatal {
-    fn from(problem: MergeProblem) -> Self {
-        match problem {
-            MergeProblem::Conflict { file } => Self::Conflict { file },
-            MergeProblem::NoOutput { file } => Self::NoOutput { file },
-        }
-    }
-}
-
 /// `name, line 3: message`, or `name: message` without a line: a
 /// config file's syntax error and a palette's problem.
 fn at_line(name: impl fmt::Display, line: Option<usize>, message: impl fmt::Display) -> String {
@@ -640,11 +631,19 @@ fn known_keys() -> String {
 }
 
 /// The type FR-91 gives a key, as its wrong-type message asks for it.
-const fn wanted(expected: Expected) -> &'static str {
-    match expected {
-        Expected::String => "a string",
-        Expected::Integer => "an integer",
-        Expected::Strings => "an array of strings, such as [\"Adopt\", \"Trial\"]",
+const fn wanted(setting: Setting) -> &'static str {
+    match setting {
+        Setting::Width | Setting::LegendColumns => "an integer",
+        Setting::Rings | Setting::UnplottedRings => {
+            "an array of strings, such as [\"Adopt\", \"Trial\"]"
+        }
+        Setting::Output
+        | Setting::Title
+        | Setting::Subtitle
+        | Setting::Theme
+        | Setting::Legend
+        | Setting::Table
+        | Setting::Palette => "a string",
     }
 }
 
@@ -656,9 +655,9 @@ fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
         KeyProblem::WrongType { setting, found } => format!(
             "{}: must be {}, not {}{}",
             key(*setting),
-            wanted(setting.expected()),
+            wanted(*setting),
             article(found),
-            quotes(setting.expected(), found)
+            quotes(*setting, found)
         ),
         KeyProblem::Empty { setting } => format!(
             "{}: is empty; give a file name, or remove the key",
@@ -725,12 +724,14 @@ fn unknown_key(file: &str, key: &str, near: Option<Setting>, table: bool) -> Str
 }
 
 /// UX review 11: a wrong type that missing or extra quotes explain.
-fn quotes(expected: Expected, found: &str) -> &'static str {
-    match (expected, found) {
-        (Expected::String, "integer" | "float" | "boolean" | "datetime") => {
+fn quotes(setting: Setting, found: &str) -> &'static str {
+    let integer = matches!(setting, Setting::Width | Setting::LegendColumns);
+    let list = matches!(setting, Setting::Rings | Setting::UnplottedRings);
+    match found {
+        "integer" | "float" | "boolean" | "datetime" if !integer && !list => {
             "; put the value in quotes"
         }
-        (Expected::Integer, "string") => "; remove the quotes",
+        "string" if integer => "; remove the quotes",
         _ => "",
     }
 }

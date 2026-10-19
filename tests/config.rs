@@ -682,3 +682,17 @@ fn a_non_utf8_config_and_an_output_key_on_the_input_exit_1() {
         ]
     );
 }
+
+/// FR-91: a broken output key says why itself; it is not also missing.
+#[test]
+fn a_broken_output_key_is_not_also_missing() {
+    let dir = seeded(&[("radar.csv", CSV), ("radar.toml", "output = 3\n")]);
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    assert_eq!(ran.code, Some(2), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: the output key in radar.toml: must be a string, not an integer; put the value in quotes"
+        ]
+    );
+}

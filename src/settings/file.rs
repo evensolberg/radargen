@@ -34,7 +34,7 @@ pub const MAX_BYTES: usize = 1 << 20;
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct FileValues {
     /// `output`, as written; resolved against the file's directory later.
-    pub output: Option<String>,
+    pub output: Option<PathBuf>,
     /// `title`.
     pub title: Option<String>,
     /// `subtitle`.
@@ -54,7 +54,7 @@ pub struct FileValues {
     /// `table` (FR-106).
     pub table: Option<Table>,
     /// `palette`, as written; resolved later.
-    pub palette: Option<String>,
+    pub palette: Option<PathBuf>,
 }
 
 /// A read and checked file.
@@ -300,11 +300,13 @@ fn near_miss(key: &str) -> Option<Setting> {
 }
 
 /// A path key's string, refused when empty (Rust review M6).
-fn path(setting: Setting, value: &Value) -> Result<String, Vec<KeyProblem>> {
+fn path(setting: Setting, value: &Value) -> Result<PathBuf, Vec<KeyProblem>> {
     let text = string(setting, value)?;
-    Some(text)
-        .filter(|t| !t.is_empty())
-        .ok_or_else(|| vec![KeyProblem::Empty { setting }])
+    if text.is_empty() {
+        Err(vec![KeyProblem::Empty { setting }])
+    } else {
+        Ok(PathBuf::from(text))
+    }
 }
 
 fn wrong(setting: Setting, value: &Value) -> Vec<KeyProblem> {
@@ -417,7 +419,7 @@ mod tests {
             (Some(Theme::Dark), Some(Legend::Hidden), Some(Table::All))
         );
         assert_eq!((v.width, v.legend_columns), (Some(1920), Some(3)));
-        assert_eq!(v.palette.as_deref(), Some("brand.css"));
+        assert_eq!(v.palette.as_deref(), Some(Path::new("brand.css")));
     }
 
     /// FR-91: every problem, in FR-91's key order, then unknown keys sorted.
@@ -604,14 +606,6 @@ mod tests {
                 "{text}"
             );
         }
-        assert_eq!(
-            Setting::LegendColumns.expected(),
-            super::super::Expected::Integer
-        );
-        assert_eq!(
-            Setting::UnplottedRings.expected(),
-            super::super::Expected::Strings
-        );
     }
 
     /// QA review M-2: a file at the cap reads; one byte more does not.

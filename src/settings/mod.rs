@@ -118,35 +118,6 @@ impl Setting {
     }
 }
 
-/// The type FR-91 gives a key.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Expected {
-    /// A string.
-    String,
-    /// An integer: `width`, `legend_columns`.
-    Integer,
-    /// An array of strings: `rings`, `unplotted_rings`.
-    Strings,
-}
-
-impl Setting {
-    /// The TOML type FR-91 gives this setting's key.
-    #[must_use]
-    pub const fn expected(self) -> Expected {
-        match self {
-            Self::Width | Self::LegendColumns => Expected::Integer,
-            Self::Rings | Self::UnplottedRings => Expected::Strings,
-            Self::Output
-            | Self::Title
-            | Self::Subtitle
-            | Self::Theme
-            | Self::Legend
-            | Self::Table
-            | Self::Palette => Expected::String,
-        }
-    }
-}
-
 /// A setting and where its value came from: its effective source
 /// (NFR-10).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -389,24 +360,6 @@ pub struct Settings {
     pub dir: Option<PathBuf>,
 }
 
-/// What the merge finds wrong beyond each key's own problems: usage
-/// errors, as clap's would be (FR-59, FR-91).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MergeProblem {
-    /// FR-59 within the file: a `theme` key and a `palette` key. Across
-    /// sources the flag wins instead ([`Settings::displace`]), and clap
-    /// refuses the pair on the command line.
-    Conflict {
-        /// The file, as named on the command line.
-        file: Arc<str>,
-    },
-    /// FR-91: neither `-o` nor an `output` key.
-    NoOutput {
-        /// The file, as named on the command line.
-        file: Arc<str>,
-    },
-}
-
 /// One setting from its flag, else its key in `file`, else absent. A key
 /// with a problem is `Broken`, unless the flag overrides it (FR-91).
 pub fn pick<T>(
@@ -471,27 +424,6 @@ impl Settings {
         if by_flag(&self.theme) && !by_flag(&self.palette) {
             self.palette = Effective::Absent;
         }
-    }
-
-    /// FR-59 within the file, then a missing output (FR-91). Call after
-    /// [`Settings::displace`], so a theme and palette both still given
-    /// both came from the file.
-    #[must_use]
-    pub fn problems(&self, file: Option<&Loaded>) -> Vec<MergeProblem> {
-        let mut problems = Vec::new();
-        if let (Effective::Given(_), Effective::Given(_), Some(loaded)) =
-            (&self.theme, &self.palette, file)
-        {
-            problems.push(MergeProblem::Conflict {
-                file: Arc::clone(&loaded.file),
-            });
-        }
-        if let (Effective::Absent, Some(loaded)) = (&self.output, file) {
-            problems.push(MergeProblem::NoOutput {
-                file: Arc::clone(&loaded.file),
-            });
-        }
-        problems
     }
 }
 

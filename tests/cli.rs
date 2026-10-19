@@ -10,7 +10,7 @@ use radargen::diagnostics::{Fatal, RowKind, Warning, Warnings};
 use radargen::options::{Legend, OutputFormat, Table};
 use radargen::rings::{RingsError, parse_ring_list};
 use radargen::settings::file::load;
-use radargen::settings::{Effective, MergeProblem, Origin, Setting, Source, Sourced, resolve};
+use radargen::settings::{Effective, Origin, Setting, Source, Sourced, resolve};
 use radargen::starter::Starter;
 use std::path::{Path, PathBuf};
 
@@ -814,8 +814,7 @@ fn conf() -> Source {
 fn a_flag_overrides_its_key_and_only_its_key() {
     let cli = parse(&["in.csv", "-c", "conf/radar.toml", "--title", "Flag"]).expect("parses");
     let loaded = file("output = \"r.html\"\ntitle = \"File\"\nsubtitle = \"Q3\"\nwidth = 1920\n");
-    let (s, problems) = cli.settings(Some(&loaded));
-    assert_eq!(problems, []);
+    let s = cli.settings(Some(&loaded));
     assert_eq!(
         s.title,
         Effective::Given(Sourced {
@@ -838,7 +837,7 @@ fn a_flag_overrides_its_key_and_only_its_key() {
 #[test]
 fn an_empty_title_flag_overrides_the_key() {
     let cli = parse(&["in.csv", "-c", "r.toml", "--title", ""]).expect("parses");
-    let (s, _) = cli.settings(Some(&file("output = \"r.html\"\ntitle = \"File\"\n")));
+    let s = cli.settings(Some(&file("output = \"r.html\"\ntitle = \"File\"\n")));
     assert_eq!(s.title.as_given().map(|t| t.value.as_str()), Some(""));
 }
 
@@ -847,7 +846,7 @@ fn an_empty_title_flag_overrides_the_key() {
 fn a_broken_key_is_broken_unless_a_flag_overrides_it() {
     let loaded = file("output = \"r.html\"\nwidth = 5\nrings = \"Adopt\"\n");
     let cli = parse(&["in.csv", "-c", "r.toml", "--width", "800"]).expect("parses");
-    let (s, _) = cli.settings(Some(&loaded));
+    let s = cli.settings(Some(&loaded));
     assert_eq!(s.width.as_given().map(|w| w.value), Some(800));
     assert_eq!(s.rings, Effective::Broken);
 }
@@ -863,31 +862,26 @@ fn a_flag_drops_the_opposing_key_and_both_keys_conflict() {
         args.extend_from_slice(flags);
         parse(&args).expect("parses")
     };
-    let (s, problems) =
-        args(&["-p", "b.css"]).settings(Some(&file("output = \"r.png\"\ntheme = \"dark\"\n")));
-    assert_eq!(problems, []);
+    let s = args(&["-p", "b.css"]).settings(Some(&file("output = \"r.png\"\ntheme = \"dark\"\n")));
     assert_eq!(s.theme, Effective::Absent, "the file's theme is dropped");
     assert_eq!(
         s.palette.as_given().map(|p| p.origin.source.clone()),
         Some(Source::Flag)
     );
-    let (s, problems) = args(&["--theme", "dark"])
+    let s = args(&["--theme", "dark"])
         .settings(Some(&file("output = \"r.png\"\npalette = \"b.css\"\n")));
-    assert_eq!(problems, []);
     assert_eq!(
         s.palette,
         Effective::Absent,
         "the file's palette is dropped"
     );
     assert_eq!(s.theme.as_given().map(|t| t.value), Some(Theme::Dark));
-    let (_, problems) = args(&[]).settings(Some(&file(
+    let s = args(&[]).settings(Some(&file(
         "output = \"r.png\"\ntheme = \"dark\"\npalette = \"b.css\"\n",
     )));
-    assert_eq!(
-        problems,
-        [MergeProblem::Conflict {
-            file: std::sync::Arc::from("conf/radar.toml")
-        }]
+    assert!(
+        s.theme.as_given().is_some() && s.palette.as_given().is_some(),
+        "both from the file stay, for the pipeline to refuse (FR-59)"
     );
     assert_eq!(
         parse(&["in.csv", "-c", "c.toml", "-T", "dark", "-p", "b.css"])
@@ -898,20 +892,19 @@ fn a_flag_drops_the_opposing_key_and_both_keys_conflict() {
     );
 }
 
-/// FR-91: -o from one source or the other.
+/// FR-91: -o from one source or the other; with neither it is absent, and
+/// a broken key is broken, not also absent (the pipeline reports each).
 #[test]
-fn no_output_from_either_source_is_a_problem() {
+fn an_output_is_absent_from_both_sources_or_broken() {
     let cli = parse(&["in.csv", "-c", "conf/radar.toml"]).expect("parses without -o");
-    let (_, problems) = cli.settings(Some(&file("title = \"T\"\n")));
     assert_eq!(
-        problems,
-        [MergeProblem::NoOutput {
-            file: std::sync::Arc::from("conf/radar.toml")
-        }]
+        cli.settings(Some(&file("title = \"T\"\n"))).output,
+        Effective::Absent
     );
-    // A broken output key says why itself; it is not also missing.
-    let (_, problems) = cli.settings(Some(&file("output = 3\n")));
-    assert_eq!(problems, []);
+    assert_eq!(
+        cli.settings(Some(&file("output = 3\n"))).output,
+        Effective::Broken
+    );
 }
 
 /// FR-91, Review Focus 2: relative from the file's directory, absolute as
@@ -949,8 +942,7 @@ fn paths_resolve_against_their_source() {
 #[test]
 fn without_a_file_the_flags_are_the_settings() {
     let cli = parse(&["in.csv", "-o", "r.html", "-r", "A,B"]).expect("parses");
-    let (s, problems) = cli.settings(None);
-    assert_eq!(problems, []);
+    let s = cli.settings(None);
     assert_eq!(
         s.rings.as_given().map(|r| r.origin.source.clone()),
         Some(Source::Flag)
@@ -998,6 +990,11 @@ fn config_help_lists_every_key() {
     );
 }
 
+/// A setting's value, if given.
+fn val<T: Clone>(setting: &Effective<T>) -> Option<T> {
+    setting.as_given().map(|given| given.value.clone())
+}
+
 /// QA review I-3, I-4 and the precedence matrix: for every setting, a flag
 /// beats its key, and without the flag the key is read.
 #[test]
@@ -1031,44 +1028,33 @@ fn every_flag_beats_its_key_and_every_key_is_read() {
         "--table",
         "radar",
     ];
-    let (s, problems) = parse(&flags).expect("parses").settings(Some(&loaded));
-    assert_eq!(problems, []);
+    let s = parse(&flags).expect("parses").settings(Some(&loaded));
     assert_eq!(
         s.output.as_given().map(|v| v.origin.source.clone()),
         Some(Source::Flag)
     );
-    assert_eq!(s.title.as_given().map(|v| v.value.as_str()), Some("X"));
-    assert_eq!(s.subtitle.as_given().map(|v| v.value.as_str()), Some("X"));
-    assert_eq!(s.rings.as_given().map(|v| v.value.as_str()), Some("X"));
-    assert_eq!(
-        s.unplotted_rings.as_given().map(|v| v.value.as_str()),
-        Some("Y")
-    );
-    assert_eq!(s.theme.as_given().map(|v| v.value), Some(Theme::Light));
-    assert_eq!(s.width.as_given().map(|v| v.value), Some(1000));
-    assert_eq!(s.legend_columns.as_given().map(|v| v.value), Some(2));
-    assert_eq!(s.legend.as_given().map(|v| v.value), Some(Legend::Shown));
-    assert_eq!(s.table.as_given().map(|v| v.value), Some(Table::Radar));
-    let (s, problems) = parse(&["in.csv", "-c", "r.toml"])
+    assert_eq!(val(&s.title).as_deref(), Some("X"));
+    assert_eq!(val(&s.subtitle).as_deref(), Some("X"));
+    assert_eq!(val(&s.rings).as_deref(), Some("X"));
+    assert_eq!(val(&s.unplotted_rings).as_deref(), Some("Y"));
+    assert_eq!(val(&s.theme), Some(Theme::Light));
+    assert_eq!(val(&s.width), Some(1000));
+    assert_eq!(val(&s.legend_columns), Some(2));
+    assert_eq!(val(&s.legend), Some(Legend::Shown));
+    assert_eq!(val(&s.table), Some(Table::Radar));
+    let s = parse(&["in.csv", "-c", "r.toml"])
         .expect("parses")
         .settings(Some(&loaded));
-    assert_eq!(problems, []);
-    assert_eq!(
-        s.output.as_given().map(|v| v.value.clone()),
-        Some(PathBuf::from("f.html"))
-    );
-    assert_eq!(s.title.as_given().map(|v| v.value.as_str()), Some("F"));
-    assert_eq!(s.subtitle.as_given().map(|v| v.value.as_str()), Some("F"));
-    assert_eq!(s.rings.as_given().map(|v| v.value.as_str()), Some("F"));
-    assert_eq!(
-        s.unplotted_rings.as_given().map(|v| v.value.as_str()),
-        Some("G")
-    );
-    assert_eq!(s.theme.as_given().map(|v| v.value), Some(Theme::Dark));
-    assert_eq!(s.width.as_given().map(|v| v.value), Some(2000));
-    assert_eq!(s.legend_columns.as_given().map(|v| v.value), Some(3));
-    assert_eq!(s.legend.as_given().map(|v| v.value), Some(Legend::Hidden));
-    assert_eq!(s.table.as_given().map(|v| v.value), Some(Table::All));
+    assert_eq!(val(&s.output), Some(PathBuf::from("f.html")));
+    assert_eq!(val(&s.title).as_deref(), Some("F"));
+    assert_eq!(val(&s.subtitle).as_deref(), Some("F"));
+    assert_eq!(val(&s.rings).as_deref(), Some("F"));
+    assert_eq!(val(&s.unplotted_rings).as_deref(), Some("G"));
+    assert_eq!(val(&s.theme), Some(Theme::Dark));
+    assert_eq!(val(&s.width), Some(2000));
+    assert_eq!(val(&s.legend_columns), Some(3));
+    assert_eq!(val(&s.legend), Some(Legend::Hidden));
+    assert_eq!(val(&s.table), Some(Table::All));
     assert_eq!(
         s.title.as_given().map(|v| v.origin.source.clone()),
         Some(source::config("conf/radar.toml"))

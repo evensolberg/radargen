@@ -212,45 +212,28 @@ fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
 /// FR-107, FR-102 on the palette.
 fn config(cli: &Cli, input: &Path, warnings: &mut Warnings) -> Result<Config, Vec<Fatal>> {
     let (settings, mut gate) = merged(cli)?;
-    let Settings {
-        output,
-        title,
-        subtitle,
-        rings,
-        unplotted_rings,
-        theme,
-        width,
-        legend_columns,
-        legend,
-        table,
-        palette,
-        dir,
-    } = settings;
+    let dir = settings.dir.as_deref();
     // FR-90 first, every warning naming the value's source.
-    let title = title.given().and_then(|t| resolved(t, warnings));
-    let subtitle = subtitle.given().and_then(|s| resolved(s, warnings));
-    let rings = rings.map(|r| cleaned(r, warnings));
-    let unplotted = unplotted_rings.map(|r| cleaned(r, warnings));
+    let title = settings.title.given().and_then(|t| resolved(t, warnings));
+    let subtitle = settings
+        .subtitle
+        .given()
+        .and_then(|s| resolved(s, warnings));
+    let rings = settings.rings.map(|r| cleaned(r, warnings));
+    let unplotted = settings.unplotted_rings.map(|r| cleaned(r, warnings));
     // FR-92 (PR 19b): `{edition}` expands in the output, title and subtitle
     // here, after FR-90 and before any path resolves.
-    let output = output.as_given().map(|o| resolve_path(dir.as_deref(), o));
-    let palette_path = palette.as_given().map(|p| resolve_path(dir.as_deref(), p));
-    let format = match &output {
-        Some((path, named)) => {
-            let mut reads = vec![(input, ReadFile::Csv)];
-            reads.extend(cli.config.as_deref().map(|c| (c, ReadFile::Config)));
-            reads.extend(
-                palette_path
-                    .as_ref()
-                    .map(|(p, _)| (p.as_path(), ReadFile::Palette)),
-            );
-            gate.check(&named.origin.source, output_checks(path, named, &reads))?
-        }
-        None => None,
-    };
+    let output = settings.output.as_given().map(|o| resolve_path(dir, o));
+    let palette_path = settings.palette.as_given().map(|p| resolve_path(dir, p));
+    let reads = read_files(input, cli.config.as_deref(), palette_path.as_ref());
+    let format = checked_output(&mut gate, output.as_ref(), &reads)?;
     let ring_set = checked_rings(&mut gate, &rings, &unplotted)?;
-    let palette_broken = palette == Effective::Broken;
-    let colours = checked_colours(&mut gate, palette_path.as_ref(), palette_broken, theme)?;
+    let colours = checked_colours(
+        &mut gate,
+        palette_path.as_ref(),
+        &settings.palette,
+        settings.theme,
+    )?;
     // With no error recorded, no setting is broken and every check passed,
     // so each value below is present; the `else` returns the errors that
     // explain why one is not.
@@ -270,17 +253,44 @@ fn config(cli: &Cli, input: &Path, warnings: &mut Warnings) -> Result<Config, Ve
         output_named,
         format,
         colours,
-        legend: legend.or(Setting::Legend, DEFAULT_LEGEND),
-        table: table.or(Setting::Table, DEFAULT_TABLE),
-        width: width.given(),
-        legend_columns: legend_columns
-            .or(Setting::LegendColumns, DEFAULT_LEGEND_COLUMNS)
-            .value,
+        legend: settings.legend.or(Setting::Legend, DEFAULT_LEGEND),
+        table: settings.table.or(Setting::Table, DEFAULT_TABLE),
+        width: settings.width.given(),
+        legend_columns: settings
+            .legend_columns
+            .given()
+            .map_or(DEFAULT_LEGEND_COLUMNS, |c| c.value),
         title,
         subtitle,
         rings,
         input: input.to_path_buf(),
     })
+}
+
+/// Every file the run reads, which D-74 keeps the output from replacing:
+/// the CSV, the `--config` file and the palette (security review F2).
+fn read_files<'a>(
+    input: &'a Path,
+    config: Option<&'a Path>,
+    palette: Option<&'a (PathBuf, NamedPath)>,
+) -> Vec<(&'a Path, ReadFile)> {
+    std::iter::once((input, ReadFile::Csv))
+        .chain(config.map(|c| (c, ReadFile::Config)))
+        .chain(palette.map(|(p, _)| (p.as_path(), ReadFile::Palette)))
+        .collect()
+}
+
+/// FR-52, FR-62, ruling B and D-74 on the output, when there is one: a
+/// broken or missing output has its error recorded already.
+fn checked_output(
+    gate: &mut Gate,
+    output: Option<&(PathBuf, NamedPath)>,
+    reads: &[(&Path, ReadFile)],
+) -> Result<Option<OutputFormat>, Vec<Fatal>> {
+    match output {
+        Some((path, named)) => gate.check(&named.origin.source, output_checks(path, named, reads)),
+        None => Ok(None),
+    }
 }
 
 /// FR-91: the `--config` file, read only when named, merged under the
@@ -292,11 +302,29 @@ fn merged(cli: &Cli) -> Result<(Settings, Gate), Vec<Fatal>> {
         Some(path) => Some(config_file::read(path).map_err(|e| vec![config_error(path, e)])?),
         None => None,
     };
-    let (settings, merged) = cli.settings(loaded.as_ref());
+    let settings = cli.settings(loaded.as_ref());
     let mut gate = Gate::default();
     gate.errors.extend(loaded.iter().flat_map(key_errors));
-    gate.errors.extend(merged.into_iter().map(Fatal::from));
+    gate.errors
+        .extend(loaded.iter().flat_map(|l| merge_errors(&settings, l)));
     Ok((settings, gate))
+}
+
+/// What the merge finds wrong beyond each key's own problems, usage errors
+/// as clap's would be: FR-59 within the file (across sources the flag won,
+/// in [`Settings::displace`], and clap refuses both flags), then neither
+/// `-o` nor an `output` key (FR-91).
+fn merge_errors(settings: &Settings, loaded: &config_file::Loaded) -> Vec<Fatal> {
+    let both = matches!(
+        (&settings.theme, &settings.palette),
+        (Effective::Given(_), Effective::Given(_))
+    );
+    let none = settings.output == Effective::Absent;
+    let file = || Arc::clone(&loaded.file);
+    both.then(|| Fatal::Conflict { file: file() })
+        .into_iter()
+        .chain(none.then(|| Fatal::NoOutput { file: file() }))
+        .collect()
 }
 
 /// The file's key problems, each named by its key and the file (FR-91).
@@ -351,10 +379,10 @@ fn checked_rings(
 fn checked_colours(
     gate: &mut Gate,
     path: Option<&(PathBuf, NamedPath)>,
-    palette_broken: bool,
+    palette: &Effective<PathBuf>,
     theme: Effective<Theme>,
 ) -> Result<Option<Colours>, Vec<Fatal>> {
-    Ok(match (path, palette_broken) {
+    Ok(match (path, palette) {
         (Some((path, named)), _) => gate
             .check(
                 &named.origin.source,
@@ -363,9 +391,9 @@ fn checked_colours(
                     .and_then(|()| file::read(path).map_err(|e| palette_errors(named, e))),
             )?
             .map(Colours::from),
-        (None, true) => None,
-        (None, false) => Some(Colours::BuiltIn(
-            theme.or(Setting::Theme, DEFAULT_THEME).value,
+        (None, Effective::Broken) => None,
+        (None, _) => Some(Colours::BuiltIn(
+            theme.given().map_or(DEFAULT_THEME, |t| t.value),
         )),
     })
 }
@@ -501,9 +529,12 @@ fn output_checks(
         })?;
         missing_directory(path, named)?;
         regular(path, named)?;
+        // One handle on the output, compared with each file the run reads
+        // (efficiency review 4).
+        let handle = same_file::Handle::from_path(path).ok();
         reads
             .iter()
-            .try_for_each(|&(read, which)| output_is_input(path, named, read, which))?;
+            .try_for_each(|&(read, which)| output_is_input(handle.as_ref(), named, read, which))?;
         Ok(format)
     };
     checked().map_err(|e| vec![e])
@@ -548,14 +579,17 @@ fn missing_directory(output: &Path, named: &NamedPath) -> Result<(), Fatal> {
 /// by identity
 /// (device and inode, or volume and file index on Windows), so `./`, `..`,
 /// symlinks, case and hard links are all caught, and no path spelling needs
-/// resolving. A path that cannot be opened is not the input.
+/// resolving. A path that cannot be opened is not the input, and an output
+/// that cannot be opened (`output` is `None`) is none of them.
 fn output_is_input(
-    output: &Path,
+    output: Option<&same_file::Handle>,
     named: &NamedPath,
     input: &Path,
     which: ReadFile,
 ) -> Result<(), Fatal> {
-    if same_file::is_same_file(output, input).unwrap_or(false) {
+    let same = output
+        .is_some_and(|out| same_file::Handle::from_path(input).is_ok_and(|read| &read == out));
+    if same {
         Err(Fatal::OutputIsInput {
             output: named.clone(),
             input: which,
