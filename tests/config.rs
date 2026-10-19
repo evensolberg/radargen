@@ -162,38 +162,38 @@ fn a_flag_wins_over_the_opposing_key() {
     let dir = seeded(&[
         ("radar.csv", CSV),
         ("b.css", palette),
-        ("theme.toml", "output = \"a.png\"\ntheme = \"dark\"\n"),
+        ("theme.toml", "output = \"a.svg\"\ntheme = \"dark\"\n"),
         (
             "palette.toml",
-            "output = \"c.png\"\npalette = \"missing.css\"\n",
+            "output = \"c.svg\"\npalette = \"missing.css\"\n",
         ),
         (
             "both.toml",
-            "output = \"e.png\"\ntheme = \"dark\"\npalette = \"b.css\"\n",
+            "output = \"e.svg\"\ntheme = \"dark\"\npalette = \"b.css\"\n",
         ),
     ]);
     let run = |args: &[&str]| run_in(dir.path(), args);
     let read = |name: &str| fs::read(dir.path().join(name)).ok();
     // -p drops the file's theme.
     let keyed = run(&["radar.csv", "-c", "theme.toml", "-p", "b.css"]);
-    let flagged = run(&["radar.csv", "-o", "b.png", "-p", "b.css"]);
+    let flagged = run(&["radar.csv", "-o", "b.svg", "-p", "b.css"]);
     assert!(
         keyed.ok() && flagged.ok(),
         "{}{}",
         keyed.stderr,
         flagged.stderr
     );
-    assert_eq!(read("a.png"), read("b.png"));
+    assert_eq!(read("a.svg"), read("b.svg"));
     // --theme drops the file's palette, which is then never read.
     let keyed = run(&["radar.csv", "-c", "palette.toml", "-T", "dark"]);
-    let flagged = run(&["radar.csv", "-o", "d.png", "-T", "dark"]);
+    let flagged = run(&["radar.csv", "-o", "d.svg", "-T", "dark"]);
     assert!(
         keyed.ok() && flagged.ok(),
         "{}{}",
         keyed.stderr,
         flagged.stderr
     );
-    assert_eq!(read("c.png"), read("d.png"));
+    assert_eq!(read("c.svg"), read("d.svg"));
     // Both in the file: FR-59's error, saying what to remove.
     let both = run(&["radar.csv", "-c", "both.toml"]);
     assert_eq!(both.code, Some(2), "{}", both.stderr);
@@ -226,13 +226,13 @@ fn paths_in_the_file_resolve_beside_it() {
     .expect("seeds");
     fs::write(
         dir.path().join("conf/radar.toml"),
-        "output = \"out.png\"\npalette = \"b.css\"\n",
+        "output = \"out.svg\"\npalette = \"b.css\"\n",
     )
     .expect("seeds");
     let ran = run_in(dir.path(), &["radar.csv", "-c", "conf/radar.toml"]);
     assert!(ran.ok(), "{}", ran.stderr);
     assert_eq!(ran.stdout, "", "NFR-11: everything goes to stderr");
-    assert!(dir.path().join("conf/out.png").is_file());
+    assert!(dir.path().join("conf/out.svg").is_file());
 }
 
 /// Review Focus 2: `~` is a folder name like any other.
@@ -319,7 +319,7 @@ fn ring_diagnostics_name_the_key_and_file() {
         ("radar.csv", CSV),
         (
             "radar.toml",
-            "output = \"a.png\"\nrings = [\"Adopt\"]\ntitle = \"R\\u0001\"\n",
+            "output = \"a.svg\"\nrings = [\"Adopt\"]\ntitle = \"R\\u0001\"\n",
         ),
     ]);
     let ran = run_in(
@@ -577,7 +577,7 @@ fn a_file_s_unplotted_rings_key_is_read() {
         ("radar.csv", CSV),
         (
             "quiet.toml",
-            "output = \"a.png\"\nrings = [\"Adopt\"]\nunplotted_rings = [\"Hold\"]\n",
+            "output = \"a.svg\"\nrings = [\"Adopt\"]\nunplotted_rings = [\"Hold\"]\n",
         ),
         (
             "both.toml",
@@ -623,40 +623,30 @@ fn a_file_s_unplotted_rings_key_is_read() {
     );
 }
 
-/// QA review I-4 and I-5: a file's legend_columns and table render what
-/// their flags render, and a flag beats the key.
+/// QA review I-5: a file's table renders what its flag renders, end to
+/// end; every key's precedence is pinned by tests/cli.rs's
+/// `every_flag_beats_its_key_and_every_key_is_read`.
 #[test]
-fn a_file_s_legend_columns_and_table_render_as_their_flags() {
-    let dir = seeded(&[
-        ("radar.csv", CSV),
-        ("radar.toml", "legend_columns = 3\ntable = \"all\"\n"),
-    ]);
-    let read = |name: &str| fs::read(dir.path().join(name)).ok();
-    let run = |args: &[&str]| {
-        let ran = run_in(dir.path(), args);
-        assert!(ran.ok(), "{}", ran.stderr);
-    };
-    run(&["radar.csv", "-c", "radar.toml", "-o", "k.png"]);
-    run(&["radar.csv", "-o", "f.png", "--legend-columns", "3"]);
-    assert_eq!(read("k.png"), read("f.png"));
-    run(&[
-        "radar.csv",
-        "-c",
-        "radar.toml",
-        "-o",
-        "o.png",
-        "--legend-columns",
-        "2",
-    ]);
-    run(&["radar.csv", "-o", "t.png", "--legend-columns", "2"]);
-    assert_eq!(read("o.png"), read("t.png"), "the flag beats the key");
-    run(&["radar.csv", "-c", "radar.toml", "-o", "k.html"]);
-    run(&["radar.csv", "-o", "f.html", "--table", "all"]);
-    assert_eq!(read("k.html"), read("f.html"));
+fn a_file_s_table_renders_as_its_flag() {
+    let dir = seeded(&[("radar.csv", CSV), ("radar.toml", "table = \"all\"\n")]);
+    let keyed = run_in(
+        dir.path(),
+        &["radar.csv", "-c", "radar.toml", "-o", "k.html"],
+    );
+    let flagged = run_in(dir.path(), &["radar.csv", "-o", "f.html", "--table", "all"]);
     assert!(
-        fs::read_to_string(dir.path().join("k.html"))
-            .unwrap_or_default()
-            .contains("Every item"),
+        keyed.ok() && flagged.ok(),
+        "{}{}",
+        keyed.stderr,
+        flagged.stderr
+    );
+    let page = fs::read_to_string(dir.path().join("k.html")).unwrap_or_default();
+    assert_eq!(
+        Some(&page),
+        fs::read_to_string(dir.path().join("f.html")).ok().as_ref()
+    );
+    assert!(
+        page.contains("Every item"),
         "table = all publishes every item"
     );
 }
