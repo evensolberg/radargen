@@ -537,7 +537,13 @@ try {
   // the page's scrollbar, whose gutter is kept; then scrolled until the
   // button is near the top, where a second press restores the view.
   await scenario('legend toggle across the breakpoints: the button stays put', [MID], async (width) => {
-    const CLASSIC = `document.head.insertAdjacentHTML('beforeend', '<style>::-webkit-scrollbar { width: 15px; }</style>')`;
+    // A styled scrollbar is classic, but Chromium reserves its gutter only
+    // when the system's scrollbars are classic too (macOS switches with a
+    // mouse attached), so the style goes in only on a classic system. With
+    // overlay scrollbars the page's own scrollbar takes no room, and the
+    // button must stay put without it.
+    const SYSTEM_CLASSIC = `(() => { const d = document.createElement('div'); d.style.cssText = 'overflow:scroll;width:100px;height:100px;position:absolute'; document.body.append(d); const w = d.offsetWidth - d.clientWidth; d.remove(); return w > 0; })()`;
+    const CLASSIC = `${SYSTEM_CLASSIC} && document.head.insertAdjacentHTML('beforeend', '<style>::-webkit-scrollbar { width: 15px; }</style>')`;
     const BUTTON = `(() => { const r = document.querySelector('.legend-toggle').getBoundingClientRect(); return [r.left, r.top, scrollY]; })()`;
     const pressTwice = async (how) => {
       const before = await evaluate(BUTTON);
