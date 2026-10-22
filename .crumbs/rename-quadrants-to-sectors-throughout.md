@@ -1,7 +1,7 @@
 ---
 id: rg-k16
 title: Rename quadrants to sectors throughout
-status: in_progress
+status: closed
 type: feature
 priority: 2
 tags:
@@ -11,6 +11,7 @@ tags:
 - prd
 created: 2026-10-18
 updated: 2026-10-22
+closed_reason: 'part 1 #139 (1.17.0), part 2 docs and the palette sample (1.17.1)'
 phase: ''
 ---
 
@@ -25,3 +26,5 @@ Maintainer, 2026-10-18: a quadrant is a 90-degree quarter circle, but radargen a
 [2026-10-22] Decided (maintainer, 2026-10-22): the HTML table and detail panel heading for this column is always "Sector", even when the CSV header says quadrant/Quadrant: an exception to FR-27 for this one column, so the page uses one word throughout. Order: rg-k16 before rg-2ss.
 
 [start] 2026-10-22 08:29:33
+
+[stop]  2026-10-22 09:36:55  1h 7m 22s

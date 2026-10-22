@@ -6,21 +6,21 @@
  * theme button.
  *
  * Every value is a #RRGGBB colour; anything else is an error. Each of
- * the eight roles below the quadrant colours gives the built-in dark
+ * the eight roles below the sector colours gives the built-in dark
  * theme's value in its comment: swap them all in for a dark palette.
  *
  * Once you change a colour, its contrast is yours to check. Text needs
  * 4.5:1 against both surfaces, and --text-primary also against
- * --marker-hollow. Quadrant colours, strokes and --focus need 3:1 against
- * both surfaces. Each quadrant colour also needs 4.5:1 against white or
+ * --marker-hollow. Sector colours, strokes and --focus need 3:1 against
+ * both surfaces. Each sector colour also needs 4.5:1 against white or
  * #16191F, the two colours its marker numbers are drawn in. The palette
  * guide shows where each colour is drawn:
  * https://github.com/evensolberg/radargen/blob/main/docs/palette.md
  */
 
 :root {
-  /* Quadrant colours, in the quadrants' sorted order, starting again from
-   * --series-1 when there are more quadrants than entries. Add or remove
+  /* Sector colours, in the sectors' sorted order, starting again from
+   * --series-1 when there are more sectors than entries. Add or remove
    * entries freely, numbered from --series-1 with no gaps. The first
    * entries are the most distinct, so a short list stays readable. */
   --series-1: #0072B2; /* blue */
@@ -37,7 +37,7 @@
   --text-primary: #16191F;   /* dark: #E8EAEE, names, headings, the number in a hollow marker */
   --text-muted: #585F6B;     /* dark: #A6AEBB, ring labels, subtitle, key and details */
   --stroke-ring: #7E858F;    /* dark: #6C7480, ring circles */
-  --stroke-divider: #848B96; /* dark: #666E7A, quadrant dividers, table rules and borders */
+  --stroke-divider: #848B96; /* dark: #666E7A, sector dividers, table rules and borders */
   --marker-hollow: #FFFFFF;  /* dark: #15181D, inside a hollow marker or badge */
   --focus: #0B5FA5;          /* dark: #7FB8E6, the keyboard focus ring */
 }

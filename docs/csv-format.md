@@ -13,7 +13,7 @@ created_date: 2026-10-12
 synopsis: "How to write the CSV radargen reads: the four required columns and seven optional ones, what each accepts, what is a hard error and what only warns, and how the file must be saved."
 status: active
 type: Guide
-revision: "1.8"
+revision: "1.9"
 review_date:
 reviewed_by: []
 completed_date:
@@ -42,7 +42,7 @@ Columns are found by **name, not position**, so their order in the file does not
 | Column | Required | Accepts | Shown as |
 | --- | --- | --- | --- |
 | `name` | **yes**, on every row | Free text | The legend entry, the marker's tooltip and the detail panel's heading |
-| `quadrant` | **yes**, on every row | Free text | The sector the item sits in, and its legend group |
+| `sector` | **yes**, on every row | Free text | The slice of the radar the item sits in, and its legend group |
 | `ring` | **yes**, on every row | One of the declared rings (see [Rings](#rings)) | How far from the centre the item sits |
 | `description` | **yes** as a column; a cell may be empty | Free text | The table view, and the detail panel |
 | `qualifier` | no | `default`, `conditional`, or blank | A solid marker, or a hollow one for `conditional` |
@@ -63,13 +63,14 @@ Every item on the radar appears in the **table view**, under the *Items on the r
 
 The item, as readers should see it. Two rows with the same name, ignoring case and extra spaces, are both drawn and you get a warning. The tool never merges them, because they may be different things.
 
-### `quadrant`
+### `sector`
 
-Free text. Every distinct value becomes one sector, so the file decides how many quadrants there are. The radar reads best with **3 to 6**, and more than six draws with a warning.
+Free text. Every distinct value becomes one sector, so the file decides how many sectors there are. The radar reads best with **3 to 6**, and more than six draws with a warning.
 
-- Values that differ only in case or extra spaces are one quadrant: `Tool`, `tool` and `Tool ` are the same, and so are `Tool Kit` and `Tool  Kit`. The label is shown with single spaces.
-- Values that differ in spelling are not: `Tool` and `Tools` are two quadrants, with no warning. Keep the spelling consistent.
-- Quadrants are placed in alphabetical order, ignoring case. There is no way to reorder them yet.
+- Values that differ only in case or extra spaces are one sector: `Tool`, `tool` and `Tool ` are the same, and so are `Tool Kit` and `Tool  Kit`. The label is shown with single spaces.
+- Values that differ in spelling are not: `Tool` and `Tools` are two sectors, with no warning. Keep the spelling consistent.
+- Sectors are placed in alphabetical order, ignoring case. There is no way to reorder them yet.
+- **`quadrant` still works.** A column headed `quadrant`, the column's former name and the one Build Your Own Radar uses, is read as `sector`, so older files need no change. A header with both `sector` and `quadrant` is an error. The HTML page heads the column "Sector" whichever name the file uses.
 
 ### `ring`
 
@@ -159,8 +160,8 @@ A web address for the item, such as the product's home page: `https://www.terraf
 
 ## Text in any field
 
-- **A line break inside a cell** (Alt+Enter in Excel) becomes a space in a name, quadrant, ring, qualifier, status or date, and is kept as a line break in a description, domain, rationale or your own columns.
-- **Leading and trailing spaces, and extra spaces inside a value, are ignored** for matching. Names, quadrants and rings are shown trimmed and with single spaces, and the other short fields (qualifier, status, dates, link) are shown trimmed; a description, domain, rationale or your own column is shown exactly as written, spaces and blank lines included.
+- **A line break inside a cell** (Alt+Enter in Excel) becomes a space in a name, sector, ring, qualifier, status or date, and is kept as a line break in a description, domain, rationale or your own columns.
+- **Leading and trailing spaces, and extra spaces inside a value, are ignored** for matching. Names, sectors and rings are shown trimmed and with single spaces, and the other short fields (qualifier, status, dates, link) are shown trimmed; a description, domain, rationale or your own column is shown exactly as written, spaces and blank lines included.
 - **Characters that cannot be displayed are removed, with a warning naming the line and column.** These are control characters other than tab and line break, and the invisible characters that reverse the direction of text. The same applies to `--title`, `--subtitle`, `--rings` and `--unplotted-rings`.
 - **Anything else is shown as written.** Characters such as `<`, `&` and `"` are safe and appear literally. Names in Latin, Greek and Cyrillic scripts, including Vietnamese, draw with the built-in font. Other scripts, and emoji, show in the HTML page in the reader's own fonts, but a PNG or SVG draws them as boxes, with a warning.
 
@@ -168,10 +169,10 @@ A web address for the item, such as the product's home page: `https://www.terraf
 
 **An error stops the run and writes nothing**; an existing output file is left as it was. Errors about rows are all reported together, so a large export can be fixed in one pass. A problem with the file as a whole (its encoding, its separator, its quoting) stops at the first one found, since nothing after it can be read reliably. These are errors:
 
-- a missing required column (`name`, `quadrant`, `ring` or `description`);
-- an empty `name`, `quadrant` or `ring` on a row;
+- a missing required column (`name`, `sector`, `ring` or `description`);
+- an empty `name`, `sector` or `ring` on a row;
 - a row with more or fewer values than the header has columns. The message gives the usual cause, often an unquoted comma;
-- two header columns with the same name;
+- two header columns with the same name, or both `sector` and `quadrant`;
 - a quote that opens a value and never closes, or text straight after a closing quote. Write a quote inside a quoted value as `""`;
 - a file that is empty, not UTF-8, or not comma-separated.
 
@@ -184,20 +185,20 @@ A web address for the item, such as the product's home page: `https://www.terraf
 - an empty description;
 - a duplicate name;
 - a removed character;
-- a name or quadrant with characters the bundled font lacks (PNG and SVG only);
+- a name or sector with characters the bundled font lacks (PNG and SVG only);
 - a value under an unnamed column;
 - a header one or two letters from a column radargen reads, naming the column it probably meant (two letters only when the header is the longer, so `state` is not taken for `status`);
-- more than six quadrants;
+- more than six sectors;
 - a band with more items than fit without overlapping;
-- a quadrant name or `--rings` entry long enough to make the narrow layout too wide (HTML only);
-- a quadrant name or `--rings` entry long enough that a common laptop gets the narrow layout (HTML only).
+- a sector name or `--rings` entry long enough to make the narrow layout too wide (HTML only);
+- a sector name or `--rings` entry long enough that a common laptop gets the narrow layout (HTML only).
 
-Every message about a row names its CSV line, and the column where there is one. Messages about the radar as a whole (too many quadrants, an overfull band, a too-wide narrow layout, a page that gives laptops the narrow layout) name what they count instead and print first. Problems with `--title`, `--subtitle` or `--rings` name the flag. Messages go to the terminal's error output and are grouped, so forty rows with the same typo make one line.
+Every message about a row names its CSV line, and the column where there is one. Messages about the radar as a whole (too many sectors, an overfull band, a too-wide narrow layout, a page that gives laptops the narrow layout) name what they count instead and print first. Problems with `--title`, `--subtitle` or `--rings` name the flag. Messages go to the terminal's error output and are grouped, so forty rows with the same typo make one line.
 
 ## Example
 
 ```csv
-name,quadrant,ring,description,qualifier,domain,rationale,last_affirmed,exit_date,status,link
+name,sector,ring,description,qualifier,domain,rationale,last_affirmed,exit_date,status,link
 Terraform,Tools,Adopt,"Declarative infrastructure as code.",default,Infrastructure as Code,"Default IaC tool across all environments.",2026-06-01,,No Change,https://www.terraform.io
 Pulumi,Tools,Trial,"Infrastructure as code in a general-purpose language.",conditional,Infrastructure as Code,"Where a client mandates a general-purpose language.",2026-06-01,,New,https://www.pulumi.com
 Chef,Tools,Retire,"Agent-based configuration management.",,Configuration Management,"Superseded by Ansible; migration scheduled.",2026-03-15,2027-01-31,Moved Out,
@@ -217,3 +218,4 @@ Kubernetes,Platforms,Adopt,"Container orchestration.",default,Containers,"Defaul
 | 1.6 | 2026-10-17 | The page publishes what the radar draws by default: other columns and undeclared-ring rows reach the table and detail panel only with `--table all` (FR-106, D-95; rg-fgf). The default table's heading is *Items on the radar*, and the panel shows every field the table lists (rg-fgf review). |
 | 1.7 | 2026-10-18 | `--unplotted-rings`: rings whose rows stay off the radar without a warning, while other undeclared rings still warn (FR-107, D-96; rg-4bq). |
 | 1.8 | 2026-10-18 | The warning for a header that nearly names a known column, such as `rationalle` (FR-108, D-98; rg-prs). |
+| 1.9 | 2026-10-22 | The `quadrant` column is now `sector`; `quadrant` is still accepted, and a header with both is an error (D-101; rg-k16). |
