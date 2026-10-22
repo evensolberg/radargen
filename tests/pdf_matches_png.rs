@@ -3,10 +3,10 @@
 //! draws what our PNG draws, to within antialiasing; and a PDF damaged
 //! the ways a writer bug would damage it does not.
 //!
-//! hayro (`vello_cpu`) and tiny-skia antialias differently, so the budget
-//! and the ceiling are measured, as `svg_matches_png.rs`'s were; the
-//! damage tests are what show the measured budget still separates a
-//! faithful PDF from a broken one.
+//! hayro (`vello_cpu`) and tiny-skia antialias differently, so the check
+//! is the largest single channel difference against a measured ceiling,
+//! not a count of differing pixels; the damage tests are what show the
+//! ceiling still separates a faithful PDF from a broken one.
 
 use hayro::hayro_interpret::InterpreterSettings;
 use hayro::hayro_interpret::util::TransformExt as _;
@@ -29,11 +29,15 @@ use resvg::tiny_skia::Pixmap;
 #[path = "common/catalogue.rs"]
 mod catalogue;
 
-/// Measured in Step 4 (1.5× the worst case's residue, with the date and
-/// platform); 123 is a placeholder from the SVG suite until then.
-const BUDGET_PPM: usize = 123;
-/// Measured in Step 4 (the worst residue plus 16, at most 255).
-const MAX_DELTA: u8 = 64;
+/// The largest channel difference a faithful PDF shows. hayro
+/// (`vello_cpu`) and tiny-skia antialias edges differently, so 1–2.6% of
+/// subpixels differ in every faithful case (6% at `--width 320`) and a
+/// pixel count cannot tell faithful from broken. The largest single
+/// difference can: faithful cases peak at 77 (`--width 320`, dark; 45–74
+/// at natural size), every damage test at 214 or more. 77 plus 16 of
+/// room for another platform's antialiasing. Measured 2026-10-22, macOS
+/// arm64.
+const MAX_DELTA: u8 = 93;
 
 const LONG_TITLE: &str = "Engineering Technology Radar for the Platform and Delivery Groups";
 
@@ -139,7 +143,8 @@ fn drawn(pdf: &[u8], size: PixelSize) -> Vec<u8> {
     out.data_as_u8_slice().to_vec()
 }
 
-/// Differing subpixels, the worst channel delta, and the total.
+/// Differing subpixels and the total, reported so a regression shows;
+/// and the worst channel delta, which the check gates on.
 struct Difference {
     differ: usize,
     worst: u8,
@@ -148,7 +153,7 @@ struct Difference {
 
 impl Difference {
     const fn within(&self) -> bool {
-        self.differ * 1_000_000 <= BUDGET_PPM * self.total && self.worst <= MAX_DELTA
+        self.worst <= MAX_DELTA
     }
 }
 
