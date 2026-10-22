@@ -329,10 +329,11 @@ impl fmt::Display for Binding {
 }
 
 /// A file the run reads, which the output must not replace (D-74).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadFile {
-    /// The input CSV.
-    Csv,
+    /// The input CSV; with the `--config` file when its `input` key named
+    /// it (NFR-10).
+    Csv(Option<Arc<str>>),
     /// The `--config` file.
     Config,
     /// The palette, from `--palette` or the file's key.
@@ -342,11 +343,12 @@ pub enum ReadFile {
 /// How D-74's message names it.
 impl fmt::Display for ReadFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Csv => "the input CSV",
-            Self::Config => "the --config file",
-            Self::Palette => "the palette file",
-        })
+        match self {
+            Self::Csv(None) => f.write_str("the input CSV"),
+            Self::Csv(Some(file)) => write!(f, "the input CSV (the input key in {file})"),
+            Self::Config => f.write_str("the --config file"),
+            Self::Palette => f.write_str("the palette file"),
+        }
     }
 }
 
@@ -657,6 +659,7 @@ impl Fatal {
                 | Self::ConfigMore { .. }
                 | Self::Conflict { .. }
                 | Self::NoOutput { .. }
+                | Self::NoInput { .. }
         )
     }
 }
@@ -691,7 +694,8 @@ const fn wanted(setting: Setting) -> &'static str {
         Setting::Rings | Setting::UnplottedRings => {
             "an array of strings, such as [\"Adopt\", \"Trial\"]"
         }
-        Setting::Output
+        Setting::Input
+        | Setting::Output
         | Setting::Edition
         | Setting::Title
         | Setting::Subtitle
@@ -1576,6 +1580,15 @@ pub enum Fatal {
         "no output: pass -o <OUTPUT>, or add an output key to {file}, such as output = \"radar.html\""
     )]
     NoOutput {
+        /// The file as named.
+        file: Arc<str>,
+    },
+    /// FR-91: neither a positional CSV nor `input`, worded as
+    /// [`Fatal::NoOutput`] is; a usage error.
+    #[error(
+        "no input: name the CSV on the command line, or add an input key to {file}, such as input = \"radar.csv\""
+    )]
+    NoInput {
         /// The file as named.
         file: Arc<str>,
     },

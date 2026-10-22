@@ -82,8 +82,12 @@ pub struct Config {
     pub subtitle: Option<Sourced<String>>,
     /// The declared rings and their source (FR-12, FR-17).
     pub rings: RingSet,
-    /// The input CSV, as given (FR-60).
+    /// The input CSV: the positional path as given (FR-60), or the file's
+    /// `input` key resolved against the file's folder (FR-91).
     pub input: PathBuf,
+    /// How a message names the input: the path as written, or the key and
+    /// file with it (NFR-10).
+    pub input_shown: String,
 }
 
 impl Config {
@@ -198,11 +202,10 @@ pub fn run(cli: &Cli, today: impl FnOnce() -> Today) -> Report {
 
 /// The stages in order, each stopping the run on failure.
 fn steps(cli: &Cli, today: impl FnOnce() -> Today, warnings: &mut Warnings) -> Result<(), Failure> {
-    let input = match cli.task()? {
-        Task::Create(starter, path) => return Ok(starter.create(path)?),
-        Task::Render { input } => input,
-    };
-    let config = config(cli, input, today, warnings).map_err(Failure::Alone)?;
+    if let Task::Create(starter, path) = cli.task()? {
+        return Ok(starter.create(path)?);
+    }
+    let config = config(cli, today, warnings).map_err(Failure::Alone)?;
     let fonts = Fonts::embedded().map_err(Fatal::from)?;
     // FR-106: the flags say where an off-radar row goes, so its warning
     // can say so when it is raised.
@@ -211,7 +214,7 @@ fn steps(cli: &Cli, today: impl FnOnce() -> Today, warnings: &mut Warnings) -> R
         config.table.value,
         config.table.origin.is_flag(),
     );
-    let catalogue = catalogue(&config.input, &config.rings, off_radar, warnings)?;
+    let catalogue = catalogue(&config, off_radar, warnings)?;
     let bytes = render(&catalogue, &config, &fonts, warnings)?;
     Ok(write_atomic(&config.output, &config.output_named, &bytes)?)
 }
@@ -257,7 +260,6 @@ fn edition_date(
 /// output, FR-63 on the rings, FR-107, FR-102 on the palette.
 fn config(
     cli: &Cli,
-    input: &Path,
     today: impl FnOnce() -> Today,
     warnings: &mut Warnings,
 ) -> Result<Config, Vec<Fatal>> {
@@ -300,7 +302,19 @@ fn config(
     }
     let output = output.as_ref().map(|o| resolve_path(dir, o));
     let palette_path = settings.palette.as_given().map(|p| resolve_path(dir, p));
-    let reads = read_files(input, cli.config.as_deref(), palette_path.as_ref());
+    // FR-91: the input, from the command line or the file's key, resolved
+    // as `output` is; ruling B holds a key's path to a regular file.
+    let input = settings.input.as_given().map(|i| resolve_path(dir, i));
+    let input = match input {
+        Some((path, named)) => gate
+            .check(
+                &named.origin.source,
+                regular(&path, &named).map_err(|e| vec![e]),
+            )?
+            .map(|()| (path, named)),
+        None => None,
+    };
+    let reads = read_files(input.as_ref(), cli.config.as_deref(), palette_path.as_ref());
     let format = checked_output(&mut gate, output.as_ref(), &reads)?;
     let ring_set = checked_rings(&mut gate, &rings, &unplotted)?;
     let colours = checked_colours(
@@ -312,8 +326,21 @@ fn config(
     // With no error recorded, no setting is broken and every check passed,
     // so each value below is present; the `else` returns the errors that
     // explain why one is not.
-    let (true, Some(format), Some((output, output_named)), Some(rings), Some(colours)) =
-        (gate.errors.is_empty(), format, output, ring_set, colours)
+    let (
+        true,
+        Some((input, input_named)),
+        Some(format),
+        Some((output, output_named)),
+        Some(rings),
+        Some(colours),
+    ) = (
+        gate.errors.is_empty(),
+        input,
+        format,
+        output,
+        ring_set,
+        colours,
+    )
     else {
         // Every path to a missing value records its error first, so an
         // empty gate here would be a silent failure (Rust review M2).
@@ -338,7 +365,8 @@ fn config(
         title,
         subtitle,
         rings,
-        input: input.to_path_buf(),
+        input_shown: input_shown(&input_named),
+        input,
     })
 }
 
@@ -455,14 +483,33 @@ impl Expander<'_> {
     }
 }
 
+/// How a message names the input CSV: as written when given on the
+/// command line, as every message about it always has; with its key and
+/// file when the file's `input` key named it (NFR-10).
+fn input_shown(named: &NamedPath) -> String {
+    if named.origin.source.is_config() {
+        named.to_string()
+    } else {
+        named.shown.clone()
+    }
+}
+
 /// Every file the run reads, which D-74 keeps the output from replacing:
 /// the CSV, the `--config` file and the palette (security review F2).
 fn read_files<'a>(
-    input: &'a Path,
+    input: Option<&'a (PathBuf, NamedPath)>,
     config: Option<&'a Path>,
     palette: Option<&'a (PathBuf, NamedPath)>,
 ) -> Vec<(&'a Path, ReadFile)> {
-    std::iter::once((input, ReadFile::Csv))
+    input
+        .map(|(path, named)| {
+            let file = match &named.origin.source {
+                Source::Config(file) => Some(Arc::clone(file)),
+                Source::Flag | Source::Default => None,
+            };
+            (path.as_path(), ReadFile::Csv(file))
+        })
+        .into_iter()
         .chain(config.map(|c| (c, ReadFile::Config)))
         .chain(palette.map(|(p, _)| (p.as_path(), ReadFile::Palette)))
         .collect()
@@ -507,10 +554,12 @@ fn merged(cli: &Cli) -> Result<(Settings, Gate), Vec<Fatal>> {
 /// refuses both flags.
 fn merge_errors(settings: &Settings, loaded: &config_file::Loaded) -> Vec<Fatal> {
     let both = loaded.values.theme.is_some() && loaded.values.palette.is_some();
+    let no_input = settings.input == Effective::Absent;
     let none = settings.output == Effective::Absent;
     let file = || Arc::clone(&loaded.file);
     both.then(|| Fatal::Conflict { file: file() })
         .into_iter()
+        .chain(no_input.then(|| Fatal::NoInput { file: file() }))
         .chain(none.then(|| Fatal::NoOutput { file: file() }))
         .collect()
 }
@@ -738,9 +787,9 @@ fn output_checks(
         let handle = is_regular(path)
             .then(|| same_file::Handle::from_path(path).ok())
             .flatten();
-        reads
-            .iter()
-            .try_for_each(|&(read, which)| output_is_input(handle.as_ref(), named, read, which))?;
+        reads.iter().try_for_each(|(read, which)| {
+            output_is_input(handle.as_ref(), named, read, which.clone())
+        })?;
         Ok(format)
     };
     checked().map_err(|e| vec![e])
@@ -832,12 +881,12 @@ fn resolved(text: Sourced<String>, warnings: &mut Warnings) -> Option<Sourced<St
 /// row-level errors from both stages are merged and grouped (tier two),
 /// and `parse`'s alone fail the run, since it drops the rows it rejects.
 fn catalogue(
-    path: &Path,
-    rings: &RingSet,
+    config: &Config,
     off_radar: OffRadar,
     warnings: &mut Warnings,
 ) -> Result<Catalogue, Failure> {
-    let text = decode::read(path)?;
+    let rings = &config.rings;
+    let text = decode::read_as(&config.input, &config.input_shown)?;
     let (table, mut errors) = parse(&text, warnings)?;
     let built =
         build_catalogue(&table, rings, off_radar, warnings).map_err(|more| errors.extend(more));

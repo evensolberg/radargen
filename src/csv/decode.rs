@@ -28,7 +28,17 @@ pub const MAX_BYTES: usize = 64 << 20;
 /// when it is larger than [`MAX_BYTES`]; [`Fatal::NotUtf8`] when it is not
 /// UTF-8, or holds a NUL byte (FR-61, D-65).
 pub fn read(path: &Path) -> Result<String, Fatal> {
-    let shown = path.display().to_string();
+    read_as(path, &path.display().to_string())
+}
+
+/// [`read`], with its errors naming the file as `shown`: the path as
+/// written, or the `--config` file's `input` key with it (FR-91, NFR-10).
+///
+/// # Errors
+///
+/// As [`read`].
+pub fn read_as(path: &Path, shown: &str) -> Result<String, Fatal> {
+    let shown = shown.to_owned();
     let bytes = read_capped(path, MAX_BYTES)
         .map_err(|source| Fatal::Unreadable {
             path: shown.clone(),

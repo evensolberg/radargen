@@ -34,6 +34,8 @@ pub const MAX_BYTES: usize = 1 << 20;
 /// The values of the keys that passed their checks.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct FileValues {
+    /// `input`, the CSV, as written; resolved later.
+    pub input: Option<PathBuf>,
     /// `output`, as written; resolved against the file's directory later.
     pub output: Option<PathBuf>,
     /// `title`.
@@ -269,6 +271,7 @@ fn check(table: &toml::Table) -> (FileValues, Vec<KeyProblem>) {
 /// problems, leaving `values` without it.
 fn take(v: &mut FileValues, setting: Setting, value: &Value) -> Result<(), Vec<KeyProblem>> {
     match setting {
+        Setting::Input => path(setting, value).map(|s| v.input = Some(s)),
         Setting::Output => path(setting, value).map(|s| v.output = Some(s)),
         Setting::Title => string(setting, value).map(|s| v.title = Some(s)),
         Setting::Subtitle => string(setting, value).map(|s| v.subtitle = Some(s)),

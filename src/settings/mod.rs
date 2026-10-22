@@ -49,6 +49,9 @@ impl Source {
 /// The settings FR-91 lists, each a flag and a key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Setting {
+    /// The positional CSV, `input` (a key at the maintainer's decision,
+    /// 2026-10-22, so a scheduled job runs `radargen -c radar.toml`).
+    Input,
     /// `-o`, `output`.
     Output,
     /// `--title`, `title`.
@@ -79,7 +82,8 @@ pub enum Setting {
 impl Setting {
     /// Every setting, in FR-91's order: the order a file's problems are
     /// reported in.
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
+        Self::Input,
         Self::Output,
         Self::Title,
         Self::Subtitle,
@@ -109,6 +113,7 @@ impl Setting {
     /// The flag and the key, together, so the two cannot drift apart.
     const fn names(self) -> (&'static str, &'static str) {
         match self {
+            Self::Input => ("<CSV_PATH>", "input"),
             Self::Output => ("-o", "output"),
             Self::Title => ("--title", "title"),
             Self::Subtitle => ("--subtitle", "subtitle"),
@@ -346,6 +351,8 @@ impl<T> Effective<T> {
 /// `{edition}` (PR 19b) can expand first.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
+    /// The positional CSV or `input`.
+    pub input: Effective<PathBuf>,
     /// `-o` or `output`.
     pub output: Effective<PathBuf>,
     /// `--title` or `title`.
@@ -451,6 +458,7 @@ mod tests {
         assert_eq!(
             keys,
             [
+                "input",
                 "output",
                 "title",
                 "subtitle",
@@ -469,6 +477,7 @@ mod tests {
         assert_eq!(
             flags,
             [
+                "<CSV_PATH>",
                 "-o",
                 "--title",
                 "--subtitle",

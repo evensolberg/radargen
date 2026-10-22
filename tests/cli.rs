@@ -581,6 +581,17 @@ fn a_render_still_needs_both_paths() {
     assert!(parse(&["in.csv"]).is_err());
 }
 
+/// FR-91 (maintainer, 2026-10-22): with -c, the CSV may come from the
+/// file's input key, so -c alone is a render; it is still FR-60's error
+/// without -c.
+#[test]
+fn config_alone_is_a_render() {
+    let cli = parse(&["-c", "radar.toml"]).expect("parses");
+    assert!(matches!(cli.task(), Ok(Task::Render { input: None })));
+    let cli = parse(&["in.csv", "-c", "radar.toml"]).expect("parses");
+    assert!(matches!(cli.task(), Ok(Task::Render { input: Some(_) })));
+}
+
 /// The usage names every form; clap's own would show the CSV as optional
 /// and leave out -o.
 #[test]
@@ -589,8 +600,8 @@ fn usage_names_every_form() {
     let help = Cli::command().render_help().to_string();
     assert!(help.contains("radargen <CSV_PATH> -o <OUTPUT>"), "{help}");
     assert!(
-        help.contains("radargen <CSV_PATH> -c <FILE> [OPTIONS]"),
-        "{help}"
+        help.contains("radargen [CSV_PATH] -c <FILE> [OPTIONS]"),
+        "the CSV is optional with -c, whose input key can name it: {help}"
     );
     assert!(help.contains("radargen --create-template <PATH>"), "{help}");
     assert!(help.contains("radargen --create-palette <PATH>"), "{help}");
