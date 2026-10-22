@@ -26,7 +26,7 @@ mod tests;
 
 use crate::escape::{xml_attr, xml_text};
 use crate::num::fmt_coord;
-use crate::palette::{Neutral, Palette, Role};
+use crate::palette::Palette;
 use crate::svg::{Document, Node, Paint, Point};
 use crate::text::{FontError, Fonts};
 
@@ -190,15 +190,7 @@ pub fn standalone(document: &Document, file: &Standalone<'_>) -> Result<String, 
 fn body(document: &Document, context: Context<'_>) -> String {
     let mut out = String::new();
     if !context.target.interactive() {
-        let ground = Node::Rect {
-            origin: Point::ORIGIN,
-            width: document.width,
-            height: document.height,
-            radius: 0.0,
-            fill: Paint::Role(Role::Neutral(Neutral::Surface1)),
-            stroke: Paint::None,
-            stroke_width: 0.0,
-        };
+        let ground = document.ground();
         out.push_str(&node(&ground, context));
     }
     out.push_str(&node(&document.root, context));

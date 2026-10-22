@@ -3,15 +3,15 @@
 //! Each glyph a static document draws is defined once per face and size
 //! in `<defs>`, already at its size, and placed by `<use>`. Ids are safe
 //! here, though §5 bans them in the page: this file holds one
-//! arrangement, not two. Collecting and writing read text through one
-//! function, [`runs`], so the table holds every glyph the writer places.
+//! arrangement, not two. Collecting reads text through [`Node::static_runs`], which the PDF's
+//! subsets share, so the table holds every glyph the writer places.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::text::{Run, ink};
 use super::{Context, attr, coord, paint, point};
 use crate::style::TextStyle;
-use crate::svg::{Anchor, Document, Node, Point, Tail};
+use crate::svg::{Anchor, Document, Node, Point};
 use crate::text::{FontError, Fonts, Segment, Weight};
 
 /// A glyph in one face at one size: one definition.
@@ -54,20 +54,6 @@ pub(super) struct Glyphs {
 pub(super) struct Outlined<'a> {
     pub(super) fonts: &'a Fonts,
     pub(super) glyphs: &'a Glyphs,
-}
-
-/// A text's runs, in the order they are drawn: each line in the text's
-/// style, then the tail in its own. Collecting and writing both read text
-/// through this, so they cannot disagree about what is drawn.
-fn runs<'a>(
-    style: TextStyle,
-    lines: &'a [String],
-    tail: Option<&'a Tail>,
-) -> impl Iterator<Item = (TextStyle, &'a str)> {
-    lines
-        .iter()
-        .map(move |line| (style, line.as_str()))
-        .chain(tail.map(|t| (t.style, t.text.as_str())))
 }
 
 impl Glyphs {
@@ -119,38 +105,28 @@ impl Glyphs {
     }
 
     /// The entry for a glyph the writer places. Every placed glyph was
-    /// collected through [`runs`]; a miss is a broken invariant, and
+    /// collected through [`Node::static_runs`]; a miss is a broken invariant, and
     /// silently dropping the glyph would hide it.
     fn entry(&self, style: TextStyle, glyph: u32) -> Entry {
         *self
             .entries
             .get(&Key::new(style, glyph))
-            .expect("every placed glyph was collected through `runs`")
+            .expect("every placed glyph was collected through Node::static_runs")
     }
 }
 
 /// Each glyph `node` draws, keyed by face, size and id.
 fn keys(node: &Node, fonts: &Fonts) -> BTreeSet<Key> {
-    match node {
-        _ if node.is_interactive_only() => BTreeSet::new(),
-        Node::Group(group) => group
-            .children
-            .iter()
-            .flat_map(|child| keys(child, fonts))
-            .collect(),
-        Node::Text {
-            style, lines, tail, ..
-        } => runs(*style, lines, tail.as_ref())
-            .flat_map(|(style, text)| {
-                fonts
-                    .face(style.weight)
-                    .shape(text)
-                    .into_iter()
-                    .map(move |glyph| Key::new(style, glyph.id))
-            })
-            .collect(),
-        _ => BTreeSet::new(),
-    }
+    node.static_runs()
+        .into_iter()
+        .flat_map(|(style, text)| {
+            fonts
+                .face(style.weight)
+                .shape(text)
+                .into_iter()
+                .map(move |glyph| Key::new(style, glyph.id))
+        })
+        .collect()
 }
 
 /// A glyph's key and its path at its size.

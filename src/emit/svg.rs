@@ -22,24 +22,13 @@ pub struct Export<'a> {
     pub desc: &'a str,
 }
 
-/// FR-57: `requested` wide and the height in proportion, or the
-/// document's own size. Unrounded and unclamped: no pixmap is allocated
-/// (D-88).
-#[must_use]
-pub fn intrinsic_size(document: &Document, requested: Option<u32>) -> (f64, f64) {
-    requested.map_or((document.width, document.height), |width| {
-        let width = f64::from(width);
-        (width, document.height_at(width))
-    })
-}
-
 /// FR-54: `document` as a standalone SVG file (D-88).
 ///
 /// # Errors
 ///
 /// [`Fatal::Font`] when a glyph cannot be outlined (NFR-15).
 pub fn export(document: &Document, export: &Export<'_>) -> Result<String, Fatal> {
-    let (width, height) = intrinsic_size(document, export.width);
+    let (width, height) = super::intrinsic_size(document, export.width);
     let root = standalone(
         document,
         &Standalone {
@@ -67,17 +56,6 @@ mod tests {
         let (catalogue, order) = plotted(PRD_EXAMPLE, None);
         let blocks = Blocks::new(&catalogue, &order, title, None, fonts());
         (arrange(Arrangement::Wide, &blocks), blocks.radar.name())
-    }
-
-    /// FR-57, D-88: the height follows the width, unrounded; by default
-    /// the document's own size, however wide, since nothing is clamped.
-    #[test]
-    fn the_intrinsic_size_follows_the_width() {
-        let (doc, _) = prd(None);
-        assert_eq!(intrinsic_size(&doc, None), (doc.width, doc.height));
-        let (w, h) = intrinsic_size(&doc, Some(320));
-        assert_eq!(w, 320.0);
-        assert_eq!(h, 320.0 * doc.height / doc.width);
     }
 
     /// SC-25, D-75, D-88: the comment, then the title or Technology Radar,
