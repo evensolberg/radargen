@@ -8,7 +8,7 @@ use std::fs;
 
 use binary::{run_in, seeded, snapshot};
 
-const CSV: &str = "name,quadrant,ring,description\nKafka,Tool,Adopt,d\nVault,Platform,Hold,d\n";
+const CSV: &str = "name,sector,ring,description\nKafka,Tool,Adopt,d\nVault,Platform,Hold,d\n";
 
 /// SC-26: title, rings and output from a file render the same bytes as
 /// the three flags.
@@ -839,7 +839,7 @@ fn a_positional_csv_overrides_the_input_key() {
     let dir = seeded(&[
         (
             "other.csv",
-            "name,quadrant,ring,description\nVault,Platform,Trial,d\n",
+            "name,sector,ring,description\nVault,Platform,Trial,d\n",
         ),
         (
             "radar.toml",

@@ -3,7 +3,7 @@
 //! is no other formatter.
 
 /// Far larger than any coordinate layout produces, long labels included
-/// (reaching it would take some 3 × 10¹⁰ characters of quadrant name,
+/// (reaching it would take some 3 × 10¹⁰ characters of sector name,
 /// rg-tzz), and small enough that `v * 1000` is an exact integer in `i64`.
 const MAX_MAGNITUDE: f64 = 1e12;
 

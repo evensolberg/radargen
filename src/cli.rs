@@ -41,7 +41,7 @@ pub struct Cli {
     // (FR-91); given here, it overrides the key.
     /// The CSV file to read.
     ///
-    /// A header row, then one row per item, with at least name, quadrant,
+    /// A header row, then one row per item, with at least name, sector,
     /// ring and description columns. --create-template writes one to start
     /// from. With --config, it can come from the file's input key instead.
     #[arg(required_unless_present_any = [STARTER, "config"])]
@@ -148,7 +148,7 @@ pub struct Cli {
     // radar. No short form until it earns one (OQ-2).
     /// Flow a PNG or SVG legend into this many columns beside the radar; the default is 1.
     ///
-    /// From 1 to 4; columns break only between quadrants. An HTML page
+    /// From 1 to 4; columns break only between sectors. An HTML page
     /// ignores it.
     #[arg(long, value_name = "N", value_parser = clap::value_parser!(u8).range(1..=i64::from(MAX_LEGEND_COLUMNS)))]
     pub legend_columns: Option<u8>,

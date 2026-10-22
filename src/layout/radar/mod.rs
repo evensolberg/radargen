@@ -1,5 +1,5 @@
 //! The radar block (FR-30–FR-36, FR-40, FR-42, FR-43, FR-48, FR-50, FR-70,
-//! FR-94): ring circles, quadrant dividers, quadrant labels and ring names,
+//! FR-94): ring circles, sector dividers, sector labels and ring names,
 //! then every plotted item's marker.
 //!
 //! The radar paints four layers, in order (architecture §5): the **frame**;
@@ -26,13 +26,13 @@ use crate::order::Plotted;
 use crate::palette::{Neutral, Role};
 use crate::settings::Origin;
 use crate::style::{
-    DIVIDER_RADIUS, GRID_STROKE, LABEL_HALO, MIN_RADAR_WIDTH, QUADRANT_LABEL,
-    QUADRANT_LABEL_RADIUS, RADAR_FLOOR, RING_LABEL, TextStyle,
+    DIVIDER_RADIUS, GRID_STROKE, LABEL_HALO, MIN_RADAR_WIDTH, RADAR_FLOOR, RING_LABEL,
+    SECTOR_LABEL, SECTOR_LABEL_RADIUS, TextStyle,
 };
 use crate::svg::{Anchor, Group, Node, Paint, Point, Scale, Semantics, TextRun};
 use crate::text::Fonts;
 use markers::{Marker, hit_node, hit_reach, indicator_node, layer, marker_nodes, markers};
-use reach::{half_extent, quadrant_reach_x, quadrant_reach_y, ring_reach_x, ring_reach_y};
+use reach::{half_extent, ring_reach_x, ring_reach_y, sector_reach_x, sector_reach_y};
 
 /// Half the minimum radar width: the floor on each half of the block.
 const MIN_RADAR_HALF: f64 = MIN_RADAR_WIDTH / 2.0;
@@ -109,9 +109,9 @@ impl Label {
     }
 }
 
-/// A quadrant's name and how far FR-79 pushes it outward (D-70).
+/// A sector's name and how far FR-79 pushes it outward (D-70).
 #[derive(Debug, Clone, PartialEq)]
-struct QuadrantLabel {
+struct SectorLabel {
     /// Anchored at the label point, on the sector's middle angle.
     label: Label,
     /// Along the middle angle, at natural size: half the name's width times
@@ -130,7 +130,7 @@ struct QuadrantLabel {
     push: Point,
 }
 
-impl QuadrantLabel {
+impl SectorLabel {
     fn new(label: Label, middle: f64) -> Self {
         let push = polar(
             middle,
@@ -157,7 +157,7 @@ impl QuadrantLabel {
 pub struct RadarBlock {
     geometry: Geometry,
     /// In FR-10 order: label `p` belongs to the sector at position `p`.
-    quadrants: Vec<QuadrantLabel>,
+    sectors: Vec<SectorLabel>,
     /// In declared order, outermost first (D-60).
     rings: Vec<Label>,
     /// Where the rings were declared, for FR-95 (D-73).
@@ -174,34 +174,34 @@ impl RadarBlock {
     /// items (D-75): the group's label, and the exported SVG's `<desc>`.
     #[must_use]
     pub fn name(&self) -> String {
-        label(self.quadrants.len(), self.rings.len(), self.markers.len())
+        label(self.sectors.len(), self.rings.len(), self.markers.len())
     }
 
-    /// The radar for `catalogue`, its quadrants in `plotted`'s FR-10 order,
+    /// The radar for `catalogue`, its sectors in `plotted`'s FR-10 order,
     /// every declared ring drawn, empty or not (FR-19), and a marker for
     /// every plotted item. Labels are measured once here, at natural size.
     ///
     /// # Panics
     ///
-    /// If `plotted` names a quadrant or item `catalogue` lacks
+    /// If `plotted` names a sector or item `catalogue` lacks
     /// (`order::resolve` guarantees it does not).
     #[must_use]
     // qual:allow(complexity, error_handling) reason: "the documented # Panics: a Plotted from another catalogue is a caller bug"
     pub fn new(catalogue: &Catalogue, plotted: &Plotted, fonts: &Fonts) -> Self {
         let geometry = Geometry::of(catalogue);
-        let quadrants = plotted
-            .quadrants
+        let sectors = plotted
+            .sectors
             .iter()
             .enumerate()
             .map(|(p, &q)| {
-                let quadrant = catalogue
-                    .quadrants
+                let sector = catalogue
+                    .sectors
                     .get(q)
-                    .expect("FR-10's order indexes the catalogue's quadrants");
+                    .expect("FR-10's order indexes the catalogue's sectors");
                 let middle = geometry.middle(p);
-                let at = polar(middle, QUADRANT_LABEL_RADIUS);
-                let label = Label::measured(&quadrant.label, QUADRANT_LABEL, at, fonts);
-                QuadrantLabel::new(label, middle)
+                let at = polar(middle, SECTOR_LABEL_RADIUS);
+                let label = Label::measured(&sector.label, SECTOR_LABEL, at, fonts);
+                SectorLabel::new(label, middle)
             })
             .collect();
         // A ring's name sits at 12 o'clock, in the middle of its band.
@@ -220,7 +220,7 @@ impl RadarBlock {
             .collect();
         Self {
             geometry,
-            quadrants,
+            sectors,
             rings,
             ring_origin: catalogue.ring_origin.clone(),
             markers: markers(catalogue, plotted),
@@ -254,14 +254,14 @@ impl RadarBlock {
     }
 
     /// How far each label reaches left or right of the centre, with its
-    /// text and, for a ring, where it was declared: quadrants in FR-10 order,
+    /// text and, for a ring, where it was declared: sectors in FR-10 order,
     /// then rings. The one
     /// source for both the radar's width and the label that sets it.
     fn reaches_x(&self, r: RadarScale) -> impl Iterator<Item = (f64, Option<&Origin>, &str)> + '_ {
-        let quadrants = self
-            .quadrants
+        let sectors = self
+            .sectors
             .iter()
-            .map(move |q| (quadrant_reach_x(q, r), None, q.label.text.as_str()));
+            .map(move |q| (sector_reach_x(q, r), None, q.label.text.as_str()));
         let rings = self.rings.iter().map(move |l| {
             (
                 ring_reach_x(l.width, r),
@@ -269,7 +269,7 @@ impl RadarBlock {
                 l.text.as_str(),
             )
         });
-        quadrants.chain(rings)
+        sectors.chain(rings)
     }
 
     /// The furthest any label reaches left or right of the centre.
@@ -282,7 +282,7 @@ impl RadarBlock {
     /// The label whose reach left or right sets the radar's width at
     /// `scale`, for FR-95 at the narrow scale and FR-105 at 1 (D-73, D-94):
     /// the first furthest in FR-10 order,
-    /// quadrants before rings. `None` only with no labels at all, which
+    /// sectors before rings. `None` only with no labels at all, which
     /// `rings.rs` rules out by refusing an empty ring list.
     #[must_use]
     pub fn binding_label(&self, scale: f64) -> Option<Binding> {
@@ -295,19 +295,16 @@ impl RadarBlock {
                         name,
                         origin: origin.clone(),
                     },
-                    None => Binding::Quadrant(name),
+                    None => Binding::Sector(name),
                 }
             })
     }
 
     /// The furthest any label reaches above or below the centre.
     fn label_half_height(&self, r: RadarScale) -> f64 {
-        let quadrants = self
-            .quadrants
-            .iter()
-            .map(|label| quadrant_reach_y(label, r));
+        let sectors = self.sectors.iter().map(|label| sector_reach_y(label, r));
         let rings = self.rings.iter().map(|label| ring_reach_y(-label.at.y, r));
-        quadrants.chain(rings).fold(0.0, f64::max)
+        sectors.chain(rings).fold(0.0, f64::max)
     }
 
     /// The furthest any hit area reaches left or right of the centre; 0
@@ -347,9 +344,9 @@ impl RadarBlock {
         })
     }
 
-    /// One divider per quadrant (FR-77); none with no quadrants (FR-42).
+    /// One divider per sector (FR-77); none with no sectors (FR-42).
     fn dividers(&self, r: RadarScale) -> impl Iterator<Item = Node> + '_ {
-        (0..self.quadrants.len()).map(move |p| Node::Line {
+        (0..self.sectors.len()).map(move |p| Node::Line {
             from: Point::ORIGIN,
             to: polar(self.geometry.divider(p), DIVIDER_RADIUS * r.geometry),
             stroke: Paint::Role(Role::Neutral(Neutral::StrokeDivider)),
@@ -357,22 +354,22 @@ impl RadarBlock {
         })
     }
 
-    /// Each quadrant's name, mid-sector beyond the rim, pushed out by its
+    /// Each sector's name, mid-sector beyond the rim, pushed out by its
     /// own half-width (D-70). The centre is already at `r`, so only the size
     /// scales.
-    fn quadrant_labels(&self, r: RadarScale) -> impl Iterator<Item = Node> + '_ {
+    fn sector_labels(&self, r: RadarScale) -> impl Iterator<Item = Node> + '_ {
         let scale = Scale {
             position: 1.0,
             size: r.labels,
         };
-        self.quadrants.iter().map(move |quadrant| {
+        self.sectors.iter().map(move |sector| {
             TextRun {
-                origin: quadrant.centre(r),
-                style: QUADRANT_LABEL,
+                origin: sector.centre(r),
+                style: SECTOR_LABEL,
                 ink: Neutral::TextPrimary,
                 anchor: Anchor::Middle,
-                lines: vec![quadrant.label.text.clone()],
-                words: quadrant.label.text.clone(),
+                lines: vec![sector.label.text.clone()],
+                words: sector.label.text.clone(),
                 leading: 0.0,
             }
             .node(scale)
@@ -420,7 +417,7 @@ impl Block for RadarBlock {
         let frame = self
             .ring_circles(r)
             .chain(self.dividers(r))
-            .chain(self.quadrant_labels(r))
+            .chain(self.sector_labels(r))
             .chain(self.ring_labels(r));
         // Each marker's glyph and number, drawn once: the indicator raises
         // a copy and the control takes the originals.
@@ -447,12 +444,12 @@ impl Block for RadarBlock {
     }
 }
 
-/// The radar's accessible name (D-75): its quadrants, declared rings and
+/// The radar's accessible name (D-75): its sectors, declared rings and
 /// plotted items, so assistive technology announces its size first.
-fn label(quadrants: usize, rings: usize, items: usize) -> String {
+fn label(sectors: usize, rings: usize, items: usize) -> String {
     format!(
-        "Technology radar: {quadrants} {}, {rings} {}, {items} {}",
-        plural(quadrants, "quadrant", "quadrants"),
+        "Technology radar: {sectors} {}, {rings} {}, {items} {}",
+        plural(sectors, "sector", "sectors"),
         plural(rings, "ring", "rings"),
         plural(items, "item", "items")
     )
@@ -482,8 +479,8 @@ mod tests {
         RadarBlock::new(&catalogue, &order, fonts)
     }
 
-    /// `n` short quadrants, `Q0`… in FR-10 order, default rings.
-    pub(super) fn quadrants(fonts: &Fonts, n: usize) -> RadarBlock {
+    /// `n` short sectors, `Q0`… in FR-10 order, default rings.
+    pub(super) fn sectors(fonts: &Fonts, n: usize) -> RadarBlock {
         let names: Vec<String> = (0..n).map(|i| format!("Q{i}")).collect();
         let names: Vec<&str> = names.iter().map(String::as_str).collect();
         block(fonts, &csv_of(&names, "Adopt"), None)
@@ -507,7 +504,7 @@ mod tests {
     const QUALIFIERS: [&str; 2] = ["", "conditional"];
     const STATUSES: [&str; 5] = ["", "No Change", "New", "Moved In", "Moved Out"];
 
-    /// N = 4, each quadrant holding every qualifier × status pair in Trial.
+    /// N = 4, each sector holding every qualifier × status pair in Trial.
     pub(super) fn marked_csv() -> String {
         let rows = ["Q0", "Q1", "Q2", "Q3"].into_iter().flat_map(|q| {
             QUALIFIERS.into_iter().flat_map(move |qualifier| {
@@ -520,17 +517,17 @@ mod tests {
     }
 
     fn fixtures(fonts: &Fonts) -> Vec<(&'static str, RadarBlock)> {
-        // N = 4 with one quadrant named 40 × "W"; no quadrants and one ring
+        // N = 4 with one sector named 40 × "W"; no sectors and one ring
         // named 80 × "W".
-        let long_quadrant = csv_of(&["B", "C", "D", &long(40)], "Adopt");
+        let long_sector = csv_of(&["B", "C", "D", &long(40)], "Adopt");
         vec![
             ("prd", block(fonts, PRD_EXAMPLE, None)),
-            ("n1", quadrants(fonts, 1)),
-            ("n2", quadrants(fonts, 2)),
-            ("n6", quadrants(fonts, 6)),
-            ("n8", quadrants(fonts, 8)),
+            ("n1", sectors(fonts, 1)),
+            ("n2", sectors(fonts, 2)),
+            ("n6", sectors(fonts, 6)),
+            ("n8", sectors(fonts, 8)),
             ("zero", block(fonts, HEAD, None)),
-            ("long quadrant", block(fonts, &long_quadrant, None)),
+            ("long sector", block(fonts, &long_sector, None)),
             ("long ring", block(fonts, HEAD, Some(&long(80)))),
             ("assess", assess(fonts)),
             ("crowded", crowded(fonts)),
@@ -633,8 +630,8 @@ mod tests {
         }
     }
 
-    /// Quadrant labels are the only `SemiBold` texts in the frame.
-    fn quadrant_labels(nodes: &[Node]) -> Vec<Text<'_>> {
+    /// Sector labels are the only `SemiBold` texts in the frame.
+    fn sector_labels(nodes: &[Node]) -> Vec<Text<'_>> {
         nodes
             .iter()
             .filter_map(text)
@@ -673,9 +670,9 @@ mod tests {
         }
     }
 
-    /// A quadrant name's width at natural size.
-    fn quadrant_width(fonts: &Fonts, name: &str) -> f64 {
-        QUADRANT_LABEL.measure(name, fonts)
+    /// A sector name's width at natural size.
+    fn sector_width(fonts: &Fonts, name: &str) -> f64 {
+        SECTOR_LABEL.measure(name, fonts)
     }
 
     /// FR-79's centre for a name of `width` on `middle` at scale `s`, from
@@ -692,7 +689,7 @@ mod tests {
     }
 
     fn label_texts(nodes: &[Node]) -> Vec<String> {
-        quadrant_labels(nodes)
+        sector_labels(nodes)
             .iter()
             .map(|t| t.lines.concat())
             .collect()
@@ -791,7 +788,7 @@ mod tests {
         grown.set_growth(2.0);
         assert!(grown.size(1.0).width > ungrown.size(1.0).width);
         let sizes = |b: &RadarBlock| -> Vec<f64> {
-            quadrant_labels(&frame_at(b, 1.0))
+            sector_labels(&frame_at(b, 1.0))
                 .iter()
                 .map(|t| t.style.size)
                 .collect()
@@ -805,7 +802,7 @@ mod tests {
     }
 
     #[test]
-    fn zero_quadrants_draws_rings_only() {
+    fn zero_sectors_draws_rings_only() {
         let b = block(fonts(), HEAD, None);
         let size = b.size(1.0);
         assert!(
@@ -829,12 +826,12 @@ mod tests {
     }
 
     #[test]
-    fn one_quadrant_has_one_divider() {
-        let nodes = frame_at(&quadrants(fonts(), 1), 1.0);
+    fn one_sector_has_one_divider() {
+        let nodes = frame_at(&sectors(fonts(), 1), 1.0);
         assert_eq!(lines(&nodes).len(), 1);
-        let labels = quadrant_labels(&nodes);
+        let labels = sector_labels(&nodes);
         let [label] = labels.as_slice() else {
-            panic!("one quadrant label");
+            panic!("one sector label");
         };
         assert!(near(label.origin, polar(90.0, 300.0)), "{:?}", label.origin);
         assert!(close(label.origin.x, 0.0) && close(label.origin.y, 300.0));
@@ -856,29 +853,29 @@ mod tests {
             (8, &eight),
         ];
         for (n, angles) in cases {
-            ends_are(&lines(&frame_at(&quadrants(fonts, n), 1.0)), angles, 262.0);
+            ends_are(&lines(&frame_at(&sectors(fonts, n), 1.0)), angles, 262.0);
         }
     }
 
     #[test]
-    fn quadrant_labels_follow_fr10() {
+    fn sector_labels_follow_fr10() {
         let fonts = fonts();
         let check = |csv: &str| {
             let nodes = frame_at(&block(fonts, csv, None), 1.0);
             assert_eq!(label_texts(&nodes), ["platform", "Practice", "Tool"]);
             let g = Geometry {
-                quadrants: 3,
+                sectors: 3,
                 rings: 4,
             };
-            for (i, label) in quadrant_labels(&nodes).iter().enumerate() {
-                let width = quadrant_width(fonts, &label.lines.concat());
+            for (i, label) in sector_labels(&nodes).iter().enumerate() {
+                let width = sector_width(fonts, &label.lines.concat());
                 assert!(near(label.origin, pushed(g.middle(i), width, 1.0)), "{i}");
             }
             assert_eq!(lines(&nodes).len(), 3);
         };
         check(&csv_of(&["Tool", "platform", "Practice"], "Adopt"));
         // FR-42: every row in an undeclared ring plots nothing, but the
-        // quadrants still exist and are still drawn.
+        // sectors still exist and are still drawn.
         check(&csv_of(&["Tool", "platform", "Practice"], "Nowhere"));
     }
 
@@ -955,7 +952,7 @@ mod tests {
         let last_line = nodes
             .iter()
             .rposition(|n| matches!(n, Node::Line { .. }))
-            .expect("three quadrants draw dividers");
+            .expect("three sectors draw dividers");
         let first_ring_text = nodes
             .iter()
             .position(|n| text(n).is_some_and(|t| t.style.weight == Weight::Regular))
@@ -967,14 +964,14 @@ mod tests {
     }
 
     #[test]
-    fn quadrant_labels_are_primary_and_middle_anchored() {
+    fn sector_labels_are_primary_and_middle_anchored() {
         let nodes = frame_at(&block(fonts(), PRD_EXAMPLE, None), 1.0);
-        let labels = quadrant_labels(&nodes);
+        let labels = sector_labels(&nodes);
         assert_eq!(labels.len(), 3);
         for label in labels {
             assert_eq!(label.ink, fill(Neutral::TextPrimary));
             assert_eq!(label.anchor, Anchor::Middle);
-            assert_eq!(label.style, QUADRANT_LABEL);
+            assert_eq!(label.style, SECTOR_LABEL);
             assert_eq!(label.lines.len(), 1);
         }
         for name in ring_names(&nodes) {
@@ -986,9 +983,9 @@ mod tests {
     #[test]
     fn three_scales() {
         let fonts = fonts();
-        let b = quadrants(fonts, 4);
+        let b = sectors(fonts, 4);
         let g = Geometry {
-            quadrants: 4,
+            sectors: 4,
             rings: 4,
         };
         for s in [1.0_f64, 0.9, 7.0 / 9.0, 0.7, 0.5, 0.4] {
@@ -1006,18 +1003,18 @@ mod tests {
                 assert!(near(end, polar(g.divider(p), 262.0 * s)), "{s} divider {p}");
                 assert!(close(width, stroke), "{s} divider {p}: {width}");
             }
-            let labels = quadrant_labels(&nodes);
+            let labels = sector_labels(&nodes);
             assert_eq!(labels.len(), 4);
             for (p, label) in labels.iter().enumerate() {
-                let width = quadrant_width(fonts, &label.lines.concat());
+                let width = sector_width(fonts, &label.lines.concat());
                 assert!(
                     near(label.origin, pushed(g.middle(p), width, s)),
                     "{s} label {p}"
                 );
-                assert!(close(label.style.size, QUADRANT_LABEL.size));
+                assert!(close(label.style.size, SECTOR_LABEL.size));
                 assert!(close(
                     label.style.letter_spacing,
-                    QUADRANT_LABEL.letter_spacing
+                    SECTOR_LABEL.letter_spacing
                 ));
             }
             let texts = ring_texts(&nodes);
@@ -1059,10 +1056,10 @@ mod tests {
         // (198 at 0.3) is passed. The push raises it by the wider name's
         // half-width × cos 67.5° × sin 67.5°, at natural size.
         let s = 0.3;
-        let width = quadrant_width(fonts, "Q0").max(quadrant_width(fonts, "Q7"));
+        let width = sector_width(fonts, "Q0").max(sector_width(fonts, "Q7"));
         let above = -pushed(-67.5, width, s).y;
         let want = 2.0 * (TEXT_ASCENT * 12.0 + above + 10.0);
-        let got = quadrants(fonts, 8).size(s).height;
+        let got = sectors(fonts, 8).size(s).height;
         assert!(close(got, want), "{got} vs {want}");
         // 215.80 before D-78: the wider name's layout width now carries the
         // spacing allowance, so its push is larger.
@@ -1071,7 +1068,7 @@ mod tests {
         // N = 1: the label hangs below 6 o'clock, so its descent counts.
         let s = 0.4_f64;
         let want = (660.0 * s).max(2.0 * (TEXT_DESCENT * 12.0 + 300.0 * s + 10.0));
-        let got = quadrants(fonts, 1).size(s).height;
+        let got = sectors(fonts, 1).size(s).height;
         assert!(close(got, want), "{got} vs {want}");
     }
 
@@ -1080,9 +1077,9 @@ mod tests {
         clippy::suboptimal_flops,
         reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
     )]
-    fn a_long_quadrant_label_widens_the_block() {
+    fn a_long_sector_label_widens_the_block() {
         let fonts = fonts();
-        let w = quadrant_width(fonts, &long(40));
+        let w = sector_width(fonts, &long(40));
         let b = block(fonts, &csv_of(&["B", "C", "D", &long(40)], "Adopt"), None);
         // The long name is last, on 225°: its push reaches w/2 · cos² 45°,
         // a quarter of its width, further out horizontally.
@@ -1331,12 +1328,12 @@ mod tests {
             let names: Vec<&str> = names.iter().map(String::as_str).collect();
             let b = block(fonts, &csv_of(&names, "Adopt"), None);
             let g = Geometry {
-                quadrants: n,
+                sectors: n,
                 rings: 4,
             };
             for s in [1.5, 1.0, 0.576, 0.4] {
                 let nodes = frame_at(&b, s);
-                for (p, label) in quadrant_labels(&nodes).iter().enumerate() {
+                for (p, label) in sector_labels(&nodes).iter().enumerate() {
                     // The drawn node's own origin and measured width.
                     let half = label.style.measure(&label.lines.concat(), fonts) / 2.0;
                     let unit = polar(g.middle(p), 1.0);
@@ -1365,8 +1362,8 @@ mod tests {
         // under 6 units.
         let one = block(fonts, &csv_of(&["A", "B"], "Adopt"), None);
         let nodes = frame_at(&one, 1.0);
-        for (label, middle) in quadrant_labels(&nodes).iter().zip([0.0, 180.0]) {
-            let half = quadrant_width(fonts, &label.lines.concat()) / 2.0;
+        for (label, middle) in sector_labels(&nodes).iter().zip([0.0, 180.0]) {
+            let half = sector_width(fonts, &label.lines.concat()) / 2.0;
             let old = polar(middle, 300.0);
             let moved = (label.origin.x - old.x).hypot(label.origin.y - old.y);
             assert!(
@@ -1398,13 +1395,13 @@ mod tests {
         };
         assert_eq!(
             centred.semantics,
-            Semantics::Group("Technology radar: 3 quadrants, 4 rings, 6 items".into())
+            Semantics::Group("Technology radar: 3 sectors, 4 rings, 6 items".into())
         );
     }
 
     /// FR-95: a label on a diagonal reaches further than a longer one at 6
     /// o'clock, which reaches only half its width (D-71). With three
-    /// quadrants, FR-10's second sits at 6 o'clock.
+    /// sectors, FR-10's second sits at 6 o'clock.
     #[test]
     fn the_binding_label_is_not_always_the_longest() {
         let diagonal = format!("A{}", "W".repeat(30));
@@ -1418,7 +1415,7 @@ mod tests {
         );
         assert_eq!(
             b.binding_label(NARROW_MIN_SCALE),
-            Some(Binding::Quadrant(diagonal))
+            Some(Binding::Sector(diagonal))
         );
     }
 
@@ -1438,13 +1435,10 @@ mod tests {
 
     #[test]
     fn label_counts_singular_and_plural() {
-        assert_eq!(
-            label(1, 1, 1),
-            "Technology radar: 1 quadrant, 1 ring, 1 item"
-        );
+        assert_eq!(label(1, 1, 1), "Technology radar: 1 sector, 1 ring, 1 item");
         assert_eq!(
             label(0, 4, 0),
-            "Technology radar: 0 quadrants, 4 rings, 0 items"
+            "Technology radar: 0 sectors, 4 rings, 0 items"
         );
     }
 

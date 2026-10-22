@@ -642,41 +642,41 @@ mod tests {
         blocks_of(&catalogue, &order, titles)
     }
 
-    /// One item per quadrant, all in Adopt.
-    fn quadrants(names: &[&str]) -> String {
+    /// One item per sector, all in Adopt.
+    fn sectors(names: &[&str]) -> String {
         csv_of(names, "Adopt")
     }
 
-    /// Thoughtworks' four quadrants: 460.0 wide at 0.3 with D-78's spacing
+    /// Thoughtworks' four sectors: 460.0 wide at 0.3 with D-78's spacing
     /// allowance, so the document widens within the headroom (386.75 before).
     fn thoughtworks() -> String {
-        quadrants(&["Techniques", "Tools", "Platforms", "Languages & Frameworks"])
+        sectors(&["Techniques", "Tools", "Platforms", "Languages & Frameworks"])
     }
 
     /// 521.6 wide at 0.3 with D-78's allowance: past 480, so FR-95 warns
     /// (437.8, within the headroom, before).
     fn widened() -> String {
-        quadrants(&["Infrastructure Platforms", "Tools", "Practice"])
+        sectors(&["Infrastructure Platforms", "Tools", "Practice"])
     }
 
-    /// One 70-character quadrant name: wider than 460 at 0.3, past 480.
+    /// One 70-character sector name: wider than 460 at 0.3, past 480.
     fn beyond() -> String {
-        quadrants(&[&"W".repeat(70)])
+        sectors(&[&"W".repeat(70)])
     }
 
-    /// Four quadrants, one with a long name: over 700 wide at scale 1.
+    /// Four sectors, one with a long name: over 700 wide at scale 1.
     fn wide_radar() -> String {
-        quadrants(&["A", "B", "C", &"W".repeat(40)])
+        sectors(&["A", "B", "C", &"W".repeat(40)])
     }
 
-    /// Thirty items in one quadrant: a legend taller than radar and key.
+    /// Thirty items in one sector: a legend taller than radar and key.
     fn tall() -> String {
-        quadrants(&["Q"; 30])
+        sectors(&["Q"; 30])
     }
 
     fn nine() -> String {
         let names: Vec<String> = (0..9).map(|i| format!("Q{i}")).collect();
-        quadrants(&names.iter().map(String::as_str).collect::<Vec<_>>())
+        sectors(&names.iter().map(String::as_str).collect::<Vec<_>>())
     }
 
     /// Every fixture the document-level properties are checked over.
@@ -695,7 +695,7 @@ mod tests {
                     },
                 ),
             ),
-            ("one row", blocks(&quadrants(&["Q"]), TITLED)),
+            ("one row", blocks(&sectors(&["Q"]), TITLED)),
             (
                 "long names",
                 blocks(&format!("{HEAD}{NAME_THREE_LINES},Q,Adopt,d\n"), TITLED),
@@ -762,8 +762,8 @@ mod tests {
         }
     }
 
-    /// `count` items in the first quadrant's innermost band and one in each
-    /// other's, the quadrants named `stem` and a digit. Four quadrants'
+    /// `count` items in the first sector's innermost band and one in each
+    /// other's, the sectors named `stem` and a digit. Four sectors'
     /// innermost band holds two at natural size (FR-89), so three overflow.
     fn innermost(stem: &str, count: usize) -> String {
         let names: Vec<String> = std::iter::repeat_n(0, count)
@@ -810,7 +810,7 @@ mod tests {
     /// D-86: the radar grows no further than keeps the wide arrangement
     /// showing on a `WIDE_MIN_VIEWPORT_PX` screen, and stops short of what
     /// it needs only where one more step would hide it. Ordinary names
-    /// reach 2× within the bound; quadrant names of 30 × "W" hold it to
+    /// reach 2× within the bound; sector names of 30 × "W" hold it to
     /// 1.25.
     #[test]
     fn growth_keeps_the_wide_arrangement_on_laptops() {
@@ -919,7 +919,7 @@ mod tests {
 
     #[test]
     fn narrow_scale_of_the_radar() {
-        // Zero quadrants: the 660 · s floor sets the width.
+        // Zero sectors: the 660 · s floor sets the width.
         let floor = radar(HEAD);
         let scale = narrow_scale(&floor, NARROW_RADAR_COLUMN, NARROW_MIN_SCALE);
         assert!(close(scale, 400.0 / 660.0), "{scale}");
@@ -1026,7 +1026,7 @@ mod tests {
     #[test]
     fn ordinary_radars_keep_the_narrow_width() {
         for (name, b) in fixtures() {
-            // The fixtures with long quadrant names widen; since D-78's
+            // The fixtures with long sector names widen; since D-78's
             // spacing allowance, so do Thoughtworks' four.
             if matches!(
                 name,
@@ -1098,21 +1098,21 @@ mod tests {
     }
 
     #[test]
-    fn fr95_names_the_binding_quadrant() {
+    fn fr95_names_the_binding_sector() {
         let b = blocks(&beyond(), TITLED);
         let width = placements(Arrangement::Narrow, &b).width;
         let (binding, warned) = narrowed(&b);
-        assert_eq!(binding, Binding::Quadrant("W".repeat(70)));
+        assert_eq!(binding, Binding::Sector("W".repeat(70)));
         assert_eq!(f64::from(warned), width.ceil(), "{width}");
     }
 
-    /// D-73: a long ring name sets the width with a short quadrant, or with
+    /// D-73: a long ring name sets the width with a short sector, or with
     /// none at all.
     #[test]
     fn fr95_names_a_binding_ring() {
         let ring = "W".repeat(70);
         let rings = format!("{ring},Adopt");
-        for csv in [quadrants(&["Tools"]), HEAD.to_owned()] {
+        for csv in [sectors(&["Tools"]), HEAD.to_owned()] {
             let (binding, _) = narrowed(&with_rings(&csv, &rings));
             assert_eq!(
                 binding,
@@ -1159,19 +1159,19 @@ mod tests {
     /// FR-105: a breakpoint past a laptop is one warning, giving it and
     /// naming the label that sets the wide radar's width (D-94).
     #[test]
-    fn fr105_names_the_binding_quadrant_and_the_breakpoint() {
+    fn fr105_names_the_binding_sector_and_the_breakpoint() {
         let long = "W".repeat(70);
-        let b = blocks(&quadrants(&["A", "B", "C", &long]), TITLED);
-        assert_eq!(beyond_laptops(&b), Binding::Quadrant(long));
+        let b = blocks(&sectors(&["A", "B", "C", &long]), TITLED);
+        assert_eq!(beyond_laptops(&b), Binding::Sector(long));
     }
 
     /// D-73 holds in the wide arrangement too: a long enough `--rings`
-    /// entry sets its width with a short quadrant, or with none.
+    /// entry sets its width with a short sector, or with none.
     #[test]
     fn fr105_names_a_binding_ring() {
         let ring = "W".repeat(170);
         let rings = format!("{ring},Adopt");
-        for csv in [quadrants(&["Tools"]), HEAD.to_owned()] {
+        for csv in [sectors(&["Tools"]), HEAD.to_owned()] {
             let b = with_rings(&csv, &rings);
             let binding = Binding::Ring {
                 name: ring.clone(),
@@ -1183,21 +1183,21 @@ mod tests {
 
     /// D-94: the label named is the one that binds the wide radar, drawn at
     /// scale 1, which need not be the one FR-95 names at the narrow
-    /// arrangement's scale. With three quadrants FR-10's second sits at 6
+    /// arrangement's scale. With three sectors FR-10's second sits at 6
     /// o'clock, where a label reaches only half its width; on a diagonal
     /// the rim's reach counts too, and more of it at scale 1.
     #[test]
     fn fr105_names_the_label_binding_the_wide_radar() {
         let diagonal = format!("A{}", "W".repeat(60));
         let six = format!("B{}", "W".repeat(130));
-        let b = blocks(&quadrants(&[&diagonal, &six, "C"]), TITLED);
-        assert_eq!(narrowed(&b).0, Binding::Quadrant(six));
-        assert_eq!(beyond_laptops(&b), Binding::Quadrant(diagonal));
+        let b = blocks(&sectors(&[&diagonal, &six, "C"]), TITLED);
+        assert_eq!(narrowed(&b).0, Binding::Sector(six));
+        assert_eq!(beyond_laptops(&b), Binding::Sector(diagonal));
     }
 
     /// D-94: wherever FR-105 fires, FR-95 fires too. Over the shared
     /// fixtures, and a sweep either side of FR-105's bound: one long
-    /// quadrant name among one, three, four or six, or one long `--rings`
+    /// sector name among one, three, four or six, or one long `--rings`
     /// entry. Most of the sweep is past the bound, so the check bites.
     #[test]
     fn fr95_fires_wherever_fr105_does() {
@@ -1210,10 +1210,10 @@ mod tests {
                     .take(count - 1)
                     .collect();
                 names.push(&long);
-                sweep.push(blocks(&quadrants(&names), TITLED));
+                sweep.push(blocks(&sectors(&names), TITLED));
             }
             let ring = "W".repeat(n + 60);
-            sweep.push(with_rings(&quadrants(&["Tools"]), &format!("{ring},Adopt")));
+            sweep.push(with_rings(&sectors(&["Tools"]), &format!("{ring},Adopt")));
         }
         let fired = sweep
             .iter()
@@ -1304,7 +1304,7 @@ mod tests {
     fn legend_columns_trade_height_for_width() {
         let names: Vec<String> = (0..40).map(|i| format!("Q{}", i % 4)).collect();
         let one = blocks(
-            &quadrants(&names.iter().map(String::as_str).collect::<Vec<_>>()),
+            &sectors(&names.iter().map(String::as_str).collect::<Vec<_>>()),
             TITLED,
         );
         let two = one.clone().with_legend_columns(2);

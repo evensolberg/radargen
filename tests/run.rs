@@ -21,12 +21,12 @@ use radargen::starter::Starter;
 use radargen::style::MAX_GROWTH;
 
 use binary::{Ran, run_in, seeded, snapshot};
-use palette::{SAMPLE, quadrants, with_series};
+use palette::{SAMPLE, sectors, with_series};
 use resvg::tiny_skia::Pixmap;
 
-const PRD: &str = include_str!("fixtures/three-quadrant.csv");
+const PRD: &str = include_str!("fixtures/three-sector.csv");
 const ROW_ERRORS: &str = include_str!("fixtures/row-errors.csv");
-const HEAD: &str = "name,quadrant,ring,description\n";
+const HEAD: &str = "name,sector,ring,description\n";
 /// The PRD example's one warning: FR-17 on its `Rejected` row, as an HTML
 /// page under the default `--table radar` gives it (FR-106).
 const FR17: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings; --table all lists it, but also publishes every other column";
@@ -34,7 +34,7 @@ const FR17: &str = "warning: line 8, ring: 'Rejected' is not one of the default 
 const FR17_SNAPSHOT: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is not on the radar; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings";
 /// FR-106's warning for `--table all` on a PNG or SVG.
 const TABLE_STATIC: &str = "warning: --table all applies to HTML pages; PNG and SVG have no table";
-const NO_HEADER: &str = "error: the CSV has no header row (it is empty or blank); the header must name at least name, quadrant, ring and description";
+const NO_HEADER: &str = "error: the CSV has no header row (it is empty or blank); the header must name at least name, sector, ring and description";
 const RENDER: [&str; 3] = ["radar.csv", "-o", "radar.html"];
 
 /// stderr is one line per prefix, each starting with its prefix, in order.
@@ -73,9 +73,11 @@ fn renders_the_prd_example() {
         "<meta name=\"generator\" content=\"{}\">",
         radargen::emit::OUTPUT_VERSION
     )));
-    assert!(page.contains(
-        " role=\"group\" aria-label=\"Technology radar: 3 quadrants, 4 rings, 6 items\""
-    ));
+    assert!(
+        page.contains(
+            " role=\"group\" aria-label=\"Technology radar: 3 sectors, 4 rings, 6 items\""
+        )
+    );
     html::assert_requests_nothing(&page);
     // PR 14b: both arrangements, the wide in its four parts (D-85), and the
     // two inlined faces.
@@ -99,7 +101,7 @@ fn innermost(count: usize) -> String {
         })
 }
 
-/// D-86: the radar grows before FR-89 warns. Three in four quadrants'
+/// D-86: the radar grows before FR-89 warns. Three in four sectors'
 /// innermost band overlap at natural size and fit at 1.25, so nothing is
 /// reported; twelve overlap even at 2×, and the warning gives how many fit
 /// at the growth the radar is drawn with.
@@ -114,13 +116,13 @@ fn growth_answers_crowding_before_it_warns() {
     let ran = run_in(dir.path(), &RENDER);
     assert!(ran.ok(), "{}", ran.stderr);
     let innermost = Geometry {
-        quadrants: 4,
+        sectors: 4,
         rings: 4,
     };
     let fits = innermost.capacity(3, 12, MAX_GROWTH);
     assert!(fits > innermost.capacity(3, 12, 1.0), "growth holds more");
     let want =
-        format!("warning: quadrant 'Q0', ring 'Retire': 12 items; about {fits} fit comfortably");
+        format!("warning: sector 'Q0', ring 'Retire': 12 items; about {fits} fit comfortably");
     assert!(
         ran.lines().iter().any(|l| l.starts_with(&want)),
         "{want} in {}",
@@ -128,12 +130,12 @@ fn growth_answers_crowding_before_it_warns() {
     );
 }
 
-/// rg-tzz: a quadrant name so long that the wide document is wider than
+/// rg-tzz: a sector name so long that the wide document is wider than
 /// any screen still renders. The page is written, the narrow arrangement's
 /// warning (FR-95) names the label, and the run exits 0, as D-71 does for
 /// any layout limit on valid input.
 #[test]
-fn a_quadrant_name_wider_than_any_screen_still_renders() {
+fn a_sector_name_wider_than_any_screen_still_renders() {
     let csv = format!("{HEAD}A,{},Adopt,d\nB,Tools,Adopt,d\n", "W".repeat(600));
     let dir = seeded(&[("radar.csv", &csv)]);
     let ran = run_in(dir.path(), &RENDER);
@@ -159,16 +161,16 @@ fn narrow_query_px(page: &str) -> u32 {
         .unwrap_or_else(|| panic!("a max-width query in pixels: {query}"))
 }
 
-/// FR-105: a quadrant name long enough to put FR-69's breakpoint past a
+/// FR-105: a sector name long enough to put FR-69's breakpoint past a
 /// laptop warns on the page, giving the breakpoint the page switches at,
 /// beside FR-95's warning (D-94). PNG and SVG draw only the wide
 /// arrangement, so they stay quiet.
 #[test]
 fn a_breakpoint_past_a_laptop_warns_on_html_only() {
-    const QUADRANT: &str =
+    const SECTOR: &str =
         "Platforms and Infrastructure Shared Across Every Product Team in the Group";
     let csv = format!(
-        "{HEAD}Kafka,{QUADRANT},Adopt,d\nTerraform,Tools,Adopt,d\nPostgres,Data,Adopt,d\nRust,Languages,Adopt,d\n"
+        "{HEAD}Kafka,{SECTOR},Adopt,d\nTerraform,Tools,Adopt,d\nPostgres,Data,Adopt,d\nRust,Languages,Adopt,d\n"
     );
     let dir = seeded(&[("radar.csv", &csv)]);
     let ran = run_in(dir.path(), &RENDER);
@@ -180,7 +182,7 @@ fn a_breakpoint_past_a_laptop_warns_on_html_only() {
     assert_eq!(
         ran.lines().first().copied().unwrap_or_default(),
         format!(
-            "warning: the wide layout needs a screen at least {breakpoint} pixels wide, so 1440-pixel laptops get the narrow layout; a shorter name for quadrant '{QUADRANT}' would fix it"
+            "warning: the wide layout needs a screen at least {breakpoint} pixels wide, so 1440-pixel laptops get the narrow layout; a shorter name for sector '{SECTOR}' would fix it"
         )
     );
     for out in ["radar.png", "radar.svg"] {
@@ -353,10 +355,10 @@ fn hostile_text_stays_text() {
         "</style>",
         "<![CDATA[",
     ];
-    let quadrant = "<Q & \"q\">";
+    let sector = "<Q & \"q\">";
     let rows: String = hostile
         .iter()
-        .map(|name| [field(name), field(quadrant), "Adopt".into(), "d".into()].join(",") + "\n")
+        .map(|name| [field(name), field(sector), "Adopt".into(), "d".into()].join(",") + "\n")
         .collect();
     let dir = seeded(&[("radar.csv", &[HEAD, &rows].concat())]);
     let text = "</title></svg><script>&amp;</script>";
@@ -573,7 +575,7 @@ fn legend_hidden_warns_on_png_and_svg_and_changes_nothing() {
 /// both back. FR-17's warning says which, and where to look.
 #[test]
 fn the_table_publishes_the_radar_unless_asked_for_all() {
-    let csv = "name,quadrant,ring,description,owner team\nKafka,Tools,Adopt,d,Ana Lyst\nDecommissioned Bus,Tools,Rejected,gone for good,Bo Rown\n";
+    let csv = "name,sector,ring,description,owner team\nKafka,Tools,Adopt,d,Ana Lyst\nDecommissioned Bus,Tools,Rejected,gone for good,Bo Rown\n";
     let dir = seeded(&[("radar.csv", csv)]);
     let radar = run_in(dir.path(), &["radar.csv", "-o", "radar.html"]);
     assert!(radar.ok(), "{}", radar.stderr);
@@ -765,7 +767,7 @@ fn missing_glyphs_warn_on_png_and_svg_not_html() {
                     "warning: --rings: '採用' has 2 characters the bundled font lacks, the first U+63A1 採; {tail}"
                 ),
                 format!(
-                    "warning: 2 values have characters the bundled font lacks — name 'Kafka 中文' on line 2 (2 characters, first U+4E2D 中), quadrant 'عربي' on line 3 (4 characters, first U+0639 ع); {tail}"
+                    "warning: 2 values have characters the bundled font lacks — name 'Kafka 中文' on line 2 (2 characters, first U+4E2D 中), sector 'عربي' on line 3 (4 characters, first U+0639 ع); {tail}"
                 ),
             ],
             "{ext}"
@@ -811,7 +813,7 @@ fn fr95_reaches_stderr() {
     );
     assert!(
         ran.stderr.contains(&format!(
-            "a shorter name for quadrant '{long}' would fix it\n"
+            "a shorter name for sector '{long}' would fix it\n"
         )),
         "{}",
         ran.stderr
@@ -827,7 +829,7 @@ fn realistic_inputs() {
     assert_eq!(ran.stderr, "");
     assert!(
         read(dir.path(), "radar.html")
-            .contains("aria-label=\"Technology radar: 0 quadrants, 4 rings, 0 items\"")
+            .contains("aria-label=\"Technology radar: 0 sectors, 4 rings, 0 items\"")
     );
 
     let ran = run_in(dir.path(), &["empty.csv", "-o", "empty.html"]);
@@ -846,13 +848,13 @@ fn realistic_inputs() {
 }
 
 /// Radars at the edges of the page's CSS: no marker at all; and 200
-/// quadrants, a wide document whose breakpoint must still be computed. Focus
+/// sectors, a wide document whose breakpoint must still be computed. Focus
 /// is shown by attribute, so neither carries a rule per marker (rg-jri).
 #[test]
 fn the_page_at_its_extremes() {
     let unplotted = format!("{HEAD}Kafka,Tool,Hold,d\nFlink,Tool,Hold,d\n");
     let many: String = (0..200)
-        .map(|i| format!("Item {i},Quadrant {i},Adopt,d\n"))
+        .map(|i| format!("Item {i},Sector {i},Adopt,d\n"))
         .collect::<Vec<_>>()
         .concat();
     let dir = seeded(&[
@@ -987,7 +989,7 @@ fn chunks(bytes: &[u8]) -> Vec<[u8; 4]> {
     out
 }
 
-/// rg-tzz's fixture: a quadrant name so long the wide document passes
+/// rg-tzz's fixture: a sector name so long the wide document passes
 /// 12,500 units, and short enough to draw quickly at 10,000 pixels.
 fn too_wide() -> String {
     format!("{HEAD}A,{},Adopt,d\nB,Tools,Adopt,d\n", "W".repeat(600))
@@ -1297,16 +1299,13 @@ fn a_wrapped_svg_text_is_named_as_written() {
 /// browser's name-from-content would drop between its tspans (rg-g0c).
 #[test]
 fn a_wrapped_heading_is_named_as_written() {
-    let quadrant = "Languages And Frameworks For Distributed Streaming Workloads";
-    let dir = seeded(&[("radar.csv", &format!("{HEAD}Kafka,{quadrant},Adopt,x\n"))]);
+    let sector = "Languages And Frameworks For Distributed Streaming Workloads";
+    let dir = seeded(&[("radar.csv", &format!("{HEAD}Kafka,{sector},Adopt,x\n"))]);
     let ran = run_in(dir.path(), &RENDER);
     assert!(ran.ok(), "{}", ran.stderr);
     let page = read(dir.path(), "radar.html");
-    let named = format!("role=\"heading\" aria-level=\"3\" aria-label=\"{quadrant}\"");
-    assert!(
-        page.contains(&named),
-        "no wrapped heading named {quadrant:?}"
-    );
+    let named = format!("role=\"heading\" aria-level=\"3\" aria-label=\"{sector}\"");
+    assert!(page.contains(&named), "no wrapped heading named {sector:?}");
 }
 
 /// A subtitle broken mid-word is an image named by its words in the page,
@@ -1471,7 +1470,7 @@ fn palette_case_and_line_ends_do_not_change_the_bytes() {
     assert_eq!(upper, read(dir.path(), "windows.css.svg"));
 }
 
-/// SC-21: five entries cycle at the sixth quadrant, where the built-in
+/// SC-21: five entries cycle at the sixth sector, where the built-in
 /// eight are never drawn; twelve are honoured, where the built-in eight
 /// would repeat four.
 #[test]
@@ -1481,7 +1480,7 @@ fn the_series_count_is_the_files() {
     for (count, quads) in [(5, 6), (12, 12)] {
         let series = twelve.get(..count).expect("enough");
         let dir = seeded(&[
-            ("radar.csv", &quadrants(quads)),
+            ("radar.csv", &sectors(quads)),
             ("brand.css", &with_series(series)),
         ]);
         let ran = run_in(
@@ -1499,7 +1498,7 @@ fn the_series_count_is_the_files() {
             assert!(!svg.contains(value), "{count}: built-in {value}");
         }
         if count == 5 {
-            // Quadrant 6 takes --series-1: one item per quadrant, so the
+            // Sector 6 takes --series-1: one item per sector, so the
             // first colour is drawn twice as often as the second.
             let drawn = |value: &str| svg.matches(value).count();
             let (first, second) = (drawn("#1010A0"), drawn("#1020A0"));
@@ -1912,7 +1911,7 @@ fn html_ignores_legend_columns() {
 /// and `--table`, and the run succeeds.
 #[test]
 fn a_misspelt_column_warns_in_every_format() {
-    let csv = "name,quadrant,ring,description,Rationalle,owner\nK,T,Adopt,d,r,o\n";
+    let csv = "name,sector,ring,description,Rationalle,owner\nK,T,Adopt,d,r,o\n";
     let dir = seeded(&[("radar.csv", csv)]);
     let expected =
         "warning: line 1, Rationalle: not a column radargen knows; did you mean 'rationale'?";
@@ -1932,14 +1931,14 @@ fn a_misspelt_column_warns_in_every_format() {
 /// near-miss warning prints before the error, naming the column meant.
 #[test]
 fn a_misspelt_required_column_fails_with_its_near_miss_warning() {
-    let dir = seeded(&[("radar.csv", "name,quadrant,ring,descripton\nK,T,Adopt,d\n")]);
+    let dir = seeded(&[("radar.csv", "name,sector,ring,descripton\nK,T,Adopt,d\n")]);
     let ran = run_in(dir.path(), &RENDER);
     assert!(!ran.ok(), "{}", ran.stderr);
     assert_eq!(
         ran.lines(),
         [
             "warning: line 1, descripton: not a column radargen knows; did you mean 'description'?",
-            "error: line 1: the header has no 'description' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description",
+            "error: line 1: the header has no 'description' column; add one, or rename the column that holds it — the header must name at least name, sector, ring and description",
         ]
     );
 }

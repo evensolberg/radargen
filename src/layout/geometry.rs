@@ -31,8 +31,8 @@ const OUTER_TRACK: f64 = 0.68;
 /// so a distance exactly at the threshold could otherwise classify
 /// differently on two machines and change the warning (NFR-4).
 const CAPACITY_TOLERANCE: f64 = 1e-9;
-/// FR-88, A-5: above this many quadrants, sectors narrow and labels crowd.
-const COMFORTABLE_QUADRANTS: usize = 6;
+/// FR-88, A-5: above this many sectors, they narrow and labels crowd.
+const COMFORTABLE_SECTORS: usize = 6;
 /// FR-89: the least distance between two clear marker centres.
 const CLEARANCE: f64 = 2.0 * MARKER_RADIUS - CAPACITY_TOLERANCE;
 
@@ -45,38 +45,38 @@ pub struct Band {
     pub outer: f64,
 }
 
-/// The two counts every formula needs: quadrants (FR-30) and declared rings
+/// The two counts every formula needs: sectors (FR-30) and declared rings
 /// (FR-32).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Geometry {
-    /// How many distinct quadrants the catalogue has (FR-30).
-    pub quadrants: usize,
+    /// How many distinct sectors the catalogue has (FR-30).
+    pub sectors: usize,
     /// How many rings are declared (FR-32).
     pub rings: usize,
 }
 
 impl Geometry {
-    /// The counts for `catalogue`: FR-8's distinct quadrants and every
+    /// The counts for `catalogue`: FR-8's distinct sectors and every
     /// declared ring, empty ones included (FR-19).
     #[must_use]
     pub const fn of(catalogue: &Catalogue) -> Self {
         Self {
-            quadrants: catalogue.quadrants.len(),
+            sectors: catalogue.sectors.len(),
             rings: catalogue.rings.len(),
         }
     }
 
-    /// FR-30: the degrees each quadrant's sector spans. With zero quadrants
+    /// FR-30: the degrees each sector spans. With zero sectors
     /// (a catalogue with no rows, FR-42) there is no sector: this is
     /// infinite, so a caller draws only the ring circles then.
     #[must_use]
     pub fn sector(self) -> f64 {
-        FULL_TURN / real(self.quadrants)
+        FULL_TURN / real(self.sectors)
     }
 
     /// FR-77: the angle of the divider that opens the sector at FR-10
     /// `position`, in degrees. Divider 0 is at 12 o'clock and the rest
-    /// follow clockwise, so FR-31 holds at every count. With zero quadrants
+    /// follow clockwise, so FR-31 holds at every count. With zero sectors
     /// (FR-42) there is no sector and this is NaN, so a caller draws only
     /// the ring circles then.
     #[must_use]
@@ -89,7 +89,7 @@ impl Geometry {
     }
 
     /// The angle halfway across `position`'s sector, in degrees. NaN with
-    /// no quadrants, like [`divider`](Self::divider).
+    /// no sectors, like [`divider`](Self::divider).
     #[must_use]
     pub fn middle(self, position: usize) -> f64 {
         f64::midpoint(self.divider(position), self.divider(position + 1))
@@ -196,7 +196,7 @@ pub fn polar(angle: f64, radius: f64) -> Point {
 ///
 /// # Panics
 ///
-/// If `plotted` was not built from `catalogue`, so a run's quadrant is
+/// If `plotted` was not built from `catalogue`, so a run's sector is
 /// missing from `plotted.rank`.
 #[must_use]
 // qual:allow(complexity, error_handling) reason: "the documented # Panics: a Plotted from another catalogue is a caller bug"
@@ -209,8 +209,8 @@ pub fn place(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Point> {
             let n = run.items.len();
             let position = *plotted
                 .rank
-                .get(run.quadrant)
-                .expect("rank covers every quadrant of the catalogue");
+                .get(run.sector)
+                .expect("rank covers every sector of the catalogue");
             (0..n).map(move |j| geometry.marker(position, run.ring, j, n))
         })
         .collect();
@@ -258,7 +258,7 @@ fn distance(a: Point, b: Point) -> f64 {
     (a.x - b.x).hypot(a.y - b.y)
 }
 
-/// FR-88 and FR-89: one warning when the quadrant count passes A-5's six,
+/// FR-88 and FR-89: one warning when the sector count passes A-5's six,
 /// then one per band still overfull, in FR-34's order.
 ///
 /// Bands are judged on a radar grown by `growth` (D-86). Both warnings
@@ -271,7 +271,7 @@ fn distance(a: Point, b: Point) -> f64 {
 ///
 /// # Panics
 ///
-/// If `plotted` was not built from `catalogue`, so a run names a quadrant
+/// If `plotted` was not built from `catalogue`, so a run names a sector
 /// or ring the catalogue lacks.
 // qual:allow(complexity, error_handling) reason: "the documented # Panics: a Plotted from another catalogue is a caller bug"
 pub fn warn_crowding(
@@ -281,9 +281,9 @@ pub fn warn_crowding(
     warnings: &mut Warnings,
 ) {
     let geometry = Geometry::of(catalogue);
-    if geometry.quadrants > COMFORTABLE_QUADRANTS {
-        warnings.push(Warning::Render(RenderKind::QuadrantCount {
-            count: geometry.quadrants,
+    if geometry.sectors > COMFORTABLE_SECTORS {
+        warnings.push(Warning::Render(RenderKind::SectorCount {
+            count: geometry.sectors,
         }));
     }
     for run in plotted.runs(catalogue) {
@@ -291,10 +291,10 @@ pub fn warn_crowding(
         let fits = geometry.capacity(run.ring, count, growth);
         if fits < count {
             warnings.push(Warning::Render(RenderKind::OverfullBand {
-                quadrant: catalogue
-                    .quadrants
-                    .get(run.quadrant)
-                    .expect("a run's quadrant is one of the catalogue's")
+                sector: catalogue
+                    .sectors
+                    .get(run.sector)
+                    .expect("a run's sector is one of the catalogue's")
                     .label
                     .clone(),
                 ring: catalogue
@@ -329,8 +329,8 @@ mod tests {
     use super::*;
     use crate::layout::block::close;
 
-    fn geometry(quadrants: usize, rings: usize) -> Geometry {
-        Geometry { quadrants, rings }
+    fn geometry(sectors: usize, rings: usize) -> Geometry {
+        Geometry { sectors, rings }
     }
 
     #[test]
@@ -354,7 +354,7 @@ mod tests {
     }
 
     /// FR-77, FR-43: divider 0 at 12 o'clock (-90°), the rest clockwise at
-    /// equal steps, for one and two quadrants as for any other count.
+    /// equal steps, for one and two sectors as for any other count.
     #[test]
     fn dividers_start_at_twelve_and_run_clockwise() {
         let dividers =
@@ -442,25 +442,25 @@ mod tests {
         reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
     )]
     fn markers_stay_inset_from_both_dividers() {
-        for quadrants in 1..=8 {
-            let g = geometry(quadrants, 4);
+        for sectors in 1..=8 {
+            let g = geometry(sectors, 4);
             for n in 1..=40 {
                 for j in 0..n {
                     let a = g.angle(0, j, n);
                     assert!(
                         a > 0.08 * g.sector() + g.divider(0) - 1e-9,
-                        "N={quadrants} n={n} j={j}"
+                        "N={sectors} n={n} j={j}"
                     );
                     assert!(
                         a < 0.92 * g.sector() + g.divider(0) + 1e-9,
-                        "N={quadrants} n={n} j={j}"
+                        "N={sectors} n={n} j={j}"
                     );
                 }
             }
         }
     }
 
-    /// FR-43: with one quadrant the single divider is both edges, so the
+    /// FR-43: with one sector the single divider is both edges, so the
     /// 8% inset leaves a gap either side of 12 o'clock; one item sits at
     /// 6 o'clock.
     #[test]
@@ -468,7 +468,7 @@ mod tests {
         clippy::suboptimal_flops,
         reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
     )]
-    fn a_single_quadrant_leaves_a_gap_at_twelve() {
+    fn a_single_sector_leaves_a_gap_at_twelve() {
         let g = geometry(1, 4);
         assert!(close(g.angle(0, 0, 1), 90.0));
         let first = g.angle(0, 0, 3);
@@ -520,7 +520,7 @@ mod tests {
     }
 
     /// The closest pair is any two markers, not two in one band: at eight
-    /// quadrants, one item in each innermost band fits its band, but
+    /// sectors, one item in each innermost band fits its band, but
     /// neighbours across a divider are 18.9 apart.
     #[test]
     fn growth_counts_pairs_across_a_divider() {
@@ -545,18 +545,18 @@ mod tests {
     }
 
     /// Each band's capacity, outermost first, with no practical limit.
-    fn capacities(quadrants: usize, rings: usize) -> Vec<usize> {
-        let g = geometry(quadrants, rings);
+    fn capacities(sectors: usize, rings: usize) -> Vec<usize> {
+        let g = geometry(sectors, rings);
         (0..rings).map(|ring| g.capacity(ring, 1000, 1.0)).collect()
     }
 
     /// FR-89 against every figure the PRD and crumb `rg-cbx` quote, for
     /// plain markers of radius 10 on a 260-unit radar:
-    /// - `rg-cbx`'s table, 3/4/6/8 quadrants × 4 rings, innermost last;
-    /// - OQ-16: 28 per quadrant at eight quadrants;
-    /// - FR-14: at four quadrants the innermost band holds 2, the next 10;
-    /// - D-50: five rings at four quadrants, `In Use` 7 and `Retire` 1;
-    /// - `rg-cbx`: three quadrants' innermost band holds 4, 3 and 2 at
+    /// - `rg-cbx`'s table, 3/4/6/8 sectors × 4 rings, innermost last;
+    /// - OQ-16: 28 per sector at eight sectors;
+    /// - FR-14: at four sectors the innermost band holds 2, the next 10;
+    /// - D-50: five rings at four sectors, `In Use` 7 and `Retire` 1;
+    /// - `rg-cbx`: three sectors' innermost band holds 4, 3 and 2 at
     ///   three, four and five rings.
     #[test]
     fn capacity_matches_the_prd_figures() {
@@ -570,9 +570,9 @@ mod tests {
         assert_eq!(capacities(3, 5).last(), Some(&2));
     }
 
-    /// FR-43: one and two quadrants have capacities like any other count.
+    /// FR-43: one and two sectors have capacities like any other count.
     #[test]
-    fn capacity_at_one_and_two_quadrants() {
+    fn capacity_at_one_and_two_sectors() {
         assert_eq!(capacities(1, 4), [114, 80, 46, 11]);
         assert_eq!(capacities(2, 4), [56, 39, 22, 5]);
     }
@@ -592,19 +592,19 @@ mod tests {
     /// it fit again.
     #[test]
     fn fitting_is_monotone_in_n() {
-        for quadrants in 1..=8 {
+        for sectors in 1..=8 {
             for rings in 2..=6 {
-                let g = geometry(quadrants, rings);
+                let g = geometry(sectors, rings);
                 for ring in 0..rings {
                     let cap = g.capacity(ring, 200, 1.0);
                     assert!(
                         cap < 200,
-                        "N={quadrants} rings={rings} ring={ring}: capacity reached the search limit"
+                        "N={sectors} rings={rings} ring={ring}: capacity reached the search limit"
                     );
                     for n in cap + 1..=cap + 20 {
                         assert!(
                             !g.fits(ring, n, 1.0),
-                            "N={quadrants} rings={rings} ring={ring} n={n}"
+                            "N={sectors} rings={rings} ring={ring} n={n}"
                         );
                     }
                 }
@@ -622,14 +622,14 @@ mod tests {
         assert!(!far_enough(diameter - 1e-3));
     }
 
-    /// The quadrant and ring counts come from the catalogue: FR-8's
-    /// distinct quadrants and the declared rings, including empty ones
+    /// The sector and ring counts come from the catalogue: FR-8's
+    /// distinct sectors and the declared rings, including empty ones
     /// (FR-19).
     #[test]
-    fn geometry_counts_quadrants_and_declared_rings() {
+    fn geometry_counts_sectors_and_declared_rings() {
         let cat = crate::model::Catalogue {
             columns: vec![],
-            quadrants: vec![],
+            sectors: vec![],
             rings: vec!["A".into(), "B".into(), "C".into()],
             ring_origin: crate::settings::Origin::rings(crate::settings::Source::Default),
             items: vec![],

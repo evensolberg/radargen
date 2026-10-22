@@ -1,4 +1,4 @@
-name,quadrant,ring,description
+name,sector,ring,description
 Kubernetes,Platforms,Adopt,Container orchestration.
 Terraform,Tools,Adopt,Infrastructure as code.
 Pair programming,Techniques,Trial,Two people at one keyboard.

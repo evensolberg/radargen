@@ -63,7 +63,7 @@ fn file(document: &Document) -> String {
             width: 400.0,
             height: 200.0,
             title: "Radar <&>",
-            desc: "Technology radar: 1 quadrant",
+            desc: "Technology radar: 1 sector",
         },
     )
     .expect("outlines")
@@ -167,7 +167,7 @@ fn the_root_opens_with_its_names() {
          xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"400\" height=\"200\" \
          viewBox=\"0 0 200 100\" xml:lang=\"en\">\n\
          <title>Radar &lt;&amp;&gt;</title>\n\
-         <desc>Technology radar: 1 quadrant</desc>\n<defs>\n"
+         <desc>Technology radar: 1 sector</desc>\n<defs>\n"
         ),
         "{svg}"
     );

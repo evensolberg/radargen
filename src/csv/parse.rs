@@ -793,7 +793,7 @@ mod tests {
             assert_eq!(
                 errors(text),
                 [
-                    "error: the CSV has no header row (it is empty or blank); the header must name at least name, quadrant, ring and description"
+                    "error: the CSV has no header row (it is empty or blank); the header must name at least name, sector, ring and description"
                 ],
                 "{text:?}"
             );
@@ -827,10 +827,10 @@ mod tests {
         // FR-1: a `;` or tab after any header cell's closing quote, spaces
         // aside, is the separator, not a quoting error.
         for text in [
-            "name;quadrant;ring;description\n",
-            "\"name\" ;quadrant;ring;description\n",
-            "name,\"quadrant\";ring,description\n",
-            "name,\"quadrant\"  \tring\n",
+            "name;sector;ring;description\n",
+            "\"name\" ;sector;ring;description\n",
+            "name,\"sector\";ring,description\n",
+            "name,\"sector\"  \tring\n",
             "\"name\";,ring\n",
         ] {
             let separator = if text.contains('\t') {

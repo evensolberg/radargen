@@ -246,10 +246,10 @@ fn missing_glyphs_have_their_per_row_message() {
             at(
                 4,
                 1,
-                cell(ColumnKind::Quadrant, "عربي", 'ع', 4, OutputFormat::Png),
+                cell(ColumnKind::Sector, "عربي", 'ع', 4, OutputFormat::Png),
             ),
             format!(
-                "line 4, quadrant: 'عربي' has 4 characters the bundled font lacks, the first U+0639 ع; {PNG_MANY}"
+                "line 4, sector: 'عربي' has 4 characters the bundled font lacks, the first U+0639 ع; {PNG_MANY}"
             ),
         ),
         // A lone combining mark would join the space before it, so only its
@@ -309,7 +309,7 @@ fn missing_glyphs_group_into_one_line() {
     w.push(at(
         4,
         1,
-        cell(ColumnKind::Quadrant, "عربي", 'ع', 4, OutputFormat::Png),
+        cell(ColumnKind::Sector, "عربي", 'ع', 4, OutputFormat::Png),
     ));
     w.push(at(
         3,
@@ -319,7 +319,7 @@ fn missing_glyphs_group_into_one_line() {
     assert_eq!(
         w.render(),
         vec![format!(
-            "warning: 2 values have characters the bundled font lacks — name 'Kafka 中' on line 3 (U+4E2D 中), quadrant 'عربي' on line 4 (4 characters, first U+0639 ع); {PNG_MANY}"
+            "warning: 2 values have characters the bundled font lacks — name 'Kafka 中' on line 3 (U+4E2D 中), sector 'عربي' on line 4 (4 characters, first U+0639 ع); {PNG_MANY}"
         )]
     );
 }
@@ -329,17 +329,17 @@ fn missing_glyphs_group_into_one_line() {
 fn each_render_level_kind_has_its_message() {
     let cases = [
         (
-            Warning::Render(RenderKind::QuadrantCount { count: 7 }),
-            "7 quadrants; the radar reads best with 3 to 6, so sectors narrow and labels may crowd",
+            Warning::Render(RenderKind::SectorCount { count: 7 }),
+            "7 sectors; the radar reads best with 3 to 6, so sectors narrow and labels may crowd",
         ),
         (
             Warning::Render(RenderKind::OverfullBand {
-                quadrant: "Tools".into(),
+                sector: "Tools".into(),
                 ring: "Adopt".into(),
                 count: 14,
                 fits: 10,
             }),
-            "quadrant 'Tools', ring 'Adopt': 14 items; about 10 fit comfortably, so some markers overlap",
+            "sector 'Tools', ring 'Adopt': 14 items; about 10 fit comfortably, so some markers overlap",
         ),
     ];
     for (warning, expected) in cases {
@@ -391,14 +391,13 @@ fn grouped_values_are_shown_with_fr76s_trim() {
         w.render()
     );
     let band = Warning::Render(RenderKind::OverfullBand {
-        quadrant: "\u{200b}Tool".into(),
+        sector: "\u{200b}Tool".into(),
         ring: "Adopt\u{feff}".into(),
         count: 14,
         fits: 10,
     });
     assert!(
-        band.to_string()
-            .starts_with("quadrant 'Tool', ring 'Adopt':"),
+        band.to_string().starts_with("sector 'Tool', ring 'Adopt':"),
         "{band}"
     );
 }
@@ -602,15 +601,15 @@ fn values_group_under_fr_76_normalisation() {
 fn render_level_warnings_come_first_and_never_group() {
     let mut w = Warnings::default();
     w.push(ring(2, "X"));
-    w.push(Warning::Render(RenderKind::QuadrantCount { count: 9 }));
+    w.push(Warning::Render(RenderKind::SectorCount { count: 9 }));
     w.push(Warning::Render(RenderKind::OverfullBand {
-        quadrant: "A".into(),
+        sector: "A".into(),
         ring: "Adopt".into(),
         count: 12,
         fits: 10,
     }));
     w.push(Warning::Render(RenderKind::OverfullBand {
-        quadrant: "B".into(),
+        sector: "B".into(),
         ring: "Adopt".into(),
         count: 11,
         fits: 10,
@@ -618,9 +617,9 @@ fn render_level_warnings_come_first_and_never_group() {
     assert_eq!(
         w.render(),
         vec![
-            "warning: 9 quadrants; the radar reads best with 3 to 6, so sectors narrow and labels may crowd",
-            "warning: quadrant 'A', ring 'Adopt': 12 items; about 10 fit comfortably, so some markers overlap",
-            "warning: quadrant 'B', ring 'Adopt': 11 items; about 10 fit comfortably, so some markers overlap",
+            "warning: 9 sectors; the radar reads best with 3 to 6, so sectors narrow and labels may crowd",
+            "warning: sector 'A', ring 'Adopt': 12 items; about 10 fit comfortably, so some markers overlap",
+            "warning: sector 'B', ring 'Adopt': 11 items; about 10 fit comfortably, so some markers overlap",
             "warning: line 2, ring: 'X' is not in --rings (Adopt, Trial); the row is in the table view, not on the radar; to plot it, add it to --rings; to leave it off without this warning, add it to --unplotted-rings",
         ]
     );
@@ -1089,7 +1088,7 @@ fn csv_file_messages() {
         ),
         (
             Fatal::NoHeader,
-            "error: the CSV has no header row (it is empty or blank); the header must name at least name, quadrant, ring and description",
+            "error: the CSV has no header row (it is empty or blank); the header must name at least name, sector, ring and description",
         ),
         (
             separated(1, Separator::Semicolon),
@@ -1185,14 +1184,14 @@ fn model_messages() {
                 line: 1,
                 column: ColumnKind::Ring,
             },
-            "error: line 1: the header has no 'ring' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description",
+            "error: line 1: the header has no 'ring' column; add one, or rename the column that holds it — the header must name at least name, sector, ring and description",
         ),
         (
             RowError::EmptyRequired {
                 line: 7,
-                column: ColumnKind::Quadrant,
+                column: ColumnKind::Sector,
             },
-            "error: line 7, quadrant: empty; every row needs a quadrant, so fill it in or delete the row",
+            "error: line 7, sector: empty; every row needs a sector, so fill it in or delete the row",
         ),
     ];
     for (fatal, expected) in cases {
@@ -1368,17 +1367,17 @@ fn legend_static_says_png_and_svg_keep_the_legend() {
     );
 }
 
-/// FR-95 names the label that sets the width, quadrant or ring (D-73),
+/// FR-95 names the label that sets the width, sector or ring (D-73),
 /// trimmed and single-quoted as FR-89's names are.
 #[test]
-fn fr95_names_a_quadrant_or_a_ring() {
+fn fr95_names_a_sector_or_a_ring() {
     let cases = [
         (
             RenderKind::NarrowWidened {
-                binding: Binding::Quadrant(" Infrastructure Platforms and Tooling ".into()),
+                binding: Binding::Sector(" Infrastructure Platforms and Tooling ".into()),
                 width: 503,
             },
-            "the narrow layout is 503 units wide, past the 480 its legend rows and marker targets are sized for, so on a 320-pixel screen they fall below 24 pixels; a shorter name for quadrant 'Infrastructure Platforms and Tooling' would fix it",
+            "the narrow layout is 503 units wide, past the 480 its legend rows and marker targets are sized for, so on a 320-pixel screen they fall below 24 pixels; a shorter name for sector 'Infrastructure Platforms and Tooling' would fix it",
         ),
         (
             RenderKind::NarrowWidened {
@@ -1403,13 +1402,13 @@ fn fr95_names_a_quadrant_or_a_ring() {
 fn fr105_gives_the_breakpoint_and_names_the_label() {
     assert_eq!(
         Warning::Render(RenderKind::WideBeyondLaptops {
-            binding: Binding::Quadrant(
+            binding: Binding::Sector(
                 " Platforms and Infrastructure Shared Across Every Product Team ".into(),
             ),
             breakpoint: 1477,
         })
         .to_string(),
-        "the wide layout needs a screen at least 1477 pixels wide, so 1440-pixel laptops get the narrow layout; a shorter name for quadrant 'Platforms and Infrastructure Shared Across Every Product Team' would fix it"
+        "the wide layout needs a screen at least 1477 pixels wide, so 1440-pixel laptops get the narrow layout; a shorter name for sector 'Platforms and Infrastructure Shared Across Every Product Team' would fix it"
     );
 }
 

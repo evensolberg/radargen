@@ -1,32 +1,32 @@
 //! How far the radar's labels reach from its centre, and so how large the
 //! block is at a scale (FR-70, FR-94, D-71).
 
-use super::{HALO_REACH, MIN_RADAR_HALF, QuadrantLabel, RadarScale};
+use super::{HALO_REACH, MIN_RADAR_HALF, RadarScale, SectorLabel};
 use crate::style::{
-    BAND_OUTER_RADIUS, HIT_RADIUS, INDICATOR_REACH, QUADRANT_LABEL, RADAR_FLOOR, RADAR_LABEL_PAD,
-    RING_LABEL,
+    BAND_OUTER_RADIUS, HIT_RADIUS, INDICATOR_REACH, RADAR_FLOOR, RADAR_LABEL_PAD, RING_LABEL,
+    SECTOR_LABEL,
 };
 use crate::text::{TEXT_ASCENT, TEXT_DESCENT};
 
-/// How far a quadrant label reaches left or right of the centre: its pushed
+/// How far a sector label reaches left or right of the centre: its pushed
 /// centre's distance, then half its middle-anchored width.
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
 )]
-pub(super) fn quadrant_reach_x(quadrant: &QuadrantLabel, r: RadarScale) -> f64 {
-    quadrant.centre(r).x.abs() + f64::midpoint(0.0, quadrant.label.width) * r.labels
+pub(super) fn sector_reach_x(sector: &SectorLabel, r: RadarScale) -> f64 {
+    sector.centre(r).x.abs() + f64::midpoint(0.0, sector.label.width) * r.labels
 }
 
-/// How far a quadrant label reaches above or below the centre: the descent
+/// How far a sector label reaches above or below the centre: the descent
 /// below its pushed baseline, or the ascent above it.
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
 )]
-pub(super) fn quadrant_reach_y(quadrant: &QuadrantLabel, r: RadarScale) -> f64 {
-    let baseline = quadrant.centre(r).y;
-    let size = QUADRANT_LABEL.size * r.labels;
+pub(super) fn sector_reach_y(sector: &SectorLabel, r: RadarScale) -> f64 {
+    let baseline = sector.centre(r).y;
+    let size = SECTOR_LABEL.size * r.labels;
     (baseline + TEXT_DESCENT * size).max(TEXT_ASCENT * size - baseline)
 }
 
@@ -77,9 +77,9 @@ pub(super) fn ring_reach_y(mid: f64, r: RadarScale) -> f64 {
 /// The block's size is non-decreasing in the radar scale from
 /// `RADAR_MONOTONE_FROM` (0.0034) over the growth up, since every term
 /// depends on the scale only through `geometry`, `labels` and `marks`, each
-/// non-decreasing in it. A quadrant label's pushed centre is `300 s` plus a push at
+/// non-decreasing in it. A sector label's pushed centre is `300 s` plus a push at
 /// `max(scale, 1)` along the same direction, so its distance from the centre on
-/// each axis never falls. The only decreasing term is a below-centre quadrant label's
+/// each axis never falls. The only decreasing term is a below-centre sector label's
 /// ascent, at most 11.625, since its push only lowers the baseline; the
 /// outermost ring name's reach, at least `130 * s + 11.19`,
 /// outgrows it from there. That relies on at least one ring, which

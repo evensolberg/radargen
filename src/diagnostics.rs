@@ -142,7 +142,7 @@ pub enum RowKind {
     /// FR-104: a text a PNG or SVG draws, from this cell, holds characters
     /// the bundled font lacks. One per drawn text, however many it lacks.
     MissingGlyphs {
-        /// The column the text was read from: `name` or `quadrant`.
+        /// The column the text was read from: `name` or `sector`.
         column: ColumnKind,
         /// The text and what it lacks.
         lacking: Lacking,
@@ -162,14 +162,14 @@ pub enum RowKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RenderKind {
     /// FR-88.
-    QuadrantCount {
-        /// How many distinct quadrants the CSV used.
+    SectorCount {
+        /// How many distinct sectors the CSV used.
         count: usize,
     },
     /// FR-89, one per overfull band.
     OverfullBand {
-        /// The quadrant name the band belongs to.
-        quadrant: String,
+        /// The sector name the band belongs to.
+        sector: String,
         /// The ring name the band belongs to.
         ring: String,
         /// How many items the band holds.
@@ -297,12 +297,12 @@ impl fmt::Display for Lacking {
 }
 
 /// The label whose reach sets the radar's width, for FR-95 and FR-105
-/// (D-73, D-94): a quadrant name from the CSV, or a ring name from
+/// (D-73, D-94): a sector name from the CSV, or a ring name from
 /// `--rings` or the default set.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Binding {
-    /// A quadrant label, as written.
-    Quadrant(String),
+    /// A sector label, as written.
+    Sector(String),
     /// A ring name, as declared, and where it was declared.
     Ring {
         /// The ring's name.
@@ -317,7 +317,7 @@ pub enum Binding {
 impl fmt::Display for Binding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Quadrant(name) => write!(f, "quadrant '{}'", trim(name)),
+            Self::Sector(name) => write!(f, "sector '{}'", trim(name)),
             Self::Ring { name, origin } if origin.source == Source::Default => write!(
                 f,
                 "ring '{}' (a default ring, so pass --rings to rename it)",
@@ -523,17 +523,17 @@ impl RowKind {
 impl RenderKind {
     fn message(&self) -> String {
         match self {
-            Self::QuadrantCount { count } => format!(
-                "{count} quadrants; the radar reads best with 3 to 6, so sectors narrow and labels may crowd"
+            Self::SectorCount { count } => format!(
+                "{count} sectors; the radar reads best with 3 to 6, so sectors narrow and labels may crowd"
             ),
             Self::OverfullBand {
-                quadrant,
+                sector,
                 ring,
                 count,
                 fits,
             } => format!(
-                "quadrant '{}', ring '{}': {count} items; about {fits} fit comfortably, so some markers overlap",
-                trim(quadrant),
+                "sector '{}', ring '{}': {count} items; about {fits} fit comfortably, so some markers overlap",
+                trim(sector),
                 trim(ring)
             ),
             Self::NarrowWidened { binding, width } => format!(
@@ -1713,7 +1713,7 @@ pub enum RowError {
         "line {line}: {} '{first_name}' and {} '{name}' both name the {} column ({SECTOR_ALIAS} is its former name); keep one, and remove or rename the other",
         column_label(*first_index),
         column_label(*index),
-        ColumnKind::Quadrant.as_str()
+        ColumnKind::Sector.as_str()
     )]
     SectorTwice {
         /// The header's line.
@@ -1769,7 +1769,7 @@ pub enum RowError {
         /// The missing column.
         column: ColumnKind,
     },
-    /// FR-6: an empty `name`, `quadrant` or `ring`, empty under FR-76's
+    /// FR-6: an empty `name`, `sector` or `ring`, empty under FR-76's
     /// trim, so a cell of spaces or a lone zero-width space counts.
     #[error(
         "line {line}, {0}: empty; every row needs a {0}, so fill it in or delete the row",

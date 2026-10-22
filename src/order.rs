@@ -1,5 +1,5 @@
 //! Every ordering the output depends on (architecture §2, §3): FR-10's
-//! quadrant order, FR-34's item order, and FR-18's numbers taken from it.
+//! sector order, FR-34's item order, and FR-18's numbers taken from it.
 //!
 //! The comparators read the keys `model.rs` computed once and never fold
 //! (FR-76, architecture §6). Every one is total, so the sorts are unstable
@@ -10,18 +10,18 @@
 use std::cmp::Ordering;
 use std::ops::Range;
 
-use crate::model::{Catalogue, Item, Quadrant};
+use crate::model::{Catalogue, Item, Sector};
 
 /// The `resolve` stage's output (architecture §2): every order the
 /// output depends on, as indices into the [`Catalogue`], which is never
 /// reordered.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Plotted {
-    /// FR-10's order, as indices into [`Catalogue::quadrants`]. Layout,
+    /// FR-10's order, as indices into [`Catalogue::sectors`]. Layout,
     /// the legend and the palette read this list (OQ-17).
-    pub quadrants: Vec<usize>,
-    /// `rank[q]` is quadrant `q`'s position in [`Plotted::quadrants`]:
-    /// FR-67's palette index, never [`Item::quadrant`] (architecture §5).
+    pub sectors: Vec<usize>,
+    /// `rank[q]` is sector `q`'s position in [`Plotted::sectors`]:
+    /// FR-67's palette index, never [`Item::sector`] (architecture §5).
     pub rank: Vec<usize>,
     /// The plotted items in FR-34's order, as indices into
     /// [`Catalogue::items`]. The item at position `i` is number `i + 1`.
@@ -49,7 +49,7 @@ impl Plotted {
     }
 
     /// The bands that hold a plotted item, in FR-34's order: FR-10's
-    /// quadrant order, then declared ring order. FR-33 numbers `j` within
+    /// sector order, then declared ring order. FR-33 numbers `j` within
     /// each, and FR-89 checks each. Every item in [`Plotted::items`] has a
     /// ring ([`resolve`] plots only those), so the runs cover it exactly
     /// and `layout::geometry::place` stays aligned with it.
@@ -65,7 +65,7 @@ impl Plotted {
                 .items
                 .get(i)
                 .expect("a plotted index is within the catalogue's items");
-            (item.quadrant, item.ring)
+            (item.sector, item.ring)
         };
         let mut start = 0;
         self.items
@@ -74,9 +74,9 @@ impl Plotted {
                 let items = start..start + chunk.len();
                 start = items.end;
                 // `chunk_by` never yields an empty chunk.
-                let (quadrant, ring) = band(*chunk.first()?);
+                let (sector, ring) = band(*chunk.first()?);
                 ring.map(|ring| Run {
-                    quadrant,
+                    sector,
                     ring,
                     items,
                 })
@@ -85,33 +85,33 @@ impl Plotted {
     }
 }
 
-/// One quadrant-and-ring band's plotted items: a run of
-/// [`Plotted::items`], which FR-34 orders by quadrant and then ring.
+/// One sector-and-ring band's plotted items: a run of
+/// [`Plotted::items`], which FR-34 orders by sector and then ring.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Run {
-    /// Index into [`Catalogue::quadrants`].
-    pub quadrant: usize,
+    /// Index into [`Catalogue::sectors`].
+    pub sector: usize,
     /// Index into [`Catalogue::rings`], the declared order.
     pub ring: usize,
     /// The run's positions in [`Plotted::items`].
     pub items: Range<usize>,
 }
 
-/// FR-10, FR-18, FR-34: order the quadrants and the plotted items, and
+/// FR-10, FR-18, FR-34: order the sectors and the plotted items, and
 /// number the items from 1.
 ///
 /// # Panics
 ///
-/// If an item's `quadrant` is out of range for the catalogue's
-/// quadrants, as for an item from another catalogue.
+/// If an item's `sector` is out of range for the catalogue's
+/// sectors, as for an item from another catalogue.
 #[must_use]
 pub fn resolve(catalogue: &Catalogue) -> Plotted {
-    let quadrants = quadrant_order(&catalogue.quadrants);
-    let rank = ranks(&quadrants);
+    let sectors = sector_order(&catalogue.sectors);
+    let rank = ranks(&sectors);
     let items = item_order(catalogue, &rank);
     let numbers = numbers(&items, catalogue.items.len());
     Plotted {
-        quadrants,
+        sectors,
         rank,
         items,
         numbers,
@@ -121,24 +121,24 @@ pub fn resolve(catalogue: &Catalogue) -> Plotted {
 /// FR-10: case-insensitive alphabetical by FR-76's key, in code point
 /// order (D-7, D-53).
 ///
-/// FR-9 groups quadrants by key, so keys are unique in a built
+/// FR-9 groups sectors by key, so keys are unique in a built
 /// `Catalogue` and the label never decides; it breaks a tie only in a
 /// hand-built list.
 #[must_use]
-pub fn compare_quadrants(a: &Quadrant, b: &Quadrant) -> Ordering {
+pub fn compare_sectors(a: &Sector, b: &Sector) -> Ordering {
     a.key.cmp(&b.key).then_with(|| a.label.cmp(&b.label))
 }
 
-/// FR-10's order, as indices into `quadrants`.
+/// FR-10's order, as indices into `sectors`.
 ///
 /// This list is the one place the order is computed, so an explicit
-/// `--quadrants` later (OQ-17) replaces this function, not its readers.
+/// `--sectors` later (OQ-17) replaces this function, not its readers.
 /// The index ends the comparison, so the order is total even for exact
 /// duplicates.
 #[must_use]
-pub fn quadrant_order(quadrants: &[Quadrant]) -> Vec<usize> {
-    let mut order: Vec<(usize, &Quadrant)> = quadrants.iter().enumerate().collect();
-    order.sort_unstable_by(|(a, qa), (b, qb)| compare_quadrants(qa, qb).then(a.cmp(b)));
+pub fn sector_order(sectors: &[Sector]) -> Vec<usize> {
+    let mut order: Vec<(usize, &Sector)> = sectors.iter().enumerate().collect();
+    order.sort_unstable_by(|(a, qa), (b, qb)| compare_sectors(qa, qb).then(a.cmp(b)));
     order.into_iter().map(|(i, _)| i).collect()
 }
 
@@ -157,25 +157,25 @@ pub fn compare_names(a: &Item, b: &Item) -> Ordering {
         .then_with(|| a.name.cmp(&b.name))
 }
 
-/// FR-34: the quadrant's FR-10 position (`rank`, from [`quadrant_order`]),
+/// FR-34: the sector's FR-10 position (`rank`, from [`sector_order`]),
 /// then the ring in declared order, which is the legend's (FR-35, D-33),
 /// then [`compare_names`], then CSV line, which no two rows share.
 ///
-/// An unplotted item (`ring` is `None`) sorts before its quadrant's
+/// An unplotted item (`ring` is `None`) sorts before its sector's
 /// plotted ones; [`resolve`] sorts only plotted items, so that only keeps
 /// this total.
 ///
 /// # Panics
 ///
-/// If either item's `quadrant` is out of range for `rank`, as for an
+/// If either item's `sector` is out of range for `rank`, as for an
 /// item from another catalogue.
 #[must_use]
 // qual:allow(complexity, error_handling) reason: "the documented # Panics: an item from another catalogue is a caller bug"
 pub fn compare_items(rank: &[usize], a: &Item, b: &Item) -> Ordering {
     let rank_of = |item: &Item| {
         *rank
-            .get(item.quadrant)
-            .expect("an item's quadrant is within rank")
+            .get(item.sector)
+            .expect("an item's sector is within rank")
     };
     rank_of(a)
         .cmp(&rank_of(b))
@@ -184,7 +184,7 @@ pub fn compare_items(rank: &[usize], a: &Item, b: &Item) -> Ordering {
         .then_with(|| a.line.cmp(&b.line))
 }
 
-/// The inverse of `order`: `rank[q]` is quadrant `q`'s position in it,
+/// The inverse of `order`: `rank[q]` is sector `q`'s position in it,
 /// which is FR-67's palette index (architecture §5).
 fn ranks(order: &[usize]) -> Vec<usize> {
     let mut pairs: Vec<(usize, usize)> = order.iter().copied().zip(0..).collect();
@@ -227,13 +227,13 @@ mod tests {
     use super::*;
     use crate::layout::test_support::plotted;
 
-    /// A `name,quadrant,ring,description` CSV, one row per
-    /// `(name, quadrant, ring)`. Data rows start on line 2.
+    /// A `name,sector,ring,description` CSV, one row per
+    /// `(name, sector, ring)`. Data rows start on line 2.
     fn csv(rows: &[(&str, &str, &str)]) -> String {
         use std::fmt::Write as _;
-        let mut text = String::from("name,quadrant,ring,description\n");
-        for (name, quadrant, ring) in rows {
-            writeln!(text, "{name},{quadrant},{ring},d").expect("writes to a String");
+        let mut text = String::from("name,sector,ring,description\n");
+        for (name, sector, ring) in rows {
+            writeln!(text, "{name},{sector},{ring},d").expect("writes to a String");
         }
         text
     }
@@ -247,9 +247,9 @@ mod tests {
         order
             .iter()
             .map(|&q| {
-                cat.quadrants
+                cat.sectors
                     .get(q)
-                    .expect("q indexes the catalogue's quadrants")
+                    .expect("q indexes the catalogue's sectors")
                     .label
                     .as_str()
             })
@@ -259,20 +259,20 @@ mod tests {
     /// FR-10: case-insensitive, so `beta` sits between `Alpha` and `Gamma`
     /// although byte order would put it last.
     #[test]
-    fn quadrants_order_case_insensitively() {
+    fn sectors_order_case_insensitively() {
         let cat = catalogue(&csv(&[
             ("A", "beta", "Adopt"),
             ("B", "Gamma", "Adopt"),
             ("C", "Alpha", "Adopt"),
         ]));
-        let order = quadrant_order(&cat.quadrants);
+        let order = sector_order(&cat.sectors);
         assert_eq!(labels(&cat, &order), ["Alpha", "beta", "Gamma"]);
         assert_eq!(order, [2, 0, 1]);
     }
 
     /// D-7: the order comes from the names alone, not from row order.
     #[test]
-    fn quadrant_order_does_not_depend_on_row_order() {
+    fn sector_order_does_not_depend_on_row_order() {
         let a = catalogue(&csv(&[
             ("A", "Tool", "Adopt"),
             ("B", "Platform", "Adopt"),
@@ -284,31 +284,31 @@ mod tests {
             ("B", "Platform", "Adopt"),
         ]));
         let expected = ["Platform", "Practice", "Tool"];
-        assert_eq!(labels(&a, &quadrant_order(&a.quadrants)), expected);
-        assert_eq!(labels(&b, &quadrant_order(&b.quadrants)), expected);
+        assert_eq!(labels(&a, &sector_order(&a.sectors)), expected);
+        assert_eq!(labels(&b, &sector_order(&b.sectors)), expected);
     }
 
     /// D-53: code point order, so `é` (U+00E9) sorts after `z` (U+007A).
     /// No locale puts `Écosse` before `Zulu` here.
     #[test]
-    fn quadrants_order_by_code_point_above_ascii() {
+    fn sectors_order_by_code_point_above_ascii() {
         let cat = catalogue(&csv(&[("A", "Écosse", "Adopt"), ("B", "Zulu", "Adopt")]));
         assert_eq!(
-            labels(&cat, &quadrant_order(&cat.quadrants)),
+            labels(&cat, &sector_order(&cat.sectors)),
             ["Zulu", "Écosse"]
         );
     }
 
-    /// FR-42: a quadrant whose rows are all unplotted keeps its place, so
+    /// FR-42: a sector whose rows are all unplotted keeps its place, so
     /// its legend group renders empty rather than vanishing.
     #[test]
-    fn a_quadrant_of_unplotted_rows_is_still_ordered() {
+    fn a_sector_of_unplotted_rows_is_still_ordered() {
         let cat = catalogue(&csv(&[
             ("A", "Tool", "Adopt"),
             ("B", "Platform", "Rejected"),
         ]));
         assert_eq!(
-            labels(&cat, &quadrant_order(&cat.quadrants)),
+            labels(&cat, &sector_order(&cat.sectors)),
             ["Platform", "Tool"]
         );
     }
@@ -317,27 +317,21 @@ mod tests {
     /// key, which FR-9's grouping never produces. The label breaks the
     /// key tie, then the index breaks an exact duplicate.
     #[test]
-    fn the_quadrant_order_is_total() {
-        let q = |key: &str, label: &str| Quadrant {
+    fn the_sector_order_is_total() {
+        let q = |key: &str, label: &str| Sector {
             key: key.to_string(),
             label: label.to_string(),
             line: 2,
         };
-        let quadrants = [
+        let sectors = [
             q("tool", "Tool"),
             q("tool", "TOOL"),
             q("alpha", "Alpha"),
             q("tool", "Tool"),
         ];
-        assert_eq!(quadrant_order(&quadrants), [2, 1, 0, 3]);
-        assert_eq!(
-            compare_quadrants(&quadrants[0], &quadrants[3]),
-            Ordering::Equal
-        );
-        assert_eq!(
-            compare_quadrants(&quadrants[1], &quadrants[0]),
-            Ordering::Less
-        );
+        assert_eq!(sector_order(&sectors), [2, 1, 0, 3]);
+        assert_eq!(compare_sectors(&sectors[0], &sectors[3]), Ordering::Equal);
+        assert_eq!(compare_sectors(&sectors[1], &sectors[0]), Ordering::Less);
     }
 
     fn rank_of(cat: &Catalogue) -> Vec<usize> {
@@ -366,14 +360,14 @@ mod tests {
             .collect()
     }
 
-    /// FR-34, FR-35, D-33: quadrant (FR-10), then ring in the declared
+    /// FR-34, FR-35, D-33: sector (FR-10), then ring in the declared
     /// order — here not alphabetical — then name. An unplotted row has no
-    /// number (FR-18), so it is not in the order. Three quadrants in
+    /// number (FR-18), so it is not in the order. Three sectors in
     /// first-appearance order Tool, Delivery, Platform give FR-10 order
     /// `[1, 2, 0]` and rank `[2, 0, 1]`, which differ, so passing the
     /// order where the rank belongs would fail here.
     #[test]
-    fn items_order_by_quadrant_then_declared_ring_then_name() {
+    fn items_order_by_sector_then_declared_ring_then_name() {
         let (cat, _) = plotted(
             &csv(&[
                 ("Zed", "Tool", "Hold"),
@@ -448,7 +442,7 @@ mod tests {
 
     /// Architecture §6: FR-34's chain is total. Over items that collide on
     /// every key but the line — the same name in three spellings, across
-    /// quadrants and rings, one unplotted — no two distinct items compare
+    /// sectors and rings, one unplotted — no two distinct items compare
     /// equal, and the order is antisymmetric and transitive.
     #[test]
     fn the_item_comparator_is_total() {
@@ -494,7 +488,7 @@ mod tests {
     }
 
     /// FR-18, FR-42: with nothing plotted there are no numbers, and every
-    /// quadrant is still ordered for its empty legend group.
+    /// sector is still ordered for its empty legend group.
     #[test]
     fn every_row_unplotted_numbers_nothing() {
         let cat = catalogue(&csv(&[
@@ -504,7 +498,7 @@ mod tests {
         let plotted = resolve(&cat);
         assert_eq!(plotted.items, Vec::<usize>::new());
         assert_eq!(plotted.numbers, [None, None]);
-        assert_eq!(labels(&cat, &plotted.quadrants), ["Platform", "Tool"]);
+        assert_eq!(labels(&cat, &plotted.sectors), ["Platform", "Tool"]);
     }
 
     /// FR-78: plotted rows first in FR-34's order, then unplotted rows in
@@ -520,31 +514,31 @@ mod tests {
         assert_eq!(resolve(&cat).table_rows(), [3, 1, 0, 2]);
     }
 
-    /// The rank inverts FR-10's order: `rank[q]` is quadrant `q`'s place,
+    /// The rank inverts FR-10's order: `rank[q]` is sector `q`'s place,
     /// FR-67's palette index (architecture §5).
     #[test]
-    fn rank_inverts_the_quadrant_order() {
+    fn rank_inverts_the_sector_order() {
         let cat = catalogue(&csv(&[
             ("A", "beta", "Adopt"),
             ("B", "Gamma", "Adopt"),
             ("C", "Alpha", "Adopt"),
         ]));
         let plotted = resolve(&cat);
-        assert_eq!(plotted.quadrants, [2, 0, 1]);
+        assert_eq!(plotted.sectors, [2, 0, 1]);
         assert_eq!(plotted.rank, [1, 2, 0]);
     }
 
     /// An empty catalogue resolves to nothing, without panicking.
     #[test]
     fn an_empty_catalogue_resolves_to_nothing() {
-        let plotted = resolve(&catalogue("name,quadrant,ring,description\n"));
+        let plotted = resolve(&catalogue("name,sector,ring,description\n"));
         assert_eq!(plotted, Plotted::default());
     }
 
-    /// The bands are runs of FR-34's order: one per quadrant and ring that
+    /// The bands are runs of FR-34's order: one per sector and ring that
     /// holds a plotted item, in FR-10 then declared-ring order.
     #[test]
-    fn runs_group_plotted_items_by_quadrant_and_ring() {
+    fn runs_group_plotted_items_by_sector_and_ring() {
         let cat = catalogue(&csv(&[
             ("A", "Tool", "Adopt"),
             ("B", "Platform", "Trial"),
@@ -558,9 +552,9 @@ mod tests {
             .iter()
             .map(|r| {
                 (
-                    cat.quadrants
-                        .get(r.quadrant)
-                        .expect("a run's quadrant is the catalogue's")
+                    cat.sectors
+                        .get(r.sector)
+                        .expect("a run's sector is the catalogue's")
                         .label
                         .as_str(),
                     cat.rings

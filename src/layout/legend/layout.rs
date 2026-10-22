@@ -1,6 +1,6 @@
 //! The legend's layout (FR-35, FR-46, FR-74, FR-79), as data.
 //!
-//! The "Legend" heading, then per quadrant in FR-10 order its swatch and
+//! The "Legend" heading, then per sector in FR-10 order its swatch and
 //! heading, per ring with plotted items its heading, and one row per
 //! plotted item: measured and wrapped once, at scale 1, content-relative,
 //! in reading order.
@@ -11,9 +11,9 @@ use crate::model::Catalogue;
 use crate::order::{Plotted, Run};
 use crate::palette::Neutral;
 use crate::style::{
-    INDENT_QUADRANT, INDENT_RING, LEGEND_EMPTY_GROUP_GAP, LEGEND_FIRST_GROUP, LEGEND_HEADING,
-    LEGEND_HEADING_BASELINE, LEGEND_QUADRANT, LEGEND_QUADRANT_TO_RING, LEGEND_RING,
-    LEGEND_RING_TO_ROW, LEGEND_ROW_TO_QUADRANT, LEGEND_ROW_TO_RING, LEGEND_WIDTH_MAX, LINE_HEIGHT,
+    INDENT_RING, INDENT_SECTOR, LEGEND_EMPTY_GROUP_GAP, LEGEND_FIRST_GROUP, LEGEND_HEADING,
+    LEGEND_HEADING_BASELINE, LEGEND_RING, LEGEND_RING_TO_ROW, LEGEND_ROW_TO_RING,
+    LEGEND_ROW_TO_SECTOR, LEGEND_SECTOR, LEGEND_SECTOR_TO_RING, LEGEND_WIDTH_MAX, LINE_HEIGHT,
     SWATCH_RADIUS, SWATCH_RAISE, TextStyle,
 };
 use crate::svg::{Anchor, Point, TextRun};
@@ -42,15 +42,15 @@ const TITLE_TIER: Tier = Tier {
     level: NonZeroU8::new(2).expect("2 is not zero"),
 };
 
-/// FR-35's first level: a quadrant.
-const QUADRANT_TIER: Tier = Tier {
-    indent: INDENT_QUADRANT,
-    style: LEGEND_QUADRANT,
+/// FR-35's first level: a sector.
+const SECTOR_TIER: Tier = Tier {
+    indent: INDENT_SECTOR,
+    style: LEGEND_SECTOR,
     ink: Neutral::TextPrimary,
     level: NonZeroU8::new(3).expect("3 is not zero"),
 };
 
-/// FR-35's second level: a ring within its quadrant.
+/// FR-35's second level: a ring within its sector.
 const RING_TIER: Tier = Tier {
     indent: INDENT_RING,
     style: LEGEND_RING,
@@ -70,12 +70,12 @@ pub(super) struct Layout {
     /// Every heading, swatch and row in reading order, which is document
     /// and Tab order.
     pub(super) entries: Vec<Entry>,
-    /// Where each quadrant's group starts, in order: what FR-100's columns
+    /// Where each sector's group starts, in order: what FR-100's columns
     /// break between.
     pub(super) groups: Vec<GroupStart>,
 }
 
-/// The start of one quadrant's group in [`Layout::entries`].
+/// The start of one sector's group in [`Layout::entries`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct GroupStart {
     /// The index of the group's first entry, its swatch.
@@ -87,18 +87,18 @@ pub(super) struct GroupStart {
 /// One laid-out piece of the legend.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Entry {
-    /// "Legend", a quadrant or a ring.
+    /// "Legend", a sector or a ring.
     Heading {
         /// The wrapped heading; later lines hang at its indent.
         run: TextRun,
-        /// Its heading level: 2 for "Legend", 3 a quadrant, 4 a ring.
+        /// Its heading level: 2 for "Legend", 3 a sector, 4 a ring.
         level: NonZeroU8,
     },
-    /// FR-35's quadrant-colour swatch, beside its heading's first line.
+    /// FR-35's sector-colour swatch, beside its heading's first line.
     Swatch {
         /// The swatch's centre.
         centre: Point,
-        /// The quadrant's FR-10 rank: its series index, unreduced (FR-67).
+        /// The sector's FR-10 rank: its series index, unreduced (FR-67).
         series: usize,
     },
     /// One plotted item, boxed: a row holds two text runs, so it dwarfs
@@ -106,11 +106,11 @@ pub(super) enum Entry {
     Row(Box<Row>),
 }
 
-/// The legend for `catalogue`: empty when it has no quadrants (FR-42).
+/// The legend for `catalogue`: empty when it has no sectors (FR-42).
 ///
 /// # Panics
 ///
-/// If `plotted` was not built from `catalogue`, so an item, quadrant or
+/// If `plotted` was not built from `catalogue`, so an item, sector or
 /// ring index is out of range for it.
 #[must_use]
 pub(super) fn layout(catalogue: &Catalogue, plotted: &Plotted, fonts: &Fonts) -> Layout {
@@ -152,44 +152,44 @@ struct Context<'a> {
 }
 
 impl Context<'_> {
-    /// Every quadrant's group in FR-10 order, each starting where the last
+    /// Every sector's group in FR-10 order, each starting where the last
     /// left off, and where each starts. The baseline after the last group
     /// is not needed: the height is the last entry's bottom.
     fn groups(&self) -> (Vec<Entry>, Vec<GroupStart>) {
         let mut entries = Vec::new();
         let mut starts = Vec::new();
         let mut baseline = LEGEND_FIRST_GROUP;
-        for &q in &self.plotted.quadrants {
+        for &q in &self.plotted.sectors {
             starts.push(GroupStart {
                 entry: entries.len(),
                 baseline,
             });
-            baseline = self.quadrant(q, baseline, &mut entries);
+            baseline = self.sector(q, baseline, &mut entries);
         }
         (entries, starts)
     }
 
-    /// Quadrant `q`'s swatch, heading, rings and rows from `baseline`;
-    /// returns the next quadrant's baseline.
-    fn quadrant(&self, q: usize, baseline: f64, entries: &mut Vec<Entry>) -> f64 {
-        let run = heading(QUADRANT_TIER, self.quadrant_label(q), baseline, self.fonts);
+    /// Sector `q`'s swatch, heading, rings and rows from `baseline`;
+    /// returns the next sector's baseline.
+    fn sector(&self, q: usize, baseline: f64, entries: &mut Vec<Entry>) -> f64 {
+        let run = heading(SECTOR_TIER, self.sector_label(q), baseline, self.fonts);
         let last = run.last_baseline();
         entries.push(swatch(self.series(q), baseline));
         entries.push(Entry::Heading {
             run,
-            level: QUADRANT_TIER.level,
+            level: SECTOR_TIER.level,
         });
         self.rings(q, last, entries)
     }
 
-    /// Quadrant `q`'s rings below its heading's last baseline `last`;
-    /// returns the next quadrant's baseline.
+    /// Sector `q`'s rings below its heading's last baseline `last`;
+    /// returns the next sector's baseline.
     fn rings(&self, q: usize, last: f64, entries: &mut Vec<Entry>) -> f64 {
         let mut bottom = None;
-        for run in self.runs.iter().filter(|run| run.quadrant == q) {
+        for run in self.runs.iter().filter(|run| run.sector == q) {
             bottom = Some(self.ring(run, ring_baseline(last, bottom), entries));
         }
-        next_quadrant(last, bottom)
+        next_sector(last, bottom)
     }
 
     /// One ring's heading at `baseline` and its rows; returns the last
@@ -216,7 +216,7 @@ impl Context<'_> {
         let Numbered { item, number } = numbered;
         Row::new(
             numbered,
-            self.series(item.quadrant),
+            self.series(item.sector),
             self.catalogue.accessible_name(item, Some(number)),
             top,
             self.fonts,
@@ -238,21 +238,21 @@ impl Context<'_> {
         }
     }
 
-    /// Quadrant `q`'s FR-10 rank: its series index (FR-67).
+    /// Sector `q`'s FR-10 rank: its series index (FR-67).
     fn series(&self, q: usize) -> usize {
         *self
             .plotted
             .rank
             .get(q)
-            .expect("rank covers every quadrant of the catalogue")
+            .expect("rank covers every sector of the catalogue")
     }
 
-    fn quadrant_label(&self, q: usize) -> &str {
+    fn sector_label(&self, q: usize) -> &str {
         &self
             .catalogue
-            .quadrants
+            .sectors
             .get(q)
-            .expect("FR-10's order indexes the catalogue's quadrants")
+            .expect("FR-10's order indexes the catalogue's sectors")
             .label
     }
 
@@ -282,7 +282,7 @@ fn heading(tier: Tier, text: &str, baseline: f64, fonts: &Fonts) -> TextRun {
 }
 
 /// The legend's heading before its groups, or nothing with no groups:
-/// with no quadrants the legend is omitted (FR-42).
+/// with no sectors the legend is omitted (FR-42).
 fn titled(title: Entry, groups: Vec<Entry>) -> Vec<Entry> {
     if groups.is_empty() {
         return groups;
@@ -290,7 +290,7 @@ fn titled(title: Entry, groups: Vec<Entry>) -> Vec<Entry> {
     std::iter::once(title).chain(groups).collect()
 }
 
-/// A quadrant's swatch beside its heading's first baseline.
+/// A sector's swatch beside its heading's first baseline.
 fn swatch(series: usize, baseline: f64) -> Entry {
     Entry::Swatch {
         centre: Point {
@@ -301,19 +301,19 @@ fn swatch(series: usize, baseline: f64) -> Entry {
     }
 }
 
-/// The next ring's baseline: below the quadrant heading's last baseline
+/// The next ring's baseline: below the sector heading's last baseline
 /// for the first ring, else below the previous ring's last row.
 fn ring_baseline(heading_last: f64, previous_bottom: Option<f64>) -> f64 {
-    previous_bottom.map_or(heading_last + LEGEND_QUADRANT_TO_RING, |bottom| {
+    previous_bottom.map_or(heading_last + LEGEND_SECTOR_TO_RING, |bottom| {
         bottom + LEGEND_ROW_TO_RING
     })
 }
 
-/// The next quadrant's baseline: below the last row, or, for a quadrant
+/// The next sector's baseline: below the last row, or, for a sector
 /// with no rows, below its heading.
-fn next_quadrant(heading_last: f64, last_bottom: Option<f64>) -> f64 {
+fn next_sector(heading_last: f64, last_bottom: Option<f64>) -> f64 {
     last_bottom.map_or(heading_last + LEGEND_EMPTY_GROUP_GAP, |bottom| {
-        bottom + LEGEND_ROW_TO_QUADRANT
+        bottom + LEGEND_ROW_TO_SECTOR
     })
 }
 
@@ -430,8 +430,8 @@ mod tests {
         let legend = only(&headings(&l, 2));
         assert_eq!(legend.lines, ["Legend"]);
         assert!(near(legend.origin, Point { x: 0.0, y: 14.0 }));
-        let quadrants = headings(&l, 3);
-        let first = quadrants.first().expect("a quadrant heading");
+        let sectors = headings(&l, 3);
+        let first = sectors.first().expect("a sector heading");
         assert!(near(first.origin, Point { x: 16.0, y: 36.0 }));
         let (swatch, series) = *swatches(&l).first().expect("a swatch");
         assert!(near(swatch, Point { x: 5.0, y: 32.0 }), "{swatch:?}");
@@ -548,7 +548,7 @@ mod tests {
         assert!(near(heading.origin, Point { x: 16.0, y: 36.0 }));
         assert!(close(heading.leading, 15.0));
         for line in &heading.lines {
-            let w = LEGEND_QUADRANT.measure(line, fonts());
+            let w = LEGEND_SECTOR.measure(line, fonts());
             assert!(w <= 364.0, "{line}: {w}");
         }
         assert!(near(only(&swatches(&l)).0, Point { x: 5.0, y: 32.0 }));
@@ -565,7 +565,7 @@ mod tests {
     #[test]
     fn a_heading_exactly_filling_its_column_does_not_wrap() {
         let text = "Infrastructure platforms";
-        let style = QUADRANT_TIER.style;
+        let style = SECTOR_TIER.style;
         let exact = style.measure(text, fonts());
         assert_eq!(style.wrap(text, exact, fonts()), [text]);
         assert_eq!(style.wrap(text, exact - 1e-9, fonts()).len(), 2);
@@ -576,7 +576,7 @@ mod tests {
     /// line, and one word more wraps.
     #[test]
     fn a_heading_wraps_at_the_column_its_indent_leaves() {
-        let tier = QUADRANT_TIER;
+        let tier = SECTOR_TIER;
         let column = LEGEND_WIDTH_MAX - tier.indent;
         let words = |n: usize| vec!["Wide"; n].join(" ");
         // The column holds at most ~30 four-letter words; 64 bounds the search.
@@ -589,16 +589,16 @@ mod tests {
         assert_eq!(lines(fit + 1), 2, "{} words do not", fit + 1);
     }
 
-    /// FR-17, FR-18, FR-35: a quadrant whose rows are all unplotted keeps
+    /// FR-17, FR-18, FR-35: a sector whose rows are all unplotted keeps
     /// its heading and swatch; the next group is 26 below (18 + the
     /// mockup's 8, l.755); numbers stay contiguous.
     #[test]
     fn empty_rings_and_unplotted_rows() {
         let l = lay(&format!("{HEAD}A,Alpha,Nowhere,d\nB,Beta,Adopt,d\n"), None);
-        let quadrants = headings(&l, 3);
-        assert_eq!(texts(&quadrants), ["Alpha", "Beta"]);
-        let [alpha, beta] = quadrants.as_slice() else {
-            panic!("two quadrants");
+        let sectors = headings(&l, 3);
+        assert_eq!(texts(&sectors), ["Alpha", "Beta"]);
+        let [alpha, beta] = sectors.as_slice() else {
+            panic!("two sectors");
         };
         assert!(close(alpha.origin.y, 36.0) && close(beta.origin.y, 62.0));
         assert_eq!(swatches(&l).len(), 2);
@@ -646,7 +646,7 @@ mod tests {
     }
 
     #[test]
-    fn zero_quadrants_lays_out_nothing() {
+    fn zero_sectors_lays_out_nothing() {
         let catalogue = empty_catalogue();
         let l = layout(&catalogue, &crate::order::Plotted::default(), fonts());
         assert!(l.entries.is_empty(), "{l:?}");
@@ -656,7 +656,7 @@ mod tests {
     /// FR-67: the series index is the FR-10 rank, unreduced; the palette
     /// cycles it.
     #[test]
-    fn nine_quadrants_use_unreduced_series() {
+    fn nine_sectors_use_unreduced_series() {
         let csv: String = ('a'..='i')
             .map(|q| format!("{q},{q},Adopt,d\n"))
             .fold(HEAD.to_owned(), |all, row| all + &row);

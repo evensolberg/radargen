@@ -158,12 +158,12 @@ text-spacing-only:
     #!/usr/bin/env bash
     set -euo pipefail
     out="$(mktemp -d)"
-    for f in text-spacing three-quadrant grown; do
+    for f in text-spacing three-sector grown; do
         ./target/release/radargen "tests/fixtures/$f.csv" -o "$out/$f.html" --title "Technology Radar" 2>/dev/null
     done
     ./target/release/radargen tests/fixtures/text-spacing-rtl.csv -o "$out/rtl.html" 2>/dev/null
     ./target/release/radargen tests/fixtures/table-wide.csv -o "$out/table-wide.html" --title "Technology Radar" --table all 2>/dev/null
-    node scripts/text-spacing.mjs "$out" "$out/text-spacing.html:6" "$out/three-quadrant.html:5" "$out/table-wide.html:scroll" "$out/grown.html"
+    node scripts/text-spacing.mjs "$out" "$out/text-spacing.html:6" "$out/three-sector.html:5" "$out/table-wide.html:scroll" "$out/grown.html"
     echo "screenshots in $out (rtl.html is for a look, not checked)"
 
 # RG-102's focus-on-click path in Firefox and WebKit, which the CDP checks
@@ -192,7 +192,7 @@ interaction-only:
     ./target/release/radargen tests/fixtures/long-legend.csv -o "$out/long-legend.html" 2>/dev/null
     ./target/release/radargen tests/fixtures/interaction.csv -o "$out/palette.html" --palette docs/product/palette.sample.css 2>/dev/null
     ./target/release/radargen tests/fixtures/interaction.csv -o "$out/hidden.html" --legend hidden 2>/dev/null
-    printf 'name,quadrant,ring,description\nLegacy Bus,Tools,Rejected,Retired.\n' > "$out/unplotted.csv"
+    printf 'name,sector,ring,description\nLegacy Bus,Tools,Rejected,Retired.\n' > "$out/unplotted.csv"
     ./target/release/radargen "$out/unplotted.csv" -o "$out/unplotted-hidden.html" --legend hidden 2>/dev/null
     node scripts/interaction.mjs "$out/interaction.html" "$out/long-legend.html" "$out/palette.html" "$out/hidden.html" "$out/unplotted-hidden.html"
 
@@ -201,7 +201,7 @@ interaction-only:
 # the page's narrow SVG and bounds D-71's recorded 2.5.8 exception.
 # The audit page is interaction.csv plus a row in a ring long enough that
 # its legend heading wraps, declared with a doubled space (rg-cuj): a long
-# ring wraps without widening the radar, which a long quadrant would (D-71).
+# ring wraps without widening the radar, which a long sector would (D-71).
 # It takes --table all, so the audit reaches the unplotted row and its flag
 # (FR-106). Two default pages follow: table-wide.csv, which drops an
 # unplotted row and an extra column, and a page with nothing plotted,
@@ -219,7 +219,7 @@ a11y-audit-only:
     ./target/release/radargen "$out/a11y-audit.csv" -o "$out/a11y-audit.html" --rings "Assess,Trial,Adopt,$ring" --table all 2>/dev/null
     ./target/release/radargen tests/fixtures/d71-wide.csv -o "$out/d71.html" 2>/dev/null
     ./target/release/radargen tests/fixtures/table-wide.csv -o "$out/radar.html" 2>/dev/null
-    printf 'name,quadrant,ring,description\nLegacy Bus,Tools,Rejected,Retired.\n' > "$out/empty.csv"
+    printf 'name,sector,ring,description\nLegacy Bus,Tools,Rejected,Retired.\n' > "$out/empty.csv"
     ./target/release/radargen "$out/empty.csv" -o "$out/empty.html" 2>/dev/null
     node scripts/a11y-audit.mjs "$out/a11y-audit.html" "$out/d71.html" "$out/radar.html" "$out/empty.html"
 
@@ -231,10 +231,10 @@ screenshots: release-build
     set -euo pipefail
     out="${SCREENSHOTS:-$(mktemp -d)}"
     mkdir -p "$out"
-    for f in interaction three-quadrant d71-wide grown; do
+    for f in interaction three-sector d71-wide grown; do
         ./target/release/radargen "tests/fixtures/$f.csv" -o "$out/$f.html" --title "Technology Radar" 2>/dev/null
     done
-    node scripts/screenshots.mjs "$out" "$out/interaction.html" "$out/three-quadrant.html" "$out/d71-wide.html" "$out/grown.html"
+    node scripts/screenshots.mjs "$out" "$out/interaction.html" "$out/three-sector.html" "$out/d71-wide.html" "$out/grown.html"
 
 # rg-jri: style recalculation per Tab on a 300-marker radar, in Chromium.
 focus-cost: release-build
@@ -242,7 +242,7 @@ focus-cost: release-build
     set -euo pipefail
     out="$(mktemp -d)"
     {
-        echo "name,quadrant,ring,description"
+        echo "name,sector,ring,description"
         rings=(Assess Trial Adopt Retire)
         for i in $(seq 0 299); do echo "Item $i,Q$((i % 6)),${rings[$((i % 4))]},d"; done
     } > "$out/big.csv"

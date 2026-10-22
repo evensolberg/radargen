@@ -5,14 +5,14 @@ use crate::diagnostics::Warnings;
 use crate::model::{Catalogue, build_catalogue};
 use crate::order::{Plotted, resolve};
 
-/// The PRD's three-quadrant example (§12), shared by every block's tests.
-pub const PRD_EXAMPLE: &str = include_str!("../../../tests/fixtures/three-quadrant.csv");
+/// The PRD's three-sector example (§12), shared by every block's tests.
+pub const PRD_EXAMPLE: &str = include_str!("../../../tests/fixtures/three-sector.csv");
 
 /// The four required columns.
-pub const HEAD: &str = "name,quadrant,ring,description\n";
+pub const HEAD: &str = "name,sector,ring,description\n";
 
 /// The required columns with FR-20's qualifier and FR-26's status.
-pub const HEAD_META: &str = "name,quadrant,ring,description,qualifier,status\n";
+pub const HEAD_META: &str = "name,sector,ring,description,qualifier,status\n";
 
 /// A name that wraps to two lines in a legend row's 312-unit name column.
 pub const NAME_TWO_LINES: &str =
@@ -26,9 +26,9 @@ pub const NAME_THREE_LINES: &str =
 /// legend row's meta takes its own line.
 pub const NAME_FULL_LINE: &str = "Bounded trial of continuous delivery";
 
-/// One item per quadrant name, all in `ring`.
-pub fn csv_of(quadrants: &[&str], ring: &str) -> String {
-    quadrants
+/// One item per sector name, all in `ring`.
+pub fn csv_of(sectors: &[&str], ring: &str) -> String {
+    sectors
         .iter()
         .enumerate()
         .fold(HEAD.to_owned(), |text, (i, q)| {
@@ -54,11 +54,11 @@ pub fn plotted(csv: &str, rings: Option<&str>) -> (Catalogue, Plotted) {
     (catalogue, order)
 }
 
-/// A catalogue with no columns, quadrants, rings or items (FR-42).
+/// A catalogue with no columns, sectors, rings or items (FR-42).
 pub const fn empty_catalogue() -> Catalogue {
     Catalogue {
         columns: Vec::new(),
-        quadrants: Vec::new(),
+        sectors: Vec::new(),
         rings: Vec::new(),
         ring_origin: crate::settings::Origin::rings(crate::settings::Source::Default),
         items: Vec::new(),
@@ -73,10 +73,10 @@ mod tests {
 
     #[test]
     fn plotted_builds_the_catalogue_and_its_order() {
-        let csv = "name,quadrant,ring,description\nA,Tools,Adopt,d\nB,Tools,Trial,d\n";
+        let csv = "name,sector,ring,description\nA,Tools,Adopt,d\nB,Tools,Trial,d\n";
         let (catalogue, order) = plotted(csv, None);
         assert_eq!(catalogue.items.len(), 2);
         assert_eq!(order.items.len(), 2);
-        assert_eq!(order.quadrants, [0]);
+        assert_eq!(order.sectors, [0]);
     }
 }

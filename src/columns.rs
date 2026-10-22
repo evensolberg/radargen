@@ -7,8 +7,8 @@
 pub enum ColumnKind {
     /// The item's name (FR-5); required and never empty (FR-6).
     Name,
-    /// The quadrant the item belongs to (FR-5, FR-8).
-    Quadrant,
+    /// The sector the item belongs to (FR-5, FR-8).
+    Sector,
     /// The ring the item sits in (FR-5, FR-16).
     Ring,
     /// Free text about the item (FR-5); may be empty (FR-7).
@@ -85,7 +85,7 @@ impl ColumnKind {
     /// [`ColumnKind::as_str`].
     pub(crate) const KNOWN: [Self; 11] = [
         Self::Name,
-        Self::Quadrant,
+        Self::Sector,
         Self::Ring,
         Self::Description,
         Self::Qualifier,
@@ -101,7 +101,7 @@ impl ColumnKind {
     /// former name, [`SECTOR_ALIAS`], names it too (D-101).
     pub(crate) fn of(key: &str) -> Self {
         if key == SECTOR_ALIAS {
-            return Self::Quadrant;
+            return Self::Sector;
         }
         Self::KNOWN
             .into_iter()
@@ -114,7 +114,7 @@ impl ColumnKind {
     /// `key` itself otherwise.
     pub(crate) fn canonical(key: &str) -> &str {
         if key == SECTOR_ALIAS {
-            Self::Quadrant.as_str()
+            Self::Sector.as_str()
         } else {
             key
         }
@@ -135,7 +135,7 @@ impl ColumnKind {
         let names = Self::KNOWN
             .into_iter()
             .map(|k| (k.as_str(), k))
-            .chain([(SECTOR_ALIAS, Self::Quadrant)]);
+            .chain([(SECTOR_ALIAS, Self::Sector)]);
         nearest(
             key,
             names.filter(|(_, k)| !taken.contains(k)),
@@ -149,7 +149,7 @@ impl ColumnKind {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Name => "name",
-            Self::Quadrant => "sector",
+            Self::Sector => "sector",
             Self::Ring => "ring",
             Self::Description => "description",
             Self::Qualifier => "qualifier",
@@ -187,15 +187,15 @@ mod tests {
     #[test]
     fn a_transposition_is_one_edit() {
         assert_eq!(near("nmae"), Some(ColumnKind::Name));
-        assert_eq!(near("qaudrant"), Some(ColumnKind::Quadrant));
-        assert_eq!(near("sectro"), Some(ColumnKind::Quadrant));
+        assert_eq!(near("qaudrant"), Some(ColumnKind::Sector));
+        assert_eq!(near("sectro"), Some(ColumnKind::Sector));
     }
 
     /// D-101: `quadrant` is the sector column, by its former name.
     #[test]
     fn quadrant_names_the_sector_column() {
-        assert_eq!(ColumnKind::of("sector"), ColumnKind::Quadrant);
-        assert_eq!(ColumnKind::of("quadrant"), ColumnKind::Quadrant);
+        assert_eq!(ColumnKind::of("sector"), ColumnKind::Sector);
+        assert_eq!(ColumnKind::of("quadrant"), ColumnKind::Sector);
         assert_eq!(ColumnKind::canonical("quadrant"), "sector");
         assert_eq!(ColumnKind::canonical("sector"), "sector");
         assert_eq!(ColumnKind::canonical("ring"), "ring");
@@ -205,10 +205,10 @@ mod tests {
     /// write; with the column already present, nothing.
     #[test]
     fn a_misspelt_alias_suggests_sector() {
-        assert_eq!(near("quadrnat"), Some(ColumnKind::Quadrant));
-        assert_eq!(near("quadrants"), Some(ColumnKind::Quadrant));
+        assert_eq!(near("quadrnat"), Some(ColumnKind::Sector));
+        assert_eq!(near("quadrants"), Some(ColumnKind::Sector));
         assert_eq!(
-            ColumnKind::near_miss("quadrnat", &[ColumnKind::Quadrant]),
+            ColumnKind::near_miss("quadrnat", &[ColumnKind::Sector]),
             None
         );
     }

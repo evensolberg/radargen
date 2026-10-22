@@ -52,6 +52,6 @@ fn a_bom_only_file_has_no_header() {
     let err = parse(&text, &mut w).expect_err("no header");
     assert_eq!(
         err.render(),
-        "error: the CSV has no header row (it is empty or blank); the header must name at least name, quadrant, ring and description"
+        "error: the CSV has no header row (it is empty or blank); the header must name at least name, sector, ring and description"
     );
 }
