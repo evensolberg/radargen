@@ -19,6 +19,7 @@ use std::sync::Arc;
 use crate::cli::{Cli, Task, clean_setting};
 use crate::csv::decode;
 use crate::csv::parse::parse;
+use crate::date::is_iso_date;
 use crate::decode::NotUtf8;
 use crate::diagnostics::{Fatal, OffRadar, ReadFile, RenderKind, RowError, Warning, Warnings};
 use crate::emit::html::{Page, page};
@@ -38,7 +39,7 @@ use crate::order::resolve;
 use crate::palette::file::{self, ReadError};
 use crate::palette::{Colours, Theme};
 use crate::rings::{RingSet, default_rings, parse_ring_list};
-use crate::settings::edition::{Edition, Problem, expand};
+use crate::settings::edition::{Edition, Problem, Today, expand, uses};
 use crate::settings::file::{self as config_file, MAX_KEY_PROBLEMS};
 use crate::settings::{
     DEFAULT_LEGEND, DEFAULT_LEGEND_COLUMNS, DEFAULT_TABLE, DEFAULT_THEME, Effective, NamedPath,
@@ -181,11 +182,12 @@ impl Report {
 /// The whole pipeline for `cli` (architecture §2). Warnings are rendered
 /// last, so every outcome carries the warnings gathered before it.
 ///
-/// `today` is the clock `-e today` reads, the local date as `YYYY-MM-DD`:
-/// [`crate::settings::edition::local_today`] in production, a fixed date in tests. It is
-/// called at most once, and only for `-e today` (D-24, D-58).
+/// `today` is the clock `-e today` reads, the local date and its zone:
+/// [`crate::settings::edition::local_today`] in production, a fixed date
+/// in tests. It is called at most once, and only for `-e today` (D-24,
+/// D-58).
 #[must_use]
-pub fn run(cli: &Cli, today: impl FnOnce() -> String) -> Report {
+pub fn run(cli: &Cli, today: impl FnOnce() -> Today) -> Report {
     let mut warnings = Warnings::default();
     let outcome = steps(cli, today, &mut warnings).map_err(Failure::render);
     Report {
@@ -195,11 +197,7 @@ pub fn run(cli: &Cli, today: impl FnOnce() -> String) -> Report {
 }
 
 /// The stages in order, each stopping the run on failure.
-fn steps(
-    cli: &Cli,
-    today: impl FnOnce() -> String,
-    warnings: &mut Warnings,
-) -> Result<(), Failure> {
+fn steps(cli: &Cli, today: impl FnOnce() -> Today, warnings: &mut Warnings) -> Result<(), Failure> {
     let input = match cli.task()? {
         Task::Create(starter, path) => return Ok(starter.create(path)?),
         Task::Render { input } => input,
@@ -223,19 +221,28 @@ fn steps(
 }
 
 /// `--edition`'s date: as given, or for `today` the local date, read once
-/// and echoed, so the render can be reproduced with an explicit `-e`
-/// (D-58).
+/// and echoed with its zone, so the render can be reproduced with an
+/// explicit `-e` (D-58); a fallback to UTC is said first (review M-1).
 fn edition_date(
     edition: &Edition,
-    today: impl FnOnce() -> String,
+    today: impl FnOnce() -> Today,
     warnings: &mut Warnings,
 ) -> String {
     match edition {
         Edition::Date(date) => date.clone(),
         Edition::Today => {
-            let date = today();
+            let Today {
+                date,
+                zone,
+                fallback,
+            } = today();
+            debug_assert!(is_iso_date(&date), "the clock gives FR-92's shape");
+            if let Some(fallback) = fallback {
+                warnings.push(Warning::Render(RenderKind::TodayInUtc(fallback)));
+            }
             warnings.push(Warning::Render(RenderKind::EditionToday {
                 date: date.clone(),
+                zone,
             }));
             date
         }
@@ -338,24 +345,22 @@ fn expanded_path(
         return Ok(None);
     };
     let named = NamedPath::new(path.origin.clone(), &path.value);
-    let expanded = match path.value.to_str() {
-        Some(text) => expand(text, edition)
-            .map(|(text, uses)| (PathBuf::from(text), uses))
-            .map_err(|problems| placeholder_errors(&named, problems)),
-        None => match expand(&path.value.to_string_lossy(), edition) {
-            Ok((_, false)) => Ok((path.value.clone(), false)),
-            Ok((_, true)) => Err(vec![Fatal::EditionNotUtf8 { output: named }]),
-            Err(problems) => Err(placeholder_errors(&named, problems)),
-        },
-    };
+    let text = path.value.to_string_lossy();
+    let holds = uses(&text);
+    *used |= holds;
+    let utf8 = path.value.to_str().is_some();
+    let expanded = expand(&text, edition)
+        .map_err(|problems| placeholder_errors(&named, problems))
+        .and_then(|expanded| match (utf8, holds) {
+            (true, _) => Ok(PathBuf::from(expanded)),
+            (false, true) => Err(vec![Fatal::EditionNotUtf8 { output: named }]),
+            (false, false) => Ok(path.value.clone()),
+        });
     Ok(gate
         .check(&path.origin.source, expanded)?
-        .map(|(value, uses)| {
-            *used |= uses;
-            Sourced {
-                value,
-                origin: path.origin,
-            }
+        .map(|value| Sourced {
+            value,
+            origin: path.origin,
         }))
 }
 
@@ -379,16 +384,14 @@ fn expanded_text(
         origin: text.origin.clone(),
         shown: format!("'{shown}'"),
     };
+    *used |= uses(&text.value);
     let expanded =
         expand(&text.value, edition).map_err(|problems| placeholder_errors(&named, problems));
     Ok(gate
         .check(&text.origin.source, expanded)?
-        .map(|(value, uses)| {
-            *used |= uses;
-            Sourced {
-                value,
-                origin: text.origin,
-            }
+        .map(|value| Sourced {
+            value,
+            origin: text.origin,
         }))
 }
 
@@ -926,6 +929,7 @@ fn render(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::settings::edition::Fallback;
 
     fn report(outcome: Result<(), Failed>) -> Report {
         Report {
@@ -970,7 +974,7 @@ mod tests {
 
     /// `radargen args…` in a directory holding a one-row CSV, with the
     /// clock `today` gives; the report and the directory.
-    fn edition_run(args: &[&str], today: impl FnOnce() -> String) -> (Report, tempfile::TempDir) {
+    fn edition_run(args: &[&str], today: impl FnOnce() -> Today) -> (Report, tempfile::TempDir) {
         use clap::Parser;
         let dir = tempfile::tempdir().expect("tempdir");
         let csv = dir.path().join("radar.csv");
@@ -1003,22 +1007,68 @@ mod tests {
                 "-e",
                 "today",
             ],
-            || "2026-10-22".to_owned(),
+            || vancouver(None),
         );
         assert_eq!(report.status(), 0, "{:?}", report.outcome);
         assert_eq!(
             report.warnings,
-            ["warning: edition 2026-10-22 (today); pass -e 2026-10-22 to reproduce this render"]
+            [
+                "warning: edition 2026-10-22 (today, America/Vancouver); pass -e 2026-10-22 to reproduce this render"
+            ]
         );
         let svg = std::fs::read_to_string(dir.path().join("2026-10-22.svg")).expect("written");
         assert!(svg.contains("<title>Radar 2026-10-22</title>"), "{svg}");
+    }
+
+    /// The fixed clock: 2026-10-22 in Vancouver, or with `fallback`, in UTC.
+    fn vancouver(fallback: Option<Fallback>) -> Today {
+        Today {
+            date: "2026-10-22".into(),
+            zone: if fallback.is_some() {
+                "UTC"
+            } else {
+                "America/Vancouver"
+            }
+            .into(),
+            fallback,
+        }
+    }
+
+    /// Review M-1: a fallback to UTC is said before the echo, which names
+    /// UTC; a bad `TZ` is cut and escaped as any echoed text is.
+    #[test]
+    fn a_fallback_to_utc_is_said() {
+        let bad = format!("Bad\u{1}{}", "z".repeat(50));
+        let (report, _dir) = edition_run(&["-o", "@{edition}.svg", "-e", "today"], || {
+            vancouver(Some(Fallback::BadTz(bad)))
+        });
+        assert_eq!(report.status(), 0, "{:?}", report.outcome);
+        assert_eq!(
+            report.warnings,
+            [
+                format!(
+                    "warning: TZ 'Bad\\u{{1}}{}…' names no time zone radargen can find, so -e today used UTC; set TZ to a zone such as America/Vancouver",
+                    "z".repeat(36)
+                ),
+                "warning: edition 2026-10-22 (today, UTC); pass -e 2026-10-22 to reproduce this render".to_owned(),
+            ]
+        );
+        let (report, _dir) = edition_run(&["-o", "@{edition}.svg", "-e", "today"], || {
+            vancouver(Some(Fallback::NoSystemZone))
+        });
+        assert_eq!(
+            report.warnings.first().map(String::as_str),
+            Some(
+                "warning: the system's time zone cannot be determined, so -e today used UTC; set TZ to a zone such as America/Vancouver"
+            )
+        );
     }
 
     /// D-24: without `today`, the clock is never read, a date and no
     /// `--edition` alike.
     #[test]
     fn no_other_run_reads_the_clock() {
-        let never = || -> String { panic!("the clock was read") };
+        let never = || -> Today { panic!("the clock was read") };
         let (dated, _dir) = edition_run(&["-o", "@{edition}.svg", "-e", "2026-09-01"], never);
         assert_eq!(dated.status(), 0, "{:?}", dated.outcome);
         let (plain, _dir) = edition_run(&["-o", "@a.svg"], never);
@@ -1028,13 +1078,12 @@ mod tests {
     /// `today` is checked as any date is: unused, it warns as one would.
     #[test]
     fn an_unused_today_warns_as_a_date_would() {
-        let (report, _dir) =
-            edition_run(&["-o", "@a.svg", "-e", "today"], || "2026-10-22".to_owned());
+        let (report, _dir) = edition_run(&["-o", "@a.svg", "-e", "today"], || vancouver(None));
         assert_eq!(report.status(), 0, "{:?}", report.outcome);
         assert_eq!(
             report.warnings,
             [
-                "warning: edition 2026-10-22 (today); pass -e 2026-10-22 to reproduce this render",
+                "warning: edition 2026-10-22 (today, America/Vancouver); pass -e 2026-10-22 to reproduce this render",
                 "warning: --edition 2026-10-22: no value uses it; put {edition} in the output, title or subtitle",
             ]
         );
@@ -1082,6 +1131,7 @@ mod tests {
                 "error: -o a\u{fffd}{edition}.svg: is not UTF-8 text, so {edition} cannot expand in it"
             ]
         );
-        assert!(!used);
+        // Review I-1: it holds `{edition}`, so it uses the date though it fails.
+        assert!(used, "a failing value still uses --edition");
     }
 }

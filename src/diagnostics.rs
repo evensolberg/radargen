@@ -10,13 +10,13 @@ use crate::options::OutputFormat;
 use crate::options::Table;
 use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::RingsError;
-use crate::settings::edition::PLACEHOLDER;
+use crate::settings::edition::{Fallback, PLACEHOLDER};
 use crate::settings::file::{KeyProblem, MAX_BYTES as CONFIG_MAX_BYTES};
 use crate::settings::{NamedPath, Origin, Setting, Source};
 use crate::starter::Starter;
 use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX, WIDE_MIN_VIEWPORT_PX};
 use crate::text::FontError;
-use crate::{is_untagged_format, normalise, trim};
+use crate::{ECHO_CHARS, clip, is_untagged_format, normalise, trim};
 
 /// Where a warning points: its sort key.
 ///
@@ -234,7 +234,12 @@ pub enum RenderKind {
     EditionToday {
         /// The date read.
         date: String,
+        /// The zone it is the date in.
+        zone: String,
     },
+    /// Review M-1: `-e today` could not find the local zone, so it used
+    /// UTC; said, since a misspelt `TZ` would otherwise pass silently.
+    TodayInUtc(Fallback),
     /// FR-92: `--edition` was given, but no value holds `{edition}`.
     EditionUnused {
         /// The date given.
@@ -567,8 +572,21 @@ impl RenderKind {
                 "{origin}: removed {count} characters the output cannot display, the first {}",
                 code_point(*first)
             ),
-            Self::EditionToday { date } => {
-                format!("edition {date} (today); pass -e {date} to reproduce this render")
+            Self::EditionToday { date, zone } => format!(
+                "edition {date} (today, {}); pass -e {date} to reproduce this render",
+                escape_controls(zone)
+            ),
+            Self::TodayInUtc(fallback) => {
+                let why = match fallback {
+                    Fallback::BadTz(tz) => format!(
+                        "TZ '{}' names no time zone radargen can find",
+                        escape_controls(&clip(tz, ECHO_CHARS))
+                    ),
+                    Fallback::NoSystemZone => {
+                        "the system's time zone cannot be determined".to_owned()
+                    }
+                };
+                format!("{why}, so -e today used UTC; set TZ to a zone such as America/Vancouver")
             }
             Self::EditionUnused { date } => format!(
                 "--edition {date}: no value uses it; put {PLACEHOLDER} in the output, title or subtitle"

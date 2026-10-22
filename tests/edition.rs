@@ -5,6 +5,7 @@
 mod binary;
 
 use std::fs;
+use std::process::Command;
 
 use binary::{run_in, seeded, snapshot};
 
@@ -334,7 +335,8 @@ fn today_echoes_the_date_it_used() {
     };
     let date = note
         .strip_prefix("warning: edition ")
-        .and_then(|rest| rest.split_once(" (today); pass -e "))
+        .and_then(|rest| rest.split_once(" (today, "))
+        .and_then(|(date, rest)| Some((date, rest.split_once("); pass -e ")?.1)))
         .and_then(|(date, rest)| {
             (rest == format!("{date} to reproduce this render")).then_some(date)
         })
@@ -349,4 +351,145 @@ fn today_echoes_the_date_it_used() {
         });
     assert!(shaped, "{date}");
     assert!(dir.path().join(format!("{date}.html")).exists());
+}
+
+/// Review I-1: a file value holding `{edition}` that fails on a typo is
+/// still a use, so no "no value uses it" warning contradicts the error.
+#[test]
+fn a_failing_value_still_uses_the_edition() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("radar.toml", "output = \"{edition}-{editon}.html\"\n"),
+    ]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-c", "radar.toml", "-e", "2026-09-01"],
+    );
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: the output key in radar.toml ({edition}-{editon}.html): {editon} is not a placeholder; the only one is {edition}"
+        ]
+    );
+}
+
+/// FR-91 after FR-92: the expanded output resolves against the config
+/// file's own folder.
+#[test]
+fn an_expanded_output_lands_beside_its_config() {
+    let dir = seeded(&[("radar.csv", CSV)]);
+    fs::create_dir(dir.path().join("conf")).expect("mkdir");
+    fs::write(
+        dir.path().join("conf/radar.toml"),
+        "output = \"{edition}.html\"\n",
+    )
+    .expect("seeds");
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-c", "conf/radar.toml", "-e", "2026-09-01"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert!(dir.path().join("conf/2026-09-01.html").exists());
+    assert!(!dir.path().join("2026-09-01.html").exists());
+}
+
+/// NFR-16: a file value failing expansion lets the ring and palette
+/// checks run in the same run.
+#[test]
+fn later_checks_run_after_a_file_value_fails_expansion() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        (
+            "radar.toml",
+            "output = \"a.html\"\ntitle = \"{edition}\"\nrings = [\"Adopt\", \"adopt\"]\npalette = \"missing.css\"\n",
+        ),
+    ]);
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    let lines = ran.lines();
+    let [title, rings, palette] = lines.as_slice() else {
+        panic!("three errors: {lines:?}");
+    };
+    assert_eq!(
+        *title,
+        "error: the title key in radar.toml ('{edition}'): uses {edition}, but no --edition was given; pass --edition YYYY-MM-DD"
+    );
+    assert_eq!(
+        *rings,
+        "error: the rings key in radar.toml: entry 2 'adopt' repeats entry 1"
+    );
+    assert!(
+        palette.starts_with("error: the palette key in radar.toml (missing.css): cannot be read: "),
+        "{lines:?}"
+    );
+}
+
+/// FR-92's order: FR-90 removes an undisplayable character first, so the
+/// placeholder it split expands.
+#[test]
+fn removal_comes_before_expansion() {
+    let dir = seeded(&[("radar.csv", CSV)]);
+    let ran = run_in(
+        dir.path(),
+        &[
+            "radar.csv",
+            "-o",
+            "a.svg",
+            "-t",
+            "Radar {edi\u{1}tion}",
+            "-e",
+            "2026-09-01",
+        ],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        ["warning: --title: removed U+0001, which the output cannot display"]
+    );
+    let svg = fs::read_to_string(dir.path().join("a.svg")).expect("written");
+    assert!(svg.contains("<title>Radar 2026-09-01</title>"), "{svg}");
+}
+
+/// `radargen args…` in `dir` with `TZ` set to `tz`; stderr's lines.
+fn with_tz(dir: &std::path::Path, tz: &str, args: &[&str]) -> (Option<i32>, Vec<String>) {
+    let out = Command::new(env!("CARGO_BIN_EXE_radargen"))
+        .args(args)
+        .env("TZ", tz)
+        .current_dir(dir)
+        .output()
+        .expect("the binary runs");
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    (
+        out.status.code(),
+        stderr.lines().map(str::to_owned).collect(),
+    )
+}
+
+/// Review M-1: the echo names the zone the date came from, and a `TZ`
+/// that names no zone is said to have given UTC rather than passing
+/// silently. The date's value is not asserted.
+#[test]
+fn today_names_its_zone_and_a_bad_tz() {
+    let dir = seeded(&[("radar.csv", CSV)]);
+    let args = ["radar.csv", "-o", "{edition}.html", "-e", "today"];
+    let (code, lines) = with_tz(dir.path(), "America/Vancouver", &args);
+    assert_eq!(code, Some(0), "{lines:?}");
+    let [echo] = lines.as_slice() else {
+        panic!("one line: {lines:?}");
+    };
+    assert!(
+        echo.contains(" (today, America/Vancouver); pass -e "),
+        "{echo}"
+    );
+    let (code, lines) = with_tz(dir.path(), "America/Vancuover", &args);
+    assert_eq!(code, Some(0), "{lines:?}");
+    let [fallback, echo] = lines.as_slice() else {
+        panic!("two lines: {lines:?}");
+    };
+    assert_eq!(
+        fallback,
+        "warning: TZ 'America/Vancuover' names no time zone radargen can find, so -e today used UTC; set TZ to a zone such as America/Vancouver"
+    );
+    assert!(echo.contains(" (today, UTC); pass -e "), "{echo}");
 }

@@ -4,6 +4,11 @@ disallowed-methods = [
     { path = "str::trim", reason = "FR-76 (D-61): use radargen::trim" },
     { path = "str::trim_start", reason = "FR-76 (D-61): use radargen::trim" },
     { path = "str::trim_end", reason = "FR-76 (D-61): use radargen::trim" },
+    # D-24, D-58: the clock is read once, for -e today, in
+    # settings::edition::local_today; the pipeline is handed that clock.
+    { path = "jiff::Zoned::now", reason = "D-24, D-58: only settings::edition::local_today reads the clock" },
+    { path = "jiff::Timestamp::now", reason = "D-24, D-58: only settings::edition::local_today reads the clock" },
+    { path = "std::time::SystemTime::now", reason = "D-24, D-58: only settings::edition::local_today reads the clock" },
 ]
 
 # png 0.18 depends on miniz_oxide 0.8 directly and 0.9 through flate2;
