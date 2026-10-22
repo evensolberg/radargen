@@ -7,7 +7,7 @@ use radargen::order::{Plotted, resolve};
 #[path = "common/catalogue.rs"]
 mod catalogue;
 
-const EXAMPLE: &str = include_str!("fixtures/three-quadrant.csv");
+const EXAMPLE: &str = include_str!("fixtures/three-sector.csv");
 
 fn resolved(csv: &str) -> (Catalogue, Plotted) {
     let cat = catalogue::catalogue(csv, None);
@@ -24,15 +24,15 @@ fn numbered(cat: &Catalogue, plotted: &Plotted) -> Vec<(String, Option<usize>)> 
         .collect()
 }
 
-/// Each quadrant's label, in FR-10's order.
+/// Each sector's label, in FR-10's order.
 fn labels(cat: &Catalogue, plotted: &Plotted) -> Vec<String> {
     plotted
-        .quadrants
+        .sectors
         .iter()
         .map(|&q| {
-            cat.quadrants
+            cat.sectors
                 .get(q)
-                .expect("q indexes the catalogue's quadrants")
+                .expect("q indexes the catalogue's sectors")
                 .label
                 .clone()
         })
@@ -61,16 +61,16 @@ fn the_prd_example_numbers_in_legend_order() {
     };
     assert_eq!(
         cat.accessible_name(kubernetes, *kubernetes_number),
-        "1. Kubernetes, Default; Platform quadrant, Adopt ring"
+        "1. Kubernetes, Default; Platform sector, Adopt ring"
     );
     assert_eq!(
         cat.accessible_name(legacy, *legacy_number),
-        "Legacy Ticketing-Driven Change; Practice quadrant, Rejected ring; not on the radar"
+        "Legacy Ticketing-Driven Change; Practice sector, Rejected ring; not on the radar"
     );
 }
 
 /// NFR-4, D-7: the same rows in reverse order give every item the same
-/// number and every quadrant the same place.
+/// number and every sector the same place.
 #[test]
 fn numbering_does_not_depend_on_row_order() {
     let mut lines: Vec<&str> = EXAMPLE.lines().collect();

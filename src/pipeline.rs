@@ -1079,8 +1079,7 @@ mod tests {
         use clap::Parser;
         let dir = tempfile::tempdir().expect("tempdir");
         let csv = dir.path().join("radar.csv");
-        std::fs::write(&csv, "name,quadrant,ring,description\nKafka,Tool,Adopt,d\n")
-            .expect("seeds");
+        std::fs::write(&csv, "name,sector,ring,description\nKafka,Tool,Adopt,d\n").expect("seeds");
         if let Some(toml) = toml {
             std::fs::write(dir.path().join("radar.toml"), toml).expect("seeds");
         }

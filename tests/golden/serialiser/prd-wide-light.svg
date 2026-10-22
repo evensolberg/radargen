@@ -7,7 +7,7 @@
 </g>
 </g>
 <g transform="translate(10 46)">
-<g transform="translate(330 330)" role="group" aria-label="Technology radar: 3 quadrants, 4 rings, 6 items">
+<g transform="translate(330 330)" role="group" aria-label="Technology radar: 3 sectors, 4 rings, 6 items">
 <circle cx="0" cy="0" r="260" fill="none" stroke="#7E858F" stroke-width="1"/>
 <circle cx="0" cy="0" r="195" fill="none" stroke="#7E858F" stroke-width="1"/>
 <circle cx="0" cy="0" r="130" fill="none" stroke="#7E858F" stroke-width="1"/>
@@ -26,34 +26,34 @@
 <text x="0" y="-162.5" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="#585F6B">Trial</text>
 <text x="0" y="-97.5" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="#585F6B">Adopt</text>
 <text x="0" y="-32.5" font-family="Inter" font-size="10" font-weight="400" text-anchor="middle" fill="#585F6B">Retire</text>
-<g role="img" aria-label="1. Kubernetes, Default; Platform quadrant, Adopt ring">
+<g role="img" aria-label="1. Kubernetes, Default; Platform sector, Adopt ring">
 <title>1. Kubernetes</title>
 <circle cx="77.682" cy="-44.85" r="10" fill="#0072B2" stroke="#FFFFFF" stroke-width="2"/>
 <text x="77.682" y="-41.576" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">1</text>
 </g>
-<g role="img" aria-label="2. Trunk-Based Development, Default; Practice quadrant, Adopt ring">
+<g role="img" aria-label="2. Trunk-Based Development, Default; Practice sector, Adopt ring">
 <title>2. Trunk-Based Development</title>
 <circle cx="0" cy="89.7" r="10" fill="#C25400" stroke="#FFFFFF" stroke-width="2"/>
 <text x="0" y="92.974" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">2</text>
 </g>
-<g role="img" aria-label="3. Ansible, Moved In; Tool quadrant, Trial ring">
+<g role="img" aria-label="3. Ansible, Moved In; Tool sector, Trial ring">
 <title>3. Ansible</title>
 <path d="M -126.974 -89.474 A 14 14 0 0 1 -140.974 -65.226" fill="none" stroke="#00857A" stroke-width="2"/>
 <circle cx="-133.974" cy="-77.35" r="10" fill="#00857A" stroke="#FFFFFF" stroke-width="2"/>
 <text x="-133.974" y="-74.076" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">3</text>
 </g>
-<g role="img" aria-label="4. Pulumi, Conditional, New; Tool quadrant, Adopt ring">
+<g role="img" aria-label="4. Pulumi, Conditional, New; Tool sector, Adopt ring">
 <title>4. Pulumi</title>
 <circle cx="-87.33" cy="-20.483" r="14" fill="none" stroke="#00857A" stroke-width="2"/>
 <circle cx="-87.33" cy="-20.483" r="10" fill="#FFFFFF" stroke="#00857A" stroke-width="3"/>
 <text x="-87.33" y="-17.209" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#16191F">4</text>
 </g>
-<g role="img" aria-label="5. Terraform, Default; Tool quadrant, Adopt ring">
+<g role="img" aria-label="5. Terraform, Default; Tool sector, Adopt ring">
 <title>5. Terraform</title>
 <circle cx="-74.753" cy="-79.603" r="10" fill="#00857A" stroke="#FFFFFF" stroke-width="2"/>
 <text x="-74.753" y="-76.329" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">5</text>
 </g>
-<g role="img" aria-label="6. Chef; Tool quadrant, Retire ring">
+<g role="img" aria-label="6. Chef; Tool sector, Retire ring">
 <title>6. Chef</title>
 <circle cx="-21.391" cy="-12.35" r="10" fill="#00857A" stroke="#FFFFFF" stroke-width="2"/>
 <text x="-21.391" y="-9.076" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">6</text>
@@ -106,7 +106,7 @@
 <g role="heading" aria-level="4">
 <text x="24" y="54" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="#585F6B">Adopt</text>
 </g>
-<g role="img" aria-label="1. Kubernetes, Default; Platform quadrant, Adopt ring">
+<g role="img" aria-label="1. Kubernetes, Default; Platform sector, Adopt ring">
 <rect x="38" y="58" width="283.077" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
 <circle cx="52" cy="76" r="8" fill="#0072B2" stroke="#0072B2" stroke-width="1.5"/>
 <text x="52" y="79.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">1</text>
@@ -121,7 +121,7 @@
 <g role="heading" aria-level="4">
 <text x="24" y="132" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="#585F6B">Adopt</text>
 </g>
-<g role="img" aria-label="2. Trunk-Based Development, Default; Practice quadrant, Adopt ring">
+<g role="img" aria-label="2. Trunk-Based Development, Default; Practice sector, Adopt ring">
 <rect x="38" y="136" width="283.077" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
 <circle cx="52" cy="154" r="8" fill="#C25400" stroke="#C25400" stroke-width="1.5"/>
 <text x="52" y="157.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">2</text>
@@ -136,7 +136,7 @@
 <g role="heading" aria-level="4">
 <text x="24" y="210" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="#585F6B">Trial</text>
 </g>
-<g role="img" aria-label="3. Ansible, Moved In; Tool quadrant, Trial ring">
+<g role="img" aria-label="3. Ansible, Moved In; Tool sector, Trial ring">
 <rect x="38" y="214" width="283.077" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
 <circle cx="52" cy="232" r="8" fill="#00857A" stroke="#00857A" stroke-width="1.5"/>
 <text x="52" y="235.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">3</text>
@@ -145,13 +145,13 @@
 <g role="heading" aria-level="4">
 <text x="24" y="262" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="#585F6B">Adopt</text>
 </g>
-<g role="img" aria-label="4. Pulumi, Conditional, New; Tool quadrant, Adopt ring">
+<g role="img" aria-label="4. Pulumi, Conditional, New; Tool sector, Adopt ring">
 <rect x="38" y="266" width="283.077" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
 <circle cx="52" cy="284" r="8" fill="#FFFFFF" stroke="#00857A" stroke-width="2"/>
 <text x="52" y="287.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#16191F">4</text>
 <text x="68" y="284.5" font-family="Inter" font-size="12.5" font-weight="400" fill="#16191F">Pulumi<tspan dx="5.047" font-size="10.5" font-weight="400" fill="#585F6B"> Conditional · New</tspan></text>
 </g>
-<g role="img" aria-label="5. Terraform, Default; Tool quadrant, Adopt ring">
+<g role="img" aria-label="5. Terraform, Default; Tool sector, Adopt ring">
 <rect x="38" y="302" width="283.077" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
 <circle cx="52" cy="320" r="8" fill="#00857A" stroke="#00857A" stroke-width="1.5"/>
 <text x="52" y="323.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">5</text>
@@ -160,7 +160,7 @@
 <g role="heading" aria-level="4">
 <text x="24" y="350" font-family="Inter" font-size="10" font-weight="600" letter-spacing="0.3" fill="#585F6B">Retire</text>
 </g>
-<g role="img" aria-label="6. Chef; Tool quadrant, Retire ring">
+<g role="img" aria-label="6. Chef; Tool sector, Retire ring">
 <rect x="38" y="354" width="283.077" height="36" rx="6" fill="#F4F5F7" stroke="none"/>
 <circle cx="52" cy="372" r="8" fill="#00857A" stroke="#00857A" stroke-width="1.5"/>
 <text x="52" y="375.274" font-family="Inter" font-size="9" font-weight="600" text-anchor="middle" fill="#FFFFFF">6</text>

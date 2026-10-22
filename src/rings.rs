@@ -1,6 +1,6 @@
 //! The declared ring set (§6.1.4).
 //!
-//! Unlike `quadrant`, `ring` carries a lifecycle order that cannot be inferred
+//! Unlike `sector`, `ring` carries a lifecycle order that cannot be inferred
 //! from the names, so it is declared rather than derived (D-4). The list is
 //! **edge-to-centre** (FR-12, D-60): the first entry is the outermost band.
 

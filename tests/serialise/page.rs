@@ -309,7 +309,7 @@ fn the_page_records_a_hidden_start() {
     assert!(hidden.starts_with("<!DOCTYPE html>\n<html lang=\"en\" data-legend=\"hidden\">\n"));
     assert_requests_nothing(&hidden);
     let unplotted = build(
-        "name,quadrant,ring,description\nLegacy Bus,Tools,Rejected,x\n",
+        "name,sector,ring,description\nLegacy Bus,Tools,Rejected,x\n",
         None,
         None,
     );

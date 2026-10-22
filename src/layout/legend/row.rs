@@ -46,7 +46,7 @@ pub(super) struct Row {
     pub(super) height: f64,
     /// The badge's centre.
     pub(super) badge: Point,
-    /// The quadrant's FR-10 rank: its series index, unreduced (FR-67).
+    /// The sector's FR-10 rank: its series index, unreduced (FR-67).
     pub(super) series: usize,
     /// Whether the badge is hollow (FR-20).
     pub(super) hollow: bool,
@@ -62,7 +62,7 @@ pub(super) struct Row {
 }
 
 impl Row {
-    /// A numbered item as a row from `top`, with its quadrant's `series`
+    /// A numbered item as a row from `top`, with its sector's `series`
     /// and FR-75's accessible name `label`.
     pub(super) fn new(
         numbered: Numbered<'_>,

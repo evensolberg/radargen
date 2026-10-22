@@ -4,7 +4,7 @@
 use std::fmt::{self, Write as _};
 use std::sync::Arc;
 
-use crate::columns::ColumnKind;
+use crate::columns::{ColumnKind, SECTOR_ALIAS};
 use crate::csv::decode::MAX_BYTES as MAX_CSV_BYTES;
 use crate::options::OutputFormat;
 use crate::options::Table;
@@ -142,7 +142,7 @@ pub enum RowKind {
     /// FR-104: a text a PNG or SVG draws, from this cell, holds characters
     /// the bundled font lacks. One per drawn text, however many it lacks.
     MissingGlyphs {
-        /// The column the text was read from: `name` or `quadrant`.
+        /// The column the text was read from: `name` or `sector`.
         column: ColumnKind,
         /// The text and what it lacks.
         lacking: Lacking,
@@ -162,14 +162,14 @@ pub enum RowKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RenderKind {
     /// FR-88.
-    QuadrantCount {
-        /// How many distinct quadrants the CSV used.
+    SectorCount {
+        /// How many distinct sectors the CSV used.
         count: usize,
     },
     /// FR-89, one per overfull band.
     OverfullBand {
-        /// The quadrant name the band belongs to.
-        quadrant: String,
+        /// The sector name the band belongs to.
+        sector: String,
         /// The ring name the band belongs to.
         ring: String,
         /// How many items the band holds.
@@ -297,12 +297,12 @@ impl fmt::Display for Lacking {
 }
 
 /// The label whose reach sets the radar's width, for FR-95 and FR-105
-/// (D-73, D-94): a quadrant name from the CSV, or a ring name from
+/// (D-73, D-94): a sector name from the CSV, or a ring name from
 /// `--rings` or the default set.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Binding {
-    /// A quadrant label, as written.
-    Quadrant(String),
+    /// A sector label, as written.
+    Sector(String),
     /// A ring name, as declared, and where it was declared.
     Ring {
         /// The ring's name.
@@ -317,7 +317,7 @@ pub enum Binding {
 impl fmt::Display for Binding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Quadrant(name) => write!(f, "quadrant '{}'", trim(name)),
+            Self::Sector(name) => write!(f, "sector '{}'", trim(name)),
             Self::Ring { name, origin } if origin.source == Source::Default => write!(
                 f,
                 "ring '{}' (a default ring, so pass --rings to rename it)",
@@ -523,17 +523,17 @@ impl RowKind {
 impl RenderKind {
     fn message(&self) -> String {
         match self {
-            Self::QuadrantCount { count } => format!(
-                "{count} quadrants; the radar reads best with 3 to 6, so sectors narrow and labels may crowd"
+            Self::SectorCount { count } => format!(
+                "{count} sectors; the radar reads best with 3 to 6, so sectors narrow and labels may crowd"
             ),
             Self::OverfullBand {
-                quadrant,
+                sector,
                 ring,
                 count,
                 fits,
             } => format!(
-                "quadrant '{}', ring '{}': {count} items; about {fits} fit comfortably, so some markers overlap",
-                trim(quadrant),
+                "sector '{}', ring '{}': {count} items; about {fits} fit comfortably, so some markers overlap",
+                trim(sector),
                 trim(ring)
             ),
             Self::NarrowWidened { binding, width } => format!(
@@ -1658,7 +1658,7 @@ pub enum Fatal {
     /// FR-3: the file has no non-blank records, so no header names a column.
     /// The required columns are FR-5's, named so the message is actionable.
     #[error(
-        "the CSV has no header row (it is empty or blank); the header must name at least name, quadrant, ring and description"
+        "the CSV has no header row (it is empty or blank); the header must name at least name, sector, ring and description"
     )]
     NoHeader,
     /// FR-1: a header with `;` or a tab between its names, or after a closing
@@ -1706,6 +1706,27 @@ pub enum RowError {
         /// The earlier column's name, as written and trimmed.
         first_name: String,
     },
+    /// D-101, as FR-4's repeat: the header names the sector column twice,
+    /// once by its former name, [`SECTOR_ALIAS`]. The earlier column is
+    /// named first; both names are as written, trimmed.
+    #[error(
+        "line {line}: {} '{first_name}' and {} '{name}' both name the {} column ({SECTOR_ALIAS} is its former name); keep one, and remove or rename the other",
+        column_label(*first_index),
+        column_label(*index),
+        ColumnKind::Sector.as_str()
+    )]
+    SectorTwice {
+        /// The header's line.
+        line: usize,
+        /// The 0-based header index of the later column.
+        index: usize,
+        /// Its name, as written and trimmed.
+        name: String,
+        /// The 0-based header index of the earlier column.
+        first_index: usize,
+        /// The earlier column's name, as written and trimmed.
+        first_name: String,
+    },
     /// FR-4: a record whose field count is not the header's, with the usual
     /// cause for each direction (FR-61's precedent: say what to do). This is
     /// the one-row message; [`crate::errors::render_errors`] groups several
@@ -1739,7 +1760,7 @@ pub enum RowError {
     /// FR-5: the header lacks a required column. Every missing one is
     /// reported (NFR-16 tier two). `line` is the header's.
     #[error(
-        "line {line}: the header has no '{}' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description",
+        "line {line}: the header has no '{}' column; add one, or rename the column that holds it — the header must name at least name, sector, ring and description",
         column.as_str()
     )]
     MissingColumn {
@@ -1748,7 +1769,7 @@ pub enum RowError {
         /// The missing column.
         column: ColumnKind,
     },
-    /// FR-6: an empty `name`, `quadrant` or `ring`, empty under FR-76's
+    /// FR-6: an empty `name`, `sector` or `ring`, empty under FR-76's
     /// trim, so a cell of spaces or a lone zero-width space counts.
     #[error(
         "line {line}, {0}: empty; every row needs a {0}, so fill it in or delete the row",

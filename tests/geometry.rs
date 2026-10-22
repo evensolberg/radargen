@@ -13,12 +13,12 @@ use radargen::rings::default_rings;
 #[path = "common/catalogue.rs"]
 mod catalogue;
 
-/// A `name,quadrant,ring,description` CSV, one row per
-/// `(name, quadrant, ring)`.
+/// A `name,sector,ring,description` CSV, one row per
+/// `(name, sector, ring)`.
 fn csv(rows: &[(String, String, &str)]) -> String {
-    let mut text = String::from("name,quadrant,ring,description\n");
-    for (name, quadrant, ring) in rows {
-        writeln!(text, "{name},{quadrant},{ring},d").expect("writes to a String");
+    let mut text = String::from("name,sector,ring,description\n");
+    for (name, sector, ring) in rows {
+        writeln!(text, "{name},{sector},{ring},d").expect("writes to a String");
     }
     text
 }
@@ -34,23 +34,17 @@ fn build(csv: &str) -> (Catalogue, Plotted, Vec<String>) {
 }
 
 /// `count` rows in one band, named so FR-34 keeps them in row order.
-fn rows(quadrant: &str, ring: &'static str, count: usize) -> Vec<(String, String, &'static str)> {
+fn rows(sector: &str, ring: &'static str, count: usize) -> Vec<(String, String, &'static str)> {
     (0..count)
-        .map(|i| {
-            (
-                format!("{quadrant} item {i:03}"),
-                quadrant.to_string(),
-                ring,
-            )
-        })
+        .map(|i| (format!("{sector} item {i:03}"), sector.to_string(), ring))
         .collect()
 }
 
-/// PRD §6.1.6's example: three quadrants, nothing crowded, no warning;
+/// PRD §6.1.6's example: three sectors, nothing crowded, no warning;
 /// one marker per plotted item, each inside the radar.
 #[test]
 fn the_prd_example_places_every_marker_and_warns_nothing() {
-    let (cat, plotted, warnings) = build(include_str!("fixtures/three-quadrant.csv"));
+    let (cat, plotted, warnings) = build(include_str!("fixtures/three-sector.csv"));
     assert_eq!(warnings, Vec::<String>::new());
     let points = place(&cat, &plotted);
     assert_eq!(points.len(), plotted.items.len());
@@ -61,7 +55,7 @@ fn the_prd_example_places_every_marker_and_warns_nothing() {
 /// and its capacity; every item still gets a marker.
 #[test]
 fn an_overfull_band_warns_once_and_keeps_every_marker() {
-    // Four quadrants, default rings: the innermost band, Retire, holds 2,
+    // Four sectors, default rings: the innermost band, Retire, holds 2,
     // so 3 is the first count that overflows.
     let mut all = rows("Tool", "Retire", 3);
     for q in ["Platform", "Practice", "Language"] {
@@ -71,7 +65,7 @@ fn an_overfull_band_warns_once_and_keeps_every_marker() {
     assert_eq!(
         warnings,
         [
-            "warning: quadrant 'Tool', ring 'Retire': 3 items; about 2 fit comfortably, so some markers overlap"
+            "warning: sector 'Tool', ring 'Retire': 3 items; about 2 fit comfortably, so some markers overlap"
         ]
     );
     assert_eq!(place(&cat, &plotted).len(), 6);
@@ -88,21 +82,21 @@ fn a_band_at_capacity_does_not_warn() {
     assert_eq!(warnings, Vec::<String>::new());
 }
 
-/// FR-88, A-5: seven quadrants warn once, naming the count; six do not.
+/// FR-88, A-5: seven sectors warn once, naming the count; six do not.
 #[test]
-fn more_than_six_quadrants_warn_once() {
-    let quadrants = |n: usize| -> Vec<(String, String, &'static str)> {
+fn more_than_six_sectors_warn_once() {
+    let sectors = |n: usize| -> Vec<(String, String, &'static str)> {
         (0..n)
             .flat_map(|q| rows(&format!("Q{q}"), "Assess", 1))
             .collect()
     };
-    let (_, _, six) = build(&csv(&quadrants(6)));
+    let (_, _, six) = build(&csv(&sectors(6)));
     assert_eq!(six, Vec::<String>::new());
-    let (_, _, seven) = build(&csv(&quadrants(7)));
+    let (_, _, seven) = build(&csv(&sectors(7)));
     assert_eq!(
         seven,
         [
-            "warning: 7 quadrants; the radar reads best with 3 to 6, so sectors narrow and labels may crowd"
+            "warning: 7 sectors; the radar reads best with 3 to 6, so sectors narrow and labels may crowd"
         ]
     );
 }
@@ -111,7 +105,7 @@ fn more_than_six_quadrants_warn_once() {
 /// marker in the same place.
 #[test]
 fn placement_does_not_depend_on_row_order() {
-    let text = include_str!("fixtures/three-quadrant.csv");
+    let text = include_str!("fixtures/three-sector.csv");
     let mut lines: Vec<&str> = text.lines().collect();
     let header = lines.remove(0);
     lines.reverse();
@@ -175,8 +169,8 @@ fn place_uses_fr34_order_within_a_band() {
     assert_eq!(*second, g.marker(0, adopt, 1, 2));
 }
 
-/// FR-10, FR-8: a sector's position is the quadrant's FR-10 rank, not its
-/// first-appearance index, and a quadrant whose rows are all unplotted
+/// FR-10, FR-8: a sector's position is its FR-10 rank, not its
+/// first-appearance index, and a sector whose rows are all unplotted
 /// still takes a sector. Tool appears first but sorts second, so its one
 /// marker sits mid-way round the second of two sectors: 9 o'clock.
 #[test]
@@ -190,7 +184,7 @@ fn place_uses_the_fr10_position_not_the_catalogue_index() {
     assert_eq!(
         g,
         Geometry {
-            quadrants: 2,
+            sectors: 2,
             rings: 4
         }
     );
@@ -203,8 +197,8 @@ fn place_uses_the_fr10_position_not_the_catalogue_index() {
 }
 
 /// FR-88 first, then FR-89 one per band in FR-34's order: FR-10's
-/// quadrant order (Platform before Tool, though Tool's rows come first),
-/// then declared ring order (Adopt before Retire). At seven quadrants
+/// sector order (Platform before Tool, though Tool's rows come first),
+/// then declared ring order (Adopt before Retire). At seven sectors
 /// Adopt holds 5 and Retire 2.
 #[test]
 fn crowding_warnings_follow_fr10_then_rings() {
@@ -218,10 +212,10 @@ fn crowding_warnings_follow_fr10_then_rings() {
     assert_eq!(
         warnings,
         [
-            "warning: 7 quadrants; the radar reads best with 3 to 6, so sectors narrow and labels may crowd",
-            "warning: quadrant 'Platform', ring 'Adopt': 8 items; about 5 fit comfortably, so some markers overlap",
-            "warning: quadrant 'Platform', ring 'Retire': 3 items; about 2 fit comfortably, so some markers overlap",
-            "warning: quadrant 'Tool', ring 'Retire': 3 items; about 2 fit comfortably, so some markers overlap",
+            "warning: 7 sectors; the radar reads best with 3 to 6, so sectors narrow and labels may crowd",
+            "warning: sector 'Platform', ring 'Adopt': 8 items; about 5 fit comfortably, so some markers overlap",
+            "warning: sector 'Platform', ring 'Retire': 3 items; about 2 fit comfortably, so some markers overlap",
+            "warning: sector 'Tool', ring 'Retire': 3 items; about 2 fit comfortably, so some markers overlap",
         ]
     );
 }
@@ -244,12 +238,12 @@ fn geometry_warnings_precede_row_warnings() {
     let [crowded, rejected] = lines.as_slice() else {
         panic!("expected 2 lines: {lines:?}")
     };
-    assert!(crowded.starts_with("warning: 7 quadrants"), "{lines:?}");
+    assert!(crowded.starts_with("warning: 7 sectors"), "{lines:?}");
     assert!(rejected.contains("Rejected"), "{lines:?}");
 }
 
 /// Nothing plotted: no markers, no bands, no geometry warning, and the
-/// quadrant still counts (FR-8, FR-42).
+/// sector still counts (FR-8, FR-42).
 #[test]
 fn nothing_plotted_places_nothing_and_warns_nothing() {
     let all = vec![("Old".to_string(), "Tool".to_string(), "Rejected")];
@@ -260,7 +254,7 @@ fn nothing_plotted_places_nothing_and_warns_nothing() {
     assert_eq!(
         Geometry::of(&cat),
         Geometry {
-            quadrants: 1,
+            sectors: 1,
             rings: 4
         }
     );

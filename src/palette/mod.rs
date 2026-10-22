@@ -32,7 +32,7 @@ pub enum Neutral {
     TextMuted,
     /// Ring circles (FR-82).
     StrokeRing,
-    /// Quadrant dividers (FR-82).
+    /// Sector dividers (FR-82).
     StrokeDivider,
     /// FR-20's conditional fill. Not `Paint::None`: FR-66's key draws it on a
     /// different background, where the two differ (architecture §5).
@@ -83,7 +83,7 @@ impl fmt::Display for Neutral {
 pub enum Role {
     /// One of FR-82's eight neutral roles.
     Neutral(Neutral),
-    /// The quadrant's 0-based index in FR-10's order — **not** reduced modulo
+    /// The sector's 0-based index in FR-10's order — **not** reduced modulo
     /// the palette's length. FR-87 makes that length a property of a file the
     /// layout never reads; reducing here would make one radar two different
     /// documents under two palettes (architecture §5).
@@ -358,7 +358,7 @@ mod tests {
         );
         assert_eq!(Role::Neutral(Neutral::Focus).to_string(), "--focus");
         assert_eq!(Role::Series(0).to_string(), "--series-1");
-        // Unreduced: the role names the quadrant's index, not a palette slot.
+        // Unreduced: the role names the sector's index, not a palette slot.
         assert_eq!(Role::Series(8).to_string(), "--series-9");
     }
 
@@ -404,7 +404,7 @@ mod tests {
         );
     }
 
-    /// FR-67: the ninth quadrant takes the first colour.
+    /// FR-67: the ninth sector takes the first colour.
     #[test]
     fn series_cycles_from_the_start() {
         let p = Palette::built_in(Theme::Light);
@@ -413,7 +413,7 @@ mod tests {
         assert_eq!(p.value(Role::Series(17)), SERIES[1]);
     }
 
-    /// HTML and the static formats must colour any quadrant identically.
+    /// HTML and the static formats must colour any sector identically.
     #[test]
     fn var_and_value_name_the_same_entry() {
         let p = Palette::built_in(Theme::Light);

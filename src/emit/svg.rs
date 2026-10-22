@@ -100,10 +100,7 @@ mod tests {
             let svg = super::export(&doc, &export).expect("exports");
             assert!(svg.starts_with(&format!("<!-- {OUTPUT_VERSION} -->\n<svg ")));
             assert!(svg.contains(want), "{svg}");
-            assert!(
-                svg.contains("<desc>Technology radar: 3 quadrants, "),
-                "{svg}"
-            );
+            assert!(svg.contains("<desc>Technology radar: 3 sectors, "), "{svg}");
         }
     }
 }

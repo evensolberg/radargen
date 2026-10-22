@@ -1,12 +1,12 @@
 //! FR-100's column split (D-90): where a static legend's columns break.
 //!
-//! Breaks fall only between quadrant groups. Of the possible sets, the one
+//! Breaks fall only between sector groups. Of the possible sets, the one
 //! whose tallest column is shortest is taken; among equals, the one whose
 //! first break is earliest, then its second, and so on (NFR-4).
 
 use std::ops::Range;
 
-/// The first group of each column, for `groups` quadrant groups in at most
+/// The first group of each column, for `groups` sector groups in at most
 /// `columns` columns, where `height` is a column's drawn height when it
 /// holds a range of groups.
 ///

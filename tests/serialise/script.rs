@@ -23,7 +23,7 @@ fn one_script_with_no_attributes_and_the_same_bytes_everywhere() {
         "script.js, verbatim"
     );
     let other = build(
-        "name,quadrant,ring,description\nKafka,Tool,Adopt,d\n",
+        "name,sector,ring,description\nKafka,Tool,Adopt,d\n",
         None,
         None,
     )

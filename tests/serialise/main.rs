@@ -37,7 +37,7 @@ use radargen::palette::{Colours, Palette, Theme};
 use radargen::svg::Target;
 use radargen::text::Fonts;
 
-const PRD_EXAMPLE: &str = include_str!("../fixtures/three-quadrant.csv");
+const PRD_EXAMPLE: &str = include_str!("../fixtures/three-sector.csv");
 const BOTH: [Arrangement; 2] = [Arrangement::Wide, Arrangement::Narrow];
 
 /// A catalogue, its order and its blocks.

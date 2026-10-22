@@ -2,8 +2,8 @@
 //! row claims, and what is wrong with it (FR-5–FR-29, FR-93).
 //!
 //! Ordering and numbering are not here: FR-10 and FR-34 are `order.rs`'s
-//! (`order::quadrant_order`, `order::resolve`), so a `Catalogue` keeps
-//! quadrants and items in CSV order.
+//! (`order::sector_order`, `order::resolve`), so a `Catalogue` keeps
+//! sectors and items in CSV order.
 
 // qual:allow(coupling, sdp) reason: "the pipeline runs csv → model → order → layout (architecture §2); depending on the previous stage is the design"
 
@@ -23,14 +23,14 @@ use std::sync::Arc;
 /// FR-5's required columns, in the order its error lists them.
 const REQUIRED: [ColumnKind; 4] = [
     ColumnKind::Name,
-    ColumnKind::Quadrant,
+    ColumnKind::Sector,
     ColumnKind::Ring,
     ColumnKind::Description,
 ];
 
 /// FR-6's columns: required, and never empty. `description` may be empty
 /// (FR-7).
-const NON_EMPTY: [ColumnKind; 3] = [ColumnKind::Name, ColumnKind::Quadrant, ColumnKind::Ring];
+const NON_EMPTY: [ColumnKind; 3] = [ColumnKind::Name, ColumnKind::Sector, ColumnKind::Ring];
 
 /// One named column, in header order (FR-27, FR-78).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,9 +112,9 @@ impl Status {
     }
 }
 
-/// One quadrant (FR-8, FR-9).
+/// One sector (FR-8, FR-9).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Quadrant {
+pub struct Sector {
     /// FR-76's normalised value, which groups the rows.
     pub key: String,
     /// FR-9: the ordinally first variant, [`tidy`].
@@ -135,10 +135,10 @@ pub struct Item {
     pub name: String,
     /// FR-76's key, computed once so no comparator folds (architecture §6).
     pub name_key: String,
-    /// Index into [`Catalogue::quadrants`], which is in first-appearance
+    /// Index into [`Catalogue::sectors`], which is in first-appearance
     /// order — **not** FR-10's, and never a palette index (architecture
     /// §5). `order::resolve` gives the FR-10 rank.
-    pub quadrant: usize,
+    pub sector: usize,
     /// Index into [`Catalogue::rings`]; `None` when the ring is not
     /// declared (FR-17), which leaves the row unplotted.
     pub ring: Option<usize>,
@@ -181,9 +181,9 @@ pub struct Catalogue {
     /// The named columns in header order. An unnamed column is not here:
     /// FR-93 drops it.
     pub columns: Vec<Column>,
-    /// In order of first appearance; `order::quadrant_order` gives FR-10's
+    /// In order of first appearance; `order::sector_order` gives FR-10's
     /// order.
-    pub quadrants: Vec<Quadrant>,
+    pub sectors: Vec<Sector>,
     /// The declared rings, edge-to-centre (FR-12). [`Item::ring`] indexes
     /// this copy; nothing below the model reads the `RingSet`.
     pub rings: Vec<String>,
@@ -245,7 +245,7 @@ impl Catalogue {
     /// status (FR-74) — so the visible text is in the name (WCAG 2.5.3).
     /// `No Change` is FR-40's plain marker and no row shows it, so it is
     /// left out too (FR-50).
-    /// The quadrant and ring follow even where the legend's grouping shows
+    /// The sector and ring follow even where the legend's grouping shows
     /// them, since a screen reader reaching one row by Tab sees no grouping,
     /// and are named as such, since their names are the author's own and a
     /// name may hold a comma.
@@ -257,7 +257,7 @@ impl Catalogue {
     ///
     /// # Panics
     ///
-    /// If `item.quadrant` or `item.ring` is out of range for this
+    /// If `item.sector` or `item.ring` is out of range for this
     /// catalogue, as for an item from another one. In debug builds, also if
     /// `number` is `Some` for an unplotted item or `None` for a plotted
     /// one (FR-18).
@@ -275,15 +275,15 @@ impl Catalogue {
         .flatten()
         .collect::<Vec<_>>()
         .join(", ");
-        let quadrant = &self
-            .quadrants
-            .get(item.quadrant)
-            .expect("item.quadrant is within this catalogue's quadrants")
+        let sector = &self
+            .sectors
+            .get(item.sector)
+            .expect("item.sector is within this catalogue's sectors")
             .label;
         let position = if ring.is_empty() {
-            format!("{quadrant} quadrant")
+            format!("{sector} sector")
         } else {
-            format!("{quadrant} quadrant, {ring} ring")
+            format!("{sector} sector, {ring} ring")
         };
         number.map_or_else(
             || format!("{row}; {position}; {NOT_ON_THE_RADAR}"),
@@ -295,7 +295,7 @@ impl Catalogue {
 /// FR-5–FR-29 and FR-93: the catalogue, or every row-level error.
 ///
 /// NFR-16 tier two: every missing required column (FR-5) and every empty
-/// `name`, `quadrant` or `ring` (FR-6) is returned together, in line order
+/// `name`, `sector` or `ring` (FR-6) is returned together, in line order
 /// then column order. Rows are checked before any is built, so an `Err`
 /// comes with no row warning from this stage; FR-108's header warnings come
 /// first, since a misspelt required column is why FR-5 fails. `csv::parse`'s
@@ -440,7 +440,7 @@ impl Header {
     }
 }
 
-/// FR-6: every empty `name`, `quadrant` or `ring` the header has, in line
+/// FR-6: every empty `name`, `sector` or `ring` the header has, in line
 /// order, then header column order (NFR-11).
 fn empty_required(header: &Header, records: &[Record]) -> Vec<RowError> {
     let mut present: Vec<(usize, ColumnKind)> = NON_EMPTY
@@ -465,7 +465,7 @@ fn empty_required(header: &Header, records: &[Record]) -> Vec<RowError> {
 /// Where each column the rows are read from sits in the header.
 struct Positions {
     name: usize,
-    quadrant: usize,
+    sector: usize,
     ring: usize,
     description: usize,
     qualifier: Option<usize>,
@@ -481,7 +481,7 @@ impl Positions {
     fn labels(&self) -> impl Iterator<Item = usize> {
         [
             Some(self.name),
-            Some(self.quadrant),
+            Some(self.sector),
             Some(self.ring),
             self.qualifier,
             self.status,
@@ -499,7 +499,7 @@ impl Positions {
         let required = |kind| header.position(kind).unwrap_or_default();
         Self {
             name: required(ColumnKind::Name),
-            quadrant: required(ColumnKind::Quadrant),
+            sector: required(ColumnKind::Sector),
             ring: required(ColumnKind::Ring),
             description: required(ColumnKind::Description),
             qualifier: header.position(ColumnKind::Qualifier),
@@ -527,7 +527,7 @@ struct Builder<'r> {
     /// The declared rings, shared by every FR-17 warning of the run, each
     /// holding a cheap `Arc` clone.
     declared: Arc<[String]>,
-    quadrants: Vec<Quadrant>,
+    sectors: Vec<Sector>,
     /// Each name's key, the line it first appears on and its spelling there,
     /// for FR-28.
     names: Vec<(String, usize, String)>,
@@ -542,7 +542,7 @@ impl<'r> Builder<'r> {
             rings,
             off_radar,
             declared: Arc::from(rings.rings()),
-            quadrants: Vec::new(),
+            sectors: Vec::new(),
             names: Vec::new(),
             items: Vec::new(),
         }
@@ -554,7 +554,7 @@ impl<'r> Builder<'r> {
         }
         Catalogue {
             columns: self.header.columns,
-            quadrants: self.quadrants,
+            sectors: self.sectors,
             rings: self.rings.rings().to_vec(),
             ring_origin: self.rings.origin().clone(),
             items: self.items,
@@ -573,7 +573,7 @@ impl<'r> Builder<'r> {
         };
         let name = at(self.at.name);
         let name_key = self.name(name, record.line, &mut warn);
-        let quadrant = self.quadrant(at(self.at.quadrant), record.line);
+        let sector = self.sector(at(self.at.sector), record.line);
         let ring = self.ring(at(self.at.ring), &mut warn);
         if trim(at(self.at.description)).is_empty() {
             warn(self.at.description, RowKind::EmptyDescription);
@@ -619,7 +619,7 @@ impl<'r> Builder<'r> {
             line: record.line,
             name: tidy(name),
             name_key,
-            quadrant,
+            sector,
             ring,
             qualifier,
             status,
@@ -645,14 +645,14 @@ impl<'r> Builder<'r> {
         key
     }
 
-    /// FR-8, FR-9: the row's quadrant, added on first sight. The label is
+    /// FR-8, FR-9: the row's sector, added on first sight. The label is
     /// the ordinally first variant, tidied, whatever order rows come in, and
     /// `line` is kept with it while it is the first to write that label.
-    fn quadrant(&mut self, value: &str, line: usize) -> usize {
+    fn sector(&mut self, value: &str, line: usize) -> usize {
         let key = normalise(value);
         let label = tidy(value);
         if let Some((i, q)) = self
-            .quadrants
+            .sectors
             .iter_mut()
             .enumerate()
             .find(|(_, q)| q.key == key)
@@ -666,8 +666,8 @@ impl<'r> Builder<'r> {
             }
             return i;
         }
-        self.quadrants.push(Quadrant { key, label, line });
-        self.quadrants.len() - 1
+        self.sectors.push(Sector { key, label, line });
+        self.sectors.len() - 1
     }
 
     /// FR-16, FR-17: the declared ring the value matches, or a warning
@@ -811,8 +811,8 @@ mod tests {
     use crate::csv::parse::parse;
     use crate::rings::default_rings;
 
-    const HEAD: &str = "name,quadrant,ring,description\n";
-    const FULL: &str = "name,quadrant,ring,description,qualifier,last_affirmed,exit_date,status\n";
+    const HEAD: &str = "name,sector,ring,description\n";
+    const FULL: &str = "name,sector,ring,description,qualifier,last_affirmed,exit_date,status\n";
 
     /// `csv` through `parse` and `build_catalogue` under the default rings,
     /// with the rendered warnings. Parse must succeed with no error.
@@ -841,12 +841,12 @@ mod tests {
     /// a carriage return and the panel can still show paragraphs.
     #[test]
     fn line_breaks_are_spaces_in_names_and_newlines_in_prose() {
-        let csv = "name,quadrant,ring,description,qualifier,status,note\n\
+        let csv = "name,sector,ring,description,qualifier,status,note\n\
                    \"Kafka\r\n\r\nStreams\",\"Tool\rkit\",Adopt,\"first\r\nsecond\rthird\",\"default\r\n\",\"moved\nin\",\"a\r\nb\"\n";
         let cat = catalogue(csv);
         let item = cat.items.first().expect("one item");
         assert_eq!(item.name, "Kafka Streams", "a run of breaks is one space");
-        assert_eq!(cat.quadrants.first().expect("a quadrant").label, "Tool kit");
+        assert_eq!(cat.sectors.first().expect("a sector").label, "Tool kit");
         assert_eq!(
             item.qualifier,
             Some(Qualifier::Default),
@@ -870,17 +870,17 @@ mod tests {
         }
     }
 
-    /// FR-97 before FR-28 and FR-9: a name or quadrant with a break matches
+    /// FR-97 before FR-28 and FR-9: a name or sector with a break matches
     /// its spaced twin.
     #[test]
     fn a_break_matches_its_spaced_twin() {
         let csv = format!(
             "{}\"Kafka\r\nStreams\",Tool,Adopt,d\nKafka Streams,\"Tool\nkit\",Adopt,d\nFlink,Tool kit,Adopt,d\n",
-            "name,quadrant,ring,description\n"
+            "name,sector,ring,description\n"
         );
         let (built, warnings) = build(&csv);
         let cat = built.expect("builds");
-        assert_eq!(cat.quadrants.len(), 2, "Tool, and Tool kit grouped");
+        assert_eq!(cat.sectors.len(), 2, "Tool, and Tool kit grouped");
         assert!(
             warnings.iter().any(|w| w.contains("repeats line 2")),
             "a duplicate across the break: {warnings:?}"
@@ -946,7 +946,7 @@ mod tests {
     #[test]
     fn near_miss_headers_warn_at_their_column() {
         let found = near_misses(
-            "name,quadrant,ring,description,RATIONALLE,owner,,Last Affirmed,link\nK,T,Adopt,d,r,o,,2026-01-01,\n",
+            "name,sector,ring,description,RATIONALLE,owner,,Last Affirmed,link\nK,T,Adopt,d,r,o,,2026-01-01,\n",
         );
         assert_eq!(
             found,
@@ -961,7 +961,7 @@ mod tests {
     /// warning says which header was meant.
     #[test]
     fn a_misspelt_required_column_warns_beside_its_error() {
-        let csv = "name,quadrant,ring,descripton\nK,T,Adopt,d\n";
+        let csv = "name,sector,ring,descripton\nK,T,Adopt,d\n";
         assert_eq!(errors(csv), [missing(ColumnKind::Description)]);
         assert_eq!(
             near_misses(csv),
@@ -975,11 +975,11 @@ mod tests {
     #[test]
     fn a_repeated_or_taken_near_miss_warns_once_or_not_at_all() {
         assert_eq!(
-            near_misses("name,quadrant,ring,description,rationalle,Rationalle\nK,T,Adopt,d,r,r\n"),
+            near_misses("name,sector,ring,description,rationalle,Rationalle\nK,T,Adopt,d,r,r\n"),
             [(4, "rationalle".to_string(), ColumnKind::Rationale)]
         );
         assert_eq!(
-            near_misses("name,quadrant,ring,description,rationale,rationalle\nK,T,Adopt,d,r,r\n"),
+            near_misses("name,sector,ring,description,rationale,rationalle\nK,T,Adopt,d,r,r\n"),
             []
         );
     }
@@ -987,11 +987,11 @@ mod tests {
     /// FR-78's columns in header order; FR-93 drops the unnamed one.
     #[test]
     fn columns_keep_header_order_and_drop_unnamed_ones() {
-        let cat = catalogue("name,quadrant,,ring,description, Notes ,\nK,T,,Adopt,d,n,\n");
+        let cat = catalogue("name,sector,,ring,description, Notes ,\nK,T,,Adopt,d,n,\n");
         let headings: Vec<_> = cat.columns.iter().map(|c| c.heading.as_str()).collect();
         assert_eq!(
             headings,
-            ["name", "quadrant", "ring", "description", " Notes "]
+            ["name", "sector", "ring", "description", " Notes "]
         );
         assert_eq!(
             cat.columns
@@ -1010,13 +1010,13 @@ mod tests {
     /// hide a required column — `rg-lme`'s case.
     #[test]
     fn required_columns_match_under_fr76() {
-        let cat = catalogue("\u{feff}Name\u{200b}, QUADRANT ,Ring,description\nK,T,Adopt,d\n");
+        let cat = catalogue("\u{feff}Name\u{200b}, SECTOR ,Ring,description\nK,T,Adopt,d\n");
         let kinds: Vec<_> = cat.columns.iter().map(|c| c.kind).collect();
         assert_eq!(
             kinds,
             [
                 ColumnKind::Name,
-                ColumnKind::Quadrant,
+                ColumnKind::Sector,
                 ColumnKind::Ring,
                 ColumnKind::Description
             ]
@@ -1025,7 +1025,7 @@ mod tests {
         let headings: Vec<_> = cat.columns.iter().map(|c| c.heading.as_str()).collect();
         assert_eq!(
             headings,
-            ["\u{feff}Name\u{200b}", " QUADRANT ", "Ring", "description"]
+            ["\u{feff}Name\u{200b}", " SECTOR ", "Ring", "description"]
         );
     }
 
@@ -1035,7 +1035,7 @@ mod tests {
         assert_eq!(
             errors("ring,name\nAdopt,K\n"),
             [
-                missing(ColumnKind::Quadrant),
+                missing(ColumnKind::Sector),
                 missing(ColumnKind::Description)
             ]
         );
@@ -1045,7 +1045,7 @@ mod tests {
     #[test]
     fn a_missing_column_names_the_header_line() {
         assert_eq!(
-            errors("\n,,\nname,quadrant,ring\n"),
+            errors("\n,,\nname,sector,ring\n"),
             [RowError::MissingColumn {
                 line: 3,
                 column: ColumnKind::Description
@@ -1057,7 +1057,7 @@ mod tests {
     /// FR-27: an unrecognised column is no error and no warning.
     #[test]
     fn an_unrecognised_column_is_kept_silently() {
-        let csv = "name,quadrant,ring,description,ticket\nK,T,Adopt,d,OPS-1\n";
+        let csv = "name,sector,ring,description,ticket\nK,T,Adopt,d,OPS-1\n";
         let quiet = warnings(csv);
         assert!(quiet.is_empty(), "{quiet:?}");
         let cat = catalogue(csv);
@@ -1078,7 +1078,7 @@ mod tests {
             errors(&csv),
             [
                 empty(2, ColumnKind::Name),
-                empty(3, ColumnKind::Quadrant),
+                empty(3, ColumnKind::Sector),
                 empty(3, ColumnKind::Ring)
             ]
         );
@@ -1089,7 +1089,7 @@ mod tests {
     #[test]
     fn empty_required_values_follow_header_column_order() {
         assert_eq!(
-            errors("ring,name,quadrant,description\n ,,T,d\n"),
+            errors("ring,name,sector,description\n ,,T,d\n"),
             [empty(2, ColumnKind::Ring), empty(2, ColumnKind::Name)]
         );
     }
@@ -1109,7 +1109,7 @@ mod tests {
     #[test]
     fn missing_columns_and_empty_values_arrive_together() {
         assert_eq!(
-            errors("name,quadrant,ring\n,T,Adopt\n"),
+            errors("name,sector,ring\n,T,Adopt\n"),
             [missing(ColumnKind::Description), empty(2, ColumnKind::Name)]
         );
     }
@@ -1131,7 +1131,7 @@ mod tests {
             errors(&format!("{HEAD}\u{b},,,\n")),
             [
                 empty(2, ColumnKind::Name),
-                empty(2, ColumnKind::Quadrant),
+                empty(2, ColumnKind::Sector),
                 empty(2, ColumnKind::Ring)
             ]
         );
@@ -1142,7 +1142,7 @@ mod tests {
     #[test]
     fn a_short_record_reads_as_empty_not_a_panic() {
         let table = Table {
-            header: ["name", "quadrant", "ring", "description"]
+            header: ["name", "sector", "ring", "description"]
                 .map(String::from)
                 .to_vec(),
             header_line: 1,
@@ -1156,7 +1156,7 @@ mod tests {
             .expect_err("fails");
         assert_eq!(
             errs.iter().map(RowError::render).collect::<Vec<_>>(),
-            [empty(2, ColumnKind::Quadrant), empty(2, ColumnKind::Ring)]
+            [empty(2, ColumnKind::Sector), empty(2, ColumnKind::Ring)]
         );
     }
 
@@ -1181,18 +1181,18 @@ mod tests {
     fn a_header_only_file_builds_an_empty_catalogue() {
         let (result, warnings) = build(HEAD);
         let cat = result.expect("builds");
-        assert!(cat.items.is_empty() && cat.quadrants.is_empty());
+        assert!(cat.items.is_empty() && cat.sectors.is_empty());
         assert_eq!((cat.columns.len(), cat.rings.len()), (4, 4));
         assert!(warnings.is_empty(), "{warnings:?}");
     }
 
-    // --- Quadrants, rings and names: FR-8, FR-9, FR-11, FR-16, FR-17, FR-28 ---
+    // --- Sectors, rings and names: FR-8, FR-9, FR-11, FR-16, FR-17, FR-28 ---
 
-    /// FR-9: one quadrant per normalised value, labelled by the ordinally
+    /// FR-9: one sector per normalised value, labelled by the ordinally
     /// first variant, trimmed — the same label whatever the row order —
     /// and pointing at the first row that wrote it (FR-104).
     #[test]
-    fn quadrants_group_and_take_the_ordinally_first_label() {
+    fn sectors_group_and_take_the_ordinally_first_label() {
         for (rows, line) in [
             (
                 "a,tool ,Adopt,d\nb,Tool,Adopt,d\nc,TOOL,Adopt,d\nd,TOOL,Adopt,d\n",
@@ -1202,14 +1202,14 @@ mod tests {
         ] {
             let cat = catalogue(&format!("{HEAD}{rows}"));
             assert_eq!(
-                cat.quadrants,
-                [Quadrant {
+                cat.sectors,
+                [Sector {
                     key: "tool".into(),
                     label: "TOOL".into(),
                     line,
                 }]
             );
-            assert!(cat.items.iter().all(|i| i.quadrant == 0));
+            assert!(cat.items.iter().all(|i| i.sector == 0));
         }
     }
 
@@ -1217,21 +1217,21 @@ mod tests {
     /// sort first (a space is below `T`). A boundary format character goes
     /// too (D-61).
     #[test]
-    fn quadrant_labels_compare_trimmed_variants() {
+    fn sector_labels_compare_trimmed_variants() {
         let cat = catalogue(&format!(
             "{HEAD}a, tool,Adopt,d\nb,Tool,Adopt,d\nc,\u{200b}Tool,Adopt,d\n"
         ));
         assert_eq!(
-            cat.quadrants
+            cat.sectors
                 .first()
-                .expect("the catalogue has a quadrant")
+                .expect("the catalogue has a sector")
                 .label,
             "Tool"
         );
     }
 
-    /// rg-cuj: a doubled space inside a quadrant or a name is one space, so
-    /// `Tool  Kit` and `Tool Kit` are one quadrant labelled as a wrapped
+    /// rg-cuj: a doubled space inside a sector or a name is one space, so
+    /// `Tool  Kit` and `Tool Kit` are one sector labelled as a wrapped
     /// heading reads it, and the name shows as its wrapped row reads.
     #[test]
     fn internal_whitespace_runs_collapse_in_labels_and_names() {
@@ -1239,8 +1239,8 @@ mod tests {
             "{HEAD}Kafka  Streams,Tool  Kit,Adopt,d\nb,Tool Kit,Adopt,d\n"
         ));
         assert_eq!(
-            cat.quadrants,
-            [Quadrant {
+            cat.sectors,
+            [Sector {
                 key: "tool kit".into(),
                 label: "Tool Kit".into(),
                 line: 2,
@@ -1266,15 +1266,15 @@ mod tests {
         );
     }
 
-    /// FR-8: quadrants in order of first appearance; FR-10 orders them later.
+    /// FR-8: sectors in order of first appearance; FR-10 orders them later.
     #[test]
-    fn quadrants_keep_first_appearance_order() {
+    fn sectors_keep_first_appearance_order() {
         let cat = catalogue(&format!(
             "{HEAD}a,Tool,Adopt,d\nb,Platform,Adopt,d\nc,tool,Adopt,d\n"
         ));
-        let labels: Vec<_> = cat.quadrants.iter().map(|q| q.label.as_str()).collect();
+        let labels: Vec<_> = cat.sectors.iter().map(|q| q.label.as_str()).collect();
         assert_eq!(labels, ["Tool", "Platform"]);
-        let indices: Vec<_> = cat.items.iter().map(|i| i.quadrant).collect();
+        let indices: Vec<_> = cat.items.iter().map(|i| i.sector).collect();
         assert_eq!(indices, [0, 1, 0]);
     }
 
@@ -1283,7 +1283,7 @@ mod tests {
     fn near_duplicates_stay_apart_silently() {
         let csv = format!("{HEAD}Kafka,Tool,Adopt,d\nKafkas,Tools,Adopt,d\n");
         let (result, warnings) = build(&csv);
-        assert_eq!(result.expect("builds").quadrants.len(), 2);
+        assert_eq!(result.expect("builds").sectors.len(), 2);
         assert!(warnings.is_empty(), "{warnings:?}");
     }
 
@@ -1517,9 +1517,8 @@ mod tests {
     /// column before `exit_date` does not shift it.
     #[test]
     fn cells_index_named_columns_not_header_positions() {
-        let cat = catalogue(
-            "name,,quadrant,ring,description,exit_date\nOld,,Tool,Rejected,d,2027-01-01\n",
-        );
+        let cat =
+            catalogue("name,,sector,ring,description,exit_date\nOld,,Tool,Rejected,d,2027-01-01\n");
         let [item] = cat.items.as_slice() else {
             panic!("expected one item: {:#?}", cat.items)
         };
@@ -1532,18 +1531,18 @@ mod tests {
     /// the header cell is empty or only a format character.
     #[test]
     fn unnamed_columns_warn_only_when_they_hold_a_value() {
-        let padding = warnings("name,quadrant,ring,description,,\nK,T,Adopt,d,,\n");
+        let padding = warnings("name,sector,ring,description,,\nK,T,Adopt,d,,\n");
         assert!(padding.is_empty(), "{padding:?}");
-        let invisible = warnings("name,quadrant,ring,description,\nK,T,Adopt,d,\u{200b}\n");
+        let invisible = warnings("name,sector,ring,description,\nK,T,Adopt,d,\u{200b}\n");
         assert!(invisible.is_empty(), "{invisible:?}");
         assert_eq!(
-            warnings("name,quadrant,ring,description,,\nK,T,Adopt,d,, \nL,T,Adopt,d,,x\n"),
+            warnings("name,sector,ring,description,,\nK,T,Adopt,d,, \nL,T,Adopt,d,,x\n"),
             [
                 "warning: line 3, column 6 (F): this column has no name in the header row, so its value is not shown; add a header name, or delete the value"
             ]
         );
         assert_eq!(
-            warnings("name,\u{200b},quadrant,ring,description\nK,x,T,Adopt,d\n"),
+            warnings("name,\u{200b},sector,ring,description\nK,x,T,Adopt,d\n"),
             [
                 "warning: line 2, column 2 (B): this column has no name in the header row, so its value is not shown; add a header name, or delete the value"
             ]
@@ -1555,7 +1554,7 @@ mod tests {
     #[test]
     fn a_dropped_column_still_gets_fr90s_warning() {
         assert_eq!(
-            warnings("name,quadrant,ring,description,\nK,T,Adopt,d,a\u{1}\n"),
+            warnings("name,sector,ring,description,\nK,T,Adopt,d,a\u{1}\n"),
             [
                 "warning: line 2, column 5 (E): removed U+0001, which the output cannot display",
                 "warning: line 2, column 5 (E): this column has no name in the header row, so its value is not shown; add a header name, or delete the value",
@@ -1567,7 +1566,7 @@ mod tests {
     /// one line sort by header column, whichever stage pushed first.
     #[test]
     fn warnings_from_both_stages_sort_by_header_column() {
-        let csv = "name,,quadrant,ring,description,\nK,x,T,Adpot,d\u{1},\nL,,T,Adopt,,\n";
+        let csv = "name,,sector,ring,description,\nK,x,T,Adpot,d\u{1},\nL,,T,Adopt,,\n";
         assert_eq!(
             warnings(csv),
             [
@@ -1585,7 +1584,7 @@ mod tests {
     #[test]
     fn model_warnings_use_header_indices_not_named_ones() {
         assert_eq!(
-            warnings("name,quadrant,,,ring,description\nK,T,,\u{1},Adpot,d\n"),
+            warnings("name,sector,,,ring,description\nK,T,,\u{1},Adpot,d\n"),
             [
                 "warning: line 2, column 4 (D): removed U+0001, which the output cannot display",
                 "warning: line 2, ring: 'Adpot' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is in the table view, not on the radar; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings",
@@ -1596,7 +1595,7 @@ mod tests {
     // --- FR-50, FR-75 ---
 
     /// The legend row's text first — number, name, qualifier, status —
-    /// then the quadrant and ring, named as such; an unplotted row says so
+    /// then the sector and ring, named as such; an unplotted row says so
     /// instead of a number (FR-18).
     #[test]
     fn accessible_names_carry_the_row_text_and_its_position() {
@@ -1608,11 +1607,11 @@ mod tests {
         };
         assert_eq!(
             cat.accessible_name(kafka, Some(3)),
-            "3. Kafka, Conditional, Moved In; Tool quadrant, Adopt ring"
+            "3. Kafka, Conditional, Moved In; Tool sector, Adopt ring"
         );
         assert_eq!(
             cat.accessible_name(old, None),
-            "Old; Tool quadrant, Rejected ring; not on the radar"
+            "Old; Tool sector, Rejected ring; not on the radar"
         );
     }
 
@@ -1630,11 +1629,11 @@ Plain,Tool,adopt,d,,,,no change\n"
         assert_eq!(plain.status, Some(Status::NoChange));
         assert_eq!(
             cat.accessible_name(kept, Some(1)),
-            "1. Kept, New; Tool quadrant, Adopt ring"
+            "1. Kept, New; Tool sector, Adopt ring"
         );
         assert_eq!(
             cat.accessible_name(plain, Some(2)),
-            "2. Plain; Tool quadrant, Adopt ring"
+            "2. Plain; Tool sector, Adopt ring"
         );
     }
 
@@ -1642,10 +1641,10 @@ Plain,Tool,adopt,d,,,,no change\n"
     /// column puts ahead of its index among the named columns.
     #[test]
     fn a_column_keeps_its_header_position() {
-        let cat = catalogue("name,,quadrant,ring,description\nOld,,Tool,Adopt,d\n");
+        let cat = catalogue("name,,sector,ring,description\nOld,,Tool,Adopt,d\n");
         let positions: Vec<usize> = cat.columns.iter().map(|c| c.position).collect();
         assert_eq!(positions, [0, 2, 3, 4]);
-        assert_eq!(cat.position(ColumnKind::Quadrant), Some(2));
+        assert_eq!(cat.position(ColumnKind::Sector), Some(2));
         assert_eq!(cat.position(ColumnKind::Status), None);
     }
 
@@ -1653,13 +1652,13 @@ Plain,Tool,adopt,d,,,,no change\n"
     /// column before it does not shift it onto another cell.
     #[test]
     fn an_unplotted_ring_is_found_past_an_unnamed_column() {
-        let cat = catalogue("name,,quadrant,ring,description\nOld,,Tool,Rejected,d\n");
+        let cat = catalogue("name,,sector,ring,description\nOld,,Tool,Rejected,d\n");
         let [item] = cat.items.as_slice() else {
             panic!("expected one item: {:#?}", cat.items)
         };
         assert_eq!(
             cat.accessible_name(item, None),
-            "Old; Tool quadrant, Rejected ring; not on the radar"
+            "Old; Tool sector, Rejected ring; not on the radar"
         );
         assert_eq!(cat.column(ColumnKind::Ring), Some(2));
     }
@@ -1674,7 +1673,7 @@ Plain,Tool,adopt,d,,,,no change\n"
                 kind: ColumnKind::Name,
                 position: 0,
             }],
-            quadrants: vec![Quadrant {
+            sectors: vec![Sector {
                 key: "tool".into(),
                 label: "Tool".into(),
                 line: 2,
@@ -1685,7 +1684,7 @@ Plain,Tool,adopt,d,,,,no change\n"
                 line: 2,
                 name: "Old".into(),
                 name_key: "old".into(),
-                quadrant: 0,
+                sector: 0,
                 ring: None,
                 qualifier: None,
                 status: None,
@@ -1698,7 +1697,7 @@ Plain,Tool,adopt,d,,,,no change\n"
         };
         assert_eq!(
             cat.accessible_name(item, None),
-            "Old; Tool quadrant; not on the radar"
+            "Old; Tool sector; not on the radar"
         );
     }
 

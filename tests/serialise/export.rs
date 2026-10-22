@@ -9,7 +9,7 @@ use radargen::svg::{Document, Node, Semantics, TextPaint};
 use radargen::text::Fonts;
 
 use super::build;
-use super::hostile::{QUADRANT, RING, TITLE, csv};
+use super::hostile::{RING, SECTOR, TITLE, csv};
 
 /// The elements the export writes.
 const ELEMENTS: [&str; 10] = [
@@ -123,7 +123,7 @@ fn the_export_names_every_text_exactly() {
         .collect();
     assert_eq!(got, want);
     // The hostile strings reached the names at all.
-    for needle in [QUADRANT, RING] {
+    for needle in [SECTOR, RING] {
         assert!(
             got.iter().any(|l| l.contains(needle)),
             "{needle} in {got:?}"

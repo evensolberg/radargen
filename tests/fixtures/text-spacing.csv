@@ -1,4 +1,4 @@
-name,quadrant,ring,description,qualifier,status
+name,sector,ring,description,qualifier,status
 Kafka,Tools,Adopt,qualifier only,conditional,
 Flink,Tools,Trial,status only,,new
 Pulumi,Tools,Trial,both,conditional,moved in

@@ -17,9 +17,9 @@
  */
 
 :root {
-  /* Quadrant series — FR-67 assigns by sorted quadrant index (FR-10), cycling from
-   * the start when quadrants outnumber entries. Order is usage frequency: a
-   * three-quadrant radar uses only series-1..3, so the most separable colours come
+  /* Sector series — FR-67 assigns by sorted sector index (FR-10), cycling from
+   * the start when sectors outnumber entries. Order is usage frequency: a
+   * three-sector radar uses only series-1..3, so the most separable colours come
    * first and every prefix is itself a good palette.
    *
    * Separability degrades along the list, and this is inherent rather than a poor
@@ -30,7 +30,7 @@
    *   series-1..5   46.6 / 11.8
    *   series-1..7   42.1 /  8.2
    *   series-1..8   32.1 /  8.2
-   * FR-39 is what makes the tail tolerable: quadrant identity never depends on
+   * FR-39 is what makes the tail tolerable: sector identity never depends on
    * colour, so angular position and the sector label always disambiguate.
    */
   --series-1: #0072B2;  /* blue       */
@@ -48,7 +48,7 @@
   --text-primary: #16191F;
   --text-muted: #585F6B;
   --stroke-ring: #7E858F;     /* ring circles — informational, so 3:1 applies  */
-  --stroke-divider: #848B96;  /* quadrant dividers                             */
+  --stroke-divider: #848B96;  /* sector dividers                             */
   --marker-hollow: #FFFFFF;   /* FR-20 conditional fill = the surface behind it */
   --focus: #0B5FA5;           /* :focus-visible indicator (FR-48)              */
 }

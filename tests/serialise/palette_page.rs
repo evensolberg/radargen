@@ -5,7 +5,7 @@ use radargen::palette::file::parse;
 use radargen::palette::{Colours, Palette, Role, Theme};
 
 use super::html::{style, svgs};
-use super::palette::{SAMPLE, quadrants, with_series};
+use super::palette::{SAMPLE, sectors, with_series};
 use super::{build, prd};
 
 fn sample() -> Colours {
@@ -54,19 +54,19 @@ fn the_built_in_page_keeps_its_toggle() {
     assert!(style(&html).contains("@media (prefers-color-scheme: dark)"));
 }
 
-/// FR-67 in HTML: five entries over six quadrants. Quadrant 6 names
-/// `--series-1`, so with one item per quadrant `--series-1` is named twice
+/// FR-67 in HTML: five entries over six sectors. Sector 6 names
+/// `--series-1`, so with one item per sector `--series-1` is named twice
 /// as often as `--series-2`; no sixth entry is named or declared.
 #[test]
 fn a_palette_page_cycles_over_the_files_series() {
     let five = ["#100A0A", "#200A0A", "#300A0A", "#400A0A", "#500A0A"];
-    let html = build(&quadrants(6), None, None).page_with(&series(&five));
+    let html = build(&sectors(6), None, None).page_with(&series(&five));
     assert!(!html.contains("--series-6"));
     assert!(style(&html).contains("--series-5:#500A0A;"));
     let first = html.matches("var(--series-1)").count();
     let second = html.matches("var(--series-2)").count();
     assert!(second > 0 && first == 2 * second, "{first} vs {second}");
-    // The built-in eight are not used for any quadrant.
+    // The built-in eight are not used for any sector.
     let built_in = Palette::built_in(Theme::Light);
     for i in 0..built_in.series_len() {
         let value = built_in.value(Role::Series(i));
@@ -81,7 +81,7 @@ fn a_palette_page_cycles_over_the_files_series() {
 #[test]
 fn the_cap_allows_for_the_controls_only_where_they_show() {
     const ALLOWANCE: &str = "@media not print{:root.js{--controls-height:calc(3.05rem + 2px)}}\n";
-    let nothing = build("name,quadrant,ring,description\n", None, None);
+    let nothing = build("name,sector,ring,description\n", None, None);
     for (html, shows) in [
         (prd().page_with(&sample()), true),
         (prd().page_with(&Colours::BuiltIn(Theme::Light)), true),

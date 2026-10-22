@@ -9,7 +9,7 @@ use std::process::Command;
 
 use binary::{run_in, seeded, snapshot};
 
-const CSV: &str = "name,quadrant,ring,description\nKafka,Tool,Adopt,d\n";
+const CSV: &str = "name,sector,ring,description\nKafka,Tool,Adopt,d\n";
 
 /// SC-27's file: the date written once, in the output and the subtitle.
 const TOML: &str = "output = \"{edition}.html\"\nsubtitle = \"Edition {edition}\"\n";
@@ -217,7 +217,7 @@ fn braces_are_literal_when_no_placeholder_is_in_use() {
 fn only_three_values_expand() {
     let dir = seeded(&[(
         "radar.csv",
-        "name,quadrant,ring,description\nKafka,Tool,{edition},d\n",
+        "name,sector,ring,description\nKafka,Tool,{edition},d\n",
     )]);
     let ran = run_in(
         dir.path(),

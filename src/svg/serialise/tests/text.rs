@@ -1,7 +1,7 @@
 //! Text, its lines, its style and its halo.
 
 use super::*;
-use crate::style::{LEGEND_META, QUADRANT_LABEL, TITLE, TextStyle};
+use crate::style::{LEGEND_META, SECTOR_LABEL, TITLE, TextStyle};
 use crate::svg::Tail;
 
 fn fill() -> TextPaint {
@@ -52,9 +52,9 @@ fn styled(style: TextStyle) -> Node {
 fn style_attributes() {
     let palette = light();
     let target = Target::Static(&palette);
-    let quadrant = one(&styled(QUADRANT_LABEL), target);
-    assert_eq!(value_of(&quadrant, "letter-spacing"), "0.48");
-    assert_eq!(value_of(&quadrant, "font-weight"), "600");
+    let sector = one(&styled(SECTOR_LABEL), target);
+    assert_eq!(value_of(&sector, "letter-spacing"), "0.48");
+    assert_eq!(value_of(&sector, "font-weight"), "600");
     let tiny = TextStyle {
         letter_spacing: 1e-5,
         ..TITLE
@@ -155,17 +155,14 @@ fn a_tail_is_escaped() {
 fn a_tail_states_its_letter_spacing_when_it_differs() {
     let palette = light();
     let target = Target::Static(&palette);
-    let spaced_parent = one(
-        &tailed(&["Tool"], QUADRANT_LABEL, LEGEND_META, " x"),
-        target,
-    );
+    let spaced_parent = one(&tailed(&["Tool"], SECTOR_LABEL, LEGEND_META, " x"), target);
     assert!(
         spaced_parent.contains(
             "<tspan dx=\"5\" font-size=\"10.5\" font-weight=\"400\" letter-spacing=\"0\""
         ),
         "{spaced_parent}"
     );
-    let spaced_tail = one(&tailed(&["Tool"], KEY_LABEL, QUADRANT_LABEL, " x"), target);
+    let spaced_tail = one(&tailed(&["Tool"], KEY_LABEL, SECTOR_LABEL, " x"), target);
     assert!(
         spaced_tail.contains("font-weight=\"600\" letter-spacing=\"0.48\" fill"),
         "{spaced_tail}"

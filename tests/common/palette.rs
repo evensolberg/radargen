@@ -1,5 +1,5 @@
 //! Shared by the `--palette` tests: the sample file, a palette built from it
-//! with other series entries, and a CSV with a given number of quadrants.
+//! with other series entries, and a CSV with a given number of sectors.
 
 use std::fmt::Write as _;
 
@@ -21,9 +21,9 @@ pub fn with_series(series: &[&str]) -> String {
     text + "}\n"
 }
 
-/// A CSV with `count` quadrants, Q01 onward, one item each.
-pub fn quadrants(count: usize) -> String {
-    let mut csv = String::from("name,quadrant,ring,description\n");
+/// A CSV with `count` sectors, Q01 onward, one item each.
+pub fn sectors(count: usize) -> String {
+    let mut csv = String::from("name,sector,ring,description\n");
     for q in 1..=count {
         writeln!(csv, "Item {q},Q{q:02},Adopt,d").expect("writes");
     }

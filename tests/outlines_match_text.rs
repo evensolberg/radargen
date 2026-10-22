@@ -20,7 +20,7 @@ const SIZE: f64 = 12.5;
 const W: u32 = 900;
 const H: u32 = 1100;
 
-/// A realistic edition's worth of text: title block, quadrant and ring labels,
+/// A realistic edition's worth of text: title block, sector and ring labels,
 /// thirty legend rows, and the key.
 fn corpus() -> Vec<String> {
     let mut v: Vec<String> = vec![

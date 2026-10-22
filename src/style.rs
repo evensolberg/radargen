@@ -103,7 +103,7 @@ pub const TITLE: TextStyle = style(Weight::SemiBold, 17.0, 0.0);
 /// Ink: `TextMuted`.
 pub const SUBTITLE: TextStyle = style(Weight::Regular, 12.0, 0.0);
 /// 0.04em at 12px. Ink: `TextPrimary` — FR-39's identity channel.
-pub const QUADRANT_LABEL: TextStyle = style(Weight::SemiBold, 12.0, 0.48);
+pub const SECTOR_LABEL: TextStyle = style(Weight::SemiBold, 12.0, 0.48);
 /// Ink: `TextMuted`, over a `LABEL_HALO` (it sits on the 12 o'clock divider,
 /// FR-31).
 pub const RING_LABEL: TextStyle = style(Weight::Regular, 10.0, 0.0);
@@ -117,7 +117,7 @@ pub const LEGEND_HEADING: TextStyle = KEY_HEADING;
 /// Two units above `LEGEND_RING`, not one: with no uppercase, both headings
 /// `SemiBold`, and the two inks only 1.86:1 apart in the dark theme, one unit
 /// (0.8 px at the breakpoint) did not read as a separate level.
-pub const LEGEND_QUADRANT: TextStyle = style(Weight::SemiBold, 12.0, 0.36);
+pub const LEGEND_SECTOR: TextStyle = style(Weight::SemiBold, 12.0, 0.36);
 /// FR-35 level two. 0.03em at 10px. Ink: `TextMuted`.
 pub const LEGEND_RING: TextStyle = style(Weight::SemiBold, 10.0, 0.3);
 /// FR-35 level three, and the size FR-69's breakpoint protects. Ink:
@@ -173,10 +173,10 @@ pub const SUBTITLE_LEADING: f64 = 15.0;
 pub const TITLE_BOTTOM: f64 = 14.0;
 
 // --- Legend (FR-35, FR-74, FR-79) -----------------------------------------------
-/// Left indent, in user units, of a quadrant heading: the legend's top level.
-pub const INDENT_QUADRANT: f64 = 16.0;
+/// Left indent, in user units, of a sector heading: the legend's top level.
+pub const INDENT_SECTOR: f64 = 16.0;
 /// Left indent, in user units, of a ring subheading: the legend's middle
-/// level, inside its quadrant.
+/// level, inside its sector.
 pub const INDENT_RING: f64 = 24.0;
 /// Left indent, in user units, of an item row: the legend's deepest level.
 pub const INDENT_ITEM: f64 = 44.0;
@@ -184,24 +184,24 @@ pub const INDENT_ITEM: f64 = 44.0;
 pub const META_GAP: f64 = 8.0;
 /// The "Legend" heading's baseline, from the content's top.
 pub const LEGEND_HEADING_BASELINE: f64 = 14.0;
-/// From the "Legend" heading's baseline to the first quadrant's.
+/// From the "Legend" heading's baseline to the first sector's.
 pub const LEGEND_HEADING_TO_GROUP: f64 = 22.0;
-/// The first quadrant heading's baseline, from the content's top.
+/// The first sector heading's baseline, from the content's top.
 pub const LEGEND_FIRST_GROUP: f64 = LEGEND_HEADING_BASELINE + LEGEND_HEADING_TO_GROUP;
-/// From a quadrant heading's last baseline to its first ring heading's.
-pub const LEGEND_QUADRANT_TO_RING: f64 = 18.0;
+/// From a sector heading's last baseline to its first ring heading's.
+pub const LEGEND_SECTOR_TO_RING: f64 = 18.0;
 /// From a ring heading's last baseline to the top of its first row.
 pub const LEGEND_RING_TO_ROW: f64 = 4.0;
 /// From a ring's last row's bottom to the next ring heading's baseline.
 pub const LEGEND_ROW_TO_RING: f64 = 12.0;
-/// The extra space between one quadrant's group and the next, beyond the
+/// The extra space between one sector's group and the next, beyond the
 /// step that would separate two rings.
 pub const LEGEND_GROUP_GAP: f64 = 8.0;
-/// From a quadrant's last row's bottom to the next quadrant's baseline.
-pub const LEGEND_ROW_TO_QUADRANT: f64 = LEGEND_ROW_TO_RING + LEGEND_GROUP_GAP;
-/// From a quadrant with no rows to the next one: the heading-to-ring step plus
+/// From a sector's last row's bottom to the next sector's baseline.
+pub const LEGEND_ROW_TO_SECTOR: f64 = LEGEND_ROW_TO_RING + LEGEND_GROUP_GAP;
+/// From a sector with no rows to the next one: the heading-to-ring step plus
 /// the gap between groups.
-pub const LEGEND_EMPTY_GROUP_GAP: f64 = LEGEND_QUADRANT_TO_RING + LEGEND_GROUP_GAP;
+pub const LEGEND_EMPTY_GROUP_GAP: f64 = LEGEND_SECTOR_TO_RING + LEGEND_GROUP_GAP;
 /// A row's least height, at scale 1.
 ///
 /// FR-94: it renders at least `MIN_TARGET_PX` tall at `MIN_PX_PER_UNIT`
@@ -294,7 +294,7 @@ pub const BADGE_RADIUS: f64 = 8.0;
 pub const BADGE_STROKE: f64 = 1.5;
 /// Thinner than the marker's, so the hollow fill gap survives the smaller size.
 pub const BADGE_HOLLOW_STROKE: f64 = 2.0;
-/// FR-35's quadrant-colour swatch beside each legend group heading.
+/// FR-35's sector-colour swatch beside each legend group heading.
 pub const SWATCH_RADIUS: f64 = 5.0;
 /// The swatch's centre sits this far above its heading's first baseline.
 pub const SWATCH_RAISE: f64 = 4.0;
@@ -325,11 +325,11 @@ const _: () = assert!(
 // --- Radar (FR-32, FR-33) -------------------------------------------------------
 /// Outer edge of the outermost band; bands divide it equally (FR-32).
 pub const BAND_OUTER_RADIUS: f64 = 260.0;
-/// Reach of the quadrant dividers, just past the outermost band (FR-30).
+/// Reach of the sector dividers, just past the outermost band (FR-30).
 pub const DIVIDER_RADIUS: f64 = 262.0;
-/// Distance from the centre at which quadrant labels are anchored.
-pub const QUADRANT_LABEL_RADIUS: f64 = 300.0;
-/// Ring circles and quadrant dividers (`StrokeRing` / `StrokeDivider`).
+/// Distance from the centre at which sector labels are anchored.
+pub const SECTOR_LABEL_RADIUS: f64 = 300.0;
+/// Ring circles and sector dividers (`StrokeRing` / `StrokeDivider`).
 pub const GRID_STROKE: f64 = 1.0;
 /// Width of the Surface1 halo under ring labels, so the 12 o'clock divider
 /// (FR-31) doesn't strike through them.
@@ -359,7 +359,7 @@ pub const NARROW_WIDTH: f64 = 420.0;
 /// The widest narrow document FR-94's targets are sized for (D-71); a wider
 /// one renders them below `MIN_TARGET_PX`, and FR-95 warns.
 pub const NARROW_MAX_WIDTH: f64 = 480.0;
-/// The least scale the narrow radar is drawn at: below about 0.3 a quadrant
+/// The least scale the narrow radar is drawn at: below about 0.3 a sector
 /// label at 6 o'clock touches the outer ring's stroke (D-70, D-71).
 pub const NARROW_MIN_SCALE: f64 = 0.3;
 // D-71: the narrow scale is searched where the radar's size is
@@ -422,7 +422,7 @@ pub const KEY_TO_LEGEND: f64 = COLUMN_GAP - LEGEND_PANEL_INSET_X;
 pub const KEY_RULE_STROKE: f64 = 1.0;
 /// A floor on the radar block's width at scale 1, not its width.
 ///
-/// The block's size is measured (architecture §4): quadrant labels never wrap
+/// The block's size is measured (architecture §4): sector labels never wrap
 /// (FR-79), so a long one widens the block — `mockup.html` computes
 /// `max(MIN_RADAR_W, 2 × (QLABEL_R + widest label / 2 + 10))`.
 pub const MIN_RADAR_WIDTH: f64 = 660.0;
@@ -493,7 +493,7 @@ pub const INDICATOR_REACH: f64 = MARKER_RADIUS + FOCUS_RING_GAP + FOCUS_RING_STR
 /// no smaller than it did before the split, and the legend's at full size.
 ///
 /// Per document, not a constant — the widths grow with the legend and the
-/// radar (§4). There is no upper bound: quadrant names never wrap (FR-79),
+/// radar (§4). There is no upper bound: sector names never wrap (FR-79),
 /// so a long enough one makes the wide document wider than any screen, which
 /// is valid input whose breakpoint simply sits past every screen (rg-tzz).
 /// FR-64's 10,000 bounds `--width` in output pixels, not layout units.
@@ -597,7 +597,7 @@ mod tests {
     #[test]
     fn a_style_measures_with_its_face_size_and_spacing() {
         let fonts = Fonts::embedded().expect("faces");
-        for style in [LEGEND_NAME, QUADRANT_LABEL, RING_LABEL, TITLE] {
+        for style in [LEGEND_NAME, SECTOR_LABEL, RING_LABEL, TITLE] {
             let want =
                 fonts
                     .face(style.weight)
@@ -624,10 +624,10 @@ mod tests {
     #[test]
     fn legend_levels_differ_in_indent_and_style() {
         // `const`: an assert over constants alone trips clippy's `assertions_on_constants`.
-        const { assert!(INDENT_QUADRANT < INDENT_RING && INDENT_RING < INDENT_ITEM) };
+        const { assert!(INDENT_SECTOR < INDENT_RING && INDENT_RING < INDENT_ITEM) };
         // The two headings share a weight, so size carries the step.
-        const { assert!(LEGEND_QUADRANT.size - LEGEND_RING.size >= 2.0) };
-        let levels = [LEGEND_QUADRANT, LEGEND_RING, LEGEND_NAME];
+        const { assert!(LEGEND_SECTOR.size - LEGEND_RING.size >= 2.0) };
+        let levels = [LEGEND_SECTOR, LEGEND_RING, LEGEND_NAME];
         for (i, a) in levels.iter().enumerate() {
             for b in levels.iter().skip(i + 1) {
                 // FR-35: letter-spacing alone reads as a flat list, so a level
@@ -756,12 +756,12 @@ mod tests {
         assert!((rendered - MIN_LEGIBLE_PX).abs() < 0.02, "{rendered}");
     }
 
-    /// rg-tzz: a quadrant name long enough to make the wide document wider
+    /// rg-tzz: a sector name long enough to make the wide document wider
     /// than any screen is valid input, not a layout bug. Its breakpoint sits
     /// past every screen, so the narrow arrangement shows, as FR-95 warns.
     #[test]
     fn a_document_wider_than_any_screen_has_a_breakpoint() {
-        // A 600-W quadrant name: the long label is in the radar part.
+        // A 600-W sector name: the long label is in the radar part.
         assert_eq!(breakpoint_px(18_355.334, 17_944.22), 14_766);
         // Past what a u32 holds, the breakpoint saturates rather than wraps.
         assert_eq!(breakpoint_px(5e9, 0.0), u32::MAX);

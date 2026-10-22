@@ -46,7 +46,7 @@ fn csv() -> String {
         .collect();
     let wrapped = format!("{WRAPPED},Q0,Adopt,d,default,\n");
     [
-        "name,quadrant,ring,description,qualifier,status\n",
+        "name,sector,ring,description,qualifier,status\n",
         &rows,
         &wrapped,
     ]

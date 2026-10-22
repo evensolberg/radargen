@@ -22,7 +22,7 @@ pub(super) struct Marker {
     qualifier: Option<Qualifier>,
     /// The status ring, if any (FR-40).
     status: Option<Status>,
-    /// The quadrant's FR-10 rank: its series index, unreduced (FR-67).
+    /// The sector's FR-10 rank: its series index, unreduced (FR-67).
     series: usize,
     /// FR-34's number.
     number: usize,
@@ -45,7 +45,7 @@ impl Marker {
 ///
 /// # Panics
 ///
-/// If `plotted` was not built from `catalogue`, so an item or its quadrant
+/// If `plotted` was not built from `catalogue`, so an item or its sector
 /// is out of range for it, or `place` returns a different number of points
 /// than there are plotted items.
 // qual:allow(complexity, error_handling) reason: "the documented # Panics: a Plotted from another catalogue is a caller bug"
@@ -66,8 +66,8 @@ pub(super) fn markers(catalogue: &Catalogue, plotted: &Plotted) -> Vec<Marker> {
                 .expect("FR-34's order indexes the catalogue's items");
             let series = *plotted
                 .rank
-                .get(item.quadrant)
-                .expect("rank covers every quadrant of the catalogue");
+                .get(item.sector)
+                .expect("rank covers every sector of the catalogue");
             Marker {
                 at,
                 qualifier: item.qualifier,
@@ -211,7 +211,7 @@ mod tests {
     use crate::layout::geometry::{Geometry, polar};
     use crate::layout::radar::RadarBlock;
     use crate::layout::radar::tests::{
-        Text, block, crowded, frame, frame_at, marked_csv, quadrants, text,
+        Text, block, crowded, frame, frame_at, marked_csv, sectors, text,
     };
     use crate::layout::test_support::{
         HEAD, HEAD_META, PRD_EXAMPLE, csv_of, fill, near, plotted, plus,
@@ -378,31 +378,27 @@ mod tests {
     }
 
     #[test]
-    fn marker_colour_is_the_quadrant_rank() {
+    fn marker_colour_is_the_sector_rank() {
         let fonts = fonts();
         let csv = csv_of(&["Tool", "platform", "Practice"], "Adopt");
         let (catalogue, order) = plotted(&csv, None);
         assert_eq!(order.rank, [2, 0, 1]);
         let nodes = frame_at(&RadarBlock::new(&catalogue, &order, fonts), 1.0);
-        let by_quadrant = |label: &str| {
+        let by_sector = |label: &str| {
             controls(&nodes)
                 .into_iter()
                 .find(|(_, c, _)| {
                     let item = item_of(&catalogue, c.key);
-                    catalogue
-                        .quadrants
-                        .get(item.quadrant)
-                        .map(|q| q.label.as_str())
-                        == Some(label)
+                    catalogue.sectors.get(item.sector).map(|q| q.label.as_str()) == Some(label)
                 })
                 .map(|(_, _, children)| disc(children).2)
-                .expect("the quadrant's item is drawn")
+                .expect("the sector's item is drawn")
         };
-        assert_eq!(by_quadrant("platform"), Paint::Role(Role::Series(0)));
-        assert_eq!(by_quadrant("Practice"), Paint::Role(Role::Series(1)));
-        assert_eq!(by_quadrant("Tool"), Paint::Role(Role::Series(2)));
+        assert_eq!(by_sector("platform"), Paint::Role(Role::Series(0)));
+        assert_eq!(by_sector("Practice"), Paint::Role(Role::Series(1)));
+        assert_eq!(by_sector("Tool"), Paint::Role(Role::Series(2)));
 
-        let nine = frame_at(&quadrants(fonts, 9), 1.0);
+        let nine = frame_at(&sectors(fonts, 9), 1.0);
         let last = controls(&nine)
             .last()
             .map(|(_, _, children)| disc(children).2);
@@ -506,20 +502,20 @@ mod tests {
             let mut positions = std::collections::BTreeSet::new();
             for (_, control, children) in got {
                 let item = item_of(&catalogue, control.key);
-                let rank = *order.rank.get(item.quadrant).expect("ranked");
+                let rank = *order.rank.get(item.sector).expect("ranked");
                 positions.insert(rank);
                 let ink = Paint::Role(Role::Series(rank));
                 assert_disc(item, children, ink, marks);
                 assert_status(item, children, ink, marks);
             }
-            assert_eq!(positions.len(), 4, "every quadrant position of N = 4");
+            assert_eq!(positions.len(), 4, "every sector position of N = 4");
         }
     }
 
     #[test]
     fn numbers_name_the_entry_they_sit_on() {
         let fonts = fonts();
-        let b = quadrants(fonts, 6);
+        let b = sectors(fonts, 6);
         for (s, offset) in [(1.0_f64, 3.27393), (0.4, 2.54639)] {
             let marks = s.max(RADAR_FLOOR);
             let nodes = frame_at(&b, s);

@@ -354,29 +354,29 @@ async function structure(label, heading = ALL_HEADING) {
   check(levels.length > 0 && levels.every((l) => Number.isInteger(l)), `${label}: headings report their levels: ${levels}`);
   check(levels.filter((l) => l === 1).length === 1, `${label}: exactly one level-1 heading: ${levels}`);
   for (let i = 1; i < levels.length; i++) check(levels[i] <= levels[i - 1] + 1, `${label}: heading levels skip: ${levels}`);
-  const group = live.find((n) => n.role?.value === 'group' && /quadrant/i.test(n.name?.value ?? ''));
+  const group = live.find((n) => n.role?.value === 'group' && /sector/i.test(n.name?.value ?? ''));
   check(group && /\d/.test(group.name.value), `${label}: the radar group is named with its counts: ${group?.name?.value}`);
-  // The legend groups rows under their quadrant (level 3) and ring (level 4):
-  // every quadrant has its heading, and each row sits under its own.
+  // The legend groups rows under their sector (level 3) and ring (level 4):
+  // every sector has its heading, and each row sits under its own.
   const legend = await evaluate(`(() => {
     const shown = ${SHOWN};
-    const quadrants = new Set([...document.querySelectorAll('tr[data-row]:not(.unplotted)')].map((r) => r.children[2].textContent.trim()));
+    const sectors = new Set([...document.querySelectorAll('tr[data-row]:not(.unplotted)')].map((r) => r.children[2].textContent.trim()));
     const headed = new Set();
     const misplaced = [];
-    let quadrant = null, ring = null;
+    let sector = null, ring = null;
     for (const e of shown.querySelectorAll('[role=heading][aria-level="3"], [role=heading][aria-level="4"], [data-legend-row]')) {
       // A wrapped heading's tspans join with nothing between; its label
       // has the spaces (rg-g0c).
       const named = e.getAttribute('aria-label') ?? e.textContent.trim();
-      if (e.getAttribute('aria-level') === '3') { quadrant = named; headed.add(quadrant); ring = null; continue; }
+      if (e.getAttribute('aria-level') === '3') { sector = named; headed.add(sector); ring = null; continue; }
       if (e.getAttribute('aria-level') === '4') { ring = named; continue; }
       const label = e.getAttribute('aria-label');
-      if (!label.includes('; ' + quadrant + ' quadrant, ' + ring + ' ring')) misplaced.push(label);
+      if (!label.includes('; ' + sector + ' sector, ' + ring + ' ring')) misplaced.push(label);
     }
-    return { quadrants: [...quadrants].sort(), headed: [...headed].sort(), misplaced };
+    return { sectors: [...sectors].sort(), headed: [...headed].sort(), misplaced };
   })()`);
-  check(legend.quadrants.length > 0 && legend.quadrants.join('|') === legend.headed.join('|'), `${label}: the legend heads every quadrant: ${legend.headed} for ${legend.quadrants}`);
-  check(legend.misplaced.length === 0, `${label}: legend rows outside their quadrant and ring: ${legend.misplaced}`);
+  check(legend.sectors.length > 0 && legend.sectors.join('|') === legend.headed.join('|'), `${label}: the legend heads every sector: ${legend.headed} for ${legend.sectors}`);
+  check(legend.misplaced.length === 0, `${label}: legend rows outside their sector and ring: ${legend.misplaced}`);
   const numbers = await evaluate(`[...${SHOWN}.querySelectorAll('[data-legend-row]')].map((r) => Number(r.getAttribute('aria-label').split('.')[0]))`);
   check(numbers.length === (await plottedCount()) && numbers.every((n, i) => n === i + 1), `${label}: legend rows read in number order: ${numbers}`);
   await openTable(true);

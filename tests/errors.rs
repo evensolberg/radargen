@@ -158,7 +158,7 @@ fn a_group_of_two_lists_both_lines() {
 fn empty_values_group_per_column() {
     let errors = [
         empty(2, ColumnKind::Ring),
-        empty(2, ColumnKind::Quadrant),
+        empty(2, ColumnKind::Sector),
         empty(3, ColumnKind::Ring),
         empty(4, ColumnKind::Name),
     ];
@@ -166,7 +166,7 @@ fn empty_values_group_per_column() {
         render_errors(&errors, 5),
         [
             "error: 2 rows have no value in the ring column — lines 2–3; every row needs a ring, so fill them in or delete the rows",
-            "error: line 2, quadrant: empty; every row needs a quadrant, so fill it in or delete the row",
+            "error: line 2, sector: empty; every row needs a sector, so fill it in or delete the row",
             "error: line 4, name: empty; every row needs a name, so fill it in or delete the row",
         ]
     );
@@ -177,21 +177,21 @@ fn one_missing_column_keeps_its_message() {
     assert_eq!(
         render_errors(&[missing(1, ColumnKind::Ring)], 0),
         [
-            "error: line 1: the header has no 'ring' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description"
+            "error: line 1: the header has no 'ring' column; add one, or rename the column that holds it — the header must name at least name, sector, ring and description"
         ]
     );
 }
 
 #[test]
 fn missing_columns_share_one_line() {
-    use ColumnKind::{Description, Name, Quadrant, Ring};
-    let tail = "column; add them, or rename the columns that hold them — the header must name at least name, quadrant, ring and description";
+    use ColumnKind::{Description, Name, Ring, Sector};
+    let tail = "column; add them, or rename the columns that hold them — the header must name at least name, sector, ring and description";
     let cases = [
-        (vec![Quadrant, Ring], "'quadrant' or 'ring'"),
-        (vec![Name, Quadrant, Ring], "'name', 'quadrant' or 'ring'"),
+        (vec![Sector, Ring], "'sector' or 'ring'"),
+        (vec![Name, Sector, Ring], "'name', 'sector' or 'ring'"),
         (
-            vec![Name, Quadrant, Ring, Description],
-            "'name', 'quadrant', 'ring' or 'description'",
+            vec![Name, Sector, Ring, Description],
+            "'name', 'sector', 'ring' or 'description'",
         ),
     ];
     for (kinds, list) in cases {
@@ -297,7 +297,7 @@ fn duplicate_headers_are_never_grouped() {
 /// values and missing column, merged as `main` will.
 #[test]
 fn a_whole_file_with_errors_from_both_stages() {
-    let text = "name,quadrant,ring,description\n\
+    let text = "name,sector,ring,description\n\
                 a,Tools,Adopt,x\n\
                 b,Tools,,x\n\
                 c,Tools\n\

@@ -15,14 +15,14 @@ use crate::text::{Fonts, words};
 /// lacks, pointing where the author wrote it.
 ///
 /// The texts are the ones a PNG or SVG draws from the author: `title` and
-/// `subtitle` (FR-65's values), every declared ring, every quadrant, and
-/// every plotted item's name. A text drawn twice, as a quadrant is in the
+/// `subtitle` (FR-65's values), every declared ring, every sector, and
+/// every plotted item's name. A text drawn twice, as a sector is in the
 /// radar and the legend, warns once. The tool's own text and the default
 /// rings are in the subset, which a test pins, so they are not checked.
 ///
 /// # Panics
 ///
-/// If `plotted` was not built from `catalogue`, so it names a quadrant or
+/// If `plotted` was not built from `catalogue`, so it names a sector or
 /// item the catalogue lacks.
 // qual:allow(complexity, error_handling) reason: "the documented # Panics: a Plotted from another catalogue is a caller bug"
 pub fn warn_missing_glyphs(
@@ -82,12 +82,12 @@ pub fn warn_missing_glyphs(
             .expect("FR-34's order indexes the catalogue's items");
         cell(item.line, ColumnKind::Name, &item.name);
     }
-    for &q in &plotted.quadrants {
-        let quadrant = catalogue
-            .quadrants
+    for &q in &plotted.sectors {
+        let sector = catalogue
+            .sectors
             .get(q)
-            .expect("FR-10's order indexes the catalogue's quadrants");
-        cell(quadrant.line, ColumnKind::Quadrant, &quadrant.label);
+            .expect("FR-10's order indexes the catalogue's sectors");
+        cell(sector.line, ColumnKind::Sector, &sector.label);
     }
 }
 
@@ -167,7 +167,7 @@ mod tests {
         })
     }
 
-    /// A drawn name or quadrant warns at its own cell. An unplotted row's
+    /// A drawn name or sector warns at its own cell. An unplotted row's
     /// name is drawn only in the HTML table, so it does not.
     #[test]
     fn a_drawn_cell_warns_at_its_line_and_column() {
@@ -179,7 +179,7 @@ mod tests {
             got,
             [
                 cell(2, 0, ColumnKind::Name, lacks("Kafka 中", '中', 1)),
-                cell(3, 1, ColumnKind::Quadrant, lacks("عربي", 'ع', 4)),
+                cell(3, 1, ColumnKind::Sector, lacks("عربي", 'ع', 4)),
             ]
         );
     }
@@ -188,26 +188,26 @@ mod tests {
     /// cell counts, as it does for every row warning (NFR-11).
     #[test]
     fn the_column_is_the_header_position() {
-        let csv = "name,,quadrant,ring,description\n中,,عربي,Adopt,d\n";
+        let csv = "name,,sector,ring,description\n中,,عربي,Adopt,d\n";
         let mut got = warned(csv, None, None, None);
         got.sort_by_key(Warning::position);
         assert_eq!(
             got,
             [
                 cell(2, 0, ColumnKind::Name, lacks("中", '中', 1)),
-                cell(2, 2, ColumnKind::Quadrant, lacks("عربي", 'ع', 4)),
+                cell(2, 2, ColumnKind::Sector, lacks("عربي", 'ع', 4)),
             ]
         );
     }
 
-    /// A quadrant warns once, though it is drawn twice (radar and legend),
+    /// A sector warns once, though it is drawn twice (radar and legend),
     /// at the first row that wrote the spelling FR-9 drew.
     #[test]
-    fn a_quadrant_warns_once_where_its_label_was_written() {
+    fn a_sector_warns_once_where_its_label_was_written() {
         let csv = format!("{HEAD}a,zoo 中,Adopt,d\nb,Zoo 中,Adopt,d\nc,Zoo 中,Trial,d\n");
         assert_eq!(
             warned(&csv, None, None, None),
-            [cell(3, 1, ColumnKind::Quadrant, lacks("Zoo 中", '中', 1))]
+            [cell(3, 1, ColumnKind::Sector, lacks("Zoo 中", '中', 1))]
         );
     }
 
@@ -369,7 +369,7 @@ mod tests {
     /// names exactly, so no drawn label escapes the enumeration.
     #[test]
     fn every_drawn_text_that_lacks_a_glyph_is_warned() {
-        let csv = "name,quadrant,ring,description,qualifier,status,domain\n\
+        let csv = "name,sector,ring,description,qualifier,status,domain\n\
              中文 名前 that is long enough to wrap across more than one line of the legend,عربي,採用,説明,条件,新,域\n\
              B,عربي,Trial,説明,default,new,域\n\
              C 中,Tools,採用,d,conditional,moved in,域\n";

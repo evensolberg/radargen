@@ -1,4 +1,4 @@
-//! Review Focus 2: hostile names, quadrants, rings and title come back as
+//! Review Focus 2: hostile names, sectors, rings and title come back as
 //! the document's own strings; nothing becomes markup (NFR-6).
 
 use radargen::layout::arrange::{Arrangement, arrange};
@@ -20,9 +20,9 @@ const HOSTILE: [&str; 9] = [
     "line\u{2028}separator",
     "Bounded trial </text> of continuous delivery pipelines across managed estates and environments",
 ];
-pub const QUADRANT: &str = "<Q & \"q\">";
+pub const SECTOR: &str = "<Q & \"q\">";
 pub const RING: &str = "R&<'>";
-/// A quadrant long enough that its legend heading wraps, so the heading is
+/// A sector long enough that its legend heading wraps, so the heading is
 /// named by an attribute as well as drawn (rg-g0c).
 const WRAPPED: &str = "Tools & </text> \"q\" for distributed streaming workloads at scale";
 
@@ -113,13 +113,13 @@ impl Strings {
     }
 }
 
-/// A CSV whose every name is hostile, in a hostile quadrant and ring.
+/// A CSV whose every name is hostile, in a hostile sector and ring.
 pub fn csv() -> String {
     let field = |s: &str| ["\"", &s.replace('"', "\"\""), "\""].concat();
     HOSTILE
         .iter()
-        .map(|name| [field(name), field(QUADRANT), field(RING), "d".to_owned()].join(",") + "\n")
-        .fold("name,quadrant,ring,description\n".to_owned(), |all, row| {
+        .map(|name| [field(name), field(SECTOR), field(RING), "d".to_owned()].join(",") + "\n")
+        .fold("name,sector,ring,description\n".to_owned(), |all, row| {
             all + &row
         })
         + "\"tab\there\",Plain,Adopt,d\n"
@@ -146,7 +146,7 @@ fn hostile_text_round_trips() {
     // The hostile inputs reached the document, so the test above tested
     // them: layout could have dropped or rewritten any of them.
     let want = Strings::of(&document.root, true);
-    for reached in [QUADRANT, RING, TITLE] {
+    for reached in [SECTOR, RING, TITLE] {
         assert!(
             want.texts.iter().any(|t| t.contains(reached)),
             "{reached} is drawn"

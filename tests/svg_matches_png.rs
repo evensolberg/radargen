@@ -35,8 +35,8 @@ const LONG_TITLE: &str = "Engineering Technology Radar for the Platform and Deli
 /// The documents compared, with the title each is drawn with.
 const CASES: [(&str, &str, Option<&str>); 5] = [
     (
-        "three-quadrant",
-        include_str!("fixtures/three-quadrant.csv"),
+        "three-sector",
+        include_str!("fixtures/three-sector.csv"),
         Some("Technology Radar"),
     ),
     (
@@ -53,7 +53,7 @@ const CASES: [(&str, &str, Option<&str>); 5] = [
     // A title long enough to wrap onto two lines.
     (
         "wrapped title",
-        include_str!("fixtures/three-quadrant.csv"),
+        include_str!("fixtures/three-sector.csv"),
         Some(LONG_TITLE),
     ),
 ];
@@ -171,7 +171,7 @@ fn the_comparison_catches_a_dropped_glyph() {
 #[test]
 fn a_name_inter_lacks_draws_as_the_png_does() {
     let fonts = Fonts::embedded().expect("loads");
-    let csv = "name,quadrant,ring,description\n東京,Tools,Adopt,d\n😀,Tools,Trial,d\nKafka,Tools,Assess,d\n";
+    let csv = "name,sector,ring,description\n東京,Tools,Adopt,d\n😀,Tools,Trial,d\nKafka,Tools,Assess,d\n";
     let wide = wide(csv, None, &fonts);
     let palette = Palette::built_in(Theme::Light);
     assert!(against_png(&wide.doc, &svg_of(&wide, &palette, &fonts, None), &palette).within());

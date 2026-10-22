@@ -1,4 +1,4 @@
-name,quadrant,ring,description
+name,sector,ring,description
 Kubernetes,Tools,Assess,A short description of Kubernetes.
 Terraform,Platforms,Assess,A short description of Terraform.
 Rust,Techniques,Assess,A short description of Rust.

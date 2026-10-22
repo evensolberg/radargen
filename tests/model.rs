@@ -6,19 +6,19 @@ use radargen::diagnostics::{OffRadar, RowError, Warnings};
 use radargen::model::{ColumnKind, Link, Qualifier, Status, build_catalogue};
 use radargen::rings::default_rings;
 
-/// PRD §6.1.6's example, architecture §10's `three-quadrant.csv` (SC-2):
-/// three quadrants, every optional column empty at least once, and one row
+/// PRD §6.1.6's example, architecture §10's `three-sector.csv` (SC-2):
+/// three sectors, every optional column empty at least once, and one row
 /// whose ring the default set does not declare.
 #[test]
 fn the_prd_example_builds_with_one_warning() {
     let mut w = Warnings::default();
-    let (table, errs) = parse(include_str!("fixtures/three-quadrant.csv"), &mut w).expect("parses");
+    let (table, errs) = parse(include_str!("fixtures/three-sector.csv"), &mut w).expect("parses");
     assert!(errs.is_empty(), "{errs:?}");
     let rings = default_rings();
     let cat = build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds");
 
-    let quadrants: Vec<_> = cat.quadrants.iter().map(|q| q.label.as_str()).collect();
-    assert_eq!(quadrants, ["Tool", "Platform", "Practice"]);
+    let sectors: Vec<_> = cat.sectors.iter().map(|q| q.label.as_str()).collect();
+    assert_eq!(sectors, ["Tool", "Platform", "Practice"]);
     assert_eq!(cat.items.len(), 7);
     let unplotted: Vec<_> = cat
         .items
@@ -92,10 +92,10 @@ fn row_errors_from_both_stages_arrive_in_one_run() {
     assert_eq!(
         rendered(&model_errors),
         [
-            "error: line 1: the header has no 'description' column; add one, or rename the column that holds it — the header must name at least name, quadrant, ring and description",
+            "error: line 1: the header has no 'description' column; add one, or rename the column that holds it — the header must name at least name, sector, ring and description",
             "error: line 3, name: empty; every row needs a name, so fill it in or delete the row",
             "error: line 5, ring: empty; every row needs a ring, so fill it in or delete the row",
-            "error: line 8, quadrant: empty; every row needs a quadrant, so fill it in or delete the row",
+            "error: line 8, sector: empty; every row needs a sector, so fill it in or delete the row",
         ]
     );
 }
@@ -105,11 +105,8 @@ fn row_errors_from_both_stages_arrive_in_one_run() {
 #[test]
 fn a_repeated_required_header_reads_the_first() {
     let mut w = Warnings::default();
-    let (table, parse_errors) = parse(
-        "name,quadrant,ring,description,Name\n,T,Adopt,d,K\n",
-        &mut w,
-    )
-    .expect("parses");
+    let (table, parse_errors) =
+        parse("name,sector,ring,description,Name\n,T,Adopt,d,K\n", &mut w).expect("parses");
     assert_eq!(parse_errors.len(), 1);
     let rings = default_rings();
     let errs = build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect_err("fails");
@@ -125,7 +122,7 @@ fn a_repeated_required_header_reads_the_first() {
 fn parse_errors_do_not_suppress_model_warnings() {
     let mut w = Warnings::default();
     let (table, errs) =
-        parse("name,quadrant,ring,description\nK,T\nL,T,Adpot,d\n", &mut w).expect("parses");
+        parse("name,sector,ring,description\nK,T\nL,T,Adpot,d\n", &mut w).expect("parses");
     assert_eq!(errs.len(), 1);
     let rings = default_rings();
     build_catalogue(&table, &rings, OffRadar::Listed, &mut w).expect("builds");
@@ -144,7 +141,7 @@ fn parse_errors_do_not_suppress_model_warnings() {
 fn the_link_column_is_read_once_per_row() {
     for header in ["link", " Link ", "LINK"] {
         let csv = format!(
-            "name,quadrant,ring,description,{header}\n\
+            "name,sector,ring,description,{header}\n\
              A,T,Adopt,d,https://a.example\n\
              B,T,Adopt,d,javascript:alert(1)\n\
              C,T,Adopt,d,\"https://c.example/\r\nmore\"\n\
@@ -182,7 +179,7 @@ fn the_link_column_is_read_once_per_row() {
 fn two_link_columns_are_a_duplicate_header() {
     let mut w = Warnings::default();
     let (_, errs) = parse(
-        "name,quadrant,ring,description,link,Link\nA,T,Adopt,d,x,y\n",
+        "name,sector,ring,description,link,Link\nA,T,Adopt,d,x,y\n",
         &mut w,
     )
     .expect("parses");
@@ -215,7 +212,7 @@ fn a_named_unplotted_ring_is_off_the_radar_without_a_warning() {
         ),
     ] {
         let csv = format!(
-            "name,quadrant,ring,description\nK,T,Adopt,d\nL,T,In Use,d\nM,T,  in   USE ,d\nN,T,rejected,d\n{typos}"
+            "name,sector,ring,description\nK,T,Adopt,d\nL,T,In Use,d\nM,T,  in   USE ,d\nN,T,rejected,d\n{typos}"
         );
         let mut w = Warnings::default();
         let (table, errs) = parse(&csv, &mut w).expect("parses");

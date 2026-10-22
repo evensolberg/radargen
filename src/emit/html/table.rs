@@ -106,11 +106,11 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted, publish: Table) ->
 }
 
 /// FR-78's columns, as indices into [`Catalogue::columns`]: `name`,
-/// `quadrant`, `ring`, then every other named column in header order,
+/// `sector`, `ring`, then every other named column in header order,
 /// `description` included (D-80). Under `radar`, a column radargen does not
 /// read ([`ColumnKind::Other`]) is left out (FR-106).
 fn order(catalogue: &Catalogue, publish: Table) -> Vec<usize> {
-    let first: Vec<usize> = [ColumnKind::Name, ColumnKind::Quadrant, ColumnKind::Ring]
+    let first: Vec<usize> = [ColumnKind::Name, ColumnKind::Sector, ColumnKind::Ring]
         .into_iter()
         .filter_map(|kind| catalogue.column(kind))
         .collect();
@@ -124,12 +124,20 @@ fn order(catalogue: &Catalogue, publish: Table) -> Vec<usize> {
     first.iter().copied().chain(rest).collect()
 }
 
-/// A column's heading: the header cell as written, trimmed (FR-27).
+/// D-101's heading for the sector column, whatever the header calls it.
+const SECTOR_HEADING: &str = "Sector";
+
+/// A column's heading: the header cell as written, trimmed (FR-27), except
+/// the sector column's, which is always [`SECTOR_HEADING`] so a `quadrant`
+/// header does not put the old word back on the page (D-101).
 fn column_heading(catalogue: &Catalogue, column: usize) -> String {
-    let heading = catalogue
-        .columns
-        .get(column)
-        .map_or("", |c| trim(&c.heading));
+    let heading = catalogue.columns.get(column).map_or("", |c| {
+        if c.kind == ColumnKind::Sector {
+            SECTOR_HEADING
+        } else {
+            trim(&c.heading)
+        }
+    });
     ["<th scope=\"col\">", &xml_text(heading), "</th>"].concat()
 }
 
@@ -166,7 +174,7 @@ fn row(catalogue: &Catalogue, columns: &[usize], item: &Item, number: Option<usi
 
 /// One cell of `item` under `column`.
 ///
-/// The name is the row's header, flagged when `unplotted`. Quadrant and
+/// The name is the row's header, flagged when `unplotted`. Sector and
 /// ring show the labels the legend uses (FR-9, FR-17); a link shows what the
 /// model decided (FR-96). Prose is verbatim, keeping its line breaks and
 /// blank lines (FR-97, D-76: its whitespace may be deliberate); the other
@@ -179,11 +187,11 @@ fn cell(catalogue: &Catalogue, column: usize, item: &Item, unplotted: bool) -> S
     let value = item.cell(column).unwrap_or_default();
     match kind {
         ColumnKind::Name => name_cell(item, unplotted),
-        ColumnKind::Quadrant => td(
+        ColumnKind::Sector => td(
             None,
             catalogue
-                .quadrants
-                .get(item.quadrant)
+                .sectors
+                .get(item.sector)
                 .map_or("", |q| q.label.as_str()),
         ),
         ColumnKind::Ring => td(None, catalogue.ring_label(item)),

@@ -18,7 +18,7 @@ use super::{Built, build, parse};
 /// `Old` is unplotted mid-file, `Zed`'s name and description span two lines,
 /// `Alpha`'s ring is written in lower case and `Beta`'s link is padded and
 /// upper-case.
-const CSV: &str = "name,quadrant,ring,description,link,note\n\
+const CSV: &str = "name,sector,ring,description,link,note\n\
 \"Zed\r\nTwo\",Tools,Trial,\"first\r\nsecond\",https://z.example/?a=1&b=2,n1\n\
 Old,Tools, Rejected ,gone,javascript:x,\n\
 Alpha,Platforms,adopt,d,,\n\
@@ -147,7 +147,7 @@ fn columns_are_the_number_the_three_labels_then_the_header() {
         [
             "#Number",
             "name",
-            "quadrant",
+            "Sector",
             "ring",
             "description",
             "link",
@@ -426,7 +426,7 @@ fn the_radar_table_drops_columns_radargen_does_not_read() {
     let radar = b.page_table(Some("T"), Table::Radar);
     assert_eq!(
         headings(&radar),
-        ["#Number", "name", "quadrant", "ring", "description", "link"],
+        ["#Number", "name", "Sector", "ring", "description", "link"],
         "the extra note column is gone"
     );
     let table = table_of(&radar);
@@ -448,7 +448,7 @@ fn the_radar_table_drops_columns_radargen_does_not_read() {
 /// called in the header, so the filter is by meaning and not by position.
 #[test]
 fn the_radar_table_keeps_every_column_radargen_reads() {
-    let csv = "Ticket,name,quadrant,ring,description,qualifier,domain,rationale,last_affirmed,exit_date,status,link,Owner\n\
+    let csv = "Ticket,name,sector,ring,description,qualifier,domain,rationale,last_affirmed,exit_date,status,link,Owner\n\
 T-1,Kafka,Tools,Adopt,d,default,Streaming,why,2026-06-01,,New,https://k.example,Ana\n";
     let page = build(csv, None, None).page_table(None, Table::Radar);
     assert_eq!(
@@ -456,7 +456,7 @@ T-1,Kafka,Tools,Adopt,d,default,Streaming,why,2026-06-01,,New,https://k.example,
         [
             "#Number",
             "name",
-            "quadrant",
+            "Sector",
             "ring",
             "description",
             "qualifier",
@@ -479,7 +479,7 @@ T-1,Kafka,Tools,Adopt,d,default,Streaming,why,2026-06-01,,New,https://k.example,
 #[test]
 fn the_radar_table_with_nothing_plotted_says_so() {
     let nothing = build(
-        "name,quadrant,ring,description\nOld,Tools,Gone,d\n",
+        "name,sector,ring,description\nOld,Tools,Gone,d\n",
         None,
         None,
     );
@@ -488,7 +488,7 @@ fn the_radar_table_with_nothing_plotted_says_so() {
     assert!(!page.contains("Old"), "the unplotted row is not published");
     assert_eq!(
         headings(&page),
-        ["#Number", "name", "quadrant", "ring", "description"]
+        ["#Number", "name", "Sector", "ring", "description"]
     );
     assert!(
         page.contains(
@@ -503,7 +503,7 @@ fn the_radar_table_with_nothing_plotted_says_so() {
     let all = nothing.page_table(None, Table::All);
     assert_eq!(keys(&all).len(), 1, "all lists the unplotted row");
     assert!(!all.contains("Nothing is on the radar."));
-    let empty = build("name,quadrant,ring,description\n", None, None);
+    let empty = build("name,sector,ring,description\n", None, None);
     assert!(
         empty
             .page_table(None, Table::Radar)

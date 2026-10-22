@@ -7,8 +7,8 @@
 pub enum ColumnKind {
     /// The item's name (FR-5); required and never empty (FR-6).
     Name,
-    /// The quadrant the item belongs to (FR-5, FR-8).
-    Quadrant,
+    /// The sector the item belongs to (FR-5, FR-8).
+    Sector,
     /// The ring the item sits in (FR-5, FR-16).
     Ring,
     /// Free text about the item (FR-5); may be empty (FR-7).
@@ -76,12 +76,16 @@ pub(crate) fn nearest<T: Copy>(
         .map(|(_, c)| c)
 }
 
+/// D-101: the sector column's former name, which BYOR's CSVs use. It is
+/// read as `sector`, matched under FR-76 as every header name is.
+pub(crate) const SECTOR_ALIAS: &str = "quadrant";
+
 impl ColumnKind {
     /// Every known kind, so the header names are written once, in
     /// [`ColumnKind::as_str`].
     pub(crate) const KNOWN: [Self; 11] = [
         Self::Name,
-        Self::Quadrant,
+        Self::Sector,
         Self::Ring,
         Self::Description,
         Self::Qualifier,
@@ -93,12 +97,27 @@ impl ColumnKind {
         Self::Link,
     ];
 
-    /// The kind a header name under FR-76 names.
+    /// The kind a header name under FR-76 names; the sector column's
+    /// former name, [`SECTOR_ALIAS`], names it too (D-101).
     pub(crate) fn of(key: &str) -> Self {
+        if key == SECTOR_ALIAS {
+            return Self::Sector;
+        }
         Self::KNOWN
             .into_iter()
             .find(|k| k.as_str() == key)
             .unwrap_or(Self::Other)
+    }
+
+    /// The name FR-4 compares a header `key` under FR-76 by: the canonical
+    /// name for [`SECTOR_ALIAS`], so `quadrant` repeats `sector` (D-101);
+    /// `key` itself otherwise.
+    pub(crate) fn canonical(key: &str) -> &str {
+        if key == SECTOR_ALIAS {
+            Self::Sector.as_str()
+        } else {
+            key
+        }
     }
 
     /// FR-108: the known column a header `key` under FR-76 is probably a
@@ -109,13 +128,20 @@ impl ColumnKind {
     /// to that. A near miss is within the candidate's tolerance by
     /// Damerau–Levenshtein distance, so a transposition is one edit. Of
     /// several, the fewest edits wins, then the first in
-    /// [`ColumnKind::KNOWN`]'s order (D-98).
+    /// [`ColumnKind::KNOWN`]'s order (D-98). [`SECTOR_ALIAS`] is a
+    /// candidate last, standing for the sector column, so a misspelt
+    /// `quadrant` suggests the name to write (D-101).
     pub(crate) fn near_miss(key: &str, taken: &[Self]) -> Option<Self> {
+        let names = Self::KNOWN
+            .into_iter()
+            .map(|k| (k.as_str(), k))
+            .chain([(SECTOR_ALIAS, Self::Sector)]);
         nearest(
             key,
-            Self::KNOWN.into_iter().filter(|k| !taken.contains(k)),
-            Self::as_str,
+            names.filter(|(_, k)| !taken.contains(k)),
+            |(name, _)| name,
         )
+        .map(|(_, k)| k)
     }
 
     /// The canonical header name; empty for [`ColumnKind::Other`].
@@ -123,7 +149,7 @@ impl ColumnKind {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Name => "name",
-            Self::Quadrant => "quadrant",
+            Self::Sector => "sector",
             Self::Ring => "ring",
             Self::Description => "description",
             Self::Qualifier => "qualifier",
@@ -161,7 +187,30 @@ mod tests {
     #[test]
     fn a_transposition_is_one_edit() {
         assert_eq!(near("nmae"), Some(ColumnKind::Name));
-        assert_eq!(near("qaudrant"), Some(ColumnKind::Quadrant));
+        assert_eq!(near("qaudrant"), Some(ColumnKind::Sector));
+        assert_eq!(near("sectro"), Some(ColumnKind::Sector));
+    }
+
+    /// D-101: `quadrant` is the sector column, by its former name.
+    #[test]
+    fn quadrant_names_the_sector_column() {
+        assert_eq!(ColumnKind::of("sector"), ColumnKind::Sector);
+        assert_eq!(ColumnKind::of("quadrant"), ColumnKind::Sector);
+        assert_eq!(ColumnKind::canonical("quadrant"), "sector");
+        assert_eq!(ColumnKind::canonical("sector"), "sector");
+        assert_eq!(ColumnKind::canonical("ring"), "ring");
+    }
+
+    /// FR-108, D-101: a misspelt `quadrant` suggests `sector`, the name to
+    /// write; with the column already present, nothing.
+    #[test]
+    fn a_misspelt_alias_suggests_sector() {
+        assert_eq!(near("quadrnat"), Some(ColumnKind::Sector));
+        assert_eq!(near("quadrants"), Some(ColumnKind::Sector));
+        assert_eq!(
+            ColumnKind::near_miss("quadrnat", &[ColumnKind::Sector]),
+            None
+        );
     }
 
     /// FR-108's guard: a name of four characters or fewer allows one edit,

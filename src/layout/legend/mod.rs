@@ -44,7 +44,7 @@ pub struct LegendBlock {
     columns: Vec<Column>,
 }
 
-/// One of FR-100's columns: a run of whole quadrant groups, drawn moved by
+/// One of FR-100's columns: a run of whole sector groups, drawn moved by
 /// `offset` from where the single column has them.
 #[derive(Debug, Clone, PartialEq)]
 struct Column {
@@ -59,7 +59,7 @@ impl LegendBlock {
     ///
     /// # Panics
     ///
-    /// If `plotted` was not built from `catalogue`, so an item, quadrant or
+    /// If `plotted` was not built from `catalogue`, so an item, sector or
     /// ring index is out of range for it.
     #[must_use]
     pub fn new(catalogue: &Catalogue, plotted: &Plotted, fonts: &Fonts) -> Self {
@@ -72,7 +72,7 @@ impl LegendBlock {
     }
 
     /// The legend flowed into `columns` columns beside one another
-    /// (FR-100, D-90), breaking only between quadrant groups, or as it is
+    /// (FR-100, D-90), breaking only between sector groups, or as it is
     /// when that is one column.
     #[must_use]
     pub fn in_columns(&self, columns: usize) -> Self {
@@ -197,7 +197,7 @@ impl Block for LegendSpan<'_> {
 }
 
 /// The single column's panel at scale 1, or zero when there is no content
-/// (FR-42: with no quadrants the legend is omitted).
+/// (FR-42: with no sectors the legend is omitted).
 // qual:allow(iosp) reason: "Size::default is the derived zero, not a step of ours; one FR-42 branch over arithmetic"
 fn own_panel(layout: &Layout) -> Size {
     if layout.entries.is_empty() {
@@ -323,14 +323,14 @@ fn entry_node(entry: &Entry, width: f64, s: f64) -> Node {
     }
 }
 
-/// A heading at its level (2 "Legend", 3 a quadrant, 4 a ring).
+/// A heading at its level (2 "Legend", 3 a sector, 4 a ring).
 fn heading_node(run: &TextRun, level: NonZeroU8, s: f64) -> Node {
     let text = run.node(Scale::uniform(s));
     Node::Group(Group::new(Point::ORIGIN, vec![text]).with(Semantics::Heading(level)))
 }
 
-/// A quadrant's colour swatch (FR-67): ornament, since its heading names
-/// the quadrant.
+/// A sector's colour swatch (FR-67): ornament, since its heading names
+/// the sector.
 fn swatch_node(centre: Point, series: usize, s: f64) -> Node {
     let circle = Node::Circle {
         centre: centre.scaled(s),
@@ -760,7 +760,7 @@ mod tests {
     fn document_order_is_reading_order() {
         let (catalogue, order, block) = legend(PRD_EXAMPLE);
         let root = block.render(at(1.0));
-        let mut quadrant: Option<String> = None;
+        let mut sector: Option<String> = None;
         let mut seen = Vec::new();
         let mut row_count = 0;
         for g in groups(&root) {
@@ -769,7 +769,7 @@ mod tests {
                     let (.., lines) = text(child(&g.children, 0));
                     let label = lines.join(" ");
                     seen.push(label.clone());
-                    quadrant = Some(label);
+                    sector = Some(label);
                 }
                 Semantics::LegendRow(control) => {
                     row_count += 1;
@@ -778,29 +778,18 @@ mod tests {
                         .iter()
                         .find(|i| ItemKey(i.line) == control.key)
                         .expect("a row's item");
-                    let own = &catalogue
-                        .quadrants
-                        .get(item.quadrant)
-                        .expect("a quadrant")
-                        .label;
-                    assert_eq!(quadrant.as_ref(), Some(own), "{control:?}");
+                    let own = &catalogue.sectors.get(item.sector).expect("a sector").label;
+                    assert_eq!(sector.as_ref(), Some(own), "{control:?}");
                 }
                 _ => {}
             }
         }
         let fr10: Vec<String> = order
-            .quadrants
+            .sectors
             .iter()
-            .map(|&q| {
-                catalogue
-                    .quadrants
-                    .get(q)
-                    .expect("a quadrant")
-                    .label
-                    .clone()
-            })
+            .map(|&q| catalogue.sectors.get(q).expect("a sector").label.clone())
             .collect();
-        assert_eq!(seen, fr10, "each quadrant heading once, in FR-10 order");
+        assert_eq!(seen, fr10, "each sector heading once, in FR-10 order");
         assert_eq!(row_count, order.items.len());
     }
 
@@ -856,7 +845,7 @@ mod tests {
         }
     }
 
-    /// The headings' text inks: "Legend" and quadrants primary, rings muted.
+    /// The headings' text inks: "Legend" and sectors primary, rings muted.
     #[test]
     fn heading_inks() {
         let (_, order, block) = legend(PRD_EXAMPLE);
@@ -871,13 +860,13 @@ mod tests {
         let primary = fill(Neutral::TextPrimary);
         let muted = fill(Neutral::TextMuted);
         assert_eq!(headings.first(), Some(&(2, primary)));
-        let quadrants: Vec<_> = headings.iter().filter(|h| h.0 == 3).collect();
-        assert_eq!(quadrants.len(), order.quadrants.len());
-        assert!(quadrants.iter().all(|h| h.1 == primary));
+        let sectors: Vec<_> = headings.iter().filter(|h| h.0 == 3).collect();
+        assert_eq!(sectors.len(), order.sectors.len());
+        assert!(sectors.iter().all(|h| h.1 == primary));
         let rings: Vec<_> = headings.iter().filter(|h| h.0 == 4).collect();
         assert_ne!(rings.len(), 0, "the example has ring headings");
         assert!(rings.iter().all(|h| h.1 == muted));
-        assert_eq!(headings.len(), 1 + quadrants.len() + rings.len());
+        assert_eq!(headings.len(), 1 + sectors.len() + rings.len());
     }
 
     #[test]
@@ -895,7 +884,7 @@ mod tests {
             })
             .collect();
         let fills: Vec<Paint> = swatches.iter().map(|s| s.2).collect();
-        let want: Vec<Paint> = (0..order.quadrants.len())
+        let want: Vec<Paint> = (0..order.sectors.len())
             .map(|i| Paint::Role(Role::Series(i)))
             .collect();
         assert_eq!(fills, want);
@@ -994,7 +983,7 @@ mod tests {
         );
     }
 
-    /// Four quadrants of 6, 2, 2 and 6 rows: two columns break between
+    /// Four sectors of 6, 2, 2 and 6 rows: two columns break between
     /// the second and third, where the columns are equal.
     fn flowed() -> String {
         [("A", 6), ("B", 2), ("C", 2), ("D", 6)]
@@ -1031,7 +1020,7 @@ mod tests {
         );
         assert!(
             close(third.baseline + second.offset.y, start(&block, 0).baseline),
-            "the third quadrant's heading is level with the first's"
+            "the third sector's heading is level with the first's"
         );
         let size = two.size(1.0);
         assert!(
