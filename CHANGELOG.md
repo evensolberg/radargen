@@ -1,17 +1,25 @@
-## [1.17.1] - 2026-10-22
+## [1.18.0] - 2026-10-22
+
+### 🚀 Features
+
+- *(cli)* --create-config writes a starter config file
 
 ### 🐛 Bug Fixes
 
-- *(palette)* --create-palette's comments say sector
+- *(config)* Starter states ~ and its ranges; review wording
 
 ### 📚 Documentation
 
-- Sector, not quadrant, in the README and guides
-- *(prd)* Current-tense wording says sector (v0.104)
+- FR-109 and D-102 for --create-config (PRD 0.105)
 
 ### ⚙️ Miscellaneous Tasks
 
-- *(crumbs)* Close rg-k16
+- *(crumbs)* Close rg-2ss
+## [1.17.1] - 2026-10-22
+
+### 📚 Documentation
+
+- Sectors in the current docs; --create-palette says sector (1.17.1) (#140)
 ## [1.17.0] - 2026-10-22
 
 ### 🚀 Features

@@ -1,5 +1,6 @@
-//! FR-99, FR-101: the files the tool writes to start from, each given by
-//! its own flag alone: a CSV to fill in and a palette to edit (D-83, D-91).
+//! FR-99, FR-101, FR-109: the files the tool writes to start from, each
+//! given by its own flag alone: a CSV to fill in, a palette to edit and a
+//! config file to uncomment (D-83, D-91, D-102).
 
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
@@ -7,6 +8,7 @@ use std::path::Path;
 
 use crate::diagnostics::Fatal;
 use crate::palette::SAMPLE;
+use crate::settings::sample::SAMPLE as CONFIG;
 use crate::template::TEMPLATE;
 
 /// A file to start from.
@@ -17,11 +19,13 @@ pub enum Starter {
     /// `--create-palette`: the built-in light palette as a `--palette` file
     /// (FR-101).
     Palette,
+    /// `--create-config`: every `--config` key, commented out (FR-109).
+    Config,
 }
 
 impl Starter {
     /// Every starter.
-    pub const ALL: [Self; 2] = [Self::Template, Self::Palette];
+    pub const ALL: [Self; 3] = [Self::Template, Self::Palette, Self::Config];
 
     /// The flag that asks for it, as a message names it.
     #[must_use]
@@ -29,6 +33,7 @@ impl Starter {
         match self {
             Self::Template => "--create-template",
             Self::Palette => "--create-palette",
+            Self::Config => "--create-config",
         }
     }
 
@@ -38,6 +43,7 @@ impl Starter {
         match self {
             Self::Template => TEMPLATE,
             Self::Palette => SAMPLE,
+            Self::Config => CONFIG,
         }
     }
 
@@ -100,7 +106,7 @@ mod tests {
         }
     }
 
-    /// FR-99, FR-101: the likeliest file at the path is the author's own.
+    /// FR-99, FR-101, FR-109: the likeliest file at the path is the author's own.
     #[test]
     fn create_never_replaces_a_file() {
         for starter in Starter::ALL {

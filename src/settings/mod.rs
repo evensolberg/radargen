@@ -7,6 +7,7 @@
 
 pub mod edition;
 pub mod file;
+pub mod sample;
 
 use std::fmt;
 use std::path::{Path, PathBuf};

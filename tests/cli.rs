@@ -542,6 +542,38 @@ fn create_palette_stands_alone() {
     assert!(matches!(cli.task(), Ok(Task::Create(Starter::Palette, _))));
 }
 
+// ---- FR-109: --create-config, given alone
+
+#[test]
+fn create_config_stands_alone() {
+    let cli = parse(&["--create-config", "radar.toml"]).expect("parses");
+    assert_eq!(
+        cli.create_config.as_deref().and_then(|p| p.to_str()),
+        Some("radar.toml")
+    );
+    assert!(cli.csv_path.is_none() && cli.output.is_none());
+    assert!(matches!(cli.task(), Ok(Task::Create(Starter::Config, _))));
+}
+
+/// FR-109: the help names the flag, with no short form.
+#[test]
+fn create_config_has_a_help_line() {
+    use clap::CommandFactory;
+    let help = Cli::command().render_help().to_string();
+    assert!(
+        help.lines()
+            .any(|l| radargen::trim(l).starts_with("--create-config <PATH>")
+                && l.contains("Write a starter config file for --config, and render nothing")),
+        "{help}"
+    );
+    let command = Cli::command();
+    let arg = command
+        .get_arguments()
+        .find(|a| a.get_id() == "create_config")
+        .expect("the flag");
+    assert_eq!(arg.get_short(), None);
+}
+
 #[test]
 fn a_starter_flag_with_anything_else_is_a_usage_error() {
     let flags = Starter::ALL.map(Starter::flag);
@@ -559,6 +591,8 @@ fn a_starter_flag_with_anything_else_is_a_usage_error() {
             &["-s", "2026-09"],
             &["-w", "1920"],
             &["-p", "b.css"],
+            &["-c", "radar.toml"],
+            &["-e", "today"],
             &[other, "x"],
         ] {
             let args: Vec<&str> = [flag, "start"]
@@ -605,6 +639,7 @@ fn usage_names_every_form() {
     );
     assert!(help.contains("radargen --create-template <PATH>"), "{help}");
     assert!(help.contains("radargen --create-palette <PATH>"), "{help}");
+    assert!(help.contains("radargen --create-config <PATH>"), "{help}");
 }
 
 /// A `Cli` built by hand, which clap would have refused, asking for no
@@ -618,8 +653,12 @@ fn a_cli_asking_for_no_task_or_several_is_an_error() {
     cli.output = None;
     cli.create_palette = Some("brand.css".into());
     assert!(matches!(cli.task(), Err(Fatal::NoTask)));
+    cli.create_config = Some("radar.toml".into());
+    assert!(matches!(cli.task(), Err(Fatal::NoTask)));
     cli.create_template = None;
     cli.create_palette = None;
+    assert!(matches!(cli.task(), Ok(Task::Create(Starter::Config, _))));
+    cli.create_config = None;
     cli.csv_path = Some("in.csv".into());
     assert!(matches!(cli.task(), Err(Fatal::NoTask)));
 }

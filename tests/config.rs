@@ -971,3 +971,56 @@ fn a_bare_run_still_prints_usage() {
     assert_eq!(bare.code, Some(2), "{}", bare.stderr);
     assert!(bare.stderr.contains("Usage:"), "{}", bare.stderr);
 }
+
+/// FR-109, SC-29: the starter config, as written, renders exactly what no
+/// config renders, and is written silently.
+#[test]
+fn the_starter_config_changes_nothing() {
+    let dir = seeded(&[("radar.csv", CSV)]);
+    let ran = run_in(dir.path(), &["--create-config", "radar.toml"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert_eq!((ran.stdout.as_str(), ran.stderr.as_str()), ("", ""));
+    let written = fs::read_to_string(dir.path().join("radar.toml")).expect("written");
+    assert_eq!(written, radargen::settings::sample::SAMPLE);
+    let file = run_in(
+        dir.path(),
+        &["radar.csv", "-c", "radar.toml", "-o", "a.html"],
+    );
+    let bare = run_in(dir.path(), &["radar.csv", "-o", "b.html"]);
+    assert!(file.ok() && bare.ok(), "{}{}", file.stderr, bare.stderr);
+    assert_eq!(file.stderr, bare.stderr);
+    assert_eq!(
+        fs::read(dir.path().join("a.html")).ok(),
+        fs::read(dir.path().join("b.html")).ok()
+    );
+}
+
+/// FR-109 (rg-2ss): with every line but palette uncommented, the starter
+/// alone runs a scheduled render of today's edition.
+#[test]
+fn the_starter_config_uncommented_renders_alone() {
+    use radargen::settings::sample::{COMMENT, SAMPLE};
+    let text: String = SAMPLE
+        .lines()
+        .map(|line| match line.strip_prefix(COMMENT) {
+            Some(rest) if rest.contains(" = ") && !rest.starts_with("palette ") => rest,
+            _ => line,
+        })
+        .flat_map(|line| [line, "\n"])
+        .collect();
+    let dir = seeded(&[
+        ("radar.csv", radargen::template::TEMPLATE),
+        ("radar.toml", &text),
+    ]);
+    let ran = run_in(dir.path(), &["-c", "radar.toml"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert!(
+        ran.lines()
+            .iter()
+            .any(|l| l.starts_with("warning: the edition key in radar.toml: edition ")),
+        "{}",
+        ran.stderr
+    );
+    let page = fs::read_to_string(dir.path().join("radar.html")).expect("written");
+    assert!(page.contains("Created 20"), "the subtitle shows the date");
+}
