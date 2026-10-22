@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" width="760" height="420" font-family="Inter, system-ui, sans-serif" role="img" aria-labelledby="t" aria-describedby="d">
   <title id="t">Where each palette colour is drawn</title>
-  <desc id="d">A quarter of a radar and part of its legend, each part labelled with the palette property that colours it. The radar's ground is surface-1; the legend panel is surface-2; the quadrant heading and item names are text-primary; the ring heading, item details and ring labels are text-muted; ring circles are stroke-ring; the quadrant's edge lines are stroke-divider; a solid marker is series-1 with an automatic number colour; a hollow marker is filled with marker-hollow and outlined in series-1; the keyboard focus ring is focus.</desc>
+  <desc id="d">A quarter of a radar and part of its legend, each part labelled with the palette property that colours it. The radar's ground is surface-1; the legend panel is surface-2; the sector heading and item names are text-primary; the ring heading, item details and ring labels are text-muted; ring circles are stroke-ring; the sector's edge lines are stroke-divider; a solid marker is series-1 with an automatic number colour; a hollow marker is filled with marker-hollow and outlined in series-1; the keyboard focus ring is focus.</desc>
   <rect width="760" height="420" fill="#FFFFFF"/>
   <!-- stroke-ring: ring circles, centre at the bottom left -->
   <g fill="none" stroke="#7E858F" stroke-width="1.5">
@@ -9,7 +9,7 @@
     <path d="M 190 360 A 150 150 0 0 0 40 210"/>
     <path d="M 115 360 A 75 75 0 0 0 40 285"/>
   </g>
-  <!-- stroke-divider: the quadrant's two edges -->
+  <!-- stroke-divider: the sector's two edges -->
   <g stroke="#848B96" stroke-width="1.5">
     <line x1="40" y1="360" x2="40" y2="48"/>
     <line x1="40" y1="360" x2="352" y2="360"/>
