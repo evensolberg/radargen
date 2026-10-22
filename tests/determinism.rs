@@ -87,3 +87,42 @@ fn two_processes_write_the_same_svg() {
         assert!(first == second, "NFR-4: two processes, one SVG");
     }
 }
+
+/// NFR-4 for PDF (SC-30): two processes write the same bytes, with no
+/// date and no file identifier, across the cases most likely to differ:
+/// both themes, a hostile title, a scale that is not a round number,
+/// letter-spaced text and a name Inter lacks.
+#[test]
+fn two_processes_write_the_same_pdf() {
+    let spacing = include_str!("fixtures/text-spacing.csv");
+    let cjk = "name,sector,ring,description\n中文,Tools,Adopt,d\nKafka,Tools,Trial,d\n";
+    let cases: [(&str, &[&str]); 6] = [
+        (PRD, &["--theme", "light"]),
+        (PRD, &["--theme", "dark"]),
+        (HOSTILE, &["--title", "Q3 (draft) \\ Ærø — 中 )"]),
+        (PRD, &["--width", "1200"]),
+        (spacing, &[]),
+        (cjk, &[]),
+    ];
+    for (csv, args) in cases {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let first = render(dir.path(), csv, "first.pdf", args);
+        let second = render(dir.path(), csv, "second.pdf", args);
+        assert!(first == second, "NFR-4: two processes, one PDF ({args:?})");
+        let parsed = lopdf::Document::load_mem(&first).expect("parses");
+        assert!(
+            parsed.trailer.get(b"ID").is_err(),
+            "no file identifier ({args:?})"
+        );
+        let info = parsed
+            .trailer
+            .get(b"Info")
+            .and_then(lopdf::Object::as_reference)
+            .expect("an Info");
+        let info = parsed.get_dictionary(info).expect("an info dictionary");
+        assert!(
+            info.get(b"CreationDate").is_err() && info.get(b"ModDate").is_err(),
+            "no date ({args:?})"
+        );
+    }
+}
