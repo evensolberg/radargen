@@ -1,16 +1,22 @@
+## [1.17.1] - 2026-10-22
+
+### 🐛 Bug Fixes
+
+- *(palette)* --create-palette's comments say sector
+
+### 📚 Documentation
+
+- Sector, not quadrant, in the README and guides
+- *(prd)* Current-tense wording says sector (v0.104)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Close rg-k16
 ## [1.17.0] - 2026-10-22
 
 ### 🚀 Features
 
-- *(csv)* Sector column, with quadrant accepted as an alias
-
-### 🚜 Refactor
-
-- Rename quadrant to sector in code, tests and output
-
-### 🧪 Testing
-
-- *(golden)* Re-bless the goldens for quadrant to sector
+- *(csv)* Sectors, not quadrants; quadrant still accepted (1.17.0) (#139)
 ## [1.16.0] - 2026-10-22
 
 ### 🚀 Features
