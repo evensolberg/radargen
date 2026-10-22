@@ -10,7 +10,7 @@ use crate::options::OutputFormat;
 use crate::options::Table;
 use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::RingsError;
-use crate::settings::edition::{Fallback, PLACEHOLDER};
+use crate::settings::edition::{Fallback, NOT_AN_EDITION, PLACEHOLDER};
 use crate::settings::file::{KeyProblem, MAX_BYTES as CONFIG_MAX_BYTES};
 use crate::settings::{NamedPath, Origin, Setting, Source};
 use crate::starter::Starter;
@@ -236,14 +236,16 @@ pub enum RenderKind {
         date: String,
         /// The zone it is the date in.
         zone: String,
+        /// `-e`, or the `edition` key and its file.
+        origin: Origin,
     },
     /// Review M-1: `-e today` could not find the local zone, so it used
     /// UTC; said, since a misspelt `TZ` would otherwise pass silently.
     TodayInUtc(Fallback),
     /// FR-92: `--edition` was given, but no value holds `{edition}`.
     EditionUnused {
-        /// The date given.
-        date: String,
+        /// The source and the date, as a message names them.
+        edition: NamedPath,
     },
     /// FR-104 on a setting's value, from the command line or the file: one
     /// per drawn text, so one per ring entry, however many characters it
@@ -572,10 +574,19 @@ impl RenderKind {
                 "{origin}: removed {count} characters the output cannot display, the first {}",
                 code_point(*first)
             ),
-            Self::EditionToday { date, zone } => format!(
-                "edition {date} (today, {}); pass -e {date} to reproduce this render",
-                escape_controls(zone)
-            ),
+            Self::EditionToday { date, zone, origin } => {
+                // From the flag the author typed `today`; from the key, the
+                // echo says where it came from (maintainer, 2026-10-22).
+                let from = if origin.source.is_config() {
+                    format!("{origin}: ")
+                } else {
+                    String::new()
+                };
+                format!(
+                    "{from}edition {date} (today, {}); pass -e {date} to reproduce this render",
+                    escape_controls(zone)
+                )
+            }
             Self::TodayInUtc(fallback) => {
                 let why = match fallback {
                     Fallback::BadTz(tz) => format!(
@@ -588,8 +599,8 @@ impl RenderKind {
                 };
                 format!("{why}, so -e today used UTC; set TZ to a zone such as America/Vancouver")
             }
-            Self::EditionUnused { date } => format!(
-                "--edition {date}: no value uses it; put {PLACEHOLDER} in the output, title or subtitle"
+            Self::EditionUnused { edition } => format!(
+                "{edition}: no value uses it; put {PLACEHOLDER} in the output, title or subtitle"
             ),
             Self::SettingMissingGlyphs { origin, lacking } => format!("{origin}: {lacking}"),
         }
@@ -666,7 +677,7 @@ fn article(found: &str) -> String {
 }
 
 /// FR-91's keys, in its order, as a sentence lists them: `output, …, table
-/// and palette`.
+/// and edition`.
 fn known_keys() -> String {
     let keys: Vec<&str> = Setting::ALL.iter().map(|s| s.key()).collect();
     let (last, rest) = keys.split_last().map_or(("", &[][..]), |(l, r)| (*l, r));
@@ -681,6 +692,7 @@ const fn wanted(setting: Setting) -> &'static str {
             "an array of strings, such as [\"Adopt\", \"Trial\"]"
         }
         Setting::Output
+        | Setting::Edition
         | Setting::Title
         | Setting::Subtitle
         | Setting::Theme
@@ -725,6 +737,10 @@ fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
             "{}: entry {index} '{}' holds a comma; give each ring as its own entry",
             key(*setting),
             entry
+        ),
+        KeyProblem::BadEdition { value } => format!(
+            "invalid value '{value}' for {}: {NOT_AN_EDITION}",
+            key(Setting::Edition)
         ),
         KeyProblem::NotAValue {
             setting,
@@ -1398,11 +1414,17 @@ pub enum Fatal {
         /// The path, by its key, as written.
         path: NamedPath,
     },
-    /// FR-92: a value holds `{edition}`, and no `--edition` was given.
-    #[error("{value}: uses {PLACEHOLDER}, but no --edition was given; pass --edition YYYY-MM-DD")]
+    /// FR-92: a value holds `{edition}`, and no edition was given by `-e`
+    /// or the `edition` key.
+    #[error(
+        "{value}: uses {PLACEHOLDER}, but no --edition was given; pass --edition YYYY-MM-DD{}",
+        file.as_ref().map_or_else(String::new, |f| format!(", or add an edition key to {f}"))
+    )]
     NoEdition {
         /// The value, by its flag or key, as written.
         value: NamedPath,
+        /// The `--config` file, if one was read, which could hold the key.
+        file: Option<Arc<str>>,
     },
     /// FR-92: placeholders are in use, and a value holds another one.
     #[error("{value}: {placeholder} is not a placeholder; the only one is {PLACEHOLDER}")]

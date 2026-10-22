@@ -15,6 +15,7 @@ use clap::ValueEnum;
 use toml::Value;
 
 use super::Setting;
+use super::edition::{self, Edition};
 use crate::decode::{NotUtf8, decode, line_at, read_capped};
 use crate::options::{Legend, Table};
 use crate::palette::Theme;
@@ -55,6 +56,8 @@ pub struct FileValues {
     pub table: Option<Table>,
     /// `palette`, as written; resolved later.
     pub palette: Option<PathBuf>,
+    /// `edition`, checked as `-e` is (FR-92).
+    pub edition: Option<Edition>,
 }
 
 /// A read and checked file.
@@ -133,6 +136,12 @@ pub enum KeyProblem {
         /// What it accepts, as clap lists them.
         possible: Vec<String>,
     },
+    /// An `edition` that is neither a date written `YYYY-MM-DD` nor
+    /// `today`, as `-e` would refuse it (FR-92).
+    BadEdition {
+        /// The value as written.
+        value: String,
+    },
     /// An integer outside FR-64's or FR-100's range.
     OutOfRange {
         /// The key's setting.
@@ -152,6 +161,7 @@ impl KeyProblem {
     pub const fn setting(&self) -> Option<Setting> {
         match self {
             Self::Unknown { .. } => None,
+            Self::BadEdition { .. } => Some(Setting::Edition),
             Self::WrongType { setting, .. }
             | Self::EntryType { setting, .. }
             | Self::Comma { setting, .. }
@@ -268,6 +278,16 @@ fn take(v: &mut FileValues, setting: Setting, value: &Value) -> Result<(), Vec<K
         Setting::Theme => named(setting, value).map(|t| v.theme = Some(t)),
         Setting::Legend => named(setting, value).map(|l| v.legend = Some(l)),
         Setting::Table => named(setting, value).map(|t| v.table = Some(t)),
+        Setting::Edition => {
+            let text = string(setting, value)?;
+            edition::parse(&text)
+                .map(|e| v.edition = Some(e))
+                .map_err(|_| {
+                    vec![KeyProblem::BadEdition {
+                        value: clip(&text, ECHO_CHARS),
+                    }]
+                })
+        }
         Setting::Width => integer(
             setting,
             value,

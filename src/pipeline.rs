@@ -202,11 +202,7 @@ fn steps(cli: &Cli, today: impl FnOnce() -> Today, warnings: &mut Warnings) -> R
         Task::Create(starter, path) => return Ok(starter.create(path)?),
         Task::Render { input } => input,
     };
-    let edition = cli
-        .edition
-        .as_ref()
-        .map(|given| edition_date(given, today, warnings));
-    let config = config(cli, input, edition.as_deref(), warnings).map_err(Failure::Alone)?;
+    let config = config(cli, input, today, warnings).map_err(Failure::Alone)?;
     let fonts = Fonts::embedded().map_err(Fatal::from)?;
     // FR-106: the flags say where an off-radar row goes, so its warning
     // can say so when it is raised.
@@ -220,16 +216,17 @@ fn steps(cli: &Cli, today: impl FnOnce() -> Today, warnings: &mut Warnings) -> R
     Ok(write_atomic(&config.output, &config.output_named, &bytes)?)
 }
 
-/// `--edition`'s date: as given, or for `today` the local date, read once
-/// and echoed with its zone, so the render can be reproduced with an
-/// explicit `-e` (D-58); a fallback to UTC is said first (review M-1).
+/// The effective edition's date (FR-92): as given, from `-e` or the
+/// `edition` key; or for `today` the local date, read once and echoed with
+/// its zone and source, so the render can be reproduced with an explicit
+/// `-e` (D-58); a fallback to UTC is said first (review M-1).
 fn edition_date(
-    edition: &Edition,
+    edition: Sourced<Edition>,
     today: impl FnOnce() -> Today,
     warnings: &mut Warnings,
-) -> String {
-    match edition {
-        Edition::Date(date) => date.clone(),
+) -> Sourced<String> {
+    let value = match edition.value {
+        Edition::Date(date) => date,
         Edition::Today => {
             let Today {
                 date,
@@ -243,9 +240,14 @@ fn edition_date(
             warnings.push(Warning::Render(RenderKind::EditionToday {
                 date: date.clone(),
                 zone,
+                origin: edition.origin.clone(),
             }));
             date
         }
+    };
+    Sourced {
+        value,
+        origin: edition.origin,
     }
 }
 
@@ -256,10 +258,15 @@ fn edition_date(
 fn config(
     cli: &Cli,
     input: &Path,
-    edition: Option<&str>,
+    today: impl FnOnce() -> Today,
     warnings: &mut Warnings,
 ) -> Result<Config, Vec<Fatal>> {
     let (settings, mut gate) = merged(cli)?;
+    // FR-92: the clock is read only when the effective edition is `today`,
+    // from either source (D-58).
+    let edition = settings
+        .edition
+        .map(|given| edition_date(given, today, warnings));
     let dir = settings.dir.as_deref();
     // FR-90 first, every warning naming the value's source.
     let title = settings.title.given().and_then(|t| resolved(t, warnings));
@@ -275,15 +282,20 @@ fn config(
     // placeholder holds no whitespace. Each is a check through the gate,
     // so a value from the file that fails drops out, as a broken key does,
     // and nothing later reports its unexpanded text (rg-u6u, M-9a).
-    let mut used = false;
-    let output = expanded_path(&mut gate, settings.output.given(), edition, &mut used)?;
-    let title = expanded_text(&mut gate, title, edition, &mut used)?;
-    let subtitle = expanded_text(&mut gate, subtitle, edition, &mut used)?;
-    if let Some(date) = edition
-        && !used
-    {
+    let mut expander = Expander {
+        edition: &edition,
+        file: cli.config.as_deref().map(config_file::file_name),
+        used: false,
+    };
+    let output = expander.path(&mut gate, settings.output.given())?;
+    let title = expander.text(&mut gate, title)?;
+    let subtitle = expander.text(&mut gate, subtitle)?;
+    if let (Effective::Given(date), false) = (&edition, expander.used) {
         warnings.push(Warning::Render(RenderKind::EditionUnused {
-            date: date.to_owned(),
+            edition: NamedPath {
+                origin: date.origin.clone(),
+                shown: date.value.clone(),
+            },
         }));
     }
     let output = output.as_ref().map(|o| resolve_path(dir, o));
@@ -330,86 +342,117 @@ fn config(
     })
 }
 
-/// FR-92 on the output path. A path that is not UTF-8, which only `-o`
-/// can give, is read for placeholders through its lossy form, exact for
-/// them since they are ASCII; it is used as given unless `{edition}` would
-/// have to change it, which is an error, since replacing the text would
-/// change its other bytes (rg-u6u, M-9b).
-fn expanded_path(
-    gate: &mut Gate,
-    path: Option<Sourced<PathBuf>>,
-    edition: Option<&str>,
-    used: &mut bool,
-) -> Result<Option<Sourced<PathBuf>>, Vec<Fatal>> {
-    let Some(path) = path else {
-        return Ok(None);
-    };
-    let named = NamedPath::new(path.origin.clone(), &path.value);
-    let text = path.value.to_string_lossy();
-    let holds = uses(&text);
-    *used |= holds;
-    let utf8 = path.value.to_str().is_some();
-    let expanded = expand(&text, edition)
-        .map_err(|problems| placeholder_errors(&named, problems))
-        .and_then(|expanded| match (utf8, holds) {
-            (true, _) => Ok(PathBuf::from(expanded)),
-            (false, true) => Err(vec![Fatal::EditionNotUtf8 { output: named }]),
-            (false, false) => Ok(path.value.clone()),
-        });
-    Ok(gate
-        .check(&path.origin.source, expanded)?
-        .map(|value| Sourced {
-            value,
-            origin: path.origin,
-        }))
+/// FR-92's expansion of the output, title and subtitle against the
+/// effective edition, recording whether any value holds `{edition}`.
+struct Expander<'a> {
+    /// The date from `-e` or the `edition` key; `Broken` when the key has
+    /// a problem, already recorded.
+    edition: &'a Effective<String>,
+    /// The `--config` file, which a missing edition's remedy names.
+    file: Option<Arc<str>>,
+    /// Whether a value holds `{edition}`, expanded or not (review I-1).
+    used: bool,
 }
 
-/// FR-92 on a title or subtitle, named by its source with its text quoted,
-/// a value from the file cut at [`ECHO_CHARS`] (FR-91).
-fn expanded_text(
-    gate: &mut Gate,
-    text: Option<Sourced<String>>,
-    edition: Option<&str>,
-    used: &mut bool,
-) -> Result<Option<Sourced<String>>, Vec<Fatal>> {
-    let Some(text) = text else {
-        return Ok(None);
-    };
-    let shown = if text.origin.source.is_config() {
-        clip(&text.value, ECHO_CHARS)
-    } else {
-        text.value.clone()
-    };
-    let named = NamedPath {
-        origin: text.origin.clone(),
-        shown: format!("'{shown}'"),
-    };
-    *used |= uses(&text.value);
-    let expanded =
-        expand(&text.value, edition).map_err(|problems| placeholder_errors(&named, problems));
-    Ok(gate
-        .check(&text.origin.source, expanded)?
-        .map(|value| Sourced {
-            value,
-            origin: text.origin,
-        }))
-}
+impl Expander<'_> {
+    /// Records whether `text` holds `{edition}`, and says whether it must
+    /// be dropped: it needs the `edition` key, and the key is broken. The
+    /// value then goes as a broken key's dependants do, and only the key's
+    /// problem is reported (plan RG-019A, Ruling 3).
+    fn dropped(&mut self, text: &str) -> bool {
+        let holds = uses(text);
+        self.used |= holds;
+        holds && *self.edition == Effective::Broken
+    }
 
-/// FR-92's problems in one value as tier-one errors, every one reported
-/// (NFR-16).
-fn placeholder_errors(value: &NamedPath, problems: Vec<Problem>) -> Vec<Fatal> {
-    problems
-        .into_iter()
-        .map(|problem| match problem {
-            Problem::NoEdition => Fatal::NoEdition {
-                value: value.clone(),
-            },
-            Problem::Unknown(placeholder) => Fatal::UnknownPlaceholder {
-                value: value.clone(),
-                placeholder,
-            },
-        })
-        .collect()
+    /// The date `{edition}` expands to, if an edition was given.
+    fn date(&self) -> Option<&str> {
+        self.edition.as_given().map(|date| date.value.as_str())
+    }
+
+    /// FR-92 on the output path. A path that is not UTF-8, which only `-o`
+    /// can give, is read for placeholders through its lossy form, exact for
+    /// them since they are ASCII; it is used as given unless `{edition}`
+    /// would have to change it, which is an error, since replacing the text
+    /// would change its other bytes (rg-u6u, M-9b).
+    fn path(
+        &mut self,
+        gate: &mut Gate,
+        path: Option<Sourced<PathBuf>>,
+    ) -> Result<Option<Sourced<PathBuf>>, Vec<Fatal>> {
+        let Some(path) = path else {
+            return Ok(None);
+        };
+        let text = path.value.to_string_lossy();
+        if self.dropped(&text) {
+            return Ok(None);
+        }
+        let named = NamedPath::new(path.origin.clone(), &path.value);
+        let utf8 = path.value.to_str().is_some();
+        let expanded = expand(&text, self.date())
+            .map_err(|problems| self.errors(&named, problems))
+            .and_then(|expanded| match (utf8, uses(&text)) {
+                (true, _) => Ok(PathBuf::from(expanded)),
+                (false, true) => Err(vec![Fatal::EditionNotUtf8 { output: named }]),
+                (false, false) => Ok(path.value.clone()),
+            });
+        Ok(gate
+            .check(&path.origin.source, expanded)?
+            .map(|value| Sourced {
+                value,
+                origin: path.origin,
+            }))
+    }
+
+    /// FR-92 on a title or subtitle, named by its source with its text
+    /// quoted, a value from the file cut at [`ECHO_CHARS`] (FR-91).
+    fn text(
+        &mut self,
+        gate: &mut Gate,
+        text: Option<Sourced<String>>,
+    ) -> Result<Option<Sourced<String>>, Vec<Fatal>> {
+        let Some(text) = text else {
+            return Ok(None);
+        };
+        if self.dropped(&text.value) {
+            return Ok(None);
+        }
+        let shown = if text.origin.source.is_config() {
+            clip(&text.value, ECHO_CHARS)
+        } else {
+            text.value.clone()
+        };
+        let named = NamedPath {
+            origin: text.origin.clone(),
+            shown: format!("'{shown}'"),
+        };
+        let expanded =
+            expand(&text.value, self.date()).map_err(|problems| self.errors(&named, problems));
+        Ok(gate
+            .check(&text.origin.source, expanded)?
+            .map(|value| Sourced {
+                value,
+                origin: text.origin,
+            }))
+    }
+
+    /// FR-92's problems in one value as tier-one errors, every one
+    /// reported (NFR-16).
+    fn errors(&self, value: &NamedPath, problems: Vec<Problem>) -> Vec<Fatal> {
+        problems
+            .into_iter()
+            .map(|problem| match problem {
+                Problem::NoEdition => Fatal::NoEdition {
+                    value: value.clone(),
+                    file: self.file.clone(),
+                },
+                Problem::Unknown(placeholder) => Fatal::UnknownPlaceholder {
+                    value: value.clone(),
+                    placeholder,
+                },
+            })
+            .collect()
+    }
 }
 
 /// Every file the run reads, which D-74 keeps the output from replacing:
@@ -975,11 +1018,23 @@ mod tests {
     /// `radargen args…` in a directory holding a one-row CSV, with the
     /// clock `today` gives; the report and the directory.
     fn edition_run(args: &[&str], today: impl FnOnce() -> Today) -> (Report, tempfile::TempDir) {
+        edition_run_with(None, args, today)
+    }
+
+    /// As [`edition_run`], with `toml`, when given, at `@radar.toml`.
+    fn edition_run_with(
+        toml: Option<&str>,
+        args: &[&str],
+        today: impl FnOnce() -> Today,
+    ) -> (Report, tempfile::TempDir) {
         use clap::Parser;
         let dir = tempfile::tempdir().expect("tempdir");
         let csv = dir.path().join("radar.csv");
         std::fs::write(&csv, "name,quadrant,ring,description\nKafka,Tool,Adopt,d\n")
             .expect("seeds");
+        if let Some(toml) = toml {
+            std::fs::write(dir.path().join("radar.toml"), toml).expect("seeds");
+        }
         let out = |name: &str| dir.path().join(name).display().to_string();
         let args: Vec<String> = args
             .iter()
@@ -1064,6 +1119,44 @@ mod tests {
         );
     }
 
+    /// D-58 (maintainer, 2026-10-22): `edition = "today"` reads the clock
+    /// with no flag, and the echo names the key and its file.
+    #[test]
+    fn a_today_key_reads_the_clock_and_names_itself() {
+        let (report, dir) = edition_run_with(
+            Some(
+                "output = \"{edition}.svg\"\nsubtitle = \"Created {edition}\"\nedition = \"today\"\n",
+            ),
+            &["-c", "@radar.toml"],
+            || vancouver(None),
+        );
+        assert_eq!(report.status(), 0, "{:?}", report.outcome);
+        let file = dir.path().join("radar.toml").display().to_string();
+        assert_eq!(
+            report.warnings,
+            [format!(
+                "warning: the edition key in {file}: edition 2026-10-22 (today, America/Vancouver); pass -e 2026-10-22 to reproduce this render"
+            )]
+        );
+        let svg = std::fs::read_to_string(dir.path().join("2026-10-22.svg")).expect("written");
+        assert!(svg.contains("Created 2026-10-22"), "{svg}");
+    }
+
+    /// FR-91: `-e` overrides the key, so `edition = "today"` under `-e`
+    /// never reads the clock.
+    #[test]
+    fn the_flag_overrides_a_today_key() {
+        let never = || -> Today { panic!("the clock was read") };
+        let (report, dir) = edition_run_with(
+            Some("output = \"{edition}.svg\"\nedition = \"today\"\n"),
+            &["-c", "@radar.toml", "-e", "2026-09-01"],
+            never,
+        );
+        assert_eq!(report.status(), 0, "{:?}", report.outcome);
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+        assert!(dir.path().join("2026-09-01.svg").exists());
+    }
+
     /// D-24: without `today`, the clock is never read, a date and no
     /// `--edition` alike.
     #[test]
@@ -1102,23 +1195,27 @@ mod tests {
                 origin: Origin::flag(Setting::Output),
             })
         };
-        let mut used = false;
-        let plain = expanded_path(
-            &mut Gate::default(),
-            sourced(b"a\xff{x}.svg"),
-            None,
-            &mut used,
-        );
+        let none = Effective::Absent;
+        let mut plain_run = Expander {
+            edition: &none,
+            file: None,
+            used: false,
+        };
+        let plain = plain_run.path(&mut Gate::default(), sourced(b"a\xff{x}.svg"));
         assert_eq!(
             plain.ok().flatten().map(|p| p.value),
             Some(PathBuf::from(OsStr::from_bytes(b"a\xff{x}.svg")))
         );
-        let dated = expanded_path(
-            &mut Gate::default(),
-            sourced(b"a\xff{edition}.svg"),
-            Some("2026-09-01"),
-            &mut used,
-        );
+        let date = Effective::Given(Sourced {
+            value: "2026-09-01".to_owned(),
+            origin: Origin::flag(Setting::Edition),
+        });
+        let mut dated_run = Expander {
+            edition: &date,
+            file: None,
+            used: false,
+        };
+        let dated = dated_run.path(&mut Gate::default(), sourced(b"a\xff{edition}.svg"));
         let lines: Vec<String> = dated
             .err()
             .unwrap_or_default()
@@ -1132,6 +1229,6 @@ mod tests {
             ]
         );
         // Review I-1: it holds `{edition}`, so it uses the date though it fails.
-        assert!(used, "a failing value still uses --edition");
+        assert!(dated_run.used, "a failing value still uses --edition");
     }
 }

@@ -80,8 +80,8 @@ fn a_value_using_edition_needs_the_flag() {
     assert_eq!(
         ran.lines(),
         [
-            "error: the output key in radar.toml ({edition}.html): uses {edition}, but no --edition was given; pass --edition YYYY-MM-DD",
-            "error: the subtitle key in radar.toml ('Edition {edition}'): uses {edition}, but no --edition was given; pass --edition YYYY-MM-DD",
+            "error: the output key in radar.toml ({edition}.html): uses {edition}, but no --edition was given; pass --edition YYYY-MM-DD, or add an edition key to radar.toml",
+            "error: the subtitle key in radar.toml ('Edition {edition}'): uses {edition}, but no --edition was given; pass --edition YYYY-MM-DD, or add an edition key to radar.toml",
         ]
     );
     assert_eq!(snapshot(dir.path()), before);
@@ -102,8 +102,8 @@ fn a_flag_needing_edition_stops_the_run() {
     assert_eq!(
         ran.lines(),
         [
-            "error: the output key in radar.toml ({edition}.pdf): uses {edition}, but no --edition was given; pass --edition YYYY-MM-DD",
-            "error: --title 'Radar {edition}': uses {edition}, but no --edition was given; pass --edition YYYY-MM-DD",
+            "error: the output key in radar.toml ({edition}.pdf): uses {edition}, but no --edition was given; pass --edition YYYY-MM-DD, or add an edition key to radar.toml",
+            "error: --title 'Radar {edition}': uses {edition}, but no --edition was given; pass --edition YYYY-MM-DD, or add an edition key to radar.toml",
         ]
     );
 }
@@ -135,7 +135,7 @@ fn an_unknown_placeholder_in_use_is_named() {
     assert_eq!(
         both.lines(),
         [
-            "error: the title key in radar.toml ('{Edition} {edition} {x_1}'): uses {edition}, but no --edition was given; pass --edition YYYY-MM-DD",
+            "error: the title key in radar.toml ('{Edition} {edition} {x_1}'): uses {edition}, but no --edition was given; pass --edition YYYY-MM-DD, or add an edition key to radar.toml",
             "error: the title key in radar.toml ('{Edition} {edition} {x_1}'): {Edition} is not a placeholder; the only one is {edition}",
             "error: the title key in radar.toml ('{Edition} {edition} {x_1}'): {x_1} is not a placeholder; the only one is {edition}",
         ]
@@ -241,10 +241,75 @@ fn only_three_values_expand() {
     );
 }
 
-/// FR-91: `edition` is per run, not a key, so a file holding one is an
-/// unknown key.
+/// FR-91 (maintainer, 2026-10-22): `edition` is a key, checked as `-e`
+/// is; a date from it renders what the flag renders.
 #[test]
-fn edition_is_not_a_config_key() {
+fn an_edition_key_renders_what_its_flag_renders() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        (
+            "radar.toml",
+            "output = \"k-{edition}.svg\"\ntitle = \"Radar {edition}\"\nedition = \"2026-09-01\"\n",
+        ),
+    ]);
+    let key = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    assert!(key.ok(), "{}", key.stderr);
+    assert_eq!(key.stderr, "");
+    let flag = run_in(
+        dir.path(),
+        &[
+            "radar.csv",
+            "-o",
+            "f-{edition}.svg",
+            "-t",
+            "Radar {edition}",
+            "-e",
+            "2026-09-01",
+        ],
+    );
+    assert!(flag.ok(), "{}", flag.stderr);
+    assert_eq!(
+        fs::read(dir.path().join("k-2026-09-01.svg")).ok(),
+        fs::read(dir.path().join("f-2026-09-01.svg")).ok()
+    );
+    // -e overrides the key, as every flag does.
+    let over = run_in(
+        dir.path(),
+        &["radar.csv", "-c", "radar.toml", "-e", "2027-01-31"],
+    );
+    assert!(over.ok(), "{}", over.stderr);
+    assert!(dir.path().join("k-2027-01-31.svg").exists());
+}
+
+/// FR-91, NFR-16: a bad `edition` key is a key problem, collected with the
+/// others; a value needing it is dropped, as a broken key's dependants
+/// are, so nothing else reports it.
+#[test]
+fn a_bad_edition_key_is_collected() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        (
+            "radar.toml",
+            "output = \"{edition}.html\"\nedition = \"2026-02-30\"\ntheme = \"sepia\"\n",
+        ),
+    ]);
+    let before = snapshot(dir.path());
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    assert_eq!(ran.code, Some(2), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: invalid value 'sepia' for the theme key in radar.toml [possible values: light, dark]",
+            "error: invalid value '2026-02-30' for the edition key in radar.toml: not a calendar date written YYYY-MM-DD, or today",
+        ]
+    );
+    assert_eq!(snapshot(dir.path()), before);
+}
+
+/// FR-92: an edition from the key that no value uses warns, naming the
+/// key and its file.
+#[test]
+fn an_unused_edition_key_warns() {
     let dir = seeded(&[
         ("radar.csv", CSV),
         (
@@ -253,12 +318,45 @@ fn edition_is_not_a_config_key() {
         ),
     ]);
     let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
-    assert_eq!(ran.code, Some(2), "{}", ran.stderr);
+    assert!(ran.ok(), "{}", ran.stderr);
     assert_eq!(
         ran.lines(),
         [
-            "error: --config radar.toml: unknown key 'edition'; the keys are output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table and palette"
+            "warning: the edition key in radar.toml (2026-09-01): no value uses it; put {edition} in the output, title or subtitle"
         ]
+    );
+}
+
+/// D-58 (maintainer, 2026-10-22): a scheduled job's config says
+/// `edition = "today"` and needs no flag; the echo names the key. The
+/// date's value is not asserted.
+#[test]
+fn a_today_key_needs_no_flag() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        (
+            "radar.toml",
+            "output = \"{edition}.svg\"\nsubtitle = \"Created {edition}\"\nedition = \"today\"\n",
+        ),
+    ]);
+    let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    let lines = ran.lines();
+    let [echo] = lines.as_slice() else {
+        panic!("one line: {lines:?}");
+    };
+    let date = echo
+        .strip_prefix("warning: the edition key in radar.toml: edition ")
+        .and_then(|rest| rest.split_once(" (today, "))
+        .map_or_else(|| panic!("the echo's form: {echo}"), |(date, _)| date);
+    assert!(
+        echo.ends_with(&format!("; pass -e {date} to reproduce this render")),
+        "{echo}"
+    );
+    let svg = fs::read_to_string(dir.path().join(format!("{date}.svg"))).expect("written");
+    assert!(
+        svg.contains(&format!("Created {date}")),
+        "the subtitle expands"
     );
 }
 
@@ -413,7 +511,7 @@ fn later_checks_run_after_a_file_value_fails_expansion() {
     };
     assert_eq!(
         *title,
-        "error: the title key in radar.toml ('{edition}'): uses {edition}, but no --edition was given; pass --edition YYYY-MM-DD"
+        "error: the title key in radar.toml ('{edition}'): uses {edition}, but no --edition was given; pass --edition YYYY-MM-DD, or add an edition key to radar.toml"
     );
     assert_eq!(
         *rings,

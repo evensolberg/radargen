@@ -23,6 +23,10 @@ const NAME: &str = "edition";
 /// The word that asks for the local date (D-58), matched exactly.
 const TODAY: &str = "today";
 
+/// Why a value is not an edition, as clap prints it after the value and
+/// the `edition` key's problem repeats it (FR-91).
+pub const NOT_AN_EDITION: &str = "not a calendar date written YYYY-MM-DD, or today";
+
 /// What `--edition` was given (FR-92).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Edition {
@@ -45,7 +49,7 @@ pub fn parse(text: &str) -> Result<Edition, String> {
     } else if is_iso_date(text) {
         Ok(Edition::Date(text.to_owned()))
     } else {
-        Err("not a calendar date written YYYY-MM-DD, or today".to_owned())
+        Err(NOT_AN_EDITION.to_owned())
     }
 }
 

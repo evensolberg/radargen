@@ -95,7 +95,7 @@ fn every_problem_in_the_file_is_reported_together() {
         [
             "error: invalid value 'sepia' for the theme key in radar.toml [possible values: light, dark]",
             "error: the width key in radar.toml: must be an integer, not a float",
-            "error: --config radar.toml: unknown key 'ring'; did you mean 'rings'? The keys are output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table and palette",
+            "error: --config radar.toml: unknown key 'ring'; did you mean 'rings'? The keys are output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table, palette and edition",
         ]
     );
     assert_eq!(snapshot(dir.path()), before);

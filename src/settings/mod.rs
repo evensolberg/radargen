@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 use crate::options::{Legend, Table};
 use crate::palette::Theme;
+use edition::Edition;
 use file::{FileValues, Loaded};
 
 /// FR-56's default.
@@ -70,12 +71,15 @@ pub enum Setting {
     Table,
     /// `--palette`, `palette`.
     Palette,
+    /// `-e/--edition`, `edition` (FR-92; a key at the maintainer's
+    /// decision, 2026-10-22, so a scheduled job's file can say `today`).
+    Edition,
 }
 
 impl Setting {
     /// Every setting, in FR-91's order: the order a file's problems are
     /// reported in.
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::Output,
         Self::Title,
         Self::Subtitle,
@@ -87,6 +91,7 @@ impl Setting {
         Self::Legend,
         Self::Table,
         Self::Palette,
+        Self::Edition,
     ];
 
     /// The flag as a message names it.
@@ -115,6 +120,7 @@ impl Setting {
             Self::Legend => ("--legend", "legend"),
             Self::Table => ("--table", "table"),
             Self::Palette => ("--palette", "palette"),
+            Self::Edition => ("--edition", "edition"),
         }
     }
 }
@@ -362,6 +368,8 @@ pub struct Settings {
     pub table: Effective<Table>,
     /// `--palette` or `palette`.
     pub palette: Effective<PathBuf>,
+    /// `--edition` or `edition` (FR-92).
+    pub edition: Effective<Edition>,
     /// The file's directory, which a relative path from it resolves
     /// against (FR-91); `None` without `--config`.
     pub dir: Option<PathBuf>,
@@ -453,7 +461,8 @@ mod tests {
                 "legend_columns",
                 "legend",
                 "table",
-                "palette"
+                "palette",
+                "edition"
             ]
         );
         let flags: Vec<&str> = Setting::ALL.iter().map(|s| s.flag()).collect();
@@ -470,7 +479,8 @@ mod tests {
                 "--legend-columns",
                 "--legend",
                 "--table",
-                "--palette"
+                "--palette",
+                "--edition"
             ]
         );
     }
