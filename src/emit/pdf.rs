@@ -2,7 +2,7 @@
 //! the document's size, its text real text in embedded Inter subsets,
 //! untagged, with no date or identifier (NFR-4).
 
-use pdf_writer::{Finish, Pdf, Rect, Ref, TextStr};
+use pdf_writer::{Pdf, Rect, Ref, TextStr, writers};
 
 use super::{UNTITLED, intrinsic_size};
 use crate::diagnostics::Fatal;
@@ -11,13 +11,17 @@ use crate::pdf::content::{Canvas, content};
 use crate::pdf::font::Faces;
 use crate::pdf::real;
 use crate::svg::Document;
-use crate::text::Fonts;
+use crate::text::{Fonts, Weight};
 
 /// PDF points per CSS pixel: 72 per inch over 96.
 pub const POINTS_PER_PX: f64 = 0.75;
 /// The longest page side viewers accept, in points: 200 inches, Acrobat's
 /// limit (PDF 1.7, Annex C).
 const MAX_SIDE: f64 = 14_400.0;
+/// The objects every light PDF numbers first, in this order: the catalog,
+/// the page tree, the page, its content stream and the info dictionary.
+/// The fonts' objects follow them.
+const FIXED_OBJECTS: usize = 5;
 
 /// What one export needs besides the document.
 pub struct Export<'a> {
@@ -43,74 +47,131 @@ pub struct Export<'a> {
 /// [`Fatal::Font`] when a glyph cannot be measured or subset (NFR-15).
 pub fn export(document: &Document, export: &Export<'_>) -> Result<Vec<u8>, Fatal> {
     let (width, _) = intrinsic_size(document, export.width);
-    let natural = POINTS_PER_PX * width / document.width;
-    let unit = user_unit(document.width * natural, document.height * natural);
-    // The content-to-page scale, in the page's own units.
-    let scale = natural / f64::from(unit);
+    let sheet = Sheet::of(document, width);
     let faces = Faces::of([&document.root], export.fonts)?;
     let mut next = Ref::new(1);
-    let [catalog, tree, page, stream, info] = [(); 5].map(|()| next.bump());
+    let objects = Objects::numbered(&mut next);
     let mut pdf = Pdf::new();
-
-    let mut cat = pdf.catalog(catalog);
-    cat.pages(tree).lang(TextStr("en"));
-    cat.viewer_preferences().display_doc_title(true);
-    cat.finish();
-
-    pdf.pages(tree).kids([page]).count(1);
-
+    catalog(&mut pdf, &objects);
+    pdf.pages(objects.tree).kids([objects.page]).count(1);
     let fonts = faces.write(&mut pdf, &mut next, export.fonts)?;
-    let mut p = pdf.page(page);
-    // The same real(side × scale) content() translates by, so the drawing
-    // meets the MediaBox's edges (Review Focus 3).
-    p.parent(tree)
-        .media_box(Rect::new(
-            0.0,
-            0.0,
-            real(document.width * scale),
-            real(document.height * scale),
-        ))
-        .contents(stream);
-    if unit > 1 {
-        p.user_unit(f32::from(unit));
-    }
-    let mut resources = p.resources();
-    let mut dict = resources.fonts();
-    for (weight, font) in &fonts {
-        dict.pair(Faces::resource(*weight), *font);
-    }
-    dict.finish();
-    resources.finish();
-    p.finish();
-
+    page(&mut pdf, &objects, &sheet, &fonts);
     let drawn = content(&Canvas {
         document,
         palette: export.palette,
         fonts: export.fonts,
         faces: &faces,
-        scale,
+        scale: sheet.scale,
     });
-    pdf.stream(stream, &drawn);
-
-    pdf.document_info(info)
-        .title(TextStr(export.title.unwrap_or(UNTITLED)))
-        .subject(TextStr(export.desc))
-        .producer(TextStr(export.producer));
+    pdf.stream(objects.stream, &drawn);
+    info(&mut pdf, objects.info, export);
     Ok(pdf.finish())
 }
 
-/// The page's `/UserUnit` (PDF 1.6): 1, or the smallest whole number that
-/// brings both sides of a `width` × `height` pt page under [`MAX_SIDE`],
-/// so a tall legend's page keeps its size rather than being refused.
-///
-/// # Panics
-///
-/// Past `u16::MAX`, a page over 900 km long: a layout bug.
-fn user_unit(width: f64, height: f64) -> u16 {
-    let longest = width.max(height);
-    (1_u16..=u16::MAX)
-        .find(|&u| longest / f64::from(u) <= MAX_SIDE)
-        .expect("no layout is 65,535 × 200 inches long")
+/// The page in its own units: FR-57's size at [`POINTS_PER_PX`], and the
+/// `/UserUnit` (PDF 1.6) that brings both sides under [`MAX_SIDE`], so a
+/// tall legend's page keeps its size rather than being refused.
+struct Sheet {
+    /// 1, or the smallest whole number that brings both sides under
+    /// [`MAX_SIDE`].
+    unit: u16,
+    /// The content-to-page scale, in the page's own units.
+    scale: f64,
+    /// The `MediaBox`'s width, in the page's own units.
+    width: f64,
+    /// The `MediaBox`'s height, in the page's own units.
+    height: f64,
+}
+
+impl Sheet {
+    /// `document`'s page at `width` CSS px wide (FR-57).
+    ///
+    /// # Panics
+    ///
+    /// Past `u16::MAX`, a page over 900 km long: a layout bug.
+    // qual:allow(complexity, error_handling) reason: "the documented # Panics: no layout is 65,535 × 200 inches long"
+    fn of(document: &Document, width: f64) -> Self {
+        let natural = POINTS_PER_PX * width / document.width;
+        let longest = (document.width * natural).max(document.height * natural);
+        let unit = (1_u16..=u16::MAX)
+            .find(|&u| longest / f64::from(u) <= MAX_SIDE)
+            .expect("no layout is 65,535 × 200 inches long");
+        let scale = natural / f64::from(unit);
+        Self {
+            unit,
+            scale,
+            width: document.width * scale,
+            height: document.height * scale,
+        }
+    }
+}
+
+/// The fixed objects' numbers, the first [`FIXED_OBJECTS`] in order.
+struct Objects {
+    catalog: Ref,
+    tree: Ref,
+    page: Ref,
+    stream: Ref,
+    info: Ref,
+}
+
+impl Objects {
+    /// The fixed objects numbered from `next`, which moves past them.
+    fn numbered(next: &mut Ref) -> Self {
+        let [catalog, tree, page, stream, info] = [(); FIXED_OBJECTS].map(|()| next.bump());
+        Self {
+            catalog,
+            tree,
+            page,
+            stream,
+            info,
+        }
+    }
+}
+
+/// The catalog: the page tree, `/Lang (en)`, and the title shown as the
+/// window's (D-75).
+fn catalog(pdf: &mut Pdf, objects: &Objects) {
+    let mut cat = pdf.catalog(objects.catalog);
+    cat.pages(objects.tree).lang(TextStr("en"));
+    cat.viewer_preferences().display_doc_title(true);
+}
+
+/// The one page: its `MediaBox`, its `/UserUnit` when it needs one, its
+/// content stream and its fonts.
+fn page(pdf: &mut Pdf, objects: &Objects, sheet: &Sheet, fonts: &[(Weight, Ref)]) {
+    let mut p = pdf.page(objects.page);
+    p.parent(objects.tree)
+        .media_box(media_box(sheet))
+        .contents(objects.stream);
+    user_unit(&mut p, sheet.unit);
+    p.resources().fonts().pairs(
+        fonts
+            .iter()
+            .map(|&(weight, font)| (Faces::resource(weight), font)),
+    );
+}
+
+/// The `MediaBox`: the same `real(side × scale)` `content()` translates
+/// by, so the drawing meets its edges (Review Focus 3).
+fn media_box(sheet: &Sheet) -> Rect {
+    Rect::new(0.0, 0.0, real(sheet.width), real(sheet.height))
+}
+
+/// `/UserUnit` on `page`, written only when it is not PDF's default 1.
+fn user_unit(page: &mut writers::Page<'_>, unit: u16) {
+    if unit > 1 {
+        page.user_unit(f32::from(unit));
+    }
+}
+
+/// The info dictionary: `/Title`, `/Subject` and `/Producer`, and no date
+/// (NFR-4).
+fn info(pdf: &mut Pdf, id: Ref, export: &Export<'_>) {
+    pdf.document_info(id)
+        .title(TextStr(export.title.unwrap_or(UNTITLED)))
+        .subject(TextStr(export.desc))
+        .producer(TextStr(export.producer));
 }
 
 #[cfg(test)]

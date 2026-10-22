@@ -9,12 +9,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use pdf_writer::types::{CidFontType, FontFlags, SystemInfo, UnicodeCmap};
-use pdf_writer::{Filter, Finish, Name, Pdf, Rect, Ref, Str};
+use pdf_writer::{Filter, Name, Pdf, Rect, Ref, Str};
 use subsetter::GlyphRemapper;
 
 use super::real;
 use crate::svg::Node;
-use crate::text::{FontError, FontMetrics, Fonts, Weight};
+use crate::text::{Descriptor, FontError, FontMetrics, Fonts, Weight};
 
 /// The width of a PDF glyph space em.
 const EM: f64 = 1000.0;
@@ -35,6 +35,28 @@ pub struct Faces {
     subsets: BTreeMap<Weight, Subset>,
 }
 
+/// The objects each font numbers, in this order: the Type0 font, its
+/// `CIDFont`, the descriptor, the font file and the `ToUnicode` map.
+const FONT_OBJECTS: usize = 5;
+/// The stem width the descriptor states (`/StemV`) for CSS weight `w`:
+/// `BASE + PER_WEIGHT × (w − ORIGIN)`, the usual estimate for a face that
+/// does not state one. The stem at the origin, in thousandths of an em.
+const STEM_V_BASE: f64 = 10.0;
+/// The estimate's growth per unit of CSS weight.
+const STEM_V_PER_WEIGHT: f64 = 0.244;
+/// The CSS weight the estimate starts from.
+const STEM_V_ORIGIN: f64 = 50.0;
+/// Every `CIDFont`'s character collection: Identity-H's `Adobe-Identity-0`.
+const IDENTITY: SystemInfo<'static> = SystemInfo {
+    registry: Str(b"Adobe"),
+    ordering: Str(b"Identity"),
+    supplement: 0,
+};
+
+/// A run shaped once: its weight, and each glyph with the text of the
+/// cluster it starts (empty for the rest of a cluster).
+type Run = (Weight, Vec<(u16, String)>);
+
 impl Faces {
     /// The subsets `document`'s static rendering needs.
     ///
@@ -46,66 +68,9 @@ impl Faces {
         roots: impl IntoIterator<Item = &'a Node>,
         fonts: &Fonts,
     ) -> Result<Self, FontError> {
-        // Each run shaped once, in document order: its weight, and each
-        // glyph with the text of the cluster it starts (empty for the rest
-        // of a cluster).
-        let mut shaped: Vec<(Weight, Vec<(u16, String)>)> = Vec::new();
-        for (style, text) in roots.into_iter().flat_map(Node::static_runs) {
-            let face = fonts.face(style.weight);
-            let glyphs = clusters(face, text)
-                .into_iter()
-                .map(|(glyph, chars)| Ok((gid(face, glyph)?, chars)))
-                .collect::<Result<Vec<_>, FontError>>()?;
-            shaped.push((style.weight, glyphs));
-        }
-        let mut used: BTreeMap<Weight, BTreeSet<u16>> = BTreeMap::new();
-        for (weight, run) in &shaped {
-            used.entry(*weight)
-                .or_default()
-                .extend(run.iter().map(|&(g, _)| g));
-        }
-        let mut subsets = BTreeMap::new();
-        for (weight, set) in used {
-            let face = fonts.face(weight);
-            let sorted: Vec<u16> = set.into_iter().collect();
-            let remapper = GlyphRemapper::new_from_glyphs_sorted(&sorted);
-            let scale = EM / face.units_per_em();
-            let widths = remapper
-                .remapped_gids()
-                .map(|g| face.advance(u32::from(g)).map(|a| real(a * scale)))
-                .collect::<Result<_, _>>()?;
-            subsets.insert(
-                weight,
-                Subset {
-                    remapper,
-                    unicode: BTreeMap::new(),
-                    widths,
-                },
-            );
-        }
-        // The ToUnicode map, first mapping wins, in document order (D-103).
-        // A glyph that is its cluster alone (a letter, a ligature) maps
-        // first; the first glyph of a cluster of several (a base drawn
-        // with a separate mark) takes the cluster's text only if nothing
-        // mapped it alone, so a plain `e` never copies as `e` + U+0301.
-        for alone in [true, false] {
-            for (weight, run) in &shaped {
-                let Some(subset) = subsets.get_mut(weight) else {
-                    continue;
-                };
-                for (i, (glyph, chars)) in run.iter().enumerate() {
-                    let single = run.get(i + 1).is_none_or(|(_, next)| !next.is_empty());
-                    if single != alone || chars.is_empty() {
-                        continue;
-                    }
-                    if let Some(cid) = subset.remapper.get(*glyph)
-                        && cid != 0
-                    {
-                        subset.unicode.entry(cid).or_insert_with(|| chars.clone());
-                    }
-                }
-            }
-        }
+        let shaped = shape(roots, fonts)?;
+        let mut subsets = subsets(&shaped, fonts)?;
+        map_unicode(&shaped, &mut subsets);
         Ok(Self { subsets })
     }
 
@@ -117,7 +82,6 @@ impl Faces {
     /// [`Node::static_runs`](crate::svg::Node::static_runs) run, which
     /// [`Self::of`] collected; a miss is a broken invariant.
     #[must_use]
-    // qual:allow(complexity, error_handling) reason: "the documented # Panics: every placed glyph was collected"
     pub fn cid(&self, weight: Weight, glyph: u32) -> u16 {
         self.subsets
             .get(&weight)
@@ -132,7 +96,6 @@ impl Faces {
     ///
     /// If `cid` is not in `weight`'s subset (a broken invariant).
     #[must_use]
-    // qual:allow(complexity, error_handling) reason: "the documented # Panics: a CID comes from Self::cid"
     pub fn width(&self, weight: Weight, cid: u16) -> f32 {
         *self
             .subsets
@@ -169,83 +132,270 @@ impl Faces {
     /// # Errors
     ///
     /// [`FontError`] when the subsetter or the face's metrics fail.
-    #[expect(
-        clippy::suboptimal_flops,
-        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
-    )]
     pub fn write(
         &self,
         pdf: &mut Pdf,
         next: &mut Ref,
         fonts: &Fonts,
     ) -> Result<Vec<(Weight, Ref)>, FontError> {
-        let mut out = Vec::new();
-        for (&weight, subset) in &self.subsets {
-            let face = fonts.face(weight);
-            let [type0, cid_font, descriptor, file, cmap] = [(); 5].map(|()| next.bump());
-            let gids: Vec<u16> = subset.remapper.remapped_gids().collect();
-            let base = format!(
-                "{}+{}",
-                tag(weight.postscript(), &gids),
-                weight.postscript()
-            );
-            let base = Name(base.as_bytes());
-            let info = SystemInfo {
-                registry: Str(b"Adobe"),
-                ordering: Str(b"Identity"),
-                supplement: 0,
-            };
-
-            pdf.type0_font(type0)
-                .base_font(base)
-                .encoding_predefined(Name(b"Identity-H"))
-                .descendant_font(cid_font)
-                .to_unicode(cmap);
-
-            let mut cid = pdf.cid_font(cid_font);
-            cid.subtype(CidFontType::Type2)
-                .base_font(base)
-                .system_info(info)
-                .font_descriptor(descriptor)
-                .cid_to_gid_map_predefined(Name(b"Identity"));
-            cid.widths().consecutive(0, subset.widths.iter().copied());
-            cid.finish();
-
-            let d = face.descriptor()?;
-            let scale = EM / face.units_per_em();
-            let [left, bottom, right, top] = d.bbox.map(|v| real(v * scale));
-            pdf.font_descriptor(descriptor)
-                .name(base)
-                // SYMBOLIC: an Identity-H CIDFont has no standard Latin
-                // encoding, and preflight tools flag NON_SYMBOLIC here.
-                .flags(FontFlags::SYMBOLIC)
-                .bbox(Rect::new(left, bottom, right, top))
-                .italic_angle(real(d.italic_angle))
-                .ascent(real(d.ascent * scale))
-                .descent(real(d.descent * scale))
-                .cap_height(real(d.cap_height * scale))
-                .stem_v(real(10.0 + 0.244 * (f64::from(weight.css()) - 50.0)))
-                .font_file2(file);
-
-            let bytes = subsetter::subset(face.bytes(), 0, &subset.remapper)
-                .map_err(|e| FontError::new(face.name(), format!("cannot be subset: {e}")))?;
-            let packed = miniz_oxide::deflate::compress_to_vec_zlib(&bytes, LEVEL);
-            pdf.stream(file, &packed).filter(Filter::FlateDecode).pair(
-                Name(b"Length1"),
-                i32::try_from(bytes.len()).map_err(|_| {
-                    FontError::new(face.name(), "the subset is over 2 GiB".to_owned())
-                })?,
-            );
-
-            let mut map = UnicodeCmap::new(Name(b"Custom"), info);
-            for (&cid, text) in &subset.unicode {
-                map.pair_with_multiple(cid, text.chars());
-            }
-            pdf.cmap(cmap, &map.finish());
-            out.push((weight, type0));
-        }
-        Ok(out)
+        self.subsets
+            .iter()
+            .map(|(&weight, subset)| {
+                let objects = FontObjects::numbered(next);
+                subset.write(pdf, &objects, weight, fonts.face(weight))?;
+                Ok((weight, objects.type0))
+            })
+            .collect()
     }
+}
+
+impl Subset {
+    /// The subset of `face` holding `glyphs`, each with its advance.
+    fn of(face: &FontMetrics<'_>, glyphs: BTreeSet<u16>) -> Result<Self, FontError> {
+        let sorted: Vec<u16> = glyphs.into_iter().collect();
+        let remapper = GlyphRemapper::new_from_glyphs_sorted(&sorted);
+        let scale = em_scale(face.units_per_em());
+        let widths = remapper
+            .remapped_gids()
+            .map(|g| face.advance(u32::from(g)).map(|a| real(a * scale)))
+            .collect::<Result<_, _>>()?;
+        Ok(Self {
+            remapper,
+            unicode: BTreeMap::new(),
+            widths,
+        })
+    }
+
+    /// `run`'s entries in the `ToUnicode` map, first mapping wins: on the
+    /// `alone` pass, each glyph that is its cluster alone; on the other,
+    /// the first glyph of a cluster of several.
+    fn map_run(&mut self, run: &[(u16, String)], alone: bool) {
+        let firsts = run
+            .iter()
+            .enumerate()
+            .filter(|&(i, (_, chars))| {
+                let single = run.get(i + 1).is_none_or(|(_, next)| !next.is_empty());
+                single == alone && !chars.is_empty()
+            })
+            .filter_map(|(_, (glyph, chars))| {
+                self.remapper
+                    .get(*glyph)
+                    .filter(|&cid| cid != 0)
+                    .map(|cid| (cid, chars))
+            });
+        for (cid, chars) in firsts {
+            self.unicode.entry(cid).or_insert_with(|| chars.clone());
+        }
+    }
+
+    /// This weight's five objects, numbered as `objects` gives them.
+    fn write(
+        &self,
+        pdf: &mut Pdf,
+        objects: &FontObjects,
+        weight: Weight,
+        face: &FontMetrics<'_>,
+    ) -> Result<(), FontError> {
+        let base = base_font(weight, &self.remapper);
+        let base = Name(base.as_bytes());
+        type0(pdf, objects, base);
+        self.cid_font(pdf, objects, base);
+        descriptor(pdf, objects, base, weight, face)?;
+        self.font_file(pdf, objects.file, face)?;
+        self.cmap(pdf, objects.cmap);
+        Ok(())
+    }
+
+    /// The `CIDFontType2` and its widths array.
+    fn cid_font(&self, pdf: &mut Pdf, objects: &FontObjects, base: Name<'_>) {
+        let mut cid = pdf.cid_font(objects.cid_font);
+        cid.subtype(CidFontType::Type2)
+            .base_font(base)
+            .system_info(IDENTITY)
+            .font_descriptor(objects.descriptor)
+            .cid_to_gid_map_predefined(Name(b"Identity"));
+        cid.widths().consecutive(0, self.widths.iter().copied());
+    }
+
+    /// The subset TTF, Flate-compressed, with its uncompressed `/Length1`.
+    fn font_file(&self, pdf: &mut Pdf, file: Ref, face: &FontMetrics<'_>) -> Result<(), FontError> {
+        let bytes = subsetter::subset(face.bytes(), 0, &self.remapper)
+            .map_err(|e| FontError::new(face.name(), format!("cannot be subset: {e}")))?;
+        let length = i32::try_from(bytes.len())
+            .map_err(|_| FontError::new(face.name(), "the subset is over 2 GiB".to_owned()))?;
+        let packed = miniz_oxide::deflate::compress_to_vec_zlib(&bytes, LEVEL);
+        pdf.stream(file, &packed)
+            .filter(Filter::FlateDecode)
+            .pair(Name(b"Length1"), length);
+        Ok(())
+    }
+
+    /// The `ToUnicode` `CMap`, uncompressed so a golden diffs as text.
+    fn cmap(&self, pdf: &mut Pdf, id: Ref) {
+        let mut map = UnicodeCmap::new(Name(b"Custom"), IDENTITY);
+        for (&cid, text) in &self.unicode {
+            map.pair_with_multiple(cid, text.chars());
+        }
+        pdf.cmap(id, &map.finish());
+    }
+}
+
+/// One font's object numbers, the [`FONT_OBJECTS`] in order.
+struct FontObjects {
+    type0: Ref,
+    cid_font: Ref,
+    descriptor: Ref,
+    file: Ref,
+    cmap: Ref,
+}
+
+impl FontObjects {
+    /// A font's objects numbered from `next`, which moves past them.
+    fn numbered(next: &mut Ref) -> Self {
+        let [type0, cid_font, descriptor, file, cmap] = [(); FONT_OBJECTS].map(|()| next.bump());
+        Self {
+            type0,
+            cid_font,
+            descriptor,
+            file,
+            cmap,
+        }
+    }
+}
+
+/// The descriptor's numbers in PDF glyph space: thousandths of an em.
+struct Scaled {
+    bbox: [f64; 4],
+    italic_angle: f64,
+    ascent: f64,
+    descent: f64,
+    cap_height: f64,
+    stem_v: f64,
+}
+
+impl Scaled {
+    /// `d` at `scale` glyph-space units per font unit, with the stem
+    /// width estimated for CSS weight `weight`.
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    fn of(d: &Descriptor, scale: f64, weight: u16) -> Self {
+        Self {
+            bbox: d.bbox.map(|v| v * scale),
+            italic_angle: d.italic_angle,
+            ascent: d.ascent * scale,
+            descent: d.descent * scale,
+            cap_height: d.cap_height * scale,
+            stem_v: STEM_V_BASE + STEM_V_PER_WEIGHT * (f64::from(weight) - STEM_V_ORIGIN),
+        }
+    }
+}
+
+/// Each run of `roots` shaped once, in document order.
+fn shape<'a>(
+    roots: impl IntoIterator<Item = &'a Node>,
+    fonts: &Fonts,
+) -> Result<Vec<Run>, FontError> {
+    roots
+        .into_iter()
+        .flat_map(Node::static_runs)
+        .map(|(style, text)| {
+            let face = fonts.face(style.weight);
+            let glyphs = clusters(face, text)
+                .into_iter()
+                .map(|(glyph, chars)| Ok((gid(face, glyph)?, chars)))
+                .collect::<Result<Vec<_>, FontError>>()?;
+            Ok((style.weight, glyphs))
+        })
+        .collect()
+}
+
+/// One subset per weight `shaped` draws, of the glyphs it draws.
+fn subsets(shaped: &[Run], fonts: &Fonts) -> Result<BTreeMap<Weight, Subset>, FontError> {
+    used(shaped)
+        .into_iter()
+        .map(|(weight, glyphs)| Ok((weight, Subset::of(fonts.face(weight), glyphs)?)))
+        .collect()
+}
+
+/// The glyphs `shaped` draws, by weight.
+fn used(shaped: &[Run]) -> BTreeMap<Weight, BTreeSet<u16>> {
+    let mut used: BTreeMap<Weight, BTreeSet<u16>> = BTreeMap::new();
+    for (weight, run) in shaped {
+        used.entry(*weight)
+            .or_default()
+            .extend(run.iter().map(|&(g, _)| g));
+    }
+    used
+}
+
+/// The `ToUnicode` map, first mapping wins, in document order (D-103).
+/// A glyph that is its cluster alone (a letter, a ligature) maps first;
+/// the first glyph of a cluster of several (a base drawn with a separate
+/// mark) takes the cluster's text only if nothing mapped it alone, so a
+/// plain `e` never copies as `e` + U+0301.
+fn map_unicode(shaped: &[Run], subsets: &mut BTreeMap<Weight, Subset>) {
+    for alone in [true, false] {
+        for (weight, run) in shaped {
+            if let Some(subset) = subsets.get_mut(weight) {
+                subset.map_run(run, alone);
+            }
+        }
+    }
+}
+
+/// PDF glyph space units per font unit for a face of `units_per_em`.
+fn em_scale(units_per_em: f64) -> f64 {
+    EM / units_per_em
+}
+
+/// The subset's `BaseFont`: its tag, then the face's PostScript name.
+fn base_font(weight: Weight, remapper: &GlyphRemapper) -> String {
+    let gids: Vec<u16> = remapper.remapped_gids().collect();
+    format!(
+        "{}+{}",
+        tag(weight.postscript(), &gids),
+        weight.postscript()
+    )
+}
+
+/// The Type0 font: Identity-H over its `CIDFont`, with its `ToUnicode`.
+fn type0(pdf: &mut Pdf, objects: &FontObjects, base: Name<'_>) {
+    pdf.type0_font(objects.type0)
+        .base_font(base)
+        .encoding_predefined(Name(b"Identity-H"))
+        .descendant_font(objects.cid_font)
+        .to_unicode(objects.cmap);
+}
+
+/// The font descriptor: `face`'s metrics in glyph space, and its file.
+fn descriptor(
+    pdf: &mut Pdf,
+    objects: &FontObjects,
+    base: Name<'_>,
+    weight: Weight,
+    face: &FontMetrics<'_>,
+) -> Result<(), FontError> {
+    let d = Scaled::of(
+        &face.descriptor()?,
+        em_scale(face.units_per_em()),
+        weight.css(),
+    );
+    let [left, bottom, right, top] = d.bbox.map(real);
+    pdf.font_descriptor(objects.descriptor)
+        .name(base)
+        // SYMBOLIC: an Identity-H CIDFont has no standard Latin
+        // encoding, and preflight tools flag NON_SYMBOLIC here.
+        .flags(FontFlags::SYMBOLIC)
+        .bbox(Rect::new(left, bottom, right, top))
+        .italic_angle(real(d.italic_angle))
+        .ascent(real(d.ascent))
+        .descent(real(d.descent))
+        .cap_height(real(d.cap_height))
+        .stem_v(real(d.stem_v))
+        .font_file2(objects.file);
+    Ok(())
 }
 
 /// `glyph` as a 16-bit id, which TrueType and the subsetter use.
