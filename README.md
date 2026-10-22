@@ -148,6 +148,7 @@ radargen --create-palette <PATH>
 | `--legend-columns <N>` | Flows a PNG or SVG legend into N columns beside the radar, from 1 (the default) to 4, breaking only between quadrants. HTML ignores it. |
 | `-p`, `--palette <FILE>` | Colours from a palette file instead of the built-in themes, in every format. Not with `--theme`; given with a config file's `theme` key, the palette wins. |
 | `-c`, `--config <FILE>` | Read settings from a TOML file: `output`, `title`, `subtitle`, `rings`, `unplotted_rings`, `theme`, `width`, `legend_columns`, `legend`, `table` and `palette`. A flag on the command line overrides its key. With `-c`, `-o` is needed only when the file has no `output` key. |
+| `-e`, `--edition <YYYY-MM-DD>` | The edition's date, which `{edition}` in the output, title or subtitle becomes; `today` for the local date. Not a config key: it changes every run. |
 | `--create-template <PATH>` | Write a starter CSV, and render nothing. Given alone. |
 | `--create-palette <PATH>` | Write a starter palette, and render nothing. Given alone. |
 | `-h`, `--help` / `-V`, `--version` | Help, and the version. |
@@ -177,17 +178,37 @@ radargen entries.csv -c radar.toml --title "Draft"   # a flag overrides its key
 - **Errors.** A problem with a key names the key and the file. Every key problem, and every check on the file's values, is reported in one run, unless a value on the command line fails first.
 - **One file for every format.** `legend` and `table` apply to HTML pages, and are ignored without a warning for PNG and SVG.
 
+## Dated editions
+
+Write the date once per run with `-e` (`--edition`), and `{edition}` in the output path, the title or the subtitle becomes that date, whether the value is a flag or a config key:
+
+```toml
+# radar.toml
+output = "editions/{edition}.html"
+title = "Technology Radar"
+subtitle = "Edition {edition}"
+```
+
+```sh
+radargen entries.csv -c radar.toml -e 2026-09-01   # writes editions/2026-09-01.html
+radargen entries.csv -c radar.toml -e today        # today's local date
+```
+
+- **The date.** A real calendar date written exactly `YYYY-MM-DD`, so dated files sort in date order; anything else is an error. radargen reads the clock only for `-e today`, and then prints the date it used (`warning: edition 2026-10-22 (today); pass -e 2026-10-22 to reproduce this render`), so a scheduled job needs no date script and every render can still be repeated exactly. On a CI runner the local date is usually UTC; the `TZ` environment variable picks a time zone, such as `TZ=America/Vancouver`.
+- **Placeholders.** `{edition}` is the only one, and only `output`, `title` and `subtitle` expand it. A value holding `{edition}` without `-e` is an error, as is any other `{name}` in a value while `-e` or `{edition}` is in use, so a typo such as `{editon}` is caught. Otherwise braces are ordinary text: `--title "Radar {beta}"` renders as written.
+- **Unused.** `-e` with no `{edition}` anywhere warns, since a placeholder was probably forgotten, and the render goes ahead.
+
 ## Errors and warnings
 
 radargen refuses what it cannot read or place, and warns about what it can draw but doubts.
 
-- **Errors** stop the run, and nothing is written. They cover a file that cannot be read or is not UTF-8, a separator other than a comma, an unclosed quote, a missing required column or a repeated header name, an empty `name`, `quadrant` or `ring`, a row with the wrong number of values, a bad `--rings` or `--unplotted-rings` list (including a ring in both, or a default ring in `--unplotted-rings` without `--rings`) or palette file, a config file that cannot be read, is not UTF-8, is larger than 1 MiB or is not TOML, a bad key in it (unknown, of the wrong type, out of range, a ring entry holding a comma, or a name its flag would refuse), and an output path radargen cannot use (an unknown extension, a missing folder, or a file the run reads: the input CSV, the config file or the palette).
-- **Warnings** still write the output. They cover values radargen does not recognise (a ring that `--unplotted-rings` does not name, a qualifier, status, date or link), a column name one or two letters from one radargen reads (such as `rationalle`; it names the column you probably meant), an empty description, a repeated name, characters the output cannot display (removed), characters the bundled font lacks (the PNG or SVG being written draws them as boxes), more than six quadrants, a ring and quadrant holding more items than fit comfortably, a quadrant or ring name so long that the page shows only its narrow layout on a common laptop, and widths that make text hard to read.
+- **Errors** stop the run, and nothing is written. They cover a file that cannot be read or is not UTF-8, a separator other than a comma, an unclosed quote, a missing required column or a repeated header name, an empty `name`, `quadrant` or `ring`, a row with the wrong number of values, a bad `--rings` or `--unplotted-rings` list (including a ring in both, or a default ring in `--unplotted-rings` without `--rings`) or palette file, a config file that cannot be read, is not UTF-8, is larger than 1 MiB or is not TOML, a bad key in it (unknown, of the wrong type, out of range, a ring entry holding a comma, or a name its flag would refuse), a bad `--edition` date, `{edition}` without `--edition`, an unknown placeholder while one is in use, and an output path radargen cannot use (an unknown extension, a missing folder, or a file the run reads: the input CSV, the config file or the palette).
+- **Warnings** still write the output. They cover values radargen does not recognise (a ring that `--unplotted-rings` does not name, a qualifier, status, date or link), a column name one or two letters from one radargen reads (such as `rationalle`; it names the column you probably meant), an empty description, a repeated name, characters the output cannot display (removed), characters the bundled font lacks (the PNG or SVG being written draws them as boxes), more than six quadrants, a ring and quadrant holding more items than fit comfortably, a quadrant or ring name so long that the page shows only its narrow layout on a common laptop, widths that make text hard to read, an `--edition` nothing uses, and the date `-e today` used.
 - **How many at once.** Every row error is reported in one run, after any warnings, and a message about a row names its line, and its column where there is one. Repeats of the same kind are folded into one line. A problem with a flag or with the file as a whole (not UTF-8, an unclosed quote, the wrong separator) stops at the first one, while a config file's problems are reported together, warnings about values wait until no row is missing a name, quadrant or ring, and warnings about the drawing wait until there are no errors.
-- **Exit codes.** 0 when the output is written, even with warnings; 2 for what radargen refuses as it would refuse a flag: an unknown, missing or out-of-range flag or key, a key of the wrong type or a name it does not accept, a ring entry holding a comma, `theme` and `palette` both in the config file, or no output; 1 for every other error, such as a bad ring list or a missing folder. A run with both kinds exits 2.
+- **Exit codes.** 0 when the output is written, even with warnings; 2 for what radargen refuses as it would refuse a flag: an unknown, missing or out-of-range flag or key, a key of the wrong type or a name it does not accept, a ring entry holding a comma, `theme` and `palette` both in the config file, a bad `--edition` date, or no output; 1 for every other error, such as a bad ring list or a missing folder. A run with both kinds exits 2.
 - **Earlier output is safe.** The output is written to a temporary file and renamed into place, so a failed run leaves any earlier file at that path untouched.
 
-The same CSV, flags and radargen version always produce the same bytes, so an edition can be regenerated and compared.
+The same CSV, flags and radargen version always produce the same bytes, so an edition can be regenerated and compared. radargen never reads the clock except for `-e today`, which prints the date it used.
 
 ## Documentation
 
