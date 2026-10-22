@@ -124,12 +124,20 @@ fn order(catalogue: &Catalogue, publish: Table) -> Vec<usize> {
     first.iter().copied().chain(rest).collect()
 }
 
-/// A column's heading: the header cell as written, trimmed (FR-27).
+/// D-101's heading for the sector column, whatever the header calls it.
+const SECTOR_HEADING: &str = "Sector";
+
+/// A column's heading: the header cell as written, trimmed (FR-27), except
+/// the sector column's, which is always [`SECTOR_HEADING`] so a `quadrant`
+/// header does not put the old word back on the page (D-101).
 fn column_heading(catalogue: &Catalogue, column: usize) -> String {
-    let heading = catalogue
-        .columns
-        .get(column)
-        .map_or("", |c| trim(&c.heading));
+    let heading = catalogue.columns.get(column).map_or("", |c| {
+        if c.kind == ColumnKind::Quadrant {
+            SECTOR_HEADING
+        } else {
+            trim(&c.heading)
+        }
+    });
     ["<th scope=\"col\">", &xml_text(heading), "</th>"].concat()
 }
 

@@ -127,7 +127,9 @@ const fn classify(order: usize, error: &RowError) -> Classified<'_> {
         RowError::EmptyRequired { line, column } => {
             Classified::Empty(column, Member::at(order, line, error))
         }
-        RowError::DuplicateHeader { line, .. } => Classified::Alone(Member::at(order, line, error)),
+        RowError::DuplicateHeader { line, .. } | RowError::SectorTwice { line, .. } => {
+            Classified::Alone(Member::at(order, line, error))
+        }
     }
 }
 
@@ -245,7 +247,7 @@ fn value_counts(rows: &[&Mismatch]) -> String {
 fn missing_line(run: &Run<(ColumnKind, &RowError)>) -> String {
     let columns: Vec<&str> = run.members().map(|m| m.item.0.as_str()).collect();
     error_line(&format!(
-        "line {}: the header has no {} column; add them, or rename the columns that hold them — the header must name at least name, quadrant, ring and description",
+        "line {}: the header has no {} column; add them, or rename the columns that hold them — the header must name at least name, sector, ring and description",
         run.first.line,
         or_list(&columns)
     ))

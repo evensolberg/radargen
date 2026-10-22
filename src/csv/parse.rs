@@ -7,6 +7,7 @@
 use std::iter::{FusedIterator, Peekable};
 use std::str::Chars;
 
+use crate::columns::ColumnKind;
 use crate::diagnostics::{Fatal, RowError, RowKind, Separator, Warning, Warnings, column_label};
 use crate::escape::{displayable, remove_undisplayable};
 use crate::{normalise, plain_newlines, single_line, trim};
@@ -377,7 +378,9 @@ fn warn(w: &mut Warnings, line: usize, removed: &[Removed], header: &[String]) {
 
 /// FR-4: every header name repeated under FR-76, naming the column it
 /// repeats. An empty cell names nothing, so it cannot repeat a name; Excel
-/// pads the header with these (Decisions).
+/// pads the header with these (Decisions). A name that is not a repeat but
+/// names the sector column a second time, as `quadrant` beside `sector`
+/// does, is D-101's error instead.
 fn duplicate_headers(header: &[String], line: usize) -> Vec<RowError> {
     // Normalised once, not once per pair.
     let keys: Vec<String> = header.iter().map(|n| normalise(n)).collect();
@@ -386,15 +389,20 @@ fn duplicate_headers(header: &[String], line: usize) -> Vec<RowError> {
         if key.is_empty() {
             continue;
         }
+        let earlier = || keys.iter().zip(header).enumerate().take(i);
         // The first earlier match is the name's first occurrence.
-        let first = keys
-            .iter()
-            .zip(header)
-            .enumerate()
-            .take(i)
-            .find(|(_, (k, _))| *k == key);
-        if let Some((first, (_, first_name))) = first {
+        if let Some((first, (_, first_name))) = earlier().find(|(_, (k, _))| *k == key) {
             errors.push(RowError::DuplicateHeader {
+                line,
+                index: i,
+                name: trim(name).to_string(),
+                first_index: first,
+                first_name: trim(first_name).to_string(),
+            });
+        } else if let Some((first, (_, first_name))) =
+            earlier().find(|(_, (k, _))| ColumnKind::canonical(k) == ColumnKind::canonical(key))
+        {
+            errors.push(RowError::SectorTwice {
                 line,
                 index: i,
                 name: trim(name).to_string(),
