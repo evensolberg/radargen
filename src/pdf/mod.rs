@@ -1,8 +1,10 @@
 //! The PDF export's writer (FR-110, D-103): the shared document drawn as
 //! one vector page, its text real text in an embedded Inter subset.
 
+pub mod content;
 pub mod font;
 pub mod geometry;
+mod show;
 
 /// The one path a number takes into the PDF (NFR-17): rounded to
 /// thousandths, half away from zero, as [`fmt_coord`] rounds it, then
