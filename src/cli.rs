@@ -28,7 +28,7 @@ use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
 #[command(
     name = "radargen",
     version,
-    about = "Render a technology radar from a CSV file to a self-contained HTML page, a PNG image or an SVG file.",
+    about = "Render a technology radar from a CSV file to a self-contained HTML page, a PNG image, an SVG file or a PDF.",
     // clap's own usage would show the CSV as optional and leave out -o,
     // since each is required only without a --create-* flag.
     override_usage = "radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]\n       radargen [CSV_PATH] -c <FILE> [OPTIONS]\n       radargen --create-template <PATH>\n       radargen --create-palette <PATH>\n       radargen --create-config <PATH>",

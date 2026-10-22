@@ -562,7 +562,7 @@ fn the_ring_warning_says_where_the_row_went() {
     );
 }
 
-/// FR-106's warning: `--table all` on a PNG or SVG, which have no table.
+/// FR-106's warning: `--table all` on a PNG, SVG or PDF, which have no table.
 #[test]
 fn table_all_on_a_snapshot_says_it_has_no_table() {
     assert_eq!(

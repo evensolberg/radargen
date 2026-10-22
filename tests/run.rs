@@ -30,9 +30,9 @@ const HEAD: &str = "name,sector,ring,description\n";
 /// The PRD example's one warning: FR-17 on its `Rejected` row, as an HTML
 /// page under the default `--table radar` gives it (FR-106).
 const FR17: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire), so the row is left off the page; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings; --table all lists it, but also publishes every other column";
-/// As [`FR17`], for a PNG or SVG, which has no table.
+/// As [`FR17`], for a PNG, SVG or PDF, which has no table.
 const FR17_SNAPSHOT: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is not on the radar; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings";
-/// FR-106's warning for `--table all` on a PNG or SVG.
+/// FR-106's warning for `--table all` on a PNG, SVG or PDF.
 const TABLE_STATIC: &str =
     "warning: --table all applies to HTML pages; PNG, SVG and PDF have no table";
 const NO_HEADER: &str = "error: the CSV has no header row (it is empty or blank); the header must name at least name, sector, ring and description";
@@ -164,7 +164,7 @@ fn narrow_query_px(page: &str) -> u32 {
 
 /// FR-105: a sector name long enough to put FR-69's breakpoint past a
 /// laptop warns on the page, giving the breakpoint the page switches at,
-/// beside FR-95's warning (D-94). PNG and SVG draw only the wide
+/// beside FR-95's warning (D-94). PNG, SVG and PDF draw only the wide
 /// arrangement, so they stay quiet.
 #[test]
 fn a_breakpoint_past_a_laptop_warns_on_html_only() {
@@ -698,7 +698,7 @@ fn the_unlisted_ring_warning_groups_and_names_its_source() {
     );
 }
 
-/// FR-106: PNG and SVG have no table, so `--table all` warns once and
+/// FR-106: PNG, SVG and PDF have no table, so `--table all` warns once and
 /// changes nothing, and `--table radar` is silent. FR-17's warning there
 /// names no table at all.
 #[test]
@@ -1131,7 +1131,7 @@ fn a_static_output_that_is_the_input_is_refused() {
     }
 }
 
-/// NFR-14, SC-18, FR-62: a PNG or SVG into a directory that is not there
+/// NFR-14, SC-18, FR-62: a PNG, SVG or PDF into a directory that is not there
 /// fails cleanly, with its exact line.
 #[test]
 fn a_static_output_into_a_missing_directory_fails() {
@@ -1767,7 +1767,7 @@ fn unplotted_rings_are_off_the_radar_without_a_warning() {
     assert!(page.contains("kept for the record"), "with its description");
 }
 
-/// FR-107 on PNG and SVG: the rows are not drawn, and nothing warns; the
+/// FR-107 on PNG, SVG and PDF: the rows are not drawn, and nothing warns; the
 /// file is the one drawn without them.
 #[test]
 fn unplotted_rings_are_silent_on_png_and_svg() {

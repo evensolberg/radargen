@@ -468,7 +468,7 @@ fn help_speaks_to_users() {
     }
     let about = help.lines().next().unwrap_or_default();
     assert!(
-        about.contains("PNG") && about.contains("SVG"),
+        about.contains("PNG") && about.contains("SVG") && about.contains("PDF"),
         "the about line promises only what this version writes:\n{help}"
     );
 }
