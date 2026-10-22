@@ -1,7 +1,7 @@
 <!-- radargen {version} -->
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1025.077" height="824" viewBox="0 0 1025.077 824" xml:lang="en">
 <title>Technology Radar</title>
-<desc>Technology radar: 3 quadrants, 4 rings, 6 items</desc>
+<desc>Technology radar: 3 sectors, 4 rings, 6 items</desc>
 <defs>
 <path id="g0" d="M0.254 0L2.896 -7.275L3.97 -7.275L6.646 0L5.669 0L4.941 -2.031L1.943 -2.031L1.24 0ZM2.227 -2.842L4.653 -2.842L4.126 -4.316Q3.994 -4.683 3.828 -5.212Q3.662 -5.742 3.428 -6.533Q3.198 -5.728 3.027 -5.19Q2.856 -4.653 2.739 -4.316Z"/>
 <path id="g1" d="M0.879 0L0.879 -7.275L3.369 -7.275Q4.219 -7.275 4.768 -6.985Q5.317 -6.694 5.583 -6.187Q5.85 -5.679 5.85 -5.029Q5.85 -4.307 5.52 -3.77Q5.19 -3.232 4.502 -2.993L6.133 0L5.059 0L3.545 -2.827Q3.462 -2.822 3.374 -2.822L1.807 -2.822L1.807 0ZM1.807 -3.647L3.33 -3.647Q4.189 -3.647 4.558 -4.019Q4.927 -4.39 4.927 -5.029Q4.927 -5.679 4.558 -6.069Q4.189 -6.46 3.32 -6.46L1.807 -6.46Z"/>
@@ -162,7 +162,7 @@
 </g>
 </g>
 <g transform="translate(10 46)">
-<g transform="translate(330 330)" role="group" aria-label="Technology radar: 3 quadrants, 4 rings, 6 items">
+<g transform="translate(330 330)" role="group" aria-label="Technology radar: 3 sectors, 4 rings, 6 items">
 <circle cx="0" cy="0" r="260" fill="none" stroke="#6C7480" stroke-width="1"/>
 <circle cx="0" cy="0" r="195" fill="none" stroke="#6C7480" stroke-width="1"/>
 <circle cx="0" cy="0" r="130" fill="none" stroke="#6C7480" stroke-width="1"/>
@@ -256,21 +256,21 @@
 <use xlink:href="#g10" x="4.192" y="-32.5"/>
 <use xlink:href="#g5" x="7.791" y="-32.5"/>
 </g>
-<g role="img" aria-label="1. Kubernetes, Default; Platform quadrant, Adopt ring">
+<g role="img" aria-label="1. Kubernetes, Default; Platform sector, Adopt ring">
 <title>1. Kubernetes</title>
 <circle cx="77.682" cy="-44.85" r="10" fill="#0072B2" stroke="#15181D" stroke-width="2"/>
 <g fill="#FFFFFF">
 <use xlink:href="#g84" x="75.78" y="-41.576"/>
 </g>
 </g>
-<g role="img" aria-label="2. Trunk-Based Development, Default; Practice quadrant, Adopt ring">
+<g role="img" aria-label="2. Trunk-Based Development, Default; Practice sector, Adopt ring">
 <title>2. Trunk-Based Development</title>
 <circle cx="0" cy="89.7" r="10" fill="#C25400" stroke="#15181D" stroke-width="2"/>
 <g fill="#FFFFFF">
 <use xlink:href="#g85" x="-2.804" y="92.974"/>
 </g>
 </g>
-<g role="img" aria-label="3. Ansible, Moved In; Tool quadrant, Trial ring">
+<g role="img" aria-label="3. Ansible, Moved In; Tool sector, Trial ring">
 <title>3. Ansible</title>
 <path d="M -126.974 -89.474 A 14 14 0 0 1 -140.974 -65.226" fill="none" stroke="#00857A" stroke-width="2"/>
 <circle cx="-133.974" cy="-77.35" r="10" fill="#00857A" stroke="#15181D" stroke-width="2"/>
@@ -278,7 +278,7 @@
 <use xlink:href="#g86" x="-136.837" y="-74.076"/>
 </g>
 </g>
-<g role="img" aria-label="4. Pulumi, Conditional, New; Tool quadrant, Adopt ring">
+<g role="img" aria-label="4. Pulumi, Conditional, New; Tool sector, Adopt ring">
 <title>4. Pulumi</title>
 <circle cx="-87.33" cy="-20.483" r="14" fill="none" stroke="#00857A" stroke-width="2"/>
 <circle cx="-87.33" cy="-20.483" r="10" fill="#15181D" stroke="#00857A" stroke-width="3"/>
@@ -286,14 +286,14 @@
 <use xlink:href="#g87" x="-90.327" y="-17.209"/>
 </g>
 </g>
-<g role="img" aria-label="5. Terraform, Default; Tool quadrant, Adopt ring">
+<g role="img" aria-label="5. Terraform, Default; Tool sector, Adopt ring">
 <title>5. Terraform</title>
 <circle cx="-74.753" cy="-79.603" r="10" fill="#00857A" stroke="#15181D" stroke-width="2"/>
 <g fill="#FFFFFF">
 <use xlink:href="#g88" x="-77.508" y="-76.329"/>
 </g>
 </g>
-<g role="img" aria-label="6. Chef; Tool quadrant, Retire ring">
+<g role="img" aria-label="6. Chef; Tool sector, Retire ring">
 <title>6. Chef</title>
 <circle cx="-21.391" cy="-12.35" r="10" fill="#00857A" stroke="#15181D" stroke-width="2"/>
 <g fill="#FFFFFF">
@@ -527,7 +527,7 @@
 <use xlink:href="#g101" x="50.893" y="54"/>
 </g>
 </g>
-<g role="img" aria-label="1. Kubernetes, Default; Platform quadrant, Adopt ring">
+<g role="img" aria-label="1. Kubernetes, Default; Platform sector, Adopt ring">
 <rect x="38" y="58" width="283.077" height="36" rx="6" fill="#1E222A" stroke="none"/>
 <circle cx="52" cy="76" r="8" fill="#0072B2" stroke="#0072B2" stroke-width="1.5"/>
 <g fill="#FFFFFF">
@@ -579,7 +579,7 @@
 <use xlink:href="#g101" x="50.893" y="132"/>
 </g>
 </g>
-<g role="img" aria-label="2. Trunk-Based Development, Default; Practice quadrant, Adopt ring">
+<g role="img" aria-label="2. Trunk-Based Development, Default; Practice sector, Adopt ring">
 <rect x="38" y="136" width="283.077" height="36" rx="6" fill="#1E222A" stroke="none"/>
 <circle cx="52" cy="154" r="8" fill="#C25400" stroke="#C25400" stroke-width="1.5"/>
 <g fill="#FFFFFF">
@@ -639,7 +639,7 @@
 <use xlink:href="#g97" x="43.628" y="210"/>
 </g>
 </g>
-<g role="img" aria-label="3. Ansible, Moved In; Tool quadrant, Trial ring">
+<g role="img" aria-label="3. Ansible, Moved In; Tool sector, Trial ring">
 <rect x="38" y="214" width="283.077" height="36" rx="6" fill="#1E222A" stroke="none"/>
 <circle cx="52" cy="232" r="8" fill="#00857A" stroke="#00857A" stroke-width="1.5"/>
 <g fill="#FFFFFF">
@@ -673,7 +673,7 @@
 <use xlink:href="#g101" x="50.893" y="262"/>
 </g>
 </g>
-<g role="img" aria-label="4. Pulumi, Conditional, New; Tool quadrant, Adopt ring">
+<g role="img" aria-label="4. Pulumi, Conditional, New; Tool sector, Adopt ring">
 <rect x="38" y="266" width="283.077" height="36" rx="6" fill="#1E222A" stroke="none"/>
 <circle cx="52" cy="284" r="8" fill="#15181D" stroke="#00857A" stroke-width="2"/>
 <g fill="#E8EAEE">
@@ -705,7 +705,7 @@
 </g>
 </g>
 </g>
-<g role="img" aria-label="5. Terraform, Default; Tool quadrant, Adopt ring">
+<g role="img" aria-label="5. Terraform, Default; Tool sector, Adopt ring">
 <rect x="38" y="302" width="283.077" height="36" rx="6" fill="#1E222A" stroke="none"/>
 <circle cx="52" cy="320" r="8" fill="#00857A" stroke="#00857A" stroke-width="1.5"/>
 <g fill="#FFFFFF">
@@ -742,7 +742,7 @@
 <use xlink:href="#g95" x="47.707" y="350"/>
 </g>
 </g>
-<g role="img" aria-label="6. Chef; Tool quadrant, Retire ring">
+<g role="img" aria-label="6. Chef; Tool sector, Retire ring">
 <rect x="38" y="354" width="283.077" height="36" rx="6" fill="#1E222A" stroke="none"/>
 <circle cx="52" cy="372" r="8" fill="#00857A" stroke="#00857A" stroke-width="1.5"/>
 <g fill="#FFFFFF">
