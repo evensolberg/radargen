@@ -243,6 +243,50 @@ mod tests {
         assert!(s.contains(" TJ\n"), "{s}");
     }
 
+    /// A glyph the shaper raises starts a new text matrix in the same
+    /// BT … ET, at the baseline plus its `placed.y` (the string is
+    /// `text.rs`'s `place_raises_a_glyph_the_shaper_raises`).
+    #[test]
+    fn a_raised_glyph_splits_the_line_into_two_text_matrices() {
+        let text = "A\u{300}\u{301}";
+        let placed = fonts().face(Weight::Regular).place(text, 10.0, 0.0);
+        let raised = placed
+            .iter()
+            .find(|p| p.y.to_bits() != placed.first().expect("glyphs").y.to_bits())
+            .expect("a glyph the shaper raises");
+        let (s, _) = written(&label(&[text], fill(), Anchor::Start, 0.0, None));
+        let ops = lopdf::content::Content::decode(s.as_bytes())
+            .expect("decodes")
+            .operations;
+        assert_eq!(
+            ops.iter().filter(|op| op.operator == "BT").count(),
+            1,
+            "{s}"
+        );
+        assert_eq!(
+            ops.iter().filter(|op| op.operator == "ET").count(),
+            1,
+            "{s}"
+        );
+        let ys: Vec<f64> = ops
+            .iter()
+            .filter(|op| op.operator == "Tm")
+            .map(|op| {
+                f64::from(
+                    op.operands
+                        .last()
+                        .and_then(|y| y.as_float().ok())
+                        .expect("a y"),
+                )
+            })
+            .collect();
+        let [base, up] = ys[..] else {
+            panic!("two Tm lines: {s}");
+        };
+        assert!((base - 20.0).abs() < 0.002, "baseline: {s}");
+        assert!((up - (20.0 + raised.y)).abs() < 0.002, "raised: {s}");
+    }
+
     /// A middle-anchored line starts half its advance left of the origin.
     #[test]
     #[expect(

@@ -58,7 +58,8 @@ const IDENTITY: SystemInfo<'static> = SystemInfo {
 type Run = (Weight, Vec<(u16, String)>);
 
 impl Faces {
-    /// The subsets `document`'s static rendering needs.
+    /// The subsets the static rendering of `roots`, the drawings one PDF's
+    /// fonts serve, needs.
     ///
     /// # Errors
     ///
@@ -603,6 +604,30 @@ mod tests {
         };
         assert_eq!(copied(nfc, nfd).as_deref(), Some("\u{e9}"));
         assert_eq!(copied(nfd, nfc).as_deref(), Some("e\u{301}"));
+    }
+
+    /// The two-pass rule on its own: a glyph first drawn inside a cluster
+    /// (`x` + U+0301) must not claim the cluster's text for a plain `x`
+    /// that comes later; the plain run's single-glyph cluster wins.
+    #[test]
+    fn a_lone_glyph_maps_to_its_own_text_not_a_cluster() {
+        let face = fonts().face(Weight::Regular);
+        let combined = face.shape("x\u{301}");
+        assert_eq!(combined.len(), 2, "precondition: two glyphs");
+        assert_eq!(
+            combined.first().map(|g| g.cluster),
+            combined.last().map(|g| g.cluster),
+            "precondition: in one cluster"
+        );
+        let x = face.shape("x").first().expect("a glyph").id;
+        let faces = Faces::of([&run("x\u{301}"), &run("x")], fonts()).expect("subsets");
+        assert_eq!(
+            faces
+                .unicode(Weight::Regular, faces.cid(Weight::Regular, x))
+                .map(str::to_owned)
+                .as_deref(),
+            Some("x")
+        );
     }
 
     /// A drawing in one weight writes one font, F0 only.

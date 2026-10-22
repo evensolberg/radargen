@@ -123,13 +123,16 @@ fn the_pdf_reads_back_as_its_names() {
 #[test]
 fn awkward_names_read_back() {
     let fonts = Fonts::embedded().expect("fonts");
-    let csv = "name,sector,ring,description\nApache Kafka Streams,Tools,Adopt,d\nOffice fittings,Tools,Adopt,d\n東京,Tools,Trial,d\nAVATAR,Tools,Trial,d\n";
+    let csv = "name,sector,ring,description\nApache Kafka Streams,Tools,Adopt,d\nOffice fittings,Tools,Adopt,d\n東京,Tools,Trial,d\nAVATAR,Tools,Trial,d\nCafé Zürich,Tools,Adopt,d\nÅngström,Tools,Adopt,d\nNaïve façade,Tools,Adopt,d\n";
     let catalogue = catalogue::catalogue(csv, None);
     let text = extracted(&pdf_of(&catalogue, None, &fonts));
     for want in [
         "Apache Kafka Streams",
         "Office fittings",
         "AVATAR",
+        "Café Zürich",
+        "Ångström",
+        "Naïve façade",
         "Tools",
         "Adopt",
         "Trial",

@@ -43,7 +43,7 @@ const LONG_TITLE: &str = "Engineering Technology Radar for the Platform and Deli
 
 /// `svg_matches_png.rs`'s five cases, a right-to-left name, and names
 /// Inter lacks (Review Focus 2), each with its title.
-const CASES: [(&str, &str, Option<&str>); 7] = [
+const CASES: [(&str, &str, Option<&str>); 8] = [
     (
         "three-sector",
         include_str!("fixtures/three-sector.csv"),
@@ -74,6 +74,11 @@ const CASES: [(&str, &str, Option<&str>); 7] = [
         "not in Inter",
         "name,sector,ring,description\n東京,Tools,Adopt,d\n😀,Tools,Trial,d\nKafka,Tools,Assess,d\n",
         None,
+    ),
+    (
+        "accented",
+        "name,sector,ring,description\nCafé Zürich,Tools,Adopt,d\nÅngström,Tools,Trial,d\nNaïve façade,Tools,Assess,d\n",
+        Some("Ærø — Q3"),
     ),
 ];
 
