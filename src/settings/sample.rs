@@ -102,6 +102,15 @@ mod tests {
         assert_eq!(values.table, Some(DEFAULT_TABLE));
     }
 
+    /// The ranges the comments state are the code's, so neither can move
+    /// without the other.
+    #[test]
+    fn the_stated_ranges_are_the_codes() {
+        use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
+        assert!(SAMPLE.contains(&format!("from {MIN_EXPORT_WIDTH} to {MAX_EXPORT_WIDTH}")));
+        assert!(SAMPLE.contains(&format!("into 1 to {MAX_LEGEND_COLUMNS} columns")));
+    }
+
     /// The maintainer's lines (rg-2ss): the CSV, today's edition and a
     /// subtitle that shows it off, with the note on what it needs.
     #[test]

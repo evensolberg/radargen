@@ -4,7 +4,7 @@
 # Every setting below is commented out, so as written the file changes
 # nothing. Delete the "# " in front of a key to use it. A flag on the
 # command line overrides its key. A relative path is read from this
-# file's folder, wherever you run the command.
+# file's folder, wherever you run the command; ~ is not expanded.
 
 # The CSV to read. A CSV named on the command line overrides it.
 # input = "radar.csv"

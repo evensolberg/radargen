@@ -221,7 +221,7 @@ pub struct Cli {
     // is commented out, so the file as written changes nothing.
     /// Write a starter config file for --config, and render nothing.
     ///
-    /// It has every key, commented out, with its default and what it does,
+    /// It has every key, commented out, with its default or an example and what it does,
     /// so it changes nothing until a line is uncommented. An existing file
     /// is never replaced. Give this flag alone.
     #[arg(long, value_name = "PATH", exclusive = true, group = STARTER)]

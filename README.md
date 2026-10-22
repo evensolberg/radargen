@@ -167,7 +167,7 @@ Keep a radar's settings beside its CSV, so every edition renders the same way. T
 radargen --create-config radar.toml
 ```
 
-It writes each key commented out, with its default and what it does, so the file changes nothing until you delete the `# ` in front of a line. It never replaces an existing file. Or write one yourself:
+It writes each key commented out, with its default or an example and what it does, so the file changes nothing until you delete the `# ` in front of a line. It never replaces an existing file. Or write one yourself:
 
 ```toml
 # radar.toml
