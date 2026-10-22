@@ -1,7 +1,7 @@
 ---
 id: rg-2ss
 title: 'PR 19a-2: --create-config <file.toml> writes a starter config'
-status: in_progress
+status: closed
 type: feature
 priority: 2
 tags:
@@ -10,6 +10,7 @@ tags:
 - starter
 created: 2026-10-18
 updated: 2026-10-22
+closed_reason: 'Done: --create-config, FR-109/D-102'
 phase: ''
 ---
 
@@ -22,3 +23,5 @@ Default subtitle: "Created {edition}" to show off the edition functionality.
 [2026-10-22] Update (2026-10-22): PR 19b adds an `input` key too, so the starter lists 13 keys, commented out, including `# input = "radar.csv"`. With input, output, edition = "today" and a {edition} subtitle uncommented, `radargen -c radar.toml` runs a scheduled render with no other arguments.
 
 [start] 2026-10-22 09:39:36
+
+[stop]  2026-10-22 09:46:52  7m 16s
