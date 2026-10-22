@@ -1,6 +1,7 @@
 //! The PDF export's writer (FR-110, D-103): the shared document drawn as
 //! one vector page, its text real text in an embedded Inter subset.
 
+pub mod font;
 pub mod geometry;
 
 /// The one path a number takes into the PDF (NFR-17): rounded to
