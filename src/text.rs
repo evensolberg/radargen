@@ -119,7 +119,7 @@ impl Fonts {
         }
     }
 
-    /// The distinct characters of `text` that a PNG or SVG draws as boxes,
+    /// The distinct characters of `text` that a PNG, SVG or PDF draws as boxes,
     /// in either weight (FR-104). The two faces map the same characters to
     /// the same glyphs (`both_faces_map_the_same_characters`), so Regular
     /// answers for both.
@@ -333,7 +333,7 @@ impl<'a> FontMetrics<'a> {
     }
 
     /// The distinct characters of `text` this face cannot draw, in order of
-    /// first appearance: what a PNG or SVG draws as a missing-glyph box
+    /// first appearance: what a PNG, SVG or PDF draws as a missing-glyph box
     /// (FR-104, D-93).
     ///
     /// Shaped, not looked up in the cmap, because the shaper composes and

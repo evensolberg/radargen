@@ -25,7 +25,7 @@ use crate::diagnostics::{Fatal, OffRadar, ReadFile, RenderKind, RowError, Warnin
 use crate::emit::html::{Page, page};
 use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
-use crate::emit::{png, svg};
+use crate::emit::{OUTPUT_VERSION, pdf, png, svg};
 use crate::errors::render_errors;
 use crate::layout::arrange::{
     Arrangement, Blocks, arrange, narrow_parts, warn_narrow, warn_wide, wide_parts,
@@ -63,10 +63,10 @@ pub struct Config {
     pub format: OutputFormat,
     /// FR-56, FR-59: the built-in themes, or a `--palette` file's one set.
     pub colours: Colours,
-    /// RG-102: where an HTML page's legend starts. PNG and SVG draw it
+    /// RG-102: where an HTML page's legend starts. PNG, SVG and PDF draw it
     /// anyway, and warn only when `hidden` came from the flag (D-100).
     pub legend: Sourced<Legend>,
-    /// FR-106: what an HTML page's table publishes. PNG and SVG have no
+    /// FR-106: what an HTML page's table publishes. PNG, SVG and PDF have no
     /// table, and warn only when `all` came from the flag (D-100).
     pub table: Sourced<Table>,
     /// FR-57: the width from `--width` or the file, which HTML ignores,
@@ -917,7 +917,7 @@ fn warn_static_flags(config: &Config, warnings: &mut Warnings) {
 
 /// The order, the render warnings (FR-88, FR-89, FR-95, FR-104, FR-105, D-87), the blocks
 /// built once, and the output: the page around both arrangements (FR-68),
-/// or the wide arrangement as a PNG or an SVG (FR-71).
+/// or the wide arrangement as a PNG, an SVG or a PDF (FR-71).
 fn render(
     catalogue: &Catalogue,
     config: &Config,
@@ -1015,6 +1015,17 @@ fn render(
             },
         )?
         .into_bytes()),
+        OutputFormat::Pdf => Ok(pdf::export(
+            &arrange(Arrangement::Wide, &blocks),
+            &pdf::Export {
+                palette: &config.colours.snapshot(),
+                fonts,
+                width: config.width.as_ref().map(|w| w.value),
+                title: config.title(),
+                desc: &blocks.radar.name(),
+                producer: OUTPUT_VERSION,
+            },
+        )?),
     }
 }
 

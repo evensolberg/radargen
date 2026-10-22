@@ -498,7 +498,7 @@ fn the_ring_warning_names_the_default_ring_set_when_no_flag_declared_one() {
 
 /// FR-17 under FR-106: the message says where the row went, which depends
 /// on the output and on `--table`. An HTML page under the default leaves it
-/// out and says what `--table all` would cost; a PNG or SVG has no table to
+/// out and says what `--table all` would cost; a PNG, SVG or PDF has no table to
 /// name. The grouped line follows suit.
 #[test]
 fn the_ring_warning_says_where_the_row_went() {
@@ -567,7 +567,7 @@ fn the_ring_warning_says_where_the_row_went() {
 fn table_all_on_a_snapshot_says_it_has_no_table() {
     assert_eq!(
         Warning::Render(RenderKind::TableStatic).to_string(),
-        "--table all applies to HTML pages; PNG and SVG have no table"
+        "--table all applies to HTML pages; PNG, SVG and PDF have no table"
     );
 }
 
@@ -965,15 +965,15 @@ fn fatal_messages() {
     let cases = [
         (
             Fatal::UnrecognisedExtension {
-                output: NamedPath::new(Origin::flag(Setting::Output), Path::new("radar.pdf")),
+                output: NamedPath::new(Origin::flag(Setting::Output), Path::new("radar.txt")),
             },
-            "error: -o radar.pdf: the output file name must end in .html, .png or .svg",
+            "error: -o radar.txt: the output file name must end in .html, .png, .svg or .pdf",
         ),
         (
             Fatal::UnrecognisedExtension {
                 output: NamedPath::new(Origin::flag(Setting::Output), Path::new("radar")),
             },
-            "error: -o radar: the output file name must end in .html, .png or .svg",
+            "error: -o radar: the output file name must end in .html, .png, .svg or .pdf",
         ),
         (
             Fatal::Rasterise {
@@ -1291,10 +1291,10 @@ fn pipeline_messages() {
             Fatal::UnrecognisedExtension {
                 output: NamedPath {
                     origin: Origin::new(Setting::Output, source::config("radar.toml")),
-                    shown: "radar.pdf".into(),
+                    shown: "radar.txt".into(),
                 },
             },
-            "error: the output key in radar.toml (radar.pdf): the output file name must end in .html, .png or .svg",
+            "error: the output key in radar.toml (radar.txt): the output file name must end in .html, .png, .svg or .pdf",
         ),
         (
             Fatal::PaletteTooLarge {
@@ -1363,7 +1363,7 @@ fn d87_warnings_name_their_widths() {
 fn legend_static_says_png_and_svg_keep_the_legend() {
     assert_eq!(
         Warning::Render(RenderKind::LegendStatic).to_string(),
-        "--legend hidden applies to HTML pages; PNG and SVG always draw the legend"
+        "--legend hidden applies to HTML pages; PNG, SVG and PDF always draw the legend"
     );
 }
 

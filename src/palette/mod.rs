@@ -111,7 +111,7 @@ pub enum Theme {
 /// The colours a run draws with (FR-56, FR-59).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Colours {
-    /// The built-in palettes. `--theme` picks the one a PNG or SVG is bound
+    /// The built-in palettes. `--theme` picks the one a PNG, SVG or PDF is bound
     /// to; an HTML page carries both, and a toggle (FR-56).
     BuiltIn(Theme),
     /// A `--palette` file: one set for every format, and no toggle (§6.6).
@@ -126,7 +126,7 @@ impl From<Palette> for Colours {
 }
 
 impl Colours {
-    /// The palette a PNG or SVG is bound to.
+    /// The palette a PNG, SVG or PDF is bound to.
     #[must_use]
     pub fn snapshot(&self) -> Cow<'_, Palette> {
         match self {

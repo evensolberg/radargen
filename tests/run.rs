@@ -33,7 +33,8 @@ const FR17: &str = "warning: line 8, ring: 'Rejected' is not one of the default 
 /// As [`FR17`], for a PNG or SVG, which has no table.
 const FR17_SNAPSHOT: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is not on the radar; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings";
 /// FR-106's warning for `--table all` on a PNG or SVG.
-const TABLE_STATIC: &str = "warning: --table all applies to HTML pages; PNG and SVG have no table";
+const TABLE_STATIC: &str =
+    "warning: --table all applies to HTML pages; PNG, SVG and PDF have no table";
 const NO_HEADER: &str = "error: the CSV has no header row (it is empty or blank); the header must name at least name, sector, ring and description";
 const RENDER: [&str; 3] = ["radar.csv", "-o", "radar.html"];
 
@@ -185,7 +186,7 @@ fn a_breakpoint_past_a_laptop_warns_on_html_only() {
             "warning: the wide layout needs a screen at least {breakpoint} pixels wide, so 1440-pixel laptops get the narrow layout; a shorter name for sector '{SECTOR}' would fix it"
         )
     );
-    for out in ["radar.png", "radar.svg"] {
+    for out in ["radar.png", "radar.svg", "radar.pdf"] {
         // The fixture's names are all in the bundled font and the PNG is
         // drawn at its own width, so a snapshot warns about nothing.
         let snapshot = run_in(dir.path(), &["radar.csv", "-o", out]);
@@ -487,7 +488,7 @@ fn bad_extensions() {
     let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.txt"]);
     assert_eq!(
         ran.lines(),
-        ["error: -o radar.txt: the output file name must end in .html, .png or .svg"]
+        ["error: -o radar.txt: the output file name must end in .html, .png, .svg or .pdf"]
     );
     assert_eq!(snapshot(dir.path()), before);
 }
@@ -532,12 +533,12 @@ fn legend_hidden_starts_the_page_hidden() {
     );
 }
 
-/// RG-102: PNG and SVG always draw the legend; asked to hide it, they
+/// RG-102: PNG, SVG and PDF always draw the legend; asked to hide it, they
 /// say so once and draw the same bytes. Asked to show it, they say nothing.
 #[test]
 fn legend_hidden_warns_on_png_and_svg_and_changes_nothing() {
     let dir = seeded(&[("radar.csv", &format!("{HEAD}Kafka,Tool,Adopt,d\n"))]);
-    for ext in ["png", "svg"] {
+    for ext in ["png", "svg", "pdf"] {
         let plain = run_in(dir.path(), &["radar.csv", "-o", &format!("a.{ext}")]);
         let shown = run_in(
             dir.path(),
@@ -555,7 +556,7 @@ fn legend_hidden_warns_on_png_and_svg_and_changes_nothing() {
             hidden
                 .stderr
                 .matches(
-                    "--legend hidden applies to HTML pages; PNG and SVG always draw the legend"
+                    "--legend hidden applies to HTML pages; PNG, SVG and PDF always draw the legend"
                 )
                 .count(),
             1,
@@ -703,7 +704,7 @@ fn the_unlisted_ring_warning_groups_and_names_its_source() {
 #[test]
 fn table_all_warns_on_png_and_svg_and_changes_nothing() {
     let dir = seeded(&[("radar.csv", PRD)]);
-    for ext in ["png", "svg"] {
+    for ext in ["png", "svg", "pdf"] {
         let radar = run_in(
             dir.path(),
             &["radar.csv", "-o", &format!("b.{ext}"), "--table", "radar"],
@@ -721,6 +722,39 @@ fn table_all_warns_on_png_and_svg_and_changes_nothing() {
             |n: &str| std::fs::read(dir.path().join(format!("{n}.{ext}"))).expect("written");
         assert_eq!(bytes("b"), bytes("c"), "{ext}: all changes nothing");
     }
+}
+
+/// FR-110: `-o radar.pdf` writes a PDF of the wide arrangement, exit 0,
+/// the PRD example's one warning as for PNG, its producer this version.
+#[test]
+fn a_pdf_is_written() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.pdf", "--title", "Q3"],
+    );
+    assert_eq!(ran.code, Some(0), "{}", ran.stderr);
+    let bytes = fs::read(dir.path().join("radar.pdf")).expect("written");
+    assert!(bytes.starts_with(b"%PDF-1.7\n"));
+    let text = String::from_utf8_lossy(&bytes);
+    assert!(
+        text.contains(&format!("/Producer ({})", radargen::emit::OUTPUT_VERSION)),
+        "SC-25"
+    );
+    assert!(text.contains("/Title (Q3)"));
+}
+
+/// FR-104 for PDF: a name the font lacks warns, naming the PDF.
+#[test]
+fn a_pdf_warns_about_missing_glyphs() {
+    let dir = seeded(&[("radar.csv", &format!("{HEAD}中文,Tools,Adopt,d\n"))]);
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.pdf"]);
+    assert_eq!(ran.code, Some(0), "{}", ran.stderr);
+    assert!(
+        ran.stderr.contains("the PDF draws them as boxes"),
+        "{}",
+        ran.stderr
+    );
 }
 
 /// FR-104's ending for several missing characters, in the format named.
@@ -747,7 +781,7 @@ fn missing_glyphs_warn_on_png_and_svg_not_html() {
         "--rings",
         "Adopt,Trial,採用",
     ];
-    for (ext, format) in [("png", "PNG"), ("svg", "SVG")] {
+    for (ext, format) in [("png", "PNG"), ("svg", "SVG"), ("pdf", "PDF")] {
         let out = format!("radar.{ext}");
         let args = [&["radar.csv", "-o", &out][..], &flags].concat();
         let ran = run_in(dir.path(), &args);
@@ -1082,7 +1116,7 @@ fn an_upper_case_png_extension_renders() {
 /// refused, untouched.
 #[test]
 fn a_static_output_that_is_the_input_is_refused() {
-    for name in ["data.png", "data.svg"] {
+    for name in ["data.png", "data.svg", "data.pdf"] {
         let dir = seeded(&[(name, PRD)]);
         let before = snapshot(dir.path());
         let ran = run_in(dir.path(), &[name, "-o", name]);
@@ -1101,7 +1135,11 @@ fn a_static_output_that_is_the_input_is_refused() {
 /// fails cleanly, with its exact line.
 #[test]
 fn a_static_output_into_a_missing_directory_fails() {
-    for name in ["nowhere/radar.png", "nowhere/radar.svg"] {
+    for name in [
+        "nowhere/radar.png",
+        "nowhere/radar.svg",
+        "nowhere/radar.pdf",
+    ] {
         let dir = seeded(&[("radar.csv", PRD)]);
         let before = snapshot(dir.path());
         let ran = run_in(dir.path(), &["radar.csv", "-o", name]);
@@ -1429,7 +1467,7 @@ const TWO_BLOCK: &str = include_str!("fixtures/palette-two-block.css");
 #[test]
 fn the_sample_palette_draws_the_light_theme() {
     let dir = seeded(&[("radar.csv", PRD), ("brand.css", SAMPLE)]);
-    for ext in ["png", "svg"] {
+    for ext in ["png", "svg", "pdf"] {
         let built = format!("built.{ext}");
         let file = format!("file.{ext}");
         let plain = run_in(dir.path(), &["radar.csv", "-o", &built]);
@@ -1736,7 +1774,7 @@ fn unplotted_rings_are_silent_on_png_and_svg() {
     let with = format!("{HEAD}Kafka,Tools,Adopt,d\nOld Bus,Tools,Rejected,d\n");
     let without = format!("{HEAD}Kafka,Tools,Adopt,d\n");
     let dir = seeded(&[("with.csv", &with), ("without.csv", &without)]);
-    for ext in ["png", "svg"] {
+    for ext in ["png", "svg", "pdf"] {
         let a = format!("a.{ext}");
         let b = format!("b.{ext}");
         let ran = run_in(
@@ -1846,11 +1884,25 @@ fn a_bad_rings_list_is_reported_before_unplotted_rings_are_checked() {
 
 const LONG_LEGEND: &str = include_str!("fixtures/long-legend.csv");
 
-/// A static output's (width, height): a PNG's pixels, an SVG's viewBox.
+/// A static output's (width, height): a PNG's pixels, an SVG's viewBox, a
+/// PDF's `MediaBox`.
 fn drawn_size(dir: &Path, name: &str, ext: &str) -> (f64, f64) {
     if ext == "png" {
         let image = png(dir, name);
         (f64::from(image.width()), f64::from(image.height()))
+    } else if ext == "pdf" {
+        let bytes = fs::read(dir.join(name)).expect("written");
+        let text = String::from_utf8_lossy(&bytes);
+        let (_, after) = text.split_once("/MediaBox [").expect("a MediaBox");
+        let (inside, _) = after.split_once(']').expect("a closed MediaBox");
+        let edges: Vec<f64> = inside
+            .split_whitespace()
+            .map(|n| n.parse().expect("a number"))
+            .collect();
+        let [_, _, width, height] = edges.as_slice() else {
+            panic!("a MediaBox of four numbers: {edges:?}");
+        };
+        (*width, *height)
     } else {
         let svg = read(dir, name);
         let parsed = roxmltree::Document::parse(&svg).expect("well-formed");
@@ -1868,12 +1920,12 @@ fn drawn_size(dir: &Path, name: &str, ext: &str) -> (f64, f64) {
     }
 }
 
-/// FR-100: at its own width, a long legend in columns makes a PNG or SVG
+/// FR-100: at its own width, a long legend in columns makes a PNG, SVG or PDF
 /// wider and shorter, with nothing more said than the plain render says.
 #[test]
 fn legend_columns_widen_and_shorten_a_static_output() {
     let dir = seeded(&[("radar.csv", LONG_LEGEND)]);
-    for ext in ["png", "svg"] {
+    for ext in ["png", "svg", "pdf"] {
         let (plain, flowed) = (format!("a.{ext}"), format!("b.{ext}"));
         let one = run_in(dir.path(), &["radar.csv", "-o", &plain]);
         let three = run_in(

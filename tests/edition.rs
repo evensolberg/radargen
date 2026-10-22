@@ -372,7 +372,7 @@ fn the_checks_read_the_expanded_output() {
     assert_eq!(ext.code, Some(1), "{}", ext.stderr);
     assert_eq!(
         ext.lines(),
-        ["error: -o a.2026-09-01: the output file name must end in .html, .png or .svg"]
+        ["error: -o a.2026-09-01: the output file name must end in .html, .png, .svg or .pdf"]
     );
     let missing = run_in(
         dir.path(),

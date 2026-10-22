@@ -101,6 +101,7 @@ fn png_and_svg_are_snapshots_named_in_capitals() {
         (OutputFormat::Html, false, "HTML"),
         (OutputFormat::Png, true, "PNG"),
         (OutputFormat::Svg, true, "SVG"),
+        (OutputFormat::Pdf, true, "PDF"),
     ];
     for (format, snapshot, name) in cases {
         assert_eq!(format.is_snapshot(), snapshot, "{name}");
@@ -283,7 +284,7 @@ fn the_table_long_help_says_what_each_value_publishes() {
         [
             "--table <TABLE>",
             "What an HTML page's table publishes; the default is radar.",
-            "It also decides what the detail panels show. Accepted in any letter case. PNG and SVG have no table.",
+            "It also decides what the detail panels show. Accepted in any letter case. PNG, SVG and PDF have no table.",
             "Possible values:",
             "- radar: Only the rows the radar draws and the columns radargen reads",
             "- all:   Every row, including those not on the radar, and every column with a header name. Anyone with the page can read them",

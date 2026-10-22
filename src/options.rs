@@ -17,6 +17,9 @@ pub enum OutputFormat {
     /// `.svg`: the wide arrangement as a standalone SVG, its text outlined
     /// (FR-54, D-88).
     Svg,
+    /// `.pdf`: the wide arrangement as a one-page vector PDF, its text
+    /// real text (FR-110, D-103).
+    Pdf,
 }
 
 impl OutputFormat {
@@ -34,16 +37,17 @@ impl OutputFormat {
             "html" => Some(Self::Html),
             "png" => Some(Self::Png),
             "svg" => Some(Self::Svg),
+            "pdf" => Some(Self::Pdf),
             _ => None,
         }
     }
 
-    /// Whether this is a static snapshot, a PNG or an SVG: it draws the
+    /// Whether this is a static snapshot, a PNG, an SVG or a PDF: it draws the
     /// legend whatever `--legend` says (RG-102), and with the bundled font
     /// alone (FR-104).
     #[must_use]
     pub const fn is_snapshot(self) -> bool {
-        matches!(self, Self::Png | Self::Svg)
+        matches!(self, Self::Png | Self::Svg | Self::Pdf)
     }
 }
 
@@ -54,12 +58,13 @@ impl std::fmt::Display for OutputFormat {
             Self::Html => "HTML",
             Self::Png => "PNG",
             Self::Svg => "SVG",
+            Self::Pdf => "PDF",
         })
     }
 }
 
-/// Where the page's legend starts (RG-102). Only HTML reads it: PNG and
-/// SVG always draw the legend.
+/// Where the page's legend starts (RG-102). Only HTML reads it: PNG, SVG
+/// and PDF always draw the legend.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum Legend {
     /// The legend shows.
@@ -71,7 +76,7 @@ pub enum Legend {
 }
 
 /// What the page's table publishes, and so its detail panels (FR-106).
-/// Only HTML reads it: PNG and SVG have no table.
+/// Only HTML reads it: PNG, SVG and PDF have no table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum Table {
     /// Only the rows the radar draws and the columns radargen reads.
@@ -79,4 +84,24 @@ pub enum Table {
     /// Every row, including those not on the radar, and every column with a
     /// header name. Anyone with the page can read them.
     All,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// FR-52: `.pdf` in any case is PDF, a static snapshot.
+    #[test]
+    fn pdf_is_a_snapshot_format() {
+        for name in ["radar.pdf", "RADAR.PDF", "a.b.Pdf"] {
+            assert_eq!(
+                OutputFormat::from_path(Path::new(name)),
+                Some(OutputFormat::Pdf),
+                "{name}"
+            );
+        }
+        assert!(OutputFormat::Pdf.is_snapshot());
+        assert_eq!(OutputFormat::Pdf.to_string(), "PDF");
+        assert_eq!(OutputFormat::from_path(Path::new("radar.txt")), None);
+    }
 }

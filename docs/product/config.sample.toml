@@ -9,8 +9,8 @@
 # The CSV to read. A CSV named on the command line overrides it.
 # input = "radar.csv"
 
-# Where to write the radar. The extension picks the format: .html, .png
-# or .svg. With no output here, pass -o.
+# Where to write the radar. The extension picks the format: .html, .png,
+# .svg or .pdf. With no output here, pass -o.
 # output = "radar.html"
 
 # A title above the radar. The default is none.
@@ -27,16 +27,16 @@
 # is none.
 # unplotted_rings = ["In Use", "Rejected"]
 
-# The colours for PNG and SVG: "light", the default, or "dark". Use
+# The colours for PNG, SVG and PDF: "light", the default, or "dark". Use
 # theme or palette, not both.
 # theme = "light"
 
-# The width in pixels for PNG and SVG, from 320 to 10000; the height
-# follows. The default is the drawing's own width.
+# The width in pixels for PNG, SVG and PDF, from 320 to 10000; the
+# height follows. The default is the drawing's own width.
 # width = 1920
 
-# Flow a PNG or SVG legend into 1 to 4 columns beside the radar, breaking
-# only between sectors. The default is 1.
+# Flow a PNG, SVG or PDF legend into 1 to 4 columns beside the radar,
+# breaking only between sectors. The default is 1.
 # legend_columns = 1
 
 # How an HTML page's legend starts: "shown", the default, or "hidden".

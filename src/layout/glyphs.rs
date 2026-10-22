@@ -1,4 +1,4 @@
-//! FR-104's warning: a text a PNG or SVG draws that holds characters the
+//! FR-104's warning: a text a PNG, SVG or PDF draws that holds characters the
 //! bundled font lacks, so the static output draws a box where the HTML page
 //! would fall back to the reader's fonts (D-93).
 
@@ -14,7 +14,7 @@ use crate::text::{Fonts, words};
 /// FR-104: one warning per drawn text with characters the bundled font
 /// lacks, pointing where the author wrote it.
 ///
-/// The texts are the ones a PNG or SVG draws from the author: `title` and
+/// The texts are the ones a PNG, SVG or PDF draws from the author: `title` and
 /// `subtitle` (FR-65's values), every declared ring, every sector, and
 /// every plotted item's name. A text drawn twice, as a sector is in the
 /// radar and the legend, warns once. The tool's own text and the default

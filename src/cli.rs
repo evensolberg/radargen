@@ -52,7 +52,7 @@ pub struct Cli {
     // --config's output key (FR-91).
     /// Where to write the radar.
     ///
-    /// The extension picks the format: .html, .png or .svg, in any case.
+    /// The extension picks the format: .html, .png, .svg or .pdf, in any case.
     #[arg(short, long, required_unless_present_any = [STARTER, "config"])]
     pub output: Option<PathBuf>,
 
@@ -100,7 +100,7 @@ pub struct Cli {
     // the courtesy FR-52 gives `.PNG`. `-T`, not `-t`, which is `--title`:
     // both appear in §6.6's canonical PNG invocation, so both earn a short
     // form (OQ-2).
-    /// The theme for PNG and SVG; the default is light.
+    /// The theme for PNG, SVG and PDF; the default is light.
     ///
     /// Not with --palette, which gives the colours itself. Written in any
     /// case. An HTML page carries both themes and follows the reader's
@@ -108,7 +108,7 @@ pub struct Cli {
     #[arg(short = 'T', long, value_enum, ignore_case = true)]
     pub theme: Option<Theme>,
 
-    // RG-102: the HTML page's starting state. PNG and SVG have no button to
+    // RG-102: the HTML page's starting state. PNG, SVG and PDF have no button to
     // bring a hidden legend back, so they keep it and the pipeline warns.
     // `show` and `hide` read naturally too, so they are accepted without
     // being advertised. No short form: a page's start is set once per
@@ -116,26 +116,26 @@ pub struct Cli {
     /// How an HTML page's legend starts; the default is shown.
     ///
     /// Accepted in any letter case. The page has a button to show or hide
-    /// it either way. PNG and SVG always draw the legend.
+    /// it either way. PNG, SVG and PDF always draw the legend.
     #[arg(long, value_enum, ignore_case = true)]
     pub legend: Option<Legend>,
 
     // FR-106, D-95: the page publishes what the radar draws unless asked
     // for everything, so a CSV that doubles as an internal register is not
-    // published whole by default. PNG and SVG have no table, so the pipeline
+    // published whole by default. PNG, SVG and PDF have no table, so the pipeline
     // warns on `all` there, as it does on `--legend hidden`. No aliases and
     // no short form: it is set once per radar, like --legend.
     /// What an HTML page's table publishes; the default is radar.
     ///
     /// It also decides what the detail panels show. Accepted in any letter
-    /// case. PNG and SVG have no table.
+    /// case. PNG, SVG and PDF have no table.
     #[arg(long, value_enum, ignore_case = true)]
     pub table: Option<Table>,
 
     // FR-57: the height always follows the document's aspect ratio and is
     // never a second flag. The range is FR-64's, enforced by clap so the
     // message is standard usage output. HTML ignores it.
-    /// The width in pixels for PNG and SVG.
+    /// The width in pixels for PNG, SVG and PDF.
     ///
     /// From 320 to 10000; the height follows. An HTML page fits the reader's
     /// window.
@@ -146,7 +146,7 @@ pub struct Cli {
     // The range is enforced by clap, as --width's is. HTML ignores it
     // without a word, as it does --width: its legend scrolls beside the
     // radar. No short form until it earns one (OQ-2).
-    /// Flow a PNG or SVG legend into this many columns beside the radar; the default is 1.
+    /// Flow a PNG, SVG or PDF legend into this many columns beside the radar; the default is 1.
     ///
     /// From 1 to 4; columns break only between sectors. An HTML page
     /// ignores it.
