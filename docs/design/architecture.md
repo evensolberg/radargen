@@ -118,9 +118,9 @@ its own, and reaching back past the waist to the `Table` would give the HTML
 emitter a second input to keep in step. `Catalogue` carries the named columns
 in header order and, per row, every named cell as written (`Item::cells`, read
 through `Item::cell`, which applies FR-29). Typed fields exist only where
-behaviour depends on them: quadrant, ring, qualifier, status and `name_key`,
+behaviour depends on them: sector, ring, qualifier, status and `name_key`,
 plus `name` and `line`. That makes FR-78's "every optional column the header
-declared" a lookup rather than a re-parse. The quadrant and a plotted ring are
+declared" a lookup rather than a re-parse. The sector and a plotted ring are
 displayed through their labels (FR-9, FR-15), not their cells, so the table and
 detail panel match the radar and legend. An unnamed column is not in that list;
 FR-93 drops it. The default table filters by `ColumnKind`, keeping every column
@@ -132,10 +132,10 @@ incapable of receiving it. SC-19's "unplotted rows reachable" under `--table all
 PNG stands alone on the graphic alone" are then both true by construction.
 
 **`Plotted` is index lists into the `Catalogue`, not a copy of it.** `resolve`
-returns FR-10's quadrant order and its inverse rank (FR-67's palette index),
+returns FR-10's sector order and its inverse rank (FR-67's palette index),
 the plotted items in FR-34's order, and FR-18's numbers aligned with
 `Catalogue::items`. The `Catalogue`'s own indices stay first-appearance and CSV
-order, so `Item::quadrant` means one thing everywhere.
+order, so `Item::sector` means one thing everywhere.
 
 **`arrange` runs twice for HTML and once for the static formats.** FR-69 embeds
 *both* arrangements in the HTML and switches with a media query; FR-71 exports
@@ -163,11 +163,11 @@ declarations only and are not listed.
 | `src/settings/file.rs` | The `--config` TOML file: read capped at 1 MiB and decoded as the CSV is, every key type- and value-checked as clap checks its flag, unknown keys with their near miss, every problem collected. Imports `decode`, `options`, `palette::Theme` and `style`, and nothing from `diagnostics`, directly or through another module (RG-019A) | 1.15 |
 | `src/csv/decode.rs` | `read`, the CSV stage's one file read (FR-1, FR-61), and `read_as`, the same naming the file by its `input` key when the config gave it (NFR-10), capped at 64 MiB and refused as `Fatal::CsvTooLarge` (rg-w5k); the bytes become text through `decode.rs` | v1.0 |
 | `src/csv/parse.rs` | String → `Table` (header and records); header, field counts (FR-3, FR-4); removal of undisplayable characters, with a warning, before any other check except the blank-record test (FR-90, FR-3), using `escape::displayable` so both modules share one set | v1.0 |
-| `src/model.rs` | `Item`, `Catalogue`; column validation, quadrant grouping and ring matching (FR-5–FR-29); the named columns in header order and every row's cells (FR-27, FR-78); unnamed columns dropped, with a warning when they hold a value (FR-93); `accessible_name()` (FR-50, FR-75); each row's link (FR-96) | *exists* |
+| `src/model.rs` | `Item`, `Catalogue`; column validation, in which a `quadrant` column is the `sector` column (D-101), sector grouping and ring matching (FR-5–FR-29); the named columns in header order and every row's cells (FR-27, FR-78); unnamed columns dropped, with a warning when they hold a value (FR-93); `accessible_name()` (FR-50, FR-75); each row's link (FR-96) | *exists* |
 | `src/link.rs` | `Link`: FR-96's `http`/`https` test, decided once at build time (D-77) | v1.0 |
-| `src/order.rs` | `resolve` → `Plotted`: FR-10's quadrant order and rank (`compare_quadrants`, `quadrant_order`), FR-34's item order (`compare_names`, `compare_items`), FR-18's numbers and FR-78's table order | *exists* |
+| `src/order.rs` | `resolve` → `Plotted`: FR-10's sector order and rank (`compare_sectors`, `sector_order`), FR-34's item order (`compare_names`, `compare_items`), FR-18's numbers and FR-78's table order | *exists* |
 | `src/style.rs` | Every layout constant: type scale, the legend's three indents (FR-35), marker radius, band label offsets, legend column maximum (FR-79), and the legibility floor FR-69's breakpoint is computed from (§4); `TextStyle::measure` and `TextStyle::wrap`, the one way every block measures and wraps its text | v1.0 |
-| `src/palette/mod.rs` | `Role`; FR-81/FR-82 built-in values; FR-67's quadrant index → series entry, including its cycling; `Colours`, the built-in themes or a `--palette` file's one set, and how each format binds them | v1.0 / 1.3 |
+| `src/palette/mod.rs` | `Role`; FR-81/FR-82 built-in values; FR-67's sector index → series entry, including its cycling; `Colours`, the built-in themes or a `--palette` file's one set, and how each format binds them | v1.0 / 1.3 |
 | `src/palette/hex.rs` | `Hex`, the one form a palette value takes (`#RRGGBB`, FR-86), so NFR-6's context 5 is enforced by type when a palette is built | 1.3 |
 | `src/palette/file.rs` | FR-102's grammar, FR-86's values and FR-87's series over a `--palette` file, every problem collected with its line; `read`, capped at 1 MiB, returning its own `ReadError` so the pipeline names the flag (RG-018A) | 1.3 |
 | `src/decode.rs` | Bytes to text for every file read: one BOM stripped, UTF-8 required, a NUL refused, CR/LF/CRLF counted once (FR-2, FR-61) | 1.3 |
@@ -205,7 +205,7 @@ Six of these are corrections rather than additions, and each has a reason:
   by two or three of `layout/*`; scattered, they become the magic numbers that
   drift apart under maintenance, and OQ-16 — should the marker be sized in output
   pixels? — is a change to one constant's *meaning* rather than an excavation.
-- **`model.rs` owns `accessible_name()`.** FR-50 requires number, name, quadrant
+- **`model.rs` owns `accessible_name()`.** FR-50 requires number, name, sector
   and ring on the marker, the legend row *and* the table row, and FR-75 exists
   because a previous draft let the visible de-duplication leak into the
   accessibility tree. Three call sites straddling the SVG/HTML boundary, one
@@ -294,7 +294,7 @@ continues it.
 document had `render_at(origin: Point)` — translation only — which cannot
 express FR-70. The narrow arrangement scales the *radar* down inside a
 text-appropriate document and **counter-scales its internal labels** so ring and
-quadrant names survive the reduction; a plain `transform="scale(k)"` on the group
+sector names survive the reduction; a plain `transform="scale(k)"` on the group
 would shrink the labels along with it, which is the illegibility SC-6 asserts
 against. The radar block therefore has to know the scale it is being drawn at,
 and — because it has three scales, not one — its box is not `size(1.0) * k`:
@@ -369,7 +369,7 @@ the wide document is never the narrower of the two. A breakpoint past
 labels can cause since D-86's growth stops short of it, and FR-105 warns (D-94).
 For PNG and SVG only, `--legend-columns` flows the wide legend into up to four
 columns before arranging (`Blocks::with_legend_columns`, FR-100, D-90): whole
-quadrant groups per column, split at the shortest tallest column, on one panel,
+sector groups per column, split at the shortest tallest column, on one panel,
 so the static document grows wider and shorter while HTML, and so
 `breakpoint_px`, never sees it.
 
@@ -464,7 +464,7 @@ A `Text` node's first baseline is at `origin`; each further line is `leading`
 below.
 
 `Paint::None` is the SVG `none` — the stroked-but-unfilled shapes: ring circles,
-quadrant dividers, FR-40's status rings and half-rings. It is **not** FR-20's
+sector dividers, FR-40's status rings and half-rings. It is **not** FR-20's
 hollow marker, which takes `Role::Neutral(Neutral::MarkerHollow)`. FR-82 equals that role to the
 radar ground in both built-in themes, so on the radar the two are
 indistinguishable and the mistake is invisible — but FR-66 draws the key's sample
@@ -475,7 +475,7 @@ apart.
 
 **No node carries a hex value.** Fills, strokes and text colours name a
 `palette::Role` — FR-82's eight neutrals and FR-81's indexed series entries — and
-the *emitter* binds it. A quadrant's series entry is indexed by its FR-10 rank from `order.rs` (FR-67), never by `Item::quadrant`, which is first-appearance order. A number on a solid marker names the series entry it sits
+the *emitter* binds it. A sector's series entry is indexed by its FR-10 rank from `order.rs` (FR-67), never by `Item::sector`, which is first-appearance order. A number on a solid marker names the series entry it sits
 on, and binding picks whichever of `#FFFFFF` and `#16191F` contrasts more with
 that entry's value (FR-82, D-54). That is a function of the value, not a ninth
 role:
@@ -519,8 +519,8 @@ A transparent dark export would put pale ink on whatever slide it lands on, and
 `Role` is an enum for the eight neutrals and an index for the series, since
 FR-87 makes the series count a property of the file rather than a constant.
 
-**That index is the quadrant's position in FR-10's order, and it is not reduced
-before the emitter sees it.** FR-67 cycles when quadrants outnumber palette
+**That index is the sector's position in FR-10's order, and it is not reduced
+before the emitter sees it.** FR-67 cycles when sectors outnumber palette
 entries, and FR-87 makes the number of entries a property of a file the layout
 never reads. Taking the modulo during layout would put the palette's length
 inside `Document` and make one radar two different documents under two palettes
@@ -779,7 +779,7 @@ is read, so the pipeline computes an `OffRadar` from the `Config` with
 carries it beside its ring source. Rendering then needs nothing but the
 warnings.
 
-FR-88's quadrant-count warning carries no CSV line, and NFR-11 puts it **before**
+FR-88's sector-count warning carries no CSV line, and NFR-11 puts it **before**
 the line-ordered ones. That is a sort key, not a special case: a warning's
 position is `Position::{Render, Cell { line, column }}`, `Render` is declared
 first so the derived order puts it first, and `column` (the header index) orders
@@ -796,8 +796,8 @@ warn. Like `warn_crowding`, it rebuilds what is drawn from `Catalogue`,
 matching every boxed line of the drawn document to a warned text. No position
 is carried down for it: each item already keeps its line, and this change gives
 each column its header position (`Column::position`, read through
-`Catalogue::position`) and each quadrant the line its label came from
-(`Quadrant::line`), which is all the cell needs (D-93).
+`Catalogue::position`) and each sector the line its label came from
+(`Sector::line`), which is all the cell needs (D-93).
 
 ## 8. Where each open question lives
 
@@ -810,7 +810,7 @@ because it is two questions.
 | **OQ-16** marker in output px | `style::MARKER_RADIUS` + `layout::geometry` | Marker radius is a *constant with one reader-set*, and already a parameter of layout rather than a literal. Either policy plugs in without restructuring — but note OQ-16 (c): FR-89's capacity threshold becomes width-dependent, so `geometry::capacity()` gains an argument |
 | **OQ-9** *(a)* what "case-insensitively" means *(closed, D-53)* | `lib::normalise` | The single folding site — FR-9, FR-16, FR-20, FR-26, FR-28 all compare through it. Unicode's default lowercase mapping, `str::to_lowercase`, which is what it already does |
 | **OQ-9** *(b)* what "ordinally" means above the BMP *(closed, D-53)* | `order::compare_names` | Unicode code point, which is UTF-8 byte order and so plain `str::cmp`. Documented at that site, since it differs from the prototype's UTF-16 order. FR-9's label choice in `model.rs` applies the same rule — a plain `<` on `&str` — without being a second home: it cannot call `order.rs` (a cycle) and cites D-53 |
-| **OQ-17** `--quadrants` *(deferred)* | `order.rs` | FR-10's quadrant order is computed in one place and handed to layout as a list, so an explicit order later replaces the computation rather than the consumers |
+| **OQ-17** `--sectors` *(deferred)* | `order.rs` | FR-10's sector order is computed in one place and handed to layout as a list, so an explicit order later replaces the computation rather than the consumers |
 | **OQ-6** `--palette` *(closed)* | `palette/file.rs` | FR-102's grammar and FR-86/FR-87 validation (1.3.0) |
 | **OQ-3** `--strict` | — | Not code. §4 rules it out for this version |
 | **OQ-4** CSV backfill | — | Not code. Gates adoption, runs in parallel |
@@ -900,7 +900,7 @@ GitHub Actions runs (crumb `rg-3wv`).
 
 | Fixture | Exercises |
 | --- | --- |
-| `three-quadrant.csv` | SC-2 — the originating Tool/Platform/Practice case |
+| `three-sector.csv` | SC-2 — the originating Tool/Platform/Practice case |
 | `thoughtworks.csv` | SC-13 — the same data under three ring sets |
 | `hostile.csv` | SC-9 — `<script>`, `&`, `"`, `]]>`, `</script>`, a lone `<`, U+2028 |
 | `unplotted.csv` | SC-4, SC-19 — locally-tracked rings, extra columns |
@@ -908,10 +908,10 @@ GitHub Actions runs (crumb `rg-3wv`).
 | `all-unplotted.csv` | FR-42's other shape — sectors but no markers |
 | `overfull.csv` | SC-23 — a band past capacity |
 | `warnings.csv` | SC-24 — 40 rows of one undeclared ring plus one typo |
-| `seven-quadrant.csv` | SC-22 — one FR-88 warning, not seven, and not at six |
+| `seven-sector.csv` | SC-22 — one FR-88 warning, not seven, and not at six |
 | `wide.csv` | SC-9's escaping is not enough on its own: a name long enough to force FR-79's mid-token break, which is the wrap path least likely to be exercised by real data |
-| `one-quadrant.csv` | FR-43 — N=1, where the single divider is both edges and FR-33's 8% inset applies to each side of a full circle. The geometry says this is not a special case; this is what checks that it isn't |
-| `twelve-quadrant.csv` | SC-22's twelve case *and* FR-67's cycling — the ninth quadrant repeats the first's colour, and one FR-88 warning covers the lot |
+| `one-sector.csv` | FR-43 — N=1, where the single divider is both edges and FR-33's 8% inset applies to each side of a full circle. The geometry says this is not a special case; this is what checks that it isn't |
+| `twelve-sector.csv` | SC-22's twelve case *and* FR-67's cycling — the ninth sector repeats the first's colour, and one FR-88 warning covers the lot |
 | `treatments.csv` | SC-14 — every `qualifier` × `status` combination, so FR-20's two fills and FR-40's three ring treatments are each drawn at least once. Nothing else in this table draws a half-ring |
 | `row-errors.csv` | NFR-16 **tier two** — several rows each failing FR-4, FR-5 or FR-6, reported in one run. §7's `Vec<RowError>` exists for this and no other fixture reaches it |
 | `quoted-newline.csv` | NFR-10 — a quoted field containing a newline, after which the physical line and the record ordinal diverge permanently. D-37 chose the physical line; every other fixture agrees with both |
