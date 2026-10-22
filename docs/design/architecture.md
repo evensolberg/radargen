@@ -56,9 +56,10 @@ before the output resolves against its source, then the checks on what the
 values name, in this order — the output (FR-52, FR-62, the regular-file
 rule, D-74), the ring set (FR-63), the unplotted rings (FR-107), the
 palette (FR-102). A value from the file that fails expansion is dropped,
-as a broken key is, so no later check reports its unexpanded text. A check that fails on a value from the file records its errors
-and the next check runs; one that fails on a command-line value stops the
-run with everything recorded so far.
+as a broken key is, so no later check reports its unexpanded text. A
+check that fails on a value from the file records its errors and the next
+check runs; one that fails on a command-line value stops the run with
+everything recorded so far.
 
 ```text
   bytes                                                       §6.1
@@ -157,7 +158,7 @@ declarations only and are not listed.
 | `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17); `--unplotted-rings`, parsed the same way and refused where it names a declared ring (FR-107); its source is `settings::Source`, and `parse_ring_list` takes a file's list | *exists* |
 | `src/options.rs` | The choices a run is made with: `OutputFormat`, `Legend`, `Table`. A leaf, importing nothing from the crate, so `settings`, `diagnostics` and the emitters name them without a cycle; every user imports `crate::options` directly (RG-019A review I-2) | 1.15 |
 | `src/settings/mod.rs` | Where a value came from: `Source`, `Setting`, `Origin`, `Sourced`, `NamedPath` and `Origin`'s source-dependent remedy wording (`set_to`, `smaller`); a setting after the merge, `Effective`; the defaults; `resolve`, FR-91's path rule; `Settings::displace`, FR-59's flag-over-key rule (RG-019A). Imports only `options`, `palette::Theme` and its own `file` and `edition` | 1.15 |
-| `src/settings/edition.rs` | FR-92 and D-58: `--edition`'s value parser (a date, or `today`), the placeholder matcher, `expand`, and `local_today`, the one clock read, through jiff. Imports `date` only | 1.16 |
+| `src/settings/edition.rs` | FR-92 and D-58: `--edition`'s value parser (a date, or `today`), the placeholder matcher, `uses` and `expand`, and `local_today`, the one clock read, through jiff, returning the date with its zone and any fallback to UTC. Imports `date` only | 1.16 |
 | `src/date.rs` | FR-24's `YYYY-MM-DD` check, shared by `model` and `settings::edition`. A leaf | 1.16 |
 | `src/settings/file.rs` | The `--config` TOML file: read capped at 1 MiB and decoded as the CSV is, every key type- and value-checked as clap checks its flag, unknown keys with their near miss, every problem collected. Imports `decode`, `options`, `palette::Theme` and `style`, and nothing from `diagnostics`, directly or through another module (RG-019A) | 1.15 |
 | `src/csv/decode.rs` | `read`, the CSV stage's one file read (FR-1, FR-61), capped at 64 MiB and refused as `Fatal::CsvTooLarge` (rg-w5k); the bytes become text through `decode.rs` | v1.0 |
@@ -660,6 +661,9 @@ choices instead of vigilance:
   and the run echoes the date so it can be repeated. `main` passes
   `local_today`; tests pass a fixed date, or one that panics if read, so no
   test depends on the day it runs and none can read the clock unnoticed.
+  clippy's `disallowed-methods` refuses `jiff::Zoned::now`,
+  `jiff::Timestamp::now` and `SystemTime::now` everywhere else, so the rule
+  is a gate rather than a convention.
 
 Byte-identity is asserted for HTML and SVG; PNG is compared by decoded pixels
 (NFR-4, D-40).
