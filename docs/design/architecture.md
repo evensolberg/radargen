@@ -1008,6 +1008,8 @@ our own output, and SC-7's parity is about items, positions and wrap points, all
 upstream of it. Recorded because "outlining is lossless" is the kind of claim
 that outlives the measurement behind it.
 
+**PDF (FR-110, D-103).** A second converter over the same `Document`, in the crate-private `src/pdf/`: `content.rs` walks the tree as the static serialiser does and writes PDF operators onto a `Canvas` under one flip-and-scale `cm`; `geometry.rs` turns circles, rounded rects and arcs into cubics; `show.rs` places each glyph from `FontMetrics::place` with `TJ` adjustments against the widths array, each text in its own graphics state; `font.rs` subsets each used weight (`subsetter`) and writes Type0/CIDFontType2 with a ToUnicode map from shaper clusters. What every static output shares lives where they all read it: `Node::static_runs` (the glyphs drawn), `Document::ground` (D-87) and `emit::intrinsic_size` (FR-57). `emit/pdf.rs` assembles the file in a fixed object order with no dates or ID, and a `/UserUnit` past viewers' 200-inch limit. The rule that only `text.rs` reads skrifa holds for `src/`; tests may read fonts directly. `tests/pdf_matches_png.rs` checks the PDF with hayro, an independent rasteriser, against the PNG.
+
 ## 12. Risks this design accepts
 
 | Risk | Response |
