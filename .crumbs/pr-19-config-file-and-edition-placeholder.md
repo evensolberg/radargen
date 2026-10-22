@@ -1,7 +1,7 @@
 ---
 id: rg-u6u
 title: 'PR 19: --config file and --edition placeholder'
-status: in_progress
+status: closed
 type: feature
 priority: 2
 tags:
@@ -9,7 +9,8 @@ tags:
 - cli
 - config
 created: 2026-10-09
-updated: 2026-10-19
+updated: 2026-10-22
+closed_reason: PR 19a (--config, 1.15.0) and PR 19b (--edition, -e today, edition and input keys, 1.16.0)
 phase: v1.1
 ---
 
@@ -36,3 +37,11 @@ PRD v0.39 FR-91/FR-92, D-57/D-58, SC-26/SC-27, v1.1. TOML config (serde + toml c
 [2026-10-18] For PR 19b, from the PR 19a architecture review (M-9): (a) when {edition} fails on the file's output, drop the output as Effective::Broken does, so FR-52/FR-62 do not report the unexpanded path; (b) a command-line -o is an OsString-backed PathBuf, so expanding it needs to_str() and a rule for non-UTF-8 paths, on which the PRD is silent; (c) the title and subtitle reach the seam already trimmed by shown(), harmless since {edition} is never whitespace, but the order comment should say so.
 
 [stop]  2026-10-19 09:17:17  17h 15m 5s
+
+[start] 2026-10-22 07:45:12
+
+[2026-10-22] Decided (maintainer, 2026-10-22): -e today / --edition today reads the local calendar date once (opt-in clock read, echoed as a note with the -e <date> to reproduce); without it the clock is never read. Amends D-24, D-58, FR-92.
+
+[2026-10-22] Decided (maintainer, 2026-10-22): PR 19b also adds an `input` config key (the CSV path, resolved against the config folder; a positional CSV overrides it; neither is a usage error), so `radargen -c radar.toml` runs a scheduled render. Amends D-57 (the CSV no longer has to be positional), FR-91 (13 keys), FR-60.
+
+[stop]  2026-10-22 08:28:01  42m 49s
