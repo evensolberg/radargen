@@ -122,7 +122,7 @@ An SVG is vectors: sharp at any size, and editable in PowerPoint, Figma or Illus
 
 A PDF is one vector page the size of the drawing, with the same radar, key and legend. Its text is real text, so you can select, copy and search the names in any PDF viewer. Links are not clickable, as in the PNG and SVG.
 
-- **Page size.** `--width` sets the page width in pixels at 96 per inch, so `--width 1056` is an 11-inch-wide page; the height follows. Without `--width` the page is the layout's natural width, about 13 inches for a typical radar. The page is not a paper size: to print, use your viewer's *Fit to page*, and `--legend-columns 2` for a shorter page. A4 and Letter pages are planned.
+- **Page size.** `--width` sets the page width in pixels at 96 per inch, so `--width 1056` is an 11-inch-wide page; the height follows. Without `--width` the page is the layout's natural width, about 11 inches for a typical radar. The page is not a paper size: to print, use your viewer's *Fit to page*, and `--legend-columns 2` for a shorter page. A4 and Letter pages are planned.
 - **Printing.** `--theme light` saves ink; the dark theme prints its full background.
 - **Accessibility.** The PDF has a title and its text reads in order, but it is not tagged for screen readers yet. Send the HTML page to someone who uses one.
 

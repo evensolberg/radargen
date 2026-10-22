@@ -174,7 +174,7 @@ declarations only and are not listed.
 | `src/starter.rs` | `Starter`: the files written to start from, each by its own flag alone — the CSV template (FR-99), the palette sample (FR-101) and the config sample (FR-109) — created with `create_new` so nothing is ever replaced | 1.0 / 1.4 / 1.18 |
 | `src/decode.rs` | Bytes to text for every file read: one BOM stripped, UTF-8 required, a NUL refused, CR/LF/CRLF counted once (FR-2, FR-61) | 1.3 |
 | `src/layout/geometry.rs` | `Geometry`: angles, bands, marker placement (FR-30–FR-33, FR-43, FR-77), FR-89's computed band capacity, `place`, and FR-88/FR-89's render warnings (`warn_crowding`); `Point` | *exists* |
-| `src/layout/glyphs.rs` | FR-104's warning (`warn_missing_glyphs`), PNG and SVG only: each drawn text the bundled font lacks characters for, a row warning at its cell or a render warning naming its flag (D-93); detection is `text.rs`'s | 1.7 |
+| `src/layout/glyphs.rs` | FR-104's warning (`warn_missing_glyphs`), PNG, SVG and PDF only: each drawn text the bundled font lacks characters for, a row warning at its cell or a render warning naming its flag (D-93); detection is `text.rs`'s | 1.7 |
 | `src/layout/block.rs` | The `Block` trait, `Size`, `Placement`; nothing domain-specific — arrives with the first block (PR 09), using `geometry::Point` | v1.0 |
 | `src/layout/title.rs` | Title block (FR-65) | v1.0 |
 | `src/layout/radar.rs` | Radar block: sectors, bands, markers, labels, FR-70's three scales | v1.0 |
@@ -360,7 +360,7 @@ switch is therefore where the radar alone reaches `WIDE_MIN_SCALE`
 integer, for a radar part `R` wide (`WideParts::breakpoint`). The title part is
 cut as wide as the radar part, not the whole document (rg-dok): the title wraps
 at the radar part's width less two margins (D-99), so it fits by construction
-and never draws smaller than the radar does. PNG and SVG keep the one document. The
+and never draws smaller than the radar does. PNG, SVG and PDF keep the one document. The
 narrow arrangement is never wider than the wide one, though since D-85 the
 breakpoint can fall a few pixels below the narrow document's width, where the
 narrow SVGs simply span the viewport. D-71's widening does not disturb the
@@ -369,7 +369,7 @@ and the widest narrow document is the radar at 0.3 plus the same insets, so
 the wide document is never the narrower of the two. A breakpoint past
 `WIDE_MIN_VIEWPORT_PX` sends laptops to the narrow arrangement, which only
 labels can cause since D-86's growth stops short of it, and FR-105 warns (D-94).
-For PNG and SVG only, `--legend-columns` flows the wide legend into up to four
+For PNG, SVG and PDF only, `--legend-columns` flows the wide legend into up to four
 columns before arranging (`Blocks::with_legend_columns`, FR-100, D-90): whole
 sector groups per column, split at the shortest tallest column, on one panel,
 so the static document grows wider and shorter while HTML, and so
@@ -603,8 +603,8 @@ rows (FR-17) have no key in any of them.
 **Per-format rules.** A hit area and an indicator are *interactive-only*:
 `Node::is_interactive_only` says so structurally, so an emitter need not know
 which layer a node came from. A static image has no pointer or focus, so the
-SVG and PNG emitters skip every interactive-only node (the two layer groups drop
-whole) and write a `Control` as `<g role="img" aria-label><title>`, without
+SVG, PNG and PDF emitters skip every interactive-only node (the two layer groups drop
+whole), and the SVG and PNG write a `Control` as `<g role="img" aria-label><title>`, without
 `tabindex`: `img` makes the control's drawn text presentational, so its
 name, which already holds that text (FR-50), is read once. The HTML emitter
 keeps them: a marker control carries `data-row` and `data-marker`, a
@@ -791,7 +791,7 @@ express.
 FR-104's warning comes in both kinds. A text from a CSV cell is a row warning at
 that cell, so it sorts and groups with the others; a text from `--title`,
 `--subtitle` or a `--rings` entry is a render warning naming its flag. It is
-raised at render time, in `layout/glyphs.rs`, because only the PNG and SVG
+raised at render time, in `layout/glyphs.rs`, because only the PNG, SVG and PDF
 warn. Like `warn_crowding`, it rebuilds what is drawn from `Catalogue`,
 `Plotted` and the flags rather than reading `Blocks`; the test
 `every_drawn_text_that_lacks_a_glyph_is_warned` keeps the two in step, by
