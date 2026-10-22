@@ -1,6 +1,7 @@
 //! Writing rendered output to disk (architecture §3).
 
 pub mod html;
+pub mod pdf;
 pub mod png;
 pub mod svg;
 pub mod write;

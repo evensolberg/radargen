@@ -18,7 +18,6 @@ pub mod num;
 pub mod options;
 pub mod order;
 pub mod palette;
-#[cfg_attr(not(test), expect(dead_code, reason = "used by emit::pdf from Task 8"))]
 mod pdf;
 pub mod pipeline;
 pub mod rings;

@@ -141,7 +141,9 @@ impl Faces {
             .expect("a CID comes from Self::cid")
     }
 
-    /// CID `cid`'s text, as the `ToUnicode` map gives it.
+    /// CID `cid`'s text, as the `ToUnicode` map gives it: what the tests
+    /// read the map back with (the writer reads the subset directly).
+    #[cfg(test)]
     #[must_use]
     pub fn unicode(&self, weight: Weight, cid: u16) -> Option<&str> {
         self.subsets

@@ -22,6 +22,7 @@ mod html5;
 mod identity;
 mod page;
 mod palette_page;
+mod pdf;
 mod script;
 mod table;
 mod vocabulary;
