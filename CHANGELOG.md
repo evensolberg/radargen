@@ -1,3 +1,27 @@
+## [1.16.0] - 2026-10-22
+
+### 🚀 Features
+
+- *(cli)* -e/--edition fills {edition} in output, title, subtitle
+- *(config)* Edition becomes a config key, "today" included
+- *(config)* An input key names the CSV, so -c alone renders
+
+### 🐛 Bug Fixes
+
+- *(edition)* No false unused warning; -e today names its zone
+
+### 📚 Documentation
+
+- *(changelog)* Reconcile 1.15.0 with its squash merge
+- *(edition)* Document -e/--edition, {edition} and -e today
+- *(edition)* Zone in the today echo; output paths are not cut
+- *(edition)* Edition is a config key; job configs can say today
+- *(config)* The input key, and radargen -c radar.toml alone
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* --create-config and the quadrant-to-sector rename
+- *(crumbs)* Rg-q2y, drop the syn/bitflags duplicate allowance
 ## [1.15.0] - 2026-10-19
 
 ### 🚀 Features

@@ -4,11 +4,19 @@ disallowed-methods = [
     { path = "str::trim", reason = "FR-76 (D-61): use radargen::trim" },
     { path = "str::trim_start", reason = "FR-76 (D-61): use radargen::trim" },
     { path = "str::trim_end", reason = "FR-76 (D-61): use radargen::trim" },
+    # D-24, D-58: the clock is read once, for -e today, in
+    # settings::edition::local_today; the pipeline is handed that clock.
+    { path = "jiff::Zoned::now", reason = "D-24, D-58: only settings::edition::local_today reads the clock" },
+    { path = "jiff::Timestamp::now", reason = "D-24, D-58: only settings::edition::local_today reads the clock" },
+    { path = "std::time::SystemTime::now", reason = "D-24, D-58: only settings::edition::local_today reads the clock" },
 ]
 
 # png 0.18 depends on miniz_oxide 0.8 directly and 0.9 through flate2;
-# neither is ours to unify (rg-42m).
-allowed-duplicate-crates = ["miniz_oxide"]
+# neither is ours to unify (rg-42m). jiff (-e today, D-58) lists syn 2
+# through jiff-static under a never-true cfg(any()), and bitflags 1 through
+# defmt, which a weak `defmt?/alloc` feature puts in the lockfile: both are
+# in cargo's metadata but never built.
+allowed-duplicate-crates = ["miniz_oxide", "syn", "bitflags"]
 
 # --config's key names (FR-91), which --help lists in prose: clap prints a
 # doc comment verbatim, so backticks would reach the user. ".." keeps

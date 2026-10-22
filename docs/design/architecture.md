@@ -50,12 +50,16 @@ two share `decode::read_capped`.
 
 A run's settings come from the command line merged over the `--config`
 file (FR-91), then pass through a **gate** that collects every tier-one
-error (§7): each key's problems first, then the checks on what the values
-name, in this order — the output (FR-52, FR-62, the regular-file rule,
-D-74), the ring set (FR-63), the unplotted rings (FR-107), the palette
-(FR-102). A check that fails on a value from the file records its errors
-and the next check runs; one that fails on a command-line value stops the
-run with everything recorded so far.
+error (§7): each key's problems first, then FR-92's `{edition}` expansion
+of the output, title and subtitle, after FR-90 has cleaned the last two and
+before the output resolves against its source, then the checks on what the
+values name, in this order — the output (FR-52, FR-62, the regular-file
+rule, D-74), the ring set (FR-63), the unplotted rings (FR-107), the
+palette (FR-102). A value from the file that fails expansion is dropped,
+as a broken key is, so no later check reports its unexpanded text. A
+check that fails on a value from the file records its errors and the next
+check runs; one that fails on a command-line value stops the run with
+everything recorded so far.
 
 ```text
   bytes                                                       §6.1
@@ -147,15 +151,17 @@ declarations only and are not listed.
 | File | Responsibility | Slice |
 | --- | --- | --- |
 | `src/lib.rs` | Crate root, lint gate. `normalise()` — FR-76's single rule, stated once; `trim()` — FR-76's trim (D-61); `tidy()` — the trim plus one space per internal whitespace run, the display form of a label or name (D-89) | *exists* |
-| `src/main.rs` | Parse args, call `pipeline::run`, print its report to stderr, map the outcome to the exit code (NFR-8) | v1.0 |
+| `src/main.rs` | Parse args, call `pipeline::run` with the production clock (`settings::edition::local_today`), print its report to stderr, map the outcome to the exit code (NFR-8) | v1.0 |
 | `src/pipeline.rs` | The run: `Config` built once from `Cli`, the stages in §2's order, the three failure points (§7), and the rendered `Report` | v1.0 |
-| `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52). Also `Cli::settings`, the `--config` merge under the command line, key by key, recording each setting's source (FR-91, NFR-10); PR 19b adds `{edition}` (FR-92) | *exists* |
+| `src/cli.rs` | The flag surface (§6.6) and `-o` format inference (FR-52). Also `Cli::settings`, the `--config` merge under the command line, key by key, recording each setting's source (FR-91, NFR-10); `--edition`, parsed by `settings::edition::parse` (FR-92), which overrides the `edition` key; the positional CSV, optional with `--config`, which overrides the `input` key (FR-60, FR-91) | *exists* |
 | `src/diagnostics.rs` | `Fatal`, `RowError`, `Warning`, `Warnings` — the taxonomy and NFR-20 grouping | v1.0 |
 | `src/rings.rs` | `--rings` parsing, FR-63 validation, and the ring set's source (FR-17); `--unplotted-rings`, parsed the same way and refused where it names a declared ring (FR-107); its source is `settings::Source`, and `parse_ring_list` takes a file's list | *exists* |
 | `src/options.rs` | The choices a run is made with: `OutputFormat`, `Legend`, `Table`. A leaf, importing nothing from the crate, so `settings`, `diagnostics` and the emitters name them without a cycle; every user imports `crate::options` directly (RG-019A review I-2) | 1.15 |
-| `src/settings/mod.rs` | Where a value came from: `Source`, `Setting`, `Origin`, `Sourced`, `NamedPath` and `Origin`'s source-dependent remedy wording (`set_to`, `smaller`); a setting after the merge, `Effective`; the defaults; `resolve`, FR-91's path rule; `Settings::displace`, FR-59's flag-over-key rule (RG-019A). Imports only `options`, `palette::Theme` and its own `file` | 1.15 |
+| `src/settings/mod.rs` | Where a value came from: `Source`, `Setting`, `Origin`, `Sourced`, `NamedPath` and `Origin`'s source-dependent remedy wording (`set_to`, `smaller`); a setting after the merge, `Effective`; the defaults; `resolve`, FR-91's path rule; `Settings::displace`, FR-59's flag-over-key rule (RG-019A). Imports only `options`, `palette::Theme` and its own `file` and `edition` | 1.15 |
+| `src/settings/edition.rs` | FR-92 and D-58: `--edition`'s value parser (a date, or `today`), the placeholder matcher, `uses` and `expand`, used for `-e` and the `edition` key alike, and `local_today`, the one clock read, through jiff, returning the date with its zone and any fallback to UTC. Imports `date` only | 1.16 |
+| `src/date.rs` | FR-24's `YYYY-MM-DD` check, shared by `model` and `settings::edition`. A leaf | 1.16 |
 | `src/settings/file.rs` | The `--config` TOML file: read capped at 1 MiB and decoded as the CSV is, every key type- and value-checked as clap checks its flag, unknown keys with their near miss, every problem collected. Imports `decode`, `options`, `palette::Theme` and `style`, and nothing from `diagnostics`, directly or through another module (RG-019A) | 1.15 |
-| `src/csv/decode.rs` | `read`, the CSV stage's one file read (FR-1, FR-61), capped at 64 MiB and refused as `Fatal::CsvTooLarge` (rg-w5k); the bytes become text through `decode.rs` | v1.0 |
+| `src/csv/decode.rs` | `read`, the CSV stage's one file read (FR-1, FR-61), and `read_as`, the same naming the file by its `input` key when the config gave it (NFR-10), capped at 64 MiB and refused as `Fatal::CsvTooLarge` (rg-w5k); the bytes become text through `decode.rs` | v1.0 |
 | `src/csv/parse.rs` | String → `Table` (header and records); header, field counts (FR-3, FR-4); removal of undisplayable characters, with a warning, before any other check except the blank-record test (FR-90, FR-3), using `escape::displayable` so both modules share one set | v1.0 |
 | `src/model.rs` | `Item`, `Catalogue`; column validation, quadrant grouping and ring matching (FR-5–FR-29); the named columns in header order and every row's cells (FR-27, FR-78); unnamed columns dropped, with a warning when they hold a value (FR-93); `accessible_name()` (FR-50, FR-75); each row's link (FR-96) | *exists* |
 | `src/link.rs` | `Link`: FR-96's `http`/`https` test, decided once at build time (D-77) | v1.0 |
@@ -648,6 +654,16 @@ choices instead of vigilance:
   notice until a stray leading space sorted an item away from the name it
   duplicates. The key is computed once when the `Item` is built; "both operands
   normalised" is then a property of construction, not of every call site.
+
+- **The clock is injected, and read only for `-e today`.** D-24 keeps the
+  clock out of the output; D-58's `-e today` is the one opt-in. `pipeline::run`
+  takes the clock as a parameter, called at most once and only for `today`,
+  and the run echoes the date so it can be repeated. `main` passes
+  `local_today`; tests pass a fixed date, or one that panics if read, so no
+  test depends on the day it runs and none can read the clock unnoticed.
+  clippy's `disallowed-methods` refuses `jiff::Zoned::now`,
+  `jiff::Timestamp::now` and `SystemTime::now` everywhere else, so the rule
+  is a gate rather than a convention.
 
 Byte-identity is asserted for HTML and SVG; PNG is compared by decoded pixels
 (NFR-4, D-40).

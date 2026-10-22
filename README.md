@@ -129,7 +129,7 @@ A palette is one set of colours, so an HTML page drawn with one has no theme but
 
 ```text
 radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]
-radargen <CSV_PATH> -c <FILE> [OPTIONS]
+radargen [CSV_PATH] -c <FILE> [OPTIONS]
 radargen --create-template <PATH>
 radargen --create-palette <PATH>
 ```
@@ -147,7 +147,8 @@ radargen --create-palette <PATH>
 | `-w`, `--width <WIDTH>` | The width in pixels for PNG and SVG, from 320 to 10000. |
 | `--legend-columns <N>` | Flows a PNG or SVG legend into N columns beside the radar, from 1 (the default) to 4, breaking only between quadrants. HTML ignores it. |
 | `-p`, `--palette <FILE>` | Colours from a palette file instead of the built-in themes, in every format. Not with `--theme`; given with a config file's `theme` key, the palette wins. |
-| `-c`, `--config <FILE>` | Read settings from a TOML file: `output`, `title`, `subtitle`, `rings`, `unplotted_rings`, `theme`, `width`, `legend_columns`, `legend`, `table` and `palette`. A flag on the command line overrides its key. With `-c`, `-o` is needed only when the file has no `output` key. |
+| `-c`, `--config <FILE>` | Read settings from a TOML file: `input`, `output`, `title`, `subtitle`, `rings`, `unplotted_rings`, `theme`, `width`, `legend_columns`, `legend`, `table`, `palette` and `edition`. A flag on the command line overrides its key. With `-c`, the CSV and `-o` are needed only when the file has no `input` or `output` key. |
+| `-e`, `--edition <YYYY-MM-DD>` | The edition's date, which `{edition}` in the output, title or subtitle becomes; `today` for the local date. Overrides a config file's `edition` key. |
 | `--create-template <PATH>` | Write a starter CSV, and render nothing. Given alone. |
 | `--create-palette <PATH>` | Write a starter palette, and render nothing. Given alone. |
 | `-h`, `--help` / `-V`, `--version` | Help, and the version. |
@@ -171,23 +172,66 @@ radargen entries.csv -c radar.toml
 radargen entries.csv -c radar.toml --title "Draft"   # a flag overrides its key
 ```
 
-- **Keys.** Each key means what its flag means. `rings` and `unplotted_rings` are arrays of strings, such as `["Adopt", "Trial"]`; `width` and `legend_columns` are integers; the rest are strings. Any other key is an error. With no `output` key, pass `-o`.
+The file can name the CSV and the date too, so a scheduled job needs nothing but the file:
+
+```toml
+# radar.toml
+input = "entries.csv"
+output = "editions/{edition}.html"
+subtitle = "Edition {edition}"
+edition = "today"
+```
+
+```sh
+radargen -c radar.toml
+```
+
+- **Keys.** Each key means what its flag means; `input` names the CSV, and a CSV on the command line overrides it. `rings` and `unplotted_rings` are arrays of strings, such as `["Adopt", "Trial"]`; `width` and `legend_columns` are integers; the rest are strings, `edition` a date written `YYYY-MM-DD` or `"today"`. Any other key is an error. With no `input` key, name the CSV on the command line; with no `output` key, pass `-o`.
 - **Flags win.** A flag on the command line overrides its key. `--palette` also drops the file's `theme`, and `--theme` its `palette`; a file holding both is an error. Every key is checked even when a flag overrides it, so a file with `width = 5` fails with `--width 1920` too: the file is valid or not on its own.
-- **Paths.** A relative `output` or `palette` is relative to the file's own folder, wherever you run the command; `~` is not expanded. A path in the file must name a regular file, not a pipe, device or folder, and errors about a palette the file names never quote its contents. radargen reads the file only when `-c` names it.
+- **Paths.** A relative `input`, `output` or `palette` is relative to the file's own folder, wherever you run the command; `~` is not expanded. A path in the file must name a regular file, not a pipe, device or folder, and errors about a palette the file names never quote its contents. radargen reads the file only when `-c` names it.
 - **Errors.** A problem with a key names the key and the file. Every key problem, and every check on the file's values, is reported in one run, unless a value on the command line fails first.
 - **One file for every format.** `legend` and `table` apply to HTML pages, and are ignored without a warning for PNG and SVG.
+
+## Dated editions
+
+Write the date once per run with `-e` (`--edition`), and `{edition}` in the output path, the title or the subtitle becomes that date, whether the value is a flag or a config key:
+
+```toml
+# radar.toml
+output = "editions/{edition}.html"
+title = "Technology Radar"
+subtitle = "Edition {edition}"
+```
+
+```sh
+radargen entries.csv -c radar.toml -e 2026-09-01   # writes editions/2026-09-01.html
+radargen entries.csv -c radar.toml -e today        # today's local date
+```
+
+A scheduled job can put the date in the file instead, and then needs no flag; `-e` still overrides it:
+
+```toml
+# radar.toml
+output = "editions/{edition}.html"
+subtitle = "Created {edition}"
+edition = "today"
+```
+
+- **The date.** A real calendar date written exactly `YYYY-MM-DD`, so dated files sort in date order; anything else is an error. radargen reads the clock only for `today`, from `-e` or the `edition` key, and then prints the date it used and its time zone (`warning: edition 2026-10-22 (today, America/Vancouver); pass -e 2026-10-22 to reproduce this render`; from the key, the line starts by naming it), so a scheduled job needs no date script and every render can still be repeated exactly. On a CI runner the local date is usually UTC; the `TZ` environment variable picks a time zone, such as `TZ=America/Vancouver`. A `TZ` that names no time zone gives UTC's date, with a warning naming it.
+- **Placeholders.** `{edition}` is the only one, and only `output`, `title` and `subtitle` expand it. A value holding `{edition}` with neither `-e` nor an `edition` key is an error, as is any other `{name}` in a value while an edition or `{edition}` is in use, so a typo such as `{editon}` is caught. Otherwise braces are ordinary text: `--title "Radar {beta}"` renders as written.
+- **Unused.** An edition, from `-e` or the key, with no `{edition}` anywhere warns, since a placeholder was probably forgotten, and the render goes ahead.
 
 ## Errors and warnings
 
 radargen refuses what it cannot read or place, and warns about what it can draw but doubts.
 
-- **Errors** stop the run, and nothing is written. They cover a file that cannot be read or is not UTF-8, a separator other than a comma, an unclosed quote, a missing required column or a repeated header name, an empty `name`, `quadrant` or `ring`, a row with the wrong number of values, a bad `--rings` or `--unplotted-rings` list (including a ring in both, or a default ring in `--unplotted-rings` without `--rings`) or palette file, a config file that cannot be read, is not UTF-8, is larger than 1 MiB or is not TOML, a bad key in it (unknown, of the wrong type, out of range, a ring entry holding a comma, or a name its flag would refuse), and an output path radargen cannot use (an unknown extension, a missing folder, or a file the run reads: the input CSV, the config file or the palette).
-- **Warnings** still write the output. They cover values radargen does not recognise (a ring that `--unplotted-rings` does not name, a qualifier, status, date or link), a column name one or two letters from one radargen reads (such as `rationalle`; it names the column you probably meant), an empty description, a repeated name, characters the output cannot display (removed), characters the bundled font lacks (the PNG or SVG being written draws them as boxes), more than six quadrants, a ring and quadrant holding more items than fit comfortably, a quadrant or ring name so long that the page shows only its narrow layout on a common laptop, and widths that make text hard to read.
+- **Errors** stop the run, and nothing is written. They cover a file that cannot be read or is not UTF-8, a separator other than a comma, an unclosed quote, a missing required column or a repeated header name, an empty `name`, `quadrant` or `ring`, a row with the wrong number of values, a bad `--rings` or `--unplotted-rings` list (including a ring in both, or a default ring in `--unplotted-rings` without `--rings`) or palette file, a config file that cannot be read, is not UTF-8, is larger than 1 MiB or is not TOML, a bad key in it (unknown, of the wrong type, out of range, a ring entry holding a comma, or a name its flag would refuse), a bad `--edition` date or `edition` key, `{edition}` with neither, an unknown placeholder while one is in use, and an output path radargen cannot use (an unknown extension, a missing folder, or a file the run reads: the input CSV, the config file or the palette).
+- **Warnings** still write the output. They cover values radargen does not recognise (a ring that `--unplotted-rings` does not name, a qualifier, status, date or link), a column name one or two letters from one radargen reads (such as `rationalle`; it names the column you probably meant), an empty description, a repeated name, characters the output cannot display (removed), characters the bundled font lacks (the PNG or SVG being written draws them as boxes), more than six quadrants, a ring and quadrant holding more items than fit comfortably, a quadrant or ring name so long that the page shows only its narrow layout on a common laptop, widths that make text hard to read, an `--edition` nothing uses, the date `-e today` used, and a `TZ` it could not find.
 - **How many at once.** Every row error is reported in one run, after any warnings, and a message about a row names its line, and its column where there is one. Repeats of the same kind are folded into one line. A problem with a flag or with the file as a whole (not UTF-8, an unclosed quote, the wrong separator) stops at the first one, while a config file's problems are reported together, warnings about values wait until no row is missing a name, quadrant or ring, and warnings about the drawing wait until there are no errors.
-- **Exit codes.** 0 when the output is written, even with warnings; 2 for what radargen refuses as it would refuse a flag: an unknown, missing or out-of-range flag or key, a key of the wrong type or a name it does not accept, a ring entry holding a comma, `theme` and `palette` both in the config file, or no output; 1 for every other error, such as a bad ring list or a missing folder. A run with both kinds exits 2.
+- **Exit codes.** 0 when the output is written, even with warnings; 2 for what radargen refuses as it would refuse a flag: an unknown, missing or out-of-range flag or key, a key of the wrong type or a name it does not accept, a ring entry holding a comma, `theme` and `palette` both in the config file, a bad `--edition` date or `edition` key, or no input or output; 1 for every other error, such as a bad ring list or a missing folder. A run with both kinds exits 2.
 - **Earlier output is safe.** The output is written to a temporary file and renamed into place, so a failed run leaves any earlier file at that path untouched.
 
-The same CSV, flags and radargen version always produce the same bytes, so an edition can be regenerated and compared.
+The same CSV, flags and radargen version always produce the same bytes, so an edition can be regenerated and compared. radargen never reads the clock except for `today`, which prints the date it used.
 
 ## Documentation
 

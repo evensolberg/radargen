@@ -12,6 +12,7 @@ use crate::diagnostics::{Fatal, RenderKind, Warning, Warnings};
 use crate::escape::remove_undisplayable;
 use crate::options::{Legend, Table};
 pub use crate::palette::Theme;
+use crate::settings::edition::{self, Edition};
 use crate::settings::file::Loaded;
 use crate::settings::{Origin, Setting, Settings, pick};
 use crate::starter::Starter;
@@ -30,19 +31,20 @@ use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
     about = "Render a technology radar from a CSV file to a self-contained HTML page, a PNG image or an SVG file.",
     // clap's own usage would show the CSV as optional and leave out -o,
     // since each is required only without a --create-* flag.
-    override_usage = "radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]\n       radargen <CSV_PATH> -c <FILE> [OPTIONS]\n       radargen --create-template <PATH>\n       radargen --create-palette <PATH>",
+    override_usage = "radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]\n       radargen [CSV_PATH] -c <FILE> [OPTIONS]\n       radargen --create-template <PATH>\n       radargen --create-palette <PATH>",
     long_about = None
 )]
 pub struct Cli {
     // §6.1; exactly one file, with no glob or multi-file form (FR-60),
     // and none at all with --create-template or --create-palette (FR-99,
-    // FR-101).
+    // FR-101). Optional with --config, whose input key can name it
+    // (FR-91); given here, it overrides the key.
     /// The CSV file to read.
     ///
     /// A header row, then one row per item, with at least name, quadrant,
     /// ring and description columns. --create-template writes one to start
-    /// from.
-    #[arg(required_unless_present = STARTER)]
+    /// from. With --config, it can come from the file's input key instead.
+    #[arg(required_unless_present_any = [STARTER, "config"])]
     pub csv_path: Option<PathBuf>,
 
     // FR-52: the format comes from the extension, matched ignoring case.
@@ -179,6 +181,21 @@ pub struct Cli {
     #[arg(short, long, value_name = "FILE", long_help = CONFIG_HELP)]
     pub config: Option<PathBuf>,
 
+    // FR-92, D-58: also the `edition` key (FR-91), which this overrides.
+    // `-e` (OQ-2).
+    // The date expands exactly as written, so dated filenames sort; the
+    // tool reads the clock only for `today`, the maintainer's opt-in for
+    // scheduled jobs, and echoes the date it read.
+    /// The edition's date, which {edition} in the output, title or subtitle becomes.
+    ///
+    /// Written YYYY-MM-DD, such as 2026-09-01, or today for the local date,
+    /// which the run prints so it can be repeated. A value holding
+    /// {edition} needs this flag; while it is in use, any other {name} in
+    /// that value is an error, since it is likely a typo. Overrides a
+    /// config file's edition key.
+    #[arg(short, long, value_name = "YYYY-MM-DD", value_parser = edition::parse)]
+    pub edition: Option<Edition>,
+
     // FR-99, D-83: the tool writes the template, so it always matches the
     // parser that reads it. `exclusive`, so it never half-renders; no short
     // form, since it is run once per radar.
@@ -203,11 +220,13 @@ pub struct Cli {
 
 /// `--config`'s long help (UX review 8).
 const CONFIG_HELP: &str = "Read settings from a TOML file.\n\n\
-Its keys are output, title, subtitle, rings, unplotted_rings, theme, width, \
-legend_columns, legend, table and palette, each meaning what its flag means. \
-rings and unplotted_rings are arrays of strings, such as [\"Adopt\", \"Trial\"]; \
-width and legend_columns are integers; the rest are strings. Any other key is \
-an error. A flag on the command line overrides its key. A relative path in the \
+Its keys are input, output, title, subtitle, rings, unplotted_rings, theme, width, \
+legend_columns, legend, table, palette and edition, each meaning what its flag \
+means; input names the CSV. rings and unplotted_rings are arrays of strings, such as [\"Adopt\", \"Trial\"]; \
+width and legend_columns are integers; the rest are strings, edition a date \
+written YYYY-MM-DD or \"today\". Any other key is \
+an error. A flag on the command line, or the CSV given there, overrides its key. \
+A relative path in the \
 file is read from the file's own folder; ~ is not expanded.";
 
 /// The group of flags that each stand in for a render (FR-60).
@@ -219,11 +238,11 @@ pub enum Task<'a> {
     /// `--create-template <path>` or `--create-palette <path>`: write that
     /// file there.
     Create(Starter, &'a Path),
-    /// Render `input`; the output is `-o` or the file's `output` key
-    /// (FR-91).
+    /// Render; the CSV is `input` or the file's `input` key, and the
+    /// output is `-o` or the file's `output` key (FR-91).
     Render {
-        /// The CSV, as given.
-        input: &'a Path,
+        /// The CSV, as given on the command line, if it was.
+        input: Option<&'a Path>,
     },
 }
 
@@ -239,7 +258,8 @@ impl Cli {
         match (&self.create_template, &self.create_palette, &self.csv_path) {
             (Some(path), None, None) if !renders => Ok(Task::Create(Starter::Template, path)),
             (None, Some(path), None) if !renders => Ok(Task::Create(Starter::Palette, path)),
-            (None, None, Some(input)) if renders => Ok(Task::Render { input }),
+            (None, None, Some(input)) if renders => Ok(Task::Render { input: Some(input) }),
+            (None, None, None) if self.config.is_some() => Ok(Task::Render { input: None }),
             _ => Err(Fatal::NoTask),
         }
     }
@@ -249,6 +269,9 @@ impl Cli {
     #[must_use]
     pub fn settings(&self, file: Option<&Loaded>) -> Settings {
         let mut settings = Settings {
+            input: pick(Setting::Input, self.csv_path.clone(), file, |v| {
+                v.input.clone()
+            }),
             output: pick(Setting::Output, self.output.clone(), file, |v| {
                 v.output.clone()
             }),
@@ -276,6 +299,9 @@ impl Cli {
             table: pick(Setting::Table, self.table, file, |v| v.table),
             palette: pick(Setting::Palette, self.palette.clone(), file, |v| {
                 v.palette.clone()
+            }),
+            edition: pick(Setting::Edition, self.edition.clone(), file, |v| {
+                v.edition.clone()
             }),
             dir: file.map(|loaded| loaded.dir.clone()),
         };
@@ -306,4 +332,21 @@ pub fn clean_setting(origin: &Origin, value: &str, warnings: &mut Warnings) -> S
         }));
     }
     cleaned
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// FR-91: `--config`'s help lists every key, `edition` included, in
+    /// FR-91's order, so the help and the key list cannot drift apart.
+    #[test]
+    fn the_config_help_lists_every_key() {
+        let keys: Vec<&str> = Setting::ALL.iter().map(|s| s.key()).collect();
+        let (last, rest) = keys.split_last().expect("keys");
+        let listed = format!("{} and {last}", rest.join(", "));
+        let help = CONFIG_HELP.replace(" \\\n", " ").replace('\n', " ");
+        assert!(help.contains(&listed), "{listed} in {help}");
+        assert_eq!(*last, "edition", "edition is FR-91's twelfth key");
+    }
 }

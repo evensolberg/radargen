@@ -10,12 +10,13 @@ use crate::options::OutputFormat;
 use crate::options::Table;
 use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::RingsError;
+use crate::settings::edition::{Fallback, NOT_AN_EDITION, PLACEHOLDER};
 use crate::settings::file::{KeyProblem, MAX_BYTES as CONFIG_MAX_BYTES};
 use crate::settings::{NamedPath, Origin, Setting, Source};
 use crate::starter::Starter;
 use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX, WIDE_MIN_VIEWPORT_PX};
 use crate::text::FontError;
-use crate::{is_untagged_format, normalise, trim};
+use crate::{ECHO_CHARS, clip, is_untagged_format, normalise, trim};
 
 /// Where a warning points: its sort key.
 ///
@@ -227,6 +228,25 @@ pub enum RenderKind {
         /// How many characters the value lost in all.
         count: usize,
     },
+    /// D-58: `-e today` read the local date; it is echoed so the render
+    /// can be reproduced with an explicit `-e`. A warning, since stderr has
+    /// no other class for a line the author should act on (NFR-9).
+    EditionToday {
+        /// The date read.
+        date: String,
+        /// The zone it is the date in.
+        zone: String,
+        /// `-e`, or the `edition` key and its file.
+        origin: Origin,
+    },
+    /// Review M-1: `-e today` could not find the local zone, so it used
+    /// UTC; said, since a misspelt `TZ` would otherwise pass silently.
+    TodayInUtc(Fallback),
+    /// FR-92: `--edition` was given, but no value holds `{edition}`.
+    EditionUnused {
+        /// The source and the date, as a message names them.
+        edition: NamedPath,
+    },
     /// FR-104 on a setting's value, from the command line or the file: one
     /// per drawn text, so one per ring entry, however many characters it
     /// lacks.
@@ -309,10 +329,11 @@ impl fmt::Display for Binding {
 }
 
 /// A file the run reads, which the output must not replace (D-74).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadFile {
-    /// The input CSV.
-    Csv,
+    /// The input CSV; with the `--config` file when its `input` key named
+    /// it (NFR-10).
+    Csv(Option<Arc<str>>),
     /// The `--config` file.
     Config,
     /// The palette, from `--palette` or the file's key.
@@ -322,11 +343,12 @@ pub enum ReadFile {
 /// How D-74's message names it.
 impl fmt::Display for ReadFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Csv => "the input CSV",
-            Self::Config => "the --config file",
-            Self::Palette => "the palette file",
-        })
+        match self {
+            Self::Csv(None) => f.write_str("the input CSV"),
+            Self::Csv(Some(file)) => write!(f, "the input CSV (the input key in {file})"),
+            Self::Config => f.write_str("the --config file"),
+            Self::Palette => f.write_str("the palette file"),
+        }
     }
 }
 
@@ -554,6 +576,34 @@ impl RenderKind {
                 "{origin}: removed {count} characters the output cannot display, the first {}",
                 code_point(*first)
             ),
+            Self::EditionToday { date, zone, origin } => {
+                // From the flag the author typed `today`; from the key, the
+                // echo says where it came from (maintainer, 2026-10-22).
+                let from = if origin.source.is_config() {
+                    format!("{origin}: ")
+                } else {
+                    String::new()
+                };
+                format!(
+                    "{from}edition {date} (today, {}); pass -e {date} to reproduce this render",
+                    escape_controls(zone)
+                )
+            }
+            Self::TodayInUtc(fallback) => {
+                let why = match fallback {
+                    Fallback::BadTz(tz) => format!(
+                        "TZ '{}' names no time zone radargen can find",
+                        escape_controls(&clip(tz, ECHO_CHARS))
+                    ),
+                    Fallback::NoSystemZone => {
+                        "the system's time zone cannot be determined".to_owned()
+                    }
+                };
+                format!("{why}, so -e today used UTC; set TZ to a zone such as America/Vancouver")
+            }
+            Self::EditionUnused { edition } => format!(
+                "{edition}: no value uses it; put {PLACEHOLDER} in the output, title or subtitle"
+            ),
             Self::SettingMissingGlyphs { origin, lacking } => format!("{origin}: {lacking}"),
         }
     }
@@ -609,6 +659,7 @@ impl Fatal {
                 | Self::ConfigMore { .. }
                 | Self::Conflict { .. }
                 | Self::NoOutput { .. }
+                | Self::NoInput { .. }
         )
     }
 }
@@ -629,7 +680,7 @@ fn article(found: &str) -> String {
 }
 
 /// FR-91's keys, in its order, as a sentence lists them: `output, …, table
-/// and palette`.
+/// and edition`.
 fn known_keys() -> String {
     let keys: Vec<&str> = Setting::ALL.iter().map(|s| s.key()).collect();
     let (last, rest) = keys.split_last().map_or(("", &[][..]), |(l, r)| (*l, r));
@@ -643,7 +694,9 @@ const fn wanted(setting: Setting) -> &'static str {
         Setting::Rings | Setting::UnplottedRings => {
             "an array of strings, such as [\"Adopt\", \"Trial\"]"
         }
-        Setting::Output
+        Setting::Input
+        | Setting::Output
+        | Setting::Edition
         | Setting::Title
         | Setting::Subtitle
         | Setting::Theme
@@ -688,6 +741,10 @@ fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
             "{}: entry {index} '{}' holds a comma; give each ring as its own entry",
             key(*setting),
             entry
+        ),
+        KeyProblem::BadEdition { value } => format!(
+            "invalid value '{value}' for {}: {NOT_AN_EDITION}",
+            key(Setting::Edition)
         ),
         KeyProblem::NotAValue {
             setting,
@@ -1361,6 +1418,33 @@ pub enum Fatal {
         /// The path, by its key, as written.
         path: NamedPath,
     },
+    /// FR-92: a value holds `{edition}`, and no edition was given by `-e`
+    /// or the `edition` key.
+    #[error(
+        "{value}: uses {PLACEHOLDER}, but no --edition was given; pass --edition YYYY-MM-DD{}",
+        file.as_ref().map_or_else(String::new, |f| format!(", or add an edition key to {f}"))
+    )]
+    NoEdition {
+        /// The value, by its flag or key, as written.
+        value: NamedPath,
+        /// The `--config` file, if one was read, which could hold the key.
+        file: Option<Arc<str>>,
+    },
+    /// FR-92: placeholders are in use, and a value holds another one.
+    #[error("{value}: {placeholder} is not a placeholder; the only one is {PLACEHOLDER}")]
+    UnknownPlaceholder {
+        /// The value, by its flag or key, as written.
+        value: NamedPath,
+        /// The placeholder, braces and all.
+        placeholder: String,
+    },
+    /// FR-92 (rg-u6u, M-9b): `-o` is not UTF-8, so `{edition}` cannot be
+    /// replaced in it without changing its other bytes.
+    #[error("{output}: is not UTF-8 text, so {PLACEHOLDER} cannot expand in it")]
+    EditionNotUtf8 {
+        /// The output, by its flag, as written.
+        output: NamedPath,
+    },
     /// Security review F5: past [`crate::settings::file::MAX_KEY_PROBLEMS`],
     /// the rest are counted.
     #[error("--config {file}: and {more} more key problems")]
@@ -1496,6 +1580,15 @@ pub enum Fatal {
         "no output: pass -o <OUTPUT>, or add an output key to {file}, such as output = \"radar.html\""
     )]
     NoOutput {
+        /// The file as named.
+        file: Arc<str>,
+    },
+    /// FR-91: neither a positional CSV nor `input`, worded as
+    /// [`Fatal::NoOutput`] is; a usage error.
+    #[error(
+        "no input: name the CSV on the command line, or add an input key to {file}, such as input = \"radar.csv\""
+    )]
+    NoInput {
         /// The file as named.
         file: Arc<str>,
     },

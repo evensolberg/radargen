@@ -1,6 +1,6 @@
 [package]
 name = "radargen"
-version = "1.15.0"
+version = "1.16.0"
 edition = "2024"
 rust-version = "1.97"
 description = "Render a technology radar from CSV to a self-contained HTML page, a PNG image or an SVG file"
@@ -32,6 +32,10 @@ resvg = { version = "0.48", default-features = false, features = ["text"] }
 skrifa = { version = "0.44", default-features = false, features = ["std"] }
 # FR-91's --config file. Parse only: no writer (display), no order-preserving map.
 toml = { version = "1.1.8", default-features = false, features = ["parse", "serde", "std"] }
+# -e today's local date (D-58), the one clock read. The system zone, or
+# the one TZ names, looked up in the OS's zoneinfo, or on Windows in the
+# bundled database; no fat tz data or inlining tuning.
+jiff = { version = "0.2.38", default-features = false, features = ["std", "tz-system", "tzdb-zoneinfo", "tzdb-bundle-platform"] }
 
 [dev-dependencies]
 sha2 = "0.11.1"

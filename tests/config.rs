@@ -95,7 +95,7 @@ fn every_problem_in_the_file_is_reported_together() {
         [
             "error: invalid value 'sepia' for the theme key in radar.toml [possible values: light, dark]",
             "error: the width key in radar.toml: must be an integer, not a float",
-            "error: --config radar.toml: unknown key 'ring'; did you mean 'rings'? The keys are output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table and palette",
+            "error: --config radar.toml: unknown key 'ring'; did you mean 'rings'? The keys are input, output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table, palette and edition",
         ]
     );
     assert_eq!(snapshot(dir.path()), before);
@@ -812,4 +812,162 @@ fn a_config_palette_s_errors_are_capped() {
     );
     let flag = run_in(dir.path(), &["radar.csv", "-o", "b.svg", "-p", "junk.css"]);
     assert!(flag.lines().len() > 21, "{}", flag.stderr);
+}
+
+/// FR-91 (maintainer, 2026-10-22): the CSV can come from an `input` key,
+/// so a scheduled job runs `radargen -c radar.toml` alone; it renders what
+/// the positional CSV renders.
+#[test]
+fn an_input_key_renders_what_the_positional_csv_renders() {
+    let dir = seeded(&[
+        ("radar.csv", CSV),
+        ("radar.toml", "input = \"radar.csv\"\noutput = \"a.html\"\n"),
+    ]);
+    let keyed = run_in(dir.path(), &["-c", "radar.toml"]);
+    assert!(keyed.ok(), "{}", keyed.stderr);
+    let flagged = run_in(dir.path(), &["radar.csv", "-o", "b.html"]);
+    assert!(flagged.ok(), "{}", flagged.stderr);
+    assert_eq!(
+        fs::read(dir.path().join("a.html")).ok(),
+        fs::read(dir.path().join("b.html")).ok()
+    );
+}
+
+/// FR-91: a CSV on the command line overrides the key.
+#[test]
+fn a_positional_csv_overrides_the_input_key() {
+    let dir = seeded(&[
+        (
+            "other.csv",
+            "name,quadrant,ring,description\nVault,Platform,Trial,d\n",
+        ),
+        (
+            "radar.toml",
+            "input = \"missing.csv\"\noutput = \"a.svg\"\n",
+        ),
+    ]);
+    let ran = run_in(dir.path(), &["other.csv", "-c", "radar.toml"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    let svg = fs::read_to_string(dir.path().join("a.svg")).expect("written");
+    assert!(svg.contains("Vault"), "the command line's CSV is read");
+}
+
+/// FR-91: no CSV from either source is a usage error, worded as a
+/// missing output is.
+#[test]
+fn no_input_anywhere_is_a_usage_error() {
+    let dir = seeded(&[("radar.toml", "output = \"a.html\"\n")]);
+    let ran = run_in(dir.path(), &["-c", "radar.toml"]);
+    assert_eq!(ran.code, Some(2), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: no input: name the CSV on the command line, or add an input key to radar.toml, such as input = \"radar.csv\""
+        ]
+    );
+}
+
+/// FR-91: a relative `input` is read from the config file's own folder,
+/// and an unreadable one is named by its key and file.
+#[test]
+fn a_relative_input_resolves_beside_its_config() {
+    let dir = seeded(&[]);
+    fs::create_dir(dir.path().join("conf")).expect("mkdir");
+    fs::write(dir.path().join("conf/radar.csv"), CSV).expect("seeds");
+    fs::write(
+        dir.path().join("conf/radar.toml"),
+        "input = \"radar.csv\"\noutput = \"a.html\"\n",
+    )
+    .expect("seeds");
+    let ran = run_in(dir.path(), &["-c", "conf/radar.toml"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert!(dir.path().join("conf/a.html").exists());
+    fs::write(
+        dir.path().join("conf/missing.toml"),
+        "input = \"nope.csv\"\noutput = \"b.html\"\n",
+    )
+    .expect("seeds");
+    let missing = run_in(dir.path(), &["-c", "conf/missing.toml"]);
+    assert_eq!(missing.code, Some(1), "{}", missing.stderr);
+    let lines = missing.lines();
+    let [line] = lines.as_slice() else {
+        panic!("one error: {lines:?}");
+    };
+    assert!(
+        line.starts_with("error: the input key in conf/missing.toml (nope.csv): cannot be read: "),
+        "{line}"
+    );
+}
+
+/// Ruling B: an input from the file must be a regular file, so a folder
+/// or a pipe is refused rather than read or waited on.
+#[test]
+fn a_config_input_must_be_a_regular_file() {
+    let dir = seeded(&[("radar.toml", "input = \"data\"\noutput = \"a.html\"\n")]);
+    fs::create_dir(dir.path().join("data")).expect("mkdir");
+    let ran = run_in(dir.path(), &["-c", "radar.toml"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: the input key in radar.toml (data): not a regular file; a path in a config file must name a file, not a device, pipe or folder"
+        ]
+    );
+    #[cfg(unix)]
+    {
+        let fifo = dir.path().join("pipe.csv");
+        let made = std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .expect("mkfifo runs");
+        assert!(made.success(), "mkfifo");
+        fs::write(
+            dir.path().join("fifo.toml"),
+            "input = \"pipe.csv\"\noutput = \"b.html\"\n",
+        )
+        .expect("seeds");
+        let ran = run_in(dir.path(), &["-c", "fifo.toml"]);
+        assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+        assert_eq!(
+            ran.lines(),
+            [
+                "error: the input key in fifo.toml (pipe.csv): not a regular file; a path in a config file must name a file, not a device, pipe or folder"
+            ]
+        );
+    }
+}
+
+/// D-74: the output may not be the input, wherever each came from.
+#[test]
+fn the_output_cannot_be_the_config_s_input() {
+    let dir = seeded(&[
+        ("radar.html", CSV),
+        (
+            "radar.toml",
+            "input = \"radar.html\"\noutput = \"radar.html\"\n",
+        ),
+    ]);
+    let ran = run_in(dir.path(), &["-c", "radar.toml"]);
+    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+    assert_eq!(
+        ran.lines(),
+        [
+            "error: the output key in radar.toml (radar.html): is the input CSV (the input key in radar.toml); choose another output path"
+        ]
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("radar.html"))
+            .ok()
+            .as_deref(),
+        Some(CSV)
+    );
+}
+
+/// FR-60: a bare `radargen` still prints usage; `-c` alone is not bare.
+#[test]
+fn a_bare_run_still_prints_usage() {
+    let dir = seeded(&[]);
+    let bare = run_in(dir.path(), &[]);
+    assert_eq!(bare.code, Some(2), "{}", bare.stderr);
+    assert!(bare.stderr.contains("Usage:"), "{}", bare.stderr);
 }

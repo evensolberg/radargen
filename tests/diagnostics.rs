@@ -1274,7 +1274,7 @@ fn pipeline_messages() {
         (
             Fatal::OutputIsInput {
                 output: NamedPath::new(Origin::flag(Setting::Output), Path::new("radar.csv")),
-                input: ReadFile::Csv,
+                input: ReadFile::Csv(None),
             },
             "error: -o radar.csv: is the input CSV; choose another output path",
         ),
@@ -1708,7 +1708,7 @@ fn config_messages() {
                 near: Some(Setting::Rings),
                 table: false,
             }),
-            "error: --config radar.toml: unknown key 'ring'; did you mean 'rings'? The keys are output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table and palette",
+            "error: --config radar.toml: unknown key 'ring'; did you mean 'rings'? The keys are input, output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table, palette and edition",
         ),
         (
             key(KeyProblem::WrongType {
@@ -1786,7 +1786,7 @@ fn config_hint_messages() {
                 near: None,
                 table: true,
             }),
-            "error: --config radar.toml: unknown key 'radar'; the keys are output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table and palette; keys go at the top of the file, not under [radar]",
+            "error: --config radar.toml: unknown key 'radar'; the keys are input, output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table, palette and edition; keys go at the top of the file, not under [radar]",
         ),
         (
             key(KeyProblem::WrongType {

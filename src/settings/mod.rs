@@ -5,6 +5,7 @@
 //! (architecture §3); `file` reads the TOML. Nothing here imports `cli` or
 //! `diagnostics`, so the taxonomy can name a source without a cycle.
 
+pub mod edition;
 pub mod file;
 
 use std::fmt;
@@ -13,6 +14,7 @@ use std::sync::Arc;
 
 use crate::options::{Legend, Table};
 use crate::palette::Theme;
+use edition::Edition;
 use file::{FileValues, Loaded};
 
 /// FR-56's default.
@@ -47,6 +49,9 @@ impl Source {
 /// The settings FR-91 lists, each a flag and a key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Setting {
+    /// The positional CSV, `input` (a key at the maintainer's decision,
+    /// 2026-10-22, so a scheduled job runs `radargen -c radar.toml`).
+    Input,
     /// `-o`, `output`.
     Output,
     /// `--title`, `title`.
@@ -69,12 +74,16 @@ pub enum Setting {
     Table,
     /// `--palette`, `palette`.
     Palette,
+    /// `-e/--edition`, `edition` (FR-92; a key at the maintainer's
+    /// decision, 2026-10-22, so a scheduled job's file can say `today`).
+    Edition,
 }
 
 impl Setting {
     /// Every setting, in FR-91's order: the order a file's problems are
     /// reported in.
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 13] = [
+        Self::Input,
         Self::Output,
         Self::Title,
         Self::Subtitle,
@@ -86,6 +95,7 @@ impl Setting {
         Self::Legend,
         Self::Table,
         Self::Palette,
+        Self::Edition,
     ];
 
     /// The flag as a message names it.
@@ -103,6 +113,7 @@ impl Setting {
     /// The flag and the key, together, so the two cannot drift apart.
     const fn names(self) -> (&'static str, &'static str) {
         match self {
+            Self::Input => ("<CSV_PATH>", "input"),
             Self::Output => ("-o", "output"),
             Self::Title => ("--title", "title"),
             Self::Subtitle => ("--subtitle", "subtitle"),
@@ -114,6 +125,7 @@ impl Setting {
             Self::Legend => ("--legend", "legend"),
             Self::Table => ("--table", "table"),
             Self::Palette => ("--palette", "palette"),
+            Self::Edition => ("--edition", "edition"),
         }
     }
 }
@@ -339,6 +351,8 @@ impl<T> Effective<T> {
 /// `{edition}` (PR 19b) can expand first.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
+    /// The positional CSV or `input`.
+    pub input: Effective<PathBuf>,
     /// `-o` or `output`.
     pub output: Effective<PathBuf>,
     /// `--title` or `title`.
@@ -361,6 +375,8 @@ pub struct Settings {
     pub table: Effective<Table>,
     /// `--palette` or `palette`.
     pub palette: Effective<PathBuf>,
+    /// `--edition` or `edition` (FR-92).
+    pub edition: Effective<Edition>,
     /// The file's directory, which a relative path from it resolves
     /// against (FR-91); `None` without `--config`.
     pub dir: Option<PathBuf>,
@@ -442,6 +458,7 @@ mod tests {
         assert_eq!(
             keys,
             [
+                "input",
                 "output",
                 "title",
                 "subtitle",
@@ -452,13 +469,15 @@ mod tests {
                 "legend_columns",
                 "legend",
                 "table",
-                "palette"
+                "palette",
+                "edition"
             ]
         );
         let flags: Vec<&str> = Setting::ALL.iter().map(|s| s.flag()).collect();
         assert_eq!(
             flags,
             [
+                "<CSV_PATH>",
                 "-o",
                 "--title",
                 "--subtitle",
@@ -469,7 +488,8 @@ mod tests {
                 "--legend-columns",
                 "--legend",
                 "--table",
-                "--palette"
+                "--palette",
+                "--edition"
             ]
         );
     }

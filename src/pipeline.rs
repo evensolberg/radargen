@@ -19,6 +19,7 @@ use std::sync::Arc;
 use crate::cli::{Cli, Task, clean_setting};
 use crate::csv::decode;
 use crate::csv::parse::parse;
+use crate::date::is_iso_date;
 use crate::decode::NotUtf8;
 use crate::diagnostics::{Fatal, OffRadar, ReadFile, RenderKind, RowError, Warning, Warnings};
 use crate::emit::html::{Page, page};
@@ -38,12 +39,14 @@ use crate::order::resolve;
 use crate::palette::file::{self, ReadError};
 use crate::palette::{Colours, Theme};
 use crate::rings::{RingSet, default_rings, parse_ring_list};
+use crate::settings::edition::{Edition, Problem, Today, expand, uses};
 use crate::settings::file::{self as config_file, MAX_KEY_PROBLEMS};
 use crate::settings::{
     DEFAULT_LEGEND, DEFAULT_LEGEND_COLUMNS, DEFAULT_TABLE, DEFAULT_THEME, Effective, NamedPath,
     Origin, Setting, Settings, Source, Sourced, resolve as resolve_path,
 };
 use crate::text::Fonts;
+use crate::{ECHO_CHARS, clip};
 
 /// The resolved run (architecture §7), read-only once built. The colours
 /// are resolved here, so a bad `--palette` file is a tier-one error
@@ -79,8 +82,12 @@ pub struct Config {
     pub subtitle: Option<Sourced<String>>,
     /// The declared rings and their source (FR-12, FR-17).
     pub rings: RingSet,
-    /// The input CSV, as given (FR-60).
+    /// The input CSV: the positional path as given (FR-60), or the file's
+    /// `input` key resolved against the file's folder (FR-91).
     pub input: PathBuf,
+    /// How a message names the input: the path as written, or the key and
+    /// file with it (NFR-10).
+    pub input_shown: String,
 }
 
 impl Config {
@@ -178,10 +185,15 @@ impl Report {
 
 /// The whole pipeline for `cli` (architecture §2). Warnings are rendered
 /// last, so every outcome carries the warnings gathered before it.
+///
+/// `today` is the clock `-e today` reads, the local date and its zone:
+/// [`crate::settings::edition::local_today`] in production, a fixed date
+/// in tests. It is called at most once, and only for `-e today` (D-24,
+/// D-58).
 #[must_use]
-pub fn run(cli: &Cli) -> Report {
+pub fn run(cli: &Cli, today: impl FnOnce() -> Today) -> Report {
     let mut warnings = Warnings::default();
-    let outcome = steps(cli, &mut warnings).map_err(Failure::render);
+    let outcome = steps(cli, today, &mut warnings).map_err(Failure::render);
     Report {
         warnings: warnings.render(),
         outcome,
@@ -189,12 +201,11 @@ pub fn run(cli: &Cli) -> Report {
 }
 
 /// The stages in order, each stopping the run on failure.
-fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
-    let input = match cli.task()? {
-        Task::Create(starter, path) => return Ok(starter.create(path)?),
-        Task::Render { input } => input,
-    };
-    let config = config(cli, input, warnings).map_err(Failure::Alone)?;
+fn steps(cli: &Cli, today: impl FnOnce() -> Today, warnings: &mut Warnings) -> Result<(), Failure> {
+    if let Task::Create(starter, path) = cli.task()? {
+        return Ok(starter.create(path)?);
+    }
+    let config = config(cli, today, warnings).map_err(Failure::Alone)?;
     let fonts = Fonts::embedded().map_err(Fatal::from)?;
     // FR-106: the flags say where an off-radar row goes, so its warning
     // can say so when it is raised.
@@ -203,17 +214,61 @@ fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
         config.table.value,
         config.table.origin.is_flag(),
     );
-    let catalogue = catalogue(&config.input, &config.rings, off_radar, warnings)?;
+    let catalogue = catalogue(&config, off_radar, warnings)?;
     let bytes = render(&catalogue, &config, &fonts, warnings)?;
     Ok(write_atomic(&config.output, &config.output_named, &bytes)?)
 }
 
+/// The effective edition's date (FR-92): as given, from `-e` or the
+/// `edition` key; or for `today` the local date, read once and echoed with
+/// its zone and source, so the render can be reproduced with an explicit
+/// `-e` (D-58); a fallback to UTC is said first (review M-1).
+fn edition_date(
+    edition: Sourced<Edition>,
+    today: impl FnOnce() -> Today,
+    warnings: &mut Warnings,
+) -> Sourced<String> {
+    let value = match edition.value {
+        Edition::Date(date) => date,
+        Edition::Today => {
+            let Today {
+                date,
+                zone,
+                fallback,
+            } = today();
+            debug_assert!(is_iso_date(&date), "the clock gives FR-92's shape");
+            if let Some(fallback) = fallback {
+                warnings.push(Warning::Render(RenderKind::TodayInUtc(fallback)));
+            }
+            warnings.push(Warning::Render(RenderKind::EditionToday {
+                date: date.clone(),
+                zone,
+                origin: edition.origin.clone(),
+            }));
+            date
+        }
+    };
+    Sourced {
+        value,
+        origin: edition.origin,
+    }
+}
+
 /// The run's settings, in FR-92's order: the merge (FR-91), FR-90 on the
-/// text values, paths resolved against their sources, then NFR-16 tier
-/// one's checks: FR-52, FR-62 and D-74 on the output, FR-63 on the rings,
-/// FR-107, FR-102 on the palette.
-fn config(cli: &Cli, input: &Path, warnings: &mut Warnings) -> Result<Config, Vec<Fatal>> {
+/// text values, `{edition}` expanded, paths resolved against their
+/// sources, then NFR-16 tier one's checks: FR-52, FR-62 and D-74 on the
+/// output, FR-63 on the rings, FR-107, FR-102 on the palette.
+fn config(
+    cli: &Cli,
+    today: impl FnOnce() -> Today,
+    warnings: &mut Warnings,
+) -> Result<Config, Vec<Fatal>> {
     let (settings, mut gate) = merged(cli)?;
+    // FR-92: the clock is read only when the effective edition is `today`,
+    // from either source (D-58).
+    let edition = settings
+        .edition
+        .map(|given| edition_date(given, today, warnings));
     let dir = settings.dir.as_deref();
     // FR-90 first, every warning naming the value's source.
     let title = settings.title.given().and_then(|t| resolved(t, warnings));
@@ -223,11 +278,43 @@ fn config(cli: &Cli, input: &Path, warnings: &mut Warnings) -> Result<Config, Ve
         .and_then(|s| resolved(s, warnings));
     let rings = settings.rings.map(|r| cleaned(r, warnings));
     let unplotted = settings.unplotted_rings.map(|r| cleaned(r, warnings));
-    // FR-92 (PR 19b): `{edition}` expands in the output, title and subtitle
-    // here, after FR-90 and before any path resolves.
-    let output = settings.output.as_given().map(|o| resolve_path(dir, o));
+    // FR-92: `{edition}` expands in the output, title and subtitle, in
+    // FR-91's order, after FR-90 and before any path resolves. The title
+    // and subtitle arrive trimmed by `shown`, which cannot matter: a
+    // placeholder holds no whitespace. Each is a check through the gate,
+    // so a value from the file that fails drops out, as a broken key does,
+    // and nothing later reports its unexpanded text (rg-u6u, M-9a).
+    let mut expander = Expander {
+        edition: &edition,
+        file: cli.config.as_deref().map(config_file::file_name),
+        used: false,
+    };
+    let output = expander.path(&mut gate, settings.output.given())?;
+    let title = expander.text(&mut gate, title)?;
+    let subtitle = expander.text(&mut gate, subtitle)?;
+    if let (Effective::Given(date), false) = (&edition, expander.used) {
+        warnings.push(Warning::Render(RenderKind::EditionUnused {
+            edition: NamedPath {
+                origin: date.origin.clone(),
+                shown: date.value.clone(),
+            },
+        }));
+    }
+    let output = output.as_ref().map(|o| resolve_path(dir, o));
     let palette_path = settings.palette.as_given().map(|p| resolve_path(dir, p));
-    let reads = read_files(input, cli.config.as_deref(), palette_path.as_ref());
+    // FR-91: the input, from the command line or the file's key, resolved
+    // as `output` is; ruling B holds a key's path to a regular file.
+    let input = settings.input.as_given().map(|i| resolve_path(dir, i));
+    let input = match input {
+        Some((path, named)) => gate
+            .check(
+                &named.origin.source,
+                regular(&path, &named).map_err(|e| vec![e]),
+            )?
+            .map(|()| (path, named)),
+        None => None,
+    };
+    let reads = read_files(input.as_ref(), cli.config.as_deref(), palette_path.as_ref());
     let format = checked_output(&mut gate, output.as_ref(), &reads)?;
     let ring_set = checked_rings(&mut gate, &rings, &unplotted)?;
     let colours = checked_colours(
@@ -239,8 +326,21 @@ fn config(cli: &Cli, input: &Path, warnings: &mut Warnings) -> Result<Config, Ve
     // With no error recorded, no setting is broken and every check passed,
     // so each value below is present; the `else` returns the errors that
     // explain why one is not.
-    let (true, Some(format), Some((output, output_named)), Some(rings), Some(colours)) =
-        (gate.errors.is_empty(), format, output, ring_set, colours)
+    let (
+        true,
+        Some((input, input_named)),
+        Some(format),
+        Some((output, output_named)),
+        Some(rings),
+        Some(colours),
+    ) = (
+        gate.errors.is_empty(),
+        input,
+        format,
+        output,
+        ring_set,
+        colours,
+    )
     else {
         // Every path to a missing value records its error first, so an
         // empty gate here would be a silent failure (Rust review M2).
@@ -265,18 +365,151 @@ fn config(cli: &Cli, input: &Path, warnings: &mut Warnings) -> Result<Config, Ve
         title,
         subtitle,
         rings,
-        input: input.to_path_buf(),
+        input_shown: input_shown(&input_named),
+        input,
     })
+}
+
+/// FR-92's expansion of the output, title and subtitle against the
+/// effective edition, recording whether any value holds `{edition}`.
+struct Expander<'a> {
+    /// The date from `-e` or the `edition` key; `Broken` when the key has
+    /// a problem, already recorded.
+    edition: &'a Effective<String>,
+    /// The `--config` file, which a missing edition's remedy names.
+    file: Option<Arc<str>>,
+    /// Whether a value holds `{edition}`, expanded or not (review I-1).
+    used: bool,
+}
+
+impl Expander<'_> {
+    /// Records whether `text` holds `{edition}`, and says whether it must
+    /// be dropped: it needs the `edition` key, and the key is broken. The
+    /// value then goes as a broken key's dependants do, and only the key's
+    /// problem is reported (plan RG-019A, Ruling 3).
+    fn dropped(&mut self, text: &str) -> bool {
+        let holds = uses(text);
+        self.used |= holds;
+        holds && *self.edition == Effective::Broken
+    }
+
+    /// The date `{edition}` expands to, if an edition was given.
+    fn date(&self) -> Option<&str> {
+        self.edition.as_given().map(|date| date.value.as_str())
+    }
+
+    /// FR-92 on the output path. A path that is not UTF-8, which only `-o`
+    /// can give, is read for placeholders through its lossy form, exact for
+    /// them since they are ASCII; it is used as given unless `{edition}`
+    /// would have to change it, which is an error, since replacing the text
+    /// would change its other bytes (rg-u6u, M-9b).
+    fn path(
+        &mut self,
+        gate: &mut Gate,
+        path: Option<Sourced<PathBuf>>,
+    ) -> Result<Option<Sourced<PathBuf>>, Vec<Fatal>> {
+        let Some(path) = path else {
+            return Ok(None);
+        };
+        let text = path.value.to_string_lossy();
+        if self.dropped(&text) {
+            return Ok(None);
+        }
+        let named = NamedPath::new(path.origin.clone(), &path.value);
+        let utf8 = path.value.to_str().is_some();
+        let expanded = expand(&text, self.date())
+            .map_err(|problems| self.errors(&named, problems))
+            .and_then(|expanded| match (utf8, uses(&text)) {
+                (true, _) => Ok(PathBuf::from(expanded)),
+                (false, true) => Err(vec![Fatal::EditionNotUtf8 { output: named }]),
+                (false, false) => Ok(path.value.clone()),
+            });
+        Ok(gate
+            .check(&path.origin.source, expanded)?
+            .map(|value| Sourced {
+                value,
+                origin: path.origin,
+            }))
+    }
+
+    /// FR-92 on a title or subtitle, named by its source with its text
+    /// quoted, a value from the file cut at [`ECHO_CHARS`] (FR-91).
+    fn text(
+        &mut self,
+        gate: &mut Gate,
+        text: Option<Sourced<String>>,
+    ) -> Result<Option<Sourced<String>>, Vec<Fatal>> {
+        let Some(text) = text else {
+            return Ok(None);
+        };
+        if self.dropped(&text.value) {
+            return Ok(None);
+        }
+        let shown = if text.origin.source.is_config() {
+            clip(&text.value, ECHO_CHARS)
+        } else {
+            text.value.clone()
+        };
+        let named = NamedPath {
+            origin: text.origin.clone(),
+            shown: format!("'{shown}'"),
+        };
+        let expanded =
+            expand(&text.value, self.date()).map_err(|problems| self.errors(&named, problems));
+        Ok(gate
+            .check(&text.origin.source, expanded)?
+            .map(|value| Sourced {
+                value,
+                origin: text.origin,
+            }))
+    }
+
+    /// FR-92's problems in one value as tier-one errors, every one
+    /// reported (NFR-16).
+    fn errors(&self, value: &NamedPath, problems: Vec<Problem>) -> Vec<Fatal> {
+        problems
+            .into_iter()
+            .map(|problem| match problem {
+                Problem::NoEdition => Fatal::NoEdition {
+                    value: value.clone(),
+                    file: self.file.clone(),
+                },
+                Problem::Unknown(placeholder) => Fatal::UnknownPlaceholder {
+                    value: value.clone(),
+                    placeholder,
+                },
+            })
+            .collect()
+    }
+}
+
+/// How a message names the input CSV: as written when given on the
+/// command line, as every message about it always has; with its key and
+/// file when the file's `input` key named it (NFR-10).
+fn input_shown(named: &NamedPath) -> String {
+    if named.origin.source.is_config() {
+        named.to_string()
+    } else {
+        named.shown.clone()
+    }
 }
 
 /// Every file the run reads, which D-74 keeps the output from replacing:
 /// the CSV, the `--config` file and the palette (security review F2).
 fn read_files<'a>(
-    input: &'a Path,
+    input: Option<&'a (PathBuf, NamedPath)>,
     config: Option<&'a Path>,
     palette: Option<&'a (PathBuf, NamedPath)>,
 ) -> Vec<(&'a Path, ReadFile)> {
-    std::iter::once((input, ReadFile::Csv))
+    input
+        .map(|(path, named)| {
+            let file = match &named.origin.source {
+                Source::Config(file) => Some(Arc::clone(file)),
+                Source::Flag | Source::Default => None,
+            };
+            (path.as_path(), ReadFile::Csv(file))
+        })
+        .into_iter()
         .chain(config.map(|c| (c, ReadFile::Config)))
         .chain(palette.map(|(p, _)| (p.as_path(), ReadFile::Palette)))
         .collect()
@@ -321,10 +554,12 @@ fn merged(cli: &Cli) -> Result<(Settings, Gate), Vec<Fatal>> {
 /// refuses both flags.
 fn merge_errors(settings: &Settings, loaded: &config_file::Loaded) -> Vec<Fatal> {
     let both = loaded.values.theme.is_some() && loaded.values.palette.is_some();
+    let no_input = settings.input == Effective::Absent;
     let none = settings.output == Effective::Absent;
     let file = || Arc::clone(&loaded.file);
     both.then(|| Fatal::Conflict { file: file() })
         .into_iter()
+        .chain(no_input.then(|| Fatal::NoInput { file: file() }))
         .chain(none.then(|| Fatal::NoOutput { file: file() }))
         .collect()
 }
@@ -552,9 +787,9 @@ fn output_checks(
         let handle = is_regular(path)
             .then(|| same_file::Handle::from_path(path).ok())
             .flatten();
-        reads
-            .iter()
-            .try_for_each(|&(read, which)| output_is_input(handle.as_ref(), named, read, which))?;
+        reads.iter().try_for_each(|(read, which)| {
+            output_is_input(handle.as_ref(), named, read, which.clone())
+        })?;
         Ok(format)
     };
     checked().map_err(|e| vec![e])
@@ -646,12 +881,12 @@ fn resolved(text: Sourced<String>, warnings: &mut Warnings) -> Option<Sourced<St
 /// row-level errors from both stages are merged and grouped (tier two),
 /// and `parse`'s alone fail the run, since it drops the rows it rejects.
 fn catalogue(
-    path: &Path,
-    rings: &RingSet,
+    config: &Config,
     off_radar: OffRadar,
     warnings: &mut Warnings,
 ) -> Result<Catalogue, Failure> {
-    let text = decode::read(path)?;
+    let rings = &config.rings;
+    let text = decode::read_as(&config.input, &config.input_shown)?;
     let (table, mut errors) = parse(&text, warnings)?;
     let built =
         build_catalogue(&table, rings, off_radar, warnings).map_err(|more| errors.extend(more));
@@ -786,6 +1021,7 @@ fn render(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::settings::edition::Fallback;
 
     fn report(outcome: Result<(), Failed>) -> Report {
         Report {
@@ -826,5 +1062,222 @@ mod tests {
             .status(),
             2
         );
+    }
+
+    /// `radargen args…` in a directory holding a one-row CSV, with the
+    /// clock `today` gives; the report and the directory.
+    fn edition_run(args: &[&str], today: impl FnOnce() -> Today) -> (Report, tempfile::TempDir) {
+        edition_run_with(None, args, today)
+    }
+
+    /// As [`edition_run`], with `toml`, when given, at `@radar.toml`.
+    fn edition_run_with(
+        toml: Option<&str>,
+        args: &[&str],
+        today: impl FnOnce() -> Today,
+    ) -> (Report, tempfile::TempDir) {
+        use clap::Parser;
+        let dir = tempfile::tempdir().expect("tempdir");
+        let csv = dir.path().join("radar.csv");
+        std::fs::write(&csv, "name,quadrant,ring,description\nKafka,Tool,Adopt,d\n")
+            .expect("seeds");
+        if let Some(toml) = toml {
+            std::fs::write(dir.path().join("radar.toml"), toml).expect("seeds");
+        }
+        let out = |name: &str| dir.path().join(name).display().to_string();
+        let args: Vec<String> = args
+            .iter()
+            .map(|a| a.strip_prefix('@').map_or_else(|| (*a).to_owned(), out))
+            .collect();
+        let cli = Cli::try_parse_from(
+            std::iter::once("radargen".to_owned())
+                .chain(std::iter::once(out("radar.csv")))
+                .chain(args),
+        )
+        .expect("parses");
+        (run(&cli, today), dir)
+    }
+
+    /// D-58: `-e today` expands to the injected date, exactly as that date
+    /// typed would, and echoes it once.
+    #[test]
+    fn today_reads_the_injected_clock_once_and_echoes_it() {
+        let (report, dir) = edition_run(
+            &[
+                "-o",
+                "@{edition}.svg",
+                "-t",
+                "Radar {edition}",
+                "-e",
+                "today",
+            ],
+            || vancouver(None),
+        );
+        assert_eq!(report.status(), 0, "{:?}", report.outcome);
+        assert_eq!(
+            report.warnings,
+            [
+                "warning: edition 2026-10-22 (today, America/Vancouver); pass -e 2026-10-22 to reproduce this render"
+            ]
+        );
+        let svg = std::fs::read_to_string(dir.path().join("2026-10-22.svg")).expect("written");
+        assert!(svg.contains("<title>Radar 2026-10-22</title>"), "{svg}");
+    }
+
+    /// The fixed clock: 2026-10-22 in Vancouver, or with `fallback`, in UTC.
+    fn vancouver(fallback: Option<Fallback>) -> Today {
+        Today {
+            date: "2026-10-22".into(),
+            zone: if fallback.is_some() {
+                "UTC"
+            } else {
+                "America/Vancouver"
+            }
+            .into(),
+            fallback,
+        }
+    }
+
+    /// Review M-1: a fallback to UTC is said before the echo, which names
+    /// UTC; a bad `TZ` is cut and escaped as any echoed text is.
+    #[test]
+    fn a_fallback_to_utc_is_said() {
+        let bad = format!("Bad\u{1}{}", "z".repeat(50));
+        let (report, _dir) = edition_run(&["-o", "@{edition}.svg", "-e", "today"], || {
+            vancouver(Some(Fallback::BadTz(bad)))
+        });
+        assert_eq!(report.status(), 0, "{:?}", report.outcome);
+        assert_eq!(
+            report.warnings,
+            [
+                format!(
+                    "warning: TZ 'Bad\\u{{1}}{}…' names no time zone radargen can find, so -e today used UTC; set TZ to a zone such as America/Vancouver",
+                    "z".repeat(36)
+                ),
+                "warning: edition 2026-10-22 (today, UTC); pass -e 2026-10-22 to reproduce this render".to_owned(),
+            ]
+        );
+        let (report, _dir) = edition_run(&["-o", "@{edition}.svg", "-e", "today"], || {
+            vancouver(Some(Fallback::NoSystemZone))
+        });
+        assert_eq!(
+            report.warnings.first().map(String::as_str),
+            Some(
+                "warning: the system's time zone cannot be determined, so -e today used UTC; set TZ to a zone such as America/Vancouver"
+            )
+        );
+    }
+
+    /// D-58 (maintainer, 2026-10-22): `edition = "today"` reads the clock
+    /// with no flag, and the echo names the key and its file.
+    #[test]
+    fn a_today_key_reads_the_clock_and_names_itself() {
+        let (report, dir) = edition_run_with(
+            Some(
+                "output = \"{edition}.svg\"\nsubtitle = \"Created {edition}\"\nedition = \"today\"\n",
+            ),
+            &["-c", "@radar.toml"],
+            || vancouver(None),
+        );
+        assert_eq!(report.status(), 0, "{:?}", report.outcome);
+        let file = dir.path().join("radar.toml").display().to_string();
+        assert_eq!(
+            report.warnings,
+            [format!(
+                "warning: the edition key in {file}: edition 2026-10-22 (today, America/Vancouver); pass -e 2026-10-22 to reproduce this render"
+            )]
+        );
+        let svg = std::fs::read_to_string(dir.path().join("2026-10-22.svg")).expect("written");
+        assert!(svg.contains("Created 2026-10-22"), "{svg}");
+    }
+
+    /// FR-91: `-e` overrides the key, so `edition = "today"` under `-e`
+    /// never reads the clock.
+    #[test]
+    fn the_flag_overrides_a_today_key() {
+        let never = || -> Today { panic!("the clock was read") };
+        let (report, dir) = edition_run_with(
+            Some("output = \"{edition}.svg\"\nedition = \"today\"\n"),
+            &["-c", "@radar.toml", "-e", "2026-09-01"],
+            never,
+        );
+        assert_eq!(report.status(), 0, "{:?}", report.outcome);
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+        assert!(dir.path().join("2026-09-01.svg").exists());
+    }
+
+    /// D-24: without `today`, the clock is never read, a date and no
+    /// `--edition` alike.
+    #[test]
+    fn no_other_run_reads_the_clock() {
+        let never = || -> Today { panic!("the clock was read") };
+        let (dated, _dir) = edition_run(&["-o", "@{edition}.svg", "-e", "2026-09-01"], never);
+        assert_eq!(dated.status(), 0, "{:?}", dated.outcome);
+        let (plain, _dir) = edition_run(&["-o", "@a.svg"], never);
+        assert_eq!(plain.status(), 0, "{:?}", plain.outcome);
+    }
+
+    /// `today` is checked as any date is: unused, it warns as one would.
+    #[test]
+    fn an_unused_today_warns_as_a_date_would() {
+        let (report, _dir) = edition_run(&["-o", "@a.svg", "-e", "today"], || vancouver(None));
+        assert_eq!(report.status(), 0, "{:?}", report.outcome);
+        assert_eq!(
+            report.warnings,
+            [
+                "warning: edition 2026-10-22 (today, America/Vancouver); pass -e 2026-10-22 to reproduce this render",
+                "warning: --edition 2026-10-22: no value uses it; put {edition} in the output, title or subtitle",
+            ]
+        );
+    }
+
+    /// rg-u6u, M-9b: an output path that is not UTF-8 is used as given
+    /// unless `{edition}` would have to change it.
+    #[cfg(unix)]
+    #[test]
+    fn a_non_utf8_output_cannot_expand() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+        let sourced = |bytes: &[u8]| {
+            Some(Sourced {
+                value: PathBuf::from(OsStr::from_bytes(bytes)),
+                origin: Origin::flag(Setting::Output),
+            })
+        };
+        let none = Effective::Absent;
+        let mut plain_run = Expander {
+            edition: &none,
+            file: None,
+            used: false,
+        };
+        let plain = plain_run.path(&mut Gate::default(), sourced(b"a\xff{x}.svg"));
+        assert_eq!(
+            plain.ok().flatten().map(|p| p.value),
+            Some(PathBuf::from(OsStr::from_bytes(b"a\xff{x}.svg")))
+        );
+        let date = Effective::Given(Sourced {
+            value: "2026-09-01".to_owned(),
+            origin: Origin::flag(Setting::Edition),
+        });
+        let mut dated_run = Expander {
+            edition: &date,
+            file: None,
+            used: false,
+        };
+        let dated = dated_run.path(&mut Gate::default(), sourced(b"a\xff{edition}.svg"));
+        let lines: Vec<String> = dated
+            .err()
+            .unwrap_or_default()
+            .iter()
+            .map(Fatal::render)
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                "error: -o a\u{fffd}{edition}.svg: is not UTF-8 text, so {edition} cannot expand in it"
+            ]
+        );
+        // Review I-1: it holds `{edition}`, so it uses the date though it fails.
+        assert!(dated_run.used, "a failing value still uses --edition");
     }
 }
