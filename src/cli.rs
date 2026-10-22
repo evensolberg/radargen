@@ -1,9 +1,9 @@
 //! Command-line surface (§6.6).
 //!
 //! Argument *behaviour* is fixed by the PRD; exact spelling is OQ-2. There is
-//! no subcommand (D-28): one CSV in, one file out, or `--create-template`
-//! or `--create-palette` alone to write a file to start from (FR-99,
-//! FR-101).
+//! no subcommand (D-28): one CSV in, one file out, or `--create-template`,
+//! `--create-palette` or `--create-config` alone to write a file to start
+//! from (FR-99, FR-101, FR-109).
 
 use clap::Parser;
 use std::path::{Path, PathBuf};
@@ -31,13 +31,12 @@ use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
     about = "Render a technology radar from a CSV file to a self-contained HTML page, a PNG image or an SVG file.",
     // clap's own usage would show the CSV as optional and leave out -o,
     // since each is required only without a --create-* flag.
-    override_usage = "radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]\n       radargen [CSV_PATH] -c <FILE> [OPTIONS]\n       radargen --create-template <PATH>\n       radargen --create-palette <PATH>",
+    override_usage = "radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]\n       radargen [CSV_PATH] -c <FILE> [OPTIONS]\n       radargen --create-template <PATH>\n       radargen --create-palette <PATH>\n       radargen --create-config <PATH>",
     long_about = None
 )]
 pub struct Cli {
     // §6.1; exactly one file, with no glob or multi-file form (FR-60),
-    // and none at all with --create-template or --create-palette (FR-99,
-    // FR-101). Optional with --config, whose input key can name it
+    // and none at all with a --create-* flag (FR-99, FR-101, FR-109). Optional with --config, whose input key can name it
     // (FR-91); given here, it overrides the key.
     /// The CSV file to read.
     ///
@@ -216,6 +215,16 @@ pub struct Cli {
     /// is never replaced. Give this flag alone.
     #[arg(long, value_name = "PATH", exclusive = true, group = STARTER)]
     pub create_palette: Option<PathBuf>,
+
+    // FR-109, D-102: as --create-template, for a --config file. Every key
+    // is commented out, so the file as written changes nothing.
+    /// Write a starter config file for --config, and render nothing.
+    ///
+    /// It has every key, commented out, with its default and what it does,
+    /// so it changes nothing until a line is uncommented. An existing file
+    /// is never replaced. Give this flag alone.
+    #[arg(long, value_name = "PATH", exclusive = true, group = STARTER)]
+    pub create_config: Option<PathBuf>,
 }
 
 /// `--config`'s long help (UX review 8).
@@ -227,16 +236,17 @@ width and legend_columns are integers; the rest are strings, edition a date \
 written YYYY-MM-DD or \"today\". Any other key is \
 an error. A flag on the command line, or the CSV given there, overrides its key. \
 A relative path in the \
-file is read from the file's own folder; ~ is not expanded.";
+file is read from the file's own folder; ~ is not expanded. --create-config \
+writes one to start from.";
 
 /// The group of flags that each stand in for a render (FR-60).
 const STARTER: &str = "starter";
 
-/// What a command line asks for (FR-60, FR-99, FR-101).
+/// What a command line asks for (FR-60, FR-99, FR-101, FR-109).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Task<'a> {
-    /// `--create-template <path>` or `--create-palette <path>`: write that
-    /// file there.
+    /// `--create-template`, `--create-palette` or `--create-config <path>`:
+    /// write that file there.
     Create(Starter, &'a Path),
     /// Render; the CSV is `input` or the file's `input` key, and the
     /// output is `-o` or the file's `output` key (FR-91).
@@ -255,9 +265,15 @@ impl Cli {
     /// refuses before a `Cli` is built; only one built by hand gets here.
     pub fn task(&self) -> Result<Task<'_>, Fatal> {
         let renders = self.output.is_some() || self.config.is_some();
-        match (&self.create_template, &self.create_palette, &self.csv_path) {
-            (Some(path), None, None) if !renders => Ok(Task::Create(Starter::Template, path)),
-            (None, Some(path), None) if !renders => Ok(Task::Create(Starter::Palette, path)),
+        let mut starters = [
+            (Starter::Template, &self.create_template),
+            (Starter::Palette, &self.create_palette),
+            (Starter::Config, &self.create_config),
+        ]
+        .into_iter()
+        .filter_map(|(starter, path)| Some((starter, path.as_deref()?)));
+        match (starters.next(), starters.next(), &self.csv_path) {
+            (Some((starter, path)), None, None) if !renders => Ok(Task::Create(starter, path)),
             (None, None, Some(input)) if renders => Ok(Task::Render { input: Some(input) }),
             (None, None, None) if self.config.is_some() => Ok(Task::Render { input: None }),
             _ => Err(Fatal::NoTask),

@@ -1,0 +1,55 @@
+# radargen config: a radar's settings, kept beside its CSV.
+#
+# radargen reads this file when -c names it: radargen -c radar.toml
+# Every setting below is commented out, so as written the file changes
+# nothing. Delete the "# " in front of a key to use it. A flag on the
+# command line overrides its key. A relative path is read from this
+# file's folder, wherever you run the command.
+
+# The CSV to read. A CSV named on the command line overrides it.
+# input = "radar.csv"
+
+# Where to write the radar. The extension picks the format: .html, .png
+# or .svg. With no output here, pass -o.
+# output = "radar.html"
+
+# A title above the radar. The default is none.
+# title = "Technology Radar"
+
+# A second line under the title. {edition} becomes the edition's date, so
+# it needs -e YYYY-MM-DD, -e today or the edition key below.
+# subtitle = "Created {edition}"
+
+# The rings, outermost first. These are the defaults.
+# rings = ["Assess", "Trial", "Adopt", "Retire"]
+
+# Rings whose rows are left off the radar without a warning. The default
+# is none.
+# unplotted_rings = ["In Use", "Rejected"]
+
+# The colours for PNG and SVG: "light", the default, or "dark". Use
+# theme or palette, not both.
+# theme = "light"
+
+# The width in pixels for PNG and SVG, from 320 to 10000; the height
+# follows. The default is the drawing's own width.
+# width = 1920
+
+# Flow a PNG or SVG legend into 1 to 4 columns beside the radar, breaking
+# only between sectors. The default is 1.
+# legend_columns = 1
+
+# How an HTML page's legend starts: "shown", the default, or "hidden".
+# legend = "shown"
+
+# What an HTML page's table lists: "radar", the default, for the rows on
+# the radar, or "all" for every row and every named column.
+# table = "radar"
+
+# Colours from a CSS file instead of the built-in themes, in every format.
+# Use palette or theme, not both; radargen --create-palette writes one.
+# palette = "brand.css"
+
+# The edition's date, which {edition} in output, title or subtitle
+# becomes: a date written YYYY-MM-DD, or "today" for the local date.
+# edition = "today"

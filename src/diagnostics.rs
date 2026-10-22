@@ -1518,11 +1518,11 @@ pub enum Fatal {
         /// Where the width came from, which the remedy names (NFR-10).
         width_origin: Origin,
     },
-    /// FR-60, FR-99, FR-101: a `Cli` asking for no task, or for more than
+    /// FR-60, FR-99, FR-101, FR-109: a `Cli` asking for no task, or for more than
     /// one. clap refuses such a command line, so only a `Cli` built by hand
     /// reaches this.
     #[error(
-        "give a CSV and -o or --config to render, or --create-template or --create-palette alone"
+        "give a CSV and -o or --config to render, or --create-template, --create-palette or --create-config alone"
     )]
     NoTask,
     /// NFR-15, FR-91: the `--config` file does not exist or cannot be read.
@@ -1592,7 +1592,8 @@ pub enum Fatal {
         /// The file as named.
         file: Arc<str>,
     },
-    /// FR-99, FR-101: a file to start from never replaces one (D-83, D-91).
+    /// FR-99, FR-101, FR-109: a file to start from never replaces one (D-83,
+    /// D-91, D-102).
     #[error(
         "{} {path}: already exists; radargen never replaces a file, so choose another path",
         .starter.flag()
@@ -1603,7 +1604,7 @@ pub enum Fatal {
         /// Its argument as given.
         path: String,
     },
-    /// FR-99, FR-101: the file cannot be written, for any of the reasons
+    /// FR-99, FR-101, FR-109: the file cannot be written, for any of the reasons
     /// [`Fatal::Unwritable`] gives `-o`. Nothing at the path has changed.
     #[error("{} {path}: cannot be written: {}", .starter.flag(), io_reason(source))]
     StarterUnwritable {
