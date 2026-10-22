@@ -12,6 +12,7 @@ use crate::diagnostics::{Fatal, RenderKind, Warning, Warnings};
 use crate::escape::remove_undisplayable;
 use crate::options::{Legend, Table};
 pub use crate::palette::Theme;
+use crate::settings::edition::{self, Edition};
 use crate::settings::file::Loaded;
 use crate::settings::{Origin, Setting, Settings, pick};
 use crate::starter::Starter;
@@ -178,6 +179,19 @@ pub struct Cli {
     /// Read settings from a TOML file.
     #[arg(short, long, value_name = "FILE", long_help = CONFIG_HELP)]
     pub config: Option<PathBuf>,
+
+    // FR-92, D-58: per run, so not a --config key (FR-91). `-e` (OQ-2).
+    // The date expands exactly as written, so dated filenames sort; the
+    // tool reads the clock only for `today`, the maintainer's opt-in for
+    // scheduled jobs, and echoes the date it read.
+    /// The edition's date, which {edition} in the output, title or subtitle becomes.
+    ///
+    /// Written YYYY-MM-DD, such as 2026-09-01, or today for the local date,
+    /// which the run prints so it can be repeated. A value holding
+    /// {edition} needs this flag; while it is in use, any other {name} in
+    /// that value is an error, since it is likely a typo.
+    #[arg(short, long, value_name = "YYYY-MM-DD", value_parser = edition::parse)]
+    pub edition: Option<Edition>,
 
     // FR-99, D-83: the tool writes the template, so it always matches the
     // parser that reads it. `exclusive`, so it never half-renders; no short

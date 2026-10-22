@@ -38,12 +38,14 @@ use crate::order::resolve;
 use crate::palette::file::{self, ReadError};
 use crate::palette::{Colours, Theme};
 use crate::rings::{RingSet, default_rings, parse_ring_list};
+use crate::settings::edition::{Edition, Problem, expand};
 use crate::settings::file::{self as config_file, MAX_KEY_PROBLEMS};
 use crate::settings::{
     DEFAULT_LEGEND, DEFAULT_LEGEND_COLUMNS, DEFAULT_TABLE, DEFAULT_THEME, Effective, NamedPath,
     Origin, Setting, Settings, Source, Sourced, resolve as resolve_path,
 };
 use crate::text::Fonts;
+use crate::{ECHO_CHARS, clip};
 
 /// The resolved run (architecture §7), read-only once built. The colours
 /// are resolved here, so a bad `--palette` file is a tier-one error
@@ -178,10 +180,14 @@ impl Report {
 
 /// The whole pipeline for `cli` (architecture §2). Warnings are rendered
 /// last, so every outcome carries the warnings gathered before it.
+///
+/// `today` is the clock `-e today` reads, the local date as `YYYY-MM-DD`:
+/// [`crate::settings::edition::local_today`] in production, a fixed date in tests. It is
+/// called at most once, and only for `-e today` (D-24, D-58).
 #[must_use]
-pub fn run(cli: &Cli) -> Report {
+pub fn run(cli: &Cli, today: impl FnOnce() -> String) -> Report {
     let mut warnings = Warnings::default();
-    let outcome = steps(cli, &mut warnings).map_err(Failure::render);
+    let outcome = steps(cli, today, &mut warnings).map_err(Failure::render);
     Report {
         warnings: warnings.render(),
         outcome,
@@ -189,12 +195,20 @@ pub fn run(cli: &Cli) -> Report {
 }
 
 /// The stages in order, each stopping the run on failure.
-fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
+fn steps(
+    cli: &Cli,
+    today: impl FnOnce() -> String,
+    warnings: &mut Warnings,
+) -> Result<(), Failure> {
     let input = match cli.task()? {
         Task::Create(starter, path) => return Ok(starter.create(path)?),
         Task::Render { input } => input,
     };
-    let config = config(cli, input, warnings).map_err(Failure::Alone)?;
+    let edition = cli
+        .edition
+        .as_ref()
+        .map(|given| edition_date(given, today, warnings));
+    let config = config(cli, input, edition.as_deref(), warnings).map_err(Failure::Alone)?;
     let fonts = Fonts::embedded().map_err(Fatal::from)?;
     // FR-106: the flags say where an off-radar row goes, so its warning
     // can say so when it is raised.
@@ -208,11 +222,36 @@ fn steps(cli: &Cli, warnings: &mut Warnings) -> Result<(), Failure> {
     Ok(write_atomic(&config.output, &config.output_named, &bytes)?)
 }
 
+/// `--edition`'s date: as given, or for `today` the local date, read once
+/// and echoed, so the render can be reproduced with an explicit `-e`
+/// (D-58).
+fn edition_date(
+    edition: &Edition,
+    today: impl FnOnce() -> String,
+    warnings: &mut Warnings,
+) -> String {
+    match edition {
+        Edition::Date(date) => date.clone(),
+        Edition::Today => {
+            let date = today();
+            warnings.push(Warning::Render(RenderKind::EditionToday {
+                date: date.clone(),
+            }));
+            date
+        }
+    }
+}
+
 /// The run's settings, in FR-92's order: the merge (FR-91), FR-90 on the
-/// text values, paths resolved against their sources, then NFR-16 tier
-/// one's checks: FR-52, FR-62 and D-74 on the output, FR-63 on the rings,
-/// FR-107, FR-102 on the palette.
-fn config(cli: &Cli, input: &Path, warnings: &mut Warnings) -> Result<Config, Vec<Fatal>> {
+/// text values, `{edition}` expanded, paths resolved against their
+/// sources, then NFR-16 tier one's checks: FR-52, FR-62 and D-74 on the
+/// output, FR-63 on the rings, FR-107, FR-102 on the palette.
+fn config(
+    cli: &Cli,
+    input: &Path,
+    edition: Option<&str>,
+    warnings: &mut Warnings,
+) -> Result<Config, Vec<Fatal>> {
     let (settings, mut gate) = merged(cli)?;
     let dir = settings.dir.as_deref();
     // FR-90 first, every warning naming the value's source.
@@ -223,9 +262,24 @@ fn config(cli: &Cli, input: &Path, warnings: &mut Warnings) -> Result<Config, Ve
         .and_then(|s| resolved(s, warnings));
     let rings = settings.rings.map(|r| cleaned(r, warnings));
     let unplotted = settings.unplotted_rings.map(|r| cleaned(r, warnings));
-    // FR-92 (PR 19b): `{edition}` expands in the output, title and subtitle
-    // here, after FR-90 and before any path resolves.
-    let output = settings.output.as_given().map(|o| resolve_path(dir, o));
+    // FR-92: `{edition}` expands in the output, title and subtitle, in
+    // FR-91's order, after FR-90 and before any path resolves. The title
+    // and subtitle arrive trimmed by `shown`, which cannot matter: a
+    // placeholder holds no whitespace. Each is a check through the gate,
+    // so a value from the file that fails drops out, as a broken key does,
+    // and nothing later reports its unexpanded text (rg-u6u, M-9a).
+    let mut used = false;
+    let output = expanded_path(&mut gate, settings.output.given(), edition, &mut used)?;
+    let title = expanded_text(&mut gate, title, edition, &mut used)?;
+    let subtitle = expanded_text(&mut gate, subtitle, edition, &mut used)?;
+    if let Some(date) = edition
+        && !used
+    {
+        warnings.push(Warning::Render(RenderKind::EditionUnused {
+            date: date.to_owned(),
+        }));
+    }
+    let output = output.as_ref().map(|o| resolve_path(dir, o));
     let palette_path = settings.palette.as_given().map(|p| resolve_path(dir, p));
     let reads = read_files(input, cli.config.as_deref(), palette_path.as_ref());
     let format = checked_output(&mut gate, output.as_ref(), &reads)?;
@@ -267,6 +321,92 @@ fn config(cli: &Cli, input: &Path, warnings: &mut Warnings) -> Result<Config, Ve
         rings,
         input: input.to_path_buf(),
     })
+}
+
+/// FR-92 on the output path. A path that is not UTF-8, which only `-o`
+/// can give, is read for placeholders through its lossy form, exact for
+/// them since they are ASCII; it is used as given unless `{edition}` would
+/// have to change it, which is an error, since replacing the text would
+/// change its other bytes (rg-u6u, M-9b).
+fn expanded_path(
+    gate: &mut Gate,
+    path: Option<Sourced<PathBuf>>,
+    edition: Option<&str>,
+    used: &mut bool,
+) -> Result<Option<Sourced<PathBuf>>, Vec<Fatal>> {
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    let named = NamedPath::new(path.origin.clone(), &path.value);
+    let expanded = match path.value.to_str() {
+        Some(text) => expand(text, edition)
+            .map(|(text, uses)| (PathBuf::from(text), uses))
+            .map_err(|problems| placeholder_errors(&named, problems)),
+        None => match expand(&path.value.to_string_lossy(), edition) {
+            Ok((_, false)) => Ok((path.value.clone(), false)),
+            Ok((_, true)) => Err(vec![Fatal::EditionNotUtf8 { output: named }]),
+            Err(problems) => Err(placeholder_errors(&named, problems)),
+        },
+    };
+    Ok(gate
+        .check(&path.origin.source, expanded)?
+        .map(|(value, uses)| {
+            *used |= uses;
+            Sourced {
+                value,
+                origin: path.origin,
+            }
+        }))
+}
+
+/// FR-92 on a title or subtitle, named by its source with its text quoted,
+/// a value from the file cut at [`ECHO_CHARS`] (FR-91).
+fn expanded_text(
+    gate: &mut Gate,
+    text: Option<Sourced<String>>,
+    edition: Option<&str>,
+    used: &mut bool,
+) -> Result<Option<Sourced<String>>, Vec<Fatal>> {
+    let Some(text) = text else {
+        return Ok(None);
+    };
+    let shown = if text.origin.source.is_config() {
+        clip(&text.value, ECHO_CHARS)
+    } else {
+        text.value.clone()
+    };
+    let named = NamedPath {
+        origin: text.origin.clone(),
+        shown: format!("'{shown}'"),
+    };
+    let expanded =
+        expand(&text.value, edition).map_err(|problems| placeholder_errors(&named, problems));
+    Ok(gate
+        .check(&text.origin.source, expanded)?
+        .map(|(value, uses)| {
+            *used |= uses;
+            Sourced {
+                value,
+                origin: text.origin,
+            }
+        }))
+}
+
+/// FR-92's problems in one value as tier-one errors, every one reported
+/// (NFR-16).
+fn placeholder_errors(value: &NamedPath, problems: Vec<Problem>) -> Vec<Fatal> {
+    problems
+        .into_iter()
+        .map(|problem| match problem {
+            Problem::NoEdition => Fatal::NoEdition {
+                value: value.clone(),
+            },
+            Problem::Unknown(placeholder) => Fatal::UnknownPlaceholder {
+                value: value.clone(),
+                placeholder,
+            },
+        })
+        .collect()
 }
 
 /// Every file the run reads, which D-74 keeps the output from replacing:
@@ -826,5 +966,122 @@ mod tests {
             .status(),
             2
         );
+    }
+
+    /// `radargen args…` in a directory holding a one-row CSV, with the
+    /// clock `today` gives; the report and the directory.
+    fn edition_run(args: &[&str], today: impl FnOnce() -> String) -> (Report, tempfile::TempDir) {
+        use clap::Parser;
+        let dir = tempfile::tempdir().expect("tempdir");
+        let csv = dir.path().join("radar.csv");
+        std::fs::write(&csv, "name,quadrant,ring,description\nKafka,Tool,Adopt,d\n")
+            .expect("seeds");
+        let out = |name: &str| dir.path().join(name).display().to_string();
+        let args: Vec<String> = args
+            .iter()
+            .map(|a| a.strip_prefix('@').map_or_else(|| (*a).to_owned(), out))
+            .collect();
+        let cli = Cli::try_parse_from(
+            std::iter::once("radargen".to_owned())
+                .chain(std::iter::once(out("radar.csv")))
+                .chain(args),
+        )
+        .expect("parses");
+        (run(&cli, today), dir)
+    }
+
+    /// D-58: `-e today` expands to the injected date, exactly as that date
+    /// typed would, and echoes it once.
+    #[test]
+    fn today_reads_the_injected_clock_once_and_echoes_it() {
+        let (report, dir) = edition_run(
+            &[
+                "-o",
+                "@{edition}.svg",
+                "-t",
+                "Radar {edition}",
+                "-e",
+                "today",
+            ],
+            || "2026-10-22".to_owned(),
+        );
+        assert_eq!(report.status(), 0, "{:?}", report.outcome);
+        assert_eq!(
+            report.warnings,
+            ["warning: edition 2026-10-22 (today); pass -e 2026-10-22 to reproduce this render"]
+        );
+        let svg = std::fs::read_to_string(dir.path().join("2026-10-22.svg")).expect("written");
+        assert!(svg.contains("<title>Radar 2026-10-22</title>"), "{svg}");
+    }
+
+    /// D-24: without `today`, the clock is never read, a date and no
+    /// `--edition` alike.
+    #[test]
+    fn no_other_run_reads_the_clock() {
+        let never = || -> String { panic!("the clock was read") };
+        let (dated, _dir) = edition_run(&["-o", "@{edition}.svg", "-e", "2026-09-01"], never);
+        assert_eq!(dated.status(), 0, "{:?}", dated.outcome);
+        let (plain, _dir) = edition_run(&["-o", "@a.svg"], never);
+        assert_eq!(plain.status(), 0, "{:?}", plain.outcome);
+    }
+
+    /// `today` is checked as any date is: unused, it warns as one would.
+    #[test]
+    fn an_unused_today_warns_as_a_date_would() {
+        let (report, _dir) =
+            edition_run(&["-o", "@a.svg", "-e", "today"], || "2026-10-22".to_owned());
+        assert_eq!(report.status(), 0, "{:?}", report.outcome);
+        assert_eq!(
+            report.warnings,
+            [
+                "warning: edition 2026-10-22 (today); pass -e 2026-10-22 to reproduce this render",
+                "warning: --edition 2026-10-22: no value uses it; put {edition} in the output, title or subtitle",
+            ]
+        );
+    }
+
+    /// rg-u6u, M-9b: an output path that is not UTF-8 is used as given
+    /// unless `{edition}` would have to change it.
+    #[cfg(unix)]
+    #[test]
+    fn a_non_utf8_output_cannot_expand() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+        let sourced = |bytes: &[u8]| {
+            Some(Sourced {
+                value: PathBuf::from(OsStr::from_bytes(bytes)),
+                origin: Origin::flag(Setting::Output),
+            })
+        };
+        let mut used = false;
+        let plain = expanded_path(
+            &mut Gate::default(),
+            sourced(b"a\xff{x}.svg"),
+            None,
+            &mut used,
+        );
+        assert_eq!(
+            plain.ok().flatten().map(|p| p.value),
+            Some(PathBuf::from(OsStr::from_bytes(b"a\xff{x}.svg")))
+        );
+        let dated = expanded_path(
+            &mut Gate::default(),
+            sourced(b"a\xff{edition}.svg"),
+            Some("2026-09-01"),
+            &mut used,
+        );
+        let lines: Vec<String> = dated
+            .err()
+            .unwrap_or_default()
+            .iter()
+            .map(Fatal::render)
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                "error: -o a\u{fffd}{edition}.svg: is not UTF-8 text, so {edition} cannot expand in it"
+            ]
+        );
+        assert!(!used);
     }
 }

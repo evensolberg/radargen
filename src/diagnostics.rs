@@ -10,6 +10,7 @@ use crate::options::OutputFormat;
 use crate::options::Table;
 use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::RingsError;
+use crate::settings::edition::PLACEHOLDER;
 use crate::settings::file::{KeyProblem, MAX_BYTES as CONFIG_MAX_BYTES};
 use crate::settings::{NamedPath, Origin, Setting, Source};
 use crate::starter::Starter;
@@ -226,6 +227,18 @@ pub enum RenderKind {
         first: char,
         /// How many characters the value lost in all.
         count: usize,
+    },
+    /// D-58: `-e today` read the local date; it is echoed so the render
+    /// can be reproduced with an explicit `-e`. A warning, since stderr has
+    /// no other class for a line the author should act on (NFR-9).
+    EditionToday {
+        /// The date read.
+        date: String,
+    },
+    /// FR-92: `--edition` was given, but no value holds `{edition}`.
+    EditionUnused {
+        /// The date given.
+        date: String,
     },
     /// FR-104 on a setting's value, from the command line or the file: one
     /// per drawn text, so one per ring entry, however many characters it
@@ -553,6 +566,12 @@ impl RenderKind {
             } => format!(
                 "{origin}: removed {count} characters the output cannot display, the first {}",
                 code_point(*first)
+            ),
+            Self::EditionToday { date } => {
+                format!("edition {date} (today); pass -e {date} to reproduce this render")
+            }
+            Self::EditionUnused { date } => format!(
+                "--edition {date}: no value uses it; put {PLACEHOLDER} in the output, title or subtitle"
             ),
             Self::SettingMissingGlyphs { origin, lacking } => format!("{origin}: {lacking}"),
         }
@@ -1360,6 +1379,27 @@ pub enum Fatal {
     NotRegular {
         /// The path, by its key, as written.
         path: NamedPath,
+    },
+    /// FR-92: a value holds `{edition}`, and no `--edition` was given.
+    #[error("{value}: uses {PLACEHOLDER}, but no --edition was given; pass --edition YYYY-MM-DD")]
+    NoEdition {
+        /// The value, by its flag or key, as written.
+        value: NamedPath,
+    },
+    /// FR-92: placeholders are in use, and a value holds another one.
+    #[error("{value}: {placeholder} is not a placeholder; the only one is {PLACEHOLDER}")]
+    UnknownPlaceholder {
+        /// The value, by its flag or key, as written.
+        value: NamedPath,
+        /// The placeholder, braces and all.
+        placeholder: String,
+    },
+    /// FR-92 (rg-u6u, M-9b): `-o` is not UTF-8, so `{edition}` cannot be
+    /// replaced in it without changing its other bytes.
+    #[error("{output}: is not UTF-8 text, so {PLACEHOLDER} cannot expand in it")]
+    EditionNotUtf8 {
+        /// The output, by its flag, as written.
+        output: NamedPath,
     },
     /// Security review F5: past [`crate::settings::file::MAX_KEY_PROBLEMS`],
     /// the rest are counted.
