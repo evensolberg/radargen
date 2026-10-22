@@ -14,6 +14,8 @@ use crate::text::Fonts;
 
 /// SVG's default `stroke-miterlimit`; PDF's default is 10.
 const MITER_LIMIT: f32 = 4.0;
+/// A colour channel's largest value, `ff`: what PDF's 1.0 stands for.
+const CHANNEL_MAX: f64 = 255.0;
 
 /// What drawing a page reads.
 pub struct Canvas<'a> {
@@ -57,7 +59,7 @@ pub fn content(canvas: &Canvas<'_>) -> Vec<u8> {
 }
 
 /// One node, or nothing for an interactive-only one.
-// qual:allow(complexity, max_function_lines=90) reason: "one dispatch arm per node kind, each only unpacking its fields for its writer"
+// qual:allow(complexity, max_function_lines=80) reason: "one dispatch arm per node kind, each only unpacking its fields for its writer"
 fn node(out: &mut Content, node: &Node, canvas: &Canvas<'_>) {
     if node.is_interactive_only() {
         return;
@@ -212,9 +214,14 @@ pub(super) fn colour(paint: Paint, palette: &Palette) -> Option<[f32; 3]> {
 }
 
 /// A palette value as an RGB triple of PDF reals.
+///
+/// # Panics
+///
+/// If `value` is not `#RRGGBB`: a palette holds nothing else (FR-86).
+// qual:allow(complexity, error_handling) reason: "the documented # Panics: a palette holds only #RRGGBB values (FR-86)"
 fn literal(value: &str) -> [f32; 3] {
     let hex = Hex::parse(value).expect("a palette holds only #RRGGBB values (FR-86)");
-    hex.rgb().map(|c| real(f64::from(c) / 255.0))
+    hex.rgb().map(|c| real(f64::from(c) / CHANNEL_MAX))
 }
 
 #[cfg(test)]
@@ -390,7 +397,7 @@ mod tests {
         let [r, g, b] = Hex::parse(palette.value(Role::Series(1)))
             .expect("hex")
             .rgb();
-        let want = [r, g, b].map(|c| real(f64::from(c) / 255.0));
+        let want = [r, g, b].map(|c| real(f64::from(c) / CHANNEL_MAX));
         assert_eq!(colour(Paint::Role(Role::Series(1)), &palette), Some(want));
         assert!(colour(Paint::NumberOn(0), &palette).is_some());
         assert_eq!(colour(Paint::None, &palette), None);

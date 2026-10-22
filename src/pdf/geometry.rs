@@ -30,6 +30,21 @@ pub enum Step {
 /// The control-arm length for a quarter turn of a unit circle:
 /// 4/3 · tan(π/8).
 const QUARTER: f64 = 0.552_284_749_830_793_4;
+/// Half a length: of a side, for the corner radius SVG clamps to it, and
+/// of a chord, which F.6.5 works from. Exact, as halving by division is.
+const HALF: f64 = 0.5;
+/// The quarter turns in a circle: one cubic each.
+const QUARTERS: u8 = 4;
+/// A cubic's control arm for an arc of sweep θ is `ARM · tan(θ / ARM_DIVISOR)`
+/// of the radius: 4/3 · tan(θ/4), the arm that meets the circle at the
+/// arc's ends and middle.
+const ARM: f64 = 4.0 / 3.0;
+/// The divisor of the sweep in the control arm's formula ([`ARM`]).
+const ARM_DIVISOR: f64 = 4.0;
+/// Taken from a quarter-turn count before its ceiling, so an exact
+/// quarter or half turn (four- and two-sector radars) cannot tip into one
+/// more piece on a platform whose `atan2` rounds its last bit up (NFR-4).
+const PIECE_GUARD: f64 = 1e-9;
 
 /// A point at `angle` (radians, y down) on the circle at `centre`.
 #[expect(
@@ -50,7 +65,7 @@ fn on(centre: Point, radius: f64, angle: f64) -> Point {
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
 )]
 fn piece(centre: Point, radius: f64, a: f64, b: f64, end: Point) -> Step {
-    let k = 4.0 / 3.0 * ((b - a) / 4.0).tan() * radius;
+    let k = ARM * ((b - a) / ARM_DIVISOR).tan() * radius;
     let start = on(centre, radius, a);
     Step::Cubic {
         c1: Point {
@@ -70,7 +85,7 @@ fn piece(centre: Point, radius: f64, a: f64, b: f64, end: Point) -> Step {
 #[must_use]
 pub fn circle(centre: Point, radius: f64) -> Vec<Step> {
     let mut steps = vec![Step::Move(on(centre, radius, 0.0))];
-    for quarter in 0_u8..4 {
+    for quarter in 0_u8..QUARTERS {
         let a = f64::from(quarter) * FRAC_PI_2;
         let b = a + FRAC_PI_2;
         steps.push(piece(centre, radius, a, b, on(centre, radius, b)));
@@ -87,8 +102,8 @@ pub fn circle(centre: Point, radius: f64) -> Vec<Step> {
 pub fn rect(origin: Point, width: f64, height: f64, radius: f64) -> Vec<Step> {
     let (x0, y0, x1, y1) = (origin.x, origin.y, origin.x + width, origin.y + height);
     let p = |x, y| Point { x, y };
-    let rx = radius.min(width / 2.0).max(0.0);
-    let ry = radius.min(height / 2.0).max(0.0);
+    let rx = radius.min(width * HALF).max(0.0);
+    let ry = radius.min(height * HALF).max(0.0);
     if crate::num::fmt_coord(rx) == "0" || crate::num::fmt_coord(ry) == "0" {
         return vec![
             Step::Move(p(x0, y0)),
@@ -169,12 +184,12 @@ fn arc(from: Point, radius: f64, large_arc: bool, sweep: bool, end: Point) -> Ve
         return vec![Step::Line(end)];
     }
     // Half the chord, in a frame centred on its midpoint.
-    let (hx, hy) = ((from.x - end.x) / 2.0, (from.y - end.y) / 2.0);
+    let (hx, hy) = ((from.x - end.x) * HALF, (from.y - end.y) * HALF);
     let d2 = hx * hx + hy * hy;
     // F.6.6: a radius too small for the chord grows to reach it.
     r = r.max(d2.sqrt());
-    let sign = if large_arc == sweep { -1.0 } else { 1.0 };
-    let coef = sign * ((r * r - d2) / d2).max(0.0).sqrt();
+    let root = ((r * r - d2) / d2).max(0.0).sqrt();
+    let coef = if large_arc == sweep { -root } else { root };
     let centre = Point {
         x: coef * hy + f64::midpoint(from.x, end.x),
         y: -coef * hx + f64::midpoint(from.y, end.y),
@@ -186,10 +201,7 @@ fn arc(from: Point, radius: f64, large_arc: bool, sweep: bool, end: Point) -> Ve
     } else if !sweep && delta > 0.0 {
         delta -= TAU;
     }
-    // The 1e-9 keeps an exact quarter or half turn (four- and two-sector
-    // radars) from tipping into one more piece on a platform whose atan2
-    // rounds its last bit up (NFR-4).
-    let pieces = (delta.abs() / FRAC_PI_2 - 1e-9).ceil().max(1.0);
+    let pieces = (delta.abs() / FRAC_PI_2 - PIECE_GUARD).ceil().max(1.0);
     #[expect(
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,

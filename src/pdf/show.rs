@@ -19,6 +19,9 @@ use crate::text::Placed;
 const CENTRED: f64 = 0.5;
 /// Glyph space units per em in a TJ adjustment.
 const EM: f64 = 1000.0;
+/// The text matrix's y scale: it flips glyph space, y up, back against
+/// the page's flipped transform, so the glyphs stand upright.
+const UPRIGHT: f32 = -1.0;
 
 /// `node`'s lines, then its tail. Anything but a text writes nothing.
 #[expect(
@@ -126,7 +129,7 @@ fn run(
             1.0,
             0.0,
             0.0,
-            -1.0,
+            UPRIGHT,
             real(at.x + first.x),
             real(at.y + first.y),
         ]);

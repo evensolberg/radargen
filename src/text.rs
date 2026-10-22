@@ -251,12 +251,14 @@ impl<'a> FontMetrics<'a> {
 
     /// The face's TTF, for a writer that embeds it (FR-110).
     #[must_use]
+    // qual:allow(dry, boilerplate) reason: "read-only: a public field would let a caller swap the TTF the shaper's data was built from"
     pub const fn bytes(&self) -> &'a [u8] {
         self.bytes
     }
 
     /// The face as an error names it: `Inter Regular`.
     #[must_use]
+    // qual:allow(dry, boilerplate) reason: "read-only: the name is fixed with the face it names"
     pub const fn name(&self) -> &'static str {
         self.face
     }

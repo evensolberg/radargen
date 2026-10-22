@@ -6,6 +6,10 @@ pub mod font;
 pub mod geometry;
 mod show;
 
+/// The grid every coordinate is rounded to: thousandths, as
+/// [`fmt_coord`](crate::num::fmt_coord) writes them.
+const THOUSANDTHS: f64 = 1000.0;
+
 /// The one path a number takes into the PDF (NFR-17): rounded to
 /// thousandths, half away from zero, as [`fmt_coord`] rounds it, then
 /// narrowed to the `f32` pdf-writer writes. The rounding absorbs a trig
@@ -27,7 +31,7 @@ pub fn real(v: f64) -> f32 {
     );
     // pdf-writer writes an integral float, -0.0 included, as an integer,
     // so `-0` never reaches the file.
-    narrow((v * 1000.0).round() / 1000.0)
+    narrow((v * THOUSANDTHS).round() / THOUSANDTHS)
 }
 
 /// The page's px-to-pt scale (FR-110), narrowed unrounded. It is a
