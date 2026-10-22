@@ -2,19 +2,7 @@
 
 ### 🚀 Features
 
-- *(cli)* --create-config writes a starter config file
-
-### 🐛 Bug Fixes
-
-- *(config)* Starter states ~ and its ranges; review wording
-
-### 📚 Documentation
-
-- FR-109 and D-102 for --create-config (PRD 0.105)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(crumbs)* Close rg-2ss
+- *(cli)* --create-config writes a starter config (1.18.0) (#141)
 ## [1.17.1] - 2026-10-22
 
 ### 📚 Documentation
