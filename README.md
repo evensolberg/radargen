@@ -134,6 +134,7 @@ radargen <CSV_PATH> -o <OUTPUT> [OPTIONS]
 radargen [CSV_PATH] -c <FILE> [OPTIONS]
 radargen --create-template <PATH>
 radargen --create-palette <PATH>
+radargen --create-config <PATH>
 ```
 
 | Flag | What it does |
@@ -153,13 +154,20 @@ radargen --create-palette <PATH>
 | `-e`, `--edition <YYYY-MM-DD>` | The edition's date, which `{edition}` in the output, title or subtitle becomes; `today` for the local date. Overrides a config file's `edition` key. |
 | `--create-template <PATH>` | Write a starter CSV, and render nothing. Given alone. |
 | `--create-palette <PATH>` | Write a starter palette, and render nothing. Given alone. |
+| `--create-config <PATH>` | Write a starter config file, and render nothing. Given alone. |
 | `-h`, `--help` / `-V`, `--version` | Help, and the version. |
 
 `radargen --help` gives the same with more detail.
 
 ## A config file
 
-Keep a radar's settings beside its CSV, so every edition renders the same way:
+Keep a radar's settings beside its CSV, so every edition renders the same way. To start from a file that lists every key, run:
+
+```sh
+radargen --create-config radar.toml
+```
+
+It writes each key commented out, with its default and what it does, so the file changes nothing until you delete the `# ` in front of a line. It never replaces an existing file. Or write one yourself:
 
 ```toml
 # radar.toml

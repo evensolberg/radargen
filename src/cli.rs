@@ -36,8 +36,9 @@ use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
 )]
 pub struct Cli {
     // §6.1; exactly one file, with no glob or multi-file form (FR-60),
-    // and none at all with a --create-* flag (FR-99, FR-101, FR-109). Optional with --config, whose input key can name it
-    // (FR-91); given here, it overrides the key.
+    // and none at all with a --create-* flag (FR-99, FR-101, FR-109).
+    // Optional with --config, whose input key can name it (FR-91); given
+    // here, it overrides the key.
     /// The CSV file to read.
     ///
     /// A header row, then one row per item, with at least name, sector,
