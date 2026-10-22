@@ -8,7 +8,9 @@ tags:
 - pdf
 - output
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-22
+blocks:
+- rg-ffj
 phase: v1.2
 ---
 
@@ -17,3 +19,5 @@ phase: v1.2
 The full PDF: the light content plus every item description, likely as a table (FR-78 column and row order), paginated (table across pages, repeated header, wrapped cells). Needs its own PRD section.
 
 First step (maintainer: not now, when the time comes): a Fullbleed spike (~1 day): is inline SVG drawn as vector or rasterised (svg_raster feature); are table headers repeated across page breaks; is output byte-identical across runs (NFR-4); register Inter from the vendored TTFs; check maintainership in its repo. If Fullbleed passes it can serve both light and full (then PR 20 need not add svg2pdf); if not, the fallback is our own table Blocks and page breaking over svg2pdf. Open spec questions: CLI selection (pdf vs pdf-full, or a flag), tagged PDF/PDF-UA for accessibility, page size and orientation.
+
+[2026-10-22] Maintainer, 2026-10-22 (PR 20 design): paper sizes (A4, Letter, and orientation) belong here, in PR 21. PR 20 light PDF is one page sized to the document (CSS px x 0.75 pt, --width as for SVG).
