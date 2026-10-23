@@ -12,10 +12,11 @@ use radargen::text::Fonts;
 static FONTS: LazyLock<Fonts> =
     LazyLock::new(|| Fonts::embedded().expect("the vendored fonts parse"));
 
-/// The producer every test PDF names: the goldens' placeholder, as
-/// `version.rs`'s `PLACEHOLDER` spells it, so a golden's offsets do not
-/// move with the version.
-const PRODUCER: &str = "radargen {version}";
+/// The producer every test PDF names: the goldens' placeholder, so a
+/// golden's offsets do not move with the version. Only the `serialise`
+/// binary includes `version.rs`, so `serialise/pdf.rs` asserts this equals
+/// its `PLACEHOLDER`.
+pub const PRODUCER: &str = "radargen {version}";
 
 /// The vendored fonts.
 pub fn fonts() -> &'static Fonts {

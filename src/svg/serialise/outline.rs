@@ -167,7 +167,7 @@ fn path(segments: &[Segment], scale: f64) -> String {
 }
 
 /// A text as a group of placed glyphs: its paint on the group, each line
-/// at its baseline, its tail at `tail_x` (D-78). Filled and outside a
+/// at its baseline, its tail at [`Node::tail_x`] (D-78). Filled and outside a
 /// control, an image named by its words (D-88). `node` is the text
 /// `run` unpacks, which places its lines and tail.
 pub(super) fn text(

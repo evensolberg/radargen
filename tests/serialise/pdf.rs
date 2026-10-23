@@ -5,9 +5,10 @@ use radargen::layout::arrange::{Arrangement, arrange};
 use radargen::palette::{Palette, Theme};
 
 use super::golden::golden;
-use super::pdf_export::pdf;
+use super::pdf_export::{PRODUCER, pdf};
 use super::pdf_text::readable;
 use super::prd;
+use super::version::PLACEHOLDER;
 
 /// The PRD example as a PDF in `theme`, its producer the placeholder
 /// (`pdf_export`'s), so a minor bump changes no byte.
@@ -25,6 +26,11 @@ fn prd_pdf(theme: Theme) -> String {
 
 /// The PRD example as a light PDF. One test per golden, since a blessing
 /// run stops at the first.
+#[test]
+fn the_producer_is_the_version_placeholder() {
+    assert_eq!(PRODUCER, PLACEHOLDER);
+}
+
 #[test]
 fn prd_pdf_matches_its_golden() {
     golden("pdf", "prd-light.pdf.txt", &prd_pdf(Theme::Light));
