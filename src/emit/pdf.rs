@@ -268,36 +268,60 @@ mod tests {
     }
 
     /// Review Focus 3: a side past the 14,400 pt viewers accept is written
-    /// with a `/UserUnit` that brings it under, keeping the page's size.
+    /// with a `/UserUnit` that brings it under, keeping the page's size,
+    /// at the document's own width and at `--width`. The PRD document,
+    /// forced 30,000 px tall (a long single-column legend's shape), so the
+    /// content is real: its flip scales by 0.75 pt per px over the unit,
+    /// and translates by the `MediaBox`'s own height.
     #[test]
     fn a_page_past_the_viewers_limit_gets_a_user_unit() {
-        // 30,000 px tall is 22,500 pt: a long single-column legend's shape.
-        let doc = Document {
-            width: 100.0,
-            height: 30_000.0,
-            root: Node::Group(Group::new(Point::ORIGIN, Vec::new())),
-        };
-        let bytes = pdf(&doc, None, None, Theme::Light);
-        let unit = page(&bytes)
-            .get(b"UserUnit")
-            .and_then(lopdf::Object::as_float)
-            .expect("a UserUnit");
-        assert!(
-            (unit - 2.0).abs() < f32::EPSILON,
-            "the smallest whole unit that fits: {unit}"
-        );
-        let [_, _, w, h] = media_box(&bytes);
-        assert!(h <= 14_400.0, "{h}");
-        // Each side is whole in the page's units, so in points it is the
-        // intended size, rounded up to a whole unit.
-        let kept = |side: f32, want: f64| {
-            let points = f64::from(side * unit);
-            side.fract().to_bits() == 0 && points >= want && points < want + f64::from(unit)
-        };
-        assert!(
-            kept(w, 100.0 * POINTS_PER_PX) && kept(h, 30_000.0 * POINTS_PER_PX),
-            "{w} × {h} at {unit}"
-        );
+        let mut doc = prd(None);
+        doc.height = 30_000.0;
+        for width in [None, Some(2_000)] {
+            let bytes = pdf(&doc, None, width, Theme::Light);
+            let unit = page(&bytes)
+                .get(b"UserUnit")
+                .and_then(lopdf::Object::as_float)
+                .expect("a UserUnit");
+            let (want_w, want_h) = crate::emit::intrinsic_size(&doc, width);
+            let longest = want_w.max(want_h) * POINTS_PER_PX;
+            let smallest = (longest / MAX_SIDE).ceil();
+            assert!(
+                smallest > 1.0 && f64::from(unit).to_bits() == smallest.to_bits(),
+                "--width {width:?}: the smallest whole unit that fits, {smallest}, not {unit}"
+            );
+            let [_, _, w, h] = media_box(&bytes);
+            assert!(h <= 14_400.0, "{h}");
+            // Each side is whole in the page's units, so in points it is
+            // the intended size, rounded up to a whole unit.
+            let kept = |side: f32, want: f64| {
+                let points = f64::from(side * unit);
+                side.fract().to_bits() == 0 && points >= want && points < want + f64::from(unit)
+            };
+            assert!(
+                kept(w, want_w * POINTS_PER_PX) && kept(h, want_h * POINTS_PER_PX),
+                "--width {width:?}: {w} × {h} at {unit}"
+            );
+            let parsed = lopdf::Document::load_mem(&bytes).expect("parses");
+            let id = *parsed.get_pages().values().next().expect("a page");
+            let ops = lopdf::content::Content::decode(&parsed.get_page_content(id))
+                .expect("decodes")
+                .operations;
+            let cm = ops.iter().find(|op| op.operator == "cm").expect("the flip");
+            let operand = |i: usize| {
+                cm.operands
+                    .get(i)
+                    .and_then(|o| o.as_float().ok())
+                    .expect("a number")
+            };
+            let a = POINTS_PER_PX * want_w / doc.width / f64::from(unit);
+            assert!(
+                (f64::from(operand(0)) - a).abs() < a * 1e-6,
+                "--width {width:?}: cm a {} for {a}",
+                operand(0)
+            );
+            assert_eq!(operand(5).to_bits(), h.to_bits(), "--width {width:?}");
+        }
     }
 
     /// FR-110, NFR-4: the same bytes twice; no date, no file identifier;
