@@ -17,7 +17,7 @@ use toml::Value;
 use super::Setting;
 use super::edition::{self, Edition};
 use crate::decode::{NotUtf8, decode, line_at, read_capped};
-use crate::options::{Legend, Paper, Table};
+use crate::options::{Legend, Paper, Pdf, Table};
 use crate::palette::Theme;
 use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
 use crate::{ECHO_CHARS, clip};
@@ -58,6 +58,8 @@ pub struct FileValues {
     pub table: Option<Table>,
     /// `paper` (FR-111).
     pub paper: Option<Paper>,
+    /// `pdf` (FR-112).
+    pub pdf: Option<Pdf>,
     /// `palette`, as written; resolved later.
     pub palette: Option<PathBuf>,
     /// `edition`, checked as `-e` is (FR-92).
@@ -284,6 +286,7 @@ fn take(v: &mut FileValues, setting: Setting, value: &Value) -> Result<(), Vec<K
         Setting::Legend => named(setting, value).map(|l| v.legend = Some(l)),
         Setting::Table => named(setting, value).map(|t| v.table = Some(t)),
         Setting::Paper => named(setting, value).map(|p| v.paper = Some(p)),
+        Setting::Pdf => named(setting, value).map(|p| v.pdf = Some(p)),
         Setting::Edition => {
             let text = string(setting, value)?;
             edition::parse(&text)
@@ -430,7 +433,7 @@ mod tests {
         let l = loaded(
             "output = \"out/r.png\"\ntitle = \"Radar\"\nsubtitle = \"Q3\"\nrings = [\" Hold \", \"Adopt\"]\n\
              unplotted_rings = [\"In Use\"]\ntheme = \"Dark\"\nwidth = 1920\nlegend_columns = 3\n\
-             legend = \"HIDE\"\ntable = \"All\"\npaper = \"A4\"\npalette = \"brand.css\"\n",
+             legend = \"HIDE\"\ntable = \"All\"\npaper = \"A4\"\npdf = \"FULL\"\npalette = \"brand.css\"\n",
         );
         assert_eq!(l.problems, []);
         assert_eq!(&*l.file, "conf/radar.toml");
@@ -449,6 +452,7 @@ mod tests {
         );
         assert_eq!((v.width, v.legend_columns), (Some(1920), Some(3)));
         assert_eq!(v.paper, Some(Paper::A4));
+        assert_eq!(v.pdf, Some(Pdf::Full));
         assert_eq!(v.palette.as_deref(), Some(Path::new("brand.css")));
     }
 
@@ -613,6 +617,7 @@ mod tests {
             ("legend = true", Setting::Legend, "boolean"),
             ("table = 1.5", Setting::Table, "float"),
             ("paper = 1", Setting::Paper, "integer"),
+            ("pdf = 1", Setting::Pdf, "integer"),
             ("palette = 3", Setting::Palette, "integer"),
         ] {
             let l = loaded(text);
@@ -626,6 +631,7 @@ mod tests {
         for (text, setting, possible) in [
             ("legend = \"nope\"", Setting::Legend, ["shown", "hidden"]),
             ("table = \"nope\"", Setting::Table, ["radar", "all"]),
+            ("pdf = \"nope\"", Setting::Pdf, ["radar", "full"]),
         ] {
             assert_eq!(
                 loaded(text).problems,

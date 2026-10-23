@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::columns::{ColumnKind, SECTOR_ALIAS};
 use crate::csv::decode::MAX_BYTES as MAX_CSV_BYTES;
 use crate::options::OutputFormat;
-use crate::options::{Paper, Table};
+use crate::options::{Paper, Pdf, Table};
 use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::RingsError;
 use crate::settings::edition::{Fallback, NOT_AN_EDITION, PLACEHOLDER};
@@ -142,8 +142,9 @@ pub enum RowKind {
     /// FR-104: a text a PNG, SVG or PDF draws, from this cell, holds characters
     /// the bundled font lacks. One per drawn text, however many it lacks.
     MissingGlyphs {
-        /// The column the text was read from: `name` or `sector`.
-        column: ColumnKind,
+        /// The column the text was read from, as NFR-10 names it: `name`
+        /// or `sector`, or, in a full PDF's table, any column it shows.
+        column: String,
         /// The text and what it lacks.
         lacking: Lacking,
     },
@@ -198,8 +199,32 @@ pub enum RenderKind {
     /// RG-102: `--legend hidden` on a PNG, SVG or PDF, which always draw the
     /// legend.
     LegendStatic,
-    /// FR-106: `--table all` on a PNG, SVG or PDF, which have no table.
-    TableStatic,
+    /// FR-106: `--table all` on a PNG, SVG or the radar PDF, which have no
+    /// table.
+    TableStatic {
+        /// The output it was given for.
+        format: OutputFormat,
+    },
+    /// FR-112: `--pdf full` from the flag with an HTML, PNG or SVG output.
+    PdfNotPdf {
+        /// The value given.
+        pdf: Pdf,
+    },
+    /// FR-112: the full PDF's prose columns are narrower than
+    /// `TABLE_PROSE_MIN` even with its label columns at their floor.
+    TableCramped {
+        /// The table's columns, the number column included.
+        columns: usize,
+        /// `--table`, and where it came from, which the remedy names.
+        table: Sourced<Table>,
+    },
+    /// FR-112: a row taller than a page of the table, split across pages.
+    TableRowTall {
+        /// Its CSV line (NFR-10).
+        line: usize,
+        /// Its name.
+        name: String,
+    },
     /// FR-111: `--paper` from the flag with an HTML, PNG or SVG output.
     PaperNotPdf {
         /// The paper given.
@@ -210,16 +235,16 @@ pub enum RenderKind {
     PaperIgnoresWidth {
         /// The width given.
         width: u32,
-        /// The paper, and where it came from.
-        paper: Sourced<Paper>,
+        /// What puts the PDF on paper, and where it came from.
+        paper: PaperFrom,
     },
     /// FR-111: `--legend-columns` from the flag with a PDF on paper, which
     /// sets the legend's columns.
     PaperIgnoresLegendColumns {
         /// The columns given.
         columns: u8,
-        /// The paper, and where it came from.
-        paper: Sourced<Paper>,
+        /// What puts the PDF on paper, and where it came from.
+        paper: PaperFrom,
     },
     /// FR-111: the radar does not fit the first paper page even at its
     /// smallest scale, so it runs past the margins.
@@ -462,10 +487,12 @@ impl RowKind {
             Self::RefusedLink { .. } => ColumnKind::Link.as_str(),
             Self::EmptyDescription => ColumnKind::Description.as_str(),
             Self::DuplicateName { .. } => ColumnKind::Name.as_str(),
-            Self::MissingGlyphs { column, .. } => column.as_str(),
             // A header name is CSV text (FR-18's extra columns); it is escaped
-            // with the rest of the line.
-            Self::Undisplayable { column, .. } | Self::UnnamedValue { column } => column,
+            // with the rest of the line. A missing glyph's column is named as
+            // the warning was raised.
+            Self::MissingGlyphs { column, .. }
+            | Self::Undisplayable { column, .. }
+            | Self::UnnamedValue { column } => column,
             // The header as written, so the author finds the cell to fix.
             Self::NearMiss { heading, .. } => trim(heading),
         }
@@ -573,9 +600,10 @@ impl RenderKind {
                 "--legend hidden applies to HTML pages; PNG, SVG and PDF always draw the legend"
                     .to_owned()
             }
-            Self::TableStatic => {
-                "--table all applies to HTML pages; PNG, SVG and PDF have no table".to_owned()
-            }
+            Self::TableStatic { format } => table_static(*format).to_owned(),
+            Self::PdfNotPdf { pdf } => pdf_not_pdf(*pdf),
+            Self::TableCramped { columns, table } => cramped(*columns, table),
+            Self::TableRowTall { line, name } => tall_row(*line, name),
             Self::PaperNotPdf { paper } => format!(
                 "--paper {paper} applies to PDF; HTML pages, PNG and SVG have no paper size"
             ),
@@ -696,6 +724,7 @@ impl Fatal {
             Self::ConfigKey { .. }
                 | Self::ConfigMore { .. }
                 | Self::Conflict { .. }
+                | Self::FullNeedsPaper { .. }
                 | Self::NoOutput { .. }
                 | Self::NoInput { .. }
         )
@@ -741,6 +770,7 @@ const fn wanted(setting: Setting) -> &'static str {
         | Setting::Legend
         | Setting::Table
         | Setting::Paper
+        | Setting::Pdf
         | Setting::Palette => "a string",
     }
 }
@@ -748,15 +778,81 @@ const fn wanted(setting: Setting) -> &'static str {
 /// FR-111: `flag`, given on the command line, does not apply on `paper`,
 /// for `why`. A paper from a file is named with its file, and how to undo
 /// it for one run.
-fn paper_ignores(flag: &str, paper: &Sourced<Paper>, why: &str) -> String {
-    let given = paper.origin.assignment(paper.value, "");
-    if paper.origin.source.is_config() {
-        let none = Origin::flag(Setting::Paper).assignment(Paper::None, "");
+fn paper_ignores(flag: &str, from: &PaperFrom, why: &str) -> String {
+    match from {
+        PaperFrom::Paper(paper) => {
+            let given = paper.origin.assignment(paper.value, "");
+            if paper.origin.source.is_config() {
+                let none = Origin::flag(Setting::Paper).assignment(Paper::None, "");
+                format!(
+                    "{flag} does not apply on paper ({given}); {why}; pass {none} for the drawing-sized page"
+                )
+            } else {
+                format!("{flag} does not apply with {given}; {why}")
+            }
+        }
+        PaperFrom::Pdf(origin) => {
+            let radar = Origin::flag(Setting::Pdf).assignment(Pdf::Radar, "");
+            let ending = format!("{why}; use {radar} for the drawing-sized page");
+            if origin.source.is_config() {
+                let given = origin.assignment(Pdf::Full, "");
+                format!("{flag} does not apply on paper ({given}); {ending}")
+            } else {
+                format!("{flag} does not apply with --pdf full, which is always on paper; {ending}")
+            }
+        }
+    }
+}
+
+/// FR-112: `--pdf full` from the flag on an output that is not a PDF.
+fn pdf_not_pdf(pdf: Pdf) -> String {
+    format!(
+        "--pdf {pdf} applies to PDF; an HTML page already has the table, and PNG and SVG ignore it"
+    )
+}
+
+/// FR-112: the row on `line`, named `name`, is taller than a table page.
+fn tall_row(line: usize, name: &str) -> String {
+    format!(
+        "line {line}: '{name}' is taller than a page of the table, so it is split across pages and marked (continued); a shorter description or rationale keeps it on one page"
+    )
+}
+
+/// FR-106's warning for `--table all` on an output without a table: the
+/// radar PDF names the full PDF that has one (FR-112).
+fn table_static(format: OutputFormat) -> &'static str {
+    if format == OutputFormat::Pdf {
+        "--table all applies to HTML pages and the full PDF; the radar PDF has no table, so add --pdf full for one"
+    } else {
+        "--table all applies to HTML pages and the full PDF (--pdf full); PNG and SVG have no table"
+    }
+}
+
+/// FR-112's cramped table, its remedy naming `--table` by its origin when
+/// it is `all`: under `radar` there is no column to drop.
+fn cramped(columns: usize, table: &Sourced<Table>) -> String {
+    let fact = format!(
+        "the full PDF's table has {columns} columns, so its prose columns are narrower than about 21 characters"
+    );
+    if table.value != Table::All {
+        return fact;
+    }
+    let radar = table.origin.assignment("radar", "");
+    format!("{fact}; {radar} leaves out the columns radargen does not read")
+}
+
+/// FR-112's same-source conflict: `full` needs paper, `none` refuses it.
+fn needs_paper(pdf: &Origin, paper: &Origin) -> String {
+    let full = pdf.assignment(Pdf::Full, "");
+    let none = paper.assignment(Paper::None, "");
+    if paper.source.is_config() {
         format!(
-            "{flag} does not apply on paper ({given}); {why}; pass {none} for the drawing-sized page"
+            "{full} needs paper, but {none} asks for the drawing-sized page; set paper to \"letter\" or \"a4\", or remove the paper line"
         )
     } else {
-        format!("{flag} does not apply with {given}; {why}")
+        format!(
+            "{full} needs paper, but {none} asks for the drawing-sized page; use --paper letter or --paper a4, or drop {none}"
+        )
     }
 }
 
@@ -973,6 +1069,17 @@ fn needs_escape(c: char) -> bool {
 #[derive(Debug, Default)]
 pub struct Warnings(Vec<Warning>);
 
+/// What puts a PDF on paper (FR-111, FR-112), so a flag paper ignores is
+/// warned about in words that name it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PaperFrom {
+    /// `--paper letter` or `a4`, from the flag or the file.
+    Paper(Sourced<Paper>),
+    /// `--pdf full` with no paper, which is on Letter: where `full` came
+    /// from.
+    Pdf(Origin),
+}
+
 /// Where a row FR-17 leaves off the radar ends up, which its warning says
 /// (FR-106).
 ///
@@ -995,16 +1102,17 @@ pub enum OffRadar {
 
 impl OffRadar {
     /// Where a run writing `format` with `--table` set to `table` puts the
-    /// row: in the page's table only under `--table all`, and nowhere in a
-    /// PNG, SVG or PDF, which has no table. `by_flag` says the table came from
-    /// the command line.
+    /// row: in the table of an HTML page or a `full` PDF only under
+    /// `--table all` (FR-112), and nowhere in a PNG, SVG or radar PDF, which
+    /// has no table. `by_flag` says the table came from the command line.
     #[must_use]
-    pub const fn of(format: OutputFormat, table: Table, by_flag: bool) -> Self {
-        match (format, table) {
-            (OutputFormat::Html, Table::All) => Self::Listed,
-            (OutputFormat::Html, Table::Radar) if by_flag => Self::UnlistedByFlag,
-            (OutputFormat::Html, Table::Radar) => Self::Unlisted,
-            (OutputFormat::Png | OutputFormat::Svg | OutputFormat::Pdf, _) => Self::Undrawn,
+    pub const fn of(format: OutputFormat, full: bool, table: Table, by_flag: bool) -> Self {
+        let tabled = matches!(format, OutputFormat::Html) || full;
+        match (tabled, table) {
+            (true, Table::All) => Self::Listed,
+            (true, Table::Radar) if by_flag => Self::UnlistedByFlag,
+            (true, Table::Radar) => Self::Unlisted,
+            (false, _) => Self::Undrawn,
         }
     }
 
@@ -1634,6 +1742,15 @@ pub enum Fatal {
     Conflict {
         /// The file as named.
         file: Arc<str>,
+    },
+    /// FR-112: `--pdf full` and `--paper none` from one source, a usage
+    /// error; across sources the command line wins.
+    #[error("{}", needs_paper(pdf, paper))]
+    FullNeedsPaper {
+        /// Where `full` came from.
+        pdf: Origin,
+        /// Where `none` came from.
+        paper: Origin,
     },
     /// FR-91: neither `-o` nor `output`, in clap's words, a usage error.
     #[error(

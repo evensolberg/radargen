@@ -99,6 +99,25 @@ impl Paper {
     }
 }
 
+/// What a PDF holds (FR-112, D-104). Only PDF reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum Pdf {
+    /// The radar, key and legend.
+    Radar,
+    /// The radar, key and legend, then the table of items, on paper.
+    Full,
+}
+
+impl std::fmt::Display for Pdf {
+    /// As the flag and the key take it: `radar` or `full`.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Radar => "radar",
+            Self::Full => "full",
+        })
+    }
+}
+
 /// Where the page's legend starts (RG-102). Only HTML reads it: PNG, SVG
 /// and PDF always draw the legend.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]

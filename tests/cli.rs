@@ -865,6 +865,45 @@ fn help_describes_paper() {
     assert!(!long.contains("Not with --paper"), "{long}");
 }
 
+// ---- --pdf: the radar PDF or the full one (FR-112)
+
+#[test]
+fn pdf_parses_in_any_case() {
+    use radargen::options::Pdf;
+    let cli = parse(&["in.csv", "-o", "e.pdf"]).expect("parses");
+    assert_eq!(cli.pdf, None, "not given");
+    for (given, want) in [
+        ("radar", Pdf::Radar),
+        ("FULL", Pdf::Full),
+        ("Full", Pdf::Full),
+    ] {
+        let cli = parse(&["in.csv", "-o", "e.pdf", "--pdf", given]).expect(given);
+        assert_eq!(cli.pdf, Some(want), "{given}");
+    }
+    let err = parse(&["in.csv", "-o", "e.pdf", "--pdf", "heavy"])
+        .expect_err("not a PDF kind")
+        .to_string();
+    assert!(err.contains("radar") && err.contains("full"), "{err}");
+}
+
+#[test]
+fn help_describes_pdf() {
+    use clap::CommandFactory;
+    // clap wraps the long help, so it is read with its whitespace folded.
+    let long = Cli::command().render_long_help().to_string();
+    let long = long.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        long.contains("\"full\" adds the table of items")
+            && long.contains("always on paper: Letter unless --paper a4"),
+        "{long}"
+    );
+    let short = Cli::command().render_help().to_string();
+    assert!(
+        short.contains("With full, a PDF adds the table; the default is radar"),
+        "{short}"
+    );
+}
+
 #[test]
 fn help_names_each_default() {
     use clap::CommandFactory;

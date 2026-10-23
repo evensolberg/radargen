@@ -45,14 +45,21 @@
 # How an HTML page's legend starts: "shown", the default, or "hidden".
 # legend = "shown"
 
-# What an HTML page's table lists: "radar", the default, for the rows on
-# the radar, or "all" for every row and every named column.
+# What the table lists, on an HTML page and in a full PDF (see pdf):
+# "radar", the default, for the rows on the radar, or "all" for every row
+# and every named column.
 # table = "radar"
 
 # Put a PDF on landscape paper: "letter" or "a4". "none", the default, is
 # one page the size of the drawing. Only PDF reads it; on paper, width and
-# legend_columns do not apply, and the title is always shown.
+# legend_columns do not apply, and the title is always shown. A full PDF
+# (see pdf) is on Letter unless this says "a4"; most of Europe uses "a4".
 # paper = "none"
+
+# What a PDF holds: "radar" (the default) is the radar, key and legend;
+# "full" adds the items' table (see table) after them, always on paper
+# (Letter unless paper is "a4"). Only PDF reads it.
+# pdf = "radar"
 
 # Colours from a CSS file instead of the built-in themes, in every format.
 # Use palette or theme, not both; radargen --create-palette writes one.

@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use crate::diagnostics::{Fatal, RenderKind, Warning, Warnings};
 use crate::escape::remove_undisplayable;
-use crate::options::{Legend, Paper, Table};
+use crate::options::{Legend, Paper, Pdf, Table};
 pub use crate::palette::Theme;
 use crate::settings::edition::{self, Edition};
 use crate::settings::file::Loaded;
@@ -167,6 +167,19 @@ pub struct Cli {
     #[arg(long, value_enum, ignore_case = true)]
     pub paper: Option<Paper>,
 
+    // FR-112, D-104: the full PDF adds the table, always on paper. Other
+    // formats warn when `full` came from the flag (D-100). No short form,
+    // like --paper.
+    /// With full, a PDF adds the table; the default is radar.
+    ///
+    /// "radar" draws the radar, key and legend; "full" adds the table of
+    /// items, with each one's description and rationale, on the pages
+    /// after them. A full PDF is always on paper: Letter unless --paper
+    /// a4. --table picks its rows and columns. Accepted in any letter
+    /// case. PDF only.
+    #[arg(long, value_enum, ignore_case = true)]
+    pub pdf: Option<Pdf>,
+
     // FR-59, D-44: one set of colours for every format, so --theme has
     // nothing to choose between; clap refuses the pair, so the message is
     // standard usage output. `-p`: a render flag earns a short form (OQ-2,
@@ -245,7 +258,7 @@ pub struct Cli {
 /// `--config`'s long help (UX review 8).
 const CONFIG_HELP: &str = "Read settings from a TOML file.\n\n\
 Its keys are input, output, title, subtitle, rings, unplotted_rings, theme, width, \
-legend_columns, legend, table, paper, palette and edition, each meaning what its flag \
+legend_columns, legend, table, paper, pdf, palette and edition, each meaning what its flag \
 means; input names the CSV. rings and unplotted_rings are arrays of strings, such as [\"Adopt\", \"Trial\"]; \
 width and legend_columns are integers; the rest are strings, edition a date \
 written YYYY-MM-DD or \"today\". Any other key is \
@@ -329,6 +342,7 @@ impl Cli {
             legend: pick(Setting::Legend, self.legend, file, |v| v.legend),
             table: pick(Setting::Table, self.table, file, |v| v.table),
             paper: pick(Setting::Paper, self.paper, file, |v| v.paper),
+            pdf: pick(Setting::Pdf, self.pdf, file, |v| v.pdf),
             palette: pick(Setting::Palette, self.palette.clone(), file, |v| {
                 v.palette.clone()
             }),

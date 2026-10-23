@@ -217,7 +217,7 @@ fn cell(
     format: OutputFormat,
 ) -> RowKind {
     RowKind::MissingGlyphs {
-        column,
+        column: column.as_str().to_owned(),
         lacking: lacking(text, first, count, format),
     }
 }
@@ -583,8 +583,18 @@ fn the_ring_warning_says_where_the_row_went() {
 #[test]
 fn table_all_on_a_snapshot_says_it_has_no_table() {
     assert_eq!(
-        Warning::Render(RenderKind::TableStatic).to_string(),
-        "--table all applies to HTML pages; PNG, SVG and PDF have no table"
+        Warning::Render(RenderKind::TableStatic {
+            format: radargen::options::OutputFormat::Png,
+        })
+        .to_string(),
+        "--table all applies to HTML pages and the full PDF (--pdf full); PNG and SVG have no table"
+    );
+    assert_eq!(
+        Warning::Render(RenderKind::TableStatic {
+            format: radargen::options::OutputFormat::Pdf,
+        })
+        .to_string(),
+        "--table all applies to HTML pages and the full PDF; the radar PDF has no table, so add --pdf full for one"
     );
 }
 
@@ -1724,7 +1734,7 @@ fn config_messages() {
                 near: Some(Setting::Rings),
                 table: false,
             }),
-            "error: --config radar.toml: unknown key 'ring'; did you mean 'rings'? The keys are input, output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table, paper, palette and edition",
+            "error: --config radar.toml: unknown key 'ring'; did you mean 'rings'? The keys are input, output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table, paper, pdf, palette and edition",
         ),
         (
             key(KeyProblem::WrongType {
@@ -1802,7 +1812,7 @@ fn config_hint_messages() {
                 near: None,
                 table: true,
             }),
-            "error: --config radar.toml: unknown key 'radar'; the keys are input, output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table, paper, palette and edition; keys go at the top of the file, not under [radar]",
+            "error: --config radar.toml: unknown key 'radar'; the keys are input, output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table, paper, pdf, palette and edition; keys go at the top of the file, not under [radar]",
         ),
         (
             key(KeyProblem::WrongType {

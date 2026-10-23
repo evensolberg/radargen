@@ -8,8 +8,10 @@ use crate::layout::title::shown;
 use crate::model::Catalogue;
 use crate::options::OutputFormat;
 use crate::order::Plotted;
+use crate::published::{Cell, Published};
 use crate::settings::{Source, Sourced};
 use crate::text::{Fonts, words};
+use crate::trim;
 
 /// FR-104: one warning per drawn text with characters the bundled font
 /// lacks, pointing where the author wrote it.
@@ -69,7 +71,7 @@ pub fn warn_missing_glyphs(
                 line,
                 column,
                 kind: RowKind::MissingGlyphs {
-                    column: kind,
+                    column: kind.as_str().to_owned(),
                     lacking,
                 },
             });
@@ -88,6 +90,50 @@ pub fn warn_missing_glyphs(
             .get(q)
             .expect("FR-10's order indexes the catalogue's sectors");
         cell(sector.line, ColumnKind::Sector, &sector.label);
+    }
+}
+
+/// FR-104 on a full PDF's table (FR-112): each cell it draws that the
+/// radar and legend do not, once per cell.
+///
+/// That is an unplotted row's name, and every label, prose and link cell
+/// but the sector and ring, whose labels are warned about where they are
+/// declared.
+pub fn warn_table_glyphs(
+    catalogue: &Catalogue,
+    table: &Published<'_>,
+    format: OutputFormat,
+    fonts: &Fonts,
+    warnings: &mut Warnings,
+) {
+    for row in &table.rows {
+        for (cell, &c) in row.cells.iter().zip(&table.sources) {
+            let Some(column) = catalogue.columns.get(c) else {
+                continue;
+            };
+            let warned_elsewhere = match cell {
+                Cell::Name { unplotted, .. } => !unplotted,
+                _ => matches!(column.kind, ColumnKind::Sector | ColumnKind::Ring),
+            };
+            if warned_elsewhere {
+                continue;
+            }
+            if let Some(lacking) = lacking(&words(&cell.paragraphs().join(" ")), format, fonts) {
+                let name = if column.kind == ColumnKind::Other {
+                    trim(&column.heading)
+                } else {
+                    column.kind.as_str()
+                };
+                warnings.push(Warning::Row {
+                    line: row.line,
+                    column: column.position,
+                    kind: RowKind::MissingGlyphs {
+                        column: name.to_owned(),
+                        lacking,
+                    },
+                });
+            }
+        }
     }
 }
 
@@ -154,7 +200,7 @@ mod tests {
             line,
             column,
             kind: RowKind::MissingGlyphs {
-                column: kind,
+                column: kind.as_str().to_owned(),
                 lacking,
             },
         }

@@ -116,6 +116,9 @@ pub struct Published<'a> {
     /// aside. The kinds are here as well as on each cell because a layout
     /// sizes the columns before it reads the rows.
     pub columns: Vec<(CellKind, &'a str)>,
+    /// Each column's index in [`Catalogue::columns`], in the same order,
+    /// so a warning about a cell names its column (NFR-10).
+    pub sources: Vec<usize>,
     /// The rows, in FR-34's order, then (under `all`) the unplotted ones
     /// in CSV order (FR-78).
     pub rows: Vec<PublishedRow<'a>>,
@@ -154,6 +157,7 @@ pub fn published<'a>(catalogue: &'a Catalogue, plotted: &Plotted, publish: Table
             .collect(),
         says_empty: publish == Table::Radar && rows.is_empty(),
         rows,
+        sources: columns,
     }
 }
 
