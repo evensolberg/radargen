@@ -120,10 +120,9 @@ fn built(layout: &Layout, width: f64, opening: Opening, carried: Range<usize>) -
 }
 
 /// The entries in runs placed whole: every heading and swatch glued to
-/// what follows it, up to and including the row it leads to. A sector
-/// with no rows is glued to the next sector, or, last, to the row before
-/// it; a legend with no rows at all is one unit. So every unit but that
-/// one holds a row, and so does every piece.
+/// what follows it, up to and including the row it leads to. Every sector
+/// in the legend has a row (rg-i4a), so the entries end on one, and every
+/// unit holds a row, and so does every piece.
 fn units(entries: &[Entry]) -> Vec<Range<usize>> {
     let mut out = Vec::new();
     let mut start = 0;
@@ -132,13 +131,6 @@ fn units(entries: &[Entry]) -> Vec<Range<usize>> {
             out.push(start..i + 1);
             start = i + 1;
         }
-    }
-    // An empty last sector has no row to lead to: it goes with the last
-    // row, so it never makes a piece, and a page, of its own.
-    match out.last_mut() {
-        Some(last) if start < entries.len() => last.end = entries.len(),
-        None if start < entries.len() => out.push(start..entries.len()),
-        _ => {}
     }
     out
 }
@@ -264,8 +256,8 @@ mod tests {
     use crate::style::{LEGEND_FIRST_GROUP, LEGEND_HEADING_BASELINE};
     use crate::svg::Point;
 
-    /// As `long`, with an empty sector (its one row in an undeclared ring,
-    /// so it is drawn with no rows, FR-17) after sector `after`.
+    /// As `long`, with a sector whose one row is in an undeclared ring
+    /// (FR-17) after sector `after`: the legend leaves it out (rg-i4a).
     fn with_empty(sectors: usize, after: usize, per_ring: usize) -> (Catalogue, Plotted) {
         let rows: String = (0..sectors)
             .flat_map(|s| {
@@ -297,6 +289,8 @@ mod tests {
             let entries = &block.layout.entries;
             let units = super::units(entries);
             assert_ne!(units.len(), 0);
+            // And together they hold every entry: none is left behind.
+            assert_eq!(units.last().map(|u| u.end), Some(entries.len()));
             for unit in units {
                 let held = entries.get(unit.clone()).unwrap_or_default();
                 assert!(held.iter().any(|e| matches!(e, Entry::Row(_))), "{unit:?}");
@@ -338,19 +332,6 @@ mod tests {
                     level,
                     continued,
                 } => Some((level.get(), run.words.clone(), *continued)),
-                _ => None,
-            })
-            .collect()
-    }
-
-    /// Every heading's words.
-    fn baselines_words(block: &LegendBlock) -> Vec<String> {
-        block
-            .layout
-            .entries
-            .iter()
-            .filter_map(|entry| match entry {
-                Entry::Heading { run, .. } => Some(run.words.clone()),
                 _ => None,
             })
             .collect()
@@ -552,62 +533,6 @@ mod tests {
                 assert!(matches!(last, Entry::Row(_)), "{last:?}");
             }
         }
-    }
-
-    #[test]
-    fn an_empty_sector_travels_with_the_next() {
-        let block = legend(with_empty(30, 10, 2));
-        // A first piece that would just hold the empty sector's heading,
-        // were it not glued to the next sector.
-        let first = through(&block, index_of(&block, "S10e") + 1);
-        let all = pieces(&block, first, 10_000.0);
-        let holding = all
-            .iter()
-            .find(|piece| index_of_opt(piece, "S10e").is_some())
-            .expect("a piece holds the empty sector");
-        let at = index_of_opt(holding, "S10e").expect("its heading");
-        assert!(
-            holding
-                .layout
-                .entries
-                .iter()
-                .skip(at)
-                .any(|entry| matches!(entry, Entry::Row(_))),
-            "the empty sector's heading ends its piece"
-        );
-    }
-
-    /// Final review (QA, Rust): an empty last sector, its rows all in
-    /// unplotted rings, never takes a piece, and so a page, of its own.
-    #[test]
-    fn a_trailing_empty_sector_never_stands_alone() {
-        let block = legend(with_empty(5, 4, 3));
-        // A first piece that holds every row, and so not the empty sector
-        // after them, were it a unit of its own.
-        let last_row = block
-            .layout
-            .entries
-            .iter()
-            .rposition(|entry| matches!(entry, Entry::Row(_)))
-            .expect("a row");
-        let first = through(&block, last_row + 1);
-        for piece in pieces(&block, first, first) {
-            assert!(
-                piece
-                    .layout
-                    .entries
-                    .iter()
-                    .any(|entry| matches!(entry, Entry::Row(_))),
-                "a piece without rows: {:?}",
-                openings(&piece)
-            );
-        }
-        // S4e's heading survives, glued after the last row.
-        let headings: Vec<String> = pieces(&block, first, first)
-            .iter()
-            .flat_map(baselines_words)
-            .collect();
-        assert!(headings.iter().any(|h| h == "S4e"), "{headings:?}");
     }
 
     /// rg-q1q: with page openers, no piece is taller than its space,

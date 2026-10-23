@@ -488,7 +488,7 @@ mod tests {
     }
 
     /// FR-18, FR-42: with nothing plotted there are no numbers, and every
-    /// sector is still ordered for its empty legend group.
+    /// sector is still ordered for its slice on the radar.
     #[test]
     fn every_row_unplotted_numbers_nothing() {
         let cat = catalogue(&csv(&[

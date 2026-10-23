@@ -1,9 +1,9 @@
 //! The legend's layout (FR-35, FR-46, FR-74, FR-79), as data.
 //!
-//! The "Legend" heading, then per sector in FR-10 order its swatch and
-//! heading, per ring with plotted items its heading, and one row per
-//! plotted item: measured and wrapped once, at scale 1, content-relative,
-//! in reading order.
+//! The "Legend" heading, then per sector with plotted items in FR-10 order
+//! its swatch and heading, per ring with plotted items its heading, and
+//! one row per plotted item: measured and wrapped once, at scale 1,
+//! content-relative, in reading order.
 
 use std::num::NonZeroU8;
 
@@ -11,10 +11,9 @@ use crate::model::Catalogue;
 use crate::order::{Plotted, Run};
 use crate::palette::Neutral;
 use crate::style::{
-    INDENT_RING, INDENT_SECTOR, LEGEND_EMPTY_GROUP_GAP, LEGEND_FIRST_GROUP, LEGEND_HEADING,
-    LEGEND_HEADING_BASELINE, LEGEND_RING, LEGEND_RING_TO_ROW, LEGEND_ROW_TO_RING,
-    LEGEND_ROW_TO_SECTOR, LEGEND_SECTOR, LEGEND_SECTOR_TO_RING, LEGEND_WIDTH_MAX, LINE_HEIGHT,
-    SWATCH_RADIUS, SWATCH_RAISE, TextStyle,
+    INDENT_RING, INDENT_SECTOR, LEGEND_FIRST_GROUP, LEGEND_HEADING, LEGEND_HEADING_BASELINE,
+    LEGEND_RING, LEGEND_RING_TO_ROW, LEGEND_ROW_TO_RING, LEGEND_ROW_TO_SECTOR, LEGEND_SECTOR,
+    LEGEND_SECTOR_TO_RING, LEGEND_WIDTH_MAX, LINE_HEIGHT, SWATCH_RADIUS, SWATCH_RAISE, TextStyle,
 };
 use crate::svg::{Anchor, ListKey, Point, TextRun};
 use crate::text::{Fonts, words};
@@ -70,7 +69,7 @@ pub(super) struct Layout {
     /// Every heading, swatch and row in reading order, which is document
     /// and Tab order.
     pub(super) entries: Vec<Entry>,
-    /// Where each sector's group starts, in order: what FR-100's columns
+    /// Where each plotted sector's group starts, in order: what FR-100's columns
     /// break between.
     pub(super) groups: Vec<GroupStart>,
 }
@@ -111,7 +110,7 @@ pub(super) enum Entry {
 }
 
 /// The legend for `catalogue`, its rows at least `min_row` tall: empty
-/// when it has no sectors (FR-42).
+/// when nothing is plotted, as with no sectors (FR-42).
 ///
 /// # Panics
 ///
@@ -165,14 +164,17 @@ struct Context<'a> {
 }
 
 impl Context<'_> {
-    /// Every sector's group in FR-10 order, each starting where the last
-    /// left off, and where each starts. The baseline after the last group
-    /// is not needed: the height is the last entry's bottom.
+    /// Every plotted sector's group in FR-10 order, each starting where the
+    /// last left off, and where each starts. A sector with no plotted rows
+    /// has no group (rg-i4a): its heading would stand over nothing, which a
+    /// screen reader announces as an empty section. The baseline after the
+    /// last group is not needed: the height is the last entry's bottom.
     fn groups(&self) -> (Vec<Entry>, Vec<GroupStart>) {
         let mut entries = Vec::new();
         let mut starts = Vec::new();
         let mut baseline = LEGEND_FIRST_GROUP;
-        for &q in &self.plotted.sectors {
+        let plotted = |q: usize| self.runs.iter().any(|run| run.sector == q);
+        for &q in self.plotted.sectors.iter().filter(|&&q| plotted(q)) {
             starts.push(GroupStart {
                 entry: entries.len(),
                 baseline,
@@ -193,13 +195,15 @@ impl Context<'_> {
     }
 
     /// Sector `q`'s rings below its heading's last baseline `last`;
-    /// returns the next sector's baseline.
+    /// returns the next sector's baseline, below the last row.
     fn rings(&self, q: usize, last: f64, entries: &mut Vec<Entry>) -> f64 {
-        let mut bottom = None;
+        let mut baseline = last + LEGEND_SECTOR_TO_RING;
+        let mut bottom = last;
         for run in self.runs.iter().filter(|run| run.sector == q) {
-            bottom = Some(self.ring(run, ring_baseline(last, bottom), entries));
+            bottom = self.ring(run, baseline, entries);
+            baseline = bottom + LEGEND_ROW_TO_RING;
         }
-        next_sector(last, bottom)
+        bottom + LEGEND_ROW_TO_SECTOR
     }
 
     /// One ring's heading at `baseline` and its rows; returns the last
@@ -296,7 +300,7 @@ pub(super) fn heading(tier: Tier, text: &str, baseline: f64, fonts: &Fonts) -> T
 }
 
 /// The legend's heading before its groups, or nothing with no groups:
-/// with no sectors the legend is omitted (FR-42).
+/// with nothing plotted the legend is omitted (FR-42).
 fn titled(title: Entry, groups: Vec<Entry>) -> Vec<Entry> {
     if groups.is_empty() {
         return groups;
@@ -313,22 +317,6 @@ pub(super) fn swatch(series: usize, baseline: f64) -> Entry {
         },
         series,
     }
-}
-
-/// The next ring's baseline: below the sector heading's last baseline
-/// for the first ring, else below the previous ring's last row.
-fn ring_baseline(heading_last: f64, previous_bottom: Option<f64>) -> f64 {
-    previous_bottom.map_or(heading_last + LEGEND_SECTOR_TO_RING, |bottom| {
-        bottom + LEGEND_ROW_TO_RING
-    })
-}
-
-/// The next sector's baseline: below the last row, or, for a sector
-/// with no rows, below its heading.
-fn next_sector(heading_last: f64, last_bottom: Option<f64>) -> f64 {
-    last_bottom.map_or(heading_last + LEGEND_EMPTY_GROUP_GAP, |bottom| {
-        bottom + LEGEND_ROW_TO_SECTOR
-    })
 }
 
 /// A ring's first row's top, below its heading's last baseline.
@@ -673,30 +661,33 @@ mod tests {
         assert_eq!(lines(fit + 1), 2, "{} words do not", fit + 1);
     }
 
-    /// FR-17, FR-18, FR-35: a sector whose rows are all unplotted keeps
-    /// its heading and swatch; the next group is 26 below (18 + the
-    /// mockup's 8, l.755); numbers stay contiguous.
+    /// FR-17, FR-18, FR-35, rg-i4a: a sector whose rows are all unplotted
+    /// has no group, so no heading stands empty; the next sector's group
+    /// takes its place, in its own colour; numbers stay contiguous.
     #[test]
     fn empty_rings_and_unplotted_rows() {
         let l = lay(&format!("{HEAD}A,Alpha,Nowhere,d\nB,Beta,Adopt,d\n"), None);
-        let sectors = headings(&l, 3);
-        assert_eq!(texts(&sectors), ["Alpha", "Beta"]);
-        let [alpha, beta] = sectors.as_slice() else {
-            panic!("two sectors");
-        };
-        assert!(close(alpha.origin.y, 36.0) && close(beta.origin.y, 62.0));
-        assert_eq!(swatches(&l).len(), 2);
+        let beta = only(&headings(&l, 3));
+        assert_eq!(beta.lines, ["Beta"]);
+        assert!(close(beta.origin.y, 36.0), "{beta:?}");
+        // Beta keeps its FR-10 rank's colour, as its slice has it.
+        assert_eq!(swatches(&l).iter().map(|s| s.1).collect::<Vec<_>>(), [1]);
+        assert_eq!(l.groups.len(), 1);
         assert_eq!(texts(&headings(&l, 4)), ["Adopt"]);
-        assert!(close(only(&rows(&l)).top, 84.0));
+        assert!(close(only(&rows(&l)).top, 58.0));
 
-        // Last in FR-10 order: Beta's row spans 58–94, so Zeta's baseline
-        // is 94 + 20, and the content reaches its descent, 114 + 494/2048
-        // × 12 (Inter's hhea descender).
+        // Last in FR-10 order: the content ends at Beta's row, 58–94.
         let l = lay(&format!("{HEAD}A,Zeta,Nowhere,d\nB,Beta,Adopt,d\n"), None);
-        let zeta = *headings(&l, 3).last().expect("Zeta");
-        assert_eq!(zeta.lines, ["Zeta"]);
-        assert!(close(zeta.origin.y, 114.0), "{zeta:?}");
-        assert!(close(l.height, 116.894_531_25), "{}", l.height);
+        assert_eq!(texts(&headings(&l, 3)), ["Beta"]);
+        assert!(close(l.height, 94.0), "{}", l.height);
+
+        // Nothing plotted: no group, so no legend at all (FR-42).
+        let l = lay(
+            &format!("{HEAD}A,Alpha,Nowhere,d\nB,Beta,Nowhere,d\n"),
+            None,
+        );
+        assert!(l.entries.is_empty() && l.groups.is_empty(), "{l:?}");
+        assert!(close(l.width, 0.0) && close(l.height, 0.0), "{l:?}");
 
         // One unplotted row between two plotted ones; the content ends at
         // the second row's bottom, 58 + 36 + 36.
