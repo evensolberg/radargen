@@ -5,7 +5,7 @@
 
 use pdf_writer::types::TableHeaderScope;
 use pdf_writer::writers::{StructChildren, StructTreeRoot};
-use pdf_writer::{Pdf, Ref, TextStr};
+use pdf_writer::{Pdf, Rect, Ref, TextStr};
 
 use super::tag::{Element, Kid, Role, Tree};
 use super::{PAGES, integer};
@@ -80,7 +80,7 @@ fn write_element(
     if let Some(alt) = &element.alt {
         dict.alt(TextStr(alt));
     }
-    attributes(&mut dict, element.role)?;
+    attributes(&mut dict, element)?;
     let mut kids = dict.children();
     for kid in &element.kids {
         write_kid(&mut kids, *kid, first, (ids, pages));
@@ -113,9 +113,21 @@ fn write_kid(
     }
 }
 
-/// A header cell's scope; a spanning data cell's span.
-fn attributes(dict: &mut pdf_writer::writers::StructElement<'_>, role: Role) -> Result<(), Fatal> {
-    match role {
+/// A header cell's scope; a spanning data cell's span; a figure's or a
+/// one-page table's Layout box (rg-2qs). An element has one at most, so
+/// `/A` is written once.
+fn attributes(
+    dict: &mut pdf_writer::writers::StructElement<'_>,
+    element: &Element,
+) -> Result<(), Fatal> {
+    if let Some([left, bottom, right, top]) = element.bbox {
+        dict.attributes()
+            .push()
+            .layout()
+            .bbox(Rect::new(left, bottom, right, top));
+        return Ok(());
+    }
+    match element.role {
         Role::Th(scope) => {
             dict.attributes().push().table().scope(match scope {
                 Scope::Column => TableHeaderScope::Column,

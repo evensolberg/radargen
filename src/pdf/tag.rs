@@ -95,7 +95,7 @@ pub enum Kid {
 }
 
 /// One structure element.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Element {
     /// Its role.
     pub role: Role,
@@ -105,11 +105,14 @@ pub struct Element {
     pub alt: Option<String>,
     /// Its children, in reading order.
     pub kids: Vec<Kid>,
+    /// Its Layout `BBox` in page space, left, bottom, right, top: the
+    /// figure's, and a table's held on one page (rg-2qs).
+    pub bbox: Option<[f32; 4]>,
 }
 
 /// The finished tree: element 0 is the document; each page's parent-tree
 /// array maps its MCIDs, in order, to their elements.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Tree {
     /// Every element, the root first.
     pub elements: Vec<Element>,
@@ -166,6 +169,9 @@ pub struct Tagger {
     /// How deep inside the radar's figure.
     figures: usize,
     parents: Vec<Vec<usize>>,
+    /// The box each figure or table was given, and on which page; `None`
+    /// once a second page gives one, since one box cannot hold two pages.
+    extents: BTreeMap<usize, (usize, Option<[f32; 4]>)>,
     /// The first count past what the PDF can number (rg-969), which
     /// [`into_tree`](Self::into_tree) returns: the file is not written.
     too_large: Option<Fatal>,
@@ -187,12 +193,14 @@ impl Tagger {
                 parent: None,
                 alt: None,
                 kids: Vec::new(),
+                bbox: None,
             }],
             keys: BTreeMap::new(),
             stack: Vec::new(),
             artifacts: 0,
             figures: 0,
             parents: Vec::new(),
+            extents: BTreeMap::new(),
             too_large: None,
         }
     }
@@ -258,7 +266,9 @@ impl Tagger {
             .into_iter()
             .zip(&live)
             .filter(|(_, kept)| **kept)
-            .map(|(element, _)| Element {
+            .zip(0..)
+            .map(|((element, _), old)| Element {
+                bbox: self.extents.get(&old).and_then(|&(_, bbox)| bbox),
                 parent: element.parent.and_then(new),
                 kids: element
                     .kids
@@ -330,6 +340,29 @@ impl Tagger {
                 out.end_marked_content();
             }
         }
+    }
+
+    /// Gives the figure or table just opened its box on this page, in page
+    /// space (rg-2qs); any other element has none. A table given a box on
+    /// a second page keeps none.
+    pub fn extent(&mut self, bbox: [f32; 4]) {
+        let element = self.top();
+        let boxed = self
+            .elements
+            .get(element)
+            .is_some_and(|e| matches!(e.role, Role::Figure | Role::Table));
+        if !boxed || self.artifacts > 0 {
+            return;
+        }
+        let page = self.parents.len().saturating_sub(1);
+        self.extents
+            .entry(element)
+            .and_modify(|(first, kept)| {
+                if *first != page {
+                    *kept = None;
+                }
+            })
+            .or_insert((page, Some(bbox)));
     }
 
     /// Marks `leaf` as FR-114 says: inside an artifact, nothing more; the
@@ -473,6 +506,7 @@ impl Tagger {
             parent: Some(parent),
             alt,
             kids: Vec::new(),
+            bbox: None,
         });
         self.elements.len() - 1
     }
@@ -691,6 +725,59 @@ mod tests {
         assert_eq!(kids(1), Some(vec![Kid::Element(3), Kid::Element(5)]));
         assert_eq!(kids(5), Some(vec![Kid::Element(6)]));
         assert_eq!(tree.parents, [vec![2], vec![4, 6]]);
+    }
+
+    /// rg-2qs: a figure keeps the box it was given; a table given one on
+    /// each of two pages keeps none; any other element ignores one.
+    #[test]
+    fn only_a_one_page_figure_or_table_keeps_a_box() {
+        let mut tagger = Tagger::new();
+        let mut out = Content::new();
+        let text = Leaf::Text { actual: None };
+        let bbox = [1.0, 2.0, 3.0, 4.0];
+        for page in 0..2 {
+            tagger.begin_page();
+            if page == 0 {
+                let figure = tagger.open(&mut out, &Semantics::Group("Radar".to_owned()));
+                tagger.extent(bbox);
+                let marked = tagger.leaf(&mut out, &Leaf::Shape);
+                Tagger::end(&mut out, marked);
+                tagger.close(&mut out, figure);
+                let heading = tagger.open(&mut out, &Semantics::Heading(NonZeroU8::MIN));
+                tagger.extent(bbox);
+                let marked = tagger.leaf(&mut out, &text);
+                Tagger::end(&mut out, marked);
+                tagger.close(&mut out, heading);
+            }
+            let table = opened(&mut tagger, &mut out, Structure::Table);
+            tagger.extent(bbox);
+            let cell = opened(
+                &mut tagger,
+                &mut out,
+                Structure::Cell {
+                    column: 0,
+                    span: None,
+                },
+            );
+            let marked = tagger.leaf(&mut out, &text);
+            Tagger::end(&mut out, marked);
+            tagger.close(&mut out, cell);
+            tagger.close(&mut out, table);
+        }
+        let tree = tagger.into_tree().expect("a tree");
+        let boxes: Vec<(Role, Option<[f32; 4]>)> =
+            tree.elements.iter().map(|e| (e.role, e.bbox)).collect();
+        assert_eq!(
+            boxes,
+            [
+                (Role::Document, None),
+                (Role::Figure, Some(bbox)),
+                (Role::Heading(NonZeroU8::MIN), None),
+                (Role::Table, None),
+                (Role::Td(None), None),
+                (Role::Td(None), None),
+            ]
+        );
     }
 
     /// rg-969: a count past what the PDF can number is the tree's error,

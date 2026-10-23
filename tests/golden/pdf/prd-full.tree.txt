@@ -1,7 +1,7 @@
 Document
   H1 p1:"Technology Radar"
   P p1:"Each item's description and rationale: p…"
-  Figure Alt="Technology radar: 3 sectors, 4 rings, 6 items" p1:28
+  Figure Alt="Technology radar: 3 sectors, 4 rings, 6 items" BBox=[51.51 166.193 446.628 542.48] p1:28
   H2 p1:"Key"
   L
     LI
@@ -47,7 +47,7 @@ Document
       Lbl p1:"6"
       LBody p1:"Chef"
   H2 p2:"Items on the radar"
-  Table
+  Table BBox=[42.52 169.38 749.48 541.38]
     TR
       TH Scope=Column p2:"=Number"
       TH Scope=Column p2:"name"

@@ -11,7 +11,9 @@ use crate::style::{
     TABLE_HEADING_TO_HEAD, TABLE_LEADING, TABLE_PAD_X, TABLE_PAD_Y, TABLE_RULE, TABLE_RULE_HEAVY,
     TABLE_TEXT, TextStyle,
 };
-use crate::svg::{Anchor, Group, Node, Paint, Point, Scale, Scope, Semantics, Structure, TextRun};
+use crate::svg::{
+    Anchor, Extent, Group, Node, Paint, Point, Scale, Scope, Semantics, Structure, TextRun,
+};
 use crate::text::{Fonts, words};
 
 use super::columns::{Column, style_of};
@@ -43,8 +45,23 @@ impl TableBlock {
             }
             y = bottom;
         }
-        // One table to a tagged PDF however many pages hold it (FR-114).
-        vec![heading, structure(Structure::Table, out)]
+        // One table to a tagged PDF however many pages hold it (FR-114);
+        // its box on this page runs from the header row's top to the last
+        // rule's lower edge (rg-2qs).
+        let extent = Extent {
+            min: Point {
+                x: origin.x,
+                y: origin.y + TABLE_HEADING_BASELINE + TABLE_HEADING_TO_HEAD,
+            },
+            max: Point {
+                x: origin.x + self.width,
+                y: y + TABLE_RULE_HEAVY / 2.0,
+            },
+        };
+        let table = Group::new(Point::ORIGIN, out)
+            .with(Semantics::Structure(Structure::Table))
+            .spanning(extent);
+        vec![heading, Node::Group(table)]
     }
 
     /// The header row: a group per column, each holding its heading, the

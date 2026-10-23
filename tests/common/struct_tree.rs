@@ -28,6 +28,25 @@ pub struct Tree {
 }
 
 impl Element {
+    /// Its Layout attribute's `/BBox` (rg-2qs), left, bottom, right, top.
+    pub fn layout_bbox(&self) -> Option<[f64; 4]> {
+        let Ok(Object::Array(attrs)) = self.dict.get(b"A") else {
+            return None;
+        };
+        attrs.iter().find_map(|a| {
+            let dict = a.as_dict().ok()?;
+            (dict.get(b"O").ok()?.as_name().ok()? == b"Layout").then_some(())?;
+            let Object::Array(corners) = dict.get(b"BBox").ok()? else {
+                return None;
+            };
+            let n: Vec<f64> = corners
+                .iter()
+                .filter_map(|c| c.as_float().ok().map(f64::from))
+                .collect();
+            n.try_into().ok()
+        })
+    }
+
     /// Its table attribute `key`'s value, as written: `/Scope`'s name or
     /// `/ColSpan`'s number.
     pub fn table_attribute(&self, key: &[u8]) -> Option<String> {

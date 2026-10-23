@@ -1,6 +1,6 @@
 Document
   H1 p1:"Technology Radar"
-  Figure Alt="Technology radar: 1 sector, 4 rings, 120 items" p1:250
+  Figure Alt="Technology radar: 1 sector, 4 rings, 120 items" BBox=[159.757 166.193 519.32 525.756] p1:250
   H2 p1:"Key"
   L
     LI

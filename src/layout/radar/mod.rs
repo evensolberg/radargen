@@ -29,7 +29,7 @@ use crate::style::{
     DIVIDER_RADIUS, GRID_STROKE, LABEL_HALO, MIN_RADAR_WIDTH, RADAR_FLOOR, RING_LABEL,
     SECTOR_LABEL, SECTOR_LABEL_RADIUS, TextStyle,
 };
-use crate::svg::{Anchor, Group, Node, Paint, Point, Scale, Semantics, TextRun};
+use crate::svg::{Anchor, Extent, Group, Node, Paint, Point, Scale, Semantics, TextRun};
 use crate::text::Fonts;
 use markers::{Marker, hit_node, hit_reach, indicator_node, layer, marker_nodes, markers};
 use reach::{half_extent, ring_reach_x, ring_reach_y, sector_reach_x, sector_reach_y};
@@ -438,8 +438,20 @@ impl Block for RadarBlock {
             .chain(controls)
             .chain(indicators)
             .collect();
-        let centred =
-            Node::Group(Group::new(self.centre(r), children).with(Semantics::Group(self.name())));
+        let centre = self.centre(r);
+        // The block's box about the centre the children are drawn from.
+        let extent = Extent {
+            min: Point {
+                x: -centre.x,
+                y: -centre.y,
+            },
+            max: centre,
+        };
+        let centred = Node::Group(
+            Group::new(centre, children)
+                .with(Semantics::Group(self.name()))
+                .spanning(extent),
+        );
         Node::Group(Group::new(at.origin, vec![centred]))
     }
 }

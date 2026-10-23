@@ -276,6 +276,16 @@ impl Document {
     }
 }
 
+/// The box the layout gives a group, in the group's own coordinates
+/// (rg-2qs): its top-left and bottom-right corners.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Extent {
+    /// The top-left corner.
+    pub min: Point,
+    /// The bottom-right corner.
+    pub max: Point,
+}
+
 /// Children translated together; a group never scales (FR-70).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Group {
@@ -285,6 +295,10 @@ pub struct Group {
     pub semantics: Semantics,
     /// The children, in paint order.
     pub children: Vec<Node>,
+    /// The box the layout gives the radar's figure or a table page, which
+    /// a tagged PDF writes as the element's Layout `BBox` (rg-2qs); `None`
+    /// for every other group. No other format draws it.
+    pub extent: Option<Extent>,
 }
 
 impl Group {
@@ -295,6 +309,7 @@ impl Group {
             offset,
             semantics: Semantics::None,
             children,
+            extent: None,
         }
     }
 
@@ -302,6 +317,15 @@ impl Group {
     #[must_use]
     pub fn with(self, semantics: Semantics) -> Self {
         Self { semantics, ..self }
+    }
+
+    /// This group with the box `extent`.
+    #[must_use]
+    pub fn spanning(self, extent: Extent) -> Self {
+        Self {
+            extent: Some(extent),
+            ..self
+        }
     }
 }
 
