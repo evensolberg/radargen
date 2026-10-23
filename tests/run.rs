@@ -751,7 +751,8 @@ fn a_pdf_warns_about_missing_glyphs() {
     let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.pdf"]);
     assert_eq!(ran.code, Some(0), "{}", ran.stderr);
     assert!(
-        ran.stderr.contains("the PDF draws them as boxes"),
+        ran.stderr
+            .contains("the PDF draws them as boxes and they cannot be searched"),
         "{}",
         ran.stderr
     );
@@ -759,7 +760,14 @@ fn a_pdf_warns_about_missing_glyphs() {
 
 /// FR-104's ending for several missing characters, in the format named.
 fn boxes(format: &str) -> String {
-    format!("the {format} draws them as boxes — an HTML page shows them, or transliterate them")
+    let searched = if format == "PDF" {
+        " and they cannot be searched"
+    } else {
+        ""
+    };
+    format!(
+        "the {format} draws them as boxes{searched} — an HTML page shows them, or transliterate them"
+    )
 }
 
 /// FR-104: a PNG or an SVG warns about each drawn text the bundled font

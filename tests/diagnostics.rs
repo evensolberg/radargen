@@ -262,6 +262,23 @@ fn missing_glyphs_have_their_per_row_message() {
             ),
             "line 5, name: 'q\u{1ab0}' has U+1AB0, which the bundled font lacks; the SVG draws it as a box — an HTML page shows it, or transliterate it".to_owned(),
         ),
+        // A PDF's box is not text either, so the name cannot be searched.
+        (
+            at(
+                6,
+                0,
+                cell(ColumnKind::Name, "Kafka 中", '中', 1, OutputFormat::Pdf),
+            ),
+            "line 6, name: 'Kafka 中' has U+4E2D 中, which the bundled font lacks; the PDF draws it as a box and it cannot be searched — an HTML page shows it, or transliterate it".to_owned(),
+        ),
+        (
+            at(
+                7,
+                0,
+                cell(ColumnKind::Name, "中文", '中', 2, OutputFormat::Pdf),
+            ),
+            "line 7, name: '中文' has 2 characters the bundled font lacks, the first U+4E2D 中; the PDF draws them as boxes and they cannot be searched — an HTML page shows them, or transliterate them".to_owned(),
+        ),
     ];
     for (warning, expected) in cases {
         assert_eq!(warning.to_string(), expected);
