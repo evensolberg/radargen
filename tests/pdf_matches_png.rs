@@ -26,9 +26,9 @@ use hayro::{RenderCache, RenderSettings, render_into};
 use lopdf::Object;
 use lopdf::content::{Content, Operation};
 use radargen::emit::intrinsic_size;
-use radargen::emit::pdf::POINTS_PER_PX;
 use radargen::emit::png::{PixelSize, pixel_size, rasterise};
 use radargen::palette::{Palette, Theme};
+use radargen::style::POINTS_PER_PX;
 use radargen::svg::Document;
 use resvg::tiny_skia::Pixmap;
 

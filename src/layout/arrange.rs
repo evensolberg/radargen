@@ -383,7 +383,7 @@ const fn whole_units(width: f64) -> u32 {
 }
 
 /// The key's rule: decorative, since the key's heading marks the boundary.
-fn rule_node(rule: Rule) -> Node {
+pub(crate) fn rule_node(rule: Rule) -> Node {
     let line = Node::Line {
         from: rule.from,
         to: rule.to,
@@ -579,7 +579,14 @@ const BISECTIONS: u32 = 60;
 /// `MIN_RADAR_WIDTH` (660) wide at 1, wider than any column, so it never
 /// takes the first return; only blocks that fit at natural size do.
 fn narrow_scale(radar: &impl Block, column: f64, least: f64) -> f64 {
-    let fits = |scale: f64| radar.size(scale).width <= column;
+    fit_scale(least, |scale| radar.size(scale).width <= column)
+}
+
+/// The largest scale in [`least`, 1] for which `fits` holds, or `least`
+/// when none does: `fits` must hold for every scale below one it holds
+/// for. A fixed count of halvings, so every machine gets the same bits
+/// (NFR-4); only scales that passed are returned.
+pub(crate) fn fit_scale(least: f64, fits: impl Fn(f64) -> bool) -> f64 {
     if fits(1.0) {
         return 1.0;
     }

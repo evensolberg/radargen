@@ -11,11 +11,10 @@ use crate::palette::Palette;
 use crate::pdf::content::{Canvas, content};
 use crate::pdf::font::Faces;
 use crate::pdf::{Sheet, real};
+use crate::style::POINTS_PER_PX;
 use crate::svg::Document;
 use crate::text::{Fonts, Weight};
 
-/// PDF points per CSS pixel: 72 per inch over 96.
-pub const POINTS_PER_PX: f64 = 0.75;
 /// The longest page side viewers accept, in points: 200 inches, Acrobat's
 /// limit (PDF 1.7, Annex C).
 const MAX_SIDE: f64 = 14_400.0;
