@@ -66,10 +66,11 @@ pub(super) struct Row {
 
 impl Row {
     /// A numbered item as a row from `top`, at least `min_height` tall,
-    /// with its sector's `series` and FR-75's accessible name `label`.
+    /// with its sector's `series`, the `ring_list` it belongs to (FR-114)
+    /// and FR-75's accessible name `label`.
     pub(super) fn new(
         numbered: Numbered<'_>,
-        series: usize,
+        (series, ring_list): (usize, ListKey),
         label: String,
         top: f64,
         min_height: f64,
@@ -86,10 +87,7 @@ impl Row {
             height: frame.height,
             badge: frame.badge,
             series,
-            list: ListKey::Ring {
-                sector: item.sector,
-                ring: item.ring.unwrap_or_default(),
-            },
+            list: ring_list,
             hollow: item.hollow(),
             number,
             meta: meta.map(|meta| meta.line(last)),
@@ -273,7 +271,7 @@ mod tests {
             .map(|(number, item)| {
                 Row::new(
                     Numbered { item, number },
-                    0,
+                    (0, ListKey::Key),
                     String::new(),
                     0.0,
                     LEGEND_ROW_MIN_HEIGHT,

@@ -654,3 +654,115 @@ fn nothing_plotted_spans_as_one_cell() {
             .any(|(_, s)| *s == Semantics::Structure(Structure::Cell { column: 0, span }))
     );
 }
+
+/// Review of 21c-1: a mark is furniture because the split made it, not
+/// because a value reads like one; a qualifier of "(continued)" on a row
+/// that never splits stays content.
+#[test]
+fn a_value_that_reads_like_a_mark_stays_content() {
+    let csv = "name,sector,ring,description,qualifier\nAlpha,Tools,Adopt,d,(continued)\n";
+    let block = block(csv, Table::Radar);
+    let page = all_pages(&block).into_iter().next().expect("a page");
+    let mut groups = Vec::new();
+    for node in &page {
+        outline(node, 0, &mut groups);
+    }
+    assert!(
+        groups.iter().all(|(_, s)| *s != Semantics::Pagination),
+        "{groups:?}"
+    );
+}
+
+/// Every row group under `nodes`, in document order.
+fn row_groups(nodes: &[Node]) -> Vec<&crate::svg::Group> {
+    fn walk<'a>(node: &'a Node, out: &mut Vec<&'a crate::svg::Group>) {
+        if let Node::Group(group) = node {
+            if matches!(group.semantics, Semantics::Structure(Structure::Row(_))) {
+                out.push(group);
+            }
+            group.children.iter().for_each(|child| walk(child, out));
+        }
+    }
+    let mut out = Vec::new();
+    for node in nodes {
+        walk(node, &mut out);
+    }
+    out
+}
+
+/// Review of 21c-1: a split row renders as one key on every part; its
+/// cells run column by column with the name as the row header; on later
+/// parts the number and name cells hold furniture only, and the marks are
+/// furniture on the first part too.
+#[test]
+fn a_split_row_repeats_only_as_furniture() {
+    let tall = (0..3_000)
+        .map(|i| format!("w{i}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let csv =
+        format!("name,sector,ring,description\nAlpha,Tools,Adopt,d\nBeta,Tools,Adopt,{tall}\n");
+    let block = block(&csv, Table::Radar);
+    let pages = all_pages(&block);
+    let rows: Vec<&crate::svg::Group> = pages.iter().flat_map(|p| row_groups(p)).collect();
+    let beta: Vec<&&crate::svg::Group> = rows
+        .iter()
+        .filter(|g| g.semantics == Semantics::Structure(Structure::Row(1)))
+        .collect();
+    assert!(beta.len() >= 2, "{}", beta.len());
+    let name = block
+        .columns
+        .iter()
+        .position(|c| c.kind == Some(CellKind::Name))
+        .expect("a name column");
+    for row in &rows {
+        let cells: Vec<Semantics> = row
+            .children
+            .iter()
+            .map(|c| match c {
+                Node::Group(g) => g.semantics.clone(),
+                _ => Semantics::None,
+            })
+            .collect();
+        let expected: Vec<Semantics> = (0..block.columns.len())
+            .map(|column| {
+                Semantics::Structure(if column == name {
+                    Structure::Header(Scope::Row)
+                } else {
+                    Structure::Cell { column, span: None }
+                })
+            })
+            .collect();
+        assert_eq!(cells, expected);
+    }
+    let furniture_only = |cell: &Node| match cell {
+        Node::Group(g) => g
+            .children
+            .iter()
+            .all(|c| matches!(c, Node::Group(inner) if inner.semantics == Semantics::Pagination)),
+        _ => false,
+    };
+    for later in beta.iter().skip(1) {
+        let number = later.children.first().expect("the number cell");
+        let header = later.children.get(name).expect("the name cell");
+        assert!(furniture_only(number) && furniture_only(header));
+    }
+    let first_name = beta
+        .first()
+        .and_then(|row| row.children.get(name))
+        .expect("Beta's first name cell");
+    let Node::Group(first_name) = first_name else {
+        panic!("a cell")
+    };
+    assert!(
+        first_name
+            .children
+            .iter()
+            .any(|c| matches!(c, Node::Group(g) if g.semantics == Semantics::Pagination))
+    );
+    assert!(!furniture_only(
+        beta.first()
+            .and_then(|r| r.children.first())
+            .expect("a number")
+    ));
+}

@@ -16,7 +16,7 @@ use crate::text::{Fonts, words};
 
 use super::columns::{Column, style_of};
 use super::rows::{Lines, Part};
-use super::{CONTINUES, TableBlock, TablePage, count};
+use super::{TableBlock, TablePage, count};
 
 impl TableBlock {
     /// `page` drawn with its top-left at `origin`, in reading order: the
@@ -231,14 +231,15 @@ fn under_nodes(part: &Part, x: f64, line: usize, at: &dyn Fn(f64, usize) -> Poin
     let mut line = line;
     part.under
         .iter()
-        .map(|under| {
+        .enumerate()
+        .map(|(i, under)| {
             let text = run(
                 at(x, line),
                 (TABLE_TEXT, Neutral::TextMuted, Anchor::Start),
                 under.clone(),
             );
             line += under.lines.len();
-            if under.words == CONTINUES || under.words == CONTINUED_MARK {
+            if i >= part.content {
                 Node::Group(Group::new(Point::ORIGIN, vec![text]).with(Semantics::Pagination))
             } else {
                 text

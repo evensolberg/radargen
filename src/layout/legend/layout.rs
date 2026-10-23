@@ -16,7 +16,7 @@ use crate::style::{
     LEGEND_ROW_TO_SECTOR, LEGEND_SECTOR, LEGEND_SECTOR_TO_RING, LEGEND_WIDTH_MAX, LINE_HEIGHT,
     SWATCH_RADIUS, SWATCH_RAISE, TextStyle,
 };
-use crate::svg::{Anchor, Point, TextRun};
+use crate::svg::{Anchor, ListKey, Point, TextRun};
 use crate::text::{Fonts, words};
 
 use super::row::{MetaLine, Numbered, Row};
@@ -210,7 +210,7 @@ impl Context<'_> {
         entries.push(Entry::heading(heading, RING_TIER));
         let mut bottom = top;
         for position in run.items.clone() {
-            let row = self.row(position, bottom);
+            let row = self.row(position, run.ring, bottom);
             bottom = row.bottom();
             entries.push(Entry::Row(Box::new(row)));
         }
@@ -218,12 +218,18 @@ impl Context<'_> {
     }
 
     /// The item at `position` in FR-34's order, as a row from `top`.
-    fn row(&self, position: usize, top: f64) -> Row {
+    fn row(&self, position: usize, ring: usize, top: f64) -> Row {
         let numbered = self.item(position);
         let Numbered { item, number } = numbered;
         Row::new(
             numbered,
-            self.series(item.sector),
+            (
+                self.series(item.sector),
+                ListKey::Ring {
+                    sector: item.sector,
+                    ring,
+                },
+            ),
             self.catalogue.accessible_name(item, Some(number)),
             top,
             self.min_row,

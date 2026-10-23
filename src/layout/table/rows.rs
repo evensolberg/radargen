@@ -70,6 +70,11 @@ pub(super) struct Part {
     /// the unplotted flag, a later part's *(continued)*, and
     /// [`CONTINUES`] on every part but a split row's last.
     pub(super) under: Vec<Lines>,
+    /// How many of `under`'s runs, from the first, are content: the folded
+    /// line and flag. The rest are the split's marks, page furniture to a
+    /// tagged PDF (FR-114), known by where the split put them rather than
+    /// by what they say, which a value could also say.
+    pub(super) content: usize,
     /// A muted run under another cell, by its index among the cells: the
     /// ring under the sector, on a row's first part.
     pub(super) beneath: Option<(usize, Lines)>,
@@ -232,6 +237,8 @@ pub(super) fn parts(
         name,
         width,
     } = full;
+    // The folded line and flag; every run a split adds after them is a mark.
+    let shown = under.len();
     let part = |cells: Vec<Lines>,
                 under: Vec<Lines>,
                 beneath: Option<(usize, Lines)>,
@@ -241,6 +248,7 @@ pub(super) fn parts(
         sector: row.sector.to_owned(),
         height: height_of(tallest(&cells, (name, &under), beneath.as_ref())),
         cells,
+        content: if later { 0 } else { shown },
         under,
         beneath,
         ruled,

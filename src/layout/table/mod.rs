@@ -155,6 +155,7 @@ fn nothing_plotted() -> Part {
             words: NOTHING_PLOTTED.to_owned(),
         }],
         under: Vec::new(),
+        content: 0,
         beneath: None,
         height: height_of(1),
         ruled: true,

@@ -1119,6 +1119,39 @@ mod tests {
         }
     }
 
+    /// A legend row's label holds its number and its body its name.
+    fn assert_label_and_body(row: &Group) {
+        let Semantics::LegendRow(control) = &row.semantics else {
+            panic!("a legend row");
+        };
+        let words = |s: Structure| -> Vec<String> {
+            row.children
+                .iter()
+                .filter_map(|c| match c {
+                    Node::Group(g) if g.semantics == Semantics::Structure(s) => Some(&g.children),
+                    _ => None,
+                })
+                .flatten()
+                .filter_map(|n| match n {
+                    Node::Text { words, .. } => Some(words.clone()),
+                    _ => None,
+                })
+                .collect()
+        };
+        let label = words(Structure::Label);
+        assert!(
+            matches!(label.as_slice(), [n] if n.parse::<usize>().is_ok()),
+            "{label:?}"
+        );
+        let body = words(Structure::Body);
+        let name = body.first().expect("a name");
+        assert!(
+            control.label.contains(name.as_str()),
+            "{name} in {}",
+            control.label
+        );
+    }
+
     /// PR 21c-1: each ring's rows are one list, wherever a page breaks it;
     /// a row's number is its label and its name and meta its body; a
     /// continued heading is page furniture.
@@ -1153,6 +1186,7 @@ mod tests {
                             .count()
                     };
                     assert_eq!((count(Structure::Label), count(Structure::Body)), (1, 1));
+                    assert_label_and_body(row);
                 }
             }
             let mut all = Vec::new();
