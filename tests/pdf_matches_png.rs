@@ -17,6 +17,7 @@ use hayro::vello_cpu::{Pixmap as Drawn, RasterizerSettings, RenderContext, Resou
 use hayro::{RenderCache, RenderSettings, render_into};
 use lopdf::Object;
 use lopdf::content::{Content, Operation};
+use radargen::emit::intrinsic_size;
 use radargen::emit::pdf::{Export, export};
 use radargen::emit::png::{PixelSize, pixel_size, rasterise};
 use radargen::layout::arrange::{Arrangement, Blocks, arrange};
@@ -112,18 +113,23 @@ fn pdf_of(
     .expect("exports")
 }
 
+/// PDF points per CSS pixel, as the export sizes its drawing.
+const POINTS_PER_PX: f64 = 0.75;
+
 /// `pdf` drawn by hayro at `size`, premultiplied RGBA like tiny-skia's.
-/// x and y are scaled separately, as the PNG's transform is, since the
-/// PNG's height is rounded to whole pixels.
-fn drawn(pdf: &[u8], size: PixelSize) -> Vec<u8> {
+/// The scale is the drawing's, `drawing` px (FR-57's size) at 0.75 pt
+/// each, not the page box's: the page is rounded up to whole points, and
+/// the fraction past the drawing's right and bottom edges falls off the
+/// pixmap. x and y are scaled separately, as the PNG's transform is,
+/// since the PNG's height is rounded to whole pixels.
+fn drawn(pdf: &[u8], size: PixelSize, drawing: (f64, f64)) -> Vec<u8> {
     let pdf = Pdf::new(pdf.to_vec()).expect("hayro parses the PDF");
     let page = pdf.pages().first().expect("one page");
-    let (w_pt, h_pt) = page.render_dimensions();
     let w = u16::try_from(size.width()).expect("a test page fits u16");
     let h = u16::try_from(size.height()).expect("a test page fits u16");
     let fit = Affine::scale_non_uniform(
-        f64::from(w) / f64::from(w_pt),
-        f64::from(h) / f64::from(h_pt),
+        f64::from(w) / (drawing.0 * POINTS_PER_PX),
+        f64::from(h) / (drawing.1 * POINTS_PER_PX),
     );
     let cache = RenderCache::new();
     let mut ctx = RenderContext::new(w, h);
@@ -172,7 +178,7 @@ fn against_png(
     let size = pixel_size(doc, width).expect("fits");
     let png =
         Pixmap::decode_png(&rasterise(doc, png_palette, size).expect("renders")).expect("a PNG");
-    let drawn = drawn(pdf, size);
+    let drawn = drawn(pdf, size, intrinsic_size(doc, width));
     let pairs = || png.data().iter().zip(&drawn);
     Difference {
         differ: pairs().filter(|(a, b)| a != b).count(),

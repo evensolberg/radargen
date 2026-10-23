@@ -22,6 +22,9 @@ const MAX_SIDE: f64 = 14_400.0;
 /// the page tree, the page, its content stream and the info dictionary.
 /// The fonts' objects follow them.
 const FIXED_OBJECTS: usize = 5;
+/// The grid a page side is taken to before it is rounded up: thousandths,
+/// as [`real`] rounds a coordinate.
+const THOUSANDTHS: f64 = 1000.0;
 
 /// What one export needs besides the document.
 pub struct Export<'a> {
@@ -62,6 +65,8 @@ pub fn export(document: &Document, export: &Export<'_>) -> Result<Vec<u8>, Fatal
         fonts: export.fonts,
         faces: &faces,
         scale: sheet.scale,
+        width: sheet.width,
+        height: sheet.height,
     })?;
     pdf.stream(objects.stream, &drawn);
     info(&mut pdf, objects.info, export);
@@ -77,9 +82,10 @@ struct Sheet {
     unit: u16,
     /// The content-to-page scale, in the page's own units.
     scale: f64,
-    /// The `MediaBox`'s width, in the page's own units.
+    /// The `MediaBox`'s width, in the page's own units: the drawing's,
+    /// rounded up to a whole number.
     width: f64,
-    /// The `MediaBox`'s height, in the page's own units.
+    /// The `MediaBox`'s height, likewise.
     height: f64,
 }
 
@@ -100,10 +106,20 @@ impl Sheet {
         Self {
             unit,
             scale,
-            width: document.width * scale,
-            height: document.height * scale,
+            width: whole(document.width * scale),
+            height: whole(document.height * scale),
         }
     }
+}
+
+/// A drawing's side as the page box's: rounded up to a whole number, so
+/// no viewer is left a fractional point to fill with a light edge on a
+/// dark page; the drawing stays anchored top-left and the at most one
+/// point more on the right and bottom is ground. Taken to thousandths
+/// first, as [`real`] takes a coordinate, so a float residue past an
+/// exact side (`240.00000000000003`) cannot add a whole point.
+fn whole(side: f64) -> f64 {
+    ((side * THOUSANDTHS).round() / THOUSANDTHS).ceil()
 }
 
 /// The fixed objects' numbers, the first [`FIXED_OBJECTS`] in order.
@@ -152,8 +168,8 @@ fn page(pdf: &mut Pdf, objects: &Objects, sheet: &Sheet, fonts: &[(Weight, Ref)]
     );
 }
 
-/// The `MediaBox`: the same `real(side × scale)` `content()` translates
-/// by, so the drawing meets its edges (Review Focus 3).
+/// The `MediaBox`: the whole-number sides `content()` grounds and
+/// translates by, so the ground meets its edges (Review Focus 3).
 fn media_box(sheet: &Sheet) -> Rect {
     Rect::new(0.0, 0.0, real(sheet.width), real(sheet.height))
 }
@@ -221,23 +237,24 @@ mod tests {
         [n(0), n(1), n(2), n(3)]
     }
 
-    fn near(got: f32, want: f64) -> bool {
-        (f64::from(got) - want).abs() <= 0.001
-    }
-
     /// FR-110, FR-57: one page, the document's size at 0.75 pt per px,
-    /// or `--width` px wide with the height following (Review Focus 3).
+    /// or `--width` px wide with the height following (Review Focus 3),
+    /// each side rounded up to whole points so no viewer leaves a
+    /// fractional sliver of paper at an edge.
     #[test]
-    fn the_page_is_the_documents_size() {
+    fn the_page_is_the_documents_size_in_whole_points() {
         let doc = prd(None);
         for width in [None, Some(320), Some(10_000)] {
             let [x0, y0, w, h] = media_box(&pdf(&doc, None, width, Theme::Light));
             let (want_w, want_h) = crate::emit::intrinsic_size(&doc, width);
             assert!(x0 == 0.0 && y0 == 0.0, "--width {width:?}");
-            assert!(
-                near(w, want_w * 0.75) && near(h, want_h * 0.75),
-                "--width {width:?}: {w} × {h}"
-            );
+            for (got, want) in [(w, want_w * POINTS_PER_PX), (h, want_h * POINTS_PER_PX)] {
+                let got = f64::from(got);
+                assert!(
+                    got > want - 0.001 && got < want + 1.0 && got.fract().to_bits() == 0,
+                    "--width {width:?}: {got} for {want}"
+                );
+            }
             assert!(
                 page(&pdf(&doc, None, width, Theme::Light))
                     .get(b"UserUnit")
@@ -268,10 +285,13 @@ mod tests {
         );
         let [_, _, w, h] = media_box(&bytes);
         assert!(h <= 14_400.0, "{h}");
-        assert!(
-            near(w * unit, 75.0) && near(h * unit, 22_500.0),
-            "{w} × {h} at {unit}"
-        );
+        // Each side is whole in the page's units, so in points it is the
+        // intended size, rounded up to a whole unit.
+        let kept = |side: f32, want: f64| {
+            let points = f64::from(side * unit);
+            side.fract().to_bits() == 0 && points >= want && points < want + f64::from(unit)
+        };
+        assert!(kept(w, 75.0) && kept(h, 22_500.0), "{w} × {h} at {unit}");
     }
 
     /// FR-110, NFR-4: the same bytes twice; no date, no file identifier;

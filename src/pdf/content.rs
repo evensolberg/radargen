@@ -9,11 +9,14 @@ use super::font::Faces;
 use super::geometry::{self, Step};
 use super::real;
 use crate::palette::{Hex, Palette};
-use crate::svg::{Document, Group, Node, Paint};
+use crate::palette::{Neutral, Role};
+use crate::svg::{Document, Group, Node, Paint, Point};
 use crate::text::{FontError, Fonts};
 
 /// SVG's default `stroke-miterlimit`; PDF's default is 10.
 const MITER_LIMIT: f32 = 4.0;
+/// The page's ground (D-87): the document's own, `Document::ground`'s.
+const GROUND: Paint = Paint::Role(Role::Neutral(Neutral::Surface1));
 /// A colour channel's largest value, `ff`: what PDF's 1.0 stands for.
 const CHANNEL_MAX: f64 = 255.0;
 
@@ -32,30 +35,38 @@ pub struct Canvas<'a> {
     /// `/UserUnit`. A paper size (PR 21) adds an offset beside it, not a
     /// second transform.
     pub scale: f64,
+    /// The page box's width in the page's own units, a whole number: the
+    /// `MediaBox`'s, which the ground covers.
+    pub width: f64,
+    /// The page box's height, likewise: what the flip translates by, so
+    /// the drawing hangs from the page's top edge.
+    pub height: f64,
 }
 
-/// The whole page: the transform, the ground (D-87), the document.
+/// The whole page: the ground over the page box (D-87), then the
+/// transform and the document.
 ///
 /// # Errors
 ///
 /// [`FontError`] when a halo's glyph cannot be outlined (NFR-15).
 pub fn content(canvas: &Canvas<'_>) -> Result<Vec<u8>, FontError> {
     let mut out = Content::new();
-    // Unrounded (pdf::scale), so the drawing ends where the MediaBox
-    // does; the translate is the MediaBox's own height, the same
-    // `real(height × scale)` emit::pdf writes there.
+    out.save_state();
+    // In page space, before the flip: the whole page box, the fraction of
+    // a point past the drawing's right and bottom edges included.
+    let ground = geometry::rect(Point::ORIGIN, canvas.width, canvas.height, 0.0);
+    shape(
+        &mut out,
+        &ground,
+        Paints::new(GROUND, Paint::None, 0.0),
+        canvas,
+    );
+    // Unrounded (pdf::scale), so the drawing keeps its size; the
+    // translate is the page box's own height, so the drawing hangs from
+    // its top edge.
     let s = super::scale(canvas.scale);
-    out.save_state()
-        .transform([
-            s,
-            0.0,
-            0.0,
-            -s,
-            0.0,
-            real(canvas.document.height * canvas.scale),
-        ])
+    out.transform([s, 0.0, 0.0, -s, 0.0, real(canvas.height)])
         .set_miter_limit(MITER_LIMIT);
-    node(&mut out, &canvas.document.ground(), canvas)?;
     node(&mut out, &canvas.document.root, canvas)?;
     out.restore_state();
     Ok(out.finish().into_vec())
@@ -253,6 +264,8 @@ mod tests {
             fonts: fonts(),
             faces: &faces,
             scale: 0.75,
+            width: 151.0,
+            height: 76.0,
         };
         String::from_utf8(content(&canvas).expect("draws")).expect("ASCII")
     }
@@ -262,21 +275,21 @@ mod tests {
         format!("{r} {g} {b}")
     }
 
-    /// The page opens with one flip into PDF's y-up space at the export
-    /// scale, SVG's miter limit, and the theme's ground over the page
-    /// (D-87), and closes the state it saved.
+    /// The page opens with the theme's ground over the whole page box in
+    /// page space (D-87), then one flip into PDF's y-up space at the
+    /// export scale, translated by the page's height so the drawing hangs
+    /// from its top edge, and SVG's miter limit; it closes the state it
+    /// saved.
     #[test]
-    fn the_page_is_flipped_scaled_and_grounded() {
+    fn the_page_is_grounded_then_flipped_and_scaled() {
         let palette = Palette::built_in(Theme::Dark);
         let s = stream(Node::Group(Group::new(Point::ORIGIN, Vec::new())), &palette);
-        assert!(s.starts_with("q\n0.75 0 0 -0.75 0 75 cm\n4 M\n"), "{s}");
-        assert!(
-            s.contains(&format!(
-                "{} rg\n0 0 m\n200 0 l\n200 100 l\n0 100 l\nh\nf\n",
-                rgb(&palette, Role::Neutral(Neutral::Surface1))
-            )),
-            "{s}"
+        let want = format!(
+            "q\n{} rg\n0 0 m\n151 0 l\n151 76 l\n0 76 l\nh\nf\n0.75 0 0 -0.75 0 76 cm\n4 M\n",
+            rgb(&palette, Role::Neutral(Neutral::Surface1))
         );
+        assert!(s.starts_with(&want), "{s}");
+        assert_eq!(s.matches("\nf\n").count(), 1, "one ground: {s}");
         // Content::finish drops the last newline.
         assert!(s.ends_with('Q'), "{s}");
     }
@@ -300,9 +313,11 @@ mod tests {
             fonts: fonts(),
             faces: &faces,
             scale,
+            width: 240.0,
+            height: 191.0,
         };
         let s = String::from_utf8(content(&canvas).expect("draws")).expect("ASCII");
-        let first = s.lines().nth(1).expect("the cm line");
+        let first = s.lines().find(|l| l.ends_with(" cm")).expect("the cm line");
         let written: f64 = first
             .split(' ')
             .next()
