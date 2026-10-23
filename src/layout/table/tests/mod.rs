@@ -325,44 +325,65 @@ fn the_flag_fits_its_name_column() {
 
 #[test]
 fn table_styles_are_fr112s() {
-    fn paints(node: &Node, out: &mut Vec<(Paint, Paint, f64)>) {
-        match node {
-            Node::Group(group) => group.children.iter().for_each(|c| paints(c, out)),
-            Node::Line {
-                stroke,
-                stroke_width,
-                ..
-            } => out.push((Paint::None, *stroke, *stroke_width)),
-            Node::Rect {
-                fill,
-                stroke,
-                stroke_width,
-                ..
-            }
-            | Node::Circle {
-                fill,
-                stroke,
-                stroke_width,
-                ..
-            }
-            | Node::Path {
-                fill,
-                stroke,
-                stroke_width,
-                ..
-            } => out.push((*fill, *stroke, *stroke_width)),
-            _ => {}
-        }
-    }
     let block = block(HOSTILE, Table::All);
     let nodes = block.render(
         block.pages().first().expect("a page"),
         Point::ORIGIN,
         fonts(),
     );
+    assert_text_styles(&block, &nodes);
+    let mut drawn = Vec::new();
+    for node in &nodes {
+        paints(node, &mut drawn);
+    }
+    assert_ne!(drawn.len(), 0);
+    for (fill, stroke, width) in drawn {
+        assert_eq!(fill, Paint::None, "no fills");
+        assert_eq!(stroke, Paint::Role(Role::Neutral(Neutral::StrokeDivider)));
+        assert!(
+            width.to_bits() == TABLE_RULE.to_bits()
+                || width.to_bits() == TABLE_RULE_HEAVY.to_bits()
+        );
+    }
+}
+
+/// Every shape's fill, stroke and stroke width under `node`.
+fn paints(node: &Node, out: &mut Vec<(Paint, Paint, f64)>) {
+    match node {
+        Node::Group(group) => group.children.iter().for_each(|c| paints(c, out)),
+        Node::Line {
+            stroke,
+            stroke_width,
+            ..
+        } => out.push((Paint::None, *stroke, *stroke_width)),
+        Node::Rect {
+            fill,
+            stroke,
+            stroke_width,
+            ..
+        }
+        | Node::Circle {
+            fill,
+            stroke,
+            stroke_width,
+            ..
+        }
+        | Node::Path {
+            fill,
+            stroke,
+            stroke_width,
+            ..
+        } => out.push((*fill, *stroke, *stroke_width)),
+        _ => {}
+    }
+}
+
+/// FR-112's text styles in `nodes`: the heading, the header row, the
+/// names, the prose and the muted marks.
+fn assert_text_styles(block: &TableBlock, nodes: &[Node]) {
     let muted = TextPaint::Fill(Paint::Role(Role::Neutral(Neutral::TextMuted)));
     let primary = TextPaint::Fill(Paint::Role(Role::Neutral(Neutral::TextPrimary)));
-    let all = texts(&nodes);
+    let all = texts(nodes);
     let heading = all.first().expect("the heading");
     assert!(
         matches!(heading, Node::Text { style, ink, .. } if *style == TABLE_HEADING && *ink == primary)
@@ -387,19 +408,6 @@ fn table_styles_are_fr112s() {
         if line == "Plain description." {
             assert_eq!((*style, *ink), (TABLE_TEXT, primary), "{line}");
         }
-    }
-    let mut drawn = Vec::new();
-    for node in &nodes {
-        paints(node, &mut drawn);
-    }
-    assert_ne!(drawn.len(), 0);
-    for (fill, stroke, width) in drawn {
-        assert_eq!(fill, Paint::None, "no fills");
-        assert_eq!(stroke, Paint::Role(Role::Neutral(Neutral::StrokeDivider)));
-        assert!(
-            width.to_bits() == TABLE_RULE.to_bits()
-                || width.to_bits() == TABLE_RULE_HEAVY.to_bits()
-        );
     }
 }
 
@@ -509,4 +517,5 @@ fn row_height_is_its_tallest_cell() {
     assert!((part.height - (TABLE_PAD_Y + TABLE_PAD_Y + three)).abs() < 1e-9);
 }
 
+mod folding;
 mod pages;

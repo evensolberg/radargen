@@ -104,3 +104,36 @@ fn prd_full_pdf_matches_its_golden() {
     let pdf = paper_pdf(&pages, &desc, &Palette::built_in(Theme::Light), title);
     golden("pdf", "prd-full.pdf.txt", &readable(&pdf));
 }
+
+/// rg-p82 (QA 11): a sector label too wide for the radar to sit beside the
+/// legend: the radar takes page 1 alone and the legend starts on page 2,
+/// without *Legend (continued)*.
+#[test]
+fn prd_legend_after_page_one_matches_its_golden() {
+    let title = Some("Technology Radar");
+    let csv = format!(
+        "name,sector,ring,description\na,{},Adopt,d\nb,Tools,Trial,d\nc,Data,Assess,d\n",
+        "S".repeat(64)
+    );
+    let (pages, desc) = paper_pages(&csv, title, None, Paper::Letter, None);
+    assert!(pages.len() >= 2, "{}", pages.len());
+    let pdf = paper_pdf(&pages, &desc, &Palette::built_in(Theme::Light), title);
+    let text = readable(&pdf);
+    assert!(!text.contains("Legend (continued)"));
+    golden("pdf", "prd-legend-after-page-one.pdf.txt", &text);
+}
+
+/// rg-p82 (QA 9): the PRD example as a full PDF on A4.
+#[test]
+fn prd_full_a4_pdf_matches_its_golden() {
+    let title = Some("Technology Radar");
+    let (pages, desc) = paper_pages(
+        include_str!("../fixtures/three-sector.csv"),
+        title,
+        None,
+        Paper::A4,
+        Some(Table::Radar),
+    );
+    let pdf = paper_pdf(&pages, &desc, &Palette::built_in(Theme::Light), title);
+    golden("pdf", "prd-full-a4.pdf.txt", &readable(&pdf));
+}

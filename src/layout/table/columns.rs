@@ -193,20 +193,11 @@ fn measure(
         )
     };
     let name = column.cell == CellKind::Name;
-    let marks = [
-        (unplotted, TABLE_TEXT.measure(NOT_ON_THE_RADAR, fonts)),
-        (split, TABLE_TEXT.measure(CONTINUED_MARK, fonts)),
-        (
-            split,
-            widest(
-                CONTINUES
-                    .split_whitespace()
-                    .map(|w| TABLE_TEXT.measure(w, fonts)),
-            ),
-        ),
-        (true, meta.0),
-    ];
-    let mark = widest(marks.iter().filter(|(on, _)| name && *on).map(|&(_, w)| w));
+    let mark = if name {
+        name_mark((unplotted, split, meta.0), fonts)
+    } else {
+        0.0
+    };
     // The folded line widens the name column, so it wraps no more than
     // the cap makes it.
     let natural = if name {
@@ -220,6 +211,26 @@ fn measure(
         least: word.max(piece).max(mark) + PADS_X,
         weight: 0.0,
     }
+}
+
+/// The widest unbreakable word the name column holds under its names:
+/// the unplotted flag when a row is unplotted, the split marks when a row
+/// splits, and `meta`, the folded lines' widest word.
+fn name_mark((unplotted, split, meta): (bool, bool, f64), fonts: &Fonts) -> f64 {
+    let marks = [
+        (unplotted, TABLE_TEXT.measure(NOT_ON_THE_RADAR, fonts)),
+        (split, TABLE_TEXT.measure(CONTINUED_MARK, fonts)),
+        (
+            split,
+            widest(
+                CONTINUES
+                    .split_whitespace()
+                    .map(|w| TABLE_TEXT.measure(w, fonts)),
+            ),
+        ),
+        (true, meta),
+    ];
+    widest(marks.iter().filter(|(on, _)| *on).map(|&(_, w)| w))
 }
 
 /// The widest unbreakable word of the lines folded under the names.
@@ -393,9 +404,9 @@ struct Drawn {
     measure: Measure,
 }
 
-/// The drawn columns of `published` across `width`.
-pub(super) fn sized(published: &Published<'_>, width: f64, split: bool, fonts: &Fonts) -> Sized {
-    let number = number_width(published, fonts);
+/// The columns `published` draws, each measured: every column but the
+/// folded ones and the ring, which is drawn under the sector.
+fn drawn(published: &Published<'_>, split: bool, fonts: &Fonts) -> Vec<Drawn> {
     let unplotted = published.rows.iter().any(|row| row.number.is_none());
     let line = widest(
         published
@@ -409,7 +420,7 @@ pub(super) fn sized(published: &Published<'_>, width: f64, split: bool, fonts: &
         .columns
         .iter()
         .position(|column| column.column == ColumnKind::Ring);
-    let drawn: Vec<Drawn> = published
+    published
         .columns
         .iter()
         .enumerate()
@@ -428,7 +439,13 @@ pub(super) fn sized(published: &Published<'_>, width: f64, split: bool, fonts: &
                 ),
             }
         })
-        .collect();
+        .collect()
+}
+
+/// The drawn columns of `published` across `width`.
+pub(super) fn sized(published: &Published<'_>, width: f64, split: bool, fonts: &Fonts) -> Sized {
+    let number = number_width(published, fonts);
+    let drawn = drawn(published, split, fonts);
     let labels = |cap: f64| -> f64 {
         drawn
             .iter()

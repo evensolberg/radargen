@@ -551,7 +551,32 @@ impl Column<'_> {
         if !line.is_empty() {
             lines.push(line);
         }
-        self.break_token(word, lines).to_string()
+        let before = lines.len();
+        let tail = self.break_token(word, lines).to_string();
+        if lines.len() > before {
+            self.keep_company(tail, lines)
+        } else {
+            tail
+        }
+    }
+
+    /// rg-p82: a broken word's tail that is punctuation alone takes the
+    /// last character of the piece before it, when that piece keeps one
+    /// and the two fit together; otherwise the tail stands as it was.
+    fn keep_company(&self, tail: String, lines: &mut [String]) -> String {
+        let alone = !tail.is_empty() && tail.chars().all(|c| c.is_ascii_punctuation());
+        let Some(previous) = lines.last_mut().filter(|_| alone) else {
+            return tail;
+        };
+        let Some((at, last)) = previous.char_indices().last().filter(|&(at, _)| at > 0) else {
+            return tail;
+        };
+        let joined = format!("{last}{tail}");
+        if !self.fits(&joined) {
+            return tail;
+        }
+        previous.truncate(at);
+        joined
     }
 
     /// FR-46: push the column-wide pieces of a token wider than the column,
@@ -1044,6 +1069,21 @@ mod tests {
             }
         }
         assert_eq!(checked, 2 * 2 * 8 * 10, "every case ran");
+    }
+
+    /// rg-p82: a word broken across lines never leaves its trailing
+    /// punctuation alone on the last line; the character before it comes
+    /// down with it.
+    #[test]
+    fn a_broken_word_keeps_its_punctuation_company() {
+        let width = |t: &str| f64::from(u32::try_from(t.chars().count()).expect("short"));
+        assert_eq!(wrap_by("abcdefgh.", 4.0, &width), ["abcd", "efg", "h."]);
+        assert_eq!(wrap_by("abcdefgh?!", 4.0, &width), ["abcd", "efg", "h?!"]);
+        // A word that fits, or breaks with letters left, is unchanged.
+        assert_eq!(wrap_by("abc.", 4.0, &width), ["abc."]);
+        assert_eq!(wrap_by("abcdefghi.", 4.0, &width), ["abcd", "efgh", "i."]);
+        // Punctuation that cannot take company stays as it was.
+        assert_eq!(wrap_by("abcd....", 4.0, &width), ["abcd", "...."]);
     }
 
     /// rg-wl7: breaking a long word without break points measures a

@@ -263,7 +263,7 @@ pub const TABLE_ASCENT: f64 = 12.0;
 pub const TABLE_HEADING_BASELINE: f64 =
     (LEGEND_PANEL_INSET_Y + LEGEND_HEADING_BASELINE) * PAPER_LEGEND_SCALE;
 /// From the heading's baseline to the header row's top.
-pub const TABLE_HEADING_TO_HEAD: f64 = 10.0;
+pub const TABLE_HEADING_TO_HEAD: f64 = 14.0;
 /// The widest a label column grows, padding included: about 20
 /// characters of name at 9 pt.
 pub const TABLE_LABEL_CAP: f64 = 168.0;
@@ -286,7 +286,7 @@ pub const TABLE_RULE: f64 = 1.0;
 /// first unplotted row.
 pub const TABLE_RULE_HEAVY: f64 = 2.0;
 /// The page-1 pointer's baseline above the footer's, inside the foot room.
-pub const TABLE_POINTER_ABOVE: f64 = 18.0;
+pub const TABLE_POINTER_ABOVE: f64 = 22.0;
 /// A row's height beyond its text lines: `n · LINE_HEIGHT + LEGEND_ROW_PAD`.
 pub const LEGEND_ROW_PAD: f64 = 7.0;
 /// The least height of a row's text block, so a one-line row's text is centred

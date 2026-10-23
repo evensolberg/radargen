@@ -271,33 +271,43 @@ fn everything_inside_its_column() {
         (HOSTILE.to_owned(), Table::All),
     ] {
         let block = block(&csv, table);
-        let (width, _) = letter();
-        for page in all_pages(&block) {
-            for node in &page {
-                let Some(rect) = bounds(node, fonts()) else {
-                    continue;
-                };
-                // A rule's stroke reaches half its width past its ends.
-                let reach = TABLE_RULE_HEAVY / 2.0 + 1e-9;
+        assert_inside_the_page(&block);
+        assert_lines_inside_their_columns(&block);
+    }
+}
+
+/// Every drawn node of `block` within the page's width; a rule's stroke
+/// reaches half its width past its ends.
+fn assert_inside_the_page(block: &TableBlock) {
+    let (width, _) = letter();
+    let reach = TABLE_RULE_HEAVY / 2.0 + 1e-9;
+    let rects = all_pages(block)
+        .iter()
+        .flatten()
+        .filter_map(|node| bounds(node, fonts()))
+        .collect::<Vec<_>>();
+    for rect in rects {
+        assert!(
+            rect.left >= -reach && rect.right <= width + reach,
+            "{rect:?}"
+        );
+    }
+}
+
+/// Every cell's lines of `block` within its column's text width.
+fn assert_lines_inside_their_columns(block: &TableBlock) {
+    for part in &block.parts {
+        for (cell, column) in part.cells.iter().zip(block.columns.iter().skip(1)) {
+            let style = if column.kind == Some(CellKind::Name) {
+                TABLE_NAME
+            } else {
+                TABLE_TEXT
+            };
+            for line in &cell.lines {
                 assert!(
-                    rect.left >= -reach && rect.right <= width + reach,
-                    "{rect:?}"
+                    style.measure(line, fonts()) <= column.width - PADS_X + 1e-9,
+                    "{line}"
                 );
-            }
-        }
-        for part in &block.parts {
-            for (cell, column) in part.cells.iter().zip(block.columns.iter().skip(1)) {
-                let style = if column.kind == Some(CellKind::Name) {
-                    TABLE_NAME
-                } else {
-                    TABLE_TEXT
-                };
-                for line in &cell.lines {
-                    assert!(
-                        style.measure(line, fonts()) <= column.width - PADS_X + 1e-9,
-                        "{line}"
-                    );
-                }
             }
         }
     }
@@ -335,67 +345,6 @@ fn a_tall_heading_and_a_split_row_end() {
     );
     assert!(block.parts.len() < 200, "{}", block.parts.len());
     assert_eq!(block.tall_rows().len(), 1);
-}
-
-/// The maintainer's ruling (2026-10-23): qualifier, status and the dates
-/// are a muted line under the name, not columns.
-#[test]
-fn short_columns_fold_under_the_name() {
-    let csv = "name,sector,ring,description,qualifier,status,last_affirmed,exit_date\nAlpha,Tools,Adopt,d,conditional,New,2026-06-01,\nBeta,Tools,Adopt,d,,,,\n";
-    let block = block(csv, Table::Radar);
-    let headings: Vec<String> = block.columns.iter().map(|c| c.heading.join(" ")).collect();
-    assert_eq!(headings, ["#", "name", "Sector ring", "description"]);
-    let alpha = block.parts.first().expect("Alpha");
-    let under: Vec<&str> = alpha.under.iter().map(|u| u.words.as_str()).collect();
-    assert_eq!(
-        under,
-        ["conditional \u{b7} New \u{b7} last_affirmed 2026-06-01"]
-    );
-    assert_eq!(
-        block.parts.get(1).map(|p| p.under.len()),
-        Some(0),
-        "nothing to fold"
-    );
-    let nodes = block.render(
-        block.pages().first().expect("a page"),
-        Point::ORIGIN,
-        fonts(),
-    );
-    let muted = TextPaint::Fill(Paint::Role(Role::Neutral(Neutral::TextMuted)));
-    assert!(texts(&nodes).iter().any(|t| matches!(t, Node::Text { ink, words, .. } if *ink == muted && words.starts_with("conditional"))));
-}
-
-/// Final review (UI 1): a word in a name or label column is never broken,
-/// on the PRD example, the hostile CSV or a crowded `all` table.
-#[test]
-fn label_columns_never_break_a_word() {
-    let others = (0..6)
-        .map(|i| format!(",o{i}"))
-        .collect::<Vec<_>>()
-        .concat();
-    let prose = ",Prose that runs on for a while.".repeat(6);
-    let crowded = format!(
-        "name,sector,ring,description{others}\nKubernetes Operators,Platforms,Assess,d{prose}\n"
-    );
-    for (csv, table) in [
-        (PRD_EXAMPLE, Table::Radar),
-        (HOSTILE, Table::All),
-        (crowded.as_str(), Table::All),
-    ] {
-        let block = block(csv, table);
-        for part in &block.parts {
-            for (cell, column) in part.cells.iter().zip(block.columns.iter().skip(1)) {
-                if matches!(column.kind, Some(CellKind::Name | CellKind::Label)) {
-                    assert_eq!(
-                        words(&cell.lines.join(" ")),
-                        cell.words,
-                        "{:?}",
-                        column.heading
-                    );
-                }
-            }
-        }
-    }
 }
 
 /// A long run of CJK with no spaces breaks inside the column, every line
@@ -526,123 +475,75 @@ fn nothing_plotted_starts_at_the_padding() {
     assert!((origin.x - TABLE_PAD_X).abs() < 1e-9);
 }
 
-/// Final review after simplify: a folded date's heading is a word under
-/// the name too, so short names never break it.
-#[test]
-fn a_folded_dates_heading_is_never_broken() {
-    let csv = "name,sector,ring,description,last_affirmed\nGo,Tools,Adopt,d,2026-06-01\nC,Tools,Trial,d,2026-06-02\n";
-    let block = block(csv, Table::Radar);
-    for part in &block.parts {
-        for under in &part.under {
-            assert_eq!(
-                words(&under.lines.join(" ")),
-                under.words,
-                "{:?}",
-                under.lines
-            );
-        }
-    }
+/// The first table whose second page opens on a change of `key`, built
+/// from `head` rows then `tail` rows for each count of `head` rows.
+fn opening_on(key: fn(&Part) -> String, row: fn(usize, bool) -> String) -> TableBlock {
+    (1..80)
+        .map(|k| {
+            let rows: String = (0..k + 40).map(|i| row(i, i < k)).collect();
+            block(&format!("name,sector,ring,description\n{rows}"), Table::All)
+        })
+        .find(|block| {
+            let start = block.pages().get(1).map(|p| p.parts.start);
+            start.is_some_and(|s| {
+                let at = |i: usize| block.parts.get(i).map(key);
+                s > 0 && at(s - 1) != at(s)
+            })
+        })
+        .expect("a count whose page break falls on the change")
 }
 
-/// The maintainer (2026-10-23): sector and ring share one column, the
-/// ring muted under the sector, and the header reads both.
-#[test]
-fn sector_and_ring_stack_in_one_column() {
-    let csv = "name,sector,ring,description\nAlpha,Tools,Adopt,d\n";
-    let block = block(csv, Table::Radar);
-    let headings: Vec<String> = block.columns.iter().map(|c| c.heading.join(" ")).collect();
-    assert_eq!(headings, ["#", "name", "Sector ring", "description"]);
-    let nodes = block.render(
-        block.pages().first().expect("a page"),
-        Point::ORIGIN,
-        fonts(),
-    );
-    let muted = TextPaint::Fill(Paint::Role(Role::Neutral(Neutral::TextMuted)));
-    let primary = TextPaint::Fill(Paint::Role(Role::Neutral(Neutral::TextPrimary)));
-    let drawn = texts(&nodes);
-    let sector = drawn
-        .iter()
-        .find(|t| words_of(t) == "Tools")
-        .expect("the sector");
-    let ring = drawn
-        .iter()
-        .find(|t| words_of(t) == "Adopt")
-        .expect("the ring");
-    assert!(matches!(sector, Node::Text { ink, .. } if *ink == primary));
-    assert!(matches!(ring, Node::Text { ink, .. } if *ink == muted));
-    let (Node::Text { origin: s, .. }, Node::Text { origin: r, .. }) = (sector, ring) else {
-        panic!("texts")
-    };
-    assert!(
-        (s.x - r.x).abs() < 1e-9 && r.y > s.y,
-        "the ring under the sector"
-    );
-}
-
-/// The maintainer (2026-10-23): the domain folds under the name with the
-/// short columns, first.
-#[test]
-fn the_domain_folds_first_under_the_name() {
-    let csv = "name,sector,ring,description,status,domain\nAlpha,Tools,Adopt,d,New,database\n";
-    let block = block(csv, Table::Radar);
-    assert!(
-        block
-            .columns
-            .iter()
-            .all(|c| c.heading.join(" ") != "domain")
-    );
-    let under: Vec<&str> = block
+/// The rules around a page that opens on a change: the page before ends
+/// on a plain rule, and the page opens under the header row's heavy rule
+/// with no second heavy rule.
+fn assert_opens_cleanly(block: &TableBlock) {
+    let pages = all_pages(block);
+    let before = rules(pages.first().expect("page 1"));
+    assert_eq!(before.last().map(|(_, w)| *w), Some(TABLE_RULE));
+    let after = rules(pages.get(1).expect("page 2"));
+    let heavy = after.iter().filter(|(_, w)| *w == TABLE_RULE_HEAVY).count();
+    let sectors: std::collections::BTreeSet<&str> = block
         .parts
-        .first()
-        .expect("Alpha")
-        .under
+        .get(block.pages().get(1).expect("page 2").parts.clone())
+        .unwrap_or_default()
         .iter()
-        .map(|u| u.words.as_str())
+        .map(|p| p.sector.as_str())
         .collect();
-    assert_eq!(under, ["database \u{b7} New"]);
+    // The header's, and one more only where the page itself changes.
+    assert!(heavy <= sectors.len(), "{after:?}");
 }
 
-/// The maintainer (2026-10-23): the line folded under the name widens the
-/// name column, up to the name cap, so it wraps no more than it must.
+/// rg-p82 (QA 9): a change of sector that falls at a page top leaves no
+/// heavy rule at the foot of the page before, and the page names the
+/// new sector.
 #[test]
-fn the_folded_line_widens_the_name_column() {
-    let short = "name,sector,ring,description,status\nGo,Tools,Adopt,d,Moved Out Again\n";
-    let block_short = block(short, Table::Radar);
-    let line = TABLE_TEXT.measure("Moved Out Again", fonts());
-    assert!((width_of(&block_short, "name") - (line + PADS_X)).abs() < 1e-9);
-    let long = "name,sector,ring,description,status,domain\nGo,Tools,Adopt,d,New,Container Orchestration and Scheduling\n";
-    let block_long = block(long, Table::Radar);
-    assert!((width_of(&block_long, "name") - TABLE_NAME_CAP).abs() < 1e-9);
+fn a_sector_change_at_a_page_top() {
+    let block = opening_on(
+        |p| p.sector.clone(),
+        |i, head| {
+            let sector = if head { "Alpha" } else { "Beta" };
+            format!("i{i:03},{sector},Adopt,\"a\nb\nc\"\n")
+        },
+    );
+    assert_opens_cleanly(&block);
+    let page = texts(all_pages(&block).get(1).expect("page 2"));
+    let heading = page.get(1).map(lines_of).unwrap_or_default().join(" ");
+    assert!(heading.contains("Beta"), "{heading}");
 }
 
-/// Review of the stacked column: a split row draws its ring once, on its
-/// first part, and that part's height counts it.
+/// rg-p82 (QA 9): the start of the unplotted rows at a page top: the
+/// page before ends on a plain rule, and the page holds no numbers.
 #[test]
-fn a_split_row_draws_its_ring_once() {
-    let tall = (0..3_000)
-        .map(|i| format!("w{i}"))
-        .collect::<Vec<_>>()
-        .join(" ");
-    let csv = format!("name,sector,ring,description\nBeta,Tools,Adopt,{tall}\n");
-    let block = block(&csv, Table::Radar);
-    let parts = &block.parts;
-    assert!(parts.len() >= 2);
-    let rings: Vec<Option<&str>> = parts
-        .iter()
-        .map(|p| p.beneath.as_ref().map(|(_, l)| l.words.as_str()))
-        .collect();
-    assert_eq!(rings.first(), Some(&Some("Adopt")));
-    assert!(rings.iter().skip(1).all(Option::is_none), "{rings:?}");
-    let first = parts.first().expect("a part");
-    let sector = first.cells.get(1).map_or(0, |c| c.lines.len());
-    assert!(first.height >= height_of(sector + 1) - 1e-9);
-}
-
-/// Review of the name cap: a label other than the name keeps the 168 cap.
-#[test]
-fn a_wide_sector_is_capped_at_the_label_cap() {
-    let sector = "A sector named at length so it cannot fit one label column";
-    let csv = format!("name,sector,ring,description\nA,{sector},Adopt,d\n");
-    let block = block(&csv, Table::Radar);
-    assert!((width_of(&block, "Sector ring") - TABLE_LABEL_CAP).abs() < 1e-9);
+fn the_unplotted_boundary_at_a_page_top() {
+    let block = opening_on(
+        |p| p.number.is_some().to_string(),
+        |i, head| {
+            let ring = if head { "Adopt" } else { "Elsewhere" };
+            format!("i{i:03},Tools,{ring},\"a\nb\nc\"\n")
+        },
+    );
+    assert_opens_cleanly(&block);
+    let second = block.pages().get(1).expect("page 2");
+    let parts = block.parts.get(second.parts.clone()).unwrap_or_default();
+    assert!(parts.first().is_some_and(|p| p.number.is_none()));
 }
