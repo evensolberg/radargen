@@ -486,6 +486,35 @@ mod tests {
     /// How near the block's edge the drawn labels must come: float noise.
     const TIGHT: f64 = 1e-6;
 
+    /// rg-2qs: the figure's group carries the block's own box about its
+    /// centre, and everything it draws lies inside it.
+    #[test]
+    fn the_figure_spans_what_it_draws() {
+        let fonts = fonts();
+        let radar = block(fonts, PRD_EXAMPLE, None);
+        for scale in [1.0, NARROW_MIN_SCALE] {
+            let Node::Group(outer) = radar.render(at(scale)) else {
+                panic!("a group");
+            };
+            let Some(Node::Group(figure)) = outer.children.first() else {
+                panic!("the figure's group");
+            };
+            let extent = figure.extent.expect("the figure's box");
+            let size = radar.size(scale);
+            assert!(close(extent.max.x - extent.min.x, size.width));
+            assert!(close(extent.max.y - extent.min.y, size.height));
+            for rect in figure.children.iter().filter_map(|n| bounds(n, fonts)) {
+                assert!(
+                    rect.left >= extent.min.x - TIGHT
+                        && rect.right <= extent.max.x + TIGHT
+                        && rect.top >= extent.min.y - TIGHT
+                        && rect.bottom <= extent.max.y + TIGHT,
+                    "{scale}: {rect:?} outside {extent:?}"
+                );
+            }
+        }
+    }
+
     pub(super) fn block(fonts: &Fonts, csv: &str, rings: Option<&str>) -> RadarBlock {
         let (catalogue, order) = plotted(csv, rings);
         RadarBlock::new(&catalogue, &order, fonts)

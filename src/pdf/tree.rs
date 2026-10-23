@@ -121,6 +121,13 @@ fn attributes(
     element: &Element,
 ) -> Result<(), Fatal> {
     if let Some([left, bottom, right, top]) = element.bbox {
+        // Only a figure or a table takes a box (Tagger::extent), and
+        // neither has table attributes to lose to the early return.
+        debug_assert!(
+            matches!(element.role, Role::Figure | Role::Table),
+            "a {:?} with a box",
+            element.role
+        );
         dict.attributes()
             .push()
             .layout()

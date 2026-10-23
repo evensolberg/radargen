@@ -169,7 +169,7 @@ fn group(
         y: at.y + group.offset.y,
     };
     if let Some(extent) = group.extent {
-        tagger.extent(bbox(extent, origin, canvas.page));
+        tagger.extent(opened, bbox(extent, origin, canvas.page));
     }
     out.save_state();
     // Decided on the rounded value, as the SVG's `shows` decides, so a
@@ -189,6 +189,10 @@ fn group(
 
 /// `extent`, drawn from `origin`, as a box on `page` (rg-2qs): left,
 /// bottom, right, top in page space, as the drawing's flip puts it.
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+)]
 fn bbox(extent: Extent, origin: Point, page: Sheet) -> [f32; 4] {
     let (s, height) = (page.scale, page.height);
     let x = |v: f64| real(s * (origin.x + v));

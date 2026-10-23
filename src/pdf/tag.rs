@@ -169,9 +169,9 @@ pub struct Tagger {
     /// How deep inside the radar's figure.
     figures: usize,
     parents: Vec<Vec<usize>>,
-    /// The box each figure or table was given, and on which page; `None`
-    /// once a second page gives one, since one box cannot hold two pages.
-    extents: BTreeMap<usize, (usize, Option<[f32; 4]>)>,
+    /// The page each boxed figure or table was first given its box on: a
+    /// second page drops the box, since one box cannot hold two pages.
+    boxed_on: BTreeMap<usize, usize>,
     /// The first count past what the PDF can number (rg-969), which
     /// [`into_tree`](Self::into_tree) returns: the file is not written.
     too_large: Option<Fatal>,
@@ -200,7 +200,7 @@ impl Tagger {
             artifacts: 0,
             figures: 0,
             parents: Vec::new(),
-            extents: BTreeMap::new(),
+            boxed_on: BTreeMap::new(),
             too_large: None,
         }
     }
@@ -266,9 +266,7 @@ impl Tagger {
             .into_iter()
             .zip(&live)
             .filter(|(_, kept)| **kept)
-            .zip(0..)
-            .map(|((element, _), old)| Element {
-                bbox: self.extents.get(&old).and_then(|&(_, bbox)| bbox),
+            .map(|(element, _)| Element {
                 parent: element.parent.and_then(new),
                 kids: element
                     .kids
@@ -342,27 +340,25 @@ impl Tagger {
         }
     }
 
-    /// Gives the figure or table just opened its box on this page, in page
-    /// space (rg-2qs); any other element has none. A table given a box on
-    /// a second page keeps none.
-    pub fn extent(&mut self, bbox: [f32; 4]) {
-        let element = self.top();
-        let boxed = self
-            .elements
-            .get(element)
-            .is_some_and(|e| matches!(e.role, Role::Figure | Role::Table));
-        if !boxed || self.artifacts > 0 {
+    /// Gives the figure or table that `opened` just opened its box on this
+    /// page, in page space (rg-2qs); nothing else takes one, so a box on a
+    /// group that opened nothing never lands on an ancestor. The box is the
+    /// element's own, so pruning carries it. A table given one on a second
+    /// page keeps none.
+    pub fn extent(&mut self, opened: Opened, bbox: [f32; 4]) {
+        if !matches!(opened, Opened::Element | Opened::Figure) {
             return;
         }
+        let at = self.top();
         let page = self.parents.len().saturating_sub(1);
-        self.extents
-            .entry(element)
-            .and_modify(|(first, kept)| {
-                if *first != page {
-                    *kept = None;
-                }
-            })
-            .or_insert((page, Some(bbox)));
+        let Some(element) = self.elements.get_mut(at) else {
+            return;
+        };
+        if !matches!(element.role, Role::Figure | Role::Table) {
+            return;
+        }
+        let first = *self.boxed_on.entry(at).or_insert(page);
+        element.bbox = (first == page).then_some(bbox);
     }
 
     /// Marks `leaf` as FR-114 says: inside an artifact, nothing more; the
@@ -739,18 +735,18 @@ mod tests {
             tagger.begin_page();
             if page == 0 {
                 let figure = tagger.open(&mut out, &Semantics::Group("Radar".to_owned()));
-                tagger.extent(bbox);
+                tagger.extent(figure, bbox);
                 let marked = tagger.leaf(&mut out, &Leaf::Shape);
                 Tagger::end(&mut out, marked);
                 tagger.close(&mut out, figure);
                 let heading = tagger.open(&mut out, &Semantics::Heading(NonZeroU8::MIN));
-                tagger.extent(bbox);
+                tagger.extent(heading, bbox);
                 let marked = tagger.leaf(&mut out, &text);
                 Tagger::end(&mut out, marked);
                 tagger.close(&mut out, heading);
             }
             let table = opened(&mut tagger, &mut out, Structure::Table);
-            tagger.extent(bbox);
+            tagger.extent(table, bbox);
             let cell = opened(
                 &mut tagger,
                 &mut out,
@@ -776,6 +772,50 @@ mod tests {
                 (Role::Table, None),
                 (Role::Td(None), None),
                 (Role::Td(None), None),
+            ]
+        );
+    }
+
+    /// rg-2qs with rg-969: a box stays on its figure or table when an
+    /// element before it is pruned, and a header cell after it gains none.
+    #[test]
+    fn a_box_survives_pruning_before_it() {
+        let mut tagger = Tagger::new();
+        let mut out = Content::new();
+        let text = Leaf::Text { actual: None };
+        let bbox = [1.0, 2.0, 3.0, 4.0];
+        tagger.begin_page();
+        for _ in 0..2 {
+            let list = opened(&mut tagger, &mut out, Structure::List(ListKey::Key));
+            let item = opened(&mut tagger, &mut out, Structure::ListItem);
+            tagger.close(&mut out, item);
+            tagger.close(&mut out, list);
+        }
+        let figure = tagger.open(&mut out, &Semantics::Group("Radar".to_owned()));
+        tagger.extent(figure, bbox);
+        let marked = tagger.leaf(&mut out, &Leaf::Shape);
+        Tagger::end(&mut out, marked);
+        tagger.close(&mut out, figure);
+        let table = opened(&mut tagger, &mut out, Structure::Table);
+        tagger.extent(table, bbox);
+        let row = opened(&mut tagger, &mut out, Structure::HeaderRow);
+        let header = opened(&mut tagger, &mut out, Structure::Header(Scope::Column));
+        let marked = tagger.leaf(&mut out, &text);
+        Tagger::end(&mut out, marked);
+        tagger.close(&mut out, header);
+        tagger.close(&mut out, row);
+        tagger.close(&mut out, table);
+        let tree = tagger.into_tree().expect("a tree");
+        let boxes: Vec<(Role, Option<[f32; 4]>)> =
+            tree.elements.iter().map(|e| (e.role, e.bbox)).collect();
+        assert_eq!(
+            boxes,
+            [
+                (Role::Document, None),
+                (Role::Figure, Some(bbox)),
+                (Role::Table, Some(bbox)),
+                (Role::Tr, None),
+                (Role::Th(Scope::Column), None),
             ]
         );
     }
