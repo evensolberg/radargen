@@ -9,7 +9,7 @@ use crate::style::{
     LEGEND_BADGE_X, LEGEND_FIRST_BASELINE, LEGEND_META, LEGEND_NAME, LEGEND_NAME_COLUMN,
     LEGEND_NAME_X, LEGEND_ROW_PAD, LEGEND_TEXT_MIN_HEIGHT, LINE_HEIGHT, META_GAP,
 };
-use crate::svg::{Anchor, Control, ItemKey, Paint, Point, Tail, TextRun};
+use crate::svg::{Anchor, Control, ItemKey, ListKey, Paint, Point, Tail, TextRun};
 use crate::text::{Fonts, words};
 
 /// Between a row's qualifier and status (FR-74).
@@ -48,6 +48,9 @@ pub(super) struct Row {
     pub(super) badge: Point,
     /// The sector's FR-10 rank: its series index, unreduced (FR-67).
     pub(super) series: usize,
+    /// The ring's list in a tagged PDF: catalogue sector and ring
+    /// (FR-114), so a ring broken across columns or pages is one list.
+    pub(super) list: ListKey,
     /// Whether the badge is hollow (FR-20).
     pub(super) hollow: bool,
     /// FR-34's number.
@@ -83,6 +86,10 @@ impl Row {
             height: frame.height,
             badge: frame.badge,
             series,
+            list: ListKey::Ring {
+                sector: item.sector,
+                ring: item.ring.unwrap_or_default(),
+            },
             hollow: item.hollow(),
             number,
             meta: meta.map(|meta| meta.line(last)),

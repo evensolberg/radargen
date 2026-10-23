@@ -424,7 +424,11 @@ fn headers_nest_and_headings_repeat_plainly() {
         Point::ORIGIN,
         fonts(),
     );
-    let Some(Node::Group(header)) = first.get(1) else {
+    // The table's first child is the header row (PR 21c-1).
+    let Some(Node::Group(table)) = first.get(1) else {
+        panic!("the table")
+    };
+    let Some(Node::Group(header)) = table.children.first() else {
         panic!("a header row")
     };
     assert_eq!(header.children.len(), block.columns.len());
@@ -449,7 +453,8 @@ fn headers_nest_and_headings_repeat_plainly() {
         Point::ORIGIN,
         fonts(),
     );
-    assert_eq!(heading(&second), Semantics::None);
+    // A repeat is page furniture to a tagged PDF (PR 21c-1).
+    assert_eq!(heading(&second), Semantics::Pagination);
 }
 
 /// FR-106's empty table: its one line starts at the first column's
@@ -549,4 +554,103 @@ fn the_unplotted_boundary_at_a_page_top() {
     let page = texts(all_pages(&block).get(1).expect("page 2"));
     let heading = page.get(1).map(lines_of).unwrap_or_default().join(" ");
     assert_eq!(heading, "(continued): Tools", "no number range");
+}
+
+/// Every group's semantics under `node`, depth first, with the depth.
+fn outline(node: &Node, depth: usize, out: &mut Vec<(usize, Semantics)>) {
+    if let Node::Group(group) = node {
+        out.push((depth, group.semantics.clone()));
+        for child in &group.children {
+            outline(child, depth + 1, out);
+        }
+    }
+}
+
+/// PR 21c-1: a table page is the table, its header row of column headers
+/// on the first page only, each row keyed by its published row with the
+/// name as its row header; a split row's later parts repeat their number
+/// and name as furniture, and the marks are furniture everywhere.
+#[test]
+fn the_table_is_structured_for_tagging() {
+    let tall = (0..3_000)
+        .map(|i| format!("w{i}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let csv =
+        format!("name,sector,ring,description\nAlpha,Tools,Adopt,d\nBeta,Tools,Adopt,{tall}\n");
+    let block = block(&csv, Table::Radar);
+    let pages = all_pages(&block);
+    assert!(pages.len() >= 2);
+    for (k, page) in pages.iter().enumerate() {
+        let mut groups = Vec::new();
+        for node in page {
+            outline(node, 0, &mut groups);
+        }
+        let tables = groups
+            .iter()
+            .filter(|(_, s)| *s == Semantics::Structure(Structure::Table))
+            .count();
+        assert_eq!(tables, 1, "page {k}");
+        let headers = groups
+            .iter()
+            .filter(|(_, s)| *s == Semantics::Structure(Structure::Header(Scope::Column)))
+            .count();
+        let header_rows = groups
+            .iter()
+            .filter(|(_, s)| *s == Semantics::Structure(Structure::HeaderRow))
+            .count();
+        if k == 0 {
+            assert_eq!((header_rows, headers), (1, block.columns.len()));
+        } else {
+            assert_eq!(
+                (header_rows, headers),
+                (0, 0),
+                "page {k} repeats as furniture"
+            );
+            assert!(groups.iter().any(|(_, s)| *s == Semantics::Pagination));
+        }
+        // Every row has as many cells as there are columns.
+        for (at, (depth, semantics)) in groups.iter().enumerate() {
+            if !matches!(semantics, Semantics::Structure(Structure::Row(_))) {
+                continue;
+            }
+            let cells = groups
+                .iter()
+                .skip(at + 1)
+                .take_while(|(d, _)| d > depth)
+                .filter(|(d, s)| {
+                    *d == depth + 1
+                        && matches!(
+                            s,
+                            Semantics::Structure(
+                                Structure::Cell { .. } | Structure::Header(Scope::Row)
+                            )
+                        )
+                })
+                .count();
+            assert_eq!(cells, block.columns.len(), "page {k}");
+        }
+    }
+    let rows: Vec<usize> = block.parts.iter().map(|p| p.row).collect();
+    assert!(
+        rows.windows(2).any(|w| matches!(w, [a, b] if a == b)),
+        "Beta is split"
+    );
+}
+
+/// PR 21c-1: FR-106's one row spans every column.
+#[test]
+fn nothing_plotted_spans_as_one_cell() {
+    let block = block("name,sector,ring,description\n", Table::Radar);
+    let page = all_pages(&block).into_iter().next().expect("a page");
+    let mut groups = Vec::new();
+    for node in &page {
+        outline(node, 0, &mut groups);
+    }
+    let span = NonZeroUsize::new(block.columns.len());
+    assert!(
+        groups
+            .iter()
+            .any(|(_, s)| *s == Semantics::Structure(Structure::Cell { column: 0, span }))
+    );
 }

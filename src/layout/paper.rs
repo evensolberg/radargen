@@ -23,7 +23,7 @@ use crate::style::{
     PAPER_FOOT_ROOM, PAPER_LEGEND_SCALE, PAPER_MARGIN, POINTS_PER_PX, RADAR_LABEL_PAD,
     TABLE_POINTER_ABOVE,
 };
-use crate::svg::{Anchor, Document, Group, Node, Point, Scale, TextRun};
+use crate::svg::{Anchor, Document, Group, Node, Point, Scale, Semantics, Structure, TextRun};
 use crate::text::{Fonts, words};
 
 /// Between the footer's title and subtitle.
@@ -458,7 +458,11 @@ fn pointer(page: usize, height: f64) -> Node {
         x: PAPER_MARGIN,
         y: height - FOOTER_BASELINE - TABLE_POINTER_ABOVE,
     };
-    foot_line(&text, at, Anchor::Start)
+    // Information, not a repeat: a paragraph to a tagged PDF (FR-114).
+    Node::Group(
+        Group::new(Point::ORIGIN, vec![foot_line(&text, at, Anchor::Start)])
+            .with(Semantics::Structure(Structure::Paragraph)),
+    )
 }
 
 /// One muted line in the footer's style at `at`: a footer run, or page 1's
@@ -497,13 +501,16 @@ fn footer(sheets: &Sheets<'_>, page: usize, count: usize, fonts: &Fonts) -> Node
     let named = cut(FOOTER, &named, room, fonts);
     let run =
         |text: &str, x: f64, anchor: Anchor| foot_line(text, Point { x, y: baseline }, anchor);
-    Node::Group(Group::new(
-        Point::ORIGIN,
-        vec![
-            run(&named, PAPER_MARGIN, Anchor::Start),
-            run(&numbered, width - PAPER_MARGIN, Anchor::End),
-        ],
-    ))
+    Node::Group(
+        Group::new(
+            Point::ORIGIN,
+            vec![
+                run(&named, PAPER_MARGIN, Anchor::Start),
+                run(&numbered, width - PAPER_MARGIN, Anchor::End),
+            ],
+        )
+        .with(Semantics::Pagination),
+    )
 }
 
 #[cfg(test)]
@@ -668,6 +675,17 @@ mod tests {
             .iter()
             .find(|node| texts(node) == [pointer(p)])
             .expect("the pointer");
+        // A paragraph to a tagged PDF, and every footer furniture (PR 21c-1).
+        assert!(matches!(
+            node,
+            Node::Group(g) if g.semantics == Semantics::Structure(Structure::Paragraph)
+        ));
+        for page in &pages {
+            assert!(matches!(
+                children(page).last(),
+                Some(Node::Group(g)) if g.semantics == Semantics::Pagination
+            ));
+        }
         let at = rect(node);
         let (width, height) = sheets.size;
         assert!(at.top >= height - PAPER_FOOT_ROOM, "{at:?}");

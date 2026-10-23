@@ -79,6 +79,9 @@ pub(super) struct Part {
     pub(super) ruled: bool,
     /// The one cell of an empty table, spanning every column (FR-106).
     pub(super) spanning: bool,
+    /// Whether it is a split row's part after the first, whose number and
+    /// name repeat as page furniture (FR-114).
+    pub(super) later: bool,
 }
 
 /// A part's height for `lines` lines in its tallest cell.
@@ -229,20 +232,23 @@ pub(super) fn parts(
         name,
         width,
     } = full;
-    let part =
-        |cells: Vec<Lines>, under: Vec<Lines>, beneath: Option<(usize, Lines)>, ruled: bool| Part {
-            row: index,
-            number: row.number,
-            sector: row.sector.to_owned(),
-            height: height_of(tallest(&cells, (name, &under), beneath.as_ref())),
-            cells,
-            under,
-            beneath,
-            ruled,
-            spanning: false,
-        };
+    let part = |cells: Vec<Lines>,
+                under: Vec<Lines>,
+                beneath: Option<(usize, Lines)>,
+                (ruled, later)| Part {
+        row: index,
+        number: row.number,
+        sector: row.sector.to_owned(),
+        height: height_of(tallest(&cells, (name, &under), beneath.as_ref())),
+        cells,
+        under,
+        beneath,
+        ruled,
+        spanning: false,
+        later,
+    };
     if height_of(tallest(&cells, (name, &under), beneath.as_ref())) <= room {
-        return vec![part(cells, under, beneath, true)];
+        return vec![part(cells, under, beneath, (true, false))];
     }
     let most = lines_within(room);
     let name_lines = name
@@ -279,7 +285,7 @@ pub(super) fn parts(
         };
         below.extend(mark(!last));
         let beneath = if first { beneath.clone() } else { None };
-        out.push(part(drawn, below, beneath, last));
+        out.push(part(drawn, below, beneath, (last, !first)));
         if last {
             return out;
         }

@@ -30,7 +30,7 @@ comments: "Third of three plans for RG-104 (docs/design/full-pdf.md). Revision 1
 
 | PR | What | Release | Proof |
 | --- | --- | --- | --- |
-| 21c-1 | Structure in the scene graph (Task 1) | none | every golden byte-identical |
+| 21c-1 | Structure in the scene graph (Task 1) | none | SVG, HTML, PNG byte-identical; PDF only gains `q`/`Q` |
 | 21c-2 | Spec, gate, tagger, document objects (Tasks 2–6) | minor, 1.23.0 | `just pdfua` green but for boxes; tree goldens |
 | 21c-3 | Every glyph carries text (Task 7) | minor, 1.24.0 | `just pdfua` green on the CJK/accent fixture |
 
@@ -52,7 +52,7 @@ comments: "Third of three plans for RG-104 (docs/design/full-pdf.md). Revision 1
 ## Global Constraints
 
 - **Determinism (FR-110, SC-30, `tests/determinism.rs`):** no dates, no `/ID`, no UUIDs; MCIDs, element order, object numbers and the XMP come from document order alone; arena and `BTreeMap` only, never `HashMap` iteration; numbers through `pdf::real`; `/StructParents` and MCIDs through `i32::try_from`.
-- **21c-1 is byte-identical:** every SVG, HTML, PNG and PDF golden unchanged.
+- **21c-1 changes no drawing:** every SVG, HTML and PNG golden byte-identical; every PDF golden equal to main's once `q`/`Q` lines, stream lengths and xref offsets are set aside (each new group saves and restores state), checked by a scratch script.
 - **Drawing unchanged by tagging:** the PNG oracle (`tests/pdf_matches_png`) keeps its ceilings; after each re-bless, a scratch script strips `BDC`/`BMC`/`EMC` lines and the new objects and keys from each new golden and compares with the old one, byte for byte. Where it cannot (the moved pointer, the drawn untitled title), the diff is named in the commit.
 - **Lint and quality:** RG-021A's lint rules; `rustqual` at or above `rustqual-baseline.json` (92.9%). `src/pdf/content.rs` (404 lines) is split before the tagger is threaded through it, and `content`, `&Canvas` and `&mut Tagger` travel as one `&mut Page` writer.
 - **`/Lang (en)` fixed** (D-103): the PRD records that the PDF/UA claim assumes English content.
@@ -74,10 +74,10 @@ comments: "Third of three plans for RG-104 (docs/design/full-pdf.md). Revision 1
 
 **Files:** `src/svg/mod.rs`, `src/svg/serialise/group.rs`, `src/layout/{key.rs,legend/mod.rs,legend/flow.rs,table/draw.rs,paper.rs,title.rs}`
 
-- [ ] Test (serialiser unit): a `Structure` group at the origin writes its children and no `<g>`; one with an offset keeps its `<g transform>`; `Pagination` writes as a plain group does today.
-- [ ] Test (layout units): the key is `List(Key)` of `ListItem` › `Body`, its glyphs `Decorative`; each legend ring's rows are `List(Ring{..})` of `LegendRow` › `Label` (the badge number) and `Body` (name and meta); a continued legend heading and *Legend (continued)* are `Pagination`; a table page is `Table` › `Row(r)` › `Header(Column)` (header row) or `Header(Row)` (the name cell) / `Cell{column, span}`; FR-106's spanning cell has `span` = the column count; on a later page the header row and the heading's *(continued)* group are `Pagination`; on a split row's later parts the number, the repeated name and the marks are `Pagination` inside their cells; the footer is `Pagination`; the subtitle is `Paragraph`; the pointer is `Paragraph`.
-- [ ] Implement; `is_interactive_only` and every exhaustive match updated; no `_` arms.
-- [ ] `cargo test`: every golden byte-identical. Close `rg-blz` (its semantic half; the rest is crumb "Paper refactors left from rg-blz").
+- [x] Test (serialiser unit): a `Structure` group at the origin writes its children and no `<g>`; one with an offset keeps its `<g transform>`; `Pagination` writes as a plain group does today.
+- [x] Test (layout units): the key is `List(Key)` of `ListItem` › `Body`, its glyphs `Decorative`; each legend ring's rows are `List(Ring{..})` of `LegendRow` › `Label` (the badge number) and `Body` (name and meta); a continued legend heading and *Legend (continued)* are `Pagination`; a table page is `Table` › `Row(r)` › `Header(Column)` (header row) or `Header(Row)` (the name cell) / `Cell{column, span}`; FR-106's spanning cell has `span` = the column count; on a later page the header row and the heading's *(continued)* group are `Pagination`; on a split row's later parts the number, the repeated name and the marks are `Pagination` inside their cells; the footer is `Pagination`; the subtitle is `Paragraph`; the pointer is `Paragraph`.
+- [x] Implement; `is_interactive_only` and every exhaustive match updated; no `_` arms.
+- [x] `cargo test`: SVG, HTML and PNG goldens byte-identical, PDF goldens differ by `q`/`Q` only. Close `rg-blz` (its semantic half; the rest is crumb "Paper refactors left from rg-blz").
 
 ## PR 21c-2 — Tagged PDF (1.23.0)
 

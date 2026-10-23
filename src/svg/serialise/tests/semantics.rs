@@ -3,7 +3,7 @@
 use std::num::NonZeroU8;
 
 use super::*;
-use crate::svg::{Control, ItemKey, Semantics};
+use crate::svg::{Control, ItemKey, ListKey, Semantics, Structure};
 
 fn semantic(semantics: Semantics, children: Vec<Node>) -> Node {
     Node::Group(Group::new(Point::ORIGIN, children).with(semantics))
@@ -38,6 +38,38 @@ fn headings_and_decoration_in_both_targets() {
         );
         let decoration = one(&semantic(Semantics::Decorative, vec![dot()]), target);
         assert_eq!(first_line(&decoration), "<g aria-hidden=\"true\">");
+    }
+}
+
+/// PR 21c-1: structure for a tagged PDF writes nothing of its own in SVG,
+/// so wrappers added for it change no byte; one with an offset keeps its
+/// translate; a pagination artifact writes as a plain group.
+#[test]
+fn structure_is_transparent_and_pagination_plain() {
+    let palette = light();
+    for target in [Target::Interactive(&palette), Target::Static(&palette)] {
+        let bare = one(&dot(), target);
+        for structure in [
+            Structure::List(ListKey::Key),
+            Structure::ListItem,
+            Structure::Body,
+            Structure::Paragraph,
+        ] {
+            let wrapped = semantic(Semantics::Structure(structure), vec![dot()]);
+            assert_eq!(one(&wrapped, target), bare);
+        }
+        let moved = Node::Group(
+            Group::new(at(3.0, 4.0), vec![dot()]).with(Semantics::Structure(Structure::Table)),
+        );
+        assert_eq!(
+            first_line(&one(&moved, target)),
+            "<g transform=\"translate(3 4)\">"
+        );
+        let plain = one(&semantic(Semantics::None, vec![dot()]), target);
+        assert_eq!(
+            one(&semantic(Semantics::Pagination, vec![dot()]), target),
+            plain
+        );
     }
 }
 

@@ -159,6 +159,7 @@ fn nothing_plotted() -> Part {
         height: height_of(1),
         ruled: true,
         spanning: true,
+        later: false,
     }
 }
 
