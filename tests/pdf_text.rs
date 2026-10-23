@@ -87,23 +87,27 @@ fn names(catalogue: &Catalogue) -> (Vec<String>, Vec<String>) {
 }
 
 /// SC-30: every item name intact, in legend order; every sector and
-/// ring present.
+/// ring present. A name is matched whole, between spaces, so `Kafka`
+/// cannot be found inside `Kafka Streams`.
 #[test]
 fn the_pdf_reads_back_as_its_names() {
     let fonts = Fonts::embedded().expect("fonts");
     for (name, csv, title) in CASES {
         let catalogue = catalogue::catalogue(csv, None);
-        let text = extracted(&pdf_of(&catalogue, title, &fonts));
+        let text = format!(" {} ", extracted(&pdf_of(&catalogue, title, &fonts)));
         let (items, labels) = names(&catalogue);
         let mut from = 0;
         for item in &items {
+            let whole = format!(" {item} ");
             let at = text
                 .get(from..)
-                .and_then(|rest| rest.find(item.as_str()))
+                .and_then(|rest| rest.find(whole.as_str()))
                 .unwrap_or_else(|| {
-                    panic!("{name}: item '{item}' not found intact after offset {from} in: {text}")
+                    panic!("{name}: item '{item}' not found whole after offset {from} in: {text}")
                 });
-            from += at + item.len();
+            // Past the name, not its trailing space: the next name's
+            // leading space is this one's trailing space.
+            from += at + whole.len() - 1;
         }
         for label in &labels {
             assert!(
@@ -117,15 +121,33 @@ fn the_pdf_reads_back_as_its_names() {
     }
 }
 
+/// Every printable ASCII character, in words of eight so the legend
+/// wraps between words rather than inside one: the backslash and both
+/// parentheses, which a CID string escapes, among them.
+fn printable_ascii() -> String {
+    let chars: Vec<char> = ('!'..='~').collect();
+    chars
+        .chunks(8)
+        .map(|word| word.iter().collect::<String>())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// A multi-word name and a letter-spaced heading read back as words
-/// (Review Focus 4), and a name Inter lacks adds nothing but does not
-/// break the names around it (Review Focus 2).
+/// (Review Focus 4), a name of every printable ASCII character reads back
+/// intact, and a name Inter lacks adds nothing but does not break the
+/// names around it (Review Focus 2).
 #[test]
 fn awkward_names_read_back() {
     let fonts = Fonts::embedded().expect("fonts");
-    let csv = "name,sector,ring,description\nApache Kafka Streams,Tools,Adopt,d\nOffice fittings,Tools,Adopt,d\n東京,Tools,Trial,d\nAVATAR,Tools,Trial,d\nCafé Zürich,Tools,Adopt,d\nÅngström,Tools,Adopt,d\nNaïve façade,Tools,Adopt,d\n";
-    let catalogue = catalogue::catalogue(csv, None);
+    let ascii = printable_ascii();
+    let csv = format!(
+        "name,sector,ring,description\nApache Kafka Streams,Tools,Adopt,d\nOffice fittings,Tools,Adopt,d\n東京,Tools,Trial,d\nAVATAR,Tools,Trial,d\nCafé Zürich,Tools,Adopt,d\nÅngström,Tools,Adopt,d\nNaïve façade,Tools,Adopt,d\n\"{}\",Tools,Assess,d\n",
+        ascii.replace('"', "\"\"")
+    );
+    let catalogue = catalogue::catalogue(&csv, None);
     let text = extracted(&pdf_of(&catalogue, None, &fonts));
+    assert!(text.contains(&ascii), "'{ascii}' in: {text}");
     for want in [
         "Apache Kafka Streams",
         "Office fittings",
