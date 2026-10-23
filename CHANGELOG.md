@@ -1,8 +1,18 @@
+## [1.22.1] - 2026-10-23
+
+### 🐛 Bug Fixes
+
+- *(pdf)* Table polish from the PR 21b final review (rg-p82)
+- *(text)* Move a whole cluster down to keep punctuation company
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Close rg-p82
 ## [1.22.0] - 2026-10-23
 
 ### 🚀 Features
 
-- *(pdf)* Stack the ring under the sector and fold the domain (FR-112)
+- *(pdf)* Stack the ring under the sector and fold the domain (1.22.0) (#147)
 ## [1.21.1] - 2026-10-23
 
 ### 🐛 Bug Fixes
