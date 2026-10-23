@@ -2,6 +2,7 @@
 //! columns as a muted line under the name, and a row taller than a page
 //! split into parts of whole lines.
 
+use crate::columns::ColumnKind;
 use crate::layout::title::cut;
 use crate::model::NOT_ON_THE_RADAR;
 use crate::published::{Cell, CellKind, Published, PublishedRow};
@@ -69,6 +70,9 @@ pub(super) struct Part {
     /// the unplotted flag, a later part's *(continued)*, and
     /// [`CONTINUES`] on every part but a split row's last.
     pub(super) under: Vec<Lines>,
+    /// A muted run under another cell, by its index among the cells: the
+    /// ring under the sector, on a row's first part.
+    pub(super) beneath: Option<(usize, Lines)>,
     /// Its height, `2 · TABLE_PAD_Y + n · TABLE_LEADING`.
     pub(super) height: f64,
     /// Whether a rule closes it: every part but a split row's earlier ones.
@@ -93,14 +97,19 @@ fn lines_within(room: f64) -> usize {
         .unwrap_or(MOST_LINES)
 }
 
-/// The folded columns' values for `row`, as one line's text: qualifier
-/// and status as written, each date after its heading, joined by ` · `.
-fn meta(published: &Published<'_>, row: &PublishedRow<'_>) -> String {
-    published
+/// The folded columns' values for `row`, as one line's text: the domain
+/// first, then qualifier and status as written and each date after its
+/// heading, joined by ` · `.
+pub(super) fn meta(published: &Published<'_>, row: &PublishedRow<'_>) -> String {
+    let mut folded: Vec<_> = published
         .columns
         .iter()
         .zip(&row.cells)
         .filter(|(column, _)| folded(column.column))
+        .collect();
+    folded.sort_by_key(|(column, _)| column.column != ColumnKind::Domain);
+    folded
+        .into_iter()
         .filter_map(|(column, cell)| {
             let text = cell.paragraphs().join(" ");
             let text = crate::trim(&text).to_owned();
@@ -108,7 +117,7 @@ fn meta(published: &Published<'_>, row: &PublishedRow<'_>) -> String {
                 return None;
             }
             Some(match column.column {
-                crate::columns::ColumnKind::LastAffirmed | crate::columns::ColumnKind::ExitDate => {
+                ColumnKind::LastAffirmed | ColumnKind::ExitDate => {
                     format!("{} {text}", column.heading)
                 }
                 _ => text,
@@ -123,6 +132,7 @@ fn meta(published: &Published<'_>, row: &PublishedRow<'_>) -> String {
 pub(super) struct Full {
     pub(super) cells: Vec<Lines>,
     pub(super) under: Vec<Lines>,
+    pub(super) beneath: Option<(usize, Lines)>,
     /// The name column's index among the drawn cells.
     pub(super) name: Option<usize>,
     /// The name column's text width, which the marks under it wrap to.
@@ -160,21 +170,39 @@ pub(super) fn full(
     .into_iter()
     .flatten()
     .collect();
+    let beneath = drawn.enumerate().find_map(|(i, column)| {
+        let cell = row.cells.get(column.beneath?)?;
+        let lines = Lines::wrapped(TABLE_TEXT, &cell.paragraphs(), column.width - PADS_X, fonts);
+        Some((i, lines))
+    });
     Full {
         cells,
         under,
+        beneath,
         name,
         width,
     }
 }
 
-/// How many lines a part's tallest cell holds.
-fn tallest(cells: &[Lines], name: Option<usize>, under: &[Lines]) -> usize {
+/// How many lines a part's tallest cell holds, the runs under the name
+/// and under any other cell counted with it.
+fn tallest(
+    cells: &[Lines],
+    (name, under): (Option<usize>, &[Lines]),
+    beneath: Option<&(usize, Lines)>,
+) -> usize {
     let below: usize = under.iter().map(|u| u.lines.len()).sum();
+    let below = |c: usize| {
+        let named = if Some(c) == name { below } else { 0 };
+        named
+            + beneath
+                .filter(|(b, _)| *b == c)
+                .map_or(0, |(_, l)| l.lines.len())
+    };
     cells
         .iter()
         .enumerate()
-        .map(|(c, cell)| cell.lines.len() + if Some(c) == name { below } else { 0 })
+        .map(|(c, cell)| cell.lines.len() + below(c))
         .max()
         .unwrap_or(1)
         .max(1)
@@ -197,21 +225,24 @@ pub(super) fn parts(
     let Full {
         cells,
         under,
+        beneath,
         name,
         width,
     } = full;
-    let part = |cells: Vec<Lines>, under: Vec<Lines>, ruled: bool| Part {
-        row: index,
-        number: row.number,
-        sector: row.sector.to_owned(),
-        height: height_of(tallest(&cells, name, &under)),
-        cells,
-        under,
-        ruled,
-        spanning: false,
-    };
-    if height_of(tallest(&cells, name, &under)) <= room {
-        return vec![part(cells, under, true)];
+    let part =
+        |cells: Vec<Lines>, under: Vec<Lines>, beneath: Option<(usize, Lines)>, ruled: bool| Part {
+            row: index,
+            number: row.number,
+            sector: row.sector.to_owned(),
+            height: height_of(tallest(&cells, (name, &under), beneath.as_ref())),
+            cells,
+            under,
+            beneath,
+            ruled,
+            spanning: false,
+        };
+    if height_of(tallest(&cells, (name, &under), beneath.as_ref())) <= room {
+        return vec![part(cells, under, beneath, true)];
     }
     let most = lines_within(room);
     let name_lines = name
@@ -247,7 +278,8 @@ pub(super) fn parts(
             vec![Lines::of(vec![CONTINUED_MARK.to_owned()])]
         };
         below.extend(mark(!last));
-        out.push(part(drawn, below, last));
+        let beneath = if first { beneath.clone() } else { None };
+        out.push(part(drawn, below, beneath, last));
         if last {
             return out;
         }

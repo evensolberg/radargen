@@ -1,8 +1,17 @@
+## [1.22.0] - 2026-10-23
+
+### 🚀 Features
+
+- *(pdf)* Stack the ring under the sector and fold the domain (FR-112)
 ## [1.21.1] - 2026-10-23
 
 ### 🐛 Bug Fixes
 
 - *(paper)* Continue the legend where page 1's legend sits (FR-111)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.21.1
 ## [1.21.0] - 2026-10-23
 
 ### 🚀 Features

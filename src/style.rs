@@ -267,6 +267,12 @@ pub const TABLE_HEADING_TO_HEAD: f64 = 10.0;
 /// The widest a label column grows, padding included: about 20
 /// characters of name at 9 pt.
 pub const TABLE_LABEL_CAP: f64 = 168.0;
+/// The widest the name column grows, padding included.
+///
+/// Wider than the other labels, since the folded line under the name wraps
+/// in it (the maintainer, 2026-10-23); it comes down with
+/// [`TABLE_LABEL_CAP`], to the same floor.
+pub const TABLE_NAME_CAP: f64 = 240.0;
 /// The narrowest a label column's cap comes down to before the table is
 /// cramped.
 pub const TABLE_LABEL_FLOOR: f64 = 72.0;

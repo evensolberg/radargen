@@ -398,7 +398,7 @@ fn a_cramped_table_warns_and_writes() {
             "all",
         ],
     );
-    let cramped = "warning: --pdf full: the table has 14 columns, so its prose columns are narrower than about 21 characters";
+    let cramped = "warning: --pdf full: the table has 13 columns, so its prose columns are narrower than about 21 characters";
     assert_eq!(
         count(
             &flag,

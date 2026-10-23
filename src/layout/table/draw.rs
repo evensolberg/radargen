@@ -141,7 +141,12 @@ impl TableBlock {
                 Lines::of_text(&number),
             )]));
         }
-        for (lines, column) in part.cells.iter().zip(self.columns.iter().skip(1)) {
+        for (c, (lines, column)) in part
+            .cells
+            .iter()
+            .zip(self.columns.iter().skip(1))
+            .enumerate()
+        {
             let kind = column.kind.unwrap_or(CellKind::Label);
             let (x, anchor) = column_text_x(column, left);
             let mut texts = vec![run(
@@ -149,6 +154,13 @@ impl TableBlock {
                 (style_of(kind), Neutral::TextPrimary, anchor),
                 lines.clone(),
             )];
+            if let Some((_, ring)) = part.beneath.as_ref().filter(|(b, _)| *b == c) {
+                texts.push(run(
+                    at(x, lines.lines.len()),
+                    (TABLE_TEXT, Neutral::TextMuted, Anchor::Start),
+                    ring.clone(),
+                ));
+            }
             if kind == CellKind::Name {
                 let mut line = lines.lines.len();
                 for under in &part.under {

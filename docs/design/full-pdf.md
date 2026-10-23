@@ -9,7 +9,7 @@ created_date: 2026-10-22
 synopsis: "--pdf full writes a landscape Letter or A4 PDF: the radar, key and legend first, then the HTML page's table of items, paginated with a repeated header and rows never split. --paper puts the radar PDF on paper too. Both PDFs are tagged to PDF/UA-1 and checked by veraPDF."
 status: active
 type: Spec
-revision: "1.5"
+revision: "1.6"
 review_date:
 reviewed_by: []
 completed_date:
@@ -127,10 +127,12 @@ the heading the HTML page gives it: *Items on the radar* under
 - **Body text is 9 pt** Inter, the embedded subset the radar PDF uses; the
   header row is the semibold weight. The HTML table's text is 9.75 pt
   (13 px); 8 pt is the floor for print.
-- **Cells wrap.** Short label columns (number, name, sector, ring,
-  qualifier, status, the dates) take the width their content needs, up to
-  a cap; the prose columns (`description`, `rationale`, `domain`, and any
-  extra column under `all`) share what is left. A long word or address
+- **Cells wrap.** Short label columns (number, name, and sector with the
+  ring muted under it) take the width their content needs, up to a cap,
+  the name's wider than the rest;
+  `domain`, qualifier, status and the dates fold into a muted line under
+  the name. The prose columns (`description`, `rationale`, and any extra
+  column under `all`) share what is left. A long word or address
   breaks where it must.
 - **The header row repeats** at the top of every table page.
 - **A row is never split.** One that does not fit in the space left moves
@@ -259,3 +261,4 @@ These are the builder's calls, to be made in the plan and noted there:
 | 1.3 | 2026-10-23 | The maintainer, for PR 21b: `--pdf radar|full` (renamed from `light`, which reads as a colour); flags displace a file's opposing `pdf` or `paper`; prose columns at least about 21 characters (first 27, lowered when the PRD example was cramped), shared by content; headings break at a space or after an underscore; later table pages headed with their sector and item numbers; a 2 px rule between sectors; page 1 names where the table starts; a page-tall row split at lines with both parts marked. The builder's (RG-021B): column caps, type, link as text |
 | 1.4 | 2026-10-23 | The full PDF (PR 21b) built: table pages after the legend's, prose columns at least 136 px, headings breaking only at spaces and underscores, later pages headed with sector and item numbers, a page-1 pointer, split rows marked on both parts. Table pages are checked against their PNGs under the legend pages' budget: faithful pages at most 697 ppm (worst 33) against 1,600 (44); damage measures 4,304 to 12,027 ppm |
 | 1.5 | 2026-10-23 | After the final review, the maintainer: qualifier, status and the dates fold into a muted line under the item's name in the PDF's table, so description and rationale get the width; the CSV's headers stay; `--paper none` over a file's `pdf = "full"` warns that the table is dropped; the edition reaches the footer through `--subtitle`, as a README tip. A label column never breaks a word; a heading is cut at three lines |
+| 1.6 | 2026-10-23 | The maintainer: the ring stacks muted under the sector in one column, and the domain folds first into the muted line under the name, which widens the name column up to its own cap, 240 px against the other labels' 168 |
