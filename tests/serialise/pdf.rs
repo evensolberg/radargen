@@ -14,6 +14,9 @@ use super::pdf_text::readable;
 use super::prd;
 use super::version::PLACEHOLDER;
 
+/// The PRD example's CSV.
+const PRD: &str = include_str!("../fixtures/three-sector.csv");
+
 /// The PRD example as a PDF in `theme`, its producer the placeholder
 /// (`pdf_export`'s), so a minor bump changes no byte.
 fn prd_pdf(theme: Theme) -> String {
@@ -89,19 +92,18 @@ fn prd_long_paper_a4_matches_its_golden() {
     golden("pdf", "prd-long-paper-a4.pdf.txt", &long_paper(Paper::A4));
 }
 
+/// `csv` on `paper` with `table`'s table, titled, in the light theme.
+fn on_paper(csv: &str, paper: Paper, table: Option<Table>) -> Vec<u8> {
+    let title = Some("Technology Radar");
+    let (pages, desc) = paper_pages(csv, title, None, paper, table);
+    paper_pdf(&pages, &desc, &Palette::built_in(Theme::Light), title)
+}
+
 /// The PRD example as a full PDF on Letter (FR-112, SC-33): the leading
 /// pages, then the table's.
 #[test]
 fn prd_full_pdf_matches_its_golden() {
-    let title = Some("Technology Radar");
-    let (pages, desc) = paper_pages(
-        include_str!("../fixtures/three-sector.csv"),
-        title,
-        None,
-        Paper::Letter,
-        Some(Table::Radar),
-    );
-    let pdf = paper_pdf(&pages, &desc, &Palette::built_in(Theme::Light), title);
+    let pdf = on_paper(PRD, Paper::Letter, Some(Table::Radar));
     golden("pdf", "prd-full.pdf.txt", &readable(&pdf));
 }
 
@@ -125,14 +127,38 @@ fn prd_legend_after_page_one_matches_its_golden() {
 /// rg-p82 (QA 9): the PRD example as a full PDF on A4.
 #[test]
 fn prd_full_a4_pdf_matches_its_golden() {
-    let title = Some("Technology Radar");
-    let (pages, desc) = paper_pages(
-        include_str!("../fixtures/three-sector.csv"),
-        title,
-        None,
-        Paper::A4,
-        Some(Table::Radar),
-    );
-    let pdf = paper_pdf(&pages, &desc, &Palette::built_in(Theme::Light), title);
+    let pdf = on_paper(PRD, Paper::A4, Some(Table::Radar));
     golden("pdf", "prd-full-a4.pdf.txt", &readable(&pdf));
+}
+
+/// `csv` on `paper` with `table`'s table, its structure tree as a golden
+/// a person can review in a diff (FR-114).
+fn tree_golden(name: &str, csv: &str, paper: Paper, table: Option<Table>) {
+    let pdf = on_paper(csv, paper, table);
+    golden(
+        "pdf",
+        &format!("{name}.tree.txt"),
+        &super::pdf_tree::tree_outline(&pdf),
+    );
+}
+
+#[test]
+fn the_full_pdfs_tree_matches_its_golden() {
+    tree_golden("prd-full", PRD, Paper::Letter, Some(Table::Radar));
+}
+
+#[test]
+fn the_long_legends_tree_matches_its_golden() {
+    tree_golden("prd-long-paper-a4", &long_csv(), Paper::A4, None);
+}
+
+/// A row split across pages: one `TR`, its cells on two pages.
+#[test]
+fn a_split_rows_tree_matches_its_golden() {
+    let words: Vec<String> = (0..3_000).map(|i| format!("w{i}")).collect();
+    let csv = format!(
+        "name,sector,ring,description\nAlpha,Tools,Adopt,d\nBeta,Tools,Adopt,{}\nGamma,Tools,Trial,d\n",
+        words.join(" ")
+    );
+    tree_golden("split-row", &csv, Paper::Letter, Some(Table::Radar));
 }

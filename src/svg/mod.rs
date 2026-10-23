@@ -200,7 +200,7 @@ pub enum Structure {
 }
 
 /// Which list a [`Structure::List`] group belongs to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ListKey {
     /// The key's entries (FR-66).
     Key,

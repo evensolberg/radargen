@@ -766,3 +766,40 @@ fn a_split_row_repeats_only_as_furniture() {
             .expect("a number")
     ));
 }
+
+/// 21c-2 review: a part of a split row reads its lines as the cell's words
+/// do, so a token broken mid-word inside a part stays one word (D-88).
+#[test]
+fn a_parts_words_keep_a_broken_token_whole() {
+    let token = "x".repeat(300);
+    let words: Vec<String> = (0..1_500).map(|i| format!("w{i}")).collect();
+    let csv = format!(
+        "name,sector,ring,description\nBeta,Tools,Adopt,{} {token} {}\n",
+        words.join(" "),
+        words.join(" ")
+    );
+    let block = block(&csv, Table::Radar);
+    let parts: Vec<&Part> = block.parts.iter().collect();
+    assert!(parts.len() >= 2);
+    let holding = parts
+        .iter()
+        .filter_map(|p| p.cells.get(2))
+        .find(|cell| cell.lines.iter().any(|l| l.starts_with("xx")))
+        .expect("a part holds the token");
+    assert!(
+        holding.words.split(' ').any(|w| w.len() >= token.len() / 2),
+        "the token stays whole: {:?}",
+        holding
+            .words
+            .split(' ')
+            .filter(|w| w.starts_with('x'))
+            .collect::<Vec<_>>()
+    );
+    // Every part's words, rejoined, are the cell's.
+    let all: Vec<&str> = parts
+        .iter()
+        .filter_map(|p| p.cells.get(2))
+        .map(|c| c.words.as_str())
+        .collect();
+    assert!(all.concat().contains(&token));
+}

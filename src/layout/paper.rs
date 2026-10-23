@@ -438,7 +438,11 @@ pub fn footed(bodies: Bodies, sheets: &Sheets<'_>, fonts: &Fonts) -> Vec<Documen
         .enumerate()
         .map(|(i, mut children)| {
             if let Some(start) = table.filter(|_| i == 0) {
-                children.push(pointer(start + 1, height));
+                // Drawn in the foot room, read straight after the title
+                // and subtitle, before the radar (FR-114): a tagged PDF
+                // reads in document order.
+                let at = after_title(&children);
+                children.insert(at, pointer(start + 1, height));
             }
             children.push(footer(sheets, i + 1, count, fonts));
             Document {
@@ -448,6 +452,21 @@ pub fn footed(bodies: Bodies, sheets: &Sheets<'_>, fonts: &Fonts) -> Vec<Documen
             }
         })
         .collect()
+}
+
+/// Where page 1's title block ends among its `children`: just after the
+/// child holding the level-1 heading, or the start when there is none.
+fn after_title(children: &[Node]) -> usize {
+    fn holds(node: &Node) -> bool {
+        match node {
+            Node::Group(group) => {
+                matches!(group.semantics, Semantics::Heading(level) if level.get() == 1)
+                    || group.children.iter().any(holds)
+            }
+            _ => false,
+        }
+    }
+    children.iter().position(holds).map_or(0, |i| i + 1)
 }
 
 /// Page 1's line naming `page`, where the table starts (FR-112): in the
@@ -675,6 +694,12 @@ mod tests {
             .iter()
             .find(|node| texts(node) == [pointer(p)])
             .expect("the pointer");
+        // Read straight after the title block, before the radar (FR-114).
+        let at = children(page_one)
+            .iter()
+            .position(|node| texts(node) == [pointer(p)]);
+        assert_eq!(at, Some(after_title(children(page_one))));
+        assert!(at.is_some_and(|i| i > 0), "a title comes first");
         // A paragraph to a tagged PDF, and every footer furniture (PR 21c-1).
         assert!(matches!(
             node,

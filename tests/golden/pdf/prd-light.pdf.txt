@@ -1,17 +1,6 @@
 %PDF-1.7
 %\x80\x80\x80\x80
 
-1 0 obj
-<<
-  /Type /Catalog
-  /Pages 2 0 R
-  /Lang (en)
-  /ViewerPreferences <<
-    /DisplayDocTitle true
-  >>
->>
-endobj
-
 2 0 obj
 <<
   /Type /Pages
@@ -278,6 +267,8 @@ endobj
   /Parent 2 0 R
   /MediaBox [0 0 769 618]
   /Contents 5 0 R
+  /StructParents 0
+  /Tabs /S
   /Resources <<
     /Font <<
       /F0 6 0 R
@@ -289,10 +280,11 @@ endobj
 
 5 0 obj
 <<
-  /Length 32987
+  /Length 35711
 >>
 stream
 q
+/Artifact BMC
 1 1 1 rg
 0 0 m
 769 0 l
@@ -300,12 +292,16 @@ q
 0 618 l
 h
 f
+EMC
 0.75 0 0 -0.75 0 618 cm
 4 M
 q
 q
 1 0 0 1 20 10 cm
 q
+/H1 <<
+  /MCID 0
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -315,12 +311,16 @@ BT
 [(\000\006) 78.125 (\000\n\000\b\000\r\000\021\000\022\000\017\000\022\000\f\000\026\000\035\000\005) 4.883 (\000\007\000\t\000\007\000\024)] TJ
 ET
 Q
+EMC
 Q
 Q
 q
 1 0 0 1 10 46 cm
 q
 1 0 0 1 330 330 cm
+/Figure <<
+  /MCID 1
+>> BDC
 0.494 0.522 0.561 RG
 1 w
 260 0 m
@@ -330,6 +330,10 @@ q
 143.594 -260 260 -143.594 260 0 c
 h
 S
+EMC
+/Figure <<
+  /MCID 2
+>> BDC
 0.494 0.522 0.561 RG
 1 w
 195 0 m
@@ -339,6 +343,10 @@ S
 107.696 -195 195 -107.696 195 0 c
 h
 S
+EMC
+/Figure <<
+  /MCID 3
+>> BDC
 0.494 0.522 0.561 RG
 1 w
 130 0 m
@@ -348,6 +356,10 @@ S
 71.797 -130 130 -71.797 130 0 c
 h
 S
+EMC
+/Figure <<
+  /MCID 4
+>> BDC
 0.494 0.522 0.561 RG
 1 w
 65 0 m
@@ -357,21 +369,37 @@ S
 35.899 -65 65 -35.899 65 0 c
 h
 S
+EMC
+/Figure <<
+  /MCID 5
+>> BDC
 0.518 0.545 0.588 RG
 1 w
 0 0 m
 0 -262 l
 S
+EMC
+/Figure <<
+  /MCID 6
+>> BDC
 0.518 0.545 0.588 RG
 1 w
 0 0 m
 226.899 131 l
 S
+EMC
+/Figure <<
+  /MCID 7
+>> BDC
 0.518 0.545 0.588 RG
 1 w
 0 0 m
 -226.899 131 l
 S
+EMC
+/Figure <<
+  /MCID 8
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -381,6 +409,10 @@ BT
 [(\000\004) -40 (\000\017) -40 (\000\007) -40 (\000\025) -10.215 (\000\013) -16.074 (\000\022) -40 (\000\024) -49.765 (\000\020)] TJ
 ET
 Q
+EMC
+/Figure <<
+  /MCID 9
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -390,6 +422,10 @@ BT
 [(\000\004) -40 (\000\024) -30.722 (\000\007) -40 (\000\b) -40 (\000\025) -40 (\000\016) -40 (\000\b) -40 (\000\n)] TJ
 ET
 Q
+EMC
+/Figure <<
+  /MCID 10
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -399,6 +435,8 @@ BT
 [(\000\006) 38.125 (\000\022) -40 (\000\022) -40 (\000\017)] TJ
 ET
 Q
+EMC
+/Artifact BMC
 q
 1 1 1 RG
 3 w
@@ -571,6 +609,8 @@ h
 h
 S
 Q
+EMC
+/Artifact BMC
 q
 1 1 1 RG
 3 w
@@ -669,6 +709,8 @@ h
 h
 S
 Q
+EMC
+/Artifact BMC
 q
 1 1 1 RG
 3 w
@@ -806,6 +848,8 @@ h
 h
 S
 Q
+EMC
+/Artifact BMC
 q
 1 1 1 RG
 3 w
@@ -945,6 +989,10 @@ h
 h
 S
 Q
+EMC
+/Figure <<
+  /MCID 11
+>> BDC
 q
 0.345 0.373 0.42 rg
 BT
@@ -954,6 +1002,10 @@ BT
 [(\000\001\000\035\000\035\000\020\000\035\000\035)] TJ
 ET
 Q
+EMC
+/Figure <<
+  /MCID 12
+>> BDC
 q
 0.345 0.373 0.42 rg
 BT
@@ -963,6 +1015,10 @@ BT
 [(\000\013) 56.641 (\000\034) -9.765 (\000\024\000\f\000\026)] TJ
 ET
 Q
+EMC
+/Figure <<
+  /MCID 13
+>> BDC
 q
 0.345 0.373 0.42 rg
 BT
@@ -972,6 +1028,10 @@ BT
 [(\000\001\000\017\000\031\000\032\000\036)] TJ
 ET
 Q
+EMC
+/Figure <<
+  /MCID 14
+>> BDC
 q
 0.345 0.373 0.42 rg
 BT
@@ -981,7 +1041,11 @@ BT
 [(\000\n) 14.649 (\000\020\000\036\000\024\000\034) 16.602 (\000\020)] TJ
 ET
 Q
+EMC
 q
+/Figure <<
+  /MCID 15
+>> BDC
 0 0.447 0.698 rg
 1 1 1 RG
 2 w
@@ -992,6 +1056,10 @@ q
 83.205 -54.85 87.682 -50.373 87.682 -44.85 c
 h
 B
+EMC
+/Figure <<
+  /MCID 16
+>> BDC
 q
 1 1 1 rg
 BT
@@ -1001,8 +1069,12 @@ BT
 [(\000\027)] TJ
 ET
 Q
+EMC
 Q
 q
+/Figure <<
+  /MCID 17
+>> BDC
 0.761 0.329 0 rg
 1 1 1 RG
 2 w
@@ -1013,6 +1085,10 @@ q
 5.523 79.7 10 84.177 10 89.7 c
 h
 B
+EMC
+/Figure <<
+  /MCID 18
+>> BDC
 q
 1 1 1 rg
 BT
@@ -1022,14 +1098,22 @@ BT
 [(\000\030)] TJ
 ET
 Q
+EMC
 Q
 q
+/Figure <<
+  /MCID 19
+>> BDC
 0 0.522 0.478 RG
 2 w
 -126.974 -89.474 m
 -120.278 -85.608 -117.984 -77.046 -121.85 -70.35 c
 -125.716 -63.654 -134.278 -61.36 -140.974 -65.226 c
 S
+EMC
+/Figure <<
+  /MCID 20
+>> BDC
 0 0.522 0.478 rg
 1 1 1 RG
 2 w
@@ -1040,6 +1124,10 @@ S
 -128.451 -87.35 -123.974 -82.873 -123.974 -77.35 c
 h
 B
+EMC
+/Figure <<
+  /MCID 21
+>> BDC
 q
 1 1 1 rg
 BT
@@ -1049,8 +1137,12 @@ BT
 [(\000\031)] TJ
 ET
 Q
+EMC
 Q
 q
+/Figure <<
+  /MCID 22
+>> BDC
 0 0.522 0.478 RG
 2 w
 -73.33 -20.483 m
@@ -1060,6 +1152,10 @@ q
 -79.598 -34.483 -73.33 -28.215 -73.33 -20.483 c
 h
 S
+EMC
+/Figure <<
+  /MCID 23
+>> BDC
 1 1 1 rg
 0 0.522 0.478 RG
 3 w
@@ -1070,6 +1166,10 @@ S
 -81.807 -30.483 -77.33 -26.006 -77.33 -20.483 c
 h
 B
+EMC
+/Figure <<
+  /MCID 24
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -1079,8 +1179,12 @@ BT
 [(\000\032)] TJ
 ET
 Q
+EMC
 Q
 q
+/Figure <<
+  /MCID 25
+>> BDC
 0 0.522 0.478 rg
 1 1 1 RG
 2 w
@@ -1091,6 +1195,10 @@ q
 -69.23 -89.603 -64.753 -85.126 -64.753 -79.603 c
 h
 B
+EMC
+/Figure <<
+  /MCID 26
+>> BDC
 q
 1 1 1 rg
 BT
@@ -1100,8 +1208,12 @@ BT
 [(\000\033)] TJ
 ET
 Q
+EMC
 Q
 q
+/Figure <<
+  /MCID 27
+>> BDC
 0 0.522 0.478 rg
 1 1 1 RG
 2 w
@@ -1112,6 +1224,10 @@ q
 -15.868 -22.35 -11.391 -17.873 -11.391 -12.35 c
 h
 B
+EMC
+/Figure <<
+  /MCID 28
+>> BDC
 q
 1 1 1 rg
 BT
@@ -1121,9 +1237,13 @@ BT
 [(\000\034)] TJ
 ET
 Q
+EMC
 Q
 Q
 Q
+/Artifact <<
+  /Type /Layout
+>> BDC
 q
 0.518 0.545 0.588 RG
 1 w
@@ -1131,9 +1251,13 @@ q
 660 706 l
 S
 Q
+EMC
 q
 1 0 0 1 20 706 cm
 q
+/H2 <<
+  /MCID 29
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -1143,9 +1267,13 @@ BT
 [(\000\002) 39.551 (\000\n) 18.555 (\000\026)] TJ
 ET
 Q
+EMC
 Q
 q
 q
+/Artifact <<
+  /Type /Layout
+>> BDC
 q
 0.345 0.373 0.42 rg
 1 1 1 RG
@@ -1158,7 +1286,11 @@ q
 h
 B
 Q
+EMC
 q
+/LBody <<
+  /MCID 30
+>> BDC
 q
 0.345 0.373 0.42 rg
 BT
@@ -1168,9 +1300,13 @@ BT
 [(\000\004\000\020\000\021) 15.625 (\000\f\000\037\000\026) -14.648 (\000\036\000$\000&\000\031\000\034\000&\000\030\000\031\000&\000\033\000\037\000\f\000\026\000\024\000\021\000\024\000\020\000\034\000&\000#\000&\000\035\000\031\000\026\000\024\000\017\000&\000\027\000\f\000\034) -15.625 (\000\025) 22.461 (\000\020\000\034)] TJ
 ET
 Q
+EMC
 Q
 Q
 q
+/Artifact <<
+  /Type /Layout
+>> BDC
 q
 1 1 1 rg
 0.345 0.373 0.42 RG
@@ -1183,7 +1319,11 @@ q
 h
 B
 Q
+EMC
 q
+/LBody <<
+  /MCID 31
+>> BDC
 q
 0.345 0.373 0.42 rg
 BT
@@ -1193,9 +1333,13 @@ BT
 [(\000\003\000\031\000\030\000\017\000\024\000\036\000\024\000\031\000\030\000\f\000\026\000&\000#\000&\000\023\000\031\000\026\000\026\000\031) 18.066 (\000!\000&\000\027\000\f\000\034) -15.625 (\000\025) 22.461 (\000\020\000\034)] TJ
 ET
 Q
+EMC
 Q
 Q
 q
+/Artifact <<
+  /Type /Layout
+>> BDC
 q
 0.345 0.373 0.42 RG
 2 w
@@ -1217,7 +1361,11 @@ S
 h
 B
 Q
+EMC
 q
+/LBody <<
+  /MCID 32
+>> BDC
 q
 0.345 0.373 0.42 rg
 BT
@@ -1227,9 +1375,13 @@ BT
 [(\000\b\000\020) 18.067 (\000!\000&\000\036\000\023\000\024\000\035\000&\000\020\000\017\000\024\000\036\000\024\000\031\000\030\000&\000#\000&\000\021\000\037\000\026\000\026\000&\000\034) -9.765 (\000\024\000\030\000\022)] TJ
 ET
 Q
+EMC
 Q
 Q
 q
+/Artifact <<
+  /Type /Layout
+>> BDC
 q
 0.345 0.373 0.42 RG
 2 w
@@ -1248,7 +1400,11 @@ S
 h
 B
 Q
+EMC
 q
+/LBody <<
+  /MCID 33
+>> BDC
 q
 0.345 0.373 0.42 rg
 BT
@@ -1258,9 +1414,13 @@ BT
 [(\000\007\000\031) 19.531 (\000 ) 19.532 (\000\020\000\017\000&\000\024\000\030\000&\000#\000&\000\023\000\f\000\026\000\021) 28.32 (\000"\000\034) -9.765 (\000\024\000\030\000\022\000&\000\021) 15.625 (\000\f\000\016\000\024\000\030\000\022\000&\000\036\000\023\000\020\000&\000\016\000\020\000\030\000\036\000\034) 16.602 (\000\020)] TJ
 ET
 Q
+EMC
 Q
 Q
 q
+/Artifact <<
+  /Type /Layout
+>> BDC
 q
 0.345 0.373 0.42 RG
 2 w
@@ -1279,7 +1439,11 @@ S
 h
 B
 Q
+EMC
 q
+/LBody <<
+  /MCID 34
+>> BDC
 q
 0.345 0.373 0.42 rg
 BT
@@ -1289,12 +1453,14 @@ BT
 [(\000\007\000\031) 19.531 (\000 ) 19.532 (\000\020\000\017\000&\000\031\000\037\000\036\000&\000#\000&\000\023\000\f\000\026\000\021) 28.32 (\000"\000\034) -9.765 (\000\024\000\030\000\022\000&\000\021) 15.625 (\000\f\000\016\000\024\000\030\000\022\000&\000\036\000\023\000\020\000&\000\031\000\037\000\036) 9.765 (\000\020\000\034\000&\000\020\000\017\000\022\000\020)] TJ
 ET
 Q
+EMC
 Q
 Q
 Q
 Q
 q
 1 0 0 1 676 52 cm
+/Artifact BMC
 0.957 0.961 0.969 rg
 8 0 m
 333.077 0 l
@@ -1307,9 +1473,13 @@ q
 0 3.582 3.582 0 8 0 c
 h
 f
+EMC
 q
 1 0 0 1 12 8 cm
 q
+/H2 <<
+  /MCID 35
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -1319,7 +1489,11 @@ BT
 [(\000\003\000\n\000\f\000\n\000\021\000\t)] TJ
 ET
 Q
+EMC
 Q
+/Artifact <<
+  /Type /Layout
+>> BDC
 q
 0 0.447 0.698 rg
 10 32 m
@@ -1330,7 +1504,11 @@ q
 h
 f
 Q
+EMC
 q
+/H3 <<
+  /MCID 36
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -1340,8 +1518,12 @@ BT
 [(\000\004) -30 (\000\017) -30 (\000\007) -30 (\000\025) -0.215 (\000\013) -6.074 (\000\022) -30 (\000\024) -39.765 (\000\020)] TJ
 ET
 Q
+EMC
 Q
 q
+/H4 <<
+  /MCID 37
+>> BDC
 q
 0.345 0.373 0.42 rg
 BT
@@ -1351,9 +1533,11 @@ BT
 [(\000\001) -14.863 (\000\t) -30 (\000\022) -30 (\000\023) -30 (\000\025)] TJ
 ET
 Q
+EMC
 Q
 q
 q
+/Artifact BMC
 0.957 0.961 0.969 rg
 44 58 m
 315.077 58 l
@@ -1366,6 +1550,8 @@ q
 38 60.686 40.686 58 44 58 c
 h
 f
+EMC
+/Artifact BMC
 0 0.447 0.698 rg
 0 0.447 0.698 RG
 1.5 w
@@ -1376,7 +1562,11 @@ f
 56.418 68 60 71.582 60 76 c
 h
 B
+EMC
 q
+/Lbl <<
+  /MCID 38
+>> BDC
 q
 1 1 1 rg
 BT
@@ -1386,8 +1576,13 @@ BT
 [(\000\027)] TJ
 ET
 Q
+EMC
 Q
 q
+/LBody <<
+  /MCID 39
+  /ActualText (Kubernetes, Default)
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -1404,9 +1599,13 @@ BT
 [(\000'\000\004\000\020\000\021) 15.625 (\000\f\000\037\000\026) -14.648 (\000\036)] TJ
 ET
 Q
+EMC
 Q
 Q
 Q
+/Artifact <<
+  /Type /Layout
+>> BDC
 q
 0.761 0.329 0 rg
 10 110 m
@@ -1417,7 +1616,11 @@ q
 h
 f
 Q
+EMC
 q
+/H3 <<
+  /MCID 40
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -1427,8 +1630,12 @@ BT
 [(\000\004) -30 (\000\024) -20.722 (\000\007) -30 (\000\b) -30 (\000\025) -30 (\000\016) -30 (\000\b) -30 (\000\n)] TJ
 ET
 Q
+EMC
 Q
 q
+/H4 <<
+  /MCID 41
+>> BDC
 q
 0.345 0.373 0.42 rg
 BT
@@ -1438,9 +1645,11 @@ BT
 [(\000\001) -14.863 (\000\t) -30 (\000\022) -30 (\000\023) -30 (\000\025)] TJ
 ET
 Q
+EMC
 Q
 q
 q
+/Artifact BMC
 0.957 0.961 0.969 rg
 44 136 m
 315.077 136 l
@@ -1453,6 +1662,8 @@ q
 38 138.686 40.686 136 44 136 c
 h
 f
+EMC
+/Artifact BMC
 0.761 0.329 0 rg
 0.761 0.329 0 RG
 1.5 w
@@ -1463,7 +1674,11 @@ f
 56.418 146 60 149.582 60 154 c
 h
 B
+EMC
 q
+/Lbl <<
+  /MCID 42
+>> BDC
 q
 1 1 1 rg
 BT
@@ -1473,8 +1688,13 @@ BT
 [(\000\030)] TJ
 ET
 Q
+EMC
 Q
 q
+/LBody <<
+  /MCID 43
+  /ActualText (Trunk-Based Development, Default)
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -1491,9 +1711,13 @@ BT
 [(\000'\000\004\000\020\000\021) 15.625 (\000\f\000\037\000\026) -14.648 (\000\036)] TJ
 ET
 Q
+EMC
 Q
 Q
 Q
+/Artifact <<
+  /Type /Layout
+>> BDC
 q
 0 0.522 0.478 rg
 10 188 m
@@ -1504,7 +1728,11 @@ q
 h
 f
 Q
+EMC
 q
+/H3 <<
+  /MCID 44
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -1514,8 +1742,12 @@ BT
 [(\000\006) 48.125 (\000\022) -30 (\000\022) -30 (\000\017)] TJ
 ET
 Q
+EMC
 Q
 q
+/H4 <<
+  /MCID 45
+>> BDC
 q
 0.345 0.373 0.42 rg
 BT
@@ -1525,9 +1757,11 @@ BT
 [(\000\006) 26.64 (\000\024) -36.347 (\000\016) -30 (\000\007) -30 (\000\017)] TJ
 ET
 Q
+EMC
 Q
 q
 q
+/Artifact BMC
 0.957 0.961 0.969 rg
 44 214 m
 315.077 214 l
@@ -1540,6 +1774,8 @@ q
 38 216.686 40.686 214 44 214 c
 h
 f
+EMC
+/Artifact BMC
 0 0.522 0.478 rg
 0 0.522 0.478 RG
 1.5 w
@@ -1550,7 +1786,11 @@ f
 56.418 224 60 227.582 60 232 c
 h
 B
+EMC
 q
+/Lbl <<
+  /MCID 46
+>> BDC
 q
 1 1 1 rg
 BT
@@ -1560,8 +1800,13 @@ BT
 [(\000\031)] TJ
 ET
 Q
+EMC
 Q
 q
+/LBody <<
+  /MCID 47
+  /ActualText (Ansible, Moved In)
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -1578,10 +1823,14 @@ BT
 [(\000'\000\007\000\031) 19.531 (\000 ) 19.532 (\000\020\000\017\000&\000\005\000\030)] TJ
 ET
 Q
+EMC
 Q
 Q
 Q
 q
+/H4 <<
+  /MCID 48
+>> BDC
 q
 0.345 0.373 0.42 rg
 BT
@@ -1591,9 +1840,11 @@ BT
 [(\000\001) -14.863 (\000\t) -30 (\000\022) -30 (\000\023) -30 (\000\025)] TJ
 ET
 Q
+EMC
 Q
 q
 q
+/Artifact BMC
 0.957 0.961 0.969 rg
 44 266 m
 315.077 266 l
@@ -1606,6 +1857,8 @@ q
 38 268.686 40.686 266 44 266 c
 h
 f
+EMC
+/Artifact BMC
 1 1 1 rg
 0 0.522 0.478 RG
 2 w
@@ -1616,7 +1869,11 @@ f
 56.418 276 60 279.582 60 284 c
 h
 B
+EMC
 q
+/Lbl <<
+  /MCID 49
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -1626,8 +1883,13 @@ BT
 [(\000\032)] TJ
 ET
 Q
+EMC
 Q
 q
+/LBody <<
+  /MCID 50
+  /ActualText <FEFF00500075006C0075006D0069002C00200043006F006E0064006900740069006F006E0061006C002000B70020004E00650077>
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -1644,9 +1906,11 @@ BT
 [(\000'\000\003\000\031\000\030\000\017\000\024\000\036\000\024\000\031\000\030\000\f\000\026\000&\000%\000&\000\b\000\020) 18.067 (\000!)] TJ
 ET
 Q
+EMC
 Q
 Q
 q
+/Artifact BMC
 0.957 0.961 0.969 rg
 44 302 m
 315.077 302 l
@@ -1659,6 +1923,8 @@ q
 38 304.686 40.686 302 44 302 c
 h
 f
+EMC
+/Artifact BMC
 0 0.522 0.478 rg
 0 0.522 0.478 RG
 1.5 w
@@ -1669,7 +1935,11 @@ f
 56.418 312 60 315.582 60 320 c
 h
 B
+EMC
 q
+/Lbl <<
+  /MCID 51
+>> BDC
 q
 1 1 1 rg
 BT
@@ -1679,8 +1949,13 @@ BT
 [(\000\033)] TJ
 ET
 Q
+EMC
 Q
 q
+/LBody <<
+  /MCID 52
+  /ActualText (Terraform, Default)
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -1697,10 +1972,14 @@ BT
 [(\000'\000\004\000\020\000\021) 15.625 (\000\f\000\037\000\026) -14.648 (\000\036)] TJ
 ET
 Q
+EMC
 Q
 Q
 Q
 q
+/H4 <<
+  /MCID 53
+>> BDC
 q
 0.345 0.373 0.42 rg
 BT
@@ -1710,9 +1989,11 @@ BT
 [(\000\005) -17.304 (\000\n) -30 (\000\025) -30 (\000\016) -30 (\000\024) -8.027 (\000\n)] TJ
 ET
 Q
+EMC
 Q
 q
 q
+/Artifact BMC
 0.957 0.961 0.969 rg
 44 354 m
 315.077 354 l
@@ -1725,6 +2006,8 @@ q
 38 356.686 40.686 354 44 354 c
 h
 f
+EMC
+/Artifact BMC
 0 0.522 0.478 rg
 0 0.522 0.478 RG
 1.5 w
@@ -1735,7 +2018,11 @@ f
 56.418 364 60 367.582 60 372 c
 h
 B
+EMC
 q
+/Lbl <<
+  /MCID 54
+>> BDC
 q
 1 1 1 rg
 BT
@@ -1745,8 +2032,12 @@ BT
 [(\000\034)] TJ
 ET
 Q
+EMC
 Q
 q
+/LBody <<
+  /MCID 55
+>> BDC
 q
 0.086 0.098 0.122 rg
 BT
@@ -1756,6 +2047,7 @@ BT
 [(\000\003\000\023\000\020\000\021)] TJ
 ET
 Q
+EMC
 Q
 Q
 Q
@@ -1764,6 +2056,510 @@ Q
 Q
 Q
 endstream
+endobj
+
+16 0 obj
+<<
+  /Type /StructTreeRoot
+  /K [18 0 R]
+  /ParentTree <<
+    /Nums [0 65 0 R]
+  >>
+  /ParentTreeNextKey 1
+>>
+endobj
+
+18 0 obj
+<<
+  /Type /StructElem
+  /S /Document
+  /P 16 0 R
+  /K [19 0 R 20 0 R 21 0 R 22 0 R 33 0 R 34 0 R 35 0 R 36 0 R 40 0 R 41 0 R 42 0 R 46 0 R 47 0 R 48 0 R 52 0 R 53 0 R 60 0 R 61 0 R]
+>>
+endobj
+
+19 0 obj
+<<
+  /Type /StructElem
+  /S /H1
+  /P 18 0 R
+  /Pg 4 0 R
+  /K [0]
+>>
+endobj
+
+20 0 obj
+<<
+  /Type /StructElem
+  /S /Figure
+  /P 18 0 R
+  /Pg 4 0 R
+  /Alt (Technology radar: 3 sectors, 4 rings, 6 items)
+  /K [1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28]
+>>
+endobj
+
+21 0 obj
+<<
+  /Type /StructElem
+  /S /H2
+  /P 18 0 R
+  /Pg 4 0 R
+  /K [29]
+>>
+endobj
+
+22 0 obj
+<<
+  /Type /StructElem
+  /S /L
+  /P 18 0 R
+  /K [23 0 R 25 0 R 27 0 R 29 0 R 31 0 R]
+>>
+endobj
+
+23 0 obj
+<<
+  /Type /StructElem
+  /S /LI
+  /P 22 0 R
+  /K [24 0 R]
+>>
+endobj
+
+24 0 obj
+<<
+  /Type /StructElem
+  /S /LBody
+  /P 23 0 R
+  /Pg 4 0 R
+  /K [30]
+>>
+endobj
+
+25 0 obj
+<<
+  /Type /StructElem
+  /S /LI
+  /P 22 0 R
+  /K [26 0 R]
+>>
+endobj
+
+26 0 obj
+<<
+  /Type /StructElem
+  /S /LBody
+  /P 25 0 R
+  /Pg 4 0 R
+  /K [31]
+>>
+endobj
+
+27 0 obj
+<<
+  /Type /StructElem
+  /S /LI
+  /P 22 0 R
+  /K [28 0 R]
+>>
+endobj
+
+28 0 obj
+<<
+  /Type /StructElem
+  /S /LBody
+  /P 27 0 R
+  /Pg 4 0 R
+  /K [32]
+>>
+endobj
+
+29 0 obj
+<<
+  /Type /StructElem
+  /S /LI
+  /P 22 0 R
+  /K [30 0 R]
+>>
+endobj
+
+30 0 obj
+<<
+  /Type /StructElem
+  /S /LBody
+  /P 29 0 R
+  /Pg 4 0 R
+  /K [33]
+>>
+endobj
+
+31 0 obj
+<<
+  /Type /StructElem
+  /S /LI
+  /P 22 0 R
+  /K [32 0 R]
+>>
+endobj
+
+32 0 obj
+<<
+  /Type /StructElem
+  /S /LBody
+  /P 31 0 R
+  /Pg 4 0 R
+  /K [34]
+>>
+endobj
+
+33 0 obj
+<<
+  /Type /StructElem
+  /S /H2
+  /P 18 0 R
+  /Pg 4 0 R
+  /K [35]
+>>
+endobj
+
+34 0 obj
+<<
+  /Type /StructElem
+  /S /H3
+  /P 18 0 R
+  /Pg 4 0 R
+  /K [36]
+>>
+endobj
+
+35 0 obj
+<<
+  /Type /StructElem
+  /S /H4
+  /P 18 0 R
+  /Pg 4 0 R
+  /K [37]
+>>
+endobj
+
+36 0 obj
+<<
+  /Type /StructElem
+  /S /L
+  /P 18 0 R
+  /K [37 0 R]
+>>
+endobj
+
+37 0 obj
+<<
+  /Type /StructElem
+  /S /LI
+  /P 36 0 R
+  /K [38 0 R 39 0 R]
+>>
+endobj
+
+38 0 obj
+<<
+  /Type /StructElem
+  /S /Lbl
+  /P 37 0 R
+  /Pg 4 0 R
+  /K [38]
+>>
+endobj
+
+39 0 obj
+<<
+  /Type /StructElem
+  /S /LBody
+  /P 37 0 R
+  /Pg 4 0 R
+  /K [39]
+>>
+endobj
+
+40 0 obj
+<<
+  /Type /StructElem
+  /S /H3
+  /P 18 0 R
+  /Pg 4 0 R
+  /K [40]
+>>
+endobj
+
+41 0 obj
+<<
+  /Type /StructElem
+  /S /H4
+  /P 18 0 R
+  /Pg 4 0 R
+  /K [41]
+>>
+endobj
+
+42 0 obj
+<<
+  /Type /StructElem
+  /S /L
+  /P 18 0 R
+  /K [43 0 R]
+>>
+endobj
+
+43 0 obj
+<<
+  /Type /StructElem
+  /S /LI
+  /P 42 0 R
+  /K [44 0 R 45 0 R]
+>>
+endobj
+
+44 0 obj
+<<
+  /Type /StructElem
+  /S /Lbl
+  /P 43 0 R
+  /Pg 4 0 R
+  /K [42]
+>>
+endobj
+
+45 0 obj
+<<
+  /Type /StructElem
+  /S /LBody
+  /P 43 0 R
+  /Pg 4 0 R
+  /K [43]
+>>
+endobj
+
+46 0 obj
+<<
+  /Type /StructElem
+  /S /H3
+  /P 18 0 R
+  /Pg 4 0 R
+  /K [44]
+>>
+endobj
+
+47 0 obj
+<<
+  /Type /StructElem
+  /S /H4
+  /P 18 0 R
+  /Pg 4 0 R
+  /K [45]
+>>
+endobj
+
+48 0 obj
+<<
+  /Type /StructElem
+  /S /L
+  /P 18 0 R
+  /K [49 0 R]
+>>
+endobj
+
+49 0 obj
+<<
+  /Type /StructElem
+  /S /LI
+  /P 48 0 R
+  /K [50 0 R 51 0 R]
+>>
+endobj
+
+50 0 obj
+<<
+  /Type /StructElem
+  /S /Lbl
+  /P 49 0 R
+  /Pg 4 0 R
+  /K [46]
+>>
+endobj
+
+51 0 obj
+<<
+  /Type /StructElem
+  /S /LBody
+  /P 49 0 R
+  /Pg 4 0 R
+  /K [47]
+>>
+endobj
+
+52 0 obj
+<<
+  /Type /StructElem
+  /S /H4
+  /P 18 0 R
+  /Pg 4 0 R
+  /K [48]
+>>
+endobj
+
+53 0 obj
+<<
+  /Type /StructElem
+  /S /L
+  /P 18 0 R
+  /K [54 0 R 57 0 R]
+>>
+endobj
+
+54 0 obj
+<<
+  /Type /StructElem
+  /S /LI
+  /P 53 0 R
+  /K [55 0 R 56 0 R]
+>>
+endobj
+
+55 0 obj
+<<
+  /Type /StructElem
+  /S /Lbl
+  /P 54 0 R
+  /Pg 4 0 R
+  /K [49]
+>>
+endobj
+
+56 0 obj
+<<
+  /Type /StructElem
+  /S /LBody
+  /P 54 0 R
+  /Pg 4 0 R
+  /K [50]
+>>
+endobj
+
+57 0 obj
+<<
+  /Type /StructElem
+  /S /LI
+  /P 53 0 R
+  /K [58 0 R 59 0 R]
+>>
+endobj
+
+58 0 obj
+<<
+  /Type /StructElem
+  /S /Lbl
+  /P 57 0 R
+  /Pg 4 0 R
+  /K [51]
+>>
+endobj
+
+59 0 obj
+<<
+  /Type /StructElem
+  /S /LBody
+  /P 57 0 R
+  /Pg 4 0 R
+  /K [52]
+>>
+endobj
+
+60 0 obj
+<<
+  /Type /StructElem
+  /S /H4
+  /P 18 0 R
+  /Pg 4 0 R
+  /K [53]
+>>
+endobj
+
+61 0 obj
+<<
+  /Type /StructElem
+  /S /L
+  /P 18 0 R
+  /K [62 0 R]
+>>
+endobj
+
+62 0 obj
+<<
+  /Type /StructElem
+  /S /LI
+  /P 61 0 R
+  /K [63 0 R 64 0 R]
+>>
+endobj
+
+63 0 obj
+<<
+  /Type /StructElem
+  /S /Lbl
+  /P 62 0 R
+  /Pg 4 0 R
+  /K [54]
+>>
+endobj
+
+64 0 obj
+<<
+  /Type /StructElem
+  /S /LBody
+  /P 62 0 R
+  /Pg 4 0 R
+  /K [55]
+>>
+endobj
+
+65 0 obj
+[19 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 20 0 R 21 0 R 24 0 R 26 0 R 28 0 R 30 0 R 32 0 R 33 0 R 34 0 R 35 0 R 38 0 R 39 0 R 40 0 R 41 0 R 44 0 R 45 0 R 46 0 R 47 0 R 50 0 R 51 0 R 52 0 R 55 0 R 56 0 R 58 0 R 59 0 R 60 0 R 63 0 R 64 0 R]
+endobj
+
+17 0 obj
+<<
+  /Length 469
+  /Type /Metadata
+  /Subtype /XML
+>>
+stream
+<?xpacket begin="\xef\xbb\xbf" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Technology Radar</rdf:li></rdf:Alt></dc:title>
+<pdfuaid:part>1</pdfuaid:part>
+</rdf:Description>
+</rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="r"?>
+endstream
+endobj
+
+1 0 obj
+<<
+  /Type /Catalog
+  /Pages 2 0 R
+  /Lang (en)
+  /ViewerPreferences <<
+    /DisplayDocTitle true
+  >>
+  /MarkInfo <<
+    /Marked true
+  >>
+  /StructTreeRoot 16 0 R
+  /Metadata 17 0 R
+>>
 endobj
 
 3 0 obj
@@ -1775,29 +2571,79 @@ endobj
 endobj
 
 xref
-0 16
+0 66
 0000000000 65535 f\x0d
+0000051902 00000 n\x0d
 0000000016 00000 n\x0d
-0000000138 00000 n\x0d
-0000043911 00000 n\x0d
-0000010698 00000 n\x0d
-0000010868 00000 n\x0d
-0000000202 00000 n\x0d
-0000000361 00000 n\x0d
-0000000917 00000 n\x0d
-0000001164 00000 n\x0d
-0000004561 00000 n\x0d
-0000005783 00000 n\x0d
-0000005945 00000 n\x0d
-0000006428 00000 n\x0d
-0000006680 00000 n\x0d
-0000009616 00000 n\x0d
+0000052105 00000 n\x0d
+0000010576 00000 n\x0d
+0000010776 00000 n\x0d
+0000000080 00000 n\x0d
+0000000239 00000 n\x0d
+0000000795 00000 n\x0d
+0000001042 00000 n\x0d
+0000004439 00000 n\x0d
+0000005661 00000 n\x0d
+0000005823 00000 n\x0d
+0000006306 00000 n\x0d
+0000006558 00000 n\x0d
+0000009494 00000 n\x0d
+0000046543 00000 n\x0d
+0000051344 00000 n\x0d
+0000046670 00000 n\x0d
+0000046873 00000 n\x0d
+0000046958 00000 n\x0d
+0000047175 00000 n\x0d
+0000047261 00000 n\x0d
+0000047366 00000 n\x0d
+0000047444 00000 n\x0d
+0000047533 00000 n\x0d
+0000047611 00000 n\x0d
+0000047700 00000 n\x0d
+0000047778 00000 n\x0d
+0000047867 00000 n\x0d
+0000047945 00000 n\x0d
+0000048034 00000 n\x0d
+0000048112 00000 n\x0d
+0000048201 00000 n\x0d
+0000048287 00000 n\x0d
+0000048373 00000 n\x0d
+0000048459 00000 n\x0d
+0000048536 00000 n\x0d
+0000048621 00000 n\x0d
+0000048708 00000 n\x0d
+0000048797 00000 n\x0d
+0000048883 00000 n\x0d
+0000048969 00000 n\x0d
+0000049046 00000 n\x0d
+0000049131 00000 n\x0d
+0000049218 00000 n\x0d
+0000049307 00000 n\x0d
+0000049393 00000 n\x0d
+0000049479 00000 n\x0d
+0000049556 00000 n\x0d
+0000049641 00000 n\x0d
+0000049728 00000 n\x0d
+0000049817 00000 n\x0d
+0000049903 00000 n\x0d
+0000049987 00000 n\x0d
+0000050072 00000 n\x0d
+0000050159 00000 n\x0d
+0000050248 00000 n\x0d
+0000050333 00000 n\x0d
+0000050420 00000 n\x0d
+0000050509 00000 n\x0d
+0000050595 00000 n\x0d
+0000050672 00000 n\x0d
+0000050757 00000 n\x0d
+0000050844 00000 n\x0d
+0000050933 00000 n\x0d
 trailer
 <<
-  /Size 16
+  /Size 66
   /Root 1 0 R
   /Info 3 0 R
 >>
 startxref
-44053
+52247
 %%EOF

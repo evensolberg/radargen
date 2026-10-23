@@ -1,0 +1,379 @@
+Document
+  H1 p1:"Technology Radar"
+  Figure Alt="Technology radar: 1 sector, 4 rings, 120 items" p1:250
+  H2 p1:"Key"
+  L
+    LI
+      LBody p1:"Default, or no qualifier — solid marker"
+    LI
+      LBody p1:"Conditional — hollow marker"
+    LI
+      LBody p1:"New this edition — full ring"
+    LI
+      LBody p1:"Moved in — half-ring facing the centre"
+    LI
+      LBody p1:"Moved out — half-ring facing the outer e…"
+  H2 p1:"Legend"
+  H3 p1:"Tools"
+  H4 p1:"Adopt"
+  L
+    LI
+      Lbl p1:"1"
+      LBody p1:"item 000"
+    LI
+      Lbl p1:"2"
+      LBody p1:"item 001"
+    LI
+      Lbl p1:"3"
+      LBody p1:"item 002"
+    LI
+      Lbl p1:"4"
+      LBody p1:"item 003"
+    LI
+      Lbl p1:"5"
+      LBody p1:"item 004"
+    LI
+      Lbl p1:"6"
+      LBody p1:"item 005"
+    LI
+      Lbl p1:"7"
+      LBody p1:"item 006"
+    LI
+      Lbl p1:"8"
+      LBody p1:"item 007"
+    LI
+      Lbl p1:"9"
+      LBody p1:"item 008"
+    LI
+      Lbl p1:"10"
+      LBody p1:"item 009"
+    LI
+      Lbl p1:"11"
+      LBody p1:"item 010"
+    LI
+      Lbl p1:"12"
+      LBody p1:"item 011"
+    LI
+      Lbl p1:"13"
+      LBody p1:"item 012"
+    LI
+      Lbl p1:"14"
+      LBody p1:"item 013"
+    LI
+      Lbl p1:"15"
+      LBody p1:"item 014"
+    LI
+      Lbl p1:"16"
+      LBody p1:"item 015"
+    LI
+      Lbl p1:"17"
+      LBody p1:"item 016"
+    LI
+      Lbl p1:"18"
+      LBody p1:"item 017"
+    LI
+      Lbl p1:"19"
+      LBody p1:"item 018"
+    LI
+      Lbl p2:"20"
+      LBody p2:"item 019"
+    LI
+      Lbl p2:"21"
+      LBody p2:"item 020"
+    LI
+      Lbl p2:"22"
+      LBody p2:"item 021"
+    LI
+      Lbl p2:"23"
+      LBody p2:"item 022"
+    LI
+      Lbl p2:"24"
+      LBody p2:"item 023"
+    LI
+      Lbl p2:"25"
+      LBody p2:"item 024"
+    LI
+      Lbl p2:"26"
+      LBody p2:"item 025"
+    LI
+      Lbl p2:"27"
+      LBody p2:"item 026"
+    LI
+      Lbl p2:"28"
+      LBody p2:"item 027"
+    LI
+      Lbl p2:"29"
+      LBody p2:"item 028"
+    LI
+      Lbl p2:"30"
+      LBody p2:"item 029"
+    LI
+      Lbl p2:"31"
+      LBody p2:"item 030"
+    LI
+      Lbl p2:"32"
+      LBody p2:"item 031"
+    LI
+      Lbl p2:"33"
+      LBody p2:"item 032"
+    LI
+      Lbl p2:"34"
+      LBody p2:"item 033"
+    LI
+      Lbl p2:"35"
+      LBody p2:"item 034"
+    LI
+      Lbl p2:"36"
+      LBody p2:"item 035"
+    LI
+      Lbl p2:"37"
+      LBody p2:"item 036"
+    LI
+      Lbl p2:"38"
+      LBody p2:"item 037"
+    LI
+      Lbl p2:"39"
+      LBody p2:"item 038"
+    LI
+      Lbl p2:"40"
+      LBody p2:"item 039"
+    LI
+      Lbl p2:"41"
+      LBody p2:"item 040"
+    LI
+      Lbl p2:"42"
+      LBody p2:"item 041"
+    LI
+      Lbl p2:"43"
+      LBody p2:"item 042"
+    LI
+      Lbl p2:"44"
+      LBody p2:"item 043"
+    LI
+      Lbl p2:"45"
+      LBody p2:"item 044"
+    LI
+      Lbl p2:"46"
+      LBody p2:"item 045"
+    LI
+      Lbl p2:"47"
+      LBody p2:"item 046"
+    LI
+      Lbl p2:"48"
+      LBody p2:"item 047"
+    LI
+      Lbl p2:"49"
+      LBody p2:"item 048"
+    LI
+      Lbl p2:"50"
+      LBody p2:"item 049"
+    LI
+      Lbl p2:"51"
+      LBody p2:"item 050"
+    LI
+      Lbl p2:"52"
+      LBody p2:"item 051"
+    LI
+      Lbl p2:"53"
+      LBody p2:"item 052"
+    LI
+      Lbl p2:"54"
+      LBody p2:"item 053"
+    LI
+      Lbl p2:"55"
+      LBody p2:"item 054"
+    LI
+      Lbl p2:"56"
+      LBody p2:"item 055"
+    LI
+      Lbl p2:"57"
+      LBody p2:"item 056"
+    LI
+      Lbl p2:"58"
+      LBody p2:"item 057"
+    LI
+      Lbl p2:"59"
+      LBody p2:"item 058"
+    LI
+      Lbl p2:"60"
+      LBody p2:"item 059"
+    LI
+      Lbl p2:"61"
+      LBody p2:"item 060"
+    LI
+      Lbl p2:"62"
+      LBody p2:"item 061"
+    LI
+      Lbl p2:"63"
+      LBody p2:"item 062"
+    LI
+      Lbl p2:"64"
+      LBody p2:"item 063"
+    LI
+      Lbl p2:"65"
+      LBody p2:"item 064"
+    LI
+      Lbl p2:"66"
+      LBody p2:"item 065"
+    LI
+      Lbl p2:"67"
+      LBody p2:"item 066"
+    LI
+      Lbl p2:"68"
+      LBody p2:"item 067"
+    LI
+      Lbl p2:"69"
+      LBody p2:"item 068"
+    LI
+      Lbl p2:"70"
+      LBody p2:"item 069"
+    LI
+      Lbl p2:"71"
+      LBody p2:"item 070"
+    LI
+      Lbl p2:"72"
+      LBody p2:"item 071"
+    LI
+      Lbl p2:"73"
+      LBody p2:"item 072"
+    LI
+      Lbl p2:"74"
+      LBody p2:"item 073"
+    LI
+      Lbl p2:"75"
+      LBody p2:"item 074"
+    LI
+      Lbl p2:"76"
+      LBody p2:"item 075"
+    LI
+      Lbl p2:"77"
+      LBody p2:"item 076"
+    LI
+      Lbl p2:"78"
+      LBody p2:"item 077"
+    LI
+      Lbl p2:"79"
+      LBody p2:"item 078"
+    LI
+      Lbl p2:"80"
+      LBody p2:"item 079"
+    LI
+      Lbl p2:"81"
+      LBody p2:"item 080"
+    LI
+      Lbl p2:"82"
+      LBody p2:"item 081"
+    LI
+      Lbl p2:"83"
+      LBody p2:"item 082"
+    LI
+      Lbl p2:"84"
+      LBody p2:"item 083"
+    LI
+      Lbl p2:"85"
+      LBody p2:"item 084"
+    LI
+      Lbl p2:"86"
+      LBody p2:"item 085"
+    LI
+      Lbl p2:"87"
+      LBody p2:"item 086"
+    LI
+      Lbl p2:"88"
+      LBody p2:"item 087"
+    LI
+      Lbl p2:"89"
+      LBody p2:"item 088"
+    LI
+      Lbl p2:"90"
+      LBody p2:"item 089"
+    LI
+      Lbl p2:"91"
+      LBody p2:"item 090"
+    LI
+      Lbl p2:"92"
+      LBody p2:"item 091"
+    LI
+      Lbl p2:"93"
+      LBody p2:"item 092"
+    LI
+      Lbl p2:"94"
+      LBody p2:"item 093"
+    LI
+      Lbl p2:"95"
+      LBody p2:"item 094"
+    LI
+      Lbl p2:"96"
+      LBody p2:"item 095"
+    LI
+      Lbl p2:"97"
+      LBody p2:"item 096"
+    LI
+      Lbl p2:"98"
+      LBody p2:"item 097"
+    LI
+      Lbl p3:"99"
+      LBody p3:"item 098"
+    LI
+      Lbl p3:"100"
+      LBody p3:"item 099"
+    LI
+      Lbl p3:"101"
+      LBody p3:"item 100"
+    LI
+      Lbl p3:"102"
+      LBody p3:"item 101"
+    LI
+      Lbl p3:"103"
+      LBody p3:"item 102"
+    LI
+      Lbl p3:"104"
+      LBody p3:"item 103"
+    LI
+      Lbl p3:"105"
+      LBody p3:"item 104"
+    LI
+      Lbl p3:"106"
+      LBody p3:"item 105"
+    LI
+      Lbl p3:"107"
+      LBody p3:"item 106"
+    LI
+      Lbl p3:"108"
+      LBody p3:"item 107"
+    LI
+      Lbl p3:"109"
+      LBody p3:"item 108"
+    LI
+      Lbl p3:"110"
+      LBody p3:"item 109"
+    LI
+      Lbl p3:"111"
+      LBody p3:"item 110"
+    LI
+      Lbl p3:"112"
+      LBody p3:"item 111"
+    LI
+      Lbl p3:"113"
+      LBody p3:"item 112"
+    LI
+      Lbl p3:"114"
+      LBody p3:"item 113"
+    LI
+      Lbl p3:"115"
+      LBody p3:"item 114"
+    LI
+      Lbl p3:"116"
+      LBody p3:"item 115"
+    LI
+      Lbl p3:"117"
+      LBody p3:"item 116"
+    LI
+      Lbl p3:"118"
+      LBody p3:"item 117"
+    LI
+      Lbl p3:"119"
+      LBody p3:"item 118"
+    LI
+      Lbl p3:"120"
+      LBody p3:"item 119"

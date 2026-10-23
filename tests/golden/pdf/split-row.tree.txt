@@ -1,0 +1,53 @@
+Document
+  H1 p1:"Technology Radar"
+  P p1:"Each item's description and rationale: p…"
+  Figure Alt="Technology radar: 1 sector, 4 rings, 3 items" p1:16
+  H2 p1:"Key"
+  L
+    LI
+      LBody p1:"Default, or no qualifier — solid marker"
+    LI
+      LBody p1:"Conditional — hollow marker"
+    LI
+      LBody p1:"New this edition — full ring"
+    LI
+      LBody p1:"Moved in — half-ring facing the centre"
+    LI
+      LBody p1:"Moved out — half-ring facing the outer e…"
+  H2 p1:"Legend"
+  H3 p1:"Tools"
+  H4 p1:"Trial"
+  L
+    LI
+      Lbl p1:"1"
+      LBody p1:"Gamma"
+  H4 p1:"Adopt"
+  L
+    LI
+      Lbl p1:"2"
+      LBody p1:"Alpha"
+    LI
+      Lbl p1:"3"
+      LBody p1:"Beta"
+  H2 p2:"Items on the radar"
+  Table
+    TR
+      TH Scope=Column p2:"=Number"
+      TH Scope=Column p2:"name"
+      TH Scope=Column p2:"=Sector ring"
+      TH Scope=Column p2:"description"
+    TR
+      TD p2:"1"
+      TH Scope=Row p2:"Gamma"
+      TD p2:"Tools" p2:"Trial"
+      TD p2:"d"
+    TR
+      TD p2:"2"
+      TH Scope=Row p2:"Alpha"
+      TD p2:"Tools" p2:"Adopt"
+      TD p2:"d"
+    TR
+      TD p3:"3"
+      TH Scope=Row p3:"Beta"
+      TD p3:"Tools" p3:"Adopt"
+      TD p3:"=w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w…" p4:"=w590 w591 w592 w593 w594 w595 w596 w597…" p5:"=w1131 w1132 w1133 w1134 w1135 w1136 w11…" p6:"=w1619 w1620 w1621 w1622 w1623 w1624 w16…" p7:"=w2103 w2104 w2105 w2106 w2107 w2108 w21…" p8:"=w2580 w2581 w2582 w2583 w2584 w2585 w25…"

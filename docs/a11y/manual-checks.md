@@ -11,7 +11,7 @@ created_date: 2026-10-13
 synopsis: "What only a person with a screen reader, a real browser's zoom or a keyboard on a real machine can judge, step by step, with the announcement to expect at each step and a results table to fill in before tagging 1.0.0. The automated audit (scripts/a11y-audit.mjs) covers everything a browser can measure; this covers the rest."
 status: draft
 type: Guide
-revision: "1.18"
+revision: "1.19"
 review_date:
 reviewed_by: []
 completed_date:
@@ -145,7 +145,7 @@ The expected names come from `three-sector.csv`.
     - *Expect:* each page looks like its PNG; at 400% zoom a ring name's halo is smooth; the dark page shows no light seam at its edges; the window title is "Technology Radar", for `untitled.pdf` too.
     - *Expect, selecting:* drag-selecting a legend name and pasting it gives the name as written; a letter-spaced legend heading and a kerned name ("AVATAR" if the fixture has none, add one) paste as words, not spaced letters; a selection across a wrapped name pastes with a space or line break, not run together.
     - *Expect, searching:* searching for an item name and for a ring name finds each, once: a ring name has no second hit from its halo.
-    - *Expect, Select All, copy, paste into a text editor:* the title, key, ring labels and legend in reading order, each once. This is what a screen reader reads from an untagged PDF; record any disorder or repeat.
+    - *Expect, Select All, copy, paste into a text editor:* the title, key, ring labels and legend in reading order, each once. This is the copy order, the content stream's, which Preview and VoiceOver read; record any disorder or repeat. The screen-reader order follows the tags: step 20.
     - *Expect, `cjk.pdf`:* the run prints a warning naming the line and saying the PDF draws the characters as boxes and they cannot be searched; the name draws as boxes, the file opens without a warning from the viewer, and copying it gives nothing for those characters.
     - *Expect, printing `light.pdf` to A4 or Letter with Fit to page:* the legend text is readable.
     - *Expect, printing `long.pdf` to Letter or A4 with Fit to page, rendered with and without `--legend-columns 2`:* the single column prints small; two columns print larger. Record the smallest text you can read in each.
@@ -155,7 +155,20 @@ The expected names come from `three-sector.csv`.
     - *The full PDF (FR-112, from 1.21.0):* render a 300-item CSV with a description and a rationale on every row, in two sectors, with `--pdf full` to `full-letter.pdf` and with `--pdf full --paper a4 --theme dark` to `full-a4-dark.pdf`. In the four viewers: page 1 names the page the table starts on, and the table starts on a page of its own; the header row repeats on every table page; each table page after the first is headed with its sector and item numbers, and a number on the radar finds its row; no row is split; the table's text is searchable and copies in reading order, row by row. Expect about 7 rows to a Letter page when rows run to five lines.
     - *Expect, printing the full PDF:* print `full-letter.pdf` on Letter at Actual size: the 9 pt cells and the muted header row read on a laser print, and on `full-a4-dark.pdf`'s dark pages the muted text still reads.
     - If installed, `qpdf --check light.pdf` reports no errors and `pdffonts light.pdf` lists two embedded subset fonts with ToUnicode.
-    - Small text on Windows may hint slightly differently from the PNG; that is expected. Screen-reader navigation is not checked: the PDF is untagged until rg-ffj.
+    - Small text on Windows may hint slightly differently from the PNG; that is expected. From 1.23.0 `untitled.pdf` draws *Technology Radar* as its title, so compare it with `light.png`, not an untitled PNG. Screen-reader navigation is step 20.
+
+20. **The tagged PDF** (FR-114, from 1.23.0). `PDFUA_KEEP=pdfua just pdfua` writes the gate's PDFs to `pdfua/`: `light.pdf`, `untitled.pdf`, `subtitled.pdf`, `letter.pdf`, `full.pdf`, `full-dark.pdf`, `split.pdf` (a row taller than a page), `nothing.pdf` (nothing plotted) and `headers.pdf` (a headers-only CSV under `--table all`), among others. Also use `full-letter.pdf` from step 19. The main pair is **NVDA + Acrobat Reader** on Windows; also check **PAC 2024** (its Matterhorn report and Logical Structure view) and **Chrome's PDF viewer** with NVDA. **VoiceOver + Preview** is a smoke test only: Preview reads content order and largely ignores tags, so record only that text is read.
+    - *Expect, Acrobat's Tags pane on `full-letter.pdf`:* `H1` (title), `P` (subtitle if any), `P` (the pointer), `Figure`, `H2` Key and its `L`, `H2` Legend, then sector `H3`s and ring `H4`s each followed by one `L`, then `H2` (the table's heading) and one `Table`.
+    - *Expect, NVDA browse mode, H and Shift+H:* every heading in order, the title first; no *(continued)* heading, no *Legend (continued)*; footers and *Page n of m* are never read.
+    - *Expect, G (graphics) on the radar in `light.pdf`:* "Technology radar: 3 sectors, 4 rings, 6 items" once, and none of the marker numbers or ring labels inside it.
+    - *Expect, L (lists) in the legend:* each ring's rows announced as one list with its full count, even where the ring breaks across a page (`letter.pdf`); each item's number then its name and meta.
+    - *Expect, T then Ctrl+Alt+arrows in the table:* the column headers announced as you move across, the first as *Number*, not "number sign"; moving down announces the item's name as the row header. **Record how verbose vertical moves are:** the name cell also holds the folded line (domain · qualifier · status · dates) and is read with it; if that is too much to bear, file a crumb to make the number cell the row header instead.
+    - *Expect, `split.pdf`:* the long row reads as one row across the page break; *continues on the next page*, the repeated name and *(continued)* are silent.
+    - *Expect, `nothing.pdf` and `headers.pdf`:* the table is announced with its column count; the empty one's single row reads *Nothing is on the radar.*
+    - *Expect, `full-dark.pdf`:* the same as light.
+    - *Expect, in the table:* a wrapped heading such as "Sector ring" and a wrapped description are read as words, not run together across the line break; the legend reads an item's name, then its qualifier and status after a pause ("Kubernetes, Default").
+    - *Expect:* the legend's ` · ` separator is not read as "dot" at default punctuation settings.
+    - *Expect, PAC 2024:* no Matterhorn failures but the human-checked ones it lists for review; record any it flags.
 
 ## Results
 
@@ -176,6 +189,7 @@ The expected names come from `three-sector.csv`.
 | A `--palette` page: scroll bars, NVDA + Firefox, VoiceOver + Safari, high contrast | | | | |
 | The PDF: Preview, Acrobat Reader, Chrome, Firefox; light, dark, palette | | | | |
 | The PDF, `long.pdf` printed with and without `--legend-columns 2`, and `huge.pdf` at full size: each of the four viewers | | | | |
+| The tagged PDF (step 20): NVDA + Acrobat Reader, NVDA + Chrome, PAC 2024; VoiceOver + Preview as a smoke test | | | | |
 
 ## Revisions
 
@@ -200,3 +214,4 @@ The expected names come from `three-sector.csv`.
 | 1.16 | 2026-10-22 | Step 19: `long.pdf` printed Fit to page with and without two legend columns, `huge.pdf` at full size under `/UserUnit`, matching PNGs, the `cjk.pdf` warning and each name once (FR-110, FR-104). |
 | 1.17 | 2026-10-22 | Step 19: PDFs on paper (`--paper letter`, `--paper a4`, dark, a 300-item legend): landscape pages, page 1's parts, *Legend (continued)* and *(continued)* headings, footers, and printing at Actual size and Fit to page on both papers (FR-111; rg-4b8). |
 | 1.18 | 2026-10-23 | Step 19: the full PDF (`--pdf full`): the page-1 pointer, the table on its own pages, the repeated header row, later headings with sector and item numbers, no split rows, reading order, and printing at 9 pt in both themes (FR-112; rg-4b8). |
+| 1.19 | 2026-10-23 | New step 20: the tagged PDF in NVDA + Acrobat, PAC 2024 and Chrome, VoiceOver + Preview as a smoke test: tag order, headings, the figure's name, lists across pages, table headers and row-header verbosity, a split row, empty tables, the separator; `untitled.pdf` now draws its title (FR-114, rg-ffj, rg-v1o). |

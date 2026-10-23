@@ -19,6 +19,8 @@ mod paper;
 mod pdf_export;
 #[path = "../common/pdf.rs"]
 mod pdf_text;
+#[path = "../common/pdf_tree.rs"]
+mod pdf_tree;
 #[path = "../common/version.rs"]
 mod version;
 

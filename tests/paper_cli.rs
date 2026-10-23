@@ -342,7 +342,8 @@ fn a_radar_too_wide_for_the_paper_warns_once() {
 }
 
 /// D-105: with no --title, paper draws *Technology Radar* above the radar
-/// and in every footer; the drawing-sized PDF still draws no title.
+/// and in every footer; since FR-114 the drawing-sized PDF draws it too,
+/// so a tagged PDF opens with its title.
 #[test]
 fn paper_titles_an_untitled_radar() {
     let dir = seeded(&[("radar.csv", LONG)]);
@@ -367,5 +368,5 @@ fn paper_titles_an_untitled_radar() {
             "page {page}"
         );
     }
-    assert!(!text("plain.pdf", 1).contains("Technology Radar"));
+    assert!(radargen::trim(&text("plain.pdf", 1)).starts_with("Technology Radar"));
 }

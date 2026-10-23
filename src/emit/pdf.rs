@@ -1,10 +1,11 @@
 //! The PDF export (FR-110, FR-111, D-103).
 //!
 //! The wide document as one vector page the document's size, or paper
-//! pages, its text real text in embedded Inter subsets, untagged, with no
-//! date or identifier (NFR-4).
+//! pages, its text real text in embedded Inter subsets, tagged to PDF/UA-1
+//! (FR-114), with no date or identifier (NFR-4).
 
-use pdf_writer::{Pdf, Rect, Ref, TextStr, writers};
+use pdf_writer::types::TabOrder;
+use pdf_writer::{Name, Pdf, Rect, Ref, TextStr, writers};
 
 use super::{UNTITLED, intrinsic_size};
 use crate::diagnostics::Fatal;
@@ -12,7 +13,8 @@ use crate::num::round_thousandths;
 use crate::palette::Palette;
 use crate::pdf::content::{Canvas, content};
 use crate::pdf::font::Faces;
-use crate::pdf::{Sheet, real};
+use crate::pdf::tag::Tagger;
+use crate::pdf::{Sheet, real, tree, xmp};
 use crate::style::POINTS_PER_PX;
 use crate::svg::Document;
 use crate::text::{Fonts, Weight};
@@ -77,36 +79,49 @@ pub fn export_pages(pages: &[Document], export: &Export<'_>) -> Result<Vec<u8>, 
 
 /// The PDF file: the catalog, the page tree and the info dictionary, then
 /// each page and its content stream, numbered in that order; the fonts,
-/// subset once over every page, are numbered after them, and so would be
-/// any document-level object a later writer adds. In the file the fonts
-/// come before the pages, since each page names them, and the info
-/// dictionary comes last.
+/// subset once over every page, are numbered after them, then the
+/// structure tree's root, the XMP metadata, the tree's elements and its
+/// parent-tree arrays (FR-114). In the file the fonts come before the
+/// pages, since each page names them, the catalog after the tree it names,
+/// and the info dictionary last.
 fn write(pages: &[(&Document, Sheet)], export: &Export<'_>) -> Result<Vec<u8>, Fatal> {
     let faces = Faces::of(pages.iter().map(|(page, _)| &page.root), export.fonts)?;
     let mut next = Ref::new(1);
-    let [catalog_id, tree, info_id] = std::array::from_fn(|_| next.bump());
+    let [catalog_id, tree_id, info_id] = std::array::from_fn(|_| next.bump());
     let ids: Vec<(Ref, Ref)> = pages.iter().map(|_| (next.bump(), next.bump())).collect();
     let mut pdf = Pdf::new();
-    catalog(&mut pdf, catalog_id, tree);
-    pdf.pages(tree)
+    pdf.pages(tree_id)
         .kids(ids.iter().map(|&(page, _)| page))
         .count(i32::try_from(ids.len()).unwrap_or(i32::MAX));
     let fonts = faces.write(&mut pdf, &mut next, export.fonts)?;
-    for (&(document, sheet), &(page_id, stream)) in pages.iter().zip(&ids) {
-        page(&mut pdf, page_id, tree, stream, &sheet, &fonts);
-        let drawn = content(&Canvas {
-            document,
-            palette: export.palette,
-            fonts: export.fonts,
-            faces: &faces,
-            page: sheet,
-        })?;
+    let [root, metadata] = std::array::from_fn(|_| next.bump());
+    // One tagger for every page, so an element can continue on the next.
+    let mut tagger = Tagger::new();
+    for (k, (&(document, sheet), &(page_id, stream))) in pages.iter().zip(&ids).enumerate() {
+        page(&mut pdf, (page_id, tree_id, stream), (&sheet, k), &fonts);
+        let drawn = content(
+            &Canvas {
+                document,
+                palette: export.palette,
+                fonts: export.fonts,
+                faces: &faces,
+                page: sheet,
+            },
+            &mut tagger,
+        )?;
         pdf.stream(stream, &drawn);
     }
+    let page_ids: Vec<Ref> = ids.iter().map(|&(page, _)| page).collect();
+    tree::write(&mut pdf, &tagger.into_tree(), root, &mut next, &page_ids);
+    // Cleaned once, so the info dictionary and the XMP agree.
+    let title = xmp::clean(export.title.unwrap_or(UNTITLED));
+    let packet = xmp::packet(&title);
+    pdf.metadata(metadata, packet.as_bytes());
+    catalog(&mut pdf, catalog_id, tree_id, (root, metadata));
     // Last in the file, though numbered third: the producer's length,
     // which moves with the version, then moves only the cross-reference
     // offset after it.
-    info(&mut pdf, info_id, export);
+    info(&mut pdf, info_id, (&title, export));
     Ok(pdf.finish())
 }
 
@@ -139,19 +154,33 @@ fn whole(side: f64) -> f64 {
     round_thousandths(side).ceil()
 }
 
-/// The catalog: the page tree, `/Lang (en)`, and the title shown as the
-/// window's (D-75).
-fn catalog(pdf: &mut Pdf, id: Ref, tree: Ref) {
+/// The catalog: the page tree, `/Lang (en)`, the title shown as the
+/// window's (D-75), and the tagging PDF/UA-1 asks for: marked, the
+/// structure tree's `root` and the XMP `metadata` (FR-114).
+fn catalog(pdf: &mut Pdf, id: Ref, tree: Ref, (root, metadata): (Ref, Ref)) {
     let mut cat = pdf.catalog(id);
     cat.pages(tree).lang(TextStr("en"));
     cat.viewer_preferences().display_doc_title(true);
+    cat.mark_info().marked(true);
+    // A reference to the root, not the inline dictionary pdf-writer
+    // starts with `struct_tree_root`.
+    cat.pair(Name(b"StructTreeRoot"), root);
+    cat.metadata(metadata);
 }
 
 /// A page: its `MediaBox`, its `/UserUnit` when it needs one, its content
-/// stream and its fonts.
-fn page(pdf: &mut Pdf, id: Ref, tree: Ref, stream: Ref, sheet: &Sheet, fonts: &[(Weight, Ref)]) {
+/// stream and its fonts, and as page `k` its key in the parent tree and a
+/// tab order by structure (FR-114).
+fn page(
+    pdf: &mut Pdf,
+    (id, tree, stream): (Ref, Ref, Ref),
+    (sheet, k): (&Sheet, usize),
+    fonts: &[(Weight, Ref)],
+) {
     let mut p = pdf.page(id);
     p.parent(tree).media_box(media_box(sheet)).contents(stream);
+    p.struct_parents(i32::try_from(k).unwrap_or(i32::MAX))
+        .tab_order(TabOrder::StructureOrder);
     user_unit(&mut p, sheet.unit);
     p.resources().fonts().pairs(
         fonts
@@ -175,9 +204,9 @@ fn user_unit(page: &mut writers::Page<'_>, unit: f64) {
 
 /// The info dictionary: `/Title`, `/Subject` and `/Producer`, and no date
 /// (NFR-4).
-fn info(pdf: &mut Pdf, id: Ref, export: &Export<'_>) {
+fn info(pdf: &mut Pdf, id: Ref, (title, export): (&str, &Export<'_>)) {
     pdf.document_info(id)
-        .title(TextStr(export.title.unwrap_or(UNTITLED)))
+        .title(TextStr(title))
         .subject(TextStr(export.desc))
         .producer(TextStr(export.producer));
 }
@@ -430,6 +459,29 @@ mod tests {
             lopdf::decode_text_string(got).expect("a text string"),
             title
         );
+    }
+
+    /// 21c-2 review: a control character XML cannot hold is dropped from
+    /// the title once, so the info dictionary's `/Title` and the XMP's
+    /// `dc:title` say the same.
+    #[test]
+    fn the_info_title_matches_the_xmp() {
+        let title = "bell\u{7} rings";
+        let bytes = pdf(&prd(Some(title)), Some(title), None, Theme::Light);
+        let parsed = lopdf::Document::load_mem(&bytes).expect("parses");
+        let info = parsed
+            .trailer
+            .get(b"Info")
+            .and_then(lopdf::Object::as_reference)
+            .and_then(|r| parsed.get_dictionary(r))
+            .and_then(|d| d.get(b"Title"))
+            .expect("a Title");
+        assert_eq!(
+            lopdf::decode_text_string(info).expect("a text string"),
+            "bell rings"
+        );
+        let packet = String::from_utf8_lossy(&bytes);
+        assert!(packet.contains("x-default\">bell rings</rdf:li>"));
     }
 
     /// The PRD example's radar beside a legend of 300 items on `paper`:

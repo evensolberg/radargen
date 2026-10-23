@@ -21,3 +21,5 @@ Maintainer, 2026-10-22 (PR 20 design): the light PDF (rg-5uf) ships untagged but
 [2026-10-22] From the PR 20 panel (architect): the PDF content walker (src/pdf/content.rs node()) ignores group.semantics and takes an immutable &Canvas, so tagging needs a &mut state (MCID counter, structure tree) threaded through node/shape/show::text and the dispatch split (node() is at its 80-line qual:allow). /Lang (en) is fixed; a non-English CSV is a known limit here.
 
 [start] 2026-10-23 11:24:08
+
+[2026-10-23] 21c-2 (1.23.0): every PDF tagged to PDF/UA-1, just pdfua green on 18 fixtures. 21c-3 remains: FR-113 boxes as outlines with ActualText, ToUnicode for mark glyphs, then the rtl fixture flips to compliant.

@@ -9,7 +9,7 @@ created_date: 2026-10-22
 synopsis: "--pdf full writes a landscape Letter or A4 PDF: the radar, key and legend first, then the HTML page's table of items, paginated with a repeated header and rows never split. --paper puts the radar PDF on paper too. Both PDFs are tagged to PDF/UA-1 and checked by veraPDF."
 status: active
 type: Spec
-revision: "1.6"
+revision: "1.7"
 review_date:
 reviewed_by: []
 completed_date:
@@ -262,3 +262,4 @@ These are the builder's calls, to be made in the plan and noted there:
 | 1.4 | 2026-10-23 | The full PDF (PR 21b) built: table pages after the legend's, prose columns at least 136 px, headings breaking only at spaces and underscores, later pages headed with sector and item numbers, a page-1 pointer, split rows marked on both parts. Table pages are checked against their PNGs under the legend pages' budget: faithful pages at most 697 ppm (worst 33) against 1,600 (44); damage measures 4,304 to 12,027 ppm |
 | 1.5 | 2026-10-23 | After the final review, the maintainer: qualifier, status and the dates fold into a muted line under the item's name in the PDF's table, so description and rationale get the width; the CSV's headers stay; `--paper none` over a file's `pdf = "full"` warns that the table is dropped; the edition reaches the footer through `--subtitle`, as a README tip. A label column never breaks a word; a heading is cut at three lines |
 | 1.6 | 2026-10-23 | The maintainer: the ring stacks muted under the sector in one column, and the domain folds first into the muted line under the name, which widens the name column up to its own cap, 240 px against the other labels' 168 |
+| 1.7 | 2026-10-23 | PR 21c's builder's calls, after the plan's five-seat review: standard roles only (no RoleMap); one structure tree across pages, a split row one `TR` and a broken ring one `L`; page 1's pointer a `P` straight after the title; the untitled drawing-sized PDF draws *Technology Radar* (the maintainer, 2026-10-23); the name cell is the row header as in the HTML, checked by hand for verbosity with the number cell as fallback; a link stays text; boxes as outlines with `/ActualText` land in 21c-3; veraPDF validates a named fixture set rather than every PDF the tests write |
