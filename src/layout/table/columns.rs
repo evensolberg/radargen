@@ -13,8 +13,8 @@ use crate::layout::title::{cut, widest};
 use crate::model::NOT_ON_THE_RADAR;
 use crate::published::{Cell, CellKind, NUMBER_HEADING, Published, PublishedColumn};
 use crate::style::{
-    TABLE_HEAD, TABLE_LABEL_CAP, TABLE_LABEL_FLOOR, TABLE_NAME, TABLE_PAD_X, TABLE_PROSE_MIN,
-    TABLE_TEXT, TextStyle,
+    TABLE_HEAD, TABLE_LABEL_CAP, TABLE_LABEL_FLOOR, TABLE_NAME, TABLE_NAME_CAP, TABLE_PAD_X,
+    TABLE_PROSE_MIN, TABLE_TEXT, TextStyle,
 };
 use crate::text::Fonts;
 
@@ -34,6 +34,9 @@ pub(super) struct Column {
     pub(super) kind: Option<CellKind>,
     /// Its index among the published columns; `None` for the number.
     pub(super) source: Option<usize>,
+    /// The published column drawn muted under this one's text: the ring,
+    /// under the sector (the maintainer, 2026-10-23).
+    pub(super) beneath: Option<usize>,
     pub(super) x: f64,
     pub(super) width: f64,
     pub(super) heading: Vec<String>,
@@ -59,6 +62,7 @@ pub(super) const fn folded(column: ColumnKind) -> bool {
             | ColumnKind::Status
             | ColumnKind::LastAffirmed
             | ColumnKind::ExitDate
+            | ColumnKind::Domain
     )
 }
 
@@ -144,25 +148,27 @@ struct Measure {
 }
 
 /// Published column `c`'s measure. `meta` is the widest unbreakable word
-/// of the lines folded under the name; `split` says a row splits, so the
-/// name column holds its marks unbroken.
+/// of the lines folded under the name, and the widest of those lines;
+/// `split` says a row splits, so the name column holds its marks unbroken.
 fn measure(
     published: &Published<'_>,
-    (c, column): (usize, &PublishedColumn<'_>),
-    (unplotted, split, meta): (bool, bool, f64),
+    (sources, column): (&[usize], &PublishedColumn<'_>),
+    (unplotted, split, meta): (bool, bool, (f64, f64)),
     fonts: &Fonts,
 ) -> Measure {
     let style = style_of(column.cell);
     let texts: Vec<&str> = published
         .rows
         .iter()
-        .filter_map(|row| row.cells.get(c))
+        .flat_map(|row| sources.iter().filter_map(|&c| row.cells.get(c)))
         .flat_map(Cell::paragraphs)
         .collect();
     let piece = widest(
-        pieces(column.heading)
+        sources
             .iter()
-            .map(|(piece, _)| TABLE_HEAD.measure(piece, fonts)),
+            .filter_map(|&c| published.columns.get(c))
+            .flat_map(|column| pieces(column.heading))
+            .map(|(piece, _)| TABLE_HEAD.measure(&piece, fonts)),
     );
     let natural = widest(texts.iter().map(|text| style.measure(text, fonts))).max(piece) + PADS_X;
     if column.cell == CellKind::Prose {
@@ -198,9 +204,16 @@ fn measure(
                     .map(|w| TABLE_TEXT.measure(w, fonts)),
             ),
         ),
-        (true, meta),
+        (true, meta.0),
     ];
     let mark = widest(marks.iter().filter(|(on, _)| name && *on).map(|&(_, w)| w));
+    // The folded line widens the name column, so it wraps no more than
+    // the cap makes it.
+    let natural = if name {
+        natural.max(meta.1 + PADS_X)
+    } else {
+        natural
+    };
     Measure {
         kind: column.cell,
         natural,
@@ -302,8 +315,17 @@ fn number_width(published: &Published<'_>, fonts: &Fonts) -> f64 {
 }
 
 /// A label column's width under `cap`: its natural width, capped, never
-/// below its least.
-const fn label(m: &Measure, cap: f64) -> f64 {
+/// below its least. The name's cap is wider by an extra that shrinks as
+/// `cap` comes down and is gone at the floor, so it never cramps a table
+/// sooner than another label would.
+fn label(m: &Measure, cap: f64) -> f64 {
+    let cap = if m.kind == CellKind::Name {
+        let extra = (TABLE_NAME_CAP - TABLE_LABEL_CAP) * (cap - TABLE_LABEL_FLOOR)
+            / (TABLE_LABEL_CAP - TABLE_LABEL_FLOOR);
+        cap + extra
+    } else {
+        cap
+    };
     m.natural.min(cap).max(m.least)
 }
 
@@ -311,74 +333,113 @@ const fn label(m: &Measure, cap: f64) -> f64 {
 /// `drawn` at its width, prose from `prose` in order.
 fn placed(
     published: &Published<'_>,
-    (number, drawn): (f64, &[(usize, Measure)]),
+    (number, drawn): (f64, &[Drawn]),
     cap: f64,
     prose: Vec<f64>,
     fonts: &Fonts,
 ) -> Vec<Column> {
     let mut prose = prose.into_iter();
     let mut x = 0.0;
-    let mut place =
-        |kind: Option<CellKind>, source: Option<usize>, w: f64, heading: Vec<String>| {
-            let column = Column {
-                kind,
-                source,
-                x,
-                width: w,
-                heading,
-            };
-            x += w;
-            column
+    let mut place = |kind: Option<CellKind>,
+                     sources: (Option<usize>, Option<usize>),
+                     w: f64,
+                     heading: Vec<String>| {
+        let column = Column {
+            kind,
+            source: sources.0,
+            beneath: sources.1,
+            x,
+            width: w,
+            heading,
         };
-    let mut columns = vec![place(None, None, number, vec![NUMBER_HEADING.to_owned()])];
-    for (c, m) in drawn {
+        x += w;
+        column
+    };
+    let mut columns = vec![place(
+        None,
+        (None, None),
+        number,
+        vec![NUMBER_HEADING.to_owned()],
+    )];
+    for &Drawn {
+        source,
+        beneath,
+        measure: m,
+    } in drawn
+    {
         let w = if m.kind == CellKind::Prose {
             prose.next().unwrap_or(m.least)
         } else {
-            label(m, cap)
+            label(&m, cap)
         };
-        let heading = published
-            .columns
-            .get(*c)
-            .map_or("", |column| column.heading);
-        columns.push(place(
-            Some(m.kind),
-            Some(*c),
-            w,
-            heading_lines(heading, w - PADS_X, fonts),
-        ));
+        // A stacked column's header stacks its headings too.
+        let heading = [Some(source), beneath]
+            .into_iter()
+            .flatten()
+            .filter_map(|c| published.columns.get(c))
+            .flat_map(|column| heading_lines(column.heading, w - PADS_X, fonts))
+            .collect();
+        columns.push(place(Some(m.kind), (Some(source), beneath), w, heading));
     }
     columns
+}
+
+/// A column to draw: its published column, the one stacked under it, and
+/// their measure.
+#[derive(Debug, Clone, Copy)]
+struct Drawn {
+    source: usize,
+    beneath: Option<usize>,
+    measure: Measure,
 }
 
 /// The drawn columns of `published` across `width`.
 pub(super) fn sized(published: &Published<'_>, width: f64, split: bool, fonts: &Fonts) -> Sized {
     let number = number_width(published, fonts);
     let unplotted = published.rows.iter().any(|row| row.number.is_none());
-    let meta = meta_word(published, fonts);
-    let drawn: Vec<(usize, Measure)> = published
+    let line = widest(
+        published
+            .rows
+            .iter()
+            .map(|row| TABLE_TEXT.measure(&super::rows::meta(published, row), fonts)),
+    );
+    let meta = (meta_word(published, fonts), line);
+    // The ring is drawn under the sector, in the sector's column.
+    let ring = published
+        .columns
+        .iter()
+        .position(|column| column.column == ColumnKind::Ring);
+    let drawn: Vec<Drawn> = published
         .columns
         .iter()
         .enumerate()
-        .filter(|(_, column)| !folded(column.column))
+        .filter(|(_, column)| !folded(column.column) && column.column != ColumnKind::Ring)
         .map(|(c, column)| {
-            (
-                c,
-                measure(published, (c, column), (unplotted, split, meta), fonts),
-            )
+            let beneath = ring.filter(|_| column.column == ColumnKind::Sector);
+            let sources: Vec<usize> = [Some(c), beneath].into_iter().flatten().collect();
+            Drawn {
+                source: c,
+                beneath,
+                measure: measure(
+                    published,
+                    (&sources, column),
+                    (unplotted, split, meta),
+                    fonts,
+                ),
+            }
         })
         .collect();
     let labels = |cap: f64| -> f64 {
         drawn
             .iter()
-            .filter(|(_, m)| m.kind != CellKind::Prose)
-            .map(|(_, m)| label(m, cap))
+            .filter(|d| d.measure.kind != CellKind::Prose)
+            .map(|d| label(&d.measure, cap))
             .sum()
     };
     let prose: Vec<Measure> = drawn
         .iter()
-        .filter(|(_, m)| m.kind == CellKind::Prose)
-        .map(|&(_, m)| m)
+        .filter(|d| d.measure.kind == CellKind::Prose)
+        .map(|d| d.measure)
         .collect();
     let need: f64 = prose.iter().map(|m| m.least).sum();
     let fits = |s: f64| width - number - labels(TABLE_LABEL_CAP * s) >= need;

@@ -16,8 +16,8 @@ use crate::published::published;
 use crate::published::{CellKind, NOTHING_PLOTTED};
 use crate::style::{PAPER_FOOT_ROOM, PAPER_MARGIN};
 use crate::style::{
-    TABLE_HEAD, TABLE_LABEL_CAP, TABLE_LABEL_FLOOR, TABLE_NAME, TABLE_PROSE_MIN, TABLE_RULE,
-    TABLE_RULE_HEAVY, TABLE_TEXT,
+    TABLE_HEAD, TABLE_LABEL_CAP, TABLE_LABEL_FLOOR, TABLE_NAME, TABLE_NAME_CAP, TABLE_PROSE_MIN,
+    TABLE_RULE, TABLE_RULE_HEAVY, TABLE_TEXT,
 };
 use crate::style::{TABLE_HEADING, TABLE_LEADING, TABLE_PAD_X, TABLE_PAD_Y};
 use crate::svg::{Anchor, Node, Point, Semantics};
@@ -150,7 +150,7 @@ fn label_columns_take_their_content_and_prose_the_rest() {
     let (width, _) = letter();
     let sum: f64 = block.columns.iter().map(|c| c.width).sum();
     assert!((sum - width).abs() < 1e-9, "{sum} against {width}");
-    assert!(width_of(&block, "name") <= TABLE_LABEL_CAP + 1e-9);
+    assert!(width_of(&block, "name") <= TABLE_NAME_CAP + 1e-9);
     assert!(width_of(&block, "description") >= TABLE_PROSE_MIN);
     assert_eq!(block.cramped(), None);
 }
@@ -176,7 +176,7 @@ fn a_wide_label_is_capped_and_wraps() {
         &format!("name,sector,ring,description\n{name},Tools,Adopt,d\n"),
         Table::Radar,
     );
-    assert!((width_of(&block, "name") - TABLE_LABEL_CAP).abs() < 1e-9);
+    assert!((width_of(&block, "name") - TABLE_NAME_CAP).abs() < 1e-9);
     let part = block.parts.first().expect("a row");
     assert!(part.cells.first().is_some_and(|c| c.lines.len() >= 2));
 }
@@ -186,7 +186,7 @@ fn a_label_column_is_its_widest_text() {
     let csv = "name,sector,ring,description\nA,Data & Analytics,Adopt,d\n";
     let block = block(csv, Table::Radar);
     let widest = TABLE_TEXT.measure("Data & Analytics", fonts()) + PADS_X;
-    assert!((width_of(&block, "Sector") - widest).abs() < 1e-9);
+    assert!((width_of(&block, "Sector ring") - widest).abs() < 1e-9);
 }
 
 /// The maintainer's ruling (2026-10-23): a heading breaks at a space
@@ -228,7 +228,7 @@ fn the_cap_comes_down_before_cramping() {
         })
         .collect::<Vec<_>>()
         .concat();
-    let csv = format!("name,sector,ring,description,rationale,domain,notes,more\n{rows}");
+    let csv = format!("name,sector,ring,description,rationale,context,notes,more\n{rows}");
     let block = block(&csv, Table::All);
     assert_eq!(block.cramped(), None);
     assert!(
@@ -236,7 +236,7 @@ fn the_cap_comes_down_before_cramping() {
         "{}",
         block.cap
     );
-    for heading in ["description", "rationale", "domain", "notes", "more"] {
+    for heading in ["description", "rationale", "context", "notes", "more"] {
         assert!(
             width_of(&block, heading) >= TABLE_PROSE_MIN - 1e-6,
             "{heading}"
@@ -264,7 +264,11 @@ fn too_many_columns_cramp() {
             let word = block
                 .parts
                 .iter()
-                .filter_map(|p| p.cells.get(source))
+                .flat_map(|p| {
+                    // The ring stacked under the sector counts too.
+                    let ring = p.beneath.as_ref().filter(|(b, _)| *b == source);
+                    p.cells.get(source).into_iter().chain(ring.map(|(_, l)| l))
+                })
                 .flat_map(|c| c.lines.iter())
                 .flat_map(|l| l.split_whitespace())
                 .map(|w| TABLE_TEXT.measure(w, fonts()))
@@ -290,6 +294,23 @@ fn too_many_columns_cramp() {
         }
     }
     assert_ne!(all_pages(&block).len(), 0);
+}
+
+/// Review of the name cap: the name's wider cap comes down to the same
+/// floor as every other label's, so it never cramps a table sooner.
+#[test]
+fn the_name_cap_comes_down_to_the_floor() {
+    let others = (0..10)
+        .map(|i| format!(",o{i}"))
+        .collect::<Vec<_>>()
+        .concat();
+    let prose = ",Prose that runs on for a while in every column.".repeat(10);
+    let csv = format!(
+        "name,sector,ring,description{others}\nAlpha with a name of some length,Tools,Adopt,d{prose}\n"
+    );
+    let block = block(&csv, Table::All);
+    assert!(block.cramped().is_some());
+    assert!(width_of(&block, "name") <= TABLE_LABEL_FLOOR + 1e-9);
 }
 
 #[test]
@@ -438,7 +459,7 @@ fn an_empty_description_has_one_blank_line() {
     );
     let part = block.parts.first().expect("a row");
     assert_eq!(
-        part.cells.get(3).map(|c| c.lines.clone()),
+        part.cells.get(2).map(|c| c.lines.clone()),
         Some(vec![String::new()])
     );
 }
@@ -470,7 +491,7 @@ fn a_long_url_breaks_inside_the_link_column() {
     let lines = &block
         .parts
         .first()
-        .and_then(|p| p.cells.get(4))
+        .and_then(|p| p.cells.get(3))
         .expect("a link cell")
         .lines;
     assert!(lines.len() >= 2);
