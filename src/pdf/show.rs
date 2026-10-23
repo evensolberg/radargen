@@ -210,9 +210,12 @@ mod tests {
             palette: &palette,
             fonts: fonts(),
             faces: &faces,
-            scale: 1.0,
-            width: 200.0,
-            height: 100.0,
+            page: crate::pdf::Sheet {
+                unit: 1.0,
+                scale: 1.0,
+                width: 200.0,
+                height: 100.0,
+            },
         };
         let mut out = Content::new();
         text(&mut out, node, &canvas).expect("outlines");

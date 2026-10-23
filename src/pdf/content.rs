@@ -7,7 +7,7 @@ use pdf_writer::Content;
 
 use super::font::Faces;
 use super::geometry::{self, Step};
-use super::real;
+use super::{Sheet, real};
 use crate::palette::Palette;
 use crate::palette::{Neutral, Role};
 use crate::svg::{Document, Group, Node, Paint, Point};
@@ -30,17 +30,8 @@ pub struct Canvas<'a> {
     pub fonts: &'a Fonts,
     /// The embedded subsets.
     pub faces: &'a Faces,
-    /// The content-to-page transform's scale: points per document unit,
-    /// 0.75 × FR-57's width over the document's, divided by the page's
-    /// `/UserUnit`. A paper size (PR 21) adds an offset beside it, not a
-    /// second transform.
-    pub scale: f64,
-    /// The page box's width in the page's own units, a whole number: the
-    /// `MediaBox`'s, which the ground covers.
-    pub width: f64,
-    /// The page box's height, likewise: what the flip translates by, so
-    /// the drawing hangs from the page's top edge.
-    pub height: f64,
+    /// The page box and the scale the drawing is put on it at.
+    pub page: Sheet,
 }
 
 /// The whole page: the ground over the page box (D-87), then the
@@ -54,7 +45,7 @@ pub fn content(canvas: &Canvas<'_>) -> Result<Vec<u8>, FontError> {
     out.save_state();
     // In page space, before the flip: the whole page box, the fraction of
     // a point past the drawing's right and bottom edges included.
-    let ground = geometry::rect(Point::ORIGIN, canvas.width, canvas.height, 0.0);
+    let ground = geometry::rect(Point::ORIGIN, canvas.page.width, canvas.page.height, 0.0);
     shape(
         &mut out,
         &ground,
@@ -64,8 +55,8 @@ pub fn content(canvas: &Canvas<'_>) -> Result<Vec<u8>, FontError> {
     // Unrounded (pdf::scale), so the drawing keeps its size; the
     // translate is the page box's own height, so the drawing hangs from
     // its top edge.
-    let s = super::scale(canvas.scale);
-    out.transform([s, 0.0, 0.0, -s, 0.0, real(canvas.height)])
+    let s = super::scale(canvas.page.scale);
+    out.transform([s, 0.0, 0.0, -s, 0.0, real(canvas.page.height)])
         .set_miter_limit(MITER_LIMIT);
     node(&mut out, &canvas.document.root, canvas)?;
     out.restore_state();
@@ -252,9 +243,12 @@ mod tests {
             palette,
             fonts: fonts(),
             faces: &faces,
-            scale: 0.75,
-            width: 151.0,
-            height: 76.0,
+            page: Sheet {
+                unit: 1.0,
+                scale: 0.75,
+                width: 151.0,
+                height: 76.0,
+            },
         };
         String::from_utf8(content(&canvas).expect("draws")).expect("ASCII")
     }
@@ -301,9 +295,12 @@ mod tests {
             palette: &palette,
             fonts: fonts(),
             faces: &faces,
-            scale,
-            width: 240.0,
-            height: 191.0,
+            page: Sheet {
+                unit: 1.0,
+                scale,
+                width: 240.0,
+                height: 191.0,
+            },
         };
         let s = String::from_utf8(content(&canvas).expect("draws")).expect("ASCII");
         let first = s.lines().find(|l| l.ends_with(" cm")).expect("the cm line");

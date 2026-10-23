@@ -6,11 +6,11 @@ use pdf_writer::{Pdf, Rect, Ref, TextStr, writers};
 
 use super::{UNTITLED, intrinsic_size};
 use crate::diagnostics::Fatal;
-use crate::num::{round_thousandths, saturating_u32};
+use crate::num::round_thousandths;
 use crate::palette::Palette;
 use crate::pdf::content::{Canvas, content};
 use crate::pdf::font::Faces;
-use crate::pdf::real;
+use crate::pdf::{Sheet, real};
 use crate::svg::Document;
 use crate::text::{Fonts, Weight};
 
@@ -48,7 +48,7 @@ pub struct Export<'a> {
 /// [`Fatal::Font`] when a glyph cannot be measured or subset (NFR-15).
 pub fn export(document: &Document, export: &Export<'_>) -> Result<Vec<u8>, Fatal> {
     let (width, _) = intrinsic_size(document, export.width);
-    let sheet = Sheet::of(document, width);
+    let sheet = sheet(document, width);
     let faces = Faces::of([&document.root], export.fonts)?;
     let mut next = Ref::new(1);
     let objects = Objects::numbered(&mut next);
@@ -62,53 +62,29 @@ pub fn export(document: &Document, export: &Export<'_>) -> Result<Vec<u8>, Fatal
         palette: export.palette,
         fonts: export.fonts,
         faces: &faces,
-        scale: sheet.scale,
-        width: sheet.width,
-        height: sheet.height,
+        page: sheet,
     })?;
     pdf.stream(objects.stream, &drawn);
     info(&mut pdf, objects.info, export);
     Ok(pdf.finish())
 }
 
-/// The page in its own units: FR-57's size at [`POINTS_PER_PX`], and the
-/// `/UserUnit` (PDF 1.6) that brings both sides under [`MAX_SIDE`], so a
-/// tall legend's page keeps its size rather than being refused.
-struct Sheet {
-    /// 1, or the smallest whole number that brings both sides under
-    /// [`MAX_SIDE`].
-    unit: u16,
-    /// The content-to-page scale, in the page's own units.
-    scale: f64,
-    /// The `MediaBox`'s width, in the page's own units: the drawing's,
-    /// rounded up to a whole number.
-    width: f64,
-    /// The `MediaBox`'s height, likewise.
-    height: f64,
-}
-
-impl Sheet {
-    /// `document`'s page at `width` CSS px wide (FR-57).
-    ///
-    /// # Panics
-    ///
-    /// Past `u16::MAX`, a page over 900 km long: a layout bug.
-    // qual:allow(complexity, error_handling) reason: "the documented # Panics: no layout is 65,535 × 200 inches long"
-    fn of(document: &Document, width: f64) -> Self {
-        let natural = POINTS_PER_PX * width / document.width;
-        let longest = (document.width * natural).max(document.height * natural);
-        // The smallest whole u with longest / u <= MAX_SIDE; 1 for a page
-        // that already fits. `saturating_u32` saturates, so a page past
-        // u16::MAX units fails the conversion rather than wrapping.
-        let unit = u16::try_from(saturating_u32((longest / MAX_SIDE).ceil()).max(1))
-            .expect("no layout is 65,535 × 200 inches long");
-        let scale = natural / f64::from(unit);
-        Self {
-            unit,
-            scale,
-            width: whole(document.width * scale),
-            height: whole(document.height * scale),
-        }
+/// `document`'s page at `width` CSS px wide (FR-57), in its own units:
+/// FR-57's size at [`POINTS_PER_PX`], and the `/UserUnit` (PDF 1.6) that
+/// brings both sides under [`MAX_SIDE`], so a tall legend's page keeps its
+/// size rather than being refused.
+fn sheet(document: &Document, width: f64) -> Sheet {
+    let natural = POINTS_PER_PX * width / document.width;
+    let longest = (document.width * natural).max(document.height * natural);
+    // The smallest whole u with longest / u <= MAX_SIDE; 1 for a page
+    // that already fits.
+    let unit = (longest / MAX_SIDE).ceil().max(1.0);
+    let scale = natural / unit;
+    Sheet {
+        unit,
+        scale,
+        width: whole(document.width * scale),
+        height: whole(document.height * scale),
     }
 }
 
@@ -175,9 +151,9 @@ fn media_box(sheet: &Sheet) -> Rect {
 }
 
 /// `/UserUnit` on `page`, written only when it is not PDF's default 1.
-fn user_unit(page: &mut writers::Page<'_>, unit: u16) {
-    if unit > 1 {
-        page.user_unit(f32::from(unit));
+fn user_unit(page: &mut writers::Page<'_>, unit: f64) {
+    if unit > 1.0 {
+        page.user_unit(real(unit));
     }
 }
 

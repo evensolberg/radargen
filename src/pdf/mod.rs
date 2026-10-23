@@ -13,6 +13,26 @@ use crate::num::{MAX_MAGNITUDE, round_thousandths};
 /// are in thousandths of an em.
 pub const EM: f64 = 1000.0;
 
+/// The page in its own units (FR-110): what the `MediaBox`, the
+/// `/UserUnit` and the content's flip all read, so they cannot disagree.
+#[derive(Debug, Clone, Copy)]
+pub struct Sheet {
+    /// 1, or the smallest whole number that brings both sides under the
+    /// longest side viewers accept.
+    pub unit: f64,
+    /// The content-to-page transform's scale: points per document unit,
+    /// 0.75 × FR-57's width over the document's, divided by the page's
+    /// `/UserUnit`. A paper size (PR 21) adds an offset beside it, not a
+    /// second transform.
+    pub scale: f64,
+    /// The `MediaBox`'s width in the page's own units, a whole number: the
+    /// drawing's, rounded up; what the ground covers.
+    pub width: f64,
+    /// The `MediaBox`'s height, likewise: what the flip translates by, so
+    /// the drawing hangs from the page's top edge.
+    pub height: f64,
+}
+
 /// The one path a number takes into the PDF (NFR-17): rounded to
 /// thousandths, half away from zero, as [`fmt_coord`] rounds it, then
 /// narrowed to the `f32` pdf-writer writes. The rounding absorbs a trig
