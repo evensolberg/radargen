@@ -146,6 +146,71 @@ browser-setup:
     npm ci
     npx --no-install playwright install chromium-headless-shell firefox webkit
 
+# PDF/UA-1 (FR-114, SC-32): renders a fixture set with the release binary
+# and validates every PDF with veraPDF's PDF/UA-1 profile in one run. It
+# passes only when every job reports compliance, and fails rather than
+# skips when veraPDF is missing or not 1.30.x (`just pdfua-setup`); a copy
+# of one PDF with its MarkInfo broken must fail, so the gate can fail.
+# Names holding characters the bundled font lacks join with FR-113.
+pdfua: release-build pdfua-only
+
+# Installs veraPDF, the PDF/UA validator `just pdfua` runs (it brings
+# OpenJDK). Run once, and again after a veraPDF upgrade.
+pdfua-setup:
+    brew install verapdf
+
+[private]
+pdfua-only:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    command -v verapdf > /dev/null || { echo "veraPDF is missing: run just pdfua-setup" >&2; exit 1; }
+    version="$(verapdf --version 2>/dev/null | head -1)"
+    case "$version" in
+        "veraPDF 1.30."*) ;;
+        *) echo "veraPDF 1.30.x expected, found: $version" >&2; exit 1 ;;
+    esac
+    out="$(mktemp -d)"
+    trap 'rm -rf "$out"' EXIT
+    r=./target/release/radargen
+    t=(--title "Technology Radar")
+    f=tests/fixtures
+    $r $f/three-sector.csv -o "$out/light.pdf" "${t[@]}" 2>/dev/null
+    $r $f/three-sector.csv -o "$out/dark.pdf" "${t[@]}" --theme dark 2>/dev/null
+    $r $f/three-sector.csv -o "$out/untitled.pdf" 2>/dev/null
+    $r $f/long-legend.csv -o "$out/letter.pdf" "${t[@]}" --paper letter 2>/dev/null
+    $r $f/long-legend.csv -o "$out/a4.pdf" "${t[@]}" --paper a4 --subtitle "Edition 1" 2>/dev/null
+    printf 'name,sector,ring,description\na,%s,Adopt,d\nb,Tools,Trial,d\nc,Data,Assess,d\n' "$(printf 'S%.0s' $(seq 64))" > "$out/wide.csv"
+    $r "$out/wide.csv" -o "$out/legend-after.pdf" "${t[@]}" --paper letter 2>/dev/null
+    $r $f/three-sector.csv -o "$out/full.pdf" "${t[@]}" --pdf full 2>/dev/null
+    $r $f/three-sector.csv -o "$out/full-all.pdf" "${t[@]}" --pdf full --table all 2>/dev/null
+    $r $f/three-sector.csv -o "$out/full-dark.pdf" "${t[@]}" --pdf full --paper a4 --theme dark 2>/dev/null
+    printf 'name,sector,ring,description\nAlpha,Tools,Adopt,d\nBeta,Tools,Adopt,%s\nGamma,Tools,Trial,d\n' "$(seq -f 'w%g' 3000 | tr '\n' ' ')" > "$out/tall.csv"
+    $r "$out/tall.csv" -o "$out/split.pdf" "${t[@]}" --pdf full 2>/dev/null
+    printf 'name,sector,ring,description\nLegacy Bus,Tools,Rejected,Retired.\n' > "$out/nothing.csv"
+    $r "$out/nothing.csv" -o "$out/nothing.pdf" "${t[@]}" --pdf full 2>/dev/null
+    printf 'name,sector,ring,description\n' > "$out/headers.csv"
+    $r "$out/headers.csv" -o "$out/headers.pdf" "${t[@]}" --pdf full --table all 2>/dev/null
+    $r $f/table-hostile.csv -o "$out/hostile.pdf" --title $'A & B <C> ]]> "q"\r\nnext' --pdf full --table all 2>/dev/null
+    pdfs=("$out"/*.pdf)
+    for pdf in "${pdfs[@]}"; do
+        [ -s "$pdf" ] || { echo "not written: $pdf" >&2; exit 1; }
+    done
+    verapdf --flavour ua1 --format mrr "${pdfs[@]}" > "$out/report.xml" 2>/dev/null || true
+    jobs="$(grep -c '<job>' "$out/report.xml" || true)"
+    compliant="$(grep -c 'isCompliant="true"' "$out/report.xml" || true)"
+    if [ "$jobs" != "${#pdfs[@]}" ] || [ "$compliant" != "${#pdfs[@]}" ]; then
+        echo "PDF/UA-1: $compliant of ${#pdfs[@]} PDFs compliant ($jobs reports)" >&2
+        grep -o 'clause="[^"]*" testNumber="[^"]*" status="failed"' "$out/report.xml" | sort | uniq -c >&2 || true
+        exit 1
+    fi
+    cp "$out/light.pdf" "$out/broken.pdf"
+    LC_ALL=C perl -pi -e 's{/MarkInfo}{/MarkInfZ}g' "$out/broken.pdf"
+    if verapdf --flavour ua1 --format mrr "$out/broken.pdf" 2>/dev/null | grep -q 'isCompliant="true"'; then
+        echo "PDF/UA-1: the broken control passed, so the gate cannot fail" >&2
+        exit 1
+    fi
+    echo "PDF/UA-1: ${#pdfs[@]} PDFs compliant"
+
 # WCAG 1.4.12 text spacing in a browser (plan RG-014C, D-78, rg-497):
 # renders the fixtures and checks every text fits and none overlaps, at five
 # widths, with the four spacing properties applied, in Chromium, Firefox and
@@ -281,6 +346,7 @@ focus-cost: release-build
     jq -e '.version == 2 and (.quality_score | type == "number")' rustqual-baseline.json > /dev/null
     rustqual . --compare rustqual-baseline.json --fail-on-regression --no-fail
     just browser
+    just pdfua
 
 # NFR-5, NFR-7: resvg must not pull system fonts, memmap, image decoders
 # or svgz into the build (rg-42m).
