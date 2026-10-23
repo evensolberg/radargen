@@ -107,7 +107,24 @@ pub(super) fn heading_lines(heading: &str, width: f64, fonts: &Fonts) -> Vec<Str
     }
     lines.push(line);
     if lines.len() > HEADING_LINES {
-        let rest = lines.split_off(HEADING_LINES - 1).join(" ");
+        // The rest rejoined as the heading has it: a space only where one
+        // was, not after an underscore.
+        let kept: usize = lines
+            .iter()
+            .take(HEADING_LINES - 1)
+            .map(|l| pieces(l).len())
+            .sum();
+        let rest = pieces(heading).into_iter().skip(kept).enumerate().fold(
+            String::new(),
+            |rest, (i, (piece, space))| {
+                if i > 0 && space {
+                    format!("{rest} {piece}")
+                } else {
+                    rest + &piece
+                }
+            },
+        );
+        lines.truncate(HEADING_LINES - 1);
         lines.push(cut(TABLE_HEAD, &rest, width, fonts));
     }
     lines
@@ -201,13 +218,26 @@ fn meta_word(published: &Published<'_>, fonts: &Fonts) -> f64 {
         .filter(|(_, column)| folded(column.column))
         .map(|(c, _)| c)
         .collect();
+    let values = published
+        .rows
+        .iter()
+        .flat_map(|row| folded.iter().filter_map(|&c| row.cells.get(c)))
+        .flat_map(Cell::paragraphs)
+        .flat_map(str::split_whitespace);
+    // A date folds after its column's heading, which is a word there too.
+    let headings = folded
+        .iter()
+        .filter_map(|&c| published.columns.get(c))
+        .filter(|column| {
+            matches!(
+                column.column,
+                ColumnKind::LastAffirmed | ColumnKind::ExitDate
+            )
+        })
+        .flat_map(|column| column.heading.split_whitespace());
     widest(
-        published
-            .rows
-            .iter()
-            .flat_map(|row| folded.iter().filter_map(|&c| row.cells.get(c)))
-            .flat_map(Cell::paragraphs)
-            .flat_map(str::split_whitespace)
+        values
+            .chain(headings)
             .map(|word| TABLE_TEXT.measure(word, fonts)),
     )
 }

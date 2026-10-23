@@ -102,7 +102,7 @@ fn meta(published: &Published<'_>, row: &PublishedRow<'_>) -> String {
         .zip(&row.cells)
         .filter(|(column, _)| folded(column.column))
         .filter_map(|(column, cell)| {
-            let text = cell.paragraphs().concat();
+            let text = cell.paragraphs().join(" ");
             let text = crate::trim(&text).to_owned();
             if text.is_empty() {
                 return None;

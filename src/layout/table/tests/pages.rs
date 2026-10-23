@@ -525,3 +525,21 @@ fn nothing_plotted_starts_at_the_padding() {
     };
     assert!((origin.x - TABLE_PAD_X).abs() < 1e-9);
 }
+
+/// Final review after simplify: a folded date's heading is a word under
+/// the name too, so short names never break it.
+#[test]
+fn a_folded_dates_heading_is_never_broken() {
+    let csv = "name,sector,ring,description,last_affirmed\nGo,Tools,Adopt,d,2026-06-01\nC,Tools,Trial,d,2026-06-02\n";
+    let block = block(csv, Table::Radar);
+    for part in &block.parts {
+        for under in &part.under {
+            assert_eq!(
+                words(&under.lines.join(" ")),
+                under.words,
+                "{:?}",
+                under.lines
+            );
+        }
+    }
+}
