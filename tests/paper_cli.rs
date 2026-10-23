@@ -15,11 +15,10 @@ const LONG: &str = include_str!("fixtures/long-legend.csv");
 
 const PAPER_NOT_PDF: &str =
     "warning: --paper a4 applies to PDF; HTML pages, PNG and SVG have no paper size";
-const WIDTH_FLAG: &str =
-    "warning: --width 800 does not apply with --paper a4; the paper sets the page's size";
-const COLUMNS_FLAG: &str = "warning: --legend-columns 2 does not apply with --paper a4; the paper sets the legend's columns";
-const WIDTH_FILE: &str = "warning: --width 800 does not apply on paper (paper = \"a4\" in radar.toml); the paper sets the page's size; pass --paper none for the drawing-sized page";
-const COLUMNS_FILE: &str = "warning: --legend-columns 2 does not apply on paper (paper = \"a4\" in radar.toml); the paper sets the legend's columns; pass --paper none for the drawing-sized page";
+const WIDTH_FLAG: &str = "warning: --width 800 does not apply with --paper a4; the paper sets the page's size; leave out --paper for a page --width 800 wide";
+const COLUMNS_FLAG: &str = "warning: --legend-columns 2 does not apply with --paper a4; on paper the legend takes as many columns as fit each page; leave out --paper for a legend in 2 columns";
+const WIDTH_FILE: &str = "warning: --width 800 does not apply on paper (paper = \"a4\" in radar.toml); the paper sets the page's size; pass --paper none for a page --width 800 wide";
+const COLUMNS_FILE: &str = "warning: --legend-columns 2 does not apply on paper (paper = \"a4\" in radar.toml); on paper the legend takes as many columns as fit each page; pass --paper none for a legend in 2 columns";
 
 /// A run that must succeed.
 fn ok(dir: &Path, args: &[&str]) -> Ran {
@@ -317,7 +316,7 @@ fn an_unknown_paper_writes_nothing() {
     assert_eq!(snapshot(dir.path()), before);
 }
 
-const RADAR_WIDE: &str = "warning: the radar does not fit on the paper's first page even at its smallest, so it runs past the margins; a shorter title, or shorter sector or ring names, would fix it";
+const RADAR_WIDE: &str = "warning: the radar does not fit on the Letter page even at its smallest, so it runs past the margins; a shorter title, or shorter sector or ring names, would fix it, or pass --paper none";
 
 /// A sector name too long for the page warns once on paper, and not
 /// without it.

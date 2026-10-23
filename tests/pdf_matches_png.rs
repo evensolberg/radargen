@@ -38,6 +38,8 @@ mod catalogue;
 mod fills;
 #[path = "pdf_matches_png/halos.rs"]
 mod halos;
+#[path = "common/long_legend.rs"]
+mod long_legend;
 #[path = "common/oracle.rs"]
 mod oracle;
 #[path = "common/paper.rs"]
@@ -48,6 +50,8 @@ mod paper_pages;
 mod pdf_export;
 #[path = "common/pdf_page.rs"]
 mod pdf_page;
+#[path = "pdf_matches_png/table.rs"]
+mod table_pages;
 
 use oracle::{CASES, wide};
 use pdf_export::{fonts, pdf};

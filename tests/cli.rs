@@ -283,8 +283,8 @@ fn the_table_long_help_says_what_each_value_publishes() {
         block,
         [
             "--table <TABLE>",
-            "What an HTML page's table publishes; the default is radar.",
-            "It also decides what the detail panels show. Accepted in any letter case. PNG, SVG and PDF have no table.",
+            "What the table lists; the default is radar.",
+            "On an HTML page and in a full PDF (--pdf full). It also decides what an HTML page's detail panels show. Accepted in any letter case. PNG, SVG and the radar PDF have no table.",
             "Possible values:",
             "- radar: Only the rows the radar draws and the columns radargen reads",
             "- all:   Every row, including those not on the radar, and every column with a header name. Anyone with the page can read them",
@@ -820,8 +820,6 @@ fn an_omitted_flag_is_none_so_a_config_key_can_fill_it() {
     );
 }
 
-/// The defaults are written in the help as prose (plan RG-019A, Ruling 1);
-/// this keeps them the ones `settings` applies.
 // ---- --paper: a PDF on landscape paper (FR-111)
 
 #[test]
@@ -857,7 +855,10 @@ fn help_describes_paper() {
     );
     // Accepted and ignored, not refused: "Not with" is a clap conflict.
     assert_eq!(
-        long.matches("Ignored on paper (--paper letter or a4).")
+        long.split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .matches("Ignored on paper (--paper letter or a4, or --pdf full).")
             .count(),
         2,
         "--width and --legend-columns: {long}"
@@ -865,6 +866,47 @@ fn help_describes_paper() {
     assert!(!long.contains("Not with --paper"), "{long}");
 }
 
+// ---- --pdf: the radar PDF or the full one (FR-112)
+
+#[test]
+fn pdf_parses_in_any_case() {
+    use radargen::options::Pdf;
+    let cli = parse(&["in.csv", "-o", "e.pdf"]).expect("parses");
+    assert_eq!(cli.pdf, None, "not given");
+    for (given, want) in [
+        ("radar", Pdf::Radar),
+        ("FULL", Pdf::Full),
+        ("Full", Pdf::Full),
+    ] {
+        let cli = parse(&["in.csv", "-o", "e.pdf", "--pdf", given]).expect(given);
+        assert_eq!(cli.pdf, Some(want), "{given}");
+    }
+    let err = parse(&["in.csv", "-o", "e.pdf", "--pdf", "heavy"])
+        .expect_err("not a PDF kind")
+        .to_string();
+    assert!(err.contains("radar") && err.contains("full"), "{err}");
+}
+
+#[test]
+fn help_describes_pdf() {
+    use clap::CommandFactory;
+    // clap wraps the long help, so it is read with its whitespace folded.
+    let long = Cli::command().render_long_help().to_string();
+    let long = long.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        long.contains("\"full\" adds the table of items")
+            && long.contains("always on paper: Letter unless --paper a4"),
+        "{long}"
+    );
+    let short = Cli::command().render_help().to_string();
+    assert!(
+        short.contains("Radar, or full with the table; the default is radar"),
+        "{short}"
+    );
+}
+
+/// The defaults are written in the help as prose (plan RG-019A, Ruling 1);
+/// this keeps them the ones `settings` applies.
 #[test]
 fn help_names_each_default() {
     use clap::CommandFactory;

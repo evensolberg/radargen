@@ -9,6 +9,8 @@ mod catalogue;
 mod fonts;
 #[path = "../common/html.rs"]
 mod html;
+#[path = "../common/long_legend.rs"]
+mod long_legend;
 #[path = "../common/palette.rs"]
 mod palette;
 #[path = "../common/paper.rs"]

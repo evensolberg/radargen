@@ -1,14 +1,15 @@
 ---
 id: rg-i95
 title: 'Paper edge cases: oversized rows, absurd titles, quadratic footer cut'
-status: open
+status: closed
 type: bug
 priority: 4
 tags:
 - pdf
 - paper
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-23
+closed_reason: 'PR 21b: title cap and tall legend-row warning'
 phase: v1.2
 ---
 

@@ -8,6 +8,7 @@ use crate::layout::title::shown;
 use crate::model::Catalogue;
 use crate::options::OutputFormat;
 use crate::order::Plotted;
+use crate::published::{Cell, Published, PublishedColumn};
 use crate::settings::{Source, Sourced};
 use crate::text::{Fonts, words};
 
@@ -69,7 +70,7 @@ pub fn warn_missing_glyphs(
                 line,
                 column,
                 kind: RowKind::MissingGlyphs {
-                    column: kind,
+                    column: kind.as_str().to_owned(),
                     lacking,
                 },
             });
@@ -89,6 +90,67 @@ pub fn warn_missing_glyphs(
             .expect("FR-10's order indexes the catalogue's sectors");
         cell(sector.line, ColumnKind::Sector, &sector.label);
     }
+}
+
+/// FR-104 on a full PDF's table (FR-112): each cell it draws that the
+/// radar and legend do not, once per cell.
+///
+/// That is an unplotted row's name, and every label, prose and link cell
+/// but the sector and ring, whose labels are warned about where they are
+/// declared.
+pub fn warn_table_glyphs(
+    catalogue: &Catalogue,
+    table: &Published<'_>,
+    format: OutputFormat,
+    fonts: &Fonts,
+    warnings: &mut Warnings,
+) {
+    for row in &table.rows {
+        for (cell, column) in row.cells.iter().zip(&table.columns) {
+            let Some(position) = catalogue.columns.get(column.source).map(|c| c.position) else {
+                continue;
+            };
+            if let Some(warning) = cell_glyphs((row.line, position), cell, column, format, fonts) {
+                warnings.push(warning);
+            }
+        }
+    }
+}
+
+/// FR-104's warning for one table `cell` on `line`, under `column`; `None`
+/// when the radar or legend already warns about it, or Inter draws it all.
+fn cell_glyphs(
+    (line, position): (usize, usize),
+    cell: &Cell<'_>,
+    column: &PublishedColumn<'_>,
+    format: OutputFormat,
+    fonts: &Fonts,
+) -> Option<Warning> {
+    let warned_elsewhere = match cell {
+        Cell::Name { unplotted, .. } => !unplotted,
+        _ => matches!(column.column, ColumnKind::Sector | ColumnKind::Ring),
+    };
+    let text = words(&cell.paragraphs().join(" "));
+    // Inter draws every printable ASCII character, so most cells need no
+    // shaping to know it.
+    if warned_elsewhere || text.is_ascii() {
+        return None;
+    }
+    let lacking = lacking(&text, format, fonts)?;
+    // An `Other` column is named by its heading, as written and trimmed.
+    let name = if column.column == ColumnKind::Other {
+        column.heading
+    } else {
+        column.column.as_str()
+    };
+    Some(Warning::Row {
+        line,
+        column: position,
+        kind: RowKind::MissingGlyphs {
+            column: name.to_owned(),
+            lacking,
+        },
+    })
 }
 
 /// What `text` lacks in `format`, or `None` when the font draws all of it.
@@ -154,7 +216,7 @@ mod tests {
             line,
             column,
             kind: RowKind::MissingGlyphs {
-                column: kind,
+                column: kind.as_str().to_owned(),
                 lacking,
             },
         }

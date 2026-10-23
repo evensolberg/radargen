@@ -1,0 +1,11 @@
+name,sector,ring,description,link,qualifier,last_affirmed,"a<b & ""c""",notes
+"  Padded name  ",Tools,Adopt,"First paragraph.
+Second line.
+
+Third paragraph.",https://example.com/a?b=1&c=2,Conditional,2026-01-02,x1,  n1  
+Refused link,Tools,Trial,Plain description.,javascript:x,,,,
+Ærø (Q3) \ test,Platforms,Adopt,"
+
+",,Default,,,
+Gone,Platforms,Elsewhere,An unplotted row.,,,,,
+Empty link,Tools,Assess,d,,,2025-12-31,,

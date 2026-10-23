@@ -1,7 +1,7 @@
 ---
 id: rg-q1q
 title: Paper test gaps from the PR 21a final review
-status: open
+status: closed
 type: task
 priority: 4
 tags:
@@ -9,7 +9,8 @@ tags:
 - paper
 - testing
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-23
+closed_reason: PR 21b Task 9
 phase: v1.2
 ---
 

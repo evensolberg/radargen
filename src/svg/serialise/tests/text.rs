@@ -35,6 +35,19 @@ fn several_lines_are_tspans() {
     );
 }
 
+/// FR-111's footer page number ends at its origin.
+#[test]
+fn an_end_anchor_is_written() {
+    let palette = light();
+    assert_eq!(
+        one(
+            &text(&["Page 1 of 2"], Anchor::End, fill()),
+            Target::Static(&palette)
+        ),
+        "<text x=\"10\" y=\"20\" font-family=\"Inter\" font-size=\"11\" font-weight=\"400\" text-anchor=\"end\" fill=\"#585F6B\">Page 1 of 2</text>\n"
+    );
+}
+
 fn styled(style: TextStyle) -> Node {
     Node::Text {
         origin: Point::ORIGIN,

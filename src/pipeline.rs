@@ -21,7 +21,9 @@ use crate::csv::decode;
 use crate::csv::parse::parse;
 use crate::date::is_iso_date;
 use crate::decode::NotUtf8;
-use crate::diagnostics::{Fatal, OffRadar, ReadFile, RenderKind, RowError, Warning, Warnings};
+use crate::diagnostics::{
+    Fatal, OffRadar, PaperFrom, ReadFile, RenderKind, RowError, Warning, Warnings,
+};
 use crate::emit::html::{Page, page};
 use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
@@ -31,21 +33,22 @@ use crate::layout::arrange::{
     Arrangement, Blocks, arrange, narrow_parts, warn_narrow, warn_wide, wide_parts,
 };
 use crate::layout::geometry::warn_crowding;
-use crate::layout::glyphs::warn_missing_glyphs;
+use crate::layout::glyphs::{warn_missing_glyphs, warn_table_glyphs};
 use crate::layout::legend::LegendBlock;
 use crate::layout::paper::{self, Sheets, page_size};
 use crate::layout::title::shown;
 use crate::model::{Catalogue, build_catalogue};
-use crate::options::{Legend, OutputFormat, Paper, Table};
+use crate::options::{Legend, OutputFormat, Paper, Pdf, Table};
 use crate::order::{Plotted, resolve};
 use crate::palette::file::{self, ReadError};
 use crate::palette::{Colours, Theme};
+use crate::published::published;
 use crate::rings::{RingSet, default_rings, parse_ring_list};
 use crate::settings::edition::{Edition, Problem, Today, expand, uses};
 use crate::settings::file::{self as config_file, MAX_KEY_PROBLEMS};
 use crate::settings::{
-    DEFAULT_LEGEND, DEFAULT_LEGEND_COLUMNS, DEFAULT_TABLE, DEFAULT_THEME, Effective, NamedPath,
-    Origin, Setting, Settings, Source, Sourced, resolve as resolve_path,
+    DEFAULT_LEGEND, DEFAULT_LEGEND_COLUMNS, DEFAULT_PDF, DEFAULT_TABLE, DEFAULT_THEME, Effective,
+    NamedPath, Origin, Setting, Settings, Source, Sourced, resolve as resolve_path,
 };
 use crate::text::Fonts;
 use crate::{ECHO_CHARS, clip};
@@ -78,6 +81,10 @@ pub struct Config {
     /// default, which HTML ignores, with where they came from, so paper's
     /// warning (FR-111) can tell the flag from the file.
     pub legend_columns: Sourced<u8>,
+    /// FR-112: what a PDF holds, with where it came from.
+    pub pdf: Sourced<Pdf>,
+    /// The file's `pdf = "full"` that `--paper none` displaced.
+    pub dropped_full: Option<Origin>,
     /// FR-111: the paper a PDF is laid out on, from `--paper` or the file,
     /// with where it came from; absent, or `none`, is the drawing-sized
     /// page.
@@ -111,13 +118,31 @@ impl Config {
     }
 
     /// FR-111: the paper's landscape page in points, when the output is a
-    /// PDF on paper.
+    /// PDF on paper; FR-112: a full PDF with no paper is on Letter.
     #[must_use]
     pub fn paper(&self) -> Option<(f64, f64)> {
-        self.paper
-            .as_ref()
-            .filter(|_| self.format == OutputFormat::Pdf)
-            .and_then(|paper| paper.value.points())
+        self.sheet().and_then(Paper::points)
+    }
+
+    /// The paper a PDF is laid out on: `--paper letter` or `a4`, or Letter
+    /// for a full PDF that names none; `None` for the drawing-sized page or
+    /// another format.
+    #[must_use]
+    pub fn sheet(&self) -> Option<Paper> {
+        if self.format != OutputFormat::Pdf {
+            return None;
+        }
+        match &self.paper {
+            Some(paper) if paper.value != Paper::None => Some(paper.value),
+            Some(_) => None,
+            None => self.full().then_some(Paper::Letter),
+        }
+    }
+
+    /// FR-112: whether the output is a full PDF, the table after the radar.
+    #[must_use]
+    pub fn full(&self) -> bool {
+        self.format == OutputFormat::Pdf && self.pdf.value == Pdf::Full
     }
 }
 
@@ -228,6 +253,7 @@ fn steps(cli: &Cli, today: impl FnOnce() -> Today, warnings: &mut Warnings) -> R
     // can say so when it is raised.
     let off_radar = OffRadar::of(
         config.format,
+        config.full(),
         config.table.value,
         config.table.origin.is_flag(),
     );
@@ -333,6 +359,8 @@ fn config(
     };
     let reads = read_files(input.as_ref(), cli.config.as_deref(), palette_path.as_ref());
     let format = checked_output(&mut gate, output.as_ref(), &reads)?;
+    gate.errors
+        .extend(full_needs_paper(format, &settings.pdf, &settings.paper));
     let ring_set = checked_rings(&mut gate, &rings, &unplotted)?;
     let colours = checked_colours(
         &mut gate,
@@ -379,6 +407,8 @@ fn config(
             .legend_columns
             .or(Setting::LegendColumns, DEFAULT_LEGEND_COLUMNS),
         paper: settings.paper.given(),
+        pdf: settings.pdf.clone().or(Setting::Pdf, DEFAULT_PDF),
+        dropped_full: settings.dropped_full.clone(),
         title,
         subtitle,
         rings,
@@ -560,6 +590,29 @@ fn merged(cli: &Cli) -> Result<(Settings, Gate), Vec<Fatal>> {
     gate.errors
         .extend(loaded.iter().flat_map(|l| merge_errors(&settings, l)));
     Ok((settings, gate))
+}
+
+/// FR-112: a full PDF needs paper. `none` against `full` from the same
+/// source is a usage error; across sources the flag has already won
+/// (`Settings::displace`).
+fn full_needs_paper(
+    format: Option<OutputFormat>,
+    pdf: &Effective<Pdf>,
+    paper: &Effective<Paper>,
+) -> Option<Fatal> {
+    match (pdf, paper) {
+        (Effective::Given(pdf), Effective::Given(paper))
+            if format == Some(OutputFormat::Pdf)
+                && pdf.value == Pdf::Full
+                && paper.value == Paper::None =>
+        {
+            Some(Fatal::FullNeedsPaper {
+                pdf: pdf.origin.clone(),
+                paper: paper.origin.clone(),
+            })
+        }
+        _ => None,
+    }
 }
 
 /// What the merge finds wrong beyond each key's own problems, usage errors
@@ -927,37 +980,66 @@ fn warn_static_flags(config: &Config, warnings: &mut Warnings) {
     if config.legend.value == Legend::Hidden && config.legend.origin.is_flag() {
         warnings.push(Warning::Render(RenderKind::LegendStatic));
     }
-    if config.table.value == Table::All && config.table.origin.is_flag() {
-        warnings.push(Warning::Render(RenderKind::TableStatic));
+    // FR-112: the full PDF has the table.
+    if config.table.value == Table::All && config.table.origin.is_flag() && !config.full() {
+        warnings.push(Warning::Render(RenderKind::TableStatic {
+            format: config.format,
+        }));
     }
 }
 
 /// FR-111: `--paper` from the flag on an output with no paper, and
 /// `--width` or `--legend-columns` from the flag on a PDF on paper, which
-/// sets both, are warned about. The same values from `--config` are
+/// sets both, are warned about; so is `--pdf full` from the flag on an
+/// output that is not a PDF (FR-112). The same values from `--config` are
 /// silent, since one file serves every format (D-100).
 fn warn_paper_flags(config: &Config, warnings: &mut Warnings) {
-    let Some(paper) = config.paper.as_ref().filter(|p| p.value != Paper::None) else {
-        return;
-    };
     if config.format != OutputFormat::Pdf {
-        if paper.origin.is_flag() {
-            warnings.push(Warning::Render(RenderKind::PaperNotPdf {
-                paper: paper.value,
-            }));
-        }
+        warn_no_paper(config, warnings);
         return;
     }
+    if let Some(pdf) = config.dropped_full.as_ref() {
+        warnings.push(Warning::Render(RenderKind::FullDropped {
+            pdf: pdf.clone(),
+        }));
+    }
+    let paper = config.paper.as_ref().filter(|p| p.value != Paper::None);
+    if paper.is_none() && !config.full() {
+        return;
+    }
+    let from = PaperFrom {
+        paper: paper.cloned(),
+        full: config.full().then(|| config.pdf.origin.clone()),
+    };
     if let Some(width) = config.width.as_ref().filter(|w| w.origin.is_flag()) {
         warnings.push(Warning::Render(RenderKind::PaperIgnoresWidth {
             width: width.value,
-            paper: paper.clone(),
+            paper: from.clone(),
         }));
     }
     if config.legend_columns.origin.is_flag() {
         warnings.push(Warning::Render(RenderKind::PaperIgnoresLegendColumns {
             columns: config.legend_columns.value,
-            paper: paper.clone(),
+            paper: from,
+        }));
+    }
+}
+
+/// `--pdf full` and `--paper` from the flag on an output that is not a
+/// PDF (FR-111, FR-112).
+fn warn_no_paper(config: &Config, warnings: &mut Warnings) {
+    if config.pdf.value == Pdf::Full && config.pdf.origin.is_flag() {
+        warnings.push(Warning::Render(RenderKind::PdfNotPdf {
+            pdf: config.pdf.value,
+        }));
+    }
+    let flagged = config
+        .paper
+        .as_ref()
+        .filter(|p| p.value != Paper::None && p.origin.is_flag());
+    if let Some(paper) = flagged {
+        warnings.push(Warning::Render(RenderKind::PaperNotPdf {
+            paper: paper.value,
         }));
     }
 }
@@ -1094,6 +1176,13 @@ fn on_paper(
     warnings: &mut Warnings,
 ) -> Result<Vec<u8>, Fatal> {
     let legend = LegendBlock::on_paper(catalogue, plotted, fonts);
+    // FR-112: a full PDF's table, as the HTML page publishes it.
+    let table = config
+        .full()
+        .then(|| published(catalogue, plotted, config.table.value));
+    if let Some(table) = &table {
+        warn_table_glyphs(catalogue, table, config.format, fonts, warnings);
+    }
     let sheets = Sheets {
         radar: &blocks.radar,
         key: &blocks.key,
@@ -1101,13 +1190,35 @@ fn on_paper(
         title: config.title().unwrap_or(UNTITLED),
         subtitle: config.subtitle(),
         size: page_size(points),
+        table: table.as_ref(),
     };
     let bodies = paper::bodies(&sheets, fonts);
     if bodies.radar_too_wide {
-        warnings.push(Warning::Render(RenderKind::PaperRadarWide));
+        warnings.push(Warning::Render(RenderKind::PaperRadarWide {
+            paper: config.sheet().unwrap_or(Paper::Letter),
+            full: config.full(),
+        }));
+    }
+    if let Some(columns) = bodies.table_cramped {
+        warnings.push(Warning::Render(RenderKind::TableCramped {
+            columns,
+            table: config.table.clone(),
+        }));
+    }
+    for (line, name) in &bodies.tall_legend_rows {
+        warnings.push(Warning::Render(RenderKind::LegendRowTall {
+            line: *line,
+            name: name.clone(),
+        }));
+    }
+    for (line, name) in &bodies.tall_table_rows {
+        warnings.push(Warning::Render(RenderKind::TableRowTall {
+            line: *line,
+            name: name.clone(),
+        }));
     }
     pdf::export_pages(
-        &paper::footed(bodies.pages, &sheets, fonts),
+        &paper::footed(bodies, &sheets, fonts),
         &pdf::Export {
             palette: &config.colours.snapshot(),
             fonts,

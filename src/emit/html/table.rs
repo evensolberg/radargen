@@ -14,19 +14,17 @@ use super::Table;
 use super::chrome::DATA_SELECTED;
 use super::css::{OUTLINE_CLOSE, Wide, capped};
 use crate::escape::{html_attr, xml_text};
-use crate::model::{Catalogue, ColumnKind, Item, Link, NOT_ON_THE_RADAR};
+use crate::model::{Catalogue, Link, NOT_ON_THE_RADAR};
 use crate::order::Plotted;
 use crate::palette::Neutral;
+use crate::published::{
+    Cell, NOTHING_PLOTTED, NUMBER_HEADING, NUMBER_SPOKEN, PublishedRow, published,
+};
 use crate::svg::serialise::DATA_ROW;
-use crate::trim;
 
 /// The heading's `id`, written once outside both arrangements (architecture
 /// §5's exception): it names the table and its scroll region.
 const HEADING_ID: &str = "table-heading";
-/// The default table's heading, which names its region too (FR-106).
-const RADAR_HEADING: &str = "Items on the radar";
-/// `--table all`'s heading, as it was before FR-106.
-const ALL_HEADING: &str = "Every item";
 /// Neutral, since a screen reader adds "collapsed" or "expanded".
 const SUMMARY: &str = "The table";
 
@@ -44,9 +42,11 @@ const OPEN_REGION: &str =
 /// Only the region is named by the heading: naming the table too would
 /// announce the heading's words a third time in a row.
 const OPEN_TABLE: &str = "\" tabindex=\"0\">\n<table>\n<thead><tr>";
-/// The number column: `#` to the eye, "Number" to a screen reader, which
-/// may read a bare `#` as "pound" or skip it.
-const NUMBER_HEADING: &str = "<th scope=\"col\"><span aria-hidden=\"true\">#</span><span class=\"visually-hidden\">Number</span></th>";
+/// The number column's heading around [`NUMBER_HEADING`] and
+/// [`NUMBER_SPOKEN`]: the mark to the eye, the word to a screen reader.
+const NUMBER_OPEN: &str = "<th scope=\"col\"><span aria-hidden=\"true\">";
+const NUMBER_SPOKEN_OPEN: &str = "</span><span class=\"visually-hidden\">";
+const NUMBER_CLOSE: &str = "</span></th>";
 const OPEN_BODY: &str = "</tr></thead>\n<tbody>\n";
 const CLOSE: &str = "</tbody></table></div></details>\n";
 const CLASS_OPEN: &str = " class=\"";
@@ -55,40 +55,38 @@ const NEW_TAB: &str = "<span class=\"visually-hidden\"> (opens in a new tab)</sp
 /// The default table's one row when nothing is plotted (FR-106), spanning
 /// every column so the region and its skip target stay.
 const EMPTY_OPEN: &str = "<tr><td colspan=\"";
-const EMPTY_REST: &str = "\">Nothing is on the radar.</td></tr>\n";
+const EMPTY_REST: &str = "\">";
+const EMPTY_CLOSE: &str = "</td></tr>\n";
 
 /// The table view publishing `publish`, for `<main>` after both
-/// arrangements.
+/// arrangements. What it publishes is [`published`]'s; this writes it.
 pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted, publish: Table) -> String {
-    let columns = order(catalogue, publish);
-    let head: String = columns
+    let table = published(catalogue, plotted, publish);
+    let head: String = table
+        .columns
         .iter()
-        .map(|&c| column_heading(catalogue, c))
+        .map(|column| ["<th scope=\"col\">", &xml_text(column.heading), "</th>"].concat())
         .collect();
-    // FR-106: `radar` lists FR-34's plotted items alone, under its own
-    // heading, and says when there are none; `all` follows them with the
-    // unplotted rows (FR-78), and its empty body, from a headers-only CSV,
-    // is left as it was, so its page is unchanged byte for byte.
-    let (rows, heading, says_empty) = match publish {
-        Table::Radar => (plotted.items.clone(), RADAR_HEADING, true),
-        Table::All => (plotted.table_rows(), ALL_HEADING, false),
+    // FR-106: `radar` says when nothing is plotted; `all`'s empty body,
+    // from a headers-only CSV, is left as it was, so its page is unchanged
+    // byte for byte.
+    let body: String = if table.says_empty {
+        [
+            EMPTY_OPEN,
+            &(table.columns.len() + 1).to_string(),
+            EMPTY_REST,
+            NOTHING_PLOTTED,
+            EMPTY_CLOSE,
+        ]
+        .concat()
+    } else {
+        table.rows.iter().map(row).collect()
     };
-    let mut body: String = rows
-        .into_iter()
-        .filter_map(|i| {
-            let item = catalogue.items.get(i)?;
-            let number = plotted.numbers.get(i).copied().flatten();
-            Some(row(catalogue, &columns, item, number))
-        })
-        .collect();
-    if body.is_empty() && says_empty {
-        body = [EMPTY_OPEN, &(columns.len() + 1).to_string(), EMPTY_REST].concat();
-    }
     [
         OPEN_HEADING,
         HEADING_ID,
         "\">",
-        heading,
+        table.heading,
         OPEN_TOGGLE,
         TABLE_VIEW_CLASS,
         TOGGLE_REST,
@@ -96,7 +94,11 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted, publish: Table) ->
         OPEN_REGION,
         HEADING_ID,
         OPEN_TABLE,
+        NUMBER_OPEN,
         NUMBER_HEADING,
+        NUMBER_SPOKEN_OPEN,
+        NUMBER_SPOKEN,
+        NUMBER_CLOSE,
         &head,
         OPEN_BODY,
         &body,
@@ -105,66 +107,27 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted, publish: Table) ->
     .concat()
 }
 
-/// FR-78's columns, as indices into [`Catalogue::columns`]: `name`,
-/// `sector`, `ring`, then every other named column in header order,
-/// `description` included (D-80). Under `radar`, a column radargen does not
-/// read ([`ColumnKind::Other`]) is left out (FR-106).
-fn order(catalogue: &Catalogue, publish: Table) -> Vec<usize> {
-    let first: Vec<usize> = [ColumnKind::Name, ColumnKind::Sector, ColumnKind::Ring]
-        .into_iter()
-        .filter_map(|kind| catalogue.column(kind))
-        .collect();
-    let published = |c: &usize| {
-        catalogue
-            .columns
-            .get(*c)
-            .is_some_and(|column| publish == Table::All || column.kind != ColumnKind::Other)
-    };
-    let rest = (0..catalogue.columns.len()).filter(|c| !first.contains(c) && published(c));
-    first.iter().copied().chain(rest).collect()
-}
-
-/// D-101's heading for the sector column, whatever the header calls it.
-const SECTOR_HEADING: &str = "Sector";
-
-/// A column's heading: the header cell as written, trimmed (FR-27), except
-/// the sector column's, which is always [`SECTOR_HEADING`] so a `quadrant`
-/// header does not put the old word back on the page (D-101).
-fn column_heading(catalogue: &Catalogue, column: usize) -> String {
-    let heading = catalogue.columns.get(column).map_or("", |c| {
-        if c.kind == ColumnKind::Sector {
-            SECTOR_HEADING
-        } else {
-            trim(&c.heading)
-        }
-    });
-    ["<th scope=\"col\">", &xml_text(heading), "</th>"].concat()
-}
-
 /// One item's row, keyed on its CSV line as its marker and legend row are
-/// (architecture §5). `number` is FR-18's, `None` for an unplotted row.
-// The unplotted branches here and in `name_cell` and `cell`, and the
-// `.unplotted` and `.flag` rules, serve `--table all` alone; they stay in
-// every page so `all`'s output is unchanged byte for byte (FR-106).
-fn row(catalogue: &Catalogue, columns: &[usize], item: &Item, number: Option<usize>) -> String {
-    let class = if number.is_some() {
+/// (architecture §5).
+// The unplotted branches here and in `name_cell`, and the `.unplotted` and
+// `.flag` rules, serve `--table all` alone; they stay in every page so
+// `all`'s output is unchanged byte for byte (FR-106).
+fn row(row: &PublishedRow<'_>) -> String {
+    let class = if row.number.is_some() {
         ""
     } else {
         " class=\"unplotted\""
     };
-    let cells: String = columns
-        .iter()
-        .map(|&c| cell(catalogue, c, item, number.is_none()))
-        .collect();
+    let cells: String = row.cells.iter().map(|c| cell(c, row.line)).collect();
     [
         "<tr ",
         DATA_ROW,
         "=\"",
-        &item.line.to_string(),
+        &row.line.to_string(),
         "\"",
         class,
         "><td class=\"number\">",
-        &number.map(|n| n.to_string()).unwrap_or_default(),
+        &row.number.map(|n| n.to_string()).unwrap_or_default(),
         "</td>",
         &cells,
         "</tr>\n",
@@ -172,38 +135,15 @@ fn row(catalogue: &Catalogue, columns: &[usize], item: &Item, number: Option<usi
     .concat()
 }
 
-/// One cell of `item` under `column`.
-///
-/// The name is the row's header, flagged when `unplotted`. Sector and
-/// ring show the labels the legend uses (FR-9, FR-17); a link shows what the
-/// model decided (FR-96). Prose is verbatim, keeping its line breaks and
-/// blank lines (FR-97, D-76: its whitespace may be deliberate); the other
-/// labels are shown trimmed (D-76).
-fn cell(catalogue: &Catalogue, column: usize, item: &Item, unplotted: bool) -> String {
-    let kind = catalogue
-        .columns
-        .get(column)
-        .map_or(ColumnKind::Other, |c| c.kind);
-    let value = item.cell(column).unwrap_or_default();
-    match kind {
-        ColumnKind::Name => name_cell(item, unplotted),
-        ColumnKind::Sector => td(
-            None,
-            catalogue
-                .sectors
-                .get(item.sector)
-                .map_or("", |q| q.label.as_str()),
-        ),
-        ColumnKind::Ring => td(None, catalogue.ring_label(item)),
-        ColumnKind::Link => link_cell(item.link.as_ref()),
-        ColumnKind::Description
-        | ColumnKind::Domain
-        | ColumnKind::Rationale
-        | ColumnKind::Other => td(Some(PROSE_CLASS), value),
-        ColumnKind::Qualifier
-        | ColumnKind::Status
-        | ColumnKind::LastAffirmed
-        | ColumnKind::ExitDate => td(None, trim(value)),
+/// One published cell of the row on `line`: the name as the row header,
+/// prose in a cell that keeps its line breaks (FR-97), a link as FR-96
+/// writes it, a label as text.
+fn cell(cell: &Cell<'_>, line: usize) -> String {
+    match *cell {
+        Cell::Name { name, unplotted } => name_cell(name, line, unplotted),
+        Cell::Label(text) => td(None, text),
+        Cell::Prose(text) => td(Some(PROSE_CLASS), text),
+        Cell::Link(address) => link_cell(address),
     }
 }
 
@@ -218,7 +158,7 @@ fn td(class: Option<&str>, text: &str) -> String {
 /// button's name read "Old not on the radar" and never run together (D-66,
 /// WCAG 2.5.3). The script adds its `aria-expanded` and `aria-controls`, so
 /// without it the button claims no state.
-fn name_cell(item: &Item, unplotted: bool) -> String {
+fn name_cell(name: &str, line: usize, unplotted: bool) -> String {
     let flag = if unplotted {
         // A comma for the ear only, so the name and the flag are heard apart.
         [
@@ -234,9 +174,9 @@ fn name_cell(item: &Item, unplotted: bool) -> String {
         "<th scope=\"row\"><button type=\"button\" ",
         DATA_ROW,
         "=\"",
-        &item.line.to_string(),
+        &line.to_string(),
         "\">",
-        &xml_text(&item.name),
+        &xml_text(name),
         &flag,
         "</button></th>",
     ]

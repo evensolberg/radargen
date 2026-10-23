@@ -237,6 +237,15 @@ impl Catalogue {
         )
     }
 
+    /// The sector label `item` is shown under (FR-9); empty for an item
+    /// from another catalogue.
+    #[must_use]
+    pub fn sector_label(&self, item: &Item) -> &str {
+        self.sectors
+            .get(item.sector)
+            .map_or("", |q| q.label.as_str())
+    }
+
     /// FR-50, FR-75: an accessible name for a marker, a legend row and —
     /// until `rg-6ny` settles how table rows are exposed — a table row.
     /// Only a table row can be unplotted (FR-18).

@@ -99,7 +99,21 @@ fn two_processes_write_the_same_pdf() {
     let long = include_str!("fixtures/long-legend.csv");
     let long_title = "A title long enough to be cut in a paper page's footer, since it runs on \
         and on across the page well past the room the footer leaves beside its page number";
-    let cases: [(&str, &[&str]); 10] = [
+    let many = (0..300).fold("name,sector,ring,description\n".to_owned(), |csv, i| {
+        csv + &format!("item {i:03},Tools,Adopt,\"Prose for item {i}.\n\nWhy it is here.\"\n")
+    });
+    let tall = format!(
+        "name,sector,ring,description\nAlpha,Tools,Adopt,d\nBeta,Tools,Adopt,{}\nGone,Tools,Elsewhere,d\n",
+        "word ".repeat(3_000)
+    );
+    let cases: [(&str, &[&str]); 14] = [
+        (PRD, &["--pdf", "full"]),
+        (
+            &many,
+            &["--pdf", "full", "--paper", "a4", "--theme", "dark"],
+        ),
+        (&tall, &["--pdf", "full", "--table", "all"]),
+        (HOSTILE, &["--pdf", "full", "--title", "Ærø (Q3) \\ test"]),
         (long, &["--paper", "a4", "--theme", "dark"]),
         (PRD, &["--paper", "letter"]),
         (HOSTILE, &["--paper", "a4", "--title", "Ærø (Q3) \\ test"]),

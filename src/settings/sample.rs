@@ -84,6 +84,7 @@ mod tests {
                     Setting::Legend => file.values.legend.is_some(),
                     Setting::Table => file.values.table.is_some(),
                     Setting::Paper => file.values.paper.is_some(),
+                    Setting::Pdf => file.values.pdf.is_some(),
                     Setting::Palette => file.values.palette.is_some(),
                     Setting::Edition => file.values.edition.is_some(),
                 };
@@ -102,6 +103,7 @@ mod tests {
         assert_eq!(values.legend, Some(DEFAULT_LEGEND));
         assert_eq!(values.table, Some(DEFAULT_TABLE));
         assert_eq!(values.paper, Some(crate::options::Paper::None));
+        assert_eq!(values.pdf, Some(super::super::DEFAULT_PDF));
     }
 
     /// The ranges the comments state are the code's, so neither can move

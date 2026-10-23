@@ -37,8 +37,8 @@ const FR17: &str = "warning: line 8, ring: 'Rejected' is not one of the default 
 /// As [`FR17`], for a PNG, SVG or PDF, which has no table.
 const FR17_SNAPSHOT: &str = "warning: line 8, ring: 'Rejected' is not one of the default rings (Assess, Trial, Adopt, Retire); the row is not on the radar; to plot it, pass --rings with every ring to draw (it replaces the defaults); to leave it off without this warning, add it to --unplotted-rings";
 /// FR-106's warning for `--table all` on a PNG, SVG or PDF.
-const TABLE_STATIC: &str =
-    "warning: --table all applies to HTML pages; PNG, SVG and PDF have no table";
+const TABLE_STATIC: &str = "warning: --table all applies to HTML pages and the full PDF (--pdf full); PNG and SVG have no table";
+const TABLE_STATIC_PDF: &str = "warning: --table all applies to HTML pages and the full PDF; the radar PDF has no table, so add --pdf full for one";
 const NO_HEADER: &str = "error: the CSV has no header row (it is empty or blank); the header must name at least name, sector, ring and description";
 const RENDER: [&str; 3] = ["radar.csv", "-o", "radar.html"];
 
@@ -702,8 +702,8 @@ fn the_unlisted_ring_warning_groups_and_names_its_source() {
     );
 }
 
-/// FR-106: PNG, SVG and PDF have no table, so `--table all` warns once and
-/// changes nothing, and `--table radar` is silent. FR-17's warning there
+/// FR-106: PNG, SVG and the radar PDF have no table, so `--table all`
+/// warns once and changes nothing, and `--table radar` is silent. FR-17's warning there
 /// names no table at all.
 #[test]
 fn table_all_warns_on_png_and_svg_and_changes_nothing() {
@@ -721,7 +721,12 @@ fn table_all_warns_on_png_and_svg_and_changes_nothing() {
             assert!(ran.ok(), "{ext}: {}", ran.stderr);
         }
         assert_eq!(radar.lines(), [FR17_SNAPSHOT], "{ext}: radar is silent");
-        assert_eq!(all.lines(), [TABLE_STATIC, FR17_SNAPSHOT], "{ext}");
+        let warned = if ext == "pdf" {
+            TABLE_STATIC_PDF
+        } else {
+            TABLE_STATIC
+        };
+        assert_eq!(all.lines(), [warned, FR17_SNAPSHOT], "{ext}");
         let bytes =
             |n: &str| std::fs::read(dir.path().join(format!("{n}.{ext}"))).expect("written");
         assert_eq!(bytes("b"), bytes("c"), "{ext}: all changes nothing");

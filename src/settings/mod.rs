@@ -13,7 +13,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::options::{Legend, Paper, Table};
+use crate::options::{Legend, Paper, Pdf, Table};
 use crate::palette::Theme;
 use edition::Edition;
 use file::{FileValues, Loaded};
@@ -24,6 +24,8 @@ pub const DEFAULT_THEME: Theme = Theme::Light;
 pub const DEFAULT_LEGEND: Legend = Legend::Shown;
 /// FR-106's default.
 pub const DEFAULT_TABLE: Table = Table::Radar;
+/// FR-112: the radar PDF, unless `--pdf full` asks for the table too.
+pub const DEFAULT_PDF: Pdf = Pdf::Radar;
 /// FR-100's default: the single column FR-71 exports.
 pub const DEFAULT_LEGEND_COLUMNS: u8 = 1;
 
@@ -75,6 +77,8 @@ pub enum Setting {
     Table,
     /// `--paper`, `paper` (FR-111).
     Paper,
+    /// `--pdf`, `pdf` (FR-112).
+    Pdf,
     /// `--palette`, `palette`.
     Palette,
     /// `-e/--edition`, `edition` (FR-92; a key at the maintainer's
@@ -85,7 +89,7 @@ pub enum Setting {
 impl Setting {
     /// Every setting, in FR-91's order: the order a file's problems are
     /// reported in.
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::Input,
         Self::Output,
         Self::Title,
@@ -98,6 +102,7 @@ impl Setting {
         Self::Legend,
         Self::Table,
         Self::Paper,
+        Self::Pdf,
         Self::Palette,
         Self::Edition,
     ];
@@ -129,6 +134,7 @@ impl Setting {
             Self::Legend => ("--legend", "legend"),
             Self::Table => ("--table", "table"),
             Self::Paper => ("--paper", "paper"),
+            Self::Pdf => ("--pdf", "pdf"),
             Self::Palette => ("--palette", "palette"),
             Self::Edition => ("--edition", "edition"),
         }
@@ -393,6 +399,12 @@ pub struct Settings {
     pub table: Effective<Table>,
     /// `paper` (FR-111).
     pub paper: Effective<Paper>,
+    /// `--pdf` or `pdf` (FR-112).
+    pub pdf: Effective<Pdf>,
+    /// The file's `pdf = "full"` that `--paper none` displaced, so the run
+    /// can say the table was dropped (the maintainer's ruling after the
+    /// final review, 2026-10-23).
+    pub dropped_full: Option<Origin>,
     /// `--palette` or `palette`.
     pub palette: Effective<PathBuf>,
     /// `--edition` or `edition` (FR-92).
@@ -454,10 +466,36 @@ fn by_flag<T>(value: &Effective<T>) -> bool {
 }
 
 impl Settings {
+    /// FR-112's half of [`displace`](Self::displace): `--pdf full` drops
+    /// the file's `paper = "none"`, and `--paper none` drops its
+    /// `pdf = "full"`, recording that the table was dropped.
+    fn displace_pdf_paper(&mut self) {
+        let full = self.pdf.as_given().is_some_and(|p| p.value == Pdf::Full);
+        let none = self
+            .paper
+            .as_given()
+            .is_some_and(|p| p.value == Paper::None);
+        if !(full && none) {
+            return;
+        }
+        match (by_flag(&self.pdf), by_flag(&self.paper)) {
+            (true, false) => self.paper = Effective::Absent,
+            (false, true) => {
+                self.dropped_full = self.pdf.as_given().map(|pdf| pdf.origin.clone());
+                self.pdf = Effective::Absent;
+            }
+            _ => {}
+        }
+    }
+
     /// FR-59 across sources (rg-ahj; the maintainer's ruling, 2026-10-18):
     /// the command line wins over the opposing key, so `--palette` drops
     /// the file's `theme` and `--theme` drops its `palette`. The dropped key
     /// is still checked (FR-91), but nothing reads its value.
+    ///
+    /// FR-112 likewise: `--pdf full` drops the file's `paper = "none"`, and
+    /// `--paper none` drops its `pdf = "full"`, since a full PDF is always
+    /// on paper (the maintainer's ruling, 2026-10-23).
     pub fn displace(&mut self) {
         if by_flag(&self.palette) && !by_flag(&self.theme) {
             self.theme = Effective::Absent;
@@ -465,6 +503,7 @@ impl Settings {
         if by_flag(&self.theme) && !by_flag(&self.palette) {
             self.palette = Effective::Absent;
         }
+        self.displace_pdf_paper();
     }
 }
 
@@ -490,6 +529,7 @@ mod tests {
                 "legend",
                 "table",
                 "paper",
+                "pdf",
                 "palette",
                 "edition"
             ]
@@ -510,6 +550,7 @@ mod tests {
                 "--legend",
                 "--table",
                 "--paper",
+                "--pdf",
                 "--palette",
                 "--edition"
             ]

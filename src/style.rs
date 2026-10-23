@@ -232,6 +232,55 @@ pub const PAPER_FOOT_ROOM: f64 = 20.0 * PX_PER_MM;
 pub const FOOTER_BASELINE: f64 = 10.0 * PX_PER_MM;
 /// What a heading repeated at the top of a paper column says it is.
 pub const CONTINUED: &str = " (continued)";
+/// The same mark on a line of its own: under a split table row's name,
+/// and after the table's heading on later pages (FR-112).
+pub const CONTINUED_MARK: &str = "(continued)";
+// --- The full PDF's table (FR-112) ------------------------------------------
+/// A table cell's text: 12 px, 9 pt on paper, `TextPrimary`.
+pub const TABLE_TEXT: TextStyle = style(Weight::Regular, 12.0, 0.0);
+/// The name cell, the row's header, as the HTML table's `th` is drawn.
+pub const TABLE_NAME: TextStyle = style(Weight::SemiBold, 12.0, 0.0);
+/// The header row: 9 pt semibold, `TextMuted`.
+pub const TABLE_HEAD: TextStyle = style(Weight::SemiBold, 12.0, 0.0);
+/// The table's heading: the legend's heading at paper's scale (10.4 pt),
+/// a sibling of *Legend (continued)*, not a document title.
+pub const TABLE_HEADING: TextStyle = style(
+    Weight::SemiBold,
+    KEY_HEADING.size * PAPER_LEGEND_SCALE,
+    KEY_HEADING.letter_spacing * PAPER_LEGEND_SCALE,
+);
+/// From one baseline to the next in a cell: 1.42 of the text's size.
+pub const TABLE_LEADING: f64 = 17.0;
+/// A cell's padding left and right: a 16 px gutter between columns.
+pub const TABLE_PAD_X: f64 = 8.0;
+/// A cell's padding above and below its lines.
+pub const TABLE_PAD_Y: f64 = 5.0;
+/// From the top of a cell's first line box to its baseline.
+pub const TABLE_ASCENT: f64 = 12.0;
+/// The table heading's baseline below the top margin, level with the
+/// legend pages' headings: the legend's panel inset and heading baseline,
+/// at paper's scale.
+pub const TABLE_HEADING_BASELINE: f64 =
+    (LEGEND_PANEL_INSET_Y + LEGEND_HEADING_BASELINE) * PAPER_LEGEND_SCALE;
+/// From the heading's baseline to the header row's top.
+pub const TABLE_HEADING_TO_HEAD: f64 = 10.0;
+/// The widest a label column grows, padding included: about 20
+/// characters of name at 9 pt.
+pub const TABLE_LABEL_CAP: f64 = 168.0;
+/// The narrowest a label column's cap comes down to before the table is
+/// cramped.
+pub const TABLE_LABEL_FLOOR: f64 = 72.0;
+/// The narrowest a prose column gets before the table is cramped: about
+/// 21 characters at 9 pt, so a CSV with every column radargen reads fits
+/// Letter (the maintainer's ruling, 2026-10-23).
+pub const TABLE_PROSE_MIN: f64 = 136.0;
+/// A body row's rule.
+pub const TABLE_RULE: f64 = 1.0;
+/// The rule under the header row, at a change of sector and before the
+/// first unplotted row.
+pub const TABLE_RULE_HEAVY: f64 = 2.0;
+/// The page-1 pointer's baseline above the footer's, inside the foot room.
+pub const TABLE_POINTER_ABOVE: f64 = 18.0;
 /// A row's height beyond its text lines: `n · LINE_HEIGHT + LEGEND_ROW_PAD`.
 pub const LEGEND_ROW_PAD: f64 = 7.0;
 /// The least height of a row's text block, so a one-line row's text is centred

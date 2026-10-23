@@ -67,11 +67,11 @@ impl std::fmt::Display for OutputFormat {
 /// reads it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum Paper {
-    /// US Letter, 11 × 8.5 inches
+    /// 11 × 8.5 in, landscape.
     Letter,
-    /// ISO A4, 297 × 210 mm
+    /// 297 × 210 mm, landscape.
     A4,
-    /// No paper: one page the size of the drawing
+    /// One page the size of the drawing.
     None,
 }
 
@@ -96,6 +96,25 @@ impl Paper {
             Self::A4 => Some((841.889_763_779_527_6, 595.275_590_551_181_2)),
             Self::None => None,
         }
+    }
+}
+
+/// What a PDF holds (FR-112, D-104). Only PDF reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum Pdf {
+    /// The radar, key and legend.
+    Radar,
+    /// The radar, key and legend, then the table of items, on paper.
+    Full,
+}
+
+impl std::fmt::Display for Pdf {
+    /// As the flag and the key take it: `radar` or `full`.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Radar => "radar",
+            Self::Full => "full",
+        })
     }
 }
 

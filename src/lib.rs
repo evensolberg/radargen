@@ -20,6 +20,7 @@ pub mod order;
 pub mod palette;
 mod pdf;
 pub mod pipeline;
+pub mod published;
 pub mod rings;
 pub mod settings;
 pub mod starter;
