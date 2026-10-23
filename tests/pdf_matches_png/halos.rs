@@ -1,4 +1,4 @@
-//! Where the worst-delta gate is blind to a halo a little thin or
+//! Where the supersampled gate is blind to a halo a little thin or
 //! missing: every halo is one stroked outline group in its colour and
 //! width, with no text in it.
 

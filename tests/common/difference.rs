@@ -1,5 +1,5 @@
-//! Shared by the render oracles: how far a drawing is from the PNG,
-//! subpixel by subpixel. Each suite judges it by its own criterion.
+//! The SVG oracle's measure: how far a drawing is from the PNG,
+//! subpixel by subpixel.
 
 /// Differing subpixels, the worst channel delta, and the total.
 pub struct Difference {

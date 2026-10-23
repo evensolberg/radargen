@@ -1,3 +1,18 @@
+## [1.19.1] - 2026-10-22
+
+### 📚 Documentation
+
+- *(changelog)* Reconcile 1.19.0 with the squash merge
+- *(readme)* Poppler can lose text on very tall PDF pages (rg-vvh) (#143)
+
+### 🧪 Testing
+
+- *(pdf)* Compare at 2x, averaged down, to catch shifts (rg-ho8)
+- *(pdf)* Compare the bottom row; ppm budget at --width 2400 too
+
+### ⚙️ Miscellaneous Tasks
+
+- *(crumbs)* Close rg-vvh; note its finding on rg-4b8
 ## [1.19.0] - 2026-10-22
 
 ### 🚀 Features
