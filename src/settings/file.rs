@@ -199,7 +199,10 @@ pub enum ReadError {
 /// FR-91: the file at `path`, read, decoded, parsed and checked.
 ///
 /// Read through a cap, so `-c /dev/zero` ends; not checked to be a regular
-/// file, so a process substitution works.
+/// file, so a process substitution works, though its relative paths then
+/// resolve under `/dev/fd`, which [`NamedPath::hint`] says (rg-37u).
+///
+/// [`NamedPath::hint`]: crate::settings::NamedPath::hint
 ///
 /// # Errors
 ///

@@ -252,6 +252,39 @@ fn a_tilde_is_not_expanded() {
     );
 }
 
+/// rg-37u: a config read through a process substitution resolves its
+/// relative paths under /dev/fd (FR-91), which the error now says. Skipped
+/// where there is no bash to make one.
+#[test]
+fn a_process_substitution_config_says_where_paths_resolve() {
+    use std::process::Command;
+    let dir = seeded(&[("radar.csv", CSV)]);
+    let line = format!(
+        "{} radar.csv -c <(printf 'output = \"r.html\"\\n')",
+        env!("CARGO_BIN_EXE_radargen")
+    );
+    let Ok(out) = Command::new("bash")
+        .args(["-c", &line])
+        .current_dir(dir.path())
+        .output()
+    else {
+        return;
+    };
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(1), "{stderr}");
+    let fd = stderr
+        .lines()
+        .find(|l| l.starts_with("error: the output key in /dev/fd/"))
+        .unwrap_or_else(|| panic!("{stderr}"));
+    assert!(
+        fd.ends_with(
+            "; a config file read through a process substitution resolves relative paths under /dev/fd, so write the full path"
+        ),
+        "{fd}"
+    );
+    assert!(!dir.path().join("r.html").exists());
+}
+
 /// SC-26: with neither -o nor output, a usage error.
 #[test]
 fn no_output_anywhere_is_a_usage_error() {

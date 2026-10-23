@@ -291,17 +291,39 @@ impl NamedPath {
         }
     }
 
-    /// What a message adds when a path from the file starts with `~`, which
-    /// no shell expanded (FR-91, UX review 5); empty otherwise.
+    /// What a message adds when a path from the file resolved somewhere
+    /// its author likely did not mean (FR-91): a `~`, which no shell
+    /// expanded (UX review 5), or a relative path under the folder a
+    /// process substitution names, such as `/dev/fd` (rg-37u); empty
+    /// otherwise.
     #[must_use]
-    pub fn tilde_note(&self) -> &'static str {
-        let tilde = self.shown == "~" || self.shown.starts_with("~/");
-        if tilde && self.origin.source.is_config() {
-            "; ~ is not expanded in a config file, so write the full path"
-        } else {
-            ""
+    pub fn hint(&self) -> String {
+        let Source::Config(file) = &self.origin.source else {
+            return String::new();
+        };
+        if self.shown == "~" || self.shown.starts_with("~/") {
+            return "; ~ is not expanded in a config file, so write the full path".to_owned();
+        }
+        match Path::new(&**file).parent() {
+            Some(folder) if Path::new(&self.shown).is_relative() && descriptors(folder) => {
+                format!(
+                    "; a config file read through a process substitution resolves relative paths under {}, so write the full path",
+                    folder.display()
+                )
+            }
+            _ => String::new(),
         }
     }
+}
+
+/// Whether `folder` is where a shell's process substitution names its
+/// pipe: `/dev/fd`, or Linux's `/proc/<pid>/fd` (`/proc/self/fd` among
+/// them). A relative path read from a file there cannot name a real one.
+fn descriptors(folder: &Path) -> bool {
+    let under_proc = folder.starts_with("/proc")
+        && folder.components().count() == 4
+        && folder.file_name().is_some_and(|name| name == "fd");
+    folder == Path::new("/dev/fd") || under_proc
 }
 
 impl fmt::Display for NamedPath {
@@ -510,6 +532,49 @@ impl Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// rg-37u: where a process substitution's pipe lives, and nowhere else.
+    #[test]
+    fn descriptor_folders_are_dev_fd_and_proc_fd() {
+        for yes in ["/dev/fd", "/proc/self/fd", "/proc/4242/fd"] {
+            assert!(descriptors(Path::new(yes)), "{yes}");
+        }
+        for no in [
+            "/dev",
+            "/dev/fdx",
+            "/proc/fd",
+            "/proc/self/fd/x",
+            "dev/fd",
+            "/home/fd",
+        ] {
+            assert!(!descriptors(Path::new(no)), "{no}");
+        }
+    }
+
+    /// rg-37u: only a relative path from a file read under /dev/fd gets
+    /// the hint; `~` keeps its own.
+    #[test]
+    fn the_hint_names_the_folder_a_path_resolved_under() {
+        let from = |file: &str, path: &str| {
+            NamedPath::new(
+                Origin::new(Setting::Output, Source::Config(Arc::from(file))),
+                Path::new(path),
+            )
+            .hint()
+        };
+        assert_eq!(
+            from("/dev/fd/63", "r.html"),
+            "; a config file read through a process substitution resolves relative paths under /dev/fd, so write the full path"
+        );
+        assert_eq!(from("/dev/fd/63", "/tmp/r.html"), "");
+        assert_eq!(from("radar.toml", "r.html"), "");
+        assert!(from("/dev/fd/63", "~/r.html").starts_with("; ~ is not expanded"));
+        let flag = NamedPath::new(
+            Origin::new(Setting::Output, Source::Flag),
+            Path::new("r.html"),
+        );
+        assert_eq!(flag.hint(), "");
+    }
 
     #[test]
     fn every_setting_has_fr_91_s_key_in_its_order() {

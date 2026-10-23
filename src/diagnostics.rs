@@ -1603,7 +1603,7 @@ pub enum Fatal {
     #[error(
         "{palette}: cannot be read: {}{}",
         io_reason(source),
-        palette.tilde_note()
+        palette.hint()
     )]
     PaletteUnreadable {
         /// The file, by its flag or key, as the author named it.
@@ -1631,7 +1631,7 @@ pub enum Fatal {
         palette: NamedPath,
     },
     /// FR-62: `-o`'s directory does not exist; the tool does not create it.
-    #[error("{output}: the directory {dir} does not exist{}", output.tilde_note())]
+    #[error("{output}: the directory {dir} does not exist{}", output.hint())]
     MissingDirectory {
         /// The output, by its flag or key, as written.
         output: NamedPath,
@@ -1739,7 +1739,7 @@ pub enum Fatal {
     /// NFR-15: the output cannot be written: its directory is missing or
     /// unwritable, the path names a directory or a read-only file, or the
     /// disk is full. Nothing at `-o` has changed (NFR-14).
-    #[error("{output}: cannot be written: {}", io_reason(source))]
+    #[error("{output}: cannot be written: {}{}", io_reason(source), output.hint())]
     Unwritable {
         /// The output, by its flag or key, as written.
         output: NamedPath,
