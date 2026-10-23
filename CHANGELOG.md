@@ -1,32 +1,13 @@
+## [1.21.1] - 2026-10-23
+
+### 🐛 Bug Fixes
+
+- *(paper)* Continue the legend where page 1's legend sits (FR-111)
 ## [1.21.0] - 2026-10-23
 
 ### 🚀 Features
 
-- *(layout)* The table as a paper block (FR-112)
-- *(pdf)* The table's pages after the legend's (FR-112, SC-33)
-- *(cli)* --pdf full adds the table to a PDF on paper (FR-112)
-
-### 🐛 Bug Fixes
-
-- *(paper)* Cap an absurd title, warn on a page-tall legend row (rg-i95)
-- *(pdf)* The table after the final review (FR-112)
-- *(pdf)* A folded date's heading never breaks under the name (FR-112)
-
-### 📚 Documentation
-
-- *(prd)* Settle the full PDF's table (FR-112, SC-33; v0.108)
-- --pdf full in the README, manual checks and architecture (FR-112)
-
-### 🚜 Refactor
-
-- *(layout)* One paginator for paper, one page assignment (rg-mi2)
-- The published table, format-neutral (FR-78, FR-106)
-- *(pdf)* The simplify pass on the full PDF (FR-112)
-
-### 🧪 Testing
-
-- Pin paper PDFs and hostile HTML tables before 21b's refactors
-- *(paper)* Close the 21a review's gaps; polish paper wording
+- *(pdf)* --pdf full adds the item table on paper (1.21.0) (#146)
 ## [1.20.0] - 2026-10-22
 
 ### 🚀 Features
