@@ -1,14 +1,13 @@
 ---
 id: rg-5uf
 title: 'PR 20: PDF output, light (radar, key and legend)'
-status: blocked
+status: closed
 type: feature
 priority: 2
 tags: []
 created: 2026-10-09
-updated: 2026-10-12
-blocked_by:
-- rg-m2l
+updated: 2026-10-22
+closed_reason: 'PR 20: -o radar.pdf ships in 1.19.0 (light PDF: radar, key, legend)'
 phase: v1.2
 ---
 
@@ -25,3 +24,9 @@ FULL: light plus every item description, likely as a table (FR-78 column and row
 Open questions for the spec: CLI selection (--format pdf vs pdf-full, or a --pdf-detail flag); whether the full PDF is accessible (tagged PDF / PDF-UA, which neither route gives for free); page size (A4/Letter) and orientation (landscape radar page).
 
 [2026-10-12] Maintainer, 2026-10-12: the application stays self-contained, so the light PDF uses an in-process SVG-to-PDF crate (svg2pdf, on the same usvg tree as the PNG path; confirm version, licence, deps). PR 20 is the light version only; the full version is PR 21 (its own crumb). Phase v1.2 so v1.1 does not grow; needs an FR beside FR-71/FR-52 first. Sequence: if PR 21 runs first and Fullbleed draws inline SVG as vector deterministically, Fullbleed may serve both and svg2pdf is not needed; otherwise svg2pdf here.
+
+[2026-10-22] Maintainer, 2026-10-22: option C. No SVG-to-PDF crate: svg2pdf 0.13.0 is on usvg 0.45 and krilla-svg 0.8.1 on usvg 0.47, while radargen is on 0.48 (two usvg versions would trip clippy allowed-duplicate-crates, and their trees are not ours). Write the PDF directly from our Document with pdf-writer (no usvg dependency), reusing the SVG export glyph outlining.
+
+[start] 2026-10-22 12:59:38  PR 20 plan
+
+[stop]  2026-10-22 18:06:00  5h 6m 22s

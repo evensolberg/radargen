@@ -11,6 +11,10 @@ mod fonts;
 mod html;
 #[path = "../common/palette.rs"]
 mod palette;
+#[path = "../common/pdf_export.rs"]
+mod pdf_export;
+#[path = "../common/pdf.rs"]
+mod pdf_text;
 #[path = "../common/version.rs"]
 mod version;
 
@@ -22,6 +26,7 @@ mod html5;
 mod identity;
 mod page;
 mod palette_page;
+mod pdf;
 mod script;
 mod table;
 mod vocabulary;

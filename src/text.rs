@@ -56,6 +56,16 @@ impl Weight {
             Self::SemiBold => 600,
         }
     }
+
+    /// The face's PostScript name, as its `name` table gives it: the PDF's
+    /// `BaseFont` after the subset tag (FR-110).
+    #[must_use]
+    pub const fn postscript(self) -> &'static str {
+        match self {
+            Self::Regular => "Inter-Regular",
+            Self::SemiBold => "Inter-SemiBold",
+        }
+    }
 }
 
 /// A vendored face the shaper cannot read: NFR-15's font load failure.
@@ -64,6 +74,15 @@ impl Weight {
 pub struct FontError {
     face: &'static str,
     reason: String,
+}
+
+impl FontError {
+    /// A failure in `face` (`Inter Regular`), for a writer outside this
+    /// module that reads the face's bytes, such as the PDF's subsetter.
+    #[must_use]
+    pub const fn new(face: &'static str, reason: String) -> Self {
+        Self { face, reason }
+    }
 }
 
 /// Both faces, parsed once at startup and passed down.
@@ -100,7 +119,7 @@ impl Fonts {
         }
     }
 
-    /// The distinct characters of `text` that a PNG or SVG draws as boxes,
+    /// The distinct characters of `text` that a PNG, SVG or PDF draws as boxes,
     /// in either weight (FR-104). The two faces map the same characters to
     /// the same glyphs (`both_faces_map_the_same_characters`), so Regular
     /// answers for both.
@@ -116,10 +135,27 @@ impl Fonts {
 ///
 /// The exported SVG places and outlines its glyphs from the same face (D-88).
 pub struct FontMetrics<'a> {
+    bytes: &'a [u8],
     font: FontRef<'a>,
     data: ShaperData,
     face: &'static str,
     upem: f64,
+}
+
+/// A face's metrics as a PDF font descriptor states them, in font units,
+/// y up: the descent is negative (FR-110).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Descriptor {
+    /// The face's bounding box: left, bottom, right, top.
+    pub bbox: [f64; 4],
+    /// Above the baseline.
+    pub ascent: f64,
+    /// Below the baseline, negative.
+    pub descent: f64,
+    /// The height of a capital letter.
+    pub cap_height: f64,
+    /// Zero for an upright face.
+    pub italic_angle: f64,
 }
 
 /// One glyph as the shaper lays it out, in font units (FR-84).
@@ -201,13 +237,66 @@ impl<'a> FontMetrics<'a> {
             face,
             reason: e.to_string(),
         })?;
+        let data_bytes = data;
         let data = ShaperData::new(&font);
         let upem = f64::from(data.shaper(&font).build().units_per_em());
         Ok(Self {
+            bytes: data_bytes,
             font,
             data,
             face,
             upem,
+        })
+    }
+
+    /// The face's TTF, for a writer that embeds it (FR-110).
+    #[must_use]
+    // qual:allow(dry, boilerplate) reason: "read-only: a public field would let a caller swap the TTF the shaper's data was built from"
+    pub const fn bytes(&self) -> &'a [u8] {
+        self.bytes
+    }
+
+    /// The face as an error names it: `Inter Regular`.
+    #[must_use]
+    // qual:allow(dry, boilerplate) reason: "read-only: the name is fixed with the face it names"
+    pub const fn name(&self) -> &'static str {
+        self.face
+    }
+
+    /// Glyph `glyph`'s advance in font units, from `hmtx`: what a PDF's
+    /// widths array holds for it (FR-110).
+    ///
+    /// # Errors
+    ///
+    /// [`FontError`] when the face has no such glyph.
+    pub fn advance(&self, glyph: u32) -> Result<f64, FontError> {
+        use skrifa::MetadataProvider as _;
+        use skrifa::instance::{LocationRef, Size};
+        self.font
+            .glyph_metrics(Size::unscaled(), LocationRef::default())
+            .advance_width(skrifa::GlyphId::new(glyph))
+            .map(f64::from)
+            .ok_or_else(|| FontError::new(self.face, format!("glyph {glyph} is not in the face")))
+    }
+
+    /// What a PDF font descriptor states about the face, in font units.
+    ///
+    /// # Errors
+    ///
+    /// [`FontError`] when the face has no bounding box (`head`).
+    pub fn descriptor(&self) -> Result<Descriptor, FontError> {
+        use skrifa::MetadataProvider as _;
+        use skrifa::instance::{LocationRef, Size};
+        let m = self.font.metrics(Size::unscaled(), LocationRef::default());
+        let b = m
+            .bounds
+            .ok_or_else(|| FontError::new(self.face, "the face has no bounding box".to_owned()))?;
+        Ok(Descriptor {
+            bbox: [b.x_min, b.y_min, b.x_max, b.y_max].map(f64::from),
+            ascent: f64::from(m.ascent),
+            descent: f64::from(m.descent),
+            cap_height: m.cap_height.map_or_else(|| f64::from(m.ascent), f64::from),
+            italic_angle: f64::from(m.italic_angle),
         })
     }
 
@@ -246,7 +335,7 @@ impl<'a> FontMetrics<'a> {
     }
 
     /// The distinct characters of `text` this face cannot draw, in order of
-    /// first appearance: what a PNG or SVG draws as a missing-glyph box
+    /// first appearance: what a PNG, SVG or PDF draws as a missing-glyph box
     /// (FR-104, D-93).
     ///
     /// Shaped, not looked up in the cmap, because the shaper composes and
@@ -541,6 +630,47 @@ mod tests {
     fn metrics(bytes: &[u8]) -> skrifa::metrics::Metrics {
         let face = FontRef::new(bytes).expect("the vendored face parses");
         face.metrics(Size::unscaled(), LocationRef::default())
+    }
+
+    /// What a PDF font object reads from a face (FR-110): its bytes, its
+    /// PostScript name as the face's name table gives it, a glyph's advance
+    /// as the shaper uses it, and the descriptor's metrics.
+    #[test]
+    fn a_face_describes_itself_for_pdf() {
+        let fonts = Fonts::embedded().expect("embedded");
+        for (weight, ttf) in [
+            (Weight::Regular, REGULAR_TTF),
+            (Weight::SemiBold, SEMIBOLD_TTF),
+        ] {
+            let face = fonts.face(weight);
+            assert_eq!(face.bytes(), ttf, "{weight:?}: the vendored TTF");
+            let named = skrifa::FontRef::new(ttf)
+                .expect("parses")
+                .localized_strings(skrifa::string::StringId::POSTSCRIPT_NAME)
+                .english_or_first()
+                .expect("a PostScript name")
+                .to_string();
+            assert_eq!(weight.postscript(), named);
+            // `A`'s advance is what the shaper advances by for "A" alone.
+            let shaped = face.shape("A");
+            let [glyph] = shaped.as_slice() else {
+                panic!("one glyph: {shaped:?}")
+            };
+            assert_eq!(
+                face.advance(glyph.id).expect("advance"),
+                f64::from(glyph.x_advance)
+            );
+            let d = face.descriptor().expect("descriptor");
+            assert_eq!(d.ascent / face.units_per_em(), TEXT_ASCENT);
+            assert_eq!(-d.descent / face.units_per_em(), TEXT_DESCENT);
+            assert!(
+                d.cap_height > 0.0 && d.bbox[2] > d.bbox[0] && d.bbox[3] > d.bbox[1],
+                "{d:?}"
+            );
+            assert_eq!(d.italic_angle, 0.0);
+        }
+        let missing = fonts.face(Weight::Regular).advance(u32::from(u16::MAX));
+        assert!(missing.is_err(), "a glyph the face lacks is a FontError");
     }
 
     #[test]

@@ -2,10 +2,16 @@
 //! (architecture §6). A coordinate cannot be emitted unrounded because there
 //! is no other formatter.
 
+/// The bound on a drawable coordinate's magnitude.
+///
 /// Far larger than any coordinate layout produces, long labels included
 /// (reaching it would take some 3 × 10¹⁰ characters of sector name,
 /// rg-tzz), and small enough that `v * 1000` is an exact integer in `i64`.
-const MAX_MAGNITUDE: f64 = 1e12;
+pub const MAX_MAGNITUDE: f64 = 1e12;
+/// The grid NFR-17 rounds every coordinate to: thousandths.
+const THOUSANDTHS: f64 = 1000.0;
+/// [`THOUSANDTHS`] as the integer the formatter divides a count by.
+const PER_UNIT: u64 = 1000;
 
 /// `v`, already rounded by the caller, as a `u32`: saturating past
 /// `u32::MAX`, and 0 for a negative value or NaN.
@@ -18,6 +24,20 @@ const MAX_MAGNITUDE: f64 = 1e12;
 #[must_use]
 pub const fn saturating_u32(v: f64) -> u32 {
     v as u32
+}
+
+/// `v` as a whole count of thousandths, half away from zero: NFR-17's one
+/// rounding rule, which [`fmt_coord`] and [`round_thousandths`] share.
+fn thousandths(v: f64) -> f64 {
+    (v * THOUSANDTHS).round()
+}
+
+/// `v` rounded to thousandths, half away from zero, as [`fmt_coord`]
+/// rounds it: for a writer that formats the number itself (the PDF's).
+/// The caller bounds `v` by [`MAX_MAGNITUDE`].
+#[must_use]
+pub fn round_thousandths(v: f64) -> f64 {
+    thousandths(v) / THOUSANDTHS
 }
 
 /// Format `v` to three decimal places, half away from zero, `.` separator, no
@@ -47,10 +67,10 @@ pub fn fmt_coord(v: f64) -> String {
         clippy::as_conversions,
         reason = "f64 has no TryFrom to an integer; bounded by the assert above, so the product is an exact integer well inside i64"
     )]
-    let thousandths = (v * 1000.0).round() as i64;
-    let sign = if thousandths < 0 { "-" } else { "" };
-    let abs = thousandths.unsigned_abs();
-    let (whole, frac) = (abs / 1000, abs % 1000);
+    let count = thousandths(v) as i64;
+    let sign = if count < 0 { "-" } else { "" };
+    let abs = count.unsigned_abs();
+    let (whole, frac) = (abs / PER_UNIT, abs % PER_UNIT);
     if frac == 0 {
         format!("{sign}{whole}")
     } else {

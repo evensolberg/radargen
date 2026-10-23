@@ -1,9 +1,9 @@
 [package]
 name = "radargen"
-version = "1.18.0"
+version = "1.19.0"
 edition = "2024"
 rust-version = "1.97"
-description = "Render a technology radar from CSV to a self-contained HTML page, a PNG image or an SVG file"
+description = "Render a technology radar from CSV to a self-contained HTML page, a PNG image, an SVG file or a PDF"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/evensolberg/radargen"
 readme = "README.md"
@@ -36,12 +36,29 @@ toml = { version = "1.1.8", default-features = false, features = ["parse", "serd
 # the one TZ names, looked up in the OS's zoneinfo, or on Windows in the
 # bundled database; no fat tz data or inlining tuning.
 jiff = { version = "0.2.38", default-features = false, features = ["std", "tz-system", "tzdb-zoneinfo", "tzdb-bundle-platform"] }
+# PDF export (FR-110, D-103): written directly from the document, so no
+# usvg in its path; no SVG-to-PDF crate is on usvg 0.48.
+pdf-writer = "0.15"
+# The PDF's embedded Inter subsets. No variable-font support: the vendored
+# faces are static, and the feature would pull a second skrifa.
+subsetter = { version = "0.2", default-features = false }
+# The PDF's font stream (FlateDecode). 0.9 is the version flate2 already
+# builds, so no third copy; png's direct 0.8 is the duplicate rg-42m
+# tracks, and it goes when png moves to 0.9.
+miniz_oxide = "0.9"
 
 [dev-dependencies]
 sha2 = "0.11.1"
 roxmltree = "0.21"
 html5ever = "0.39"
 markup5ever_rcdom = "0.39"
+# SC-30's render oracle: an independent pure-Rust PDF rasteriser, so the
+# PDF is checked by a reading of the format that is not ours. Its second
+# skrifa, read-fonts and fearless_simd are dev-only, which
+# clippy::multiple_crate_versions does not count.
+hayro = "0.8"
+# Reads the PDF's text and structure back in tests (SC-30).
+lopdf = { version = "0.46", default-features = false }
 
 # Architecture §1: no unsafe anywhere, and clippy's pedantic, nursery and
 # cargo groups are errors rather than advice. The lints are declared here,

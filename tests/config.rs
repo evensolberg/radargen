@@ -109,7 +109,7 @@ fn every_check_on_the_file_s_values_runs() {
         ("radar.csv", CSV),
         (
             "radar.toml",
-            "output = \"a.pdf\"\nrings = [\"Adopt\", \"adopt\"]\npalette = \"missing.css\"\n",
+            "output = \"a.txt\"\nrings = [\"Adopt\", \"adopt\"]\npalette = \"missing.css\"\n",
         ),
     ]);
     let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
@@ -120,7 +120,7 @@ fn every_check_on_the_file_s_values_runs() {
     };
     assert_eq!(
         *output,
-        "error: the output key in radar.toml (a.pdf): the output file name must end in .html, .png or .svg"
+        "error: the output key in radar.toml (a.txt): the output file name must end in .html, .png, .svg or .pdf"
     );
     assert_eq!(
         *rings,
@@ -139,7 +139,7 @@ fn a_failing_flag_stops_the_run() {
         ("radar.csv", CSV),
         (
             "radar.toml",
-            "output = \"a.pdf\"\npalette = \"missing.css\"\n",
+            "output = \"a.txt\"\npalette = \"missing.css\"\n",
         ),
     ]);
     let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml", "-r", "A,,B"]);
@@ -147,7 +147,7 @@ fn a_failing_flag_stops_the_run() {
     assert_eq!(
         ran.lines(),
         [
-            "error: the output key in radar.toml (a.pdf): the output file name must end in .html, .png or .svg",
+            "error: the output key in radar.toml (a.txt): the output file name must end in .html, .png, .svg or .pdf",
             "error: --rings: entry 2 is empty",
         ]
     );
@@ -538,7 +538,7 @@ fn key_problems_are_clipped_and_capped() {
 fn key_problems_and_later_checks_report_together() {
     let dir = seeded(&[
         ("radar.csv", CSV),
-        ("radar.toml", "output = \"a.pdf\"\nwidth = 1.5\n"),
+        ("radar.toml", "output = \"a.txt\"\nwidth = 1.5\n"),
     ]);
     let ran = run_in(dir.path(), &["radar.csv", "-c", "radar.toml"]);
     assert_eq!(ran.code, Some(2), "{}", ran.stderr);
@@ -546,7 +546,7 @@ fn key_problems_and_later_checks_report_together() {
         ran.lines(),
         [
             "error: the width key in radar.toml: must be an integer, not a float",
-            "error: the output key in radar.toml (a.pdf): the output file name must end in .html, .png or .svg",
+            "error: the output key in radar.toml (a.txt): the output file name must end in .html, .png, .svg or .pdf",
         ]
     );
 }

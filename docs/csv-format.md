@@ -13,7 +13,7 @@ created_date: 2026-10-12
 synopsis: "How to write the CSV radargen reads: the four required columns and seven optional ones, what each accepts, what is a hard error and what only warns, and how the file must be saved."
 status: active
 type: Guide
-revision: "1.9"
+revision: "1.10"
 review_date:
 reviewed_by: []
 completed_date:
@@ -163,7 +163,7 @@ A web address for the item, such as the product's home page: `https://www.terraf
 - **A line break inside a cell** (Alt+Enter in Excel) becomes a space in a name, sector, ring, qualifier, status or date, and is kept as a line break in a description, domain, rationale or your own columns.
 - **Leading and trailing spaces, and extra spaces inside a value, are ignored** for matching. Names, sectors and rings are shown trimmed and with single spaces, and the other short fields (qualifier, status, dates, link) are shown trimmed; a description, domain, rationale or your own column is shown exactly as written, spaces and blank lines included.
 - **Characters that cannot be displayed are removed, with a warning naming the line and column.** These are control characters other than tab and line break, and the invisible characters that reverse the direction of text. The same applies to `--title`, `--subtitle`, `--rings` and `--unplotted-rings`.
-- **Anything else is shown as written.** Characters such as `<`, `&` and `"` are safe and appear literally. Names in Latin, Greek and Cyrillic scripts, including Vietnamese, draw with the built-in font. Other scripts, and emoji, show in the HTML page in the reader's own fonts, but a PNG or SVG draws them as boxes, with a warning.
+- **Anything else is shown as written.** Characters such as `<`, `&` and `"` are safe and appear literally. Names in Latin, Greek and Cyrillic scripts, including Vietnamese, draw with the built-in font. Other scripts, and emoji, show in the HTML page in the reader's own fonts, but a PNG, SVG or PDF draws them as boxes, with a warning.
 
 ## Errors and warnings
 
@@ -185,7 +185,7 @@ A web address for the item, such as the product's home page: `https://www.terraf
 - an empty description;
 - a duplicate name;
 - a removed character;
-- a name or sector with characters the bundled font lacks (PNG and SVG only);
+- a name or sector with characters the bundled font lacks (PNG, SVG and PDF only; in a PDF they also cannot be copied or searched);
 - a value under an unnamed column;
 - a header one or two letters from a column radargen reads, naming the column it probably meant (two letters only when the header is the longer, so `state` is not taken for `status`);
 - more than six sectors;
@@ -219,3 +219,4 @@ Kubernetes,Platforms,Adopt,"Container orchestration.",default,Containers,"Defaul
 | 1.7 | 2026-10-18 | `--unplotted-rings`: rings whose rows stay off the radar without a warning, while other undeclared rings still warn (FR-107, D-96; rg-4bq). |
 | 1.8 | 2026-10-18 | The warning for a header that nearly names a known column, such as `rationalle` (FR-108, D-98; rg-prs). |
 | 1.9 | 2026-10-22 | The `quadrant` column is now `sector`; `quadrant` is still accepted, and a header with both is an error (D-101; rg-k16). |
+| 1.10 | 2026-10-22 | The PDF, in the characters-the-font-lacks rule: boxes, and not copyable or searchable (FR-110; rg-5uf). |

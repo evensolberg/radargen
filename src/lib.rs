@@ -18,6 +18,7 @@ pub mod num;
 pub mod options;
 pub mod order;
 pub mod palette;
+mod pdf;
 pub mod pipeline;
 pub mod rings;
 pub mod settings;

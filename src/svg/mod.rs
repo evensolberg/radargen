@@ -16,6 +16,10 @@ use crate::palette::{Neutral, Role};
 use crate::style::TextStyle;
 use crate::text::{Fonts, TEXT_DESCENT};
 
+/// How much of its advance a middle-anchored line starts before its
+/// origin. A power of two, so it is exactly the `/ 2.0` resvg's anchor is.
+const CENTRED: f64 = 0.5;
+
 /// A point in SVG user units; the origin depends on the frame it is used in.
 /// Geometry produces points before any block exists, so it lives here and
 /// `layout` re-exports it.
@@ -192,6 +196,22 @@ impl Document {
     pub fn height_at(&self, width: f64) -> f64 {
         width * self.height / self.width
     }
+
+    /// The ground a static rendering paints under the drawing (D-87): the
+    /// theme's `Surface1` over the whole document. The exported SVG and
+    /// the PDF both paint this one rect.
+    #[must_use]
+    pub const fn ground(&self) -> Node {
+        Node::Rect {
+            origin: Point::ORIGIN,
+            width: self.width,
+            height: self.height,
+            radius: 0.0,
+            fill: Paint::Role(Role::Neutral(Neutral::Surface1)),
+            stroke: Paint::None,
+            stroke_width: 0.0,
+        }
+    }
 }
 
 /// Children translated together; a group never scales (FR-70).
@@ -335,6 +355,40 @@ impl Node {
         Some(origin.x + style.advance(last, fonts) + tail.gap)
     }
 
+    /// Each line of a text with where it starts: the origin, one leading
+    /// lower per line, a middle-anchored line moved back half its advance,
+    /// as resvg places it. The exported SVG's outliner and the PDF both
+    /// place lines here. Empty for anything but a text.
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    #[must_use]
+    pub fn line_starts(&self, fonts: &Fonts) -> Vec<(&str, Point)> {
+        let Self::Text {
+            origin,
+            style,
+            anchor,
+            lines,
+            leading,
+            ..
+        } = self
+        else {
+            return Vec::new();
+        };
+        (0_u32..)
+            .zip(lines)
+            .map(|(i, line)| {
+                let x = match anchor {
+                    Anchor::Start => origin.x,
+                    Anchor::Middle => origin.x - style.advance(line, fonts) * CENTRED,
+                };
+                let y = origin.y + f64::from(i) * leading;
+                (line.as_str(), Point { x, y })
+            })
+            .collect()
+    }
+
     /// Whether the node exists only for pointer and keyboard users: a hit
     /// area, an indicator group, or a non-empty plain (`Semantics::None`)
     /// group of nothing else. A group with any other semantics (a control, a
@@ -361,6 +415,41 @@ impl Node {
             | Self::Line { .. }
             | Self::Path { .. }
             | Self::Text { .. } => false,
+        }
+    }
+
+    /// The runs this text draws, in paint order: each line in its style,
+    /// then its tail in its own (D-78). Empty for anything but a text.
+    #[must_use]
+    fn text_runs(&self) -> Vec<(TextStyle, &str)> {
+        match self {
+            Self::Text {
+                style, lines, tail, ..
+            } => lines
+                .iter()
+                .map(|line| (*style, line.as_str()))
+                .chain(tail.iter().map(|t| (t.style, t.text.as_str())))
+                .collect(),
+            Self::Group(_)
+            | Self::Circle { .. }
+            | Self::Rect { .. }
+            | Self::Line { .. }
+            | Self::Path { .. }
+            | Self::HitArea { .. } => Vec::new(),
+        }
+    }
+
+    /// Every run a static rendering draws, in document order: the
+    /// runs of each text (its lines, then its tail) outside an
+    /// interactive-only node. The exported SVG's glyph table (D-88) and
+    /// the PDF's font subsets (FR-110) both collect through this, so
+    /// neither can miss a glyph the writer then places.
+    #[must_use]
+    pub fn static_runs(&self) -> Vec<(TextStyle, &str)> {
+        match self {
+            _ if self.is_interactive_only() => Vec::new(),
+            Self::Group(group) => group.children.iter().flat_map(Self::static_runs).collect(),
+            _ => self.text_runs(),
         }
     }
 }
@@ -470,6 +559,7 @@ impl TextRun {
 mod tests {
     use super::*;
     use crate::palette::Neutral;
+    use crate::text::Weight;
 
     const LEVEL_1: NonZeroU8 = NonZeroU8::MIN;
 
@@ -750,5 +840,102 @@ mod tests {
     fn a_halo_has_no_tail() {
         let halo = lines_run(&["Kafka"]).halo(3.0, Scale::uniform(1.0));
         assert!(matches!(halo, Node::Text { tail: None, .. }), "{halo:?}");
+    }
+
+    fn style(weight: Weight) -> TextStyle {
+        TextStyle {
+            weight,
+            size: 12.0,
+            letter_spacing: 0.0,
+        }
+    }
+
+    fn text(lines: &[&str], tail: Option<Tail>) -> Node {
+        Node::Text {
+            origin: Point::ORIGIN,
+            style: style(Weight::Regular),
+            ink: TextPaint::Fill(Paint::None),
+            anchor: Anchor::Start,
+            lines: lines.iter().map(|&l| l.to_owned()).collect(),
+            words: lines.join(" "),
+            leading: 14.0,
+            tail,
+        }
+    }
+
+    /// The runs a static rendering draws: lines in the text's style, then
+    /// its tail in its own; nothing under an interactive-only node; document
+    /// order (D-78, D-88).
+    #[test]
+    fn static_runs_are_what_a_static_rendering_draws() {
+        let tail = Tail {
+            gap: 4.0,
+            style: style(Weight::SemiBold),
+            ink: Paint::None,
+            text: "\u{a0}meta".to_owned(),
+        };
+        let indicator = Node::Group(
+            Group::new(Point::ORIGIN, vec![text(&["hidden"], None)])
+                .with(Semantics::Indicator(ItemKey(3))),
+        );
+        let root = Node::Group(Group::new(
+            Point::ORIGIN,
+            vec![
+                text(&["one", "two"], Some(tail)),
+                indicator,
+                Node::HitArea {
+                    centre: Point::ORIGIN,
+                    radius: 4.0,
+                    key: ItemKey(3),
+                },
+                text(&["three"], None),
+            ],
+        ));
+        let got: Vec<(Weight, &str)> = root
+            .static_runs()
+            .into_iter()
+            .map(|(s, t)| (s.weight, t))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                (Weight::Regular, "one"),
+                (Weight::Regular, "two"),
+                (Weight::SemiBold, "\u{a0}meta"),
+                (Weight::Regular, "three"),
+            ]
+        );
+        assert!(
+            Node::HitArea {
+                centre: Point::ORIGIN,
+                radius: 1.0,
+                key: ItemKey(1)
+            }
+            .text_runs()
+            .is_empty(),
+            "only a text has runs"
+        );
+    }
+
+    /// D-87: the ground is `Surface1` over the whole document.
+    #[test]
+    fn the_ground_covers_the_document() {
+        let doc = Document {
+            width: 300.0,
+            height: 200.0,
+            root: Node::Group(Group::new(Point::ORIGIN, Vec::new())),
+        };
+        assert_eq!(
+            doc.ground(),
+            Node::Rect {
+                origin: Point::ORIGIN,
+                width: 300.0,
+                height: 200.0,
+                radius: 0.0,
+                fill: Paint::Role(Role::Neutral(Neutral::Surface1)),
+                stroke: Paint::None,
+                stroke_width: 0.0,
+            }
+        );
     }
 }

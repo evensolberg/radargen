@@ -9,10 +9,8 @@ tags:
 - svg
 - output
 created: 2026-10-08
-updated: 2026-10-16
+updated: 2026-10-22
 closed_reason: 'PR 17: SVG export (1.2.0)'
-blocks:
-- rg-5uf
 blocked_by:
 - rg-6ku
 phase: v1.1

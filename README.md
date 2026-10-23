@@ -1,7 +1,7 @@
 # radargen
 
 Render a technology radar from a CSV to a self-contained HTML page, a PNG
-image or an SVG file. One binary, no runtime, no network.
+image, an SVG file or a PDF. One binary, no runtime, no network.
 
 Unlike [Thoughtworks' Build Your Own Radar](https://github.com/thoughtworks/build-your-own-radar),
 it takes **any number of sectors** rather than exactly four quadrants, and **any number
@@ -14,6 +14,7 @@ radargen --create-template radar.csv          # a CSV to fill in
 radargen radar.csv -o radar.html              # an interactive page
 radargen radar.csv -o slide.png --theme dark --width 1920
 radargen radar.csv -o radar.svg --rings "Hold, Assess, Trial, Adopt"
+radargen radar.csv -o radar.pdf --theme light
 ```
 
 ## Install
@@ -86,23 +87,24 @@ An `.html` output is one file with its fonts, styles and script inside it. It ma
 - **Themes.** The page follows the reader's light or dark setting, and a button at the top right switches between them: a moon while the page is light, a sun while it is dark; hover over it to see what a press does. The choice is not remembered between visits. `--theme`, `--width` and `--legend-columns` do not apply to HTML.
 - **Keyboard and screen readers.** A skip link leads to the legend, or to the table while the legend is hidden. Markers, legend rows and table names are buttons, reached with Tab and activated with Enter or Space. A marker's or legend row's spoken name gives its number, name, any qualifier or status, sector and ring.
 - **Without JavaScript** the radar, legend and table still show; the details panel, highlighting, skip link and the legend and theme buttons need it.
-- **Printing.** The page has no print styles. Use a PNG or an SVG for print.
+- **Printing.** The page has no print styles. Use a PDF, PNG or SVG for print.
 
 The page aims to meet WCAG 2.1 AA, and WCAG 2.2's target size as well, in the built-in themes. With very long sector or ring names the narrow layout can widen past what the target-size check allows; radargen warns and names the label to shorten. With your own palette, contrast is yours to check.
 
-## PNG and SVG
+## PNG, SVG and PDF
 
 ```sh
 radargen radar.csv -o radar.png
 radargen radar.csv -o slide.png --theme dark --width 1920
 radargen radar.csv -o radar.svg --theme dark
+radargen radar.csv -o radar.pdf --theme light
 ```
 
-Both draw the wide layout: the title, the radar, the key and the full legend, on the theme's background. `--theme light` (the default) or `--theme dark` picks the colours, and `--width` picks the width in pixels, from 320 to 10000, with the height following. Without `--width` the image is the layout's natural width.
+All three draw the wide layout: the title, the radar, the key and the full legend, on the theme's background. `--theme light` (the default) or `--theme dark` picks the colours, and `--width` picks the width in pixels, from 320 to 10000, with the height following. Without `--width` the image is the layout's natural width.
 
 - **Long legends.** The legend is drawn in full, so a long one makes a tall image, which a slide then shrinks. `--legend-columns 2` (up to 4) flows it into columns beside the radar, breaking only between sectors, for a wider, shorter image (at a fixed `--width` the whole image scales down instead, so its text gets smaller); a larger `--width`, or splitting the CSV, also helps.
-- **Scripts.** The bundled font covers Latin, Greek, Cyrillic and Vietnamese. Names in other scripts, and emoji, draw as boxes, and radargen warns about each text that has them, naming its line and column or its flag, and suggests the HTML page or a transliteration. The HTML page falls back to the reader's fonts, so it draws them and does not warn.
-- **Accessibility.** A PNG has no text alternative, and an SVG placed as an image loses its own. Write alt text where you place it, and link the HTML page or the CSV as the full description.
+- **Scripts.** The bundled font covers Latin, Greek, Cyrillic and Vietnamese. Names in other scripts, and emoji, draw as boxes (in a PDF they also cannot be copied or searched), and radargen warns about each text that has them, naming its line and column or its flag, and suggests the HTML page or a transliteration. The HTML page falls back to the reader's fonts, so it draws them and does not warn.
+- **Accessibility.** A PNG has no text alternative, and an SVG placed as an image loses its own. Write alt text where you place it, and link the HTML page or the CSV as the full description. A PDF is not tagged for screen readers yet: to share a radar with someone who uses one, send the HTML page.
 
 ### PNG
 
@@ -115,6 +117,14 @@ An SVG is vectors: sharp at any size, and editable in PowerPoint, Figma or Illus
 - **Text as shapes.** The text is drawn as outlines, so the file needs no font and looks the same everywhere; its words cannot be selected or searched. Opened directly in a browser, a screen reader still reads its title, headings and labels.
 - **The background.** The theme's background is part of the drawing. Deleting it in an editor puts dark-theme text on whatever lies behind.
 - **Pasting inline.** Two exports pasted inline into one web page share their glyph names and draw each other's text. Place each as an image (`<img src>`) instead.
+
+### PDF
+
+A PDF is one vector page the size of the drawing, with the same radar, key and legend. Its text is real text, so you can select, copy and search the names in common PDF viewers (characters the bundled font lacks are the exception: see Scripts above). Links are not clickable, as in the PNG and SVG.
+
+- **Page size.** `--width` sets the page width in pixels at 96 per inch, so `--width 1056` is an 11-inch-wide page; the height follows. Without `--width` the page is the layout's natural width, about 11 inches for a typical radar, wider when a ring is crowded. `--width` changes only the page's stated size, not its sharpness: a PDF is vector at any width. The page is not a paper size: to print, use your viewer's *Fit to page*. A long legend prints small; `--legend-columns 2` or 3 keeps its text larger on paper. A4 and Letter pages are planned.
+- **Printing.** `--theme light` saves ink; the dark theme prints its full background.
+- **Accessibility.** The PDF has a title and its text reads in order, but it is not tagged for screen readers yet, and its language is always set to English. Send the HTML page to someone who uses one.
 
 ## Your own colours
 
@@ -139,16 +149,16 @@ radargen --create-config <PATH>
 
 | Flag | What it does |
 | --- | --- |
-| `-o`, `--output <OUTPUT>` | Where to write the radar. The extension, in any case, picks the format: `.html`, `.png` or `.svg`. |
+| `-o`, `--output <OUTPUT>` | Where to write the radar. The extension, in any case, picks the format: `.html`, `.png`, `.svg` or `.pdf`. |
 | `-r`, `--rings <RINGS>` | The rings, outermost first, separated by commas. Replaces the default `Assess, Trial, Adopt, Retire`. |
 | `--unplotted-rings <RINGS>` | Rings whose rows are left off the radar without a warning, separated by commas. Other undeclared rings still warn. |
 | `-t`, `--title <TITLE>` | A title above the radar. |
 | `-s`, `--subtitle <SUBTITLE>` | A second line under the title, such as the edition's date. |
-| `-T`, `--theme <light\|dark>` | The colours for PNG and SVG; the default is light. Not with `--palette`. |
-| `--legend <shown\|hidden>` | Whether an HTML page starts with its legend shown or hidden; the default is shown. PNG and SVG always draw it, and warn if asked to hide it. |
-| `--table <radar\|all>` | What an HTML page's table and detail panels list: `radar` (the default), the rows on the radar and the columns radargen reads; `all`, every row and every named column. PNG and SVG have no table, and warn if given `all`. |
-| `-w`, `--width <WIDTH>` | The width in pixels for PNG and SVG, from 320 to 10000. |
-| `--legend-columns <N>` | Flows a PNG or SVG legend into N columns beside the radar, from 1 (the default) to 4, breaking only between sectors. HTML ignores it. |
+| `-T`, `--theme <light\|dark>` | The colours for PNG, SVG and PDF; the default is light. Not with `--palette`. |
+| `--legend <shown\|hidden>` | Whether an HTML page starts with its legend shown or hidden; the default is shown. PNG, SVG and PDF always draw it, and warn if asked to hide it. |
+| `--table <radar\|all>` | What an HTML page's table and detail panels list: `radar` (the default), the rows on the radar and the columns radargen reads; `all`, every row and every named column. PNG, SVG and PDF have no table, and warn if given `all`. |
+| `-w`, `--width <WIDTH>` | The width in pixels for PNG, SVG and PDF, from 320 to 10000. |
+| `--legend-columns <N>` | Flows a PNG, SVG or PDF legend into N columns beside the radar, from 1 (the default) to 4, breaking only between sectors. HTML ignores it. |
 | `-p`, `--palette <FILE>` | Colours from a palette file instead of the built-in themes, in every format. Not with `--theme`; given with a config file's `theme` key, the palette wins. |
 | `-c`, `--config <FILE>` | Read settings from a TOML file: `input`, `output`, `title`, `subtitle`, `rings`, `unplotted_rings`, `theme`, `width`, `legend_columns`, `legend`, `table`, `palette` and `edition`. A flag on the command line overrides its key. With `-c`, the CSV and `-o` are needed only when the file has no `input` or `output` key. |
 | `-e`, `--edition <YYYY-MM-DD>` | The edition's date, which `{edition}` in the output, title or subtitle becomes; `today` for the local date. Overrides a config file's `edition` key. |
@@ -200,7 +210,7 @@ radargen -c radar.toml
 - **Flags win.** A flag on the command line overrides its key. `--palette` also drops the file's `theme`, and `--theme` its `palette`; a file holding both is an error. Every key is checked even when a flag overrides it, so a file with `width = 5` fails with `--width 1920` too: the file is valid or not on its own.
 - **Paths.** A relative `input`, `output` or `palette` is relative to the file's own folder, wherever you run the command; `~` is not expanded. A path in the file must name a regular file, not a pipe, device or folder, and errors about a palette the file names never quote its contents. radargen reads the file only when `-c` names it.
 - **Errors.** A problem with a key names the key and the file. Every key problem, and every check on the file's values, is reported in one run, unless a value on the command line fails first.
-- **One file for every format.** `legend` and `table` apply to HTML pages, and are ignored without a warning for PNG and SVG.
+- **One file for every format.** `legend` and `table` apply to HTML pages, and are ignored without a warning for PNG, SVG and PDF.
 
 ## Dated editions
 
@@ -236,7 +246,7 @@ edition = "today"
 radargen refuses what it cannot read or place, and warns about what it can draw but doubts.
 
 - **Errors** stop the run, and nothing is written. They cover a file that cannot be read or is not UTF-8, a separator other than a comma, an unclosed quote, a missing required column, a repeated header name or both `sector` and `quadrant`, an empty `name`, `sector` or `ring`, a row with the wrong number of values, a bad `--rings` or `--unplotted-rings` list (including a ring in both, or a default ring in `--unplotted-rings` without `--rings`) or palette file, a config file that cannot be read, is not UTF-8, is larger than 1 MiB or is not TOML, a bad key in it (unknown, of the wrong type, out of range, a ring entry holding a comma, or a name its flag would refuse), a bad `--edition` date or `edition` key, `{edition}` with neither, an unknown placeholder while one is in use, and an output path radargen cannot use (an unknown extension, a missing folder, or a file the run reads: the input CSV, the config file or the palette).
-- **Warnings** still write the output. They cover values radargen does not recognise (a ring that `--unplotted-rings` does not name, a qualifier, status, date or link), a column name one or two letters from one radargen reads (such as `rationalle`; it names the column you probably meant), an empty description, a repeated name, characters the output cannot display (removed), characters the bundled font lacks (the PNG or SVG being written draws them as boxes), more than six sectors, a ring and sector holding more items than fit comfortably, a sector or ring name so long that the page shows only its narrow layout on a common laptop, widths that make text hard to read, an `--edition` nothing uses, the date `-e today` used, and a `TZ` it could not find.
+- **Warnings** still write the output. They cover values radargen does not recognise (a ring that `--unplotted-rings` does not name, a qualifier, status, date or link), a column name one or two letters from one radargen reads (such as `rationalle`; it names the column you probably meant), an empty description, a repeated name, characters the output cannot display (removed), characters the bundled font lacks (the PNG, SVG or PDF being written draws them as boxes), more than six sectors, a ring and sector holding more items than fit comfortably, a sector or ring name so long that the page shows only its narrow layout on a common laptop, widths that make text hard to read, an `--edition` nothing uses, the date `-e today` used, and a `TZ` it could not find.
 - **How many at once.** Every row error is reported in one run, after any warnings, and a message about a row names its line, and its column where there is one. Repeats of the same kind are folded into one line. A problem with a flag or with the file as a whole (not UTF-8, an unclosed quote, the wrong separator) stops at the first one, while a config file's problems are reported together, warnings about values wait until no row is missing a name, sector or ring, and warnings about the drawing wait until there are no errors.
 - **Exit codes.** 0 when the output is written, even with warnings; 2 for what radargen refuses as it would refuse a flag: an unknown, missing or out-of-range flag or key, a key of the wrong type or a name it does not accept, a ring entry holding a comma, `theme` and `palette` both in the config file, a bad `--edition` date or `edition` key, or no input or output; 1 for every other error, such as a bad ring list or a missing folder. A run with both kinds exits 2.
 - **Earlier output is safe.** The output is written to a temporary file and renamed into place, so a failed run leaves any earlier file at that path untouched.
@@ -267,4 +277,4 @@ On Linux, Firefox and WebKit also need system libraries: `npx playwright install
 
 GPL-3.0-or-later; the full text is in [`LICENSE`](LICENSE). The bundled font (Inter, subset to Latin, Greek, Cyrillic and Vietnamese) keeps its own OFL-1.1 terms; see [`assets/OFL.txt`](assets/OFL.txt).
 
-Running `radargen` places no obligation on you, and the radars it renders — your CSV, HTML, PNG and SVG — are yours alone.
+Running `radargen` places no obligation on you, and the radars it renders — your CSV, HTML, PNG, SVG and PDF — are yours alone.

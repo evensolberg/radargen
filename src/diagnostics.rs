@@ -139,7 +139,7 @@ pub enum RowKind {
         /// [`column_label`] of the nameless column: `column 6 (F)`.
         column: String,
     },
-    /// FR-104: a text a PNG or SVG draws, from this cell, holds characters
+    /// FR-104: a text a PNG, SVG or PDF draws, from this cell, holds characters
     /// the bundled font lacks. One per drawn text, however many it lacks.
     MissingGlyphs {
         /// The column the text was read from: `name` or `sector`.
@@ -195,10 +195,10 @@ pub enum RenderKind {
         /// wide arrangement.
         breakpoint: u32,
     },
-    /// RG-102: `--legend hidden` on a PNG or SVG, which always draw the
+    /// RG-102: `--legend hidden` on a PNG, SVG or PDF, which always draw the
     /// legend.
     LegendStatic,
-    /// FR-106: `--table all` on a PNG or SVG, which have no table.
+    /// FR-106: `--table all` on a PNG, SVG or PDF, which have no table.
     TableStatic,
     /// D-87: the document is wider than FR-64's ceiling and `--width` was
     /// not given, so the PNG is drawn at the ceiling.
@@ -259,7 +259,7 @@ pub enum RenderKind {
     },
 }
 
-/// FR-104: a text as a PNG or SVG draws it, with characters the bundled
+/// FR-104: a text as a PNG, SVG or PDF draws it, with characters the bundled
 /// font lacks. Its `Display` is the message after the position or flag.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Lacking {
@@ -546,11 +546,11 @@ impl RenderKind {
                 "the wide layout needs a screen at least {breakpoint} pixels wide, so {WIDE_MIN_VIEWPORT_PX}-pixel laptops get the narrow layout; a shorter name for {binding} would fix it"
             ),
             Self::LegendStatic => {
-                "--legend hidden applies to HTML pages; PNG and SVG always draw the legend"
+                "--legend hidden applies to HTML pages; PNG, SVG and PDF always draw the legend"
                     .to_owned()
             }
             Self::TableStatic => {
-                "--table all applies to HTML pages; PNG and SVG have no table".to_owned()
+                "--table all applies to HTML pages; PNG, SVG and PDF have no table".to_owned()
             }
             Self::WidthClamped { natural, drawn } => format!(
                 "the radar is {natural} pixels wide, past --width's limit; the PNG is drawn {drawn} wide, or pass --width to choose"
@@ -844,10 +844,16 @@ pub const fn plural<'a>(n: usize, one: &'a str, many: &'a str) -> &'a str {
 }
 
 /// FR-104's ending, which says what to do about `count` boxes in `format`.
+/// A PDF's other text is searchable, so its warning says a box is not.
 fn boxes(format: OutputFormat, count: usize) -> String {
     let (them, boxes) = (plural(count, "it", "them"), plural(count, "a box", "boxes"));
+    let searched = if format == OutputFormat::Pdf {
+        format!(" and {} cannot be searched", plural(count, "it", "they"))
+    } else {
+        String::new()
+    };
     format!(
-        "the {format} draws {them} as {boxes} — an HTML page shows {them}, or transliterate {them}"
+        "the {format} draws {them} as {boxes}{searched} — an HTML page shows {them}, or transliterate {them}"
     )
 }
 
@@ -929,14 +935,14 @@ pub enum OffRadar {
     /// line, which overrides any table key, so the table remedy names the
     /// flag (final review M-3).
     UnlistedByFlag,
-    /// A PNG or SVG, which has no table.
+    /// A PNG, SVG or PDF, which has no table.
     Undrawn,
 }
 
 impl OffRadar {
     /// Where a run writing `format` with `--table` set to `table` puts the
     /// row: in the page's table only under `--table all`, and nowhere in a
-    /// PNG or SVG, which has no table. `by_flag` says the table came from
+    /// PNG, SVG or PDF, which has no table. `by_flag` says the table came from
     /// the command line.
     #[must_use]
     pub const fn of(format: OutputFormat, table: Table, by_flag: bool) -> Self {
@@ -944,7 +950,7 @@ impl OffRadar {
             (OutputFormat::Html, Table::All) => Self::Listed,
             (OutputFormat::Html, Table::Radar) if by_flag => Self::UnlistedByFlag,
             (OutputFormat::Html, Table::Radar) => Self::Unlisted,
-            (OutputFormat::Png | OutputFormat::Svg, _) => Self::Undrawn,
+            (OutputFormat::Png | OutputFormat::Svg | OutputFormat::Pdf, _) => Self::Undrawn,
         }
     }
 
@@ -1329,7 +1335,7 @@ impl fmt::Display for Separator {
 #[derive(Debug, thiserror::Error)]
 pub enum Fatal {
     /// FR-52: the `-o` extension is absent or names a format we do not write.
-    #[error("{output}: the output file name must end in .html, .png or .svg")]
+    #[error("{output}: the output file name must end in .html, .png, .svg or .pdf")]
     UnrecognisedExtension {
         /// The output, by its flag or key, as written.
         output: NamedPath,

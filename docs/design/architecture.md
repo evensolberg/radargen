@@ -145,8 +145,9 @@ the wide one only. One `Blocks`, two placements — see §4.
 
 Each file has one responsibility. Files that change together live together.
 The slice column is §14.1's: **v1.0 replaces BYOR, v1.1 adds the static
-formats.** `mod.rs` files for `csv/`, `layout/`, `svg/` and `emit/` carry
-declarations only and are not listed.
+formats.** `mod.rs` files for `csv/`, `layout/` and `svg/` carry
+declarations only and are not listed; `emit/mod.rs` holds `intrinsic_size`
+(FR-57) and `pdf/mod.rs` holds `real` and `scale`, so both have rows.
 
 | File | Responsibility | Slice |
 | --- | --- | --- |
@@ -174,7 +175,7 @@ declarations only and are not listed.
 | `src/starter.rs` | `Starter`: the files written to start from, each by its own flag alone — the CSV template (FR-99), the palette sample (FR-101) and the config sample (FR-109) — created with `create_new` so nothing is ever replaced | 1.0 / 1.4 / 1.18 |
 | `src/decode.rs` | Bytes to text for every file read: one BOM stripped, UTF-8 required, a NUL refused, CR/LF/CRLF counted once (FR-2, FR-61) | 1.3 |
 | `src/layout/geometry.rs` | `Geometry`: angles, bands, marker placement (FR-30–FR-33, FR-43, FR-77), FR-89's computed band capacity, `place`, and FR-88/FR-89's render warnings (`warn_crowding`); `Point` | *exists* |
-| `src/layout/glyphs.rs` | FR-104's warning (`warn_missing_glyphs`), PNG and SVG only: each drawn text the bundled font lacks characters for, a row warning at its cell or a render warning naming its flag (D-93); detection is `text.rs`'s | 1.7 |
+| `src/layout/glyphs.rs` | FR-104's warning (`warn_missing_glyphs`), PNG, SVG and PDF only: each drawn text the bundled font lacks characters for, a row warning at its cell or a render warning naming its flag (D-93); detection is `text.rs`'s | 1.7 |
 | `src/layout/block.rs` | The `Block` trait, `Size`, `Placement`; nothing domain-specific — arrives with the first block (PR 09), using `geometry::Point` | v1.0 |
 | `src/layout/title.rs` | Title block (FR-65) | v1.0 |
 | `src/layout/radar.rs` | Radar block: sectors, bands, markers, labels, FR-70's three scales | v1.0 |
@@ -184,13 +185,21 @@ declarations only and are not listed.
 | `src/svg/mod.rs` | `Node`, `Document` — the SVG tree. `Node` arrives with the first block that renders (PR 09) and gains variants with each block; `Document` arrives with `arrange` (PR 12) | v1.0 |
 | `src/svg/serialise/` | `serialise(&Document, Target)`: one `<svg>` element, colours bound late for an interactive or static `Target`, interactive-only nodes dropped for static; every attribute through `escape::xml_attr`, every float through `num::fmt_coord` (PR 13). Its `TextMode` writes text as `<text>` or as outlines, and `standalone` is the exported file's root (D-88) | v1.0 |
 | `src/escape.rs` | NFR-6's output contexts 1 to 4, one function each; context 5 is `palette::Hex` | v1.0 |
-| `src/num.rs` | `fmt_coord()` — NFR-17's rounding, used by every emitter | v1.0 |
-| `src/text.rs` | Shaped measurement and FR-79 wrapping, over **both** of FR-85's faces; shaping, placing and outlining glyphs for the exported SVG (D-88), and the characters a face draws as `.notdef` (FR-104); the only module that reads `skrifa` | *exists* |
+| `src/num.rs` | `fmt_coord()` — NFR-17's rounding, used by the text-format emitters (HTML, SVG); the PDF has `pdf::real` | v1.0 |
+| `src/text.rs` | Shaped measurement and FR-79 wrapping, over **both** of FR-85's faces; shaping, placing and outlining glyphs for the exported SVG (D-88), and the characters a face draws as `.notdef` (FR-104); a face's `bytes`, per-glyph `advance` and `descriptor` for the PDF's embedded font (FR-110); the only module that reads `skrifa` | *exists* |
 | `src/emit/html/mod.rs` | Self-contained HTML: both arrangements, FR-69's computed media-query switch, FR-56's theme override, inline JS/CSS and font | v1.0 |
 | `src/emit/html/table.rs` | The table view (FR-41, FR-78, FR-106) — the plotted rows and the columns radargen reads, or under `--table all` every CSV row and every declared column | v1.0 |
 | `src/emit/write.rs` | NFR-14's atomic write: temp file in the same directory, flush, rename; `fs::write`'s permissions, a symlink replaced not followed, a read-only target refused | v1.0 |
-| `src/emit/svg.rs` | The SVG export (FR-54, D-88): FR-57's intrinsic size, the `<title>`, `<desc>` and version comment, around `serialise::standalone` | 1.2 |
+| `src/emit/mod.rs` | `intrinsic_size` — FR-57's size for the PNG, SVG and PDF; the untitled name | 1.1 |
+| `src/emit/svg.rs` | The SVG export (FR-54, D-88): the `<title>`, `<desc>` and version comment, around `serialise::standalone` | 1.2 |
 | `src/emit/png.rs` | `resvg` rasterisation: the pixel size (FR-57, D-87) and the image. Its `usvg_options` is shared with the oracle tests, so they rasterise as the export does | 1.1 |
+| `src/pdf/mod.rs` | `real`, the PDF's coordinate formatter (NFR-17's rounding), and `scale`, the page's unrounded px-to-pt scale | 1.19 |
+| `src/pdf/geometry.rs` | Circles, rounded rectangles and arcs as cubic Béziers | 1.19 |
+| `src/pdf/font.rs` | Per weight, an embedded Inter subset as Type0/CIDFontType2 with a widths array and a ToUnicode map | 1.19 |
+| `src/pdf/content.rs` | The content stream: the static tree as PDF operators under one flip-and-scale `cm` | 1.19 |
+| `src/pdf/show.rs` | A text node as PDF text, each glyph where the shaper places it | 1.19 |
+| `src/pdf/halo.rs` | A halo as stroked glyph outlines, so only the fill is text | 1.19 |
+| `src/emit/pdf.rs` | The PDF export (FR-110, D-103): the page box in whole points, a `/UserUnit` past 200 inches, the catalog, info dictionary and fixed object order | 1.19 |
 | `assets/` | The vendored font — TTF to measure and rasterise, WOFF2 to inline — and its OFL notice (FR-85, NFR-5), `include_bytes!` into the binary | *exists* |
 
 Six of these are corrections rather than additions, and each has a reason:
@@ -360,7 +369,7 @@ switch is therefore where the radar alone reaches `WIDE_MIN_SCALE`
 integer, for a radar part `R` wide (`WideParts::breakpoint`). The title part is
 cut as wide as the radar part, not the whole document (rg-dok): the title wraps
 at the radar part's width less two margins (D-99), so it fits by construction
-and never draws smaller than the radar does. PNG and SVG keep the one document. The
+and never draws smaller than the radar does. PNG, SVG and PDF keep the one document. The
 narrow arrangement is never wider than the wide one, though since D-85 the
 breakpoint can fall a few pixels below the narrow document's width, where the
 narrow SVGs simply span the viewport. D-71's widening does not disturb the
@@ -369,7 +378,7 @@ and the widest narrow document is the radar at 0.3 plus the same insets, so
 the wide document is never the narrower of the two. A breakpoint past
 `WIDE_MIN_VIEWPORT_PX` sends laptops to the narrow arrangement, which only
 labels can cause since D-86's growth stops short of it, and FR-105 warns (D-94).
-For PNG and SVG only, `--legend-columns` flows the wide legend into up to four
+For PNG, SVG and PDF only, `--legend-columns` flows the wide legend into up to four
 columns before arranging (`Blocks::with_legend_columns`, FR-100, D-90): whole
 sector groups per column, split at the shortest tallest column, on one panel,
 so the static document grows wider and shorter while HTML, and so
@@ -603,8 +612,8 @@ rows (FR-17) have no key in any of them.
 **Per-format rules.** A hit area and an indicator are *interactive-only*:
 `Node::is_interactive_only` says so structurally, so an emitter need not know
 which layer a node came from. A static image has no pointer or focus, so the
-SVG and PNG emitters skip every interactive-only node (the two layer groups drop
-whole) and write a `Control` as `<g role="img" aria-label><title>`, without
+SVG, PNG and PDF emitters skip every interactive-only node (the two layer groups drop
+whole), and the SVG and PNG write a `Control` as `<g role="img" aria-label><title>`, without
 `tabindex`: `img` makes the control's drawn text presentational, so its
 name, which already holds that text (FR-50), is read once. The HTML emitter
 keeps them: a marker control carries `data-row` and `data-marker`, a
@@ -636,10 +645,13 @@ needs.
 NFR-4 and NFR-17 are easy to satisfy once and lose later. Three structural
 choices instead of vigilance:
 
-- **One number formatter.** `num::fmt_coord()` is the *only* way a float reaches
-  the output. NFR-17's 3-decimal rounding, half away from zero, `.` separator,
-  and no-exponent rule live there. A coordinate cannot be emitted unrounded
-  because there is no other path.
+- **One number formatter per output syntax.** `num::fmt_coord()` is the *only*
+  way a float reaches the text formats (HTML, SVG), and `pdf::real` the only
+  way a coordinate reaches the PDF. NFR-17's 3-decimal rounding, half away from
+  zero, and the no-exponent rule live in each. A coordinate cannot be emitted
+  unrounded because there is no other path. The one documented exception is
+  `pdf::scale`, the page's px-to-pt scale, written unrounded so the drawing
+  meets its page box exactly.
 - **No `HashMap` iteration in output-affecting code.** Grouping and ordering use
   `Vec` with explicit sorts, so NFR-11's total order and NFR-4's byte-identity do
   not depend on hash seeds.
@@ -667,7 +679,7 @@ choices instead of vigilance:
   `jiff::Timestamp::now` and `SystemTime::now` everywhere else, so the rule
   is a gate rather than a convention.
 
-Byte-identity is asserted for HTML and SVG; PNG is compared by decoded pixels
+Byte-identity is asserted for HTML, SVG and PDF; PNG is compared by decoded pixels
 (NFR-4, D-40).
 
 **The output version is an emitter's line, not a `Document` node.** NFR-12
@@ -791,7 +803,7 @@ express.
 FR-104's warning comes in both kinds. A text from a CSV cell is a row warning at
 that cell, so it sorts and groups with the others; a text from `--title`,
 `--subtitle` or a `--rings` entry is a render warning naming its flag. It is
-raised at render time, in `layout/glyphs.rs`, because only the PNG and SVG
+raised at render time, in `layout/glyphs.rs`, because only the PNG, SVG and PDF
 warn. Like `warn_crowding`, it rebuilds what is drawn from `Catalogue`,
 `Plotted` and the flags rather than reading `Blocks`; the test
 `every_drawn_text_that_lacks_a_glyph_is_warned` keeps the two in step, by
@@ -1007,6 +1019,8 @@ survive at any precision. That costs nothing specified: NFR-4 is byte-identity o
 our own output, and SC-7's parity is about items, positions and wrap points, all
 upstream of it. Recorded because "outlining is lossless" is the kind of claim
 that outlives the measurement behind it.
+
+**PDF (FR-110, D-103).** A second converter over the same `Document`, in the crate-private `src/pdf/`: `content.rs` walks the tree as the static serialiser does and writes PDF operators onto a `Canvas` under one flip-and-scale `cm`; `geometry.rs` turns circles, rounded rects and arcs into cubics; `show.rs` places each glyph from `FontMetrics::place` with `TJ` adjustments against the widths array, each text in its own graphics state; `halo.rs` draws a halo as stroked glyph outlines, so only the filled copy is text and a label extracts once; `font.rs` subsets each used weight (`subsetter`) and writes Type0/CIDFontType2 with a ToUnicode map from shaper clusters. What every static output shares lives where they all read it: `Node::static_runs` (the glyphs drawn), `Document::ground` (D-87) and `emit::intrinsic_size` (FR-57). `emit/pdf.rs` assembles the file in a fixed object order with no dates or ID, a page box in whole points with the ground painted over all of it, and a `/UserUnit` past viewers' 200-inch limit. The rule that only `text.rs` reads skrifa holds for `src/`; tests may read fonts directly. `tests/pdf_matches_png.rs` checks the PDF with hayro, an independent rasteriser, against the PNG.
 
 ## 12. Risks this design accepts
 
