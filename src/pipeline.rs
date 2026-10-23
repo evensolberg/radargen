@@ -1017,10 +1017,10 @@ fn render(
         .into_bytes()),
         OutputFormat::Pdf => Ok(pdf::export(
             &arrange(Arrangement::Wide, &blocks),
+            config.width.as_ref().map(|w| w.value),
             &pdf::Export {
                 palette: &config.colours.snapshot(),
                 fonts,
-                width: config.width.as_ref().map(|w| w.value),
                 title: config.title(),
                 desc: &blocks.radar.name(),
                 producer: OUTPUT_VERSION,

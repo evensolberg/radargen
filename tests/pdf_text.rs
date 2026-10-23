@@ -15,11 +15,15 @@ use radargen::palette::{Palette, Theme};
 mod catalogue;
 #[path = "common/oracle.rs"]
 mod oracle;
+#[path = "common/paper.rs"]
+mod paper;
 #[path = "common/pdf_export.rs"]
 mod pdf_export;
 
 use oracle::{CASES, wide};
+use paper::{paper_pages, paper_pdf};
 use pdf_export::{fonts, pdf};
+use radargen::options::Paper;
 
 /// Whitespace runs as one space, the ends dropped: lopdf may break a
 /// line with a newline or join two TJs with a space, and a name must
@@ -157,5 +161,47 @@ fn without_to_unicode_the_names_are_gone() {
     assert!(
         !text.contains(first.as_str()),
         "'{first}' read back without a map: {text}"
+    );
+}
+
+/// SC-31 (FR-111): a 300-item legend on A4 reads back from every page
+/// with each name exactly once, in legend order, each page numbered, and
+/// a heading carried onto a later page marked continued.
+#[test]
+fn a_paper_pdf_reads_back_every_name_once_in_order() {
+    let csv = (0..300).fold("name,sector,ring,description\n".to_owned(), |csv, i| {
+        csv + &format!("item {i:03},Tools,Adopt,d\n")
+    });
+    let title = Some("Technology Radar");
+    let (pages, desc) = paper_pages(&csv, title, None, Paper::A4);
+    let bytes = paper_pdf(&pages, &desc, &Palette::built_in(Theme::Light), title);
+    let parsed = lopdf::Document::load_mem(&bytes).expect("parses");
+    let count = parsed.get_pages().len();
+    assert!(count >= 4, "{count} pages");
+    let page_text = |n: u32| collapsed(&parsed.extract_text(&[n]).expect("extracts"));
+    let all: Vec<String> = (1..=u32::try_from(count).expect("few pages"))
+        .map(page_text)
+        .collect();
+    let joined = all.join(" ");
+    let mut from = 0;
+    for i in 0..300 {
+        let name = format!("item {i:03}");
+        assert_eq!(joined.matches(&name).count(), 1, "{name}");
+        let at = joined
+            .get(from..)
+            .and_then(|rest| rest.find(&name))
+            .expect("in order");
+        from += at + name.len();
+    }
+    for (k, text) in all.iter().enumerate() {
+        assert!(
+            text.contains(&format!("Page {} of {count}", k + 1)),
+            "page {}",
+            k + 1
+        );
+    }
+    assert!(
+        all.iter().skip(2).any(|text| text.contains("(continued)")),
+        "a continued heading on page 3 or later"
     );
 }

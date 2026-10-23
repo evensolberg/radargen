@@ -15,8 +15,16 @@ endobj
 2 0 obj
 <<
   /Type /Pages
-  /Kids [3 0 R]
+  /Kids [4 0 R]
   /Count 1
+>>
+endobj
+
+3 0 obj
+<<
+  /Title (Technology Radar)
+  /Subject (Technology radar: 3 sectors, 4 rings, 6 items)
+  /Producer (radargen {version})
 >>
 endobj
 
@@ -272,12 +280,12 @@ end
 endstream
 endobj
 
-3 0 obj
+4 0 obj
 <<
   /Type /Page
   /Parent 2 0 R
   /MediaBox [0 0 769 618]
-  /Contents 4 0 R
+  /Contents 5 0 R
   /Resources <<
     /Font <<
       /F0 6 0 R
@@ -287,7 +295,7 @@ endobj
 >>
 endobj
 
-4 0 obj
+5 0 obj
 <<
   /Length 32875
 >>
@@ -1710,37 +1718,29 @@ Q
 endstream
 endobj
 
-5 0 obj
-<<
-  /Title (Technology Radar)
-  /Subject (Technology radar: 3 sectors, 4 rings, 6 items)
-  /Producer (radargen {version})
->>
-endobj
-
 xref
 0 16
 0000000000 65535 f\x0d
 0000000016 00000 n\x0d
 0000000138 00000 n\x0d
-0000010698 00000 n\x0d
-0000010868 00000 n\x0d
-0000043799 00000 n\x0d
 0000000202 00000 n\x0d
-0000000361 00000 n\x0d
-0000000917 00000 n\x0d
-0000001164 00000 n\x0d
-0000004561 00000 n\x0d
-0000005783 00000 n\x0d
-0000005945 00000 n\x0d
-0000006428 00000 n\x0d
-0000006680 00000 n\x0d
-0000009616 00000 n\x0d
+0000010840 00000 n\x0d
+0000011010 00000 n\x0d
+0000000344 00000 n\x0d
+0000000503 00000 n\x0d
+0000001059 00000 n\x0d
+0000001306 00000 n\x0d
+0000004703 00000 n\x0d
+0000005925 00000 n\x0d
+0000006087 00000 n\x0d
+0000006570 00000 n\x0d
+0000006822 00000 n\x0d
+0000009758 00000 n\x0d
 trailer
 <<
   /Size 16
   /Root 1 0 R
-  /Info 5 0 R
+  /Info 3 0 R
 >>
 startxref
 43941

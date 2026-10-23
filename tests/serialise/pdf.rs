@@ -4,7 +4,10 @@
 use radargen::layout::arrange::{Arrangement, arrange};
 use radargen::palette::{Palette, Theme};
 
+use radargen::options::Paper;
+
 use super::golden::golden;
+use super::paper::{paper_pages, paper_pdf};
 use super::pdf_export::{PRODUCER, pdf};
 use super::pdf_text::readable;
 use super::prd;
@@ -40,4 +43,18 @@ fn prd_pdf_matches_its_golden() {
 #[test]
 fn prd_dark_pdf_matches_its_golden() {
     golden("pdf", "prd-dark.pdf.txt", &prd_pdf(Theme::Dark));
+}
+
+/// The PRD example on Letter (FR-111, SC-31): the paper pages' golden.
+#[test]
+fn prd_paper_pdf_matches_its_golden() {
+    let title = Some("Technology Radar");
+    let (pages, desc) = paper_pages(
+        include_str!("../fixtures/three-sector.csv"),
+        title,
+        None,
+        Paper::Letter,
+    );
+    let pdf = paper_pdf(&pages, &desc, &Palette::built_in(Theme::Light), title);
+    golden("pdf", "prd-paper.pdf.txt", &readable(&pdf));
 }
