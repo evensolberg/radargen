@@ -24,21 +24,31 @@ use hayro::{RenderCache, RenderSettings, render_into};
 use lopdf::Object;
 use lopdf::content::{Content, Operation};
 use radargen::emit::intrinsic_size;
-use radargen::emit::pdf::{Export, export};
+use radargen::emit::pdf::POINTS_PER_PX;
 use radargen::emit::png::{PixelSize, pixel_size, rasterise};
-use radargen::layout::arrange::{Arrangement, Blocks, arrange};
-use radargen::order::resolve;
 use radargen::palette::{Palette, Theme};
 use radargen::svg::Document;
-use radargen::text::Fonts;
 use resvg::tiny_skia::Pixmap;
 
 #[path = "common/catalogue.rs"]
 mod catalogue;
+#[path = "common/difference.rs"]
+mod difference;
 #[path = "pdf_matches_png/fills.rs"]
 mod fills;
 #[path = "pdf_matches_png/halos.rs"]
 mod halos;
+#[path = "common/oracle.rs"]
+mod oracle;
+#[path = "common/pdf_export.rs"]
+mod pdf_export;
+#[path = "common/pdf_page.rs"]
+mod pdf_page;
+
+use difference::Difference;
+use oracle::{CASES, wide};
+use pdf_export::{fonts, pdf};
+use pdf_page::first_page;
 
 /// The largest channel difference a faithful PDF shows. hayro
 /// (`vello_cpu`) and tiny-skia antialias edges differently, so 1–2.6% of
@@ -51,34 +61,11 @@ mod halos;
 /// arm64.
 const MAX_DELTA: u8 = 93;
 
-const LONG_TITLE: &str = "Engineering Technology Radar for the Platform and Delivery Groups";
-
-/// `svg_matches_png.rs`'s five cases, a right-to-left name, names Inter
-/// lacks (Review Focus 2), accented names, and marks the shaper raises
-/// (so the raised-glyph text matrix's sign is checked), each with its
-/// title.
-const CASES: [(&str, &str, Option<&str>); 9] = [
-    (
-        "three-sector",
-        include_str!("fixtures/three-sector.csv"),
-        Some("Technology Radar"),
-    ),
-    (
-        "long-legend",
-        include_str!("fixtures/long-legend.csv"),
-        None,
-    ),
-    (
-        "text-spacing",
-        include_str!("fixtures/text-spacing.csv"),
-        Some("Text spacing"),
-    ),
-    ("grown", include_str!("fixtures/grown.csv"), None),
-    (
-        "wrapped title",
-        include_str!("fixtures/three-sector.csv"),
-        Some(LONG_TITLE),
-    ),
+/// The PDF's own cases beside the shared ones: a right-to-left name,
+/// names Inter lacks (Review Focus 2), accented names, and marks the
+/// shaper raises (so the raised-glyph text matrix's sign is checked), each
+/// with its title.
+const PDF_CASES: [(&str, &str, Option<&str>); 4] = [
     (
         "text-spacing-rtl",
         include_str!("fixtures/text-spacing-rtl.csv"),
@@ -101,38 +88,10 @@ const CASES: [(&str, &str, Option<&str>); 9] = [
     ),
 ];
 
-/// A case's wide document and the radar's name.
-fn wide(csv: &str, title: Option<&str>, fonts: &Fonts) -> (Document, String) {
-    let catalogue = catalogue::catalogue(csv, None);
-    let plotted = resolve(&catalogue);
-    let blocks = Blocks::new(&catalogue, &plotted, title, None, fonts);
-    (arrange(Arrangement::Wide, &blocks), blocks.radar.name())
+/// Every case the PDF is checked on: the shared ones, then its own.
+fn cases() -> impl Iterator<Item = (&'static str, &'static str, Option<&'static str>)> {
+    CASES.into_iter().chain(PDF_CASES)
 }
-
-fn pdf_of(
-    doc: &Document,
-    desc: &str,
-    palette: &Palette,
-    fonts: &Fonts,
-    title: Option<&str>,
-    width: Option<u32>,
-) -> Vec<u8> {
-    export(
-        doc,
-        &Export {
-            palette,
-            fonts,
-            width,
-            title,
-            desc,
-            producer: "t",
-        },
-    )
-    .expect("exports")
-}
-
-/// PDF points per CSS pixel, as the export sizes its drawing.
-const POINTS_PER_PX: f64 = 0.75;
 
 /// `pdf` drawn by hayro at `size`, premultiplied RGBA like tiny-skia's.
 /// The scale is the drawing's, `drawing` px (FR-57's size) at 0.75 pt
@@ -187,18 +146,10 @@ fn rendered(
     (size, png, drawn)
 }
 
-/// Differing subpixels and the total, reported so a regression shows;
-/// and the worst channel delta, which the check gates on.
-struct Difference {
-    differ: usize,
-    worst: u8,
-    total: usize,
-}
-
-impl Difference {
-    const fn within(&self) -> bool {
-        self.worst <= MAX_DELTA
-    }
+/// SC-30's criterion: no channel differs by more than antialiasing does.
+/// The differing subpixels are only reported, so a regression shows.
+const fn within(d: &Difference) -> bool {
+    d.worst <= MAX_DELTA
 }
 
 /// `pdf` drawn by hayro against `doc`'s PNG in `png_palette` at `width`.
@@ -209,25 +160,19 @@ fn against_png(
     width: Option<u32>,
 ) -> Difference {
     let (_, png, drawn) = rendered(doc, pdf, png_palette, width);
-    let pairs = || png.data().iter().zip(&drawn);
-    Difference {
-        differ: pairs().filter(|(a, b)| a != b).count(),
-        worst: pairs().map(|(a, b)| a.abs_diff(*b)).max().unwrap_or(0),
-        total: png.data().len(),
-    }
+    Difference::of(png.data(), &drawn)
 }
 
 /// SC-30: every case, both themes (Review Focus 2, 4 and 5).
 #[test]
 fn the_pdf_draws_what_the_png_draws() {
-    let fonts = Fonts::embedded().expect("loads");
-    for (name, csv, title) in CASES {
-        let (doc, desc) = wide(csv, title, &fonts);
+    for (name, csv, title) in cases() {
+        let (doc, desc) = wide(csv, title, fonts());
         for theme in [Theme::Light, Theme::Dark] {
             let palette = Palette::built_in(theme);
             let d = against_png(
                 &doc,
-                &pdf_of(&doc, &desc, &palette, &fonts, title, None),
+                &pdf(&doc, &desc, &palette, title, None),
                 &palette,
                 None,
             );
@@ -235,10 +180,10 @@ fn the_pdf_draws_what_the_png_draws() {
                 "{name} {theme:?}: {} of {} subpixels ({} ppm), worst {}",
                 d.differ,
                 d.total,
-                d.differ * 1_000_000 / d.total,
+                d.ppm(),
                 d.worst
             );
-            assert!(d.within(), "{name} {theme:?}");
+            assert!(within(&d), "{name} {theme:?}");
         }
     }
 }
@@ -247,30 +192,25 @@ fn the_pdf_draws_what_the_png_draws() {
 /// meets its edges, in the dark theme, where a sliver would show.
 #[test]
 fn the_pdf_at_a_set_width_draws_what_the_png_draws() {
-    let fonts = Fonts::embedded().expect("loads");
     let (_, csv, title) = CASES[0];
-    let (doc, desc) = wide(csv, title, &fonts);
+    let (doc, desc) = wide(csv, title, fonts());
     let palette = Palette::built_in(Theme::Dark);
     for width in [320, 2400] {
         let d = against_png(
             &doc,
-            &pdf_of(&doc, &desc, &palette, &fonts, title, Some(width)),
+            &pdf(&doc, &desc, &palette, title, Some(width)),
             &palette,
             Some(width),
         );
-        eprintln!(
-            "--width {width}: {} ppm, worst {}",
-            d.differ * 1_000_000 / d.total,
-            d.worst
-        );
-        assert!(d.within(), "--width {width}");
+        eprintln!("--width {width}: {} ppm, worst {}", d.ppm(), d.worst);
+        assert!(within(&d), "--width {width}");
     }
 }
 
 /// `pdf` with its page's content operators edited, re-saved by lopdf.
 fn damaged(pdf: &[u8], edit: impl FnOnce(&mut Vec<Operation>)) -> Vec<u8> {
     let mut doc = lopdf::Document::load_mem(pdf).expect("parses");
-    let page = *doc.get_pages().values().next().expect("a page");
+    let page = first_page(&doc);
     let mut content = Content::decode(&doc.get_page_content(page)).expect("decodes");
     edit(&mut content.operations);
     doc.change_page_content(page, content.encode().expect("encodes"))
@@ -283,11 +223,10 @@ fn damaged(pdf: &[u8], edit: impl FnOnce(&mut Vec<Operation>)) -> Vec<u8> {
 /// The case the damage tests use: three sectors in `theme`, the
 /// document, its PDF and the palette.
 fn case(theme: Theme) -> (Document, Vec<u8>, Palette) {
-    let fonts = Fonts::embedded().expect("loads");
     let (_, csv, title) = CASES[0];
-    let (doc, desc) = wide(csv, title, &fonts);
+    let (doc, desc) = wide(csv, title, fonts());
     let palette = Palette::built_in(theme);
-    let pdf = pdf_of(&doc, &desc, &palette, &fonts, title, None);
+    let pdf = pdf(&doc, &desc, &palette, title, None);
     (doc, pdf, palette)
 }
 
@@ -296,7 +235,12 @@ fn case(theme: Theme) -> (Document, Vec<u8>, Palette) {
 #[test]
 fn a_round_trip_through_lopdf_still_passes() {
     let (doc, pdf, palette) = case(Theme::Light);
-    assert!(against_png(&doc, &damaged(&pdf, |_| {}), &palette, None).within());
+    assert!(within(&against_png(
+        &doc,
+        &damaged(&pdf, |_| {}),
+        &palette,
+        None
+    )));
 }
 
 /// One glyph dropped from the first TJ fails.
@@ -316,7 +260,7 @@ fn a_dropped_glyph_fails() {
         bytes.drain(..2);
     });
     assert!(
-        !against_png(&doc, &broken, &palette, None).within(),
+        !within(&against_png(&doc, &broken, &palette, None)),
         "a dropped glyph must fail"
     );
 }
@@ -340,7 +284,7 @@ fn flipped_adjustments_fail() {
         }
     });
     assert!(
-        !against_png(&doc, &broken, &palette, None).within(),
+        !within(&against_png(&doc, &broken, &palette, None)),
         "reversed kerning must fail"
     );
 }
@@ -365,7 +309,7 @@ fn a_wrong_colour_fails() {
         }
     });
     assert!(
-        !against_png(&doc, &broken, &palette, None).within(),
+        !within(&against_png(&doc, &broken, &palette, None)),
         "a wrong colour must fail"
     );
 }
@@ -375,5 +319,10 @@ fn a_wrong_colour_fails() {
 #[test]
 fn the_wrong_theme_fails() {
     let (doc, pdf, _) = case(Theme::Light);
-    assert!(!against_png(&doc, &pdf, &Palette::built_in(Theme::Dark), None).within());
+    assert!(!within(&against_png(
+        &doc,
+        &pdf,
+        &Palette::built_in(Theme::Dark),
+        None
+    )));
 }

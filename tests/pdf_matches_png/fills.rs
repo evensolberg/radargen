@@ -4,10 +4,11 @@
 
 use radargen::palette::{Neutral, Palette, Role, Theme};
 use radargen::svg::{Document, Node, Paint, Point};
-use radargen::text::Fonts;
 
 use super::halos::halos_off;
-use super::{CASES, case, damaged, pdf_of, rendered, wide};
+use super::oracle::wide;
+use super::pdf_export::{fonts, pdf};
+use super::{case, cases, damaged, rendered};
 
 /// How far a channel inside a filled shape may differ: the two
 /// rasterisers agree exactly on a flat fill, so this is rounding only.
@@ -186,12 +187,11 @@ pub fn colours_off(doc: &Document, pdf: &[u8], palette: &Palette) -> Colours {
 /// covers the rest.
 #[test]
 fn every_filled_shape_has_its_colour_inside() {
-    let fonts = Fonts::embedded().expect("loads");
-    for (name, csv, title) in CASES {
-        let (doc, desc) = wide(csv, title, &fonts);
+    for (name, csv, title) in cases() {
+        let (doc, desc) = wide(csv, title, fonts());
         for theme in [Theme::Light, Theme::Dark] {
             let palette = Palette::built_in(theme);
-            let pdf = pdf_of(&doc, &desc, &palette, &fonts, title, None);
+            let pdf = pdf(&doc, &desc, &palette, title, None);
             let colours = colours_off(&doc, &pdf, &palette);
             eprintln!(
                 "{name} {theme:?}: looked inside {} of {} shapes",

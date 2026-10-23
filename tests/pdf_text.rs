@@ -7,34 +7,19 @@
 //! word; that is the manual check's (`docs/a11y/manual-checks.md`).
 
 use lopdf::Object;
-use radargen::emit::pdf::{Export, export};
-use radargen::layout::arrange::{Arrangement, Blocks, arrange};
 use radargen::model::Catalogue;
 use radargen::order::resolve;
 use radargen::palette::{Palette, Theme};
-use radargen::text::Fonts;
 
 #[path = "common/catalogue.rs"]
 mod catalogue;
+#[path = "common/oracle.rs"]
+mod oracle;
+#[path = "common/pdf_export.rs"]
+mod pdf_export;
 
-const CASES: [(&str, &str, Option<&str>); 4] = [
-    (
-        "three-sector",
-        include_str!("fixtures/three-sector.csv"),
-        Some("Technology Radar"),
-    ),
-    (
-        "long-legend",
-        include_str!("fixtures/long-legend.csv"),
-        None,
-    ),
-    (
-        "text-spacing",
-        include_str!("fixtures/text-spacing.csv"),
-        Some("Text spacing"),
-    ),
-    ("grown", include_str!("fixtures/grown.csv"), None),
-];
+use oracle::{CASES, wide};
+use pdf_export::{fonts, pdf};
 
 /// Whitespace runs as one space, the ends dropped: lopdf may break a
 /// line with a newline or join two TJs with a space, and a name must
@@ -43,23 +28,10 @@ fn collapsed(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn pdf_of(catalogue: &Catalogue, title: Option<&str>, fonts: &Fonts) -> Vec<u8> {
-    let plotted = resolve(catalogue);
-    let blocks = Blocks::new(catalogue, &plotted, title, None, fonts);
-    let doc = arrange(Arrangement::Wide, &blocks);
-    let palette = Palette::built_in(Theme::Light);
-    export(
-        &doc,
-        &Export {
-            palette: &palette,
-            fonts,
-            width: None,
-            title,
-            desc: &blocks.radar.name(),
-            producer: "t",
-        },
-    )
-    .expect("exports")
+/// `csv`'s wide document as a light PDF.
+fn pdf_of(csv: &str, title: Option<&str>) -> Vec<u8> {
+    let (doc, desc) = wide(csv, title, fonts());
+    pdf(&doc, &desc, &Palette::built_in(Theme::Light), title, None)
 }
 
 fn extracted(pdf: &[u8]) -> String {
@@ -91,10 +63,9 @@ fn names(catalogue: &Catalogue) -> (Vec<String>, Vec<String>) {
 /// cannot be found inside `Kafka Streams`.
 #[test]
 fn the_pdf_reads_back_as_its_names() {
-    let fonts = Fonts::embedded().expect("fonts");
     for (name, csv, title) in CASES {
         let catalogue = catalogue::catalogue(csv, None);
-        let text = format!(" {} ", extracted(&pdf_of(&catalogue, title, &fonts)));
+        let text = format!(" {} ", extracted(&pdf_of(csv, title)));
         let (items, labels) = names(&catalogue);
         let mut from = 0;
         for item in &items {
@@ -139,14 +110,12 @@ fn printable_ascii() -> String {
 /// names around it (Review Focus 2).
 #[test]
 fn awkward_names_read_back() {
-    let fonts = Fonts::embedded().expect("fonts");
     let ascii = printable_ascii();
     let csv = format!(
         "name,sector,ring,description\nApache Kafka Streams,Tools,Adopt,d\nOffice fittings,Tools,Adopt,d\n東京,Tools,Trial,d\nAVATAR,Tools,Trial,d\nCafé Zürich,Tools,Adopt,d\nÅngström,Tools,Adopt,d\nNaïve façade,Tools,Adopt,d\n\"{}\",Tools,Assess,d\n",
         ascii.replace('"', "\"\"")
     );
-    let catalogue = catalogue::catalogue(&csv, None);
-    let text = extracted(&pdf_of(&catalogue, None, &fonts));
+    let text = extracted(&pdf_of(&csv, None));
     assert!(text.contains(&ascii), "'{ascii}' in: {text}");
     for want in [
         "Apache Kafka Streams",
@@ -172,10 +141,9 @@ fn awkward_names_read_back() {
 /// lopdf really decodes Identity-H through them).
 #[test]
 fn without_to_unicode_the_names_are_gone() {
-    let fonts = Fonts::embedded().expect("fonts");
     let (_, csv, title) = CASES[0];
     let catalogue = catalogue::catalogue(csv, None);
-    let mut parsed = lopdf::Document::load_mem(&pdf_of(&catalogue, title, &fonts)).expect("parses");
+    let mut parsed = lopdf::Document::load_mem(&pdf_of(csv, title)).expect("parses");
     for object in parsed.objects.values_mut() {
         if let Object::Dictionary(dict) = object {
             dict.remove(b"ToUnicode");

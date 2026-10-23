@@ -3,13 +3,15 @@
 //! width, with no text in it.
 
 use lopdf::Object;
-use lopdf::content::{Content, Operation};
+use lopdf::content::Operation;
 use radargen::palette::{Palette, Theme};
 use radargen::svg::{Document, Node, Paint, TextPaint};
-use radargen::text::Fonts;
 
 use super::fills::colours_off;
-use super::{CASES, case, damaged, pdf_of, wide};
+use super::oracle::wide;
+use super::pdf_export::{fonts, pdf};
+use super::pdf_page::operations;
+use super::{case, cases, damaged};
 
 /// Each halo the document draws, in document order: its stroke's
 /// channels as PDF reals and its width.
@@ -77,15 +79,6 @@ fn halo_groups(ops: &[Operation]) -> Vec<(usize, usize)> {
     groups
 }
 
-/// The page's content operators.
-fn operations(pdf: &[u8]) -> Vec<Operation> {
-    let doc = lopdf::Document::load_mem(pdf).expect("parses");
-    let page = *doc.get_pages().values().next().expect("a page");
-    Content::decode(&doc.get_page_content(page))
-        .expect("decodes")
-        .operations
-}
-
 /// What is wrong with `pdf`'s halos against `doc`'s: a count that differs,
 /// or a group not stroked in its halo's colour and width with no text.
 pub fn halos_off(doc: &Document, pdf: &[u8], palette: &Palette) -> Vec<String> {
@@ -131,12 +124,11 @@ pub fn halos_off(doc: &Document, pdf: &[u8], palette: &Palette) -> Vec<String> {
 /// Every halo is one stroked outline group in its colour and width.
 #[test]
 fn every_halo_is_a_stroked_outline_group() {
-    let fonts = Fonts::embedded().expect("loads");
-    for (name, csv, title) in CASES {
-        let (doc, desc) = wide(csv, title, &fonts);
+    for (name, csv, title) in cases() {
+        let (doc, desc) = wide(csv, title, fonts());
         for theme in [Theme::Light, Theme::Dark] {
             let palette = Palette::built_in(theme);
-            let pdf = pdf_of(&doc, &desc, &palette, &fonts, title, None);
+            let pdf = pdf(&doc, &desc, &palette, title, None);
             let mut want = Vec::new();
             halos(&doc.root, &palette, &mut want);
             assert!(

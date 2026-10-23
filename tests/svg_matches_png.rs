@@ -9,8 +9,6 @@ use std::sync::Arc;
 
 use radargen::emit::png::{pixel_size, rasterise, transform, usvg_options};
 use radargen::emit::svg::{Export, export};
-use radargen::layout::arrange::{Arrangement, Blocks, arrange};
-use radargen::order::resolve;
 use radargen::palette::{Palette, Theme};
 use radargen::svg::Document;
 use radargen::text::Fonts;
@@ -19,6 +17,13 @@ use resvg::usvg;
 
 #[path = "common/catalogue.rs"]
 mod catalogue;
+#[path = "common/difference.rs"]
+mod difference;
+#[path = "common/oracle.rs"]
+mod oracle;
+
+use difference::Difference;
+use oracle::{CASES, wide};
 
 /// 1.5× the worst case's residue, measured 2026-10-16 on macOS arm64:
 /// 82 ppm (`text-spacing`); the others 19 to 51.
@@ -30,34 +35,6 @@ const BUDGET_PPM: usize = 123;
 /// antialiasing.
 const MAX_DELTA: u8 = 64;
 
-const LONG_TITLE: &str = "Engineering Technology Radar for the Platform and Delivery Groups";
-
-/// The documents compared, with the title each is drawn with.
-const CASES: [(&str, &str, Option<&str>); 5] = [
-    (
-        "three-sector",
-        include_str!("fixtures/three-sector.csv"),
-        Some("Technology Radar"),
-    ),
-    (
-        "long-legend",
-        include_str!("fixtures/long-legend.csv"),
-        None,
-    ),
-    (
-        "text-spacing",
-        include_str!("fixtures/text-spacing.csv"),
-        Some("Text spacing"),
-    ),
-    ("grown", include_str!("fixtures/grown.csv"), None),
-    // A title long enough to wrap onto two lines.
-    (
-        "wrapped title",
-        include_str!("fixtures/three-sector.csv"),
-        Some(LONG_TITLE),
-    ),
-];
-
 /// Our options with an empty font database: any text the SVG still
 /// carried would draw as nothing.
 fn fontless() -> usvg::Options<'static> {
@@ -67,33 +44,10 @@ fn fontless() -> usvg::Options<'static> {
     }
 }
 
-/// A case's wide document, and the radar's name for its `<desc>`.
-struct Wide {
-    doc: Document,
-    desc: String,
-}
-
-fn wide(csv: &str, title: Option<&str>, fonts: &Fonts) -> Wide {
-    let catalogue = catalogue::catalogue(csv, None);
-    let plotted = resolve(&catalogue);
-    let blocks = Blocks::new(&catalogue, &plotted, title, None, fonts);
-    Wide {
-        doc: arrange(Arrangement::Wide, &blocks),
-        desc: blocks.radar.name(),
-    }
-}
-
-/// Differing subpixels, the worst channel delta, and the total.
-struct Difference {
-    differ: usize,
-    worst: u8,
-    total: usize,
-}
-
-impl Difference {
-    const fn within(&self) -> bool {
-        self.differ * 1_000_000 <= BUDGET_PPM * self.total && self.worst <= MAX_DELTA
-    }
+/// SC-7's two criteria (D-88): few subpixels differ, and none by more
+/// than antialiasing does.
+const fn within(d: &Difference) -> bool {
+    d.differ * 1_000_000 <= BUDGET_PPM * d.total && d.worst <= MAX_DELTA
 }
 
 /// `svg` drawn fontless at the PNG's size and scale, against the PNG.
@@ -103,23 +57,24 @@ fn against_png(doc: &Document, svg: &str, palette: &Palette) -> Difference {
     let tree = usvg::Tree::from_str(svg, &fontless()).expect("usvg parses the export");
     let mut drawn = Pixmap::new(size.width(), size.height()).expect("a pixmap");
     resvg::render(&tree, transform(doc, size), &mut drawn.as_mut());
-    let pairs = || png.data().iter().zip(drawn.data());
-    Difference {
-        differ: pairs().filter(|(a, b)| a != b).count(),
-        worst: pairs().map(|(a, b)| a.abs_diff(*b)).max().unwrap_or(0),
-        total: png.data().len(),
-    }
+    Difference::of(png.data(), drawn.data())
 }
 
-fn svg_of(wide: &Wide, palette: &Palette, fonts: &Fonts, title: Option<&str>) -> String {
+fn svg_of(
+    doc: &Document,
+    desc: &str,
+    palette: &Palette,
+    fonts: &Fonts,
+    title: Option<&str>,
+) -> String {
     export(
-        &wide.doc,
+        doc,
         &Export {
             palette,
             fonts,
             width: None,
             title,
-            desc: &wide.desc,
+            desc,
         },
     )
     .expect("exports")
@@ -130,18 +85,22 @@ fn svg_of(wide: &Wide, palette: &Palette, fonts: &Fonts, title: Option<&str>) ->
 fn the_svg_draws_what_the_png_draws() {
     let fonts = Fonts::embedded().expect("loads");
     for (name, csv, title) in CASES {
-        let wide = wide(csv, title, &fonts);
+        let (doc, desc) = wide(csv, title, &fonts);
         for theme in [Theme::Light, Theme::Dark] {
             let palette = Palette::built_in(theme);
-            let d = against_png(&wide.doc, &svg_of(&wide, &palette, &fonts, title), &palette);
+            let d = against_png(
+                &doc,
+                &svg_of(&doc, &desc, &palette, &fonts, title),
+                &palette,
+            );
             eprintln!(
                 "{name} {theme:?}: {} of {} subpixels ({} ppm), worst {}",
                 d.differ,
                 d.total,
-                d.differ * 1_000_000 / d.total,
+                d.ppm(),
                 d.worst
             );
-            assert!(d.within(), "{name} {theme:?}");
+            assert!(within(&d), "{name} {theme:?}");
         }
     }
 }
@@ -151,9 +110,9 @@ fn the_svg_draws_what_the_png_draws() {
 fn the_comparison_catches_a_dropped_glyph() {
     let fonts = Fonts::embedded().expect("loads");
     let (_, csv, title) = CASES[0];
-    let wide = wide(csv, title, &fonts);
+    let (doc, desc) = wide(csv, title, &fonts);
     let palette = Palette::built_in(Theme::Light);
-    let svg = svg_of(&wide, &palette, &fonts, title);
+    let svg = svg_of(&doc, &desc, &palette, &fonts, title);
     let at = svg.find("<use ").expect("a glyph");
     let end = at + svg.get(at..).and_then(|s| s.find('\n')).expect("its line") + 1;
     let damaged = [
@@ -162,7 +121,7 @@ fn the_comparison_catches_a_dropped_glyph() {
     ]
     .concat();
     assert!(
-        !against_png(&wide.doc, &damaged, &palette).within(),
+        !within(&against_png(&doc, &damaged, &palette)),
         "a dropped glyph must fail"
     );
 }
@@ -172,7 +131,11 @@ fn the_comparison_catches_a_dropped_glyph() {
 fn a_name_inter_lacks_draws_as_the_png_does() {
     let fonts = Fonts::embedded().expect("loads");
     let csv = "name,sector,ring,description\n東京,Tools,Adopt,d\n😀,Tools,Trial,d\nKafka,Tools,Assess,d\n";
-    let wide = wide(csv, None, &fonts);
+    let (doc, desc) = wide(csv, None, &fonts);
     let palette = Palette::built_in(Theme::Light);
-    assert!(against_png(&wide.doc, &svg_of(&wide, &palette, &fonts, None), &palette).within());
+    assert!(within(&against_png(
+        &doc,
+        &svg_of(&doc, &desc, &palette, &fonts, None),
+        &palette
+    )));
 }

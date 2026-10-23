@@ -10,6 +10,8 @@ mod html;
 mod palette;
 #[path = "common/pdf.rs"]
 mod pdf;
+#[path = "common/pdf_page.rs"]
+mod pdf_page;
 #[path = "common/version.rs"]
 mod version;
 
@@ -755,11 +757,7 @@ fn a_dark_pdf_has_a_dark_ground() {
         &["radar.csv", "-o", "radar.pdf", "--theme", "dark"],
     );
     assert!(ran.ok(), "{}", ran.stderr);
-    let doc = lopdf::Document::load(dir.path().join("radar.pdf")).expect("parses");
-    let page = *doc.get_pages().values().next().expect("a page");
-    let ops = lopdf::content::Content::decode(&doc.get_page_content(page))
-        .expect("decodes")
-        .operations;
+    let ops = pdf_page::operations(&fs::read(dir.path().join("radar.pdf")).expect("written"));
     let ground = ops.iter().find(|op| op.operator == "rg").expect("a fill");
     let channels: Vec<f32> = ground
         .operands
