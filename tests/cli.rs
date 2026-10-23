@@ -820,8 +820,6 @@ fn an_omitted_flag_is_none_so_a_config_key_can_fill_it() {
     );
 }
 
-/// The defaults are written in the help as prose (plan RG-019A, Ruling 1);
-/// this keeps them the ones `settings` applies.
 // ---- --paper: a PDF on landscape paper (FR-111)
 
 #[test]
@@ -904,6 +902,8 @@ fn help_describes_pdf() {
     );
 }
 
+/// The defaults are written in the help as prose (plan RG-019A, Ruling 1);
+/// this keeps them the ones `settings` applies.
 #[test]
 fn help_names_each_default() {
     use clap::CommandFactory;

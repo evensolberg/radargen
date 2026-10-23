@@ -26,9 +26,8 @@ const TABLE_RADAR_PDF: &str = "warning: --table all applies to HTML pages and th
 const TABLE_IMAGE: &str = "warning: --table all applies to HTML pages and the full PDF (--pdf full); PNG and SVG have no table";
 const WIDTH_PDF_FLAG: &str = "warning: --width 800 does not apply with --pdf full, which is always on paper; the paper sets the page's size; use --pdf radar for the drawing-sized page";
 const WIDTH_PDF_FILE: &str = "warning: --width 800 does not apply on paper (pdf = \"full\" in radar.toml); the paper sets the page's size; use --pdf radar for the drawing-sized page";
-const COLUMNS_PDF_FLAG: &str = "warning: --legend-columns 2 does not apply with --pdf full, which is always on paper; the paper sets the legend's columns; use --pdf radar for the drawing-sized page";
-const WIDTH_PAPER_FLAG: &str =
-    "warning: --width 800 does not apply with --paper a4; the paper sets the page's size";
+const COLUMNS_PDF_FLAG: &str = "warning: --legend-columns 2 does not apply with --pdf full, which is always on paper; on paper the legend takes as many columns as fit each page; use --pdf radar for the drawing-sized page";
+const WIDTH_PAPER_FLAG: &str = "warning: --width 800 does not apply with --paper a4; the paper sets the page's size; leave out --paper for a page --width 800 wide";
 
 /// A run that must succeed.
 fn ok(dir: &Path, args: &[&str]) -> Ran {

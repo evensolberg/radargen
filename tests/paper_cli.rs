@@ -15,11 +15,10 @@ const LONG: &str = include_str!("fixtures/long-legend.csv");
 
 const PAPER_NOT_PDF: &str =
     "warning: --paper a4 applies to PDF; HTML pages, PNG and SVG have no paper size";
-const WIDTH_FLAG: &str =
-    "warning: --width 800 does not apply with --paper a4; the paper sets the page's size";
-const COLUMNS_FLAG: &str = "warning: --legend-columns 2 does not apply with --paper a4; the paper sets the legend's columns";
+const WIDTH_FLAG: &str = "warning: --width 800 does not apply with --paper a4; the paper sets the page's size; leave out --paper for a page --width 800 wide";
+const COLUMNS_FLAG: &str = "warning: --legend-columns 2 does not apply with --paper a4; on paper the legend takes as many columns as fit each page; leave out --paper for a legend in 2 columns";
 const WIDTH_FILE: &str = "warning: --width 800 does not apply on paper (paper = \"a4\" in radar.toml); the paper sets the page's size; pass --paper none for the drawing-sized page";
-const COLUMNS_FILE: &str = "warning: --legend-columns 2 does not apply on paper (paper = \"a4\" in radar.toml); the paper sets the legend's columns; pass --paper none for the drawing-sized page";
+const COLUMNS_FILE: &str = "warning: --legend-columns 2 does not apply on paper (paper = \"a4\" in radar.toml); on paper the legend takes as many columns as fit each page; pass --paper none for the drawing-sized page";
 
 /// A run that must succeed.
 fn ok(dir: &Path, args: &[&str]) -> Ran {
@@ -317,7 +316,7 @@ fn an_unknown_paper_writes_nothing() {
     assert_eq!(snapshot(dir.path()), before);
 }
 
-const RADAR_WIDE: &str = "warning: the radar does not fit on the paper's first page even at its smallest, so it runs past the margins; a shorter title, or shorter sector or ring names, would fix it";
+const RADAR_WIDE: &str = "warning: the radar does not fit on the Letter page even at its smallest, so it runs past the margins; a shorter title, or shorter sector or ring names, would fix it, or pass --paper none";
 
 /// A sector name too long for the page warns once on paper, and not
 /// without it.
@@ -420,4 +419,56 @@ fn an_absurd_title_reads_back_whole_in_the_metadata() {
         .and_then(lopdf::Object::as_str)
         .expect("a Title");
     assert_eq!(String::from_utf8_lossy(read), title);
+}
+
+/// rg-q1q: a header-only CSV on paper is one page, numbered, with no
+/// legend.
+#[test]
+fn a_header_only_csv_on_paper_is_one_page() {
+    let dir = seeded(&[("radar.csv", "name,sector,ring,description\n")]);
+    ok(
+        dir.path(),
+        &["radar.csv", "-o", "r.pdf", "--paper", "letter"],
+    );
+    let doc = lopdf::Document::load_mem(&bytes(dir.path(), "r.pdf")).expect("parses");
+    assert_eq!(doc.get_pages().len(), 1);
+    let text = doc.extract_text(&[1]).expect("extracts");
+    assert!(text.contains("Page 1 of 1"), "{text}");
+    assert!(!text.contains("Legend"), "{text}");
+}
+
+/// rg-q1q: a hostile title reads back exact from a paper PDF's metadata.
+#[test]
+fn a_hostile_title_reads_back_exact_on_paper() {
+    let title = "\u{c6}r\u{f8} (Q3) \\ test";
+    let dir = seeded(&[("radar.csv", PRD)]);
+    ok(
+        dir.path(),
+        &[
+            "radar.csv",
+            "-o",
+            "r.pdf",
+            "--paper",
+            "a4",
+            "--title",
+            title,
+        ],
+    );
+    let doc = lopdf::Document::load_mem(&bytes(dir.path(), "r.pdf")).expect("parses");
+    let info = doc
+        .trailer
+        .get(b"Info")
+        .and_then(lopdf::Object::as_reference)
+        .and_then(|id| doc.get_dictionary(id))
+        .expect("an Info");
+    let read = info
+        .get(b"Title")
+        .and_then(lopdf::Object::as_str)
+        .expect("a Title");
+    let decoded = lopdf::decode_text_string(&lopdf::Object::String(
+        read.to_vec(),
+        lopdf::StringFormat::Literal,
+    ))
+    .expect("decodes");
+    assert_eq!(decoded, title);
 }

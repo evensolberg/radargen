@@ -377,12 +377,15 @@ pub fn bodies(sheets: &Sheets<'_>, fonts: &Fonts) -> Bodies {
 
 /// A continuation page: `pieces` side by side, `width` each, the group
 /// centred across the content box, hung from the top margin.
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+)]
 fn continuation(pieces: &[LegendBlock], width: f64, sheets: &Sheets<'_>) -> Vec<Node> {
     let content = Content::of(sheets);
-    let span = pieces
-        .iter()
-        .skip(1)
-        .fold(width, |span, _| span + COLUMN_GAP + width);
+    // `n` columns and the `n − 1` gaps between them.
+    let n = f64::from(u32::try_from(pieces.len()).unwrap_or(u32::MAX));
+    let span = width * n + COLUMN_GAP * (n - 1.0);
     let mut x = PAPER_MARGIN + (content.width - span) / 2.0;
     pieces
         .iter()
@@ -509,7 +512,7 @@ mod tests {
     use crate::options::{Paper, Table};
     use crate::order::Plotted;
     use crate::published::{ALL_HEADING, Published, RADAR_HEADING, published};
-    use crate::style::{PAPER_LEGEND_SCALE, PAPER_MARGIN};
+    use crate::style::PAPER_MARGIN;
     use crate::svg::{Document, Node};
 
     /// The PRD example's radar and key, with `legend` beside them.
@@ -1216,11 +1219,72 @@ mod tests {
 
     #[test]
     fn the_legend_draws_at_sixteen_fifteenths() {
+        fn sizes(node: &Node, out: &mut Vec<f64>) {
+            match node {
+                Node::Group(group) => group.children.iter().for_each(|c| sizes(c, out)),
+                Node::Text { style, .. } => out.push(style.size),
+                _ => {}
+            }
+        }
         let fixture = prd();
-        let first = first_page(&fixture.sheets(Paper::Letter, "T", None), fonts());
-        assert_eq!(
-            first.legend.map(|at| at.scale.to_bits()),
-            Some(PAPER_LEGEND_SCALE.to_bits())
+        let pages = documents(&fixture.sheets(Paper::Letter, "T", None));
+        let page_one = pages.first().expect("page 1");
+        // A ring heading, 10 px at scale 1, prints at 8 pt: 10 × 16/15 px.
+        let ring = 10.0 * 16.0 / 15.0;
+        let mut drawn = Vec::new();
+        sizes(&page_one.root, &mut drawn);
+        assert!(
+            drawn.iter().any(|size| (size - ring).abs() < 1e-12),
+            "{drawn:?}"
         );
+        let points = ring * POINTS_PER_PX;
+        assert!((points - 8.0).abs() < 1e-12, "{points}");
+    }
+
+    /// rg-q1q: a full continuation page holds exactly the columns that
+    /// fit, each a piece's width and the gap apart.
+    #[test]
+    fn full_continuation_pages_hold_per_page_columns() {
+        let fixture = long(1, 1, 400);
+        for paper in [Paper::Letter, Paper::A4] {
+            let sheets = fixture.sheets(paper, "T", None);
+            let n = per_page(&sheets, fonts());
+            let width = piece_width(&sheets, fonts());
+            let pages = documents(&sheets);
+            assert!(pages.len() >= 4, "{paper:?}");
+            for page in pages.iter().skip(1).take(pages.len() - 2) {
+                let columns: Vec<Rect> = children(page)
+                    .iter()
+                    .take(children(page).len() - 1)
+                    .map(rect)
+                    .collect();
+                assert_eq!(columns.len(), n, "{paper:?}");
+                for pair in columns.windows(2) {
+                    let [a, b] = pair else { continue };
+                    assert!(
+                        (b.left - a.left - width - COLUMN_GAP).abs() < 1e-6,
+                        "{paper:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// rg-q1q: the footer's two runs never touch.
+    #[test]
+    fn footer_runs_are_disjoint() {
+        let fixture = long(1, 1, 300);
+        for paper in [Paper::Letter, Paper::A4] {
+            for page in documents(&fixture.sheets(paper, LONG_TITLE, Some("A subtitle"))) {
+                let Some(Node::Group(footer)) = children(&page).last() else {
+                    panic!("a footer group")
+                };
+                let runs: Vec<Rect> = footer.children.iter().map(rect).collect();
+                assert_eq!(runs.len(), 2);
+                if let [a, b] = runs.as_slice() {
+                    assert!(disjoint(*a, *b), "{a:?} {b:?}");
+                }
+            }
+        }
     }
 }

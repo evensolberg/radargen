@@ -336,6 +336,19 @@ mod tests {
             .collect()
     }
 
+    /// Every heading's words.
+    fn baselines_words(block: &LegendBlock) -> Vec<String> {
+        block
+            .layout
+            .entries
+            .iter()
+            .filter_map(|entry| match entry {
+                Entry::Heading { run, .. } => Some(run.words.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// Every heading's (level, first baseline).
     fn baselines(block: &LegendBlock) -> Vec<(u8, f64)> {
         block
@@ -581,6 +594,38 @@ mod tests {
                 "a piece without rows: {:?}",
                 openings(&piece)
             );
+        }
+        // S4e's heading survives, glued after the last row.
+        let headings: Vec<String> = pieces(&block, first, first)
+            .iter()
+            .flat_map(baselines_words)
+            .collect();
+        assert!(headings.iter().any(|h| h == "S4e"), "{headings:?}");
+    }
+
+    /// rg-q1q: with page openers, no piece is taller than its space,
+    /// unless its one row alone is.
+    #[test]
+    fn no_piece_is_taller_than_its_space() {
+        fn odd(k: usize) -> bool {
+            k % 2 == 1
+        }
+        for shape in [
+            long(1, 1, 300),
+            long(4, 3, 80),
+            long(40, 1, 6),
+            with_empty(5, 2, 20),
+        ] {
+            let block = legend(shape);
+            let (first, rest) = (200.0, 680.0);
+            for (k, piece) in block.flowed(first, rest, &odd, fonts()).iter().enumerate() {
+                let limit = if k == 0 { first } else { rest };
+                assert!(
+                    piece.size(1.0).height <= limit || names(piece).len() == 1,
+                    "piece {k}: {}",
+                    piece.size(1.0).height
+                );
+            }
         }
     }
 

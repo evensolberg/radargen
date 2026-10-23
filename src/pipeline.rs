@@ -1157,7 +1157,11 @@ fn on_paper(
     };
     let bodies = paper::bodies(&sheets, fonts);
     if bodies.radar_too_wide {
-        warnings.push(Warning::Render(RenderKind::PaperRadarWide));
+        let paper = config.paper.as_ref().map_or(Paper::Letter, |p| p.value);
+        warnings.push(Warning::Render(RenderKind::PaperRadarWide {
+            paper,
+            full: config.full(),
+        }));
     }
     if let Some(table) = table.as_ref().filter(|_| bodies.table_cramped) {
         warnings.push(Warning::Render(RenderKind::TableCramped {

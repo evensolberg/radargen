@@ -67,11 +67,11 @@ impl std::fmt::Display for OutputFormat {
 /// reads it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum Paper {
-    /// US Letter, 11 × 8.5 inches
+    /// 11 × 8.5 in, landscape.
     Letter,
-    /// ISO A4, 297 × 210 mm
+    /// 297 × 210 mm, landscape.
     A4,
-    /// No paper: one page the size of the drawing
+    /// One page the size of the drawing.
     None,
 }
 

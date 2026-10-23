@@ -256,7 +256,12 @@ pub enum RenderKind {
     },
     /// FR-111: the radar does not fit the first paper page even at its
     /// smallest scale, so it runs past the margins.
-    PaperRadarWide,
+    PaperRadarWide {
+        /// The paper it is on.
+        paper: Paper,
+        /// Whether it is a full PDF, which cannot leave paper.
+        full: bool,
+    },
     /// D-87: the document is wider than FR-64's ceiling and `--width` was
     /// not given, so the PNG is drawn at the ceiling.
     WidthClamped {
@@ -620,13 +625,15 @@ impl RenderKind {
                 &format!("--width {width}"),
                 paper,
                 "the paper sets the page's size",
+                &format!("a page --width {width} wide"),
             ),
             Self::PaperIgnoresLegendColumns { columns, paper } => paper_ignores(
                 &format!("--legend-columns {columns}"),
                 paper,
-                "the paper sets the legend's columns",
+                "on paper the legend takes as many columns as fit each page",
+                &format!("a legend in {columns} columns"),
             ),
-            Self::PaperRadarWide => "the radar does not fit on the paper's first page even at its smallest, so it runs past the margins; a shorter title, or shorter sector or ring names, would fix it".to_owned(),
+            Self::PaperRadarWide { paper, full } => radar_wide(*paper, *full),
             Self::WidthClamped { natural, drawn } => format!(
                 "the radar is {natural} pixels wide, past --width's limit; the PNG is drawn {drawn} wide, or pass --width to choose"
             ),
@@ -787,7 +794,7 @@ const fn wanted(setting: Setting) -> &'static str {
 /// FR-111: `flag`, given on the command line, does not apply on `paper`,
 /// for `why`. A paper from a file is named with its file, and how to undo
 /// it for one run.
-fn paper_ignores(flag: &str, from: &PaperFrom, why: &str) -> String {
+fn paper_ignores(flag: &str, from: &PaperFrom, why: &str, instead: &str) -> String {
     match from {
         PaperFrom::Paper(paper) => {
             let given = paper.origin.assignment(paper.value, "");
@@ -797,7 +804,9 @@ fn paper_ignores(flag: &str, from: &PaperFrom, why: &str) -> String {
                     "{flag} does not apply on paper ({given}); {why}; pass {none} for the drawing-sized page"
                 )
             } else {
-                format!("{flag} does not apply with {given}; {why}")
+                format!(
+                    "{flag} does not apply with {given}; {why}; leave out --paper for {instead}"
+                )
             }
         }
         PaperFrom::Pdf(origin) => {
@@ -811,6 +820,19 @@ fn paper_ignores(flag: &str, from: &PaperFrom, why: &str) -> String {
             }
         }
     }
+}
+
+/// FR-111: the radar does not fit `paper`'s first page even at its
+/// smallest; the drawing-sized page is the way out, except for a full PDF.
+fn radar_wide(paper: Paper, full: bool) -> String {
+    let way_out = if full { "" } else { ", or pass --paper none" };
+    let name = match paper {
+        Paper::A4 => "A4",
+        Paper::Letter | Paper::None => "Letter",
+    };
+    format!(
+        "the radar does not fit on the {name} page even at its smallest, so it runs past the margins; a shorter title, or shorter sector or ring names, would fix it{way_out}"
+    )
 }
 
 /// FR-112: `--pdf full` from the flag on an output that is not a PDF.

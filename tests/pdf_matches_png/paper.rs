@@ -1,11 +1,12 @@
 //! SC-31 (FR-111): every paper page, drawn by hayro, draws what the PNG
 //! of that page's document draws; damage on a continuation page fails;
-//! the ground fills every page to its edges.
+//! the ground fills every page to its edges. The fixture's continuation
+//! pages are full but for the last, which need not be.
 
 use lopdf::Object;
 use radargen::emit::png::{pixel_size, rasterise};
 use radargen::options::Paper;
-use radargen::palette::{Palette, Theme};
+use radargen::palette::{Neutral, Palette, Role, Theme};
 use radargen::svg::Document;
 use resvg::tiny_skia::Pixmap;
 
@@ -119,7 +120,8 @@ fn a_slightly_wrong_text_colour_fails_on_paper() {
 }
 
 /// Review Focus 4: on dark A4, every page's four corners are the ground
-/// in the PDF as in the page's PNG: the ground fills the `MediaBox`.
+/// in the PDF as in the page's PNG, and that is the dark palette's ground:
+/// the ground fills the `MediaBox`.
 #[test]
 fn the_ground_fills_every_page_to_its_edges() {
     let (pages, pdf, palette) = on(Paper::A4, Theme::Dark);
@@ -136,6 +138,12 @@ fn the_ground_fills_every_page_to_its_edges() {
                 a.zip(b)
                     .is_some_and(|(a, b)| a.iter().zip(b).all(|(p, q)| p.abs_diff(*q) <= 3)),
                 "page {} corner {x},{y}: PNG {a:?}, PDF {b:?}",
+                i + 1
+            );
+            let ground = palette.rgb(Role::Neutral(Neutral::Surface1));
+            assert!(
+                b.is_some_and(|b| b.iter().zip(ground).all(|(p, q)| p.abs_diff(q) <= 3)),
+                "page {} corner {x},{y}: PDF {b:?}, ground {ground:?}",
                 i + 1
             );
         }
