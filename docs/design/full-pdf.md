@@ -7,9 +7,9 @@ crumb_id: rg-4b8
 document_title: "The full PDF: radar, legend and every item's write-up, on paper"
 created_date: 2026-10-22
 synopsis: "--pdf full writes a landscape Letter or A4 PDF: the radar, key and legend first, then the HTML page's table of items, paginated with a repeated header and rows never split. --paper puts the light PDF on paper too. Both PDFs are tagged to PDF/UA-1 and checked by veraPDF."
-status: draft
+status: active
 type: Spec
-revision: "1.1"
+revision: "1.2"
 review_date:
 reviewed_by: []
 completed_date:
@@ -254,3 +254,4 @@ These are the builder's calls, to be made in the plan and noted there:
 | --- | --- | --- |
 | 1.0 | 2026-10-22 | Initial version, from the design conversation with the maintainer. After a builder check: boxes carry their real characters for PDF/UA; the Fullbleed spike is dropped; paper pages always draw a title and the subtitle; too many columns warn; /Lang stays en |
 | 1.1 | 2026-10-22 | After the five-agent review of the PR 21a plan, the maintainer ruled: the legend is drawn at 16/15 on paper with 26 px rows; `--paper none` undoes a file's paper; the footer carries the subtitle; each continuation page opens with *Legend (continued)*. The radar's 7.5 pt ring labels and ~5.3 pt marker numbers are accepted |
+| 1.2 | 2026-10-22 | Paper (PR 21a) built: the leading pages keep the legend at 16/15 with 26 px rows and the key at its size, and shrink the radar; legend-only pages are checked against their PNGs under a budget of their own (1,600 ppm; the maintainer's ruling) |

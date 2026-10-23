@@ -11,7 +11,7 @@ created_date: 2026-10-13
 synopsis: "What only a person with a screen reader, a real browser's zoom or a keyboard on a real machine can judge, step by step, with the announcement to expect at each step and a results table to fill in before tagging 1.0.0. The automated audit (scripts/a11y-audit.mjs) covers everything a browser can measure; this covers the rest."
 status: draft
 type: Guide
-revision: "1.16"
+revision: "1.17"
 review_date:
 reviewed_by: []
 completed_date:
@@ -150,6 +150,8 @@ The expected names come from `three-sector.csv`.
     - *Expect, printing `light.pdf` to A4 or Letter with Fit to page:* the legend text is readable.
     - *Expect, printing `long.pdf` to Letter or A4 with Fit to page, rendered with and without `--legend-columns 2`:* the single column prints small; two columns print larger. Record the smallest text you can read in each.
     - *Expect, `huge.pdf`:* each viewer shows it at full size, not at 1/n: Document Properties gives the page size (about 104 inches wide). A viewer that ignores `/UserUnit` shows it small or refuses it; record that as a finding, and FR-110's "keeps its size" is then softened for that viewer.
+    - *On paper (FR-111, from 1.20.0):* render `long-legend.csv` with `--paper letter` to `letter.pdf` and with `--paper a4 --theme dark` to `a4-dark.pdf`, and a 300-item CSV (one sector, one ring) with `--paper a4` to `a4-long.pdf`. In the four viewers: every page is landscape; page 1 holds only the title, radar, key and the start of the legend; each continuation page opens with *Legend (continued)*, and a column that starts inside a sector or ring repeats its heading marked *(continued)*; every footer reads the title and *Page n of m*.
+    - *Expect, printing on paper:* print `letter.pdf` on Letter and on A4, and `a4-long.pdf` on A4 and on Letter, each at Actual size and at Fit to page: on its own paper at Actual size nothing is cut; on the other paper Fit to page loses nothing, as the README says. On a laser print, two-digit white marker numbers and the radar's 7.5 pt ring labels still read. A thin white unprinted frame around `a4-dark.pdf` is the printer's margin, not a defect.
     - If installed, `qpdf --check light.pdf` reports no errors and `pdffonts light.pdf` lists two embedded subset fonts with ToUnicode.
     - Small text on Windows may hint slightly differently from the PNG; that is expected. Screen-reader navigation is not checked: the PDF is untagged until rg-ffj.
 
@@ -194,3 +196,4 @@ The expected names come from `three-sector.csv`.
 | 1.14 | 2026-10-22 | Sectors, not quadrants: the expected announcements, headings and the `three-sector` fixture (D-101; rg-k16). |
 | 1.15 | 2026-10-22 | New step 19: the PDF, selecting, searching and reading order in four viewers (FR-110; rg-5uf). |
 | 1.16 | 2026-10-22 | Step 19: `long.pdf` printed Fit to page with and without two legend columns, `huge.pdf` at full size under `/UserUnit`, matching PNGs, the `cjk.pdf` warning and each name once (FR-110, FR-104). |
+| 1.17 | 2026-10-22 | Step 19: PDFs on paper (`--paper letter`, `--paper a4`, dark, a 300-item legend): landscape pages, page 1's parts, *Legend (continued)* and *(continued)* headings, footers, and printing at Actual size and Fit to page on both papers (FR-111; rg-4b8). |

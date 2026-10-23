@@ -179,7 +179,8 @@ declarations only and are not listed; `emit/mod.rs` holds `intrinsic_size`
 | `src/layout/block.rs` | The `Block` trait, `Size`, `Placement`; nothing domain-specific — arrives with the first block (PR 09), using `geometry::Point` | v1.0 |
 | `src/layout/title.rs` | Title block (FR-65) | v1.0 |
 | `src/layout/radar.rs` | Radar block: sectors, bands, markers, labels, FR-70's three scales | v1.0 |
-| `src/layout/legend/` (`mod.rs`, `layout.rs`, `columns.rs`) | Legend block (FR-35, FR-74, FR-75); a static legend's columns and their split (FR-100) | v1.0; columns 1.12 |
+| `src/layout/legend/` (`mod.rs`, `layout.rs`, `columns.rs`, `flow.rs`) | Legend block (FR-35, FR-74, FR-75); a static legend's columns and their split (FR-100); the legend cut into pieces for paper (FR-111) | v1.0; columns 1.12; flow 1.20 |
+| `src/layout/paper.rs` | A PDF on paper (FR-111): each page an arranged document, page 1's radar fitted beside the legend's first piece, continuation pages, then the footers | 1.20 |
 | `src/layout/key.rs` | Encoding key (FR-66) | v1.0 |
 | `src/layout/arrange.rs` | Wide and narrow placement (FR-68–FR-71); FR-95's and FR-105's render warnings (`warn_narrow`, `warn_wide`), HTML only, each naming the label that sets its arrangement's width (D-73, D-94) | v1.0 |
 | `src/svg/mod.rs` | `Node`, `Document` — the SVG tree. `Node` arrives with the first block that renders (PR 09) and gains variants with each block; `Document` arrives with `arrange` (PR 12) | v1.0 |
@@ -199,7 +200,7 @@ declarations only and are not listed; `emit/mod.rs` holds `intrinsic_size`
 | `src/pdf/content.rs` | The content stream: the static tree as PDF operators under one flip-and-scale `cm` | 1.19 |
 | `src/pdf/show.rs` | A text node as PDF text, each glyph where the shaper places it | 1.19 |
 | `src/pdf/halo.rs` | A halo as stroked glyph outlines, so only the fill is text | 1.19 |
-| `src/emit/pdf.rs` | The PDF export (FR-110, D-103): the page box in whole points, a `/UserUnit` past 200 inches, the catalog, info dictionary and fixed object order | 1.19 |
+| `src/emit/pdf.rs` | The PDF export (FR-110, FR-111, D-103): one drawing-sized page (whole points, a `/UserUnit` past 200 inches) or paper pages, the catalog, info dictionary and fixed object order | 1.19; paper 1.20 |
 | `assets/` | The vendored font — TTF to measure and rasterise, WOFF2 to inline — and its OFL notice (FR-85, NFR-5), `include_bytes!` into the binary | *exists* |
 
 Six of these are corrections rather than additions, and each has a reason:
@@ -1021,6 +1022,8 @@ upstream of it. Recorded because "outlining is lossless" is the kind of claim
 that outlives the measurement behind it.
 
 **PDF (FR-110, D-103).** A second converter over the same `Document`, in the crate-private `src/pdf/`: `content.rs` walks the tree as the static serialiser does and writes PDF operators onto a `Canvas` under one flip-and-scale `cm`; `geometry.rs` turns circles, rounded rects and arcs into cubics; `show.rs` places each glyph from `FontMetrics::place` with `TJ` adjustments against the widths array, each text in its own graphics state; `halo.rs` draws a halo as stroked glyph outlines, so only the filled copy is text and a label extracts once; `font.rs` subsets each used weight (`subsetter`) and writes Type0/CIDFontType2 with a ToUnicode map from shaper clusters. What every static output shares lives where they all read it: `Node::static_runs` (the glyphs drawn), `Document::ground` (D-87) and `emit::intrinsic_size` (FR-57). `emit/pdf.rs` assembles the file in a fixed object order with no dates or ID, a page box in whole points with the ground painted over all of it, and a `/UserUnit` past viewers' 200-inch limit. The rule that only `text.rs` reads skrifa holds for `src/`; tests may read fonts directly. `tests/pdf_matches_png.rs` checks the PDF with hayro, an independent rasteriser, against the PNG.
+
+**PDF on paper (FR-111, D-105).** Paper pages are documents too: `layout::paper` lays each out from the same blocks plus a paper legend (`LegendBlock::on_paper`, its rows tighter, drawn at 16/15), `LegendBlock::flowed` cuts the legend into pieces of bounded height, `bodies` gives each page's nodes and `footed` adds each page's footer group once the count is known, and the writer draws one `Sheet` per page. Objects are numbered catalog, page tree, info, then each page and its stream, then the fonts; any document-level object a later writer adds goes after the fonts, and the info dictionary is written last so the version moves only the cross-reference offset. Each paper page is checked against the PNG of its own document. **For the full PDF and tagging (PR 21b, 21c):** the structure tree is built from logical keys (`ItemKey`, sector and ring indices) across pages; continued headings (`continued: true` on a legend heading), repeated header rows and footer groups are pagination artifacts; the `Semantics` variants those PRs add describe accessibility roles, which §5 allows, not special cases for one format; and 21b moves the HTML table's rows, columns, headings and cell text (FR-78, FR-106) out of `emit/html/table.rs` into a format-neutral module beside `model` and `order`, which the HTML emitter and the paper table both read, so the two cannot disagree.
 
 ## 12. Risks this design accepts
 
