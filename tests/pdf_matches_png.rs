@@ -3,16 +3,18 @@
 //! draws what our PNG draws, to within antialiasing; and a PDF damaged
 //! the ways a writer bug would damage it does not.
 //!
-//! hayro (`vello_cpu`) and tiny-skia antialias differently, so the check
-//! is the largest single channel difference against a measured ceiling,
-//! not a count of differing pixels; the damage tests are what show the
-//! ceiling still separates a faithful PDF from a broken one.
+//! hayro (`vello_cpu`) and tiny-skia antialias differently, so both are
+//! drawn at twice the size and averaged back down, which halves the
+//! antialiasing noise while a shift or a colour change survives it. The
+//! check is then the largest single channel difference against a
+//! measured ceiling, and the subpixels past the noise against a measured
+//! budget; the damage tests are what show the two still separate a
+//! faithful PDF from a broken one.
 //!
-//! The ceiling is blind to a flat colour a little off and to a halo a
-//! little thin or missing (each damage below stays under it), so two
-//! more checks look where it cannot: inside every filled shape the PDF
-//! is the PNG's colour, and every halo is one stroked outline group in
-//! its colour and width.
+//! They are blind to a flat colour a few levels off and to a halo a
+//! little thin or missing, so two more checks look where they cannot:
+//! inside every filled shape the PDF is the PNG's colour, and every halo
+//! is one stroked outline group in its colour and width.
 
 use hayro::hayro_interpret::InterpreterSettings;
 use hayro::hayro_interpret::util::TransformExt as _;
@@ -32,8 +34,6 @@ use resvg::tiny_skia::Pixmap;
 
 #[path = "common/catalogue.rs"]
 mod catalogue;
-#[path = "common/difference.rs"]
-mod difference;
 #[path = "pdf_matches_png/fills.rs"]
 mod fills;
 #[path = "pdf_matches_png/halos.rs"]
@@ -45,21 +45,27 @@ mod pdf_export;
 #[path = "common/pdf_page.rs"]
 mod pdf_page;
 
-use difference::Difference;
 use oracle::{CASES, wide};
 use pdf_export::{fonts, pdf};
 use pdf_page::first_page;
 
-/// The largest channel difference a faithful PDF shows. hayro
-/// (`vello_cpu`) and tiny-skia antialias edges differently, so 1–2.6% of
-/// subpixels differ in every faithful case (6% at `--width 320`) and a
-/// pixel count cannot tell faithful from broken. The largest single
-/// difference can: faithful cases peak at 77 (`--width 320`, dark; 45–74
-/// at natural size), every glyph and colour damage test at 214 or more
-/// (the halo and panel damages stay under it; the checks below catch them). 77 plus 16 of
-/// room for another platform's antialiasing. Measured 2026-10-22, macOS
-/// arm64.
-const MAX_DELTA: u8 = 93;
+/// The largest channel difference a faithful PDF shows, drawn at twice
+/// the size and averaged down. Faithful cases peak at 36 (77 at 1x,
+/// where a shift of a third of a pixel stayed under the ceiling); every
+/// text shifted 0.1 px reaches 51, and 0.2 px 76. 36 plus 8 of room for
+/// another platform's antialiasing. Measured 2026-10-22, macOS arm64.
+const MAX_DELTA: u8 = 44;
+
+/// A channel difference antialiasing alone reaches often: past it, a
+/// subpixel counts against [`MAX_PPM`].
+const NOISE: u8 = 16;
+
+/// How many subpixels per million a faithful PDF shows past [`NOISE`]:
+/// faithful cases reach 500, and a stroke or text colour 20 levels off
+/// (0.08) 1,100 or more, which no single subpixel shows past
+/// [`MAX_DELTA`]. A colour 10 levels off stays under both. Measured
+/// with [`MAX_DELTA`].
+const MAX_PPM: usize = 800;
 
 /// The PDF's own cases beside the shared ones: a right-to-left name,
 /// names Inter lacks (Review Focus 2), accented names, and marks the
@@ -146,21 +152,59 @@ fn rendered(
     (size, png, drawn)
 }
 
-/// SC-30's criterion: no channel differs by more than antialiasing does.
-/// The differing subpixels are only reported, so a regression shows.
-const fn within(d: &Difference) -> bool {
-    d.worst <= MAX_DELTA
+/// The supersampled comparison: the largest channel difference, and the
+/// subpixels past [`NOISE`] in parts per million.
+struct Compared {
+    worst: u8,
+    loud_ppm: usize,
 }
 
-/// `pdf` drawn by hayro against `doc`'s PNG in `png_palette` at `width`.
-fn against_png(
-    doc: &Document,
-    pdf: &[u8],
-    png_palette: &Palette,
-    width: Option<u32>,
-) -> Difference {
-    let (_, png, drawn) = rendered(doc, pdf, png_palette, width);
-    Difference::of(png.data(), &drawn)
+/// SC-30's criterion: no channel differs by more than antialiasing does,
+/// and few differ by more than its noise.
+const fn within(c: &Compared) -> bool {
+    c.worst <= MAX_DELTA && c.loud_ppm <= MAX_PPM
+}
+
+/// `pixels` (RGBA, `width` wide) with each 2×2 block averaged into one,
+/// dropping an odd last row or column.
+fn halved(pixels: &[u8], width: usize) -> Vec<u8> {
+    let (pixels, _) = pixels.as_chunks::<4>();
+    pixels
+        .chunks_exact(width * 2)
+        .flat_map(|rows| {
+            let (top, bottom) = rows.split_at(width);
+            top.as_chunks::<2>().0.iter().zip(bottom.as_chunks::<2>().0)
+        })
+        .flat_map(|(top, bottom)| {
+            let sums = top
+                .iter()
+                .chain(bottom)
+                .fold([0_u32; 4], |mut sums, pixel| {
+                    for (sum, channel) in sums.iter_mut().zip(pixel) {
+                        *sum += u32::from(*channel);
+                    }
+                    sums
+                });
+            sums.map(|sum| u8::try_from((sum + 2) / 4).expect("an average of four bytes"))
+        })
+        .collect()
+}
+
+/// `pdf` drawn by hayro against `doc`'s PNG in `png_palette` at `width`,
+/// both drawn at twice the size and averaged down.
+fn against_png(doc: &Document, pdf: &[u8], png_palette: &Palette, width: Option<u32>) -> Compared {
+    let once = pixel_size(doc, width).expect("fits");
+    let twice = pixel_size(doc, Some(once.width() * 2)).expect("fits");
+    let png =
+        Pixmap::decode_png(&rasterise(doc, png_palette, twice).expect("renders")).expect("a PNG");
+    let drawn = drawn(pdf, twice, intrinsic_size(doc, width));
+    let wide = usize::try_from(twice.width()).expect("a test page fits usize");
+    let (png, drawn) = (halved(png.data(), wide), halved(&drawn, wide));
+    let deltas = || png.iter().zip(&drawn).map(|(a, b)| a.abs_diff(*b));
+    Compared {
+        worst: deltas().max().unwrap_or(0),
+        loud_ppm: deltas().filter(|&d| d > NOISE).count() * 1_000_000 / png.len(),
+    }
 }
 
 /// SC-30: every case, both themes (Review Focus 2, 4 and 5).
@@ -170,40 +214,43 @@ fn the_pdf_draws_what_the_png_draws() {
         let (doc, desc) = wide(csv, title, fonts());
         for theme in [Theme::Light, Theme::Dark] {
             let palette = Palette::built_in(theme);
-            let d = against_png(
+            let c = against_png(
                 &doc,
                 &pdf(&doc, &desc, &palette, title, None),
                 &palette,
                 None,
             );
             eprintln!(
-                "{name} {theme:?}: {} of {} subpixels ({} ppm), worst {}",
-                d.differ,
-                d.total,
-                d.ppm(),
-                d.worst
+                "{name} {theme:?}: {} ppm past noise, worst {}",
+                c.loud_ppm, c.worst
             );
-            assert!(within(&d), "{name} {theme:?}");
+            assert!(within(&c), "{name} {theme:?}");
         }
     }
 }
 
 /// Review Focus 3: at a set width the drawing scales with the page and
-/// meets its edges, in the dark theme, where a sliver would show.
+/// meets its edges, in the dark theme, where a sliver would show. Only
+/// the ceiling applies: at 320 the drawing is a third of its size, so
+/// nearly every pixel is an edge, and [`MAX_PPM`], measured at natural
+/// size, does not hold (8,000 ppm past noise, worst 32).
 #[test]
 fn the_pdf_at_a_set_width_draws_what_the_png_draws() {
     let (_, csv, title) = CASES[0];
     let (doc, desc) = wide(csv, title, fonts());
     let palette = Palette::built_in(Theme::Dark);
     for width in [320, 2400] {
-        let d = against_png(
+        let c = against_png(
             &doc,
             &pdf(&doc, &desc, &palette, title, Some(width)),
             &palette,
             Some(width),
         );
-        eprintln!("--width {width}: {} ppm, worst {}", d.ppm(), d.worst);
-        assert!(within(&d), "--width {width}");
+        eprintln!(
+            "--width {width}: {} ppm past noise, worst {}",
+            c.loud_ppm, c.worst
+        );
+        assert!(c.worst <= MAX_DELTA, "--width {width}");
     }
 }
 
@@ -325,4 +372,43 @@ fn the_wrong_theme_fails() {
         &Palette::built_in(Theme::Dark),
         None
     )));
+}
+
+/// Every text a fifth of a pixel to the right fails, in both themes: a
+/// placement error the 1x ceiling let through.
+#[test]
+fn text_a_fifth_of_a_pixel_off_fails() {
+    for theme in [Theme::Light, Theme::Dark] {
+        let (doc, pdf, palette) = case(theme);
+        let broken = damaged(&pdf, |ops| {
+            for tm in ops.iter_mut().filter(|op| op.operator == "Tm") {
+                let x = tm.operands.get_mut(4).expect("a Tm's x");
+                *x = Object::Real(x.as_float().expect("a number") + 0.2);
+            }
+        });
+        assert!(
+            !within(&against_png(&doc, &broken, &palette, None)),
+            "{theme:?}: shifted text must fail"
+        );
+    }
+}
+
+/// Every stroke colour 0.08 (20 levels) off fails, in both themes: no
+/// filled shape shows it, and no single subpixel passes the ceiling.
+#[test]
+fn a_slightly_wrong_stroke_colour_fails() {
+    for theme in [Theme::Light, Theme::Dark] {
+        let (doc, pdf, palette) = case(theme);
+        let broken = damaged(&pdf, |ops| {
+            for stroke in ops.iter_mut().filter(|op| op.operator == "RG") {
+                let red = stroke.operands.first_mut().expect("a channel");
+                let v = red.as_float().expect("a number");
+                *red = Object::Real(if v > 0.5 { v - 0.08 } else { v + 0.08 });
+            }
+        });
+        assert!(
+            !within(&against_png(&doc, &broken, &palette, None)),
+            "{theme:?}: a slightly wrong stroke colour must fail"
+        );
+    }
 }
