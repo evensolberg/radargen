@@ -8,3 +8,6 @@
 
 # Golden files are compared byte for byte: git must never convert them.
 tests/golden/** -text
+
+# Holds a CR LF inside a quoted cell on purpose (FR-97): never converted.
+tests/fixtures/table-hostile.csv -text

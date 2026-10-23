@@ -38,6 +38,8 @@ mod catalogue;
 mod fills;
 #[path = "pdf_matches_png/halos.rs"]
 mod halos;
+#[path = "common/long_legend.rs"]
+mod long_legend;
 #[path = "common/oracle.rs"]
 mod oracle;
 #[path = "common/paper.rs"]

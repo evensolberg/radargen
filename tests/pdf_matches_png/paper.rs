@@ -9,15 +9,9 @@ use radargen::palette::{Palette, Theme};
 use radargen::svg::Document;
 use resvg::tiny_skia::Pixmap;
 
+use super::long_legend::long_csv;
 use super::paper::{paper_pages, paper_pdf};
 use super::{against_page, damaged_page, drawn_page, within, within_legend_page};
-
-/// A legend long enough for two continuation pages, each full.
-fn long_csv() -> String {
-    (0..120).fold("name,sector,ring,description\n".to_owned(), |csv, i| {
-        csv + &format!("item {i:03},Tools,Adopt,d\n")
-    })
-}
 
 /// The long legend on `paper` in `theme`: pages, PDF, palette.
 fn on(paper: Paper, theme: Theme) -> (Vec<Document>, Vec<u8>, Palette) {

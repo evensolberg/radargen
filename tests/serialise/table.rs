@@ -12,6 +12,7 @@ use radargen::model::{Link, NOT_ON_THE_RADAR};
 use radargen::options::Table;
 use roxmltree::Node;
 
+use super::golden::golden;
 use super::{Built, build, parse};
 
 /// CSV order differs from FR-34's (`Alpha` in `Platforms` numbers first),
@@ -540,5 +541,47 @@ fn the_table_heading_names_what_it_holds() {
         b.page_table(Some("T"), Table::Radar)
             .contains("role=\"region\" aria-labelledby=\"table-heading\""),
         "the heading names the region"
+    );
+}
+
+/// The table view's section of `html`: its heading through its `<details>`.
+fn section(html: &str) -> String {
+    let start = html.find("<h2 class=\"table-heading\"").expect("a heading");
+    let end = html.find("</details>").expect("the view closes") + "</details>".len();
+    html.get(start..end).expect("in the page").to_owned()
+}
+
+/// The table under `table` for `csv`, titled.
+fn table_section(csv: &str, table: Table) -> String {
+    section(&build(csv, None, Some("T")).page_table(Some("T"), table))
+}
+
+/// NFR-4: links of each kind, a hostile and an unrecognised heading, CR LF
+/// and blank-line prose, padded labels and an unplotted row, under `all`,
+/// byte for byte: pinned before PR 21b moves the table's choices out of
+/// the emitter (RG-021B).
+#[test]
+fn a_hostile_table_matches_its_golden() {
+    let csv = include_str!("../fixtures/table-hostile.csv");
+    golden("html", "table-hostile.html", &table_section(csv, Table::All));
+}
+
+/// A headers-only CSV's table under `radar`: it says nothing is plotted.
+#[test]
+fn a_headers_only_radar_table_matches_its_golden() {
+    golden(
+        "html",
+        "headers-only-radar.html",
+        &table_section("name,sector,ring,description\n", Table::Radar),
+    );
+}
+
+/// A headers-only CSV's table under `all`: an empty body.
+#[test]
+fn a_headers_only_all_table_matches_its_golden() {
+    golden(
+        "html",
+        "headers-only-all.html",
+        &table_section("name,sector,ring,description\n", Table::All),
     );
 }
