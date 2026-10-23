@@ -52,6 +52,42 @@ impl Lines {
         let words = words(&lines.join(" "));
         Self { lines, words }
     }
+
+    /// Lines `range` of these, with the words they read as within this
+    /// cell's: joined with a space where the cell's words have one between
+    /// them, and with none where a token was broken mid-word, so a split
+    /// row's part keeps a broken token one word (D-88).
+    fn slice(&self, range: std::ops::Range<usize>) -> Self {
+        let lines = self.lines.get(range.clone()).unwrap_or_default().to_vec();
+        let spaced = self.spaced_breaks();
+        let mut words = String::new();
+        for (i, line) in lines.iter().enumerate() {
+            let at = range.start + i;
+            if i > 0 && spaced.get(at - 1).copied().unwrap_or(true) {
+                words.push(' ');
+            }
+            words.push_str(line);
+        }
+        Self {
+            words: crate::text::words(&words),
+            lines,
+        }
+    }
+
+    /// For each line but the last, whether a space follows it in the
+    /// cell's words: false where the line ends inside a token.
+    fn spaced_breaks(&self) -> Vec<bool> {
+        let mut rest = self.words.as_str();
+        let mut out = Vec::with_capacity(self.lines.len());
+        for line in &self.lines {
+            let piece = crate::trim(line);
+            rest = rest.strip_prefix(piece).unwrap_or(rest);
+            let spaced = rest.starts_with(' ');
+            rest = rest.strip_prefix(' ').unwrap_or(rest);
+            out.push(spaced);
+        }
+        out
+    }
 }
 
 /// A row as placed on a page: the whole row, or one part of a row taller
@@ -318,9 +354,9 @@ fn next_part(
                 return head.take().unwrap_or_default();
             }
             let to = (*used + most).min(cell.lines.len());
-            let lines = cell.lines.get(*used..to).unwrap_or_default().to_vec();
+            let part = cell.slice(*used..to);
             *used = to;
-            Lines::of(lines)
+            part
         })
         .collect()
 }

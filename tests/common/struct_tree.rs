@@ -21,6 +21,27 @@ pub struct Tree {
     pub roots: Vec<ObjectId>,
     pub parents: BTreeMap<(i64, i64), ObjectId>,
     pub struct_parents: BTreeMap<ObjectId, i64>,
+    /// Each page key's parent-tree array length.
+    pub lengths: BTreeMap<i64, usize>,
+    /// The root's `/ParentTreeNextKey`.
+    pub next_key: i64,
+}
+
+impl Element {
+    /// Its table attribute `key`'s value, as written: `/Scope`'s name or
+    /// `/ColSpan`'s number.
+    pub fn table_attribute(&self, key: &[u8]) -> Option<String> {
+        let Ok(Object::Array(attrs)) = self.dict.get(b"A") else {
+            return None;
+        };
+        attrs
+            .iter()
+            .find_map(|a| match a.as_dict().ok()?.get(key).ok()? {
+                Object::Name(n) => Some(String::from_utf8_lossy(n).into_owned()),
+                Object::Integer(i) => Some(i.to_string()),
+                _ => None,
+            })
+    }
 }
 
 fn refs(object: &Object) -> Vec<&Object> {
@@ -30,8 +51,15 @@ fn refs(object: &Object) -> Vec<&Object> {
     }
 }
 
-fn read_element(doc: &Document, id: ObjectId, tree: &mut Tree) {
+/// Element `id` and its descendants into `tree`; its `/P` must name
+/// `parent`, the element (or the root) it was reached from.
+fn read_element(doc: &Document, (id, parent): (ObjectId, ObjectId), tree: &mut Tree) {
     let dict = doc.get_dictionary(id).expect("an element").clone();
+    assert_eq!(
+        dict.get(b"P").and_then(Object::as_reference).ok(),
+        Some(parent),
+        "{id:?}'s /P"
+    );
     let role = dict
         .get(b"S")
         .and_then(Object::as_name)
@@ -50,7 +78,7 @@ fn read_element(doc: &Document, id: ObjectId, tree: &mut Tree) {
             Object::Integer(n) => element.mcids.push((page.expect("a /Pg"), *n)),
             Object::Reference(r) => {
                 element.kids.push(*r);
-                read_element(doc, *r, tree);
+                read_element(doc, (*r, id), tree);
             }
             Object::Dictionary(mcr) => {
                 let pg = mcr
@@ -80,11 +108,16 @@ pub fn tree(doc: &Document) -> Tree {
         roots: Vec::new(),
         parents: BTreeMap::new(),
         struct_parents: BTreeMap::new(),
+        lengths: BTreeMap::new(),
+        next_key: root
+            .get(b"ParentTreeNextKey")
+            .and_then(Object::as_i64)
+            .expect("ParentTreeNextKey"),
     };
     for kid in root.get(b"K").map(refs).expect("the root's kids") {
         let id = kid.as_reference().expect("an element");
         tree.roots.push(id);
-        read_element(doc, id, &mut tree);
+        read_element(doc, (id, root_id), &mut tree);
     }
     let nums_holder = root
         .get(b"ParentTree")
@@ -107,6 +140,7 @@ pub fn tree(doc: &Document) -> Tree {
             Object::Array(a) => a,
             other => panic!("{other:?}"),
         };
+        tree.lengths.insert(key, array.len());
         for (mcid, element) in array.iter().enumerate() {
             let mcid = i64::try_from(mcid).expect("small");
             tree.parents

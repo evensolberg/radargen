@@ -1,92 +1,92 @@
 Document
-  H1 p1:1
-  P p1:1
+  H1 p1:"Technology Radar"
+  P p1:"Each item's description and rationale: p…"
   Figure Alt="Technology radar: 3 sectors, 4 rings, 6 items" p1:28
-  H2 p1:1
+  H2 p1:"Key"
   L
     LI
-      LBody p1:1
+      LBody p1:"Default, or no qualifier — solid marker"
     LI
-      LBody p1:1
+      LBody p1:"Conditional — hollow marker"
     LI
-      LBody p1:1
+      LBody p1:"New this edition — full ring"
     LI
-      LBody p1:1
+      LBody p1:"Moved in — half-ring facing the centre"
     LI
-      LBody p1:1
-  H2 p1:1
-  H3 p1:1
-  H4 p1:1
+      LBody p1:"Moved out — half-ring facing the outer e…"
+  H2 p1:"Legend"
+  H3 p1:"Platform"
+  H4 p1:"Adopt"
   L
     LI
-      Lbl p1:1
-      LBody p1:1
-  H3 p1:1
-  H4 p1:1
+      Lbl p1:"1"
+      LBody p1:"=Kubernetes, Default"
+  H3 p1:"Practice"
+  H4 p1:"Adopt"
   L
     LI
-      Lbl p1:1
-      LBody p1:1
-  H3 p1:1
-  H4 p1:1
+      Lbl p1:"2"
+      LBody p1:"=Trunk-Based Development, Default"
+  H3 p1:"Tool"
+  H4 p1:"Trial"
   L
     LI
-      Lbl p1:1
-      LBody p1:1
-  H4 p1:1
+      Lbl p1:"3"
+      LBody p1:"=Ansible, Moved In"
+  H4 p1:"Adopt"
   L
     LI
-      Lbl p1:1
-      LBody p1:1
+      Lbl p1:"4"
+      LBody p1:"=Pulumi, Conditional · New"
     LI
-      Lbl p1:1
-      LBody p1:1
-  H4 p1:1
+      Lbl p1:"5"
+      LBody p1:"=Terraform, Default"
+  H4 p1:"Retire"
   L
     LI
-      Lbl p1:1
-      LBody p1:1
-  H2 p2:1
+      Lbl p1:"6"
+      LBody p1:"Chef"
+  H2 p2:"Items on the radar"
   Table
     TR
-      TH Scope=Column p2:1
-      TH Scope=Column p2:1
-      TH Scope=Column p2:1
-      TH Scope=Column p2:1
-      TH Scope=Column p2:1
+      TH Scope=Column p2:"=Number"
+      TH Scope=Column p2:"name"
+      TH Scope=Column p2:"=Sector ring"
+      TH Scope=Column p2:"description"
+      TH Scope=Column p2:"rationale"
     TR
-      TD p2:1
-      TH Scope=Row p2:2
-      TD p2:2
-      TD p2:1
-      TD p2:1
+      TD p2:"1"
+      TH Scope=Row p2:"Kubernetes" p2:"=Container Orchestration · default · las…"
+      TD p2:"Platform" p2:"Adopt"
+      TD p2:"=Container orchestration platform for de…"
+      TD p2:"=Default for all new containerised workl…"
     TR
-      TD p2:1
-      TH Scope=Row p2:2
-      TD p2:2
-      TD p2:1
-      TD p2:1
+      TD p2:"2"
+      TH Scope=Row p2:"Trunk-Based Development" p2:"=Delivery Practice · default · last_affi…"
+      TD p2:"Practice" p2:"Adopt"
+      TD p2:"=Developers integrate small, frequent ch…"
+      TD p2:"=Default branching model for managed del…"
     TR
-      TD p2:1
-      TH Scope=Row p2:2
-      TD p2:2
-      TD p2:1
-      TD p2:1
+      TD p2:"3"
+      TH Scope=Row p2:"Ansible" p2:"=Configuration Management · last_affirme…"
+      TD p2:"Tool" p2:"Trial"
+      TD p2:"=Agentless configuration management and …"
+      TD p2:"=Bounded trial on one managed estate; wa…"
     TR
-      TD p2:1
-      TH Scope=Row p2:2
-      TD p2:2
-      TD p2:1
-      TD p2:1
+      TD p2:"4"
+      TH Scope=Row p2:"Pulumi" p2:"=Infrastructure as Code · conditional · …"
+      TD p2:"Tool" p2:"Adopt"
+      TD p2:"=Infrastructure-as-code authored in a ge…"
+      TD p2:"=Acceptable where a client mandates a ge…"
     TR
-      TD p2:1
-      TH Scope=Row p2:2
-      TD p2:2
-      TD p2:1
-      TD p2:1
+      TD p2:"5"
+      TH Scope=Row p2:"Terraform" p2:"=Infrastructure as Code · default · last…"
+      TD p2:"Tool" p2:"Adopt"
+      TD p2:"=Declarative infrastructure-as-code tool…"
+      TD p2:"=Default IaC tool across all managed env…"
     TR
-      TD p2:1
-      TH Scope=Row p2:2
-      TD p2:2
-      TD p2:1
-      TD p2:1
+      TD p2:"6"
+      TH Scope=Row p2:"Chef" p2:"=Configuration Management · last_affirme…"
+      TD p2:"Tool" p2:"Retire"
+      TD p2:"=Agent-based configuration management us…"
+      TD p2:"=Superseded by the Ansible trial outcome…"

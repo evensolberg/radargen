@@ -1,12 +1,21 @@
 //! A tagged PDF's structure tree as text, for a golden a person can
 //! review (FR-114): each element's role, its `/Alt`, a header cell's scope
-//! or a spanning cell's span, and how many marked sequences it holds on
-//! each page, numbered from 1.
+//! or a spanning cell's span, then each marked sequence it holds as its
+//! page and what it reads as: its `/ActualText`, else its glyphs through
+//! the font's `ToUnicode` map, shortened. The radar's figure, which holds
+//! every label, gives a count per page instead.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
+use lopdf::content::Content;
 use lopdf::{Dictionary, Document, Object, ObjectId};
+
+/// The most characters of a marked sequence's text the outline shows.
+const SHOWN: usize = 40;
+
+/// What each page's marked sequences read as, by page and MCID.
+type Texts = BTreeMap<(ObjectId, i64), String>;
 
 /// The outline of `bytes`'s structure tree, one element a line, indented
 /// by depth.
@@ -19,13 +28,157 @@ pub fn tree_outline(bytes: &[u8]) -> String {
         .and_then(Object::as_reference)
         .and_then(|r| doc.get_dictionary(r))
         .expect("a structure tree");
+    let texts: Texts = pages.iter().flat_map(|&p| page_texts(&doc, p)).collect();
     let mut out = String::new();
     for kid in kids(root) {
         if let Object::Reference(r) = kid {
-            walk(&doc, &pages, (r, 0), &mut out);
+            walk(&doc, (&pages, &texts), (r, 0), &mut out);
         }
     }
     out
+}
+
+/// A font's `ToUnicode` map, CID to text, from its `bfchar` entries (the
+/// only kind the writer emits).
+fn to_unicode(doc: &Document, font: &Dictionary) -> BTreeMap<u16, String> {
+    let Some(stream) = font
+        .get(b"ToUnicode")
+        .and_then(Object::as_reference)
+        .ok()
+        .and_then(|r| doc.get_object(r).ok())
+        .and_then(|o| o.as_stream().ok())
+    else {
+        return BTreeMap::new();
+    };
+    let bytes = stream
+        .decompressed_content()
+        .unwrap_or_else(|_| stream.content.clone());
+    let text = String::from_utf8_lossy(&bytes);
+    let hex = |h: &str| -> Vec<u16> {
+        h.trim_matches(|c| c == '<' || c == '>')
+            .as_bytes()
+            .chunks(4)
+            .filter_map(|c| u16::from_str_radix(std::str::from_utf8(c).ok()?, 16).ok())
+            .collect()
+    };
+    text.lines()
+        .filter_map(|line| {
+            let (cid, dst) = line.split_once("> <")?;
+            let cid = *hex(cid).first()?;
+            Some((cid, String::from_utf16_lossy(&hex(dst))))
+        })
+        .collect()
+}
+
+/// Every marked sequence on `page` and what it reads as.
+fn page_texts(doc: &Document, page: ObjectId) -> Texts {
+    let fonts: BTreeMap<Vec<u8>, BTreeMap<u16, String>> = doc
+        .get_page_fonts(page)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, font)| (name, to_unicode(doc, font)))
+        .collect();
+    let ops = Content::decode(&doc.get_page_content(page))
+        .map(|c| c.operations)
+        .unwrap_or_default();
+    let mut out = Texts::new();
+    let mut font: Vec<u8> = Vec::new();
+    // The open marks, each with the MCID it carries, if any.
+    let mut open: Vec<Option<i64>> = Vec::new();
+    for op in &ops {
+        match op.operator.as_str() {
+            "BDC" => {
+                let props = op.operands.get(1).and_then(|o| o.as_dict().ok());
+                let mcid = props
+                    .and_then(|d| d.get(b"MCID").ok())
+                    .and_then(|m| m.as_i64().ok());
+                if let (Some(n), Some(actual)) = (
+                    mcid,
+                    props
+                        .and_then(|d| d.get(b"ActualText").ok())
+                        .and_then(|a| a.as_str().ok()),
+                ) {
+                    out.insert((page, n), format!("={}", text_string(actual)));
+                }
+                open.push(mcid);
+            }
+            "BMC" => open.push(None),
+            "EMC" => {
+                open.pop();
+            }
+            "Tf" => {
+                font = op
+                    .operands
+                    .first()
+                    .and_then(|o| o.as_name().ok())
+                    .map(<[u8]>::to_vec)
+                    .unwrap_or_default();
+            }
+            "Tj" | "TJ" => {
+                let Some(n) = open.iter().rev().find_map(|m| *m) else {
+                    continue;
+                };
+                let map = fonts.get(&font);
+                let shown = shown_text(op, map);
+                let entry = out.entry((page, n)).or_default();
+                if !entry.starts_with('=') {
+                    entry.push_str(&shown);
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// A `Tj` or `TJ`'s glyphs as text through `map`.
+fn shown_text(op: &lopdf::content::Operation, map: Option<&BTreeMap<u16, String>>) -> String {
+    let strings: Vec<&[u8]> = op
+        .operands
+        .iter()
+        .flat_map(|o| match o {
+            Object::Array(items) => items
+                .iter()
+                .filter_map(|i| i.as_str().ok())
+                .collect::<Vec<_>>(),
+            other => other.as_str().ok().into_iter().collect(),
+        })
+        .collect();
+    strings
+        .iter()
+        .flat_map(|s| s.chunks(2))
+        .filter_map(|pair| match pair {
+            [hi, lo] => map?.get(&u16::from_be_bytes([*hi, *lo])).cloned(),
+            _ => None,
+        })
+        .collect()
+}
+
+/// A PDF text string: UTF-16BE after its byte-order mark, else one byte a
+/// character.
+fn text_string(bytes: &[u8]) -> String {
+    match bytes {
+        [0xfe, 0xff, rest @ ..] => {
+            let units: Vec<u16> = rest
+                .chunks(2)
+                .map(|pair| match pair {
+                    [hi, lo] => u16::from_be_bytes([*hi, *lo]),
+                    _ => 0xfffd,
+                })
+                .collect();
+            String::from_utf16_lossy(&units)
+        }
+        _ => bytes.iter().map(|&b| char::from(b)).collect(),
+    }
+}
+
+/// `text` cut to [`SHOWN`] characters, an ellipsis marking the cut.
+fn shortened(text: &str) -> String {
+    if text.chars().count() <= SHOWN {
+        return text.to_owned();
+    }
+    let kept: String = text.chars().take(SHOWN).collect();
+    format!("{kept}\u{2026}")
 }
 
 /// An element's `/K`, always as a list.
@@ -38,7 +191,12 @@ fn kids(dict: &Dictionary) -> Vec<Object> {
 }
 
 /// Element `id` at `depth`, then its children.
-fn walk(doc: &Document, pages: &[ObjectId], (id, depth): (ObjectId, usize), out: &mut String) {
+fn walk(
+    doc: &Document,
+    (pages, texts): (&[ObjectId], &Texts),
+    (id, depth): (ObjectId, usize),
+    out: &mut String,
+) {
     let page_of = |id: ObjectId| pages.iter().position(|p| *p == id).map_or(0, |k| k + 1);
     let dict = doc.get_dictionary(id).expect("an element");
     let role = dict
@@ -52,26 +210,38 @@ fn walk(doc: &Document, pages: &[ObjectId], (id, depth): (ObjectId, usize), out:
     }
     line.push_str(&attributes(dict));
     let own = dict.get(b"Pg").and_then(Object::as_reference).ok();
-    let mut marked: BTreeMap<usize, usize> = BTreeMap::new();
+    let mut marked: Vec<(ObjectId, i64)> = Vec::new();
     let mut children = Vec::new();
     for kid in kids(dict) {
         match kid {
-            Object::Integer(_) => *marked.entry(own.map_or(0, page_of)).or_default() += 1,
+            Object::Integer(n) => marked.extend(own.map(|p| (p, n))),
             Object::Dictionary(mcr) => {
                 let page = mcr.get(b"Pg").and_then(Object::as_reference).ok().or(own);
-                *marked.entry(page.map_or(0, page_of)).or_default() += 1;
+                let n = mcr.get(b"MCID").and_then(Object::as_i64).ok();
+                marked.extend(page.zip(n));
             }
             Object::Reference(r) => children.push(r),
             _ => {}
         }
     }
-    for (page, n) in marked {
-        let _ = write!(line, " p{page}:{n}");
+    if role == "Figure" {
+        let mut counts: BTreeMap<usize, usize> = BTreeMap::new();
+        for (page, _) in &marked {
+            *counts.entry(page_of(*page)).or_default() += 1;
+        }
+        for (page, n) in counts {
+            let _ = write!(line, " p{page}:{n}");
+        }
+    } else {
+        for key in &marked {
+            let text = texts.get(key).map_or("", String::as_str);
+            let _ = write!(line, " p{}:{:?}", page_of(key.0), shortened(text));
+        }
     }
     out.push_str(&line);
     out.push('\n');
     for child in children {
-        walk(doc, pages, (child, depth + 1), out);
+        walk(doc, (pages, texts), (child, depth + 1), out);
     }
 }
 

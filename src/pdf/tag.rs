@@ -14,9 +14,10 @@
 use std::collections::BTreeMap;
 use std::num::{NonZeroU8, NonZeroUsize};
 
-use pdf_writer::types::ArtifactType;
+use pdf_writer::types::{ArtifactType, StructRole};
 use pdf_writer::{Content, Name, TextStr};
 
+use super::leaf::Leaf;
 use crate::svg::{ListKey, Scope, Semantics, Structure};
 
 /// A standard structure role (ISO 32000-1, 14.8.4).
@@ -49,30 +50,30 @@ pub enum Role {
 }
 
 impl Role {
-    /// The role's name, which is also the tag of the marked content under
-    /// it.
+    /// The standard role: the element's `/S`, and the tag of the marked
+    /// content under it, so the two cannot disagree.
     #[must_use]
-    pub const fn name(self) -> &'static [u8] {
+    pub const fn struct_role(self) -> StructRole {
         match self {
-            Self::Document => b"Document",
+            Self::Document => StructRole::Document,
             Self::Heading(level) => match level.get() {
-                1 => b"H1",
-                2 => b"H2",
-                3 => b"H3",
-                4 => b"H4",
-                5 => b"H5",
-                _ => b"H6",
+                1 => StructRole::H1,
+                2 => StructRole::H2,
+                3 => StructRole::H3,
+                4 => StructRole::H4,
+                5 => StructRole::H5,
+                _ => StructRole::H6,
             },
-            Self::P => b"P",
-            Self::Figure => b"Figure",
-            Self::L => b"L",
-            Self::Li => b"LI",
-            Self::Lbl => b"Lbl",
-            Self::LBody => b"LBody",
-            Self::Table => b"Table",
-            Self::Tr => b"TR",
-            Self::Th(_) => b"TH",
-            Self::Td(_) => b"TD",
+            Self::P => StructRole::P,
+            Self::Figure => StructRole::Figure,
+            Self::L => StructRole::L,
+            Self::Li => StructRole::LI,
+            Self::Lbl => StructRole::Lbl,
+            Self::LBody => StructRole::LBody,
+            Self::Table => StructRole::Table,
+            Self::Tr => StructRole::TR,
+            Self::Th(_) => StructRole::TH,
+            Self::Td(_) => StructRole::TD,
         }
     }
 }
@@ -141,6 +142,8 @@ pub enum Opened {
     Nothing,
     /// An element, now on the stack.
     Element,
+    /// The radar's figure, now on the stack: inside it nothing else opens.
+    Figure,
     /// An artifact, now open in the content stream.
     Artifact,
 }
@@ -221,7 +224,8 @@ impl Tagger {
             Semantics::Heading(level) => self.element(Role::Heading(*level), None, None),
             Semantics::Group(name) => {
                 self.figures += 1;
-                self.element(Role::Figure, None, Some(name.clone()))
+                let _ = self.element(Role::Figure, None, Some(name.clone()));
+                Opened::Figure
             }
             Semantics::LegendRow(_) => self.element(Role::Li, None, None),
             Semantics::Structure(structure) => self.structure(*structure),
@@ -238,11 +242,11 @@ impl Tagger {
         match opened {
             Opened::Nothing => {}
             Opened::Element => {
-                if let Some(frame) = self.stack.pop()
-                    && self.elements.get(frame.element).map(|e| e.role) == Some(Role::Figure)
-                {
-                    self.figures = self.figures.saturating_sub(1);
-                }
+                self.stack.pop();
+            }
+            Opened::Figure => {
+                self.stack.pop();
+                self.figures = self.figures.saturating_sub(1);
             }
             Opened::Artifact => {
                 self.artifacts = self.artifacts.saturating_sub(1);
@@ -251,10 +255,22 @@ impl Tagger {
         }
     }
 
-    /// Marks a text leaf: an MCID under its nearest element, or under a
+    /// Marks `leaf` as FR-114 says: inside an artifact, nothing more; the
+    /// ground and a halo as artifacts; a text as an MCID under its nearest
+    /// element, or a paragraph of its own; a shape as the figure's inside
+    /// the radar, else an artifact.
+    pub fn leaf(&mut self, out: &mut Content, leaf: &Leaf) -> Marked {
+        match leaf {
+            Leaf::Ground | Leaf::Halo => self.ornament(out),
+            Leaf::Text { actual } => self.text(out, actual.as_deref()),
+            Leaf::Shape => self.shape(out),
+        }
+    }
+
+    /// A text leaf: an MCID under its nearest element, or under a
     /// paragraph of its own; `actual_text` when its words are not its
     /// drawn lines (D-88). Inside an artifact it is not marked again.
-    pub fn text(&mut self, out: &mut Content, actual_text: Option<&str>) -> Marked {
+    fn text(&mut self, out: &mut Content, actual_text: Option<&str>) -> Marked {
         if self.artifacts > 0 {
             return Marked(false);
         }
@@ -271,8 +287,8 @@ impl Tagger {
         Marked(true)
     }
 
-    /// Marks a shape leaf: the figure's inside the radar, else an artifact.
-    pub fn shape(&mut self, out: &mut Content) -> Marked {
+    /// A shape leaf: the figure's inside the radar, else an artifact.
+    fn shape(&mut self, out: &mut Content) -> Marked {
         if self.artifacts > 0 {
             return Marked(false);
         }
@@ -285,8 +301,8 @@ impl Tagger {
         Marked(true)
     }
 
-    /// Marks a leaf that is always an artifact: the ground, a halo.
-    pub fn ornament(&self, out: &mut Content) -> Marked {
+    /// A leaf that is always an artifact: the ground, a halo.
+    fn ornament(&self, out: &mut Content) -> Marked {
         if self.artifacts > 0 {
             return Marked(false);
         }
@@ -399,7 +415,7 @@ impl Tagger {
         let mcid = i32::try_from(parents.len()).unwrap_or(i32::MAX);
         parents.push(element);
         let role = self.elements.get(element).map_or(Role::P, |e| e.role);
-        let mut marked = out.begin_marked_content_with_properties(Name(role.name()));
+        let mut marked = out.begin_marked_content_with_properties(role.struct_role().to_name());
         let mut properties = marked.properties();
         properties.identify(mcid);
         if let Some(text) = actual_text {
@@ -420,23 +436,31 @@ mod tests {
     }
 
     /// A row split across two pages is one `TR` under one `Table`, its
-    /// cells resumed by position, holding MCIDs on both pages.
+    /// cells resumed by position: on page 2 the number and name cells hold
+    /// only furniture, so the text there lands on the third cell's element
+    /// and the first two gain nothing.
     #[test]
     fn a_split_row_resumes_across_pages() {
         let mut tagger = Tagger::new();
         let mut out = Content::new();
-        for _ in 0..2 {
+        let text = Leaf::Text { actual: None };
+        for page in 0..2 {
             tagger.begin_page();
             let table = opened(&mut tagger, &mut out, Structure::Table);
             let row = opened(&mut tagger, &mut out, Structure::Row(7));
-            for column in 0..2 {
+            for column in 0..3 {
                 let cell = opened(
                     &mut tagger,
                     &mut out,
                     Structure::Cell { column, span: None },
                 );
-                let marked = tagger.text(&mut out, None);
+                let furniture = page == 1 && column < 2;
+                let repeat = furniture.then(|| tagger.open(&mut out, &Semantics::Pagination));
+                let marked = tagger.leaf(&mut out, &text);
                 Tagger::end(&mut out, marked);
+                if let Some(repeat) = repeat {
+                    tagger.close(&mut out, repeat);
+                }
                 tagger.close(&mut out, cell);
             }
             tagger.close(&mut out, row);
@@ -451,18 +475,26 @@ mod tests {
                 Role::Table,
                 Role::Tr,
                 Role::Td(None),
+                Role::Td(None),
                 Role::Td(None)
             ]
         );
-        let cell = tree.elements.get(3).expect("a cell");
+        let kids = |e: usize| {
+            tree.elements
+                .get(e)
+                .map(|e| e.kids.clone())
+                .unwrap_or_default()
+        };
+        assert_eq!(kids(3), [Kid::Mcid { page: 0, mcid: 0 }]);
+        assert_eq!(kids(4), [Kid::Mcid { page: 0, mcid: 1 }]);
         assert_eq!(
-            cell.kids,
+            kids(5),
             [
-                Kid::Mcid { page: 0, mcid: 0 },
+                Kid::Mcid { page: 0, mcid: 2 },
                 Kid::Mcid { page: 1, mcid: 0 }
             ]
         );
-        assert_eq!(tree.parents, [vec![3, 4], vec![3, 4]]);
+        assert_eq!(tree.parents, [vec![3, 4, 5], vec![5]]);
     }
 
     /// Nothing inside an artifact is marked or opens an element.
@@ -476,7 +508,10 @@ mod tests {
         assert_eq!(inner, Opened::Nothing);
         let nested = tagger.open(&mut out, &Semantics::Decorative);
         assert_eq!(nested, Opened::Nothing);
-        assert_eq!(tagger.text(&mut out, None), Marked(false));
+        assert_eq!(
+            tagger.leaf(&mut out, &Leaf::Text { actual: None }),
+            Marked(false)
+        );
         tagger.close(&mut out, artifact);
         assert_eq!(tagger.into_tree().elements.len(), 1);
     }
@@ -488,12 +523,12 @@ mod tests {
         let mut tagger = Tagger::new();
         let mut out = Content::new();
         tagger.begin_page();
-        let marked = tagger.text(&mut out, None);
+        let marked = tagger.leaf(&mut out, &Leaf::Text { actual: None });
         Tagger::end(&mut out, marked);
-        let marked = tagger.shape(&mut out);
+        let marked = tagger.leaf(&mut out, &Leaf::Shape);
         Tagger::end(&mut out, marked);
         let figure = tagger.open(&mut out, &Semantics::Group("Technology radar".to_owned()));
-        let marked = tagger.shape(&mut out);
+        let marked = tagger.leaf(&mut out, &Leaf::Shape);
         Tagger::end(&mut out, marked);
         tagger.close(&mut out, figure);
         let tree = tagger.into_tree();

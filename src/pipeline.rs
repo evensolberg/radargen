@@ -111,6 +111,13 @@ impl Config {
         self.title.as_ref().map(|t| t.value.as_str())
     }
 
+    /// The title a PDF draws and names itself with: FR-65's, or
+    /// *Technology Radar*, since a PDF always draws one (FR-114, D-105).
+    #[must_use]
+    pub fn pdf_title(&self) -> &str {
+        self.title().unwrap_or(UNTITLED)
+    }
+
     /// FR-65's subtitle, if one shows.
     #[must_use]
     pub fn subtitle(&self) -> Option<&str> {
@@ -1057,7 +1064,7 @@ fn render(
     // A PDF always draws its title, so a tagged PDF opens with its H1
     // (FR-65, FR-114).
     let title = if matches!(config.format, OutputFormat::Pdf) {
-        Some(config.title().unwrap_or(UNTITLED))
+        Some(config.pdf_title())
     } else {
         config.title()
     };
@@ -1156,7 +1163,7 @@ fn render(
             &pdf::Export {
                 palette: &config.colours.snapshot(),
                 fonts,
-                title: config.title(),
+                title: Some(config.pdf_title()),
                 desc: &blocks.radar.name(),
                 producer: OUTPUT_VERSION,
             },
@@ -1188,7 +1195,7 @@ fn on_paper(
         radar: &blocks.radar,
         key: &blocks.key,
         legend: &legend,
-        title: config.title().unwrap_or(UNTITLED),
+        title: config.pdf_title(),
         subtitle: config.subtitle(),
         size: page_size(points),
         table: table.as_ref(),
@@ -1223,7 +1230,7 @@ fn on_paper(
         &pdf::Export {
             palette: &config.colours.snapshot(),
             fonts,
-            title: config.title(),
+            title: Some(config.pdf_title()),
             desc: &blocks.radar.name(),
             producer: OUTPUT_VERSION,
         },

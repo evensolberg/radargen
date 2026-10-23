@@ -58,7 +58,7 @@ fn write_element(
         Kid::Element(_) => None,
     });
     let mut dict = pdf.struct_element(id);
-    dict.kind(role(element.role)).parent(parent);
+    dict.kind(element.role.struct_role()).parent(parent);
     if let Some(page) = first.and_then(|p| pages.get(p)) {
         dict.page(*page);
     }
@@ -113,31 +113,5 @@ fn attributes(dict: &mut pdf_writer::writers::StructElement<'_>, role: Role) {
                 .col_span(i32::try_from(span.get()).unwrap_or(i32::MAX));
         }
         _ => {}
-    }
-}
-
-/// `role` as pdf-writer's standard role.
-const fn role(role: Role) -> pdf_writer::types::StructRole {
-    use pdf_writer::types::StructRole as S;
-    match role {
-        Role::Document => S::Document,
-        Role::Heading(level) => match level.get() {
-            1 => S::H1,
-            2 => S::H2,
-            3 => S::H3,
-            4 => S::H4,
-            5 => S::H5,
-            _ => S::H6,
-        },
-        Role::P => S::P,
-        Role::Figure => S::Figure,
-        Role::L => S::L,
-        Role::Li => S::LI,
-        Role::Lbl => S::Lbl,
-        Role::LBody => S::LBody,
-        Role::Table => S::Table,
-        Role::Tr => S::TR,
-        Role::Th(_) => S::TH,
-        Role::Td(_) => S::TD,
     }
 }

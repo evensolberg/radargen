@@ -6,7 +6,19 @@
 /// feed and carriage return are allowed.
 const SPACE: char = ' ';
 
-/// The XMP packet for a document titled `title`.
+/// `title` without the characters XML 1.0 forbids (controls but tab, line
+/// feed and carriage return; U+FFFE, U+FFFF), so the info dictionary and
+/// the XMP can hold the same title.
+#[must_use]
+pub fn clean(title: &str) -> String {
+    title
+        .chars()
+        .filter(|&c| c >= SPACE || matches!(c, '\t' | '\n' | '\r'))
+        .filter(|c| !matches!(c, '\u{fffe}' | '\u{ffff}'))
+        .collect()
+}
+
+/// The XMP packet for a document titled `title`, already [`clean`].
 #[must_use]
 pub fn packet(title: &str) -> String {
     [
@@ -25,9 +37,8 @@ pub fn packet(title: &str) -> String {
     .concat()
 }
 
-/// `text` as XML character data: the markup characters escaped, a CR kept
-/// as a reference (a parser would turn a raw one into LF), and every other
-/// character XML 1.0 forbids dropped.
+/// `text` as XML character data: the markup characters escaped and a CR
+/// kept as a reference (a parser would turn a raw one into LF).
 fn escaped(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.chars() {
@@ -37,8 +48,6 @@ fn escaped(text: &str) -> String {
             '>' => out.push_str("&gt;"),
             '"' => out.push_str("&quot;"),
             '\r' => out.push_str("&#xD;"),
-            '\t' | '\n' => out.push(c),
-            c if c < SPACE || matches!(c, '\u{fffe}' | '\u{ffff}') => {}
             c => out.push(c),
         }
     }
@@ -59,7 +68,7 @@ mod tests {
             ("A & B <C> ]]> \"q\"\r\nnext", "A & B <C> ]]> \"q\"\r\nnext"),
             ("bell\u{7}", "bell"),
         ] {
-            let xmp = packet(title);
+            let xmp = packet(&clean(title));
             let body = xmp
                 .split_once("?>\n")
                 .and_then(|(_, rest)| rest.rsplit_once("\n<?xpacket"))

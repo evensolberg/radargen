@@ -211,7 +211,30 @@ fn the_parent_tree_and_the_elements_agree() {
     for (name, bytes) in fixtures() {
         let (doc, pages) = pages(&bytes);
         let tree = tree(&doc);
-        assert_eq!(drawn(&doc, &pages), named(&tree, name), "{name}");
+        let drawn = drawn(&doc, &pages);
+        let marks: BTreeSet<(ObjectId, i64)> = drawn.keys().copied().collect();
+        assert_eq!(marks, named(&tree, name), "{name}");
+        // Each sequence's tag is its element's role.
+        for (key, tag) in &drawn {
+            let page = tree.struct_parents.get(&key.0).expect("a page key");
+            let element = tree.parents.get(&(*page, key.1)).expect("a parent");
+            assert_eq!(
+                tree.elements.get(element).map(|e| e.role.as_str()),
+                Some(tag.as_str()),
+                "{name}"
+            );
+        }
+        // Each page's array holds exactly its sequences; the next key
+        // follows the last page's.
+        for (page, key) in &tree.struct_parents {
+            let count = marks.iter().filter(|(p, _)| p == page).count();
+            assert_eq!(tree.lengths.get(key).copied().unwrap_or(0), count, "{name}");
+        }
+        assert_eq!(
+            tree.next_key,
+            i64::try_from(pages.len()).expect("few"),
+            "{name}"
+        );
         // No MCID hangs from the document itself.
         assert!(
             tree.elements
@@ -222,15 +245,21 @@ fn the_parent_tree_and_the_elements_agree() {
     }
 }
 
-/// Every MCID drawn, with its page.
-fn drawn(doc: &Document, pages: &[(ObjectId, Vec<Operation>)]) -> BTreeSet<(ObjectId, i64)> {
+/// Every MCID drawn, with its page, and the tag that opened it.
+fn drawn(
+    doc: &Document,
+    pages: &[(ObjectId, Vec<Operation>)],
+) -> std::collections::BTreeMap<(ObjectId, i64), String> {
     pages
         .iter()
         .flat_map(|(page, ops)| {
             ops.iter()
                 .filter(|op| op.operator == "BDC")
                 .filter_map(move |op| match mark(op, doc) {
-                    Mark::Mcid(n) => Some((*page, n)),
+                    Mark::Mcid(n) => {
+                        let tag = op.operands.first().and_then(|o| o.as_name().ok())?;
+                        Some(((*page, n), String::from_utf8_lossy(tag).into_owned()))
+                    }
                     _ => None,
                 })
         })
@@ -290,6 +319,76 @@ fn a_split_row_is_one_row_of_one_table() {
         }
     }
     assert_eq!(spanning, 1, "Beta crosses the page");
+    // The header row heads columns; each body row's name cell, the second,
+    // heads its row, and only it.
+    let roles = |row: &struct_tree::Element| -> Vec<(String, Option<String>)> {
+        row.kids
+            .iter()
+            .map(|k| {
+                let cell = tree.elements.get(k).expect("a cell");
+                (cell.role.clone(), cell.table_attribute(b"Scope"))
+            })
+            .collect()
+    };
+    let column = (String::from("TH"), Some(String::from("Column")));
+    let (_, header) = rows.first().expect("a header row");
+    assert!(roles(header).iter().all(|cell| *cell == column));
+    for (_, row) in rows.iter().skip(1) {
+        let cells = roles(row);
+        let headers: Vec<usize> = (0..cells.len())
+            .filter(|&i| cells.get(i).is_some_and(|c| c.0 == "TH"))
+            .collect();
+        assert_eq!(headers, [1], "{cells:?}");
+        assert_eq!(cells.get(1).and_then(|c| c.1.as_deref()), Some("Row"));
+    }
+}
+
+/// FR-106 on paper: nothing plotted is one cell spanning every column.
+#[test]
+fn nothing_plotted_is_one_spanning_cell() {
+    let bytes = on_paper(&format!("{HEAD}Bus,Tools,Rejected,d\n"), Some(Table::Radar));
+    let doc = Document::load_mem(&bytes).expect("parses");
+    let tree = tree(&doc);
+    let rows = of_role(&tree, "TR");
+    let [(_, header), (_, only)] = rows.as_slice() else {
+        panic!("a header row and one row: {}", rows.len());
+    };
+    let [cell] = only.kids.as_slice() else {
+        panic!("one cell");
+    };
+    let span = tree
+        .elements
+        .get(cell)
+        .and_then(|c| c.table_attribute(b"ColSpan"));
+    assert_eq!(span, Some(header.kids.len().to_string()));
+}
+
+/// FR-114: a subtitle with no title reads as the drawn title's `H1`, then
+/// the subtitle as a paragraph.
+#[test]
+fn a_subtitle_reads_after_the_title() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(dir.path().join("radar.csv"), PRD).expect("seeds");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_radargen"))
+        .args(["radar.csv", "-o", "radar.pdf", "--subtitle", "Edition 4"])
+        .current_dir(dir.path())
+        .output()
+        .expect("the binary runs");
+    assert!(out.status.success());
+    let bytes = std::fs::read(dir.path().join("radar.pdf")).expect("written");
+    let doc = Document::load_mem(&bytes).expect("parses");
+    let tree = tree(&doc);
+    let document = tree
+        .elements
+        .get(tree.roots.first().expect("a root"))
+        .expect("the document");
+    let roles: Vec<&str> = document
+        .kids
+        .iter()
+        .take(3)
+        .filter_map(|k| tree.elements.get(k).map(|e| e.role.as_str()))
+        .collect();
+    assert_eq!(roles, ["H1", "P", "Figure"]);
 }
 
 /// FR-114: the long legend's rings are lists: as many `L` as the legend

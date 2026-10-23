@@ -113,13 +113,15 @@ fn write(pages: &[(&Document, Sheet)], export: &Export<'_>) -> Result<Vec<u8>, F
     }
     let page_ids: Vec<Ref> = ids.iter().map(|&(page, _)| page).collect();
     tree::write(&mut pdf, &tagger.into_tree(), root, &mut next, &page_ids);
-    let packet = xmp::packet(export.title.unwrap_or(UNTITLED));
+    // Cleaned once, so the info dictionary and the XMP agree.
+    let title = xmp::clean(export.title.unwrap_or(UNTITLED));
+    let packet = xmp::packet(&title);
     pdf.metadata(metadata, packet.as_bytes());
     catalog(&mut pdf, catalog_id, tree_id, (root, metadata));
     // Last in the file, though numbered third: the producer's length,
     // which moves with the version, then moves only the cross-reference
     // offset after it.
-    info(&mut pdf, info_id, export);
+    info(&mut pdf, info_id, (&title, export));
     Ok(pdf.finish())
 }
 
@@ -202,9 +204,9 @@ fn user_unit(page: &mut writers::Page<'_>, unit: f64) {
 
 /// The info dictionary: `/Title`, `/Subject` and `/Producer`, and no date
 /// (NFR-4).
-fn info(pdf: &mut Pdf, id: Ref, export: &Export<'_>) {
+fn info(pdf: &mut Pdf, id: Ref, (title, export): (&str, &Export<'_>)) {
     pdf.document_info(id)
-        .title(TextStr(export.title.unwrap_or(UNTITLED)))
+        .title(TextStr(title))
         .subject(TextStr(export.desc))
         .producer(TextStr(export.producer));
 }
@@ -457,6 +459,29 @@ mod tests {
             lopdf::decode_text_string(got).expect("a text string"),
             title
         );
+    }
+
+    /// 21c-2 review: a control character XML cannot hold is dropped from
+    /// the title once, so the info dictionary's `/Title` and the XMP's
+    /// `dc:title` say the same.
+    #[test]
+    fn the_info_title_matches_the_xmp() {
+        let title = "bell\u{7} rings";
+        let bytes = pdf(&prd(Some(title)), Some(title), None, Theme::Light);
+        let parsed = lopdf::Document::load_mem(&bytes).expect("parses");
+        let info = parsed
+            .trailer
+            .get(b"Info")
+            .and_then(lopdf::Object::as_reference)
+            .and_then(|r| parsed.get_dictionary(r))
+            .and_then(|d| d.get(b"Title"))
+            .expect("a Title");
+        assert_eq!(
+            lopdf::decode_text_string(info).expect("a text string"),
+            "bell rings"
+        );
+        let packet = String::from_utf8_lossy(&bytes);
+        assert!(packet.contains("x-default\">bell rings</rdf:li>"));
     }
 
     /// The PRD example's radar beside a legend of 300 items on `paper`:

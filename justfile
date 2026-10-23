@@ -148,10 +148,12 @@ browser-setup:
 
 # PDF/UA-1 (FR-114, SC-32): renders a fixture set with the release binary
 # and validates every PDF with veraPDF's PDF/UA-1 profile in one run. It
-# passes only when every job reports compliance, and fails rather than
-# skips when veraPDF is missing or not 1.30.x (`just pdfua-setup`); a copy
-# of one PDF with its MarkInfo broken must fail, so the gate can fail.
-# Names holding characters the bundled font lacks join with FR-113.
+# passes only when every fixture is compliant, a copy of one with its
+# MarkInfo broken is not (so the gate can fail), and the right-to-left
+# fixture, whose characters the bundled font lacks, fails on exactly
+# FR-113's two clauses until FR-113 lands. It fails rather than skips when
+# veraPDF is missing or not 1.30.x (`just pdfua-setup`). PDFUA_KEEP=dir
+# keeps the PDFs there, for the manual checks (step 20).
 pdfua: release-build pdfua-only
 
 # Installs veraPDF, the PDF/UA validator `just pdfua` runs (it brings
@@ -171,45 +173,64 @@ pdfua-only:
     esac
     out="$(mktemp -d)"
     trap 'rm -rf "$out"' EXIT
+    pdfs="$out/pdfs"
+    mkdir "$pdfs"
     r=./target/release/radargen
     t=(--title "Technology Radar")
     f=tests/fixtures
-    $r $f/three-sector.csv -o "$out/light.pdf" "${t[@]}" 2>/dev/null
-    $r $f/three-sector.csv -o "$out/dark.pdf" "${t[@]}" --theme dark 2>/dev/null
-    $r $f/three-sector.csv -o "$out/untitled.pdf" 2>/dev/null
-    $r $f/long-legend.csv -o "$out/letter.pdf" "${t[@]}" --paper letter 2>/dev/null
-    $r $f/long-legend.csv -o "$out/a4.pdf" "${t[@]}" --paper a4 --subtitle "Edition 1" 2>/dev/null
+    $r $f/three-sector.csv -o "$pdfs/light.pdf" "${t[@]}" 2>/dev/null
+    $r $f/three-sector.csv -o "$pdfs/dark.pdf" "${t[@]}" --theme dark 2>/dev/null
+    $r $f/three-sector.csv -o "$pdfs/untitled.pdf" 2>/dev/null
+    $r $f/three-sector.csv -o "$pdfs/subtitled.pdf" --subtitle "Edition 4" 2>/dev/null
+    $r $f/three-sector.csv -o "$pdfs/palette.pdf" "${t[@]}" --palette docs/product/palette.sample.css 2>/dev/null
+    $r $f/long-legend.csv -o "$pdfs/narrow.pdf" "${t[@]}" --width 320 --legend-columns 3 2>/dev/null
+    printf 'name,sector,ring,description\n' > "$out/huge.csv"
+    for i in $(seq 800); do printf 'item %d,Sector %d,Adopt,d\n' "$i" "$((i % 4))" >> "$out/huge.csv"; done
+    $r "$out/huge.csv" -o "$pdfs/huge.pdf" "${t[@]}" --width 10000 2>/dev/null
+    $r $f/long-legend.csv -o "$pdfs/letter.pdf" "${t[@]}" --paper letter 2>/dev/null
+    $r $f/long-legend.csv -o "$pdfs/a4.pdf" "${t[@]}" --paper a4 --subtitle "Edition 1" 2>/dev/null
     printf 'name,sector,ring,description\na,%s,Adopt,d\nb,Tools,Trial,d\nc,Data,Assess,d\n' "$(printf 'S%.0s' $(seq 64))" > "$out/wide.csv"
-    $r "$out/wide.csv" -o "$out/legend-after.pdf" "${t[@]}" --paper letter 2>/dev/null
-    $r $f/three-sector.csv -o "$out/full.pdf" "${t[@]}" --pdf full 2>/dev/null
-    $r $f/three-sector.csv -o "$out/full-all.pdf" "${t[@]}" --pdf full --table all 2>/dev/null
-    $r $f/three-sector.csv -o "$out/full-dark.pdf" "${t[@]}" --pdf full --paper a4 --theme dark 2>/dev/null
+    $r "$out/wide.csv" -o "$pdfs/legend-after.pdf" "${t[@]}" --paper letter 2>/dev/null
+    $r $f/three-sector.csv -o "$pdfs/full.pdf" "${t[@]}" --pdf full 2>/dev/null
+    $r $f/three-sector.csv -o "$pdfs/full-untitled.pdf" --pdf full 2>/dev/null
+    $r $f/three-sector.csv -o "$pdfs/full-all.pdf" "${t[@]}" --pdf full --table all 2>/dev/null
+    $r $f/three-sector.csv -o "$pdfs/full-dark.pdf" "${t[@]}" --pdf full --paper a4 --theme dark 2>/dev/null
     printf 'name,sector,ring,description\nAlpha,Tools,Adopt,d\nBeta,Tools,Adopt,%s\nGamma,Tools,Trial,d\n' "$(seq -f 'w%g' 3000 | tr '\n' ' ')" > "$out/tall.csv"
-    $r "$out/tall.csv" -o "$out/split.pdf" "${t[@]}" --pdf full 2>/dev/null
+    $r "$out/tall.csv" -o "$pdfs/split.pdf" "${t[@]}" --pdf full 2>/dev/null
     printf 'name,sector,ring,description\nLegacy Bus,Tools,Rejected,Retired.\n' > "$out/nothing.csv"
-    $r "$out/nothing.csv" -o "$out/nothing.pdf" "${t[@]}" --pdf full 2>/dev/null
+    $r "$out/nothing.csv" -o "$pdfs/nothing.pdf" "${t[@]}" --pdf full 2>/dev/null
     printf 'name,sector,ring,description\n' > "$out/headers.csv"
-    $r "$out/headers.csv" -o "$out/headers.pdf" "${t[@]}" --pdf full --table all 2>/dev/null
-    $r $f/table-hostile.csv -o "$out/hostile.pdf" --title $'A & B <C> ]]> "q"\r\nnext' --pdf full --table all 2>/dev/null
-    pdfs=("$out"/*.pdf)
-    for pdf in "${pdfs[@]}"; do
+    $r "$out/headers.csv" -o "$pdfs/headers.pdf" "${t[@]}" --pdf full --table all 2>/dev/null
+    $r $f/table-hostile.csv -o "$pdfs/hostile.pdf" --title $'A & B <C> ]]> "q"\r\nnext' --pdf full --table all 2>/dev/null
+    good=("$pdfs"/*.pdf)
+    for pdf in "${good[@]}"; do
         [ -s "$pdf" ] || { echo "not written: $pdf" >&2; exit 1; }
     done
-    verapdf --flavour ua1 --format mrr "${pdfs[@]}" > "$out/report.xml" 2>/dev/null || true
+    if [ -n "${PDFUA_KEEP:-}" ]; then
+        mkdir -p "$PDFUA_KEEP" && cp "${good[@]}" "$PDFUA_KEEP"/
+    fi
+    # The control and the known failure run in the same batch, so the
+    # counting below is what proves the gate can fail.
+    cp "$pdfs/light.pdf" "$out/broken.pdf"
+    LC_ALL=C perl -pi -e 's{/MarkInfo}{/MarkInfZ}g' "$out/broken.pdf"
+    $r $f/text-spacing-rtl.csv -o "$out/rtl.pdf" 2>/dev/null
+    verapdf --flavour ua1 --format mrr "${good[@]}" "$out/broken.pdf" "$out/rtl.pdf" > "$out/report.xml" 2>/dev/null || true
     jobs="$(grep -c '<job>' "$out/report.xml" || true)"
     compliant="$(grep -c 'isCompliant="true"' "$out/report.xml" || true)"
-    if [ "$jobs" != "${#pdfs[@]}" ] || [ "$compliant" != "${#pdfs[@]}" ]; then
-        echo "PDF/UA-1: $compliant of ${#pdfs[@]} PDFs compliant ($jobs reports)" >&2
+    expected="${#good[@]}"
+    if [ "$jobs" != "$((expected + 2))" ] || [ "$compliant" != "$expected" ]; then
+        echo "PDF/UA-1: $compliant compliant of $expected expected ($jobs reports)" >&2
         grep -o 'clause="[^"]*" testNumber="[^"]*" status="failed"' "$out/report.xml" | sort | uniq -c >&2 || true
         exit 1
     fi
-    cp "$out/light.pdf" "$out/broken.pdf"
-    LC_ALL=C perl -pi -e 's{/MarkInfo}{/MarkInfZ}g' "$out/broken.pdf"
-    if verapdf --flavour ua1 --format mrr "$out/broken.pdf" 2>/dev/null | grep -q 'isCompliant="true"'; then
-        echo "PDF/UA-1: the broken control passed, so the gate cannot fail" >&2
+    # The right-to-left fixture fails on FR-113's clauses alone: glyphs with
+    # no Unicode and .notdef (ISO 14289-1, 7.21.7 and 7.21.8).
+    rtl="$({ verapdf --flavour ua1 --format mrr "$out/rtl.pdf" 2>/dev/null || true; } | grep -o 'clause="[^"]*" testNumber="[^"]*" status="failed"' | sed -E 's/clause="([^"]*)".*/\1/' | sort -u | tr '\n' ' ')"
+    if [ "$rtl" != "7.21.7 7.21.8 " ]; then
+        echo "PDF/UA-1: the right-to-left fixture fails on '$rtl', not FR-113's 7.21.7 7.21.8" >&2
         exit 1
     fi
-    echo "PDF/UA-1: ${#pdfs[@]} PDFs compliant"
+    echo "PDF/UA-1: $expected PDFs compliant; the broken control and FR-113's known failure fail"
 
 # WCAG 1.4.12 text spacing in a browser (plan RG-014C, D-78, rg-497):
 # renders the fixtures and checks every text fits and none overlaps, at five

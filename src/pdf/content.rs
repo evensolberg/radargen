@@ -7,11 +7,12 @@ use pdf_writer::Content;
 
 use super::font::Faces;
 use super::geometry::{self, Step};
+use super::leaf::{self, Leaf};
 use super::tag::Tagger;
 use super::{Sheet, real};
 use crate::palette::Palette;
-use crate::svg::{Document, Group, Node, Paint, Point, TextPaint};
-use crate::text::{FontError, Fonts, words};
+use crate::svg::{Document, Group, Node, Paint, Point};
+use crate::text::{FontError, Fonts};
 
 /// SVG's default `stroke-miterlimit`; PDF's default is 10.
 const MITER_LIMIT: f32 = 4.0;
@@ -51,7 +52,7 @@ pub fn content(canvas: &Canvas<'_>, tagger: &mut Tagger) -> Result<Vec<u8>, Font
         let steps = geometry::rect(Point::ORIGIN, page.width, page.height, 0.0);
         (steps, paints)
     });
-    let marked = tagger.ornament(&mut out);
+    let marked = tagger.leaf(&mut out, &Leaf::Ground);
     shape(&mut out, ground, canvas);
     Tagger::end(&mut out, marked);
     // Unrounded (pdf::scale), so the drawing keeps its size; the
@@ -65,7 +66,8 @@ pub fn content(canvas: &Canvas<'_>, tagger: &mut Tagger) -> Result<Vec<u8>, Font
     Ok(out.finish().into_vec())
 }
 
-/// One node, marked (FR-114), or nothing for an interactive-only one.
+/// One node, marked as [`leaf::of`] says (FR-114), or nothing for an
+/// interactive-only one or one that paints nothing.
 fn node(
     out: &mut Content,
     node: &Node,
@@ -74,74 +76,26 @@ fn node(
     if node.is_interactive_only() {
         return Ok(());
     }
-    // Nothing drawn is nothing marked: an MCID always marks paint (FR-114).
-    if !draws(node, canvas) {
+    if let Node::Group(group) = node {
+        return self::group(out, group, (canvas, tagger));
+    }
+    let Some(leaf) = leaf::of(node, canvas) else {
         return Ok(());
-    }
-    match node {
-        Node::Group(group) => self::group(out, group, (canvas, tagger)),
-        Node::Text { ink, .. } => {
-            let marked = if matches!(ink, TextPaint::Halo { .. }) {
-                tagger.ornament(out)
-            } else {
-                tagger.text(out, spoken(node).as_deref())
-            };
-            let shown = super::show::text(out, node, canvas);
-            Tagger::end(out, marked);
-            shown
-        }
-        _ => {
-            let marked = tagger.shape(out);
-            shape(out, painted(node), canvas);
-            Tagger::end(out, marked);
-            Ok(())
-        }
-    }
-}
-
-/// Whether `node` puts any paint on the page: a group always might; a text
-/// with a line or a tail to show; a shape with a fill or a stroke.
-fn draws(node: &Node, canvas: &Canvas<'_>) -> bool {
-    match node {
-        Node::Group(_) => true,
-        Node::Text { lines, tail, .. } => {
-            lines.iter().any(|line| !crate::trim(line).is_empty())
-                || tail
-                    .as_ref()
-                    .is_some_and(|t| !crate::trim(&t.text).is_empty())
-        }
-        _ => painted(node).is_some_and(|(_, paints)| {
-            colour(paints.fill, canvas.palette).is_some()
-                || colour(paints.stroke, canvas.palette).is_some()
-        }),
-    }
-}
-
-/// A text's words when they are not what its drawn lines read (D-88): a
-/// token broken mid-word, a title cut short, the number column's mark,
-/// read as `/ActualText` (FR-114); `None` when the lines read right.
-fn spoken(node: &Node) -> Option<String> {
-    let Node::Text {
-        lines,
-        words: said,
-        tail,
-        ..
-    } = node
-    else {
-        return None;
     };
-    if words(&lines.join(" ")) == *said {
-        return None;
-    }
-    Some(tail.as_ref().map_or_else(
-        || said.clone(),
-        |tail| format!("{said} {}", words(&tail.text)),
-    ))
+    let marked = tagger.leaf(out, &leaf);
+    let drawn = if let Node::Text { .. } = node {
+        super::show::text(out, node, canvas)
+    } else {
+        shape(out, painted(node), canvas);
+        Ok(())
+    };
+    Tagger::end(out, marked);
+    drawn
 }
 
 /// A shape node's path and paints; `None` for a group, a text or a hit
 /// area, which are not one path.
-fn painted(node: &Node) -> Option<(Vec<Step>, Paints)> {
+pub(super) fn painted(node: &Node) -> Option<(Vec<Step>, Paints)> {
     let (steps, fill, stroke, width) = match *node {
         Node::Circle {
             centre,
@@ -220,10 +174,18 @@ fn group(
 
 /// A shape's fill, stroke and stroke width.
 #[derive(Clone, Copy)]
-struct Paints {
+pub(super) struct Paints {
     fill: Paint,
     stroke: Paint,
     width: f64,
+}
+
+impl Paints {
+    /// Whether these paints put anything on the page: the one test both
+    /// [`shape`] and [`leaf::of`] use, so what is marked is what is drawn.
+    pub(super) fn show(self, palette: &Palette) -> bool {
+        colour(self.fill, palette).is_some() || colour(self.stroke, palette).is_some()
+    }
 }
 
 /// A path painted: `f`, `S` or `B` by which paints are set; nothing at
@@ -233,11 +195,11 @@ fn shape(out: &mut Content, painted: Option<(Vec<Step>, Paints)>, canvas: &Canva
     let Some((steps, paints)) = painted else {
         return;
     };
-    let fill = colour(paints.fill, canvas.palette);
-    let stroke = colour(paints.stroke, canvas.palette);
-    if fill.is_none() && stroke.is_none() {
+    if !paints.show(canvas.palette) {
         return;
     }
+    let fill = colour(paints.fill, canvas.palette);
+    let stroke = colour(paints.stroke, canvas.palette);
     if let Some([r, g, b]) = fill {
         out.set_fill_rgb(r, g, b);
     }
