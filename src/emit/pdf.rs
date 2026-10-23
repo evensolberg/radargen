@@ -62,7 +62,7 @@ pub fn export(document: &Document, export: &Export<'_>) -> Result<Vec<u8>, Fatal
         fonts: export.fonts,
         faces: &faces,
         scale: sheet.scale,
-    });
+    })?;
     pdf.stream(objects.stream, &drawn);
     info(&mut pdf, objects.info, export);
     Ok(pdf.finish())
@@ -308,6 +308,50 @@ mod tests {
             "the catalog"
         );
         assert!(first.starts_with(b"%PDF-1.7\n"));
+    }
+
+    /// A halo and its fill, as the radar draws a ring label: the label
+    /// extracts once, since only the fill is text.
+    #[test]
+    fn a_haloed_label_extracts_once() {
+        use crate::palette::{Neutral, Role};
+        use crate::style::TextStyle;
+        use crate::svg::{Anchor, Paint, TextPaint};
+        use crate::text::Weight;
+        let label = |ink| Node::Text {
+            origin: Point { x: 10.0, y: 20.0 },
+            style: TextStyle {
+                weight: Weight::Regular,
+                size: 10.0,
+                letter_spacing: 0.0,
+            },
+            ink,
+            anchor: Anchor::Start,
+            lines: vec!["Adopt".to_owned()],
+            words: "Adopt".to_owned(),
+            leading: 12.0,
+            tail: None,
+        };
+        let doc = Document {
+            width: 100.0,
+            height: 40.0,
+            root: Node::Group(Group::new(
+                Point::ORIGIN,
+                vec![
+                    label(TextPaint::Halo {
+                        stroke: Paint::Role(Role::Neutral(Neutral::Surface1)),
+                        width: 3.0,
+                    }),
+                    label(TextPaint::Fill(Paint::Role(Role::Neutral(
+                        Neutral::TextPrimary,
+                    )))),
+                ],
+            )),
+        };
+        let parsed =
+            lopdf::Document::load_mem(&pdf(&doc, None, None, Theme::Light)).expect("parses");
+        let text = parsed.extract_text(&[1]).expect("extracts");
+        assert_eq!(text.matches("Adopt").count(), 1, "{text}");
     }
 
     /// Review Focus 1: a title with PDF string delimiters, an unbalanced

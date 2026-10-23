@@ -9,8 +9,8 @@ use super::font::Faces;
 use super::geometry::{self, Step};
 use super::real;
 use crate::palette::{Hex, Palette};
-use crate::svg::{Document, Node, Paint};
-use crate::text::Fonts;
+use crate::svg::{Document, Group, Node, Paint};
+use crate::text::{FontError, Fonts};
 
 /// SVG's default `stroke-miterlimit`; PDF's default is 10.
 const MITER_LIMIT: f32 = 4.0;
@@ -35,8 +35,11 @@ pub struct Canvas<'a> {
 }
 
 /// The whole page: the transform, the ground (D-87), the document.
-#[must_use]
-pub fn content(canvas: &Canvas<'_>) -> Vec<u8> {
+///
+/// # Errors
+///
+/// [`FontError`] when a halo's glyph cannot be outlined (NFR-15).
+pub fn content(canvas: &Canvas<'_>) -> Result<Vec<u8>, FontError> {
     let mut out = Content::new();
     // Unrounded (pdf::scale), so the drawing ends where the MediaBox
     // does; the translate is the MediaBox's own height, the same
@@ -52,34 +55,21 @@ pub fn content(canvas: &Canvas<'_>) -> Vec<u8> {
             real(canvas.document.height * canvas.scale),
         ])
         .set_miter_limit(MITER_LIMIT);
-    node(&mut out, &canvas.document.ground(), canvas);
-    node(&mut out, &canvas.document.root, canvas);
+    node(&mut out, &canvas.document.ground(), canvas)?;
+    node(&mut out, &canvas.document.root, canvas)?;
     out.restore_state();
-    out.finish().into_vec()
+    Ok(out.finish().into_vec())
 }
 
 /// One node, or nothing for an interactive-only one.
-// qual:allow(complexity, max_function_lines=80) reason: "one dispatch arm per node kind, each only unpacking its fields for its writer"
-fn node(out: &mut Content, node: &Node, canvas: &Canvas<'_>) {
+// qual:allow(complexity, max_function_lines=68) reason: "one dispatch arm per node kind, each only unpacking its fields for its writer"
+fn node(out: &mut Content, node: &Node, canvas: &Canvas<'_>) -> Result<(), FontError> {
     if node.is_interactive_only() {
-        return;
+        return Ok(());
     }
     match node {
-        Node::Group(group) => {
-            out.save_state();
-            // Decided on the rounded value, as the SVG's `shows` decides, so a
-            // 1e-13 trig residue cannot write a transform on one platform and
-            // none on another (NFR-4).
-            let (x, y) = (real(group.offset.x), real(group.offset.y));
-            if x != 0.0 || y != 0.0 {
-                out.transform([1.0, 0.0, 0.0, 1.0, x, y]);
-            }
-            for child in &group.children {
-                self::node(out, child, canvas);
-            }
-            out.restore_state();
-        }
-        Node::Text { .. } => super::show::text(out, node, canvas),
+        Node::Group(group) => self::group(out, group, canvas)?,
+        Node::Text { .. } => super::show::text(out, node, canvas)?,
         Node::Circle {
             centre,
             radius,
@@ -139,6 +129,25 @@ fn node(out: &mut Content, node: &Node, canvas: &Canvas<'_>) {
         // Interactive-only, returned above.
         Node::HitArea { .. } => {}
     }
+    Ok(())
+}
+
+/// A group: its children, translated by its offset, in its own saved
+/// state.
+fn group(out: &mut Content, group: &Group, canvas: &Canvas<'_>) -> Result<(), FontError> {
+    out.save_state();
+    // Decided on the rounded value, as the SVG's `shows` decides, so a
+    // 1e-13 trig residue cannot write a transform on one platform and
+    // none on another (NFR-4).
+    let (x, y) = (real(group.offset.x), real(group.offset.y));
+    if x != 0.0 || y != 0.0 {
+        out.transform([1.0, 0.0, 0.0, 1.0, x, y]);
+    }
+    for child in &group.children {
+        node(out, child, canvas)?;
+    }
+    out.restore_state();
+    Ok(())
 }
 
 /// A shape's fill, stroke and stroke width.
@@ -183,7 +192,7 @@ fn shape(out: &mut Content, steps: &[Step], paints: Paints, canvas: &Canvas<'_>)
 }
 
 /// The path operators for `steps`.
-fn trace(out: &mut Content, steps: &[Step]) {
+pub(super) fn trace(out: &mut Content, steps: &[Step]) {
     for step in steps {
         match *step {
             Step::Move(p) => out.move_to(real(p.x), real(p.y)),
@@ -245,7 +254,7 @@ mod tests {
             faces: &faces,
             scale: 0.75,
         };
-        String::from_utf8(content(&canvas)).expect("ASCII")
+        String::from_utf8(content(&canvas).expect("draws")).expect("ASCII")
     }
 
     fn rgb(palette: &Palette, role: Role) -> String {
@@ -292,7 +301,7 @@ mod tests {
             faces: &faces,
             scale,
         };
-        let s = String::from_utf8(content(&canvas)).expect("ASCII");
+        let s = String::from_utf8(content(&canvas).expect("draws")).expect("ASCII");
         let first = s.lines().nth(1).expect("the cm line");
         let written: f64 = first
             .split(' ')

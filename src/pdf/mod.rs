@@ -4,6 +4,7 @@
 pub mod content;
 pub mod font;
 pub mod geometry;
+mod halo;
 mod show;
 
 /// The grid every coordinate is rounded to: thousandths, as

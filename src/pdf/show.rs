@@ -1,18 +1,19 @@
 //! A text node as PDF text (FR-110): each line in its face's subset, each
 //! glyph where the shaper places it (FR-84), so the PDF's layout is the
-//! PNG's and the SVG's; a halo as the stroked outline only; the tail after
-//! the last line at `Node::tail_x` (D-78).
+//! PNG's and the SVG's; the tail after the last line at `Node::tail_x`
+//! (D-78). A halo is drawn as its glyphs' stroked outlines, not as text,
+//! so a label extracts, copies and is searched once.
 
 use pdf_writer::Content;
 use pdf_writer::Str;
-use pdf_writer::types::{LineJoinStyle, TextRenderingMode};
+use pdf_writer::types::TextRenderingMode;
 
 use super::content::{Canvas, colour};
 use super::font::Faces;
 use super::real;
 use crate::style::TextStyle;
-use crate::svg::{Anchor, Node, Point, TextPaint};
-use crate::text::Placed;
+use crate::svg::{Anchor, Node, Paint, Point, TextPaint};
+use crate::text::{FontError, Placed};
 
 /// How much of its advance a middle-anchored line starts before its
 /// origin, as the SVG outliner and resvg place it.
@@ -23,94 +24,93 @@ const EM: f64 = 1000.0;
 /// the page's flipped transform, so the glyphs stand upright.
 const UPRIGHT: f32 = -1.0;
 
-/// `node`'s lines, then its tail. Anything but a text writes nothing.
+/// `node`'s lines, then its tail; or, for a halo, its outlines. Anything
+/// but a text writes nothing.
+///
+/// # Errors
+///
+/// [`FontError`] when a halo's glyph cannot be outlined (NFR-15).
+pub(super) fn text(out: &mut Content, node: &Node, canvas: &Canvas<'_>) -> Result<(), FontError> {
+    let Node::Text {
+        style, ink, tail, ..
+    } = node
+    else {
+        return Ok(());
+    };
+    let starts = starts(node, canvas);
+    // As the SVG outliner: a text with no lines draws nothing, its tail
+    // included.
+    let Some(&(_, last)) = starts.last() else {
+        return Ok(());
+    };
+    match *ink {
+        TextPaint::Halo { stroke, width } => {
+            super::halo::halo(out, &starts, *style, (stroke, width), canvas)
+        }
+        TextPaint::Fill(fill) => {
+            // Its own graphics state, as a halo's is.
+            out.save_state();
+            if !fill_with(out, fill, canvas) {
+                out.restore_state();
+                return Ok(());
+            }
+            for &(line, at) in &starts {
+                run(out, line, *style, at, canvas);
+            }
+            if let (Some(tail), Some(x)) = (tail, node.tail_x(canvas.fonts))
+                && fill_with(out, tail.ink, canvas)
+            {
+                let at = Point { x, y: last.y };
+                run(out, &tail.text, tail.style, at, canvas);
+            }
+            out.restore_state();
+            Ok(())
+        }
+    }
+}
+
+/// Each line of a text node with where it starts: the origin, one leading
+/// lower per line, a middle-anchored line moved back half its advance.
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
 )]
-pub(super) fn text(out: &mut Content, node: &Node, canvas: &Canvas<'_>) {
+fn starts<'a>(node: &'a Node, canvas: &Canvas<'_>) -> Vec<(&'a str, Point)> {
     let Node::Text {
         origin,
         style,
-        ink,
         anchor,
         lines,
         leading,
-        tail,
         ..
     } = node
     else {
-        return;
+        return Vec::new();
     };
-    // As the SVG outliner: a text with no lines draws nothing, its tail
-    // included.
-    if lines.is_empty() {
-        return;
-    }
-    // Its own graphics state: a halo's width and round join must not
-    // reach the strokes drawn after it (the legend's square markers).
-    out.save_state();
-    let Some(mode) = paint(out, *ink, canvas) else {
-        out.restore_state();
-        return;
-    };
-    let mut baseline = origin.y;
-    for (i, line) in (0_u32..).zip(lines) {
-        baseline = origin.y + f64::from(i) * leading;
-        let x = match anchor {
-            Anchor::Start => origin.x,
-            Anchor::Middle => origin.x - style.advance(line, canvas.fonts) * CENTRED,
-        };
-        run(out, line, *style, Point { x, y: baseline }, mode, canvas);
-    }
-    if let (Some(tail), Some(x)) = (tail, node.tail_x(canvas.fonts)) {
-        debug_assert!(
-            matches!(ink, TextPaint::Fill(_)),
-            "only a filled text carries a tail (D-78)"
-        );
-        if paint(out, TextPaint::Fill(tail.ink), canvas).is_some() {
-            run(
-                out,
-                &tail.text,
-                tail.style,
-                Point { x, y: baseline },
-                TextRenderingMode::Fill,
-                canvas,
-            );
-        }
-    }
-    out.restore_state();
+    (0_u32..)
+        .zip(lines)
+        .map(|(i, line)| {
+            let x = match anchor {
+                Anchor::Start => origin.x,
+                Anchor::Middle => origin.x - style.advance(line, canvas.fonts) * CENTRED,
+            };
+            let y = origin.y + f64::from(i) * leading;
+            (line.as_str(), Point { x, y })
+        })
+        .collect()
 }
 
-/// Sets `ink`'s colour (and a halo's width and join), returning the
-/// render mode, or `None` when nothing is painted.
-fn paint(out: &mut Content, ink: TextPaint, canvas: &Canvas<'_>) -> Option<TextRenderingMode> {
-    match ink {
-        TextPaint::Fill(fill) => {
-            let [r, g, b] = colour(fill, canvas.palette)?;
-            out.set_fill_rgb(r, g, b);
-            Some(TextRenderingMode::Fill)
-        }
-        TextPaint::Halo { stroke, width } => {
-            let [r, g, b] = colour(stroke, canvas.palette)?;
-            out.set_stroke_rgb(r, g, b)
-                .set_line_width(real(width))
-                .set_line_join(LineJoinStyle::RoundJoin);
-            Some(TextRenderingMode::Stroke)
-        }
-    }
+/// Sets `fill` as the fill colour, returning whether anything is painted.
+fn fill_with(out: &mut Content, fill: Paint, canvas: &Canvas<'_>) -> bool {
+    colour(fill, canvas.palette).is_some_and(|[r, g, b]| {
+        out.set_fill_rgb(r, g, b);
+        true
+    })
 }
 
 /// One line of `text` from `at`, its glyphs split wherever the vertical
 /// offset changes, each piece one text matrix and one TJ.
-fn run(
-    out: &mut Content,
-    text: &str,
-    style: TextStyle,
-    at: Point,
-    mode: TextRenderingMode,
-    canvas: &Canvas<'_>,
-) {
+fn run(out: &mut Content, text: &str, style: TextStyle, at: Point, canvas: &Canvas<'_>) {
     let placed = canvas
         .fonts
         .face(style.weight)
@@ -120,7 +120,7 @@ fn run(
     }
     out.begin_text();
     out.set_font(Faces::resource(style.weight), real(style.size));
-    out.set_text_rendering_mode(mode);
+    out.set_text_rendering_mode(TextRenderingMode::Fill);
     // Exact equality is meant: one shaper offset, not two near ones
     // (`to_bits`, so clippy's float_cmp has nothing to flag).
     for piece in placed.chunk_by(|a, b| a.y.to_bits() == b.y.to_bits()) {
@@ -210,7 +210,7 @@ mod tests {
             scale: 1.0,
         };
         let mut out = Content::new();
-        text(&mut out, node, &canvas);
+        text(&mut out, node, &canvas).expect("outlines");
         (
             String::from_utf8(out.finish().into_vec()).expect("ASCII operators; strings are hex"),
             faces,
@@ -305,24 +305,68 @@ mod tests {
         assert!(s.contains(&format!("1 0 0 -1 {x} 20 Tm\n")), "{s}");
     }
 
-    /// A halo is the outline only: stroke mode, its width, a round join.
+    /// A halo is stroked glyph outlines, not text (so the label extracts
+    /// once): no BT or Tr, paths stroked in the halo's colour, width and
+    /// round join.
     #[test]
-    fn a_halo_strokes() {
-        let halo = TextPaint::Halo {
-            stroke: Paint::Role(Role::Neutral(Neutral::Surface1)),
-            width: 3.0,
-        };
+    fn a_halo_strokes_outlines() {
+        let stroke = Paint::Role(Role::Neutral(Neutral::Surface1));
+        let halo = TextPaint::Halo { stroke, width: 3.0 };
         let (s, _) = written(&label(&["Adopt"], halo, Anchor::Start, 0.0, None));
+        let ops = lopdf::content::Content::decode(s.as_bytes())
+            .expect("decodes")
+            .operations;
+        let count = |name: &str| ops.iter().filter(|op| op.operator == name).count();
+        assert_eq!(count("BT") + count("Tr") + count("TJ"), 0, "not text: {s}");
+        assert_eq!(count("S"), 1, "one stroke for the whole label: {s}");
+        assert!(count("m") >= 5, "a contour per glyph at least: {s}");
+        assert!(count("c") > 0, "curves: {s}");
+        let palette = Palette::built_in(Theme::Light);
+        let [r, g, b] = super::colour(stroke, &palette).expect("painted");
         assert!(
-            s.contains("1 Tr\n") && s.contains("3 w\n") && s.contains("1 j\n"),
+            s.contains(&format!("{r} {g} {b} RG\n")) && s.contains("3 w\n") && s.contains("1 j\n"),
             "{s}"
         );
         // Review Focus 6: the join is the halo's alone, so a stroke drawn
         // after it keeps SVG's miter join.
         assert!(
             s.starts_with("q\n") && s.ends_with('Q'),
-            "a text is its own graphics state: {s}"
+            "a halo is its own graphics state: {s}"
         );
+    }
+
+    /// The halo's outline of a glyph sits where the glyph does: the first
+    /// glyph's first point is the outline's, scaled, flipped and moved to
+    /// the line's start.
+    #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: the expected point is computed as `contours` computes it, with plain * and +, never mul_add"
+    )]
+    fn a_halo_outline_sits_on_its_glyph() {
+        let halo = TextPaint::Halo {
+            stroke: Paint::Role(Role::Neutral(Neutral::Surface1)),
+            width: 3.0,
+        };
+        let (s, _) = written(&label(&["Adopt"], halo, Anchor::Start, 0.0, None));
+        let face = fonts().face(Weight::Regular);
+        let first = face.place("Adopt", 10.0, 0.0);
+        let first = first.first().expect("a glyph");
+        let Some(crate::text::Segment::MoveTo(x, y)) = face
+            .outline(first.glyph)
+            .expect("outlines")
+            .first()
+            .copied()
+        else {
+            panic!("an outline starts with a move");
+        };
+        let scale = 10.0 / face.units_per_em();
+        let want = format!(
+            "{} {} m\n",
+            real(50.0 + first.x + f64::from(x) * scale),
+            real(20.0 + first.y - f64::from(y) * scale)
+        );
+        assert!(s.contains(&want), "{want} in {s}");
     }
 
     /// TJ adjustments put each glyph where `place()` puts it: replaying the
