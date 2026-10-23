@@ -14,7 +14,7 @@ use crate::palette::Palette;
 use crate::pdf::content::{Canvas, content};
 use crate::pdf::font::Faces;
 use crate::pdf::tag::Tagger;
-use crate::pdf::{Sheet, integer, real, tree, xmp};
+use crate::pdf::{PAGES, Sheet, integer, real, tree, xmp};
 use crate::style::POINTS_PER_PX;
 use crate::svg::Document;
 use crate::text::{Fonts, Weight};
@@ -43,7 +43,9 @@ pub struct Export<'a> {
 ///
 /// # Errors
 ///
-/// [`Fatal::Font`] when a glyph cannot be measured or subset (NFR-15).
+/// [`Fatal::Font`] when a glyph cannot be measured or subset (NFR-15);
+/// [`Fatal::PdfTooLarge`] when a count is past what a PDF can number
+/// (rg-969).
 pub fn export(
     document: &Document,
     width: Option<u32>,
@@ -58,7 +60,9 @@ pub fn export(
 ///
 /// # Errors
 ///
-/// [`Fatal::Font`] when a glyph cannot be measured or subset (NFR-15).
+/// [`Fatal::Font`] when a glyph cannot be measured or subset (NFR-15);
+/// [`Fatal::PdfTooLarge`] when a count is past what a PDF can number
+/// (rg-969).
 pub fn export_pages(pages: &[Document], export: &Export<'_>) -> Result<Vec<u8>, Fatal> {
     let sheets: Vec<(&Document, Sheet)> = pages
         .iter()
@@ -92,13 +96,13 @@ fn write(pages: &[(&Document, Sheet)], export: &Export<'_>) -> Result<Vec<u8>, F
     let mut pdf = Pdf::new();
     pdf.pages(tree_id)
         .kids(ids.iter().map(|&(page, _)| page))
-        .count(integer(ids.len(), tree::PAGES)?);
+        .count(integer(ids.len(), PAGES)?);
     let fonts = faces.write(&mut pdf, &mut next, export.fonts)?;
     let [root, metadata] = std::array::from_fn(|_| next.bump());
     // One tagger for every page, so an element can continue on the next.
     let mut tagger = Tagger::new();
     for (k, (&(document, sheet), &(page_id, stream))) in pages.iter().zip(&ids).enumerate() {
-        let key = integer(k, tree::PAGES)?;
+        let key = integer(k, PAGES)?;
         page(&mut pdf, (page_id, tree_id, stream), (&sheet, key), &fonts);
         let drawn = content(
             &Canvas {

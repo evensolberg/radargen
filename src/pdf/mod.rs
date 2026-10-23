@@ -92,6 +92,9 @@ pub fn integer(n: usize, what: &'static str) -> Result<i32, Fatal> {
     i32::try_from(n).map_err(|_| Fatal::PdfTooLarge { what, count: n })
 }
 
+/// What a page count or index counts, for [`integer`].
+pub const PAGES: &str = "pages";
+
 /// `f64` to the `f32` pdf-writer writes: the crate's one narrowing.
 #[expect(
     clippy::cast_possible_truncation,
@@ -140,7 +143,7 @@ mod tests {
         );
         assert_eq!(
             past.map_err(|e| e.to_string()).err().as_deref(),
-            Some("the PDF would number 2147483648 pages, more than a PDF can (2147483647)")
+            Some("the PDF would number 2147483648 pages, more than a PDF can number (2147483647)")
         );
     }
 

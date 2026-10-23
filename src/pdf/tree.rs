@@ -7,8 +7,8 @@ use pdf_writer::types::TableHeaderScope;
 use pdf_writer::writers::{StructChildren, StructTreeRoot};
 use pdf_writer::{Pdf, Ref, TextStr};
 
-use super::integer;
 use super::tag::{Element, Kid, Role, Tree};
+use super::{PAGES, integer};
 use crate::diagnostics::Fatal;
 use crate::svg::Scope;
 
@@ -55,9 +55,6 @@ fn root_dict(pdf: &mut Pdf, root: Ref, document: Option<Ref>, arrays: &[Ref]) ->
     dict.parent_tree_next_key(integer(arrays.len(), PAGES)?);
     Ok(())
 }
-
-/// What a page count or index counts, for [`Fatal::PdfTooLarge`].
-pub const PAGES: &str = "pages";
 
 /// One element: its role, parent, page, `/Alt`, attributes and kids.
 fn write_element(

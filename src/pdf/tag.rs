@@ -230,7 +230,12 @@ impl Tagger {
                 || matches!(element.role, Role::Td(_) | Role::Th(_))
                 || element.kids.iter().any(|kid| match kid {
                     Kid::Mcid { .. } => true,
-                    Kid::Element(e) => live.get(*e).copied().unwrap_or(false),
+                    Kid::Element(e) => {
+                        // Else its slot is not settled yet, and a live
+                        // child would be pruned.
+                        debug_assert!(*e > i, "element {e} is a kid of {i}, which follows it");
+                        live.get(*e).copied().unwrap_or(false)
+                    }
                 });
             if let Some(slot) = live.get_mut(i) {
                 *slot = kept;
@@ -266,11 +271,20 @@ impl Tagger {
                 ..element
             })
             .collect();
-        // An element holding an MCID is always kept.
+        // An element holding an MCID is always kept: dropping one here
+        // would move every later MCID on its page to the wrong element.
         let parents = self
             .parents
             .iter()
-            .map(|page| page.iter().filter_map(|&e| new(e)).collect())
+            .map(|page| {
+                page.iter()
+                    .filter_map(|&e| {
+                        let kept = new(e);
+                        debug_assert!(kept.is_some(), "element {e} holds an MCID but was pruned");
+                        kept
+                    })
+                    .collect()
+            })
             .collect();
         Ok(Tree { elements, parents })
     }
@@ -620,6 +634,78 @@ mod tests {
         assert_eq!(tree.parents, [vec![1, 5]]);
         let parents: Vec<Option<usize>> = tree.elements.iter().map(|e| e.parent).collect();
         assert_eq!(parents, [None, Some(0), Some(0), Some(2), Some(3), Some(3)]);
+    }
+
+    /// rg-969 across pages: a list empty on page 1 and resumed with text
+    /// on page 2 is kept, its empty item is not; page 2's MCIDs renumber
+    /// to their elements; an item keeps its label though its body is empty.
+    #[test]
+    fn pruning_spans_pages() {
+        let mut tagger = Tagger::new();
+        let mut out = Content::new();
+        let text = Leaf::Text { actual: None };
+        let write = |tagger: &mut Tagger, out: &mut Content| {
+            let marked = tagger.leaf(out, &text);
+            Tagger::end(out, marked);
+        };
+        tagger.begin_page();
+        let list = opened(&mut tagger, &mut out, Structure::List(ListKey::Key));
+        let item = opened(&mut tagger, &mut out, Structure::ListItem);
+        tagger.close(&mut out, item);
+        tagger.close(&mut out, list);
+        let heading = tagger.open(&mut out, &Semantics::Heading(NonZeroU8::MIN));
+        write(&mut tagger, &mut out);
+        tagger.close(&mut out, heading);
+        tagger.begin_page();
+        let list = opened(&mut tagger, &mut out, Structure::List(ListKey::Key));
+        for labelled in [false, true] {
+            let item = opened(&mut tagger, &mut out, Structure::ListItem);
+            if labelled {
+                let label = opened(&mut tagger, &mut out, Structure::Label);
+                write(&mut tagger, &mut out);
+                tagger.close(&mut out, label);
+            }
+            let body = opened(&mut tagger, &mut out, Structure::Body);
+            if !labelled {
+                write(&mut tagger, &mut out);
+            }
+            tagger.close(&mut out, body);
+            tagger.close(&mut out, item);
+        }
+        tagger.close(&mut out, list);
+        let tree = tagger.into_tree().expect("a tree");
+        let roles: Vec<Role> = tree.elements.iter().map(|e| e.role).collect();
+        assert_eq!(
+            roles,
+            [
+                Role::Document,
+                Role::L,
+                Role::Heading(NonZeroU8::MIN),
+                Role::Li,
+                Role::LBody,
+                Role::Li,
+                Role::Lbl
+            ]
+        );
+        let kids = |e: usize| tree.elements.get(e).map(|e| e.kids.clone());
+        assert_eq!(kids(1), Some(vec![Kid::Element(3), Kid::Element(5)]));
+        assert_eq!(kids(5), Some(vec![Kid::Element(6)]));
+        assert_eq!(tree.parents, [vec![2], vec![4, 6]]);
+    }
+
+    /// rg-969: a count past what the PDF can number is the tree's error,
+    /// so the file is not written.
+    #[test]
+    fn too_many_marks_is_an_error() {
+        let mut tagger = Tagger::new();
+        tagger.too_large = Some(Fatal::PdfTooLarge {
+            what: "marked sequences on one page",
+            count: 1 << 31,
+        });
+        assert!(matches!(
+            tagger.into_tree(),
+            Err(Fatal::PdfTooLarge { count, .. }) if count == 1 << 31
+        ));
     }
 
     /// Nothing inside an artifact is marked or opens an element.
