@@ -7,8 +7,7 @@ use crate::palette::Neutral;
 use crate::palette::Role;
 use crate::style::{
     LEGEND_BADGE_X, LEGEND_FIRST_BASELINE, LEGEND_META, LEGEND_NAME, LEGEND_NAME_COLUMN,
-    LEGEND_NAME_X, LEGEND_ROW_MIN_HEIGHT, LEGEND_ROW_PAD, LEGEND_TEXT_MIN_HEIGHT, LINE_HEIGHT,
-    META_GAP,
+    LEGEND_NAME_X, LEGEND_ROW_PAD, LEGEND_TEXT_MIN_HEIGHT, LINE_HEIGHT, META_GAP,
 };
 use crate::svg::{Anchor, Control, ItemKey, Paint, Point, Tail, TextRun};
 use crate::text::{Fonts, words};
@@ -42,7 +41,8 @@ pub(super) enum MetaLine {
 pub(super) struct Row {
     /// The row's top edge; rows abut.
     pub(super) top: f64,
-    /// The row's height, at least `LEGEND_ROW_MIN_HEIGHT` (FR-94).
+    /// The row's height, at least the minimum it was laid out with:
+    /// `LEGEND_ROW_MIN_HEIGHT` (FR-94), or `PAPER_ROW_MIN_HEIGHT` on paper.
     pub(super) height: f64,
     /// The badge's centre.
     pub(super) badge: Point,
@@ -62,19 +62,20 @@ pub(super) struct Row {
 }
 
 impl Row {
-    /// A numbered item as a row from `top`, with its sector's `series`
-    /// and FR-75's accessible name `label`.
+    /// A numbered item as a row from `top`, at least `min_height` tall,
+    /// with its sector's `series` and FR-75's accessible name `label`.
     pub(super) fn new(
         numbered: Numbered<'_>,
         series: usize,
         label: String,
         top: f64,
+        min_height: f64,
         fonts: &Fonts,
     ) -> Self {
         let Numbered { item, number } = numbered;
         let name = LEGEND_NAME.wrap(&item.name, LEGEND_NAME_COLUMN, fonts);
         let meta = meta_text(item.qualifier, item.status).map(|text| fitted(text, &name, fonts));
-        let frame = frame(top, line_count(&name, meta.as_ref()));
+        let frame = frame(top, line_count(&name, meta.as_ref()), min_height);
         let name = name_run(&item.name, name, frame.first_baseline);
         let last = name.last_baseline();
         Self {
@@ -207,16 +208,16 @@ struct Frame {
     badge: Point,
 }
 
-/// A row from `top` holding `lines` lines of text: its height, floored for
-/// FR-94; its text block centred in it; the badge at its middle.
-fn frame(top: f64, lines: usize) -> Frame {
+/// A row from `top` holding `lines` lines of text: its height, floored at
+/// `min_height` (FR-94, FR-111); its text block centred in it; the badge at its middle.
+fn frame(top: f64, lines: usize, min_height: f64) -> Frame {
     #[expect(
         clippy::cast_precision_loss,
         clippy::as_conversions,
         reason = "a line count is far below 2^53, so the conversion is exact"
     )]
     let text = lines as f64 * LINE_HEIGHT;
-    let height = LEGEND_ROW_MIN_HEIGHT.max(text + LEGEND_ROW_PAD);
+    let height = min_height.max(text + LEGEND_ROW_PAD);
     let block = LEGEND_TEXT_MIN_HEIGHT.max(text);
     let block_top = f64::midpoint(top, top + height - block);
     Frame {
@@ -253,6 +254,7 @@ mod tests {
         HEAD, HEAD_META, NAME_FULL_LINE, NAME_THREE_LINES, NAME_TWO_LINES, near, plotted,
     };
     use crate::palette::Role;
+    use crate::style::LEGEND_ROW_MIN_HEIGHT;
     use crate::svg::{Paint, Scale, Tail};
 
     /// Each of `csv`'s items as a row from the top, so positions read
@@ -262,7 +264,14 @@ mod tests {
         (1..)
             .zip(&catalogue.items)
             .map(|(number, item)| {
-                Row::new(Numbered { item, number }, 0, String::new(), 0.0, fonts())
+                Row::new(
+                    Numbered { item, number },
+                    0,
+                    String::new(),
+                    0.0,
+                    LEGEND_ROW_MIN_HEIGHT,
+                    fonts(),
+                )
             })
             .collect()
     }

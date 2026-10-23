@@ -208,6 +208,14 @@ pub const LEGEND_EMPTY_GROUP_GAP: f64 = LEGEND_SECTOR_TO_RING + LEGEND_GROUP_GAP
 /// (asserted below, in every build). One line of name needs less; the rest
 /// is the target.
 pub const LEGEND_ROW_MIN_HEIGHT: f64 = 36.0;
+/// A legend row's least height on paper, at scale 1 (FR-111, D-105):
+/// the badge and a little padding, since paper has no touch target.
+pub const PAPER_ROW_MIN_HEIGHT: f64 = 26.0;
+/// The legend's scale on paper (FR-111, D-105): its ring headings, the
+/// smallest text, at 10 px are 7.5 pt; at 16/15 they print at 8 pt.
+pub const PAPER_LEGEND_SCALE: f64 = 16.0 / 15.0;
+/// What a heading repeated at the top of a paper column says it is.
+pub const CONTINUED: &str = " (continued)";
 /// A row's height beyond its text lines: `n · LINE_HEIGHT + LEGEND_ROW_PAD`.
 pub const LEGEND_ROW_PAD: f64 = 7.0;
 /// The least height of a row's text block, so a one-line row's text is centred

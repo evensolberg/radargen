@@ -19,23 +19,23 @@ use crate::style::{
 use crate::svg::{Anchor, Point, TextRun};
 use crate::text::{Fonts, words};
 
-use super::row::{Numbered, Row};
+use super::row::{MetaLine, Numbered, Row};
 
 /// The legend's heading text.
-const LEGEND_TITLE: &str = "Legend";
+pub(super) const LEGEND_TITLE: &str = "Legend";
 
 /// One tier of the legend's headings: where it starts and how it looks. It
 /// wraps at D-56's 380 less its indent, so later lines hang.
 #[derive(Debug, Clone, Copy)]
-struct Tier {
+pub(super) struct Tier {
     indent: f64,
     style: TextStyle,
     ink: Neutral,
-    level: NonZeroU8,
+    pub(super) level: NonZeroU8,
 }
 
 /// "Legend": a peer of the key's heading, below the document title.
-const TITLE_TIER: Tier = Tier {
+pub(super) const TITLE_TIER: Tier = Tier {
     indent: 0.0,
     style: LEGEND_HEADING,
     ink: Neutral::TextPrimary,
@@ -43,7 +43,7 @@ const TITLE_TIER: Tier = Tier {
 };
 
 /// FR-35's first level: a sector.
-const SECTOR_TIER: Tier = Tier {
+pub(super) const SECTOR_TIER: Tier = Tier {
     indent: INDENT_SECTOR,
     style: LEGEND_SECTOR,
     ink: Neutral::TextPrimary,
@@ -51,7 +51,7 @@ const SECTOR_TIER: Tier = Tier {
 };
 
 /// FR-35's second level: a ring within its sector.
-const RING_TIER: Tier = Tier {
+pub(super) const RING_TIER: Tier = Tier {
     indent: INDENT_RING,
     style: LEGEND_RING,
     ink: Neutral::TextMuted,
@@ -93,6 +93,10 @@ pub(super) enum Entry {
         run: TextRun,
         /// Its heading level: 2 for "Legend", 3 a sector, 4 a ring.
         level: NonZeroU8,
+        /// Whether it repeats, at the top of a paper column, the heading
+        /// the column continues under (FR-111): drawn alike, but a
+        /// pagination artifact to a tagged PDF, not a second heading.
+        continued: bool,
     },
     /// FR-35's sector-colour swatch, beside its heading's first line.
     Swatch {
@@ -106,24 +110,31 @@ pub(super) enum Entry {
     Row(Box<Row>),
 }
 
-/// The legend for `catalogue`: empty when it has no sectors (FR-42).
+/// The legend for `catalogue`, its rows at least `min_row` tall: empty
+/// when it has no sectors (FR-42).
 ///
 /// # Panics
 ///
 /// If `plotted` was not built from `catalogue`, so an item, sector or
 /// ring index is out of range for it.
 #[must_use]
-pub(super) fn layout(catalogue: &Catalogue, plotted: &Plotted, fonts: &Fonts) -> Layout {
+pub(super) fn layout(
+    catalogue: &Catalogue,
+    plotted: &Plotted,
+    min_row: f64,
+    fonts: &Fonts,
+) -> Layout {
     let context = Context {
         catalogue,
         plotted,
         runs: plotted.runs(catalogue),
+        min_row,
         fonts,
     };
-    let title = Entry::Heading {
-        run: heading(TITLE_TIER, LEGEND_TITLE, LEGEND_HEADING_BASELINE, fonts),
-        level: TITLE_TIER.level,
-    };
+    let title = Entry::heading(
+        heading(TITLE_TIER, LEGEND_TITLE, LEGEND_HEADING_BASELINE, fonts),
+        TITLE_TIER,
+    );
     let (groups, starts) = context.groups();
     let entries = titled(title, groups);
     // The title, when there is one, comes before every group.
@@ -148,6 +159,8 @@ struct Context<'a> {
     plotted: &'a Plotted,
     /// FR-34's bands: declared ring order, empty rings absent.
     runs: Vec<Run>,
+    /// A row's least height (FR-94, FR-111).
+    min_row: f64,
     fonts: &'a Fonts,
 }
 
@@ -175,10 +188,7 @@ impl Context<'_> {
         let run = heading(SECTOR_TIER, self.sector_label(q), baseline, self.fonts);
         let last = run.last_baseline();
         entries.push(swatch(self.series(q), baseline));
-        entries.push(Entry::Heading {
-            run,
-            level: SECTOR_TIER.level,
-        });
+        entries.push(Entry::heading(run, SECTOR_TIER));
         self.rings(q, last, entries)
     }
 
@@ -197,10 +207,7 @@ impl Context<'_> {
     fn ring(&self, run: &Run, baseline: f64, entries: &mut Vec<Entry>) -> f64 {
         let heading = heading(RING_TIER, self.ring_label(run.ring), baseline, self.fonts);
         let top = first_row_top(heading.last_baseline());
-        entries.push(Entry::Heading {
-            run: heading,
-            level: RING_TIER.level,
-        });
+        entries.push(Entry::heading(heading, RING_TIER));
         let mut bottom = top;
         for position in run.items.clone() {
             let row = self.row(position, bottom);
@@ -219,6 +226,7 @@ impl Context<'_> {
             self.series(item.sector),
             self.catalogue.accessible_name(item, Some(number)),
             top,
+            self.min_row,
             self.fonts,
         )
     }
@@ -266,7 +274,7 @@ impl Context<'_> {
 
 /// `text` as a heading in `tier`, its first baseline at `baseline`,
 /// wrapped greedily at the tier's column (FR-79).
-fn heading(tier: Tier, text: &str, baseline: f64, fonts: &Fonts) -> TextRun {
+pub(super) fn heading(tier: Tier, text: &str, baseline: f64, fonts: &Fonts) -> TextRun {
     TextRun {
         origin: Point {
             x: tier.indent,
@@ -291,7 +299,7 @@ fn titled(title: Entry, groups: Vec<Entry>) -> Vec<Entry> {
 }
 
 /// A sector's swatch beside its heading's first baseline.
-fn swatch(series: usize, baseline: f64) -> Entry {
+pub(super) fn swatch(series: usize, baseline: f64) -> Entry {
     Entry::Swatch {
         centre: Point {
             x: SWATCH_RADIUS,
@@ -323,6 +331,57 @@ fn first_row_top(heading_last: f64) -> f64 {
 }
 
 impl Entry {
+    /// `run` as a heading of `tier`, not continued.
+    const fn heading(run: TextRun, tier: Tier) -> Self {
+        Self::Heading {
+            run,
+            level: tier.level,
+            continued: false,
+        }
+    }
+
+    /// The entry moved down by `dy`: every position it holds.
+    pub(super) fn shifted(&self, dy: f64) -> Self {
+        let moved = |run: &TextRun| TextRun {
+            origin: Point {
+                y: run.origin.y + dy,
+                ..run.origin
+            },
+            ..run.clone()
+        };
+        match self {
+            Self::Heading {
+                run,
+                level,
+                continued,
+            } => Self::Heading {
+                run: moved(run),
+                level: *level,
+                continued: *continued,
+            },
+            Self::Swatch { centre, series } => Self::Swatch {
+                centre: Point {
+                    y: centre.y + dy,
+                    ..*centre
+                },
+                series: *series,
+            },
+            Self::Row(row) => Self::Row(Box::new(Row {
+                top: row.top + dy,
+                badge: Point {
+                    y: row.badge.y + dy,
+                    ..row.badge
+                },
+                name: moved(&row.name),
+                meta: row.meta.as_ref().map(|meta| match meta {
+                    MetaLine::OwnLine(run) => MetaLine::OwnLine(moved(run)),
+                    MetaLine::Inline(tail) => MetaLine::Inline(tail.clone()),
+                }),
+                ..(**row).clone()
+            })),
+        }
+    }
+
     /// The entry's lowest painted extent: a row's bottom, a heading's last
     /// descent, a swatch's lowest point.
     pub(super) fn bottom(&self) -> f64 {
@@ -335,7 +394,7 @@ impl Entry {
 
     /// The furthest right the entry's text reaches at its layout width
     /// (D-78); zero for a swatch.
-    fn right_edge(&self, fonts: &Fonts) -> f64 {
+    pub(super) fn right_edge(&self, fonts: &Fonts) -> f64 {
         match self {
             Self::Heading { run, .. } => run.right_edge(fonts),
             Self::Swatch { .. } => 0.0,
@@ -345,7 +404,7 @@ impl Entry {
 }
 
 /// The content height: the bottom of the last entry, whatever it is.
-fn height(entries: &[Entry]) -> f64 {
+pub(super) fn height(entries: &[Entry]) -> f64 {
     entries.last().map_or(0.0, Entry::bottom)
 }
 
@@ -365,12 +424,12 @@ mod tests {
     use crate::layout::test_support::{
         HEAD, NAME_THREE_LINES, NAME_TWO_LINES, PRD_EXAMPLE, empty_catalogue, near, plotted,
     };
-    use crate::style::LEGEND_NAME;
+    use crate::style::{LEGEND_NAME, LEGEND_ROW_MIN_HEIGHT};
     use crate::svg::{ItemKey, Point, TextRun};
 
     fn lay(csv: &str, rings: Option<&str>) -> Layout {
         let (catalogue, order) = plotted(csv, rings);
-        layout(&catalogue, &order, fonts())
+        layout(&catalogue, &order, LEGEND_ROW_MIN_HEIGHT, fonts())
     }
 
     /// The headings of `level`, in order.
@@ -378,7 +437,9 @@ mod tests {
         l.entries
             .iter()
             .filter_map(|entry| match entry {
-                Entry::Heading { run, level: found } if found.get() == level => Some(run),
+                Entry::Heading {
+                    run, level: found, ..
+                } if found.get() == level => Some(run),
                 _ => None,
             })
             .collect()
@@ -507,7 +568,7 @@ mod tests {
     fn rows_follow_fr34() {
         let csv = format!("{HEAD}B,Q,Adopt,\"two\nlines\"\nA,Q,Adopt,d\nC,Q,Trial,d\n");
         let (catalogue, order) = plotted(&csv, None);
-        let l = layout(&catalogue, &order, fonts());
+        let l = layout(&catalogue, &order, LEGEND_ROW_MIN_HEIGHT, fonts());
         let rows = rows(&l);
         let got: Vec<(usize, ItemKey, &str)> = rows
             .iter()
@@ -648,7 +709,12 @@ mod tests {
     #[test]
     fn zero_sectors_lays_out_nothing() {
         let catalogue = empty_catalogue();
-        let l = layout(&catalogue, &crate::order::Plotted::default(), fonts());
+        let l = layout(
+            &catalogue,
+            &crate::order::Plotted::default(),
+            LEGEND_ROW_MIN_HEIGHT,
+            fonts(),
+        );
         assert!(l.entries.is_empty(), "{l:?}");
         assert!(close(l.width, 0.0) && close(l.height, 0.0), "{l:?}");
     }

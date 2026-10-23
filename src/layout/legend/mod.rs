@@ -5,6 +5,7 @@
 //! submodule, and one row's composition in `row`.
 
 mod columns;
+mod flow;
 mod layout;
 mod row;
 
@@ -19,8 +20,8 @@ use crate::palette::{Neutral, Role};
 use crate::style::{
     BADGE_HOLLOW_STROKE, BADGE_RADIUS, BADGE_STROKE, INDENT_ITEM, LEGEND_BADGE_NUMBER,
     LEGEND_FIRST_GROUP, LEGEND_PANEL_INSET_X, LEGEND_PANEL_INSET_Y, LEGEND_PANEL_RADIUS,
-    LEGEND_ROW_INDICATOR_INSET, LEGEND_ROW_LEFT_OUTSET, LEGEND_ROW_RADIUS, LEGEND_ROW_RIGHT_OUTSET,
-    SELECTION_BAR_WIDTH, SWATCH_RADIUS,
+    LEGEND_ROW_INDICATOR_INSET, LEGEND_ROW_LEFT_OUTSET, LEGEND_ROW_MIN_HEIGHT, LEGEND_ROW_RADIUS,
+    LEGEND_ROW_RIGHT_OUTSET, PAPER_ROW_MIN_HEIGHT, SELECTION_BAR_WIDTH, SWATCH_RADIUS,
 };
 use crate::svg::{Group, ItemKey, Node, Paint, Point, Scale, Semantics, TextRun};
 use crate::text::Fonts;
@@ -63,12 +64,62 @@ impl LegendBlock {
     /// ring index is out of range for it.
     #[must_use]
     pub fn new(catalogue: &Catalogue, plotted: &Plotted, fonts: &Fonts) -> Self {
-        let layout = layout(catalogue, plotted, fonts);
+        Self::laid_out(layout(catalogue, plotted, LEGEND_ROW_MIN_HEIGHT, fonts))
+    }
+
+    /// The legend as paper draws it (FR-111, D-105): as [`new`](Self::new),
+    /// its rows at least `PAPER_ROW_MIN_HEIGHT` tall, since paper has no
+    /// touch target.
+    ///
+    /// # Panics
+    ///
+    /// As [`new`](Self::new).
+    #[must_use]
+    pub fn on_paper(catalogue: &Catalogue, plotted: &Plotted, fonts: &Fonts) -> Self {
+        Self::laid_out(layout(catalogue, plotted, PAPER_ROW_MIN_HEIGHT, fonts))
+    }
+
+    /// `layout` as a single-column legend.
+    fn laid_out(layout: Layout) -> Self {
         Self {
             size: own_panel(&layout),
             layout,
             columns: Vec::new(),
         }
+    }
+
+    /// The panel width, at scale 1, of every piece [`flowed`](Self::flowed)
+    /// cuts: the legend's own, widened to fit each heading a piece may
+    /// repeat marked continued, so the pieces line up.
+    #[must_use]
+    pub fn paper_width(&self, fonts: &Fonts) -> f64 {
+        panel_size(flow::widest(&self.layout, fonts), 0.0).width
+    }
+
+    /// The legend cut into single-column pieces for paper (FR-111), each a
+    /// legend of its own at scale 1, [`paper_width`](Self::paper_width)
+    /// wide: the first at most `first` tall as a panel, every later one at
+    /// most `rest`. Breaks fall between rows; a heading moves with what
+    /// follows it; a piece that starts inside a sector or ring repeats its
+    /// heading marked continued, and piece `k` opens with *Legend
+    /// (continued)* when `opens_page(k)`. A row taller than `rest` stands
+    /// alone. An empty legend has no pieces.
+    #[must_use]
+    pub fn flowed(
+        &self,
+        first: f64,
+        rest: f64,
+        opens_page: &dyn Fn(usize) -> bool,
+        fonts: &Fonts,
+    ) -> Vec<Self> {
+        if self.layout.entries.is_empty() {
+            return Vec::new();
+        }
+        let width = flow::widest(&self.layout, fonts);
+        flow::pieces(&self.layout, width, first, rest, opens_page, fonts)
+            .into_iter()
+            .map(Self::laid_out)
+            .collect()
     }
 
     /// The legend flowed into `columns` columns beside one another
@@ -317,7 +368,7 @@ fn content_node(layout: &Layout, columns: &[Column], s: f64) -> Node {
 /// One entry at `s`; `width` is the content's, which a row's target spans.
 fn entry_node(entry: &Entry, width: f64, s: f64) -> Node {
     match entry {
-        Entry::Heading { run, level } => heading_node(run, *level, s),
+        Entry::Heading { run, level, .. } => heading_node(run, *level, s),
         Entry::Swatch { centre, series } => swatch_node(*centre, *series, s),
         Entry::Row(row) => row_node(row, width, s),
     }
