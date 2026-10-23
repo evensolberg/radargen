@@ -1,4 +1,4 @@
-//! Where the worst-delta gate is blind to a flat colour a little off:
+//! Where the supersampled gate is blind to a flat colour a little off:
 //! inside every filled shape, and at the ground's corners, the PDF is the
 //! PNG's colour.
 
@@ -208,7 +208,8 @@ fn every_filled_shape_has_its_colour_inside() {
 }
 
 /// The legend's and key's `Surface2` panels left unfilled fails, in
-/// both themes, though no pixel moves past [`MAX_DELTA`].
+/// both themes, though no pixel moves past [`MAX_DELTA`] and too few
+/// past the noise to reach [`MAX_PPM`] (683 ppm in the light theme).
 #[test]
 fn unfilled_panels_fail() {
     for theme in [Theme::Light, Theme::Dark] {

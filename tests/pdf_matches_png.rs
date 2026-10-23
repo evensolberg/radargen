@@ -57,14 +57,16 @@ use pdf_page::first_page;
 const MAX_DELTA: u8 = 44;
 
 /// A channel difference antialiasing alone reaches often: past it, a
-/// subpixel counts against [`MAX_PPM`].
+/// subpixel counts against [`MAX_PPM`]. Faithful cases have none past 32
+/// and up to 500 ppm past 16; a stroke colour 20 levels off has none
+/// past 44, so a lower threshold is what lets the count see it.
 const NOISE: u8 = 16;
 
 /// How many subpixels per million a faithful PDF shows past [`NOISE`]:
-/// faithful cases reach 500, and a stroke or text colour 20 levels off
-/// (0.08) 1,100 or more, which no single subpixel shows past
-/// [`MAX_DELTA`]. A colour 10 levels off stays under both. Measured
-/// with [`MAX_DELTA`].
+/// faithful cases reach 500 (light; dark stays under 180), every stroke
+/// colour 20 levels off (0.08) reaches 1,680, and every text colour
+/// 1,100, though neither passes [`MAX_DELTA`]. A colour 10 levels off
+/// stays under both. Measured 2026-10-22, macOS arm64.
 const MAX_PPM: usize = 800;
 
 /// The PDF's own cases beside the shared ones: a right-to-left name,
@@ -165,9 +167,19 @@ const fn within(c: &Compared) -> bool {
     c.worst <= MAX_DELTA && c.loud_ppm <= MAX_PPM
 }
 
-/// `pixels` (RGBA, `width` wide) with each 2×2 block averaged into one,
-/// dropping an odd last row or column.
+/// `pixels` (RGBA, `width` wide) with each 2×2 block averaged into one.
+/// An odd last row is averaged with itself, so the bottom edge, where a
+/// sliver would show, is still compared; the width is always even.
 fn halved(pixels: &[u8], width: usize) -> Vec<u8> {
+    let row = width * 4;
+    let padded;
+    let pixels = if (pixels.len() / row) % 2 == 1 {
+        let last = pixels.rchunks_exact(row).next().expect("a row");
+        padded = [pixels, last].concat();
+        &padded
+    } else {
+        pixels
+    };
     let (pixels, _) = pixels.as_chunks::<4>();
     pixels
         .chunks_exact(width * 2)
@@ -230,8 +242,8 @@ fn the_pdf_draws_what_the_png_draws() {
 }
 
 /// Review Focus 3: at a set width the drawing scales with the page and
-/// meets its edges, in the dark theme, where a sliver would show. Only
-/// the ceiling applies: at 320 the drawing is a third of its size, so
+/// meets its edges, in the dark theme, where a sliver would show. At 320
+/// only the ceiling applies: the drawing is a third of its size, so
 /// nearly every pixel is an edge, and [`MAX_PPM`], measured at natural
 /// size, does not hold (8,000 ppm past noise, worst 32).
 #[test]
@@ -250,7 +262,12 @@ fn the_pdf_at_a_set_width_draws_what_the_png_draws() {
             "--width {width}: {} ppm past noise, worst {}",
             c.loud_ppm, c.worst
         );
-        assert!(c.worst <= MAX_DELTA, "--width {width}");
+        let passes = if width == 320 {
+            c.worst <= MAX_DELTA
+        } else {
+            within(&c)
+        };
+        assert!(passes, "--width {width}");
     }
 }
 
@@ -411,4 +428,14 @@ fn a_slightly_wrong_stroke_colour_fails() {
             "{theme:?}: a slightly wrong stroke colour must fail"
         );
     }
+}
+
+/// Halving keeps an odd last row, averaged with itself, so the bottom
+/// edge is compared.
+#[test]
+fn halving_keeps_an_odd_last_row() {
+    let pixel = |v: u8| [v; 4];
+    // Two pixels wide, three rows: 0 0 / 4 4 / 9 9.
+    let rows: Vec<u8> = [0, 0, 4, 4, 9, 9].into_iter().flat_map(pixel).collect();
+    assert_eq!(halved(&rows, 2), [pixel(2), pixel(9)].concat());
 }
