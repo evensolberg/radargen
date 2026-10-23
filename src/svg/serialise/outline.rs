@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::text::{Run, ink};
 use super::{Context, attr, coord, paint, point};
 use crate::style::TextStyle;
-use crate::svg::{Anchor, Document, Node, Point};
+use crate::svg::{Document, Node, Point};
 use crate::text::{FontError, Fonts, Segment, Weight};
 
 /// A glyph in one face at one size: one definition.
@@ -166,26 +166,20 @@ fn path(segments: &[Segment], scale: f64) -> String {
         .collect()
 }
 
-/// How much of its advance a middle-anchored line starts before its
-/// origin. A power of two, so it is exactly the `/ 2.0` resvg's anchor is.
-const CENTRED: f64 = 0.5;
-
 /// A text as a group of placed glyphs: its paint on the group, each line
 /// at its baseline, its tail at `tail_x` (D-78). Filled and outside a
-/// control, an image named by its words (D-88).
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
-)]
+/// control, an image named by its words (D-88). `node` is the text
+/// `run` unpacks, which places its lines and tail.
 pub(super) fn text(
     run: &Run<'_>,
-    tail_x: Option<f64>,
+    node: &Node,
     outlined: Outlined<'_>,
     context: Context<'_>,
 ) -> String {
-    if run.lines.is_empty() {
+    let starts = node.line_starts(outlined.fonts);
+    let Some(&(_, last)) = starts.last() else {
         return String::new();
-    }
+    };
     let mut out = String::from("<g");
     ink(&mut out, run.ink, context);
     if let Some(name) = run.own_name(context) {
@@ -193,23 +187,17 @@ pub(super) fn text(
         attr(&mut out, "aria-label", &name);
     }
     out.push_str(">\n");
-    let mut baseline = run.origin.y;
-    for (i, line) in (0_u32..).zip(run.lines) {
-        baseline = run.origin.y + f64::from(i) * run.leading;
-        let x = match run.anchor {
-            Anchor::Start => run.origin.x,
-            Anchor::Middle => run.origin.x - run.style.advance(line, outlined.fonts) * CENTRED,
-        };
-        out.push_str(&uses(line, run.style, Point { x, y: baseline }, outlined));
+    for &(line, at) in &starts {
+        out.push_str(&uses(line, run.style, at, outlined));
     }
-    if let (Some(tail), Some(x)) = (run.tail, tail_x) {
+    if let (Some(tail), Some(x)) = (run.tail, node.tail_x(outlined.fonts)) {
         out.push_str("<g");
         attr(&mut out, "fill", &paint(tail.ink, context.target));
         out.push_str(">\n");
         out.push_str(&uses(
             &tail.text,
             tail.style,
-            Point { x, y: baseline },
+            Point { x, y: last.y },
             outlined,
         ));
         out.push_str("</g>\n");

@@ -238,9 +238,7 @@ fn node(node: &Node, context: Context<'_>) -> String {
             };
             match context.text {
                 TextMode::Text => text::text(&run, context),
-                TextMode::Outlined(outlined) => {
-                    outline::text(&run, node.tail_x(outlined.fonts), outlined, context)
-                }
+                TextMode::Outlined(outlined) => outline::text(&run, node, outlined, context),
             }
         }
         Node::Circle {

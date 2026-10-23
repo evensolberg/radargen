@@ -12,12 +12,9 @@ use super::content::{Canvas, colour};
 use super::font::Faces;
 use super::{EM, real};
 use crate::style::TextStyle;
-use crate::svg::{Anchor, Node, Paint, Point, TextPaint};
+use crate::svg::{Node, Paint, Point, TextPaint};
 use crate::text::{FontError, Placed};
 
-/// How much of its advance a middle-anchored line starts before its
-/// origin, as the SVG outliner and resvg place it.
-const CENTRED: f64 = 0.5;
 /// The smallest TJ adjustment written, in thousandths of an em. Anything
 /// smaller is float residue between the widths array's rounded advance
 /// and the shaper's, about 1e-5 em per glyph: a hundredth of a pixel
@@ -40,7 +37,7 @@ pub(super) fn text(out: &mut Content, node: &Node, canvas: &Canvas<'_>) -> Resul
     else {
         return Ok(());
     };
-    let starts = starts(node, canvas);
+    let starts = node.line_starts(canvas.fonts);
     // As the SVG outliner: a text with no lines draws nothing, its tail
     // included.
     let Some(&(_, last)) = starts.last() else {
@@ -70,37 +67,6 @@ pub(super) fn text(out: &mut Content, node: &Node, canvas: &Canvas<'_>) -> Resul
             Ok(())
         }
     }
-}
-
-/// Each line of a text node with where it starts: the origin, one leading
-/// lower per line, a middle-anchored line moved back half its advance.
-#[expect(
-    clippy::suboptimal_flops,
-    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
-)]
-fn starts<'a>(node: &'a Node, canvas: &Canvas<'_>) -> Vec<(&'a str, Point)> {
-    let Node::Text {
-        origin,
-        style,
-        anchor,
-        lines,
-        leading,
-        ..
-    } = node
-    else {
-        return Vec::new();
-    };
-    (0_u32..)
-        .zip(lines)
-        .map(|(i, line)| {
-            let x = match anchor {
-                Anchor::Start => origin.x,
-                Anchor::Middle => origin.x - style.advance(line, canvas.fonts) * CENTRED,
-            };
-            let y = origin.y + f64::from(i) * leading;
-            (line.as_str(), Point { x, y })
-        })
-        .collect()
 }
 
 /// Sets `fill` as the fill colour, returning whether anything is painted.

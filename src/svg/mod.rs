@@ -16,6 +16,10 @@ use crate::palette::{Neutral, Role};
 use crate::style::TextStyle;
 use crate::text::{Fonts, TEXT_DESCENT};
 
+/// How much of its advance a middle-anchored line starts before its
+/// origin. A power of two, so it is exactly the `/ 2.0` resvg's anchor is.
+const CENTRED: f64 = 0.5;
+
 /// A point in SVG user units; the origin depends on the frame it is used in.
 /// Geometry produces points before any block exists, so it lives here and
 /// `layout` re-exports it.
@@ -349,6 +353,40 @@ impl Node {
         };
         let last = lines.last().map_or("", String::as_str);
         Some(origin.x + style.advance(last, fonts) + tail.gap)
+    }
+
+    /// Each line of a text with where it starts: the origin, one leading
+    /// lower per line, a middle-anchored line moved back half its advance,
+    /// as resvg places it. The exported SVG's outliner and the PDF both
+    /// place lines here. Empty for anything but a text.
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    #[must_use]
+    pub fn line_starts(&self, fonts: &Fonts) -> Vec<(&str, Point)> {
+        let Self::Text {
+            origin,
+            style,
+            anchor,
+            lines,
+            leading,
+            ..
+        } = self
+        else {
+            return Vec::new();
+        };
+        (0_u32..)
+            .zip(lines)
+            .map(|(i, line)| {
+                let x = match anchor {
+                    Anchor::Start => origin.x,
+                    Anchor::Middle => origin.x - style.advance(line, fonts) * CENTRED,
+                };
+                let y = origin.y + f64::from(i) * leading;
+                (line.as_str(), Point { x, y })
+            })
+            .collect()
     }
 
     /// Whether the node exists only for pointer and keyboard users: a hit
