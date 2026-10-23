@@ -545,5 +545,8 @@ fn the_unplotted_boundary_at_a_page_top() {
     assert_opens_cleanly(&block);
     let second = block.pages().get(1).expect("page 2");
     let parts = block.parts.get(second.parts.clone()).unwrap_or_default();
-    assert!(parts.first().is_some_and(|p| p.number.is_none()));
+    assert!(parts.iter().all(|p| p.number.is_none()));
+    let page = texts(all_pages(&block).get(1).expect("page 2"));
+    let heading = page.get(1).map(lines_of).unwrap_or_default().join(" ");
+    assert_eq!(heading, "(continued): Tools", "no number range");
 }

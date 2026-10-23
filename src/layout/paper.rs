@@ -896,6 +896,27 @@ mod tests {
         assert_eq!(bodies_of(&sheets).tall_legend_rows.len(), 0);
     }
 
+    /// rg-p82 (QA 11): a sector label too wide to sit beside the legend:
+    /// the radar takes page 1 alone, and the legend's first piece opens
+    /// page 2 as the legend's start, not its continuation.
+    #[test]
+    fn a_wide_sector_starts_the_legend_on_page_two() {
+        let csv = format!(
+            "{HEAD}a,{},Adopt,d\nb,Tools,Trial,d\nc,Data,Assess,d\n",
+            "S".repeat(64)
+        );
+        let (catalogue, order) = plotted(&csv, None);
+        let fixture = Fixture {
+            blocks: Blocks::new(&catalogue, &order, None, None, fonts()),
+            legend: LegendBlock::on_paper(&catalogue, &order, fonts()),
+        };
+        let sheets = fixture.sheets(Paper::Letter, "T", None);
+        let first = first_page(&sheets, fonts());
+        assert!(first.legend.is_none() && first.fits);
+        let bodies = bodies_of(&sheets);
+        assert_eq!(bodies.kinds.get(1), Some(&PageKind::Legend));
+    }
+
     fn bodies_of(sheets: &Sheets<'_>) -> Bodies {
         bodies(sheets, fonts())
     }

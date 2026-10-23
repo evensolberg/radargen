@@ -513,6 +513,43 @@ pub fn words(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// Whether `c` extends the character before it rather than starting one:
+/// a combining mark, a variation selector, a joiner, an emoji modifier or
+/// tag. Std has no grapheme segmentation, and these are the extenders a
+/// name meets in the scripts Inter covers (D-68) and in emoji.
+const fn extends(c: char) -> bool {
+    matches!(
+        c,
+        '\u{300}'..='\u{36f}'
+            | '\u{1ab0}'..='\u{1aff}'
+            | '\u{1dc0}'..='\u{1dff}'
+            | '\u{20d0}'..='\u{20ff}'
+            | '\u{fe00}'..='\u{fe0f}'
+            | '\u{fe20}'..='\u{fe2f}'
+            | '\u{200c}'..='\u{200d}'
+            | '\u{1f3fb}'..='\u{1f3ff}'
+            | '\u{e0020}'..='\u{e007f}'
+            | '\u{e0100}'..='\u{e01ef}'
+    )
+}
+
+/// The byte offset where `text`'s last character begins, its extenders
+/// counted with it, and a joiner's character before it too.
+fn last_cluster(text: &str) -> usize {
+    let mut start = text.len();
+    let mut chars = text.char_indices().rev().peekable();
+    while let Some((at, c)) = chars.next() {
+        start = at;
+        let joined = chars
+            .peek()
+            .is_some_and(|&(_, before)| before == '\u{200d}');
+        if !extends(c) && !joined {
+            break;
+        }
+    }
+    start
+}
+
 /// FR-79's column: a maximum width, and how a line's width is measured.
 struct Column<'w> {
     max_width: f64,
@@ -568,7 +605,8 @@ impl Column<'_> {
         let Some(previous) = lines.last_mut().filter(|_| alone) else {
             return tail;
         };
-        let Some((at, last)) = previous.char_indices().last().filter(|&(at, _)| at > 0) else {
+        let at = last_cluster(previous);
+        let Some(last) = previous.get(at..).filter(|_| at > 0) else {
             return tail;
         };
         let joined = format!("{last}{tail}");
@@ -1071,9 +1109,8 @@ mod tests {
         assert_eq!(checked, 2 * 2 * 8 * 10, "every case ran");
     }
 
-    /// rg-p82: a word broken across lines never leaves its trailing
-    /// punctuation alone on the last line; the character before it comes
-    /// down with it.
+    /// rg-p82: no piece of a broken word begins with its trailing
+    /// punctuation alone; the character before it comes down with it.
     #[test]
     fn a_broken_word_keeps_its_punctuation_company() {
         let width = |t: &str| f64::from(u32::try_from(t.chars().count()).expect("short"));
@@ -1084,6 +1121,22 @@ mod tests {
         assert_eq!(wrap_by("abcdefghi.", 4.0, &width), ["abcd", "efgh", "i."]);
         // Punctuation that cannot take company stays as it was.
         assert_eq!(wrap_by("abcd....", 4.0, &width), ["abcd", "...."]);
+    }
+
+    /// Review of rg-p82: what comes down is the last character with its
+    /// marks, joiners and pair, never a mark torn from its base.
+    #[test]
+    fn the_company_is_a_whole_cluster() {
+        // Marks, selectors and joiners take no width, as the shaper has it.
+        let zero = |c: char| extends(c);
+        let width = |t: &str| {
+            f64::from(u32::try_from(t.chars().filter(|&c| !zero(c)).count()).expect("short"))
+        };
+        assert_eq!(wrap_by("abcde\u{301}.", 4.0, &width), ["abcd", "e\u{301}."]);
+        assert_eq!(
+            wrap_by("abc\u{2764}\u{fe0f}.", 4.0, &width),
+            ["abc", "\u{2764}\u{fe0f}."]
+        );
     }
 
     /// rg-wl7: breaking a long word without break points measures a
