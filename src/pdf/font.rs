@@ -188,10 +188,19 @@ impl Subset {
             let even = cluster.len() == text.chars().count();
             let entries: Vec<(u16, String)> = match (pass, cluster.len()) {
                 (Pass::Alone, 1) => vec![(first, text.clone())],
+                // The shaper puts marks in canonical order, so a glyph takes
+                // its own character when the cluster holds it, and the
+                // character in its place only when the face maps none.
                 (Pass::Even, n) if n > 1 && even => cluster
                     .iter()
                     .zip(text.chars())
-                    .map(|((glyph, _), c)| (*glyph, c.to_string()))
+                    .map(|((glyph, _), placed)| {
+                        let own = reverse
+                            .get(&u32::from(*glyph))
+                            .copied()
+                            .filter(|c| text.contains(*c));
+                        (*glyph, own.unwrap_or(placed).to_string())
+                    })
                     .collect(),
                 (Pass::First, n) if n > 1 && !even => vec![(first, text.clone())],
                 (Pass::Rest, _) => cluster
@@ -367,11 +376,12 @@ fn used(shaped: &[Run]) -> BTreeMap<Weight, BTreeSet<u16>> {
     used
 }
 
-/// The `ToUnicode` map, first mapping wins, in document order (D-103).
-/// A glyph that is its cluster alone (a letter, a ligature) maps first;
-/// the first glyph of a cluster of several (a base drawn with a separate
-/// mark) takes the cluster's text only if nothing mapped it alone, so a
-/// plain `e` never copies as `e` + U+0301.
+/// The `ToUnicode` map, first mapping wins, in document order (D-103),
+/// in [`Pass`]'s four passes: a glyph that is its cluster alone (a
+/// letter, a ligature) maps first, so a plain `e` never copies as `e` +
+/// U+0301; then a cluster of as many glyphs as characters, each glyph its
+/// own character; then the first glyph of any other cluster, with all its
+/// text; then every glyph still without text, so none is (7.21.7).
 fn map_unicode(shaped: &[Run], subsets: &mut BTreeMap<Weight, Subset>, fonts: &Fonts) {
     let reverse: BTreeMap<Weight, BTreeMap<u32, char>> = subsets
         .keys()
@@ -714,6 +724,30 @@ mod tests {
         };
         assert_eq!(text(x.id).as_deref(), Some("x"));
         assert_eq!(text(acute.id).as_deref(), Some("\u{301}"));
+    }
+
+    /// 21c-3 re-review: the shaper puts marks in canonical order, so a
+    /// cluster's glyphs need not follow its characters (`x` + U+0301 +
+    /// U+0323 draws the dot below first); each mark glyph still maps to
+    /// its own character, whichever name is drawn first.
+    #[test]
+    fn a_reordered_mark_maps_to_its_own_character() {
+        let face = fonts().face(Weight::Regular);
+        let acute = face.shape("q\u{301}").last().expect("a mark").id;
+        let dot = face.shape("q\u{323}").last().expect("a mark").id;
+        for order in [
+            ["x\u{301}\u{323}", "q\u{301}"],
+            ["q\u{301}", "x\u{301}\u{323}"],
+        ] {
+            let faces = Faces::of([&run(order[0]), &run(order[1])], fonts()).expect("subsets");
+            let text = |glyph: u32| {
+                faces
+                    .unicode(Weight::Regular, faces.cid(Weight::Regular, glyph))
+                    .map(str::to_owned)
+            };
+            assert_eq!(text(acute).as_deref(), Some("\u{301}"), "{order:?}");
+            assert_eq!(text(dot).as_deref(), Some("\u{323}"), "{order:?}");
+        }
     }
 
     /// 21c-3 review: a character the face draws as several glyphs (U+0344
