@@ -9,14 +9,11 @@ use super::font::Faces;
 use super::geometry::{self, Step};
 use super::{Sheet, real};
 use crate::palette::Palette;
-use crate::palette::{Neutral, Role};
 use crate::svg::{Document, Group, Node, Paint, Point};
 use crate::text::{FontError, Fonts};
 
 /// SVG's default `stroke-miterlimit`; PDF's default is 10.
 const MITER_LIMIT: f32 = 4.0;
-/// The page's ground (D-87): the document's own, `Document::ground`'s.
-const GROUND: Paint = Paint::Role(Role::Neutral(Neutral::Surface1));
 /// A colour channel's largest value, `ff`: what PDF's 1.0 stands for.
 const CHANNEL_MAX: f64 = 255.0;
 
@@ -43,15 +40,15 @@ pub struct Canvas<'a> {
 pub fn content(canvas: &Canvas<'_>) -> Result<Vec<u8>, FontError> {
     let mut out = Content::new();
     out.save_state();
-    // In page space, before the flip: the whole page box, the fraction of
-    // a point past the drawing's right and bottom edges included.
-    let ground = geometry::rect(Point::ORIGIN, canvas.page.width, canvas.page.height, 0.0);
-    shape(
-        &mut out,
-        &ground,
-        Paints::new(GROUND, Paint::None, 0.0),
-        canvas,
-    );
+    // The document's own ground (D-87), in page space before the flip and
+    // over the whole page box: the fraction of a point past the drawing's
+    // right and bottom edges included.
+    let page = canvas.page;
+    let ground = painted(&canvas.document.ground()).map(|(_, paints)| {
+        let steps = geometry::rect(Point::ORIGIN, page.width, page.height, 0.0);
+        (steps, paints)
+    });
+    shape(&mut out, ground, canvas);
     // Unrounded (pdf::scale), so the drawing keeps its size; the
     // translate is the page box's own height, so the drawing hangs from
     // its top edge.
@@ -64,28 +61,31 @@ pub fn content(canvas: &Canvas<'_>) -> Result<Vec<u8>, FontError> {
 }
 
 /// One node, or nothing for an interactive-only one.
-// qual:allow(complexity, max_function_lines=68) reason: "one dispatch arm per node kind, each only unpacking its fields for its writer"
 fn node(out: &mut Content, node: &Node, canvas: &Canvas<'_>) -> Result<(), FontError> {
     if node.is_interactive_only() {
         return Ok(());
     }
     match node {
-        Node::Group(group) => self::group(out, group, canvas)?,
-        Node::Text { .. } => super::show::text(out, node, canvas)?,
+        Node::Group(group) => self::group(out, group, canvas),
+        Node::Text { .. } => super::show::text(out, node, canvas),
+        _ => {
+            shape(out, painted(node), canvas);
+            Ok(())
+        }
+    }
+}
+
+/// A shape node's path and paints; `None` for a group, a text or a hit
+/// area, which are not one path.
+fn painted(node: &Node) -> Option<(Vec<Step>, Paints)> {
+    let (steps, fill, stroke, width) = match *node {
         Node::Circle {
             centre,
             radius,
             fill,
             stroke,
             stroke_width,
-        } => {
-            shape(
-                out,
-                &geometry::circle(*centre, *radius),
-                Paints::new(*fill, *stroke, *stroke_width),
-                canvas,
-            );
-        }
+        } => (geometry::circle(centre, radius), fill, stroke, stroke_width),
         Node::Rect {
             origin,
             width,
@@ -94,44 +94,39 @@ fn node(out: &mut Content, node: &Node, canvas: &Canvas<'_>) -> Result<(), FontE
             fill,
             stroke,
             stroke_width,
-        } => {
-            shape(
-                out,
-                &geometry::rect(*origin, *width, *height, *radius),
-                Paints::new(*fill, *stroke, *stroke_width),
-                canvas,
-            );
-        }
+        } => (
+            geometry::rect(origin, width, height, radius),
+            fill,
+            stroke,
+            stroke_width,
+        ),
         Node::Line {
             from,
             to,
             stroke,
             stroke_width,
-        } => {
-            shape(
-                out,
-                &[Step::Move(*from), Step::Line(*to)],
-                Paints::new(Paint::None, *stroke, *stroke_width),
-                canvas,
-            );
-        }
+        } => (
+            vec![Step::Move(from), Step::Line(to)],
+            Paint::None,
+            stroke,
+            stroke_width,
+        ),
         Node::Path {
-            commands,
+            ref commands,
             fill,
             stroke,
             stroke_width,
-        } => {
-            shape(
-                out,
-                &geometry::path(commands),
-                Paints::new(*fill, *stroke, *stroke_width),
-                canvas,
-            );
-        }
-        // Interactive-only, returned above.
-        Node::HitArea { .. } => {}
-    }
-    Ok(())
+        } => (geometry::path(commands), fill, stroke, stroke_width),
+        Node::Group(_) | Node::Text { .. } | Node::HitArea { .. } => return None,
+    };
+    Some((
+        steps,
+        Paints {
+            fill,
+            stroke,
+            width,
+        },
+    ))
 }
 
 /// A group: its children, translated by its offset, in its own saved
@@ -160,19 +155,13 @@ struct Paints {
     width: f64,
 }
 
-impl Paints {
-    const fn new(fill: Paint, stroke: Paint, width: f64) -> Self {
-        Self {
-            fill,
-            stroke,
-            width,
-        }
-    }
-}
-
-/// `steps` painted: `f`, `S` or `B` by which paints are set; nothing at
-/// all when neither is, so an unpainted shape writes no path.
-fn shape(out: &mut Content, steps: &[Step], paints: Paints, canvas: &Canvas<'_>) {
+/// A path painted: `f`, `S` or `B` by which paints are set; nothing at
+/// all when neither is, or for no path, so an unpainted shape writes no
+/// path.
+fn shape(out: &mut Content, painted: Option<(Vec<Step>, Paints)>, canvas: &Canvas<'_>) {
+    let Some((steps, paints)) = painted else {
+        return;
+    };
     let fill = colour(paints.fill, canvas.palette);
     let stroke = colour(paints.stroke, canvas.palette);
     if fill.is_none() && stroke.is_none() {
@@ -185,7 +174,7 @@ fn shape(out: &mut Content, steps: &[Step], paints: Paints, canvas: &Canvas<'_>)
         out.set_stroke_rgb(r, g, b)
             .set_line_width(real(paints.width));
     }
-    trace(out, steps);
+    trace(out, &steps);
     match (fill, stroke) {
         (Some(_), Some(_)) => out.fill_nonzero_and_stroke(),
         (Some(_), None) => out.fill_nonzero(),
