@@ -86,22 +86,24 @@ const fn narrow(v: f64) -> f32 {
     v as f32
 }
 
-/// Test helper: a content stream's operators, decoded by lopdf.
+/// Test helpers: lopdf's reading of what the writer wrote.
 #[cfg(test)]
-#[must_use]
-pub fn decoded(stream: &[u8]) -> Vec<lopdf::content::Operation> {
-    lopdf::content::Content::decode(stream)
-        .expect("decodes")
-        .operations
-}
+pub mod test_support {
+    use lopdf::content::{Content, Operation};
 
-/// Test helper: the operators of a PDF file's first page.
-#[cfg(test)]
-#[must_use]
-pub fn operations(pdf: &[u8]) -> Vec<lopdf::content::Operation> {
-    let doc = lopdf::Document::load_mem(pdf).expect("parses");
-    let page = *doc.get_pages().values().next().expect("a page");
-    decoded(&doc.get_page_content(page))
+    /// A content stream's operators.
+    #[must_use]
+    pub fn decoded(stream: &[u8]) -> Vec<Operation> {
+        Content::decode(stream).expect("decodes").operations
+    }
+
+    /// The operators of a PDF file's first page.
+    #[must_use]
+    pub fn operations(pdf: &[u8]) -> Vec<Operation> {
+        let doc = lopdf::Document::load_mem(pdf).expect("parses");
+        let page = *doc.get_pages().values().next().expect("a page");
+        decoded(&doc.get_page_content(page))
+    }
 }
 
 #[cfg(test)]

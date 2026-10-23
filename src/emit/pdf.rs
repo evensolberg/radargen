@@ -273,7 +273,7 @@ mod tests {
                 kept(w, want_w * POINTS_PER_PX) && kept(h, want_h * POINTS_PER_PX),
                 "--width {width:?}: {w} × {h} at {unit}"
             );
-            let ops = crate::pdf::operations(&bytes);
+            let ops = crate::pdf::test_support::operations(&bytes);
             let cm = ops.iter().find(|op| op.operator == "cm").expect("the flip");
             let operand = |i: usize| {
                 cm.operands
@@ -331,7 +331,7 @@ mod tests {
     /// glyph by at least a hundredth of a thousandth of an em.
     #[test]
     fn no_adjustment_is_float_residue() {
-        let ops = crate::pdf::operations(&pdf(&prd(None), None, None, Theme::Light));
+        let ops = crate::pdf::test_support::operations(&pdf(&prd(None), None, None, Theme::Light));
         let adjustments: Vec<f32> = ops
             .iter()
             .filter(|op| op.operator == "TJ")
