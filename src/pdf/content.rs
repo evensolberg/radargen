@@ -11,7 +11,7 @@ use super::leaf::{self, Leaf};
 use super::tag::Tagger;
 use super::{Sheet, real};
 use crate::palette::Palette;
-use crate::svg::{Document, Group, Node, Paint, Point};
+use crate::svg::{Document, Extent, Group, Node, Paint, Point};
 use crate::text::{FontError, Fonts};
 
 /// SVG's default `stroke-miterlimit`; PDF's default is 10.
@@ -61,23 +61,30 @@ pub fn content(canvas: &Canvas<'_>, tagger: &mut Tagger) -> Result<Vec<u8>, Font
     let s = super::scale(canvas.page.scale);
     out.transform([s, 0.0, 0.0, -s, 0.0, real(canvas.page.height)])
         .set_miter_limit(MITER_LIMIT);
-    node(&mut out, &canvas.document.root, (canvas, tagger))?;
+    node(
+        &mut out,
+        &canvas.document.root,
+        Point::ORIGIN,
+        (canvas, tagger),
+    )?;
     out.restore_state();
     Ok(out.finish().into_vec())
 }
 
 /// One node, marked as [`leaf::of`] says (FR-114), or nothing for an
-/// interactive-only one or one that paints nothing.
+/// interactive-only one or one that paints nothing; `at` is where its
+/// parent's origin sits in the document.
 fn node(
     out: &mut Content,
     node: &Node,
+    at: Point,
     (canvas, tagger): (&Canvas<'_>, &mut Tagger),
 ) -> Result<(), FontError> {
     if node.is_interactive_only() {
         return Ok(());
     }
     if let Node::Group(group) = node {
-        return self::group(out, group, (canvas, tagger));
+        return self::group(out, group, at, (canvas, tagger));
     }
     let Some(leaf) = leaf::of(node, canvas) else {
         return Ok(());
@@ -148,14 +155,22 @@ pub(super) fn painted(node: &Node) -> Option<(Vec<Step>, Paints)> {
 }
 
 /// A group: its children, translated by its offset, in its own saved
-/// state.
+/// state; `at` is where its parent's origin sits in the document.
 fn group(
     out: &mut Content,
     group: &Group,
+    at: Point,
     (canvas, tagger): (&Canvas<'_>, &mut Tagger),
 ) -> Result<(), FontError> {
     // An artifact's mark wraps its saved state, never the reverse.
     let opened = tagger.open(out, &group.semantics);
+    let origin = Point {
+        x: at.x + group.offset.x,
+        y: at.y + group.offset.y,
+    };
+    if let Some(extent) = group.extent {
+        tagger.extent(opened, bbox(extent, origin, canvas.page));
+    }
     out.save_state();
     // Decided on the rounded value, as the SVG's `shows` decides, so a
     // 1e-13 trig residue cannot write a transform on one platform and
@@ -165,11 +180,29 @@ fn group(
         out.transform([1.0, 0.0, 0.0, 1.0, x, y]);
     }
     for child in &group.children {
-        node(out, child, (canvas, &mut *tagger))?;
+        node(out, child, origin, (canvas, &mut *tagger))?;
     }
     out.restore_state();
     tagger.close(out, opened);
     Ok(())
+}
+
+/// `extent`, drawn from `origin`, as a box on `page` (rg-2qs): left,
+/// bottom, right, top in page space, as the drawing's flip puts it.
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+)]
+fn bbox(extent: Extent, origin: Point, page: Sheet) -> [f32; 4] {
+    let (s, height) = (page.scale, page.height);
+    let x = |v: f64| real(s * (origin.x + v));
+    let y = |v: f64| real(height - s * (origin.y + v));
+    [
+        x(extent.min.x),
+        y(extent.max.y),
+        x(extent.max.x),
+        y(extent.min.y),
+    ]
 }
 
 /// A shape's fill, stroke and stroke width.
@@ -252,6 +285,25 @@ mod tests {
     use crate::layout::block::fonts;
     use crate::palette::{Neutral, Role, Theme};
     use crate::svg::{Group, ItemKey, Point, Semantics};
+
+    /// rg-2qs: a box drawn from a group's origin lands in page space as
+    /// the drawing's flip puts it: scaled, its y measured from the bottom.
+    #[test]
+    fn a_bbox_is_flipped_into_page_space() {
+        let extent = Extent {
+            min: Point { x: -10.0, y: -20.0 },
+            max: Point { x: 10.0, y: 20.0 },
+        };
+        let page = Sheet {
+            unit: 1.0,
+            scale: 0.5,
+            width: 100.0,
+            height: 200.0,
+        };
+        // Drawn from (50, 60): x 40..60, y 40..80, then halved and flipped.
+        let got = bbox(extent, Point { x: 50.0, y: 60.0 }, page);
+        assert_eq!(got, [20.0, 160.0, 30.0, 180.0]);
+    }
 
     fn stream(root: Node, palette: &Palette) -> String {
         let document = Document {

@@ -276,6 +276,36 @@ fn everything_inside_its_column() {
     }
 }
 
+/// rg-2qs: each page's table group carries its box, the table's width
+/// from the header row's top, and everything it draws lies inside it,
+/// a rule's stroke reaching half its width past its ends.
+#[test]
+fn each_table_page_spans_what_it_draws() {
+    let block = block(&long_csv(300), Table::Radar);
+    let reach = TABLE_RULE_HEAVY / 2.0 + 1e-9;
+    let pages = all_pages(&block);
+    assert!(pages.len() >= 2);
+    for (k, page) in pages.iter().enumerate() {
+        let Some(table) = page.iter().find_map(|node| match node {
+            Node::Group(g) if g.semantics == Semantics::Structure(Structure::Table) => Some(g),
+            _ => None,
+        }) else {
+            panic!("page {k} has a table");
+        };
+        let extent = table.extent.expect("a table page's box");
+        assert!(extent.min.x.abs() < 1e-9 && (extent.max.x - block.width).abs() < 1e-9);
+        for rect in table.children.iter().filter_map(|n| bounds(n, fonts())) {
+            assert!(
+                rect.left >= extent.min.x - reach
+                    && rect.right <= extent.max.x + reach
+                    && rect.top >= extent.min.y - 1e-9
+                    && rect.bottom <= extent.max.y + 1e-9,
+                "page {k}: {rect:?} outside {extent:?}"
+            );
+        }
+    }
+}
+
 /// Every drawn node of `block` within the page's width; a rule's stroke
 /// reaches half its width past its ends.
 fn assert_inside_the_page(block: &TableBlock) {

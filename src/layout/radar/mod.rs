@@ -29,7 +29,7 @@ use crate::style::{
     DIVIDER_RADIUS, GRID_STROKE, LABEL_HALO, MIN_RADAR_WIDTH, RADAR_FLOOR, RING_LABEL,
     SECTOR_LABEL, SECTOR_LABEL_RADIUS, TextStyle,
 };
-use crate::svg::{Anchor, Group, Node, Paint, Point, Scale, Semantics, TextRun};
+use crate::svg::{Anchor, Extent, Group, Node, Paint, Point, Scale, Semantics, TextRun};
 use crate::text::Fonts;
 use markers::{Marker, hit_node, hit_reach, indicator_node, layer, marker_nodes, markers};
 use reach::{half_extent, ring_reach_x, ring_reach_y, sector_reach_x, sector_reach_y};
@@ -438,8 +438,20 @@ impl Block for RadarBlock {
             .chain(controls)
             .chain(indicators)
             .collect();
-        let centred =
-            Node::Group(Group::new(self.centre(r), children).with(Semantics::Group(self.name())));
+        let centre = self.centre(r);
+        // The block's box about the centre the children are drawn from.
+        let extent = Extent {
+            min: Point {
+                x: -centre.x,
+                y: -centre.y,
+            },
+            max: centre,
+        };
+        let centred = Node::Group(
+            Group::new(centre, children)
+                .with(Semantics::Group(self.name()))
+                .spanning(extent),
+        );
         Node::Group(Group::new(at.origin, vec![centred]))
     }
 }
@@ -473,6 +485,35 @@ mod tests {
 
     /// How near the block's edge the drawn labels must come: float noise.
     const TIGHT: f64 = 1e-6;
+
+    /// rg-2qs: the figure's group carries the block's own box about its
+    /// centre, and everything it draws lies inside it.
+    #[test]
+    fn the_figure_spans_what_it_draws() {
+        let fonts = fonts();
+        let radar = block(fonts, PRD_EXAMPLE, None);
+        for scale in [1.0, NARROW_MIN_SCALE] {
+            let Node::Group(outer) = radar.render(at(scale)) else {
+                panic!("a group");
+            };
+            let Some(Node::Group(figure)) = outer.children.first() else {
+                panic!("the figure's group");
+            };
+            let extent = figure.extent.expect("the figure's box");
+            let size = radar.size(scale);
+            assert!(close(extent.max.x - extent.min.x, size.width));
+            assert!(close(extent.max.y - extent.min.y, size.height));
+            for rect in figure.children.iter().filter_map(|n| bounds(n, fonts)) {
+                assert!(
+                    rect.left >= extent.min.x - TIGHT
+                        && rect.right <= extent.max.x + TIGHT
+                        && rect.top >= extent.min.y - TIGHT
+                        && rect.bottom <= extent.max.y + TIGHT,
+                    "{scale}: {rect:?} outside {extent:?}"
+                );
+            }
+        }
+    }
 
     pub(super) fn block(fonts: &Fonts, csv: &str, rings: Option<&str>) -> RadarBlock {
         let (catalogue, order) = plotted(csv, rings);

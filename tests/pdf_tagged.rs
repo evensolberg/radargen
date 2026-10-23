@@ -264,6 +264,75 @@ fn only_a_cell_is_ever_empty() {
     }
 }
 
+/// rg-2qs: the radar's figure, and a table on one page, carry a Layout
+/// `BBox` inside their page's `MediaBox` around what they hold; a table
+/// across pages carries none, since one box cannot hold it.
+#[test]
+fn a_figure_and_a_one_page_table_have_a_bbox() {
+    for (name, bytes) in fixtures() {
+        let (doc, _) = pages(&bytes);
+        let tree = tree(&doc);
+        for role in ["Figure", "Table"] {
+            for (_, element) in of_role(&tree, role) {
+                let on: BTreeSet<ObjectId> = held(&tree, element).into_iter().collect();
+                let bbox = element.layout_bbox();
+                if on.len() > 1 {
+                    assert_eq!(bbox, None, "{name}: a {role} across pages");
+                    continue;
+                }
+                let page = on.first().expect("drawn on a page");
+                let [left, bottom, right, top] =
+                    bbox.unwrap_or_else(|| panic!("{name}: a {role} with no BBox"));
+                let media = media_box(&doc, *page);
+                assert!(
+                    left < right && bottom < top,
+                    "{name}: {role} {:?}",
+                    [left, bottom, right, top]
+                );
+                assert!(
+                    left >= media[0] && bottom >= media[1] && right <= media[2] && top <= media[3],
+                    "{name}: {role} {:?} outside {media:?}",
+                    [left, bottom, right, top]
+                );
+            }
+        }
+    }
+    // The split row's table spans pages, so the case above is exercised.
+    let (doc, _) = pages(&on_paper(&tall(), Some(Table::Radar)));
+    let tree = tree(&doc);
+    let (_, table) = *of_role(&tree, "Table").first().expect("a table");
+    let on: BTreeSet<ObjectId> = held(&tree, table).into_iter().collect();
+    assert!(on.len() > 1, "{on:?}");
+}
+
+/// Every page `element` or its descendants mark content on.
+fn held(tree: &Tree, element: &struct_tree::Element) -> Vec<ObjectId> {
+    element
+        .mcids
+        .iter()
+        .map(|(page, _)| *page)
+        .chain(element.kids.iter().flat_map(|kid| {
+            tree.elements
+                .get(kid)
+                .map(|e| held(tree, e))
+                .unwrap_or_default()
+        }))
+        .collect()
+}
+
+/// `page`'s `MediaBox`, left, bottom, right, top.
+fn media_box(doc: &Document, page: ObjectId) -> [f64; 4] {
+    let dict = doc.get_dictionary(page).expect("a page");
+    let Ok(Object::Array(corners)) = dict.get(b"MediaBox") else {
+        panic!("a MediaBox");
+    };
+    let n: Vec<f64> = corners
+        .iter()
+        .filter_map(|c| c.as_float().ok().map(f64::from))
+        .collect();
+    n.try_into().expect("four numbers")
+}
+
 /// Every MCID drawn, with its page, and the tag that opened it.
 fn drawn(
     doc: &Document,

@@ -1,12 +1,21 @@
+## [1.25.0] - 2026-10-23
+
+### 🚀 Features
+
+- *(pdf)* A Layout BBox on the figure and a one-page table (rg-2qs)
+
+### 🐛 Bug Fixes
+
+- *(pdf)* A box stays on its element through pruning (rg-2qs)
+
+### 🧪 Testing
+
+- *(pdf)* A box from a group that opened nothing is dropped (rg-2qs)
 ## [1.24.2] - 2026-10-23
 
 ### 🐛 Bug Fixes
 
-- *(pdf)* Prune empty structure elements; no clamped integers (rg-969)
-
-### 🧪 Testing
-
-- *(pdf)* Pin pruning across pages; check its invariants (rg-969)
+- *(pdf)* Prune empty structure elements; no clamped integers (rg-969, 1.24.2) (#153)
 ## [1.24.1] - 2026-10-23
 
 ### 🐛 Bug Fixes
