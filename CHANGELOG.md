@@ -1,13 +1,17 @@
+## [1.24.1] - 2026-10-23
+
+### 🐛 Bug Fixes
+
+- *(legend)* No sector group with nothing plotted under it (rg-i4a)
+
+### 🧪 Testing
+
+- *(legend)* Pin rg-i4a in the tagged PDF's tree; refresh docs
 ## [1.24.0] - 2026-10-23
 
 ### 🚀 Features
 
-- *(pdf)* A box carries its character (FR-113, 21c-3)
-
-### 🐛 Bug Fixes
-
-- *(pdf)* Box a mixed cluster whole; every glyph drawn has text
-- *(pdf)* A reordered mark glyph maps to its own character
+- *(pdf)* A box carries its character (FR-113, 21c-3, 1.24.0) (#150)
 ## [1.23.0] - 2026-10-23
 
 ### 🚀 Features
