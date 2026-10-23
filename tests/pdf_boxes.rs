@@ -140,3 +140,23 @@ fn a_box_is_a_path_carrying_its_character() {
         );
     }
 }
+
+/// 21c-3 review: a cluster holding a missing glyph is one box run, every
+/// glyph of it drawn as an outline in one span, so its text is said once:
+/// a ZWJ family, a keycap whose digit the face holds, and a mark on a
+/// base the face lacks.
+#[test]
+fn a_mixed_cluster_is_one_span_said_once() {
+    let family = "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}";
+    let keycap = "1\u{fe0f}\u{20e3}";
+    let marked = "\u{4e2d}\u{301}";
+    let csv = format!(
+        "name,sector,ring,description\nFam {family},Tools,Adopt,d\nKey {keycap},Tools,Trial,d\nMark {marked} z,Tools,Assess,d\n"
+    );
+    let pdf = render(&csv, &[]);
+    let actual: Vec<String> = operations(&pdf).iter().flat_map(|ops| spans(ops)).collect();
+    for cluster in [family, keycap, marked] {
+        let said = actual.iter().filter(|a| a.contains(cluster)).count();
+        assert_eq!(said, 1, "{cluster:?} in {actual:?}");
+    }
+}

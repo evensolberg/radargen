@@ -385,6 +385,21 @@ impl<'a> FontMetrics<'a> {
         self.upem
     }
 
+    /// The character the face maps to each glyph it maps one to, the
+    /// lowest where several share it: what a glyph drawn for part of a
+    /// cluster reads as when the cluster does not say (FR-114, 7.21.7).
+    #[must_use]
+    pub fn characters(&self) -> std::collections::BTreeMap<u32, char> {
+        use skrifa::MetadataProvider as _;
+        let mut out = std::collections::BTreeMap::new();
+        for (code, glyph) in self.font.charmap().mappings() {
+            if let Some(c) = char::from_u32(code) {
+                out.entry(glyph.to_u32()).or_insert(c);
+            }
+        }
+        out
+    }
+
     /// Advance width of `text` in pixels at `size_px`, with `letter_spacing_px`
     /// applied between clusters, as resvg applies it.
     ///

@@ -205,6 +205,8 @@ pdfua-only:
     $r $f/text-spacing-rtl.csv -o "$pdfs/rtl.pdf" 2>/dev/null
     printf 'name,sector,ring,description\nA\xe4\xb8\xadB,Tools,Adopt,\xe4\xb8\xad\xe6\x96\x87 d\nSmile \xf0\x9f\x99\x82,Tools,Trial,d\n' > "$out/boxes.csv"
     $r "$out/boxes.csv" -o "$pdfs/boxes.pdf" "${t[@]}" --pdf full 2>/dev/null
+    printf 'name,sector,ring,description\nx\xcc\x81,Tools,Adopt,d\ne\xcc\x81\xcc\xa3,Tools,Trial,d\nGreek \xcd\x84,Tools,Assess,d\nMark \xe4\xb8\xad\xcc\x81 z,Data,Adopt,d\nFam \xf0\x9f\x91\xa8\xe2\x80\x8d\xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x91\xa7,Data,Trial,d\nKey 1\xef\xb8\x8f\xe2\x83\xa3,Data,Assess,d\n' > "$out/marks.csv"
+    $r "$out/marks.csv" -o "$pdfs/marks.pdf" "${t[@]}" --pdf full 2>/dev/null
     good=("$pdfs"/*.pdf)
     for pdf in "${good[@]}"; do
         [ -s "$pdf" ] || { echo "not written: $pdf" >&2; exit 1; }

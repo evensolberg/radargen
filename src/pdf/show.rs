@@ -5,6 +5,8 @@
 //! so a label extracts, copies and is searched once.
 
 use pdf_writer::types::TextRenderingMode;
+use std::collections::BTreeSet;
+
 use pdf_writer::{Content, Name, Str, TextStr};
 
 use super::content::{Canvas, colour, trace};
@@ -95,13 +97,19 @@ fn run(
 ) -> Result<(), FontError> {
     let face = canvas.fonts.face(style.weight);
     let placed = face.place(text, style.size, style.letter_spacing);
-    // A box run is one cluster's missing glyphs, so one character each.
-    let runs = placed.chunk_by(|a, b| {
-        (a.glyph == NOTDEF) == (b.glyph == NOTDEF) && (a.glyph != NOTDEF || a.cluster == b.cluster)
-    });
+    // A cluster holding a glyph the face lacks is boxed whole: every glyph
+    // of it an outline in one span, so its text is said once.
+    let boxed: BTreeSet<usize> = placed
+        .iter()
+        .filter(|p| p.glyph == NOTDEF)
+        .map(|p| p.cluster)
+        .collect();
+    let is_boxed = |p: &Placed| boxed.contains(&p.cluster);
+    let runs = placed
+        .chunk_by(|a, b| is_boxed(a) == is_boxed(b) && (!is_boxed(a) || a.cluster == b.cluster));
     for piece in runs {
         match piece.first() {
-            Some(first) if first.glyph == NOTDEF => {
+            Some(first) if is_boxed(first) => {
                 let ends = placed
                     .iter()
                     .map(|p| p.cluster)
@@ -117,14 +125,15 @@ fn run(
     Ok(())
 }
 
-/// Glyphs the face lacks, drawn as its missing-glyph box's outline in the
-/// fill already set, inside a span whose `/ActualText` is the `character`
-/// they stand for (FR-113): no glyph without text (ISO 14289-1, 7.21.7
+/// One cluster holding glyphs the face lacks, every glyph of it drawn as
+/// its outline (the lacking ones as the missing-glyph box) in the fill
+/// already set, inside a span whose `/ActualText` is the `character` the
+/// cluster stands for (FR-113): no glyph without text (ISO 14289-1, 7.21.7
 /// and 7.21.8).
 ///
 /// # Errors
 ///
-/// [`FontError`] when the face cannot outline the box.
+/// [`FontError`] when the face cannot outline a glyph.
 fn boxes(
     out: &mut Content,
     piece: &[Placed],
@@ -132,18 +141,19 @@ fn boxes(
     canvas: &Canvas<'_>,
 ) -> Result<(), FontError> {
     let face = canvas.fonts.face(style.weight);
-    let outline = face.outline(NOTDEF)?;
     let scale = style.size / face.units_per_em();
-    let steps: Vec<_> = piece
-        .iter()
-        .flat_map(|glyph| {
-            let origin = Point {
-                x: at.x + glyph.x,
-                y: at.y + glyph.y,
-            };
-            super::halo::contours(&outline, origin, scale)
-        })
-        .collect();
+    let mut steps = Vec::new();
+    for glyph in piece {
+        let origin = Point {
+            x: at.x + glyph.x,
+            y: at.y + glyph.y,
+        };
+        steps.extend(super::halo::contours(
+            &face.outline(glyph.glyph)?,
+            origin,
+            scale,
+        ));
+    }
     out.begin_marked_content_with_properties(Name(b"Span"))
         .properties()
         .actual_text(TextStr(character));

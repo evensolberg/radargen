@@ -817,8 +817,9 @@ fn a_pdf_warns_about_missing_glyphs() {
     let ran = run_in(dir.path(), &["radar.csv", "-o", "radar.pdf"]);
     assert_eq!(ran.code, Some(0), "{}", ran.stderr);
     assert!(
-        ran.stderr
-            .contains("the PDF draws them as boxes, though they still read and copy as themselves"),
+        ran.stderr.contains(
+            "the PDF draws them as boxes, though a screen reader still reads them as themselves"
+        ),
         "{}",
         ran.stderr
     );
@@ -827,7 +828,7 @@ fn a_pdf_warns_about_missing_glyphs() {
 /// FR-104's ending for several missing characters, in the format named.
 fn boxes(format: &str) -> String {
     let searched = if format == "PDF" {
-        ", though they still read and copy as themselves"
+        ", though a screen reader still reads them as themselves"
     } else {
         ""
     };

@@ -56,7 +56,7 @@ comments: "Third of three plans for RG-104 (docs/design/full-pdf.md). Revision 1
 - `src/layout/table/draw.rs`'s `row_node` was split into `number_cell`, `value_cell` and `repeated` to keep rustqual at its baseline, with no change to what is drawn.
 - Every text of several lines carries `/ActualText` (its words), not only those whose words differ: each line is drawn as its own text, so a reader taking text from the tags would run the words either side of a break together. A tail reads after a comma ("Kubernetes, Default").
 
-- 21c-3 (rg-ffj): mark glyphs needed nothing. The shaper composes a decomposed accent or maps a stacked mark to glyphs whose ToUnicode entries read back right, and veraPDF passes accented and Vietnamese names; only the missing-glyph box failed 7.21.7 and 7.21.8. The PNG oracle already held box cases, so none was added; SC-30's lopdf read-back ignores `/ActualText`, so box names stay out of its shared cases.
+- 21c-3 (rg-ffj): a first probe found only the missing-glyph box failing 7.21.7 and 7.21.8; its review found more. A cluster mixing missing and present glyphs (a ZWJ family, a keycap, a mark on a missing base) was split, its text said several times, so a cluster with any missing glyph is now boxed whole. A separate combining mark with no composed glyph (`x` + U+0301) had no `ToUnicode` entry, so clusters of as many glyphs as characters map glyph by character, and a glyph still unmapped takes the face's reverse-cmap character or its cluster's last (U+0344 then copies with its acute twice). The PNG oracle already held box cases; SC-30's lopdf read-back ignores `/ActualText`, so box names stay out of its shared cases. The gate gains a marks fixture (21).
 
 ## Global Constraints
 

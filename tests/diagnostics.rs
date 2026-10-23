@@ -262,15 +262,15 @@ fn missing_glyphs_have_their_per_row_message() {
             ),
             "line 5, name: 'q\u{1ab0}' has U+1AB0, which the bundled font lacks; the SVG draws it as a box — an HTML page shows it, or transliterate it".to_owned(),
         ),
-        // A PDF's box carries its character (FR-113), so it still reads and
-        // copies as it.
+        // A PDF's box carries its character (FR-113), so a screen reader
+        // still reads it as itself.
         (
             at(
                 6,
                 0,
                 cell(ColumnKind::Name, "Kafka 中", '中', 1, OutputFormat::Pdf),
             ),
-            "line 6, name: 'Kafka 中' has U+4E2D 中, which the bundled font lacks; the PDF draws it as a box, though it still reads and copies as itself — an HTML page shows it, or transliterate it".to_owned(),
+            "line 6, name: 'Kafka 中' has U+4E2D 中, which the bundled font lacks; the PDF draws it as a box, though a screen reader still reads it as itself — an HTML page shows it, or transliterate it".to_owned(),
         ),
         (
             at(
@@ -278,7 +278,7 @@ fn missing_glyphs_have_their_per_row_message() {
                 0,
                 cell(ColumnKind::Name, "中文", '中', 2, OutputFormat::Pdf),
             ),
-            "line 7, name: '中文' has 2 characters the bundled font lacks, the first U+4E2D 中; the PDF draws them as boxes, though they still read and copy as themselves — an HTML page shows them, or transliterate them".to_owned(),
+            "line 7, name: '中文' has 2 characters the bundled font lacks, the first U+4E2D 中; the PDF draws them as boxes, though a screen reader still reads them as themselves — an HTML page shows them, or transliterate them".to_owned(),
         ),
     ];
     for (warning, expected) in cases {

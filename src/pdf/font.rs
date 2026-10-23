@@ -74,7 +74,7 @@ impl Faces {
     ) -> Result<Self, FontError> {
         let shaped = shape(roots, fonts)?;
         let mut subsets = subsets(&shaped, fonts)?;
-        map_unicode(&shaped, &mut subsets);
+        map_unicode(&shaped, &mut subsets, fonts);
         Ok(Self { subsets })
     }
 
@@ -170,25 +170,48 @@ impl Subset {
         })
     }
 
-    /// `run`'s entries in the `ToUnicode` map, first mapping wins: on the
-    /// `alone` pass, each glyph that is its cluster alone; on the other,
-    /// the first glyph of a cluster of several.
-    fn map_run(&mut self, run: &[(u16, String)], alone: bool) {
-        let firsts = run
-            .iter()
-            .enumerate()
-            .filter(|&(i, (_, chars))| {
-                let single = run.get(i + 1).is_none_or(|(_, next)| !next.is_empty());
-                single == alone && !chars.is_empty()
-            })
-            .filter_map(|(_, (glyph, chars))| {
-                self.remapper
-                    .get(*glyph)
-                    .filter(|&cid| cid != 0)
-                    .map(|cid| (cid, chars))
-            });
-        for (cid, chars) in firsts {
-            self.unicode.entry(cid).or_insert_with(|| capped(chars));
+    /// `run`'s entries in the `ToUnicode` map for `pass`, first mapping
+    /// wins: a glyph that is its cluster alone; then each glyph of a
+    /// cluster of as many glyphs as characters, character by character, so
+    /// a mark drawn as its own glyph has its own text (7.21.7); then the
+    /// first glyph of any other cluster of several, with all its text; and
+    /// last, each glyph still without text takes the character `reverse`
+    /// says the face maps to it, or its cluster's last, so no glyph drawn
+    /// is without text.
+    fn map_run(&mut self, run: &[(u16, String)], (pass, reverse): (Pass, &BTreeMap<u32, char>)) {
+        // A cluster is its first glyph, which holds its text, and the
+        // glyphs after it, which hold none.
+        for cluster in run.chunk_by(|_, (_, chars)| chars.is_empty()) {
+            let Some(&(first, ref text)) = cluster.first() else {
+                continue;
+            };
+            let even = cluster.len() == text.chars().count();
+            let entries: Vec<(u16, String)> = match (pass, cluster.len()) {
+                (Pass::Alone, 1) => vec![(first, text.clone())],
+                (Pass::Even, n) if n > 1 && even => cluster
+                    .iter()
+                    .zip(text.chars())
+                    .map(|((glyph, _), c)| (*glyph, c.to_string()))
+                    .collect(),
+                (Pass::First, n) if n > 1 && !even => vec![(first, text.clone())],
+                (Pass::Rest, _) => cluster
+                    .iter()
+                    .filter_map(|(glyph, _)| {
+                        let own = reverse.get(&u32::from(*glyph)).copied();
+                        own.or_else(|| text.chars().last())
+                            .map(|c| (*glyph, c.to_string()))
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            };
+            for (glyph, chars) in entries {
+                if chars.is_empty() {
+                    continue;
+                }
+                if let Some(cid) = self.remapper.get(glyph).filter(|&cid| cid != 0) {
+                    self.unicode.entry(cid).or_insert_with(|| capped(&chars));
+                }
+            }
         }
     }
 
@@ -349,11 +372,17 @@ fn used(shaped: &[Run]) -> BTreeMap<Weight, BTreeSet<u16>> {
 /// the first glyph of a cluster of several (a base drawn with a separate
 /// mark) takes the cluster's text only if nothing mapped it alone, so a
 /// plain `e` never copies as `e` + U+0301.
-fn map_unicode(shaped: &[Run], subsets: &mut BTreeMap<Weight, Subset>) {
-    for alone in [true, false] {
+fn map_unicode(shaped: &[Run], subsets: &mut BTreeMap<Weight, Subset>, fonts: &Fonts) {
+    let reverse: BTreeMap<Weight, BTreeMap<u32, char>> = subsets
+        .keys()
+        .map(|&weight| (weight, fonts.face(weight).characters()))
+        .collect();
+    let none = BTreeMap::new();
+    for pass in [Pass::Alone, Pass::Even, Pass::First, Pass::Rest] {
         for (weight, run) in shaped {
             if let Some(subset) = subsets.get_mut(weight) {
-                subset.map_run(run, alone);
+                let reverse = reverse.get(weight).unwrap_or(&none);
+                subset.map_run(run, (pass, reverse));
             }
         }
     }
@@ -455,6 +484,20 @@ fn clusters(face: &FontMetrics<'_>, text: &str) -> Vec<(u32, String)> {
             (g.id, chars)
         })
         .collect()
+}
+
+/// Which clusters a pass of [`map_unicode`] maps, in the passes' order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Pass {
+    /// A glyph that is its cluster alone.
+    Alone,
+    /// A cluster of as many glyphs as characters, glyph by character.
+    Even,
+    /// Any other cluster of several: its first glyph, with all its text.
+    First,
+    /// Every glyph still without text: the character the face maps to it,
+    /// or its cluster's last.
+    Rest,
 }
 
 /// PDF 9.6.4's subset tag: [`TAG_LEN`] capitals, here from FNV-1a over
@@ -585,15 +628,21 @@ mod tests {
             x.len() == 2 && x.iter().all(|g| g.cluster == 0),
             "precondition: x + U+0301 is one cluster of two glyphs"
         );
-        for text in ["e\u{301}", "x\u{301}", "\u{344}"] {
+        let joined = |text: &str| -> String {
             let shaped = face.shape(text);
             let faces = Faces::of([&run(text)], fonts()).expect("subsets");
-            let joined: String = shaped
+            shaped
                 .iter()
                 .filter_map(|g| faces.unicode(Weight::Regular, faces.cid(Weight::Regular, g.id)))
-                .collect();
-            assert_eq!(joined, text);
+                .collect()
+        };
+        for text in ["e\u{301}", "x\u{301}"] {
+            assert_eq!(joined(text), text);
         }
+        // One character drawn as several glyphs: the first glyph says it,
+        // and the rest take what the face maps to them, so no glyph is
+        // without text (7.21.7) at the cost of a mark said twice.
+        assert_eq!(joined("\u{344}"), "\u{344}\u{301}");
     }
 
     /// D-103: a glyph two texts reach maps to the first text's spelling, in
@@ -647,22 +696,72 @@ mod tests {
         );
     }
 
-    /// A cluster whose text is longer than a `ToUnicode` entry may be maps
-    /// its first character only; one at the limit maps whole.
+    /// 21c-3 review: a cluster of as many glyphs as characters, a base and
+    /// a mark the face has no composed glyph for, maps glyph by character,
+    /// so the mark has text of its own (ISO 14289-1, 7.21.7).
+    #[test]
+    fn a_mark_glyph_maps_to_its_own_character() {
+        let face = fonts().face(Weight::Regular);
+        let combined = face.shape("x\u{301}");
+        let [x, acute] = combined.as_slice() else {
+            panic!("precondition: two glyphs");
+        };
+        let faces = Faces::of([&run("x\u{301}")], fonts()).expect("subsets");
+        let text = |glyph: u32| {
+            faces
+                .unicode(Weight::Regular, faces.cid(Weight::Regular, glyph))
+                .map(str::to_owned)
+        };
+        assert_eq!(text(x.id).as_deref(), Some("x"));
+        assert_eq!(text(acute.id).as_deref(), Some("\u{301}"));
+    }
+
+    /// 21c-3 review: a character the face draws as several glyphs (U+0344
+    /// as a diaeresis and an acute) leaves no glyph without text: each
+    /// glyph a cluster does not map takes the character the face maps to
+    /// it (ISO 14289-1, 7.21.7).
+    #[test]
+    fn every_glyph_drawn_has_text() {
+        let face = fonts().face(Weight::Regular);
+        // After a space, U+0344 joins the space's cluster: three glyphs,
+        // two characters.
+        let text = "Greek \u{344}";
+        let shaped = face.shape(text);
+        let faces = Faces::of([&run(text)], fonts()).expect("subsets");
+        for glyph in &shaped {
+            let text = faces.unicode(Weight::Regular, faces.cid(Weight::Regular, glyph.id));
+            assert!(
+                text.is_some_and(|t| !t.is_empty()),
+                "glyph {} has no text",
+                glyph.id
+            );
+        }
+    }
+
+    /// An uneven cluster whose text is longer than a `ToUnicode` entry may
+    /// be maps its first character only; one at the limit maps whole.
     #[test]
     fn a_long_cluster_maps_its_first_character() {
         let face = fonts().face(Weight::Regular);
-        let x = face.shape("x").first().expect("a glyph").id;
+        let composed = face.shape("e\u{301}").first().expect("a glyph").id;
         let copied = |text: &str| {
             let faces = Faces::of([&run(text)], fonts()).expect("subsets");
             faces
-                .unicode(Weight::Regular, faces.cid(Weight::Regular, x))
+                .unicode(Weight::Regular, faces.cid(Weight::Regular, composed))
                 .map(str::to_owned)
         };
-        let at_limit = ["x", &"\u{301}".repeat(MAX_UNICODE_UNITS - 1)].concat();
-        let past = ["x", &"\u{301}".repeat(MAX_UNICODE_UNITS)].concat();
+        // `e` and its first acute compose to one glyph, so the cluster has
+        // a glyph fewer than characters and its first glyph takes all its
+        // text (an even one maps glyph by character).
+        assert_eq!(
+            face.shape("e\u{301}\u{301}").len(),
+            2,
+            "precondition: uneven"
+        );
+        let at_limit = ["e", &"\u{301}".repeat(MAX_UNICODE_UNITS - 1)].concat();
+        let past = ["e", &"\u{301}".repeat(MAX_UNICODE_UNITS)].concat();
         assert_eq!(copied(&at_limit).as_deref(), Some(at_limit.as_str()));
-        assert_eq!(copied(&past).as_deref(), Some("x"));
+        assert_eq!(copied(&past).as_deref(), Some("e"));
     }
 
     /// A drawing in one weight writes one font, F0 only.
