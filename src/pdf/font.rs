@@ -18,6 +18,12 @@ use crate::text::{Descriptor, FontError, FontMetrics, Fonts, Weight};
 
 /// The width of a PDF glyph space em.
 const EM: f64 = 1000.0;
+/// The most UTF-16 code units one `ToUnicode` entry maps a glyph to.
+/// poppler rejects a longer `bfchar` destination ("Illegal entry in
+/// bfchar block", checked at 64 units), which loses the glyph's text
+/// entirely; a cluster longer than this (`x` and 63 combining acutes)
+/// maps its first character instead, so it still copies as its base.
+const MAX_UNICODE_UNITS: usize = 62;
 /// The font stream's deflate level: the default, fixed so the bytes are.
 const LEVEL: u8 = 6;
 
@@ -185,7 +191,7 @@ impl Subset {
                     .map(|cid| (cid, chars))
             });
         for (cid, chars) in firsts {
-            self.unicode.entry(cid).or_insert_with(|| chars.clone());
+            self.unicode.entry(cid).or_insert_with(|| capped(chars));
         }
     }
 
@@ -343,6 +349,16 @@ fn map_unicode(shaped: &[Run], subsets: &mut BTreeMap<Weight, Subset>) {
                 subset.map_run(run, alone);
             }
         }
+    }
+}
+
+/// `chars` as a `ToUnicode` entry: whole, or its first character when it
+/// is longer than [`MAX_UNICODE_UNITS`].
+fn capped(chars: &str) -> String {
+    if chars.encode_utf16().count() > MAX_UNICODE_UNITS {
+        chars.chars().take(1).collect()
+    } else {
+        chars.to_owned()
     }
 }
 
@@ -628,6 +644,24 @@ mod tests {
                 .as_deref(),
             Some("x")
         );
+    }
+
+    /// A cluster whose text is longer than a `ToUnicode` entry may be maps
+    /// its first character only; one at the limit maps whole.
+    #[test]
+    fn a_long_cluster_maps_its_first_character() {
+        let face = fonts().face(Weight::Regular);
+        let x = face.shape("x").first().expect("a glyph").id;
+        let copied = |text: &str| {
+            let faces = Faces::of([&run(text)], fonts()).expect("subsets");
+            faces
+                .unicode(Weight::Regular, faces.cid(Weight::Regular, x))
+                .map(str::to_owned)
+        };
+        let at_limit = ["x", &"\u{301}".repeat(MAX_UNICODE_UNITS - 1)].concat();
+        let past = ["x", &"\u{301}".repeat(MAX_UNICODE_UNITS)].concat();
+        assert_eq!(copied(&at_limit).as_deref(), Some(at_limit.as_str()));
+        assert_eq!(copied(&past).as_deref(), Some("x"));
     }
 
     /// A drawing in one weight writes one font, F0 only.
