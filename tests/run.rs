@@ -8,6 +8,8 @@ mod binary;
 mod html;
 #[path = "common/palette.rs"]
 mod palette;
+#[path = "common/pdf.rs"]
+mod pdf;
 #[path = "common/version.rs"]
 mod version;
 
@@ -744,6 +746,67 @@ fn a_pdf_is_written() {
     assert!(text.contains("/Title (Q3)"));
 }
 
+/// D-87, FR-56: a dark PDF's first fill, the ground, is dark.
+#[test]
+fn a_dark_pdf_has_a_dark_ground() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.pdf", "--theme", "dark"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    let doc = lopdf::Document::load(dir.path().join("radar.pdf")).expect("parses");
+    let page = *doc.get_pages().values().next().expect("a page");
+    let ops = lopdf::content::Content::decode(&doc.get_page_content(page))
+        .expect("decodes")
+        .operations;
+    let ground = ops.iter().find(|op| op.operator == "rg").expect("a fill");
+    let channels: Vec<f32> = ground
+        .operands
+        .iter()
+        .map(|o| o.as_float().expect("a channel"))
+        .collect();
+    assert!(
+        channels.len() == 3 && channels.iter().all(|&c| c < 0.25),
+        "{channels:?}"
+    );
+}
+
+/// FR-57, FR-110: `--width 800` is a page 600 points wide, a whole
+/// number.
+#[test]
+fn a_pdf_at_a_width_has_that_media_box() {
+    let dir = seeded(&[("radar.csv", PRD)]);
+    let ran = run_in(
+        dir.path(),
+        &["radar.csv", "-o", "radar.pdf", "--width", "800"],
+    );
+    assert!(ran.ok(), "{}", ran.stderr);
+    let (width, _) = drawn_size(dir.path(), "radar.pdf", "pdf");
+    assert_eq!(width.to_bits(), 600.0_f64.to_bits(), "{width}");
+}
+
+/// D-87, D-88: the PNG's clamp and small-text warnings are not the PDF's,
+/// and its page is the document's natural width at 0.75 pt per px,
+/// rounded up to a whole point.
+#[test]
+fn a_pdf_gives_no_png_warnings() {
+    let dir = seeded(&[("radar.csv", &too_wide())]);
+    let ran = run_in(dir.path(), &["radar.csv", "-o", "wide.pdf"]);
+    assert!(ran.ok(), "{}", ran.stderr);
+    assert!(ran.lines().is_empty(), "no warning: {}", ran.stderr);
+    let svg = run_in(dir.path(), &["radar.csv", "-o", "wide.svg"]);
+    assert!(svg.ok(), "{}", svg.stderr);
+    let natural = root_width(&read(dir.path(), "wide.svg"));
+    assert!(natural > 12_500.0, "past the PNG's clamp: {natural}");
+    let (width, _) = drawn_size(dir.path(), "wide.pdf", "pdf");
+    assert_eq!(
+        width.to_bits(),
+        (natural * 0.75).ceil().to_bits(),
+        "{width}"
+    );
+}
+
 /// FR-104 for PDF: a name the font lacks warns, naming the PDF.
 #[test]
 fn a_pdf_warns_about_missing_glyphs() {
@@ -1435,17 +1498,27 @@ fn an_svg_of_hostile_text_renders() {
 }
 
 /// FR-71, FR-56 end to end: the binary's export is the library's golden,
-/// so the CLI arranges wide, binds the theme and passes the title.
+/// so the CLI arranges wide, binds the theme and passes the title. A PDF
+/// is compared as its golden holds it, through `readable`; the binary's
+/// producer is the real version, whose length moves the cross-reference
+/// table, so the one `startxref` offset is left out of the comparison.
 #[test]
 fn the_cli_writes_the_golden_exports() {
     let dir = seeded(&[("radar.csv", PRD)]);
-    for (theme, golden) in [("light", "prd-light.svg"), ("dark", "prd-dark.svg")] {
+    for (theme, golden) in [
+        ("light", "svg/prd-light.svg"),
+        ("dark", "svg/prd-dark.svg"),
+        ("light", "pdf/prd-light.pdf.txt"),
+        ("dark", "pdf/prd-dark.pdf.txt"),
+    ] {
+        let pdf = golden.ends_with(".pdf.txt");
+        let out = if pdf { "radar.pdf" } else { "radar.svg" };
         let ran = run_in(
             dir.path(),
             &[
                 "radar.csv",
                 "-o",
-                golden,
+                out,
                 "--theme",
                 theme,
                 "--title",
@@ -1455,15 +1528,28 @@ fn the_cli_writes_the_golden_exports() {
         assert!(ran.ok(), "{}", ran.stderr);
         let want = fs::read_to_string(
             Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("tests/golden/svg")
+                .join("tests/golden")
                 .join(golden),
         )
         .expect("the golden");
+        let got = if pdf {
+            let bytes = fs::read(dir.path().join(out)).expect("written");
+            version::versionless(&pdf::readable(&bytes))
+        } else {
+            version::versionless(&read(dir.path(), out))
+        };
         assert!(
-            version::versionless(&read(dir.path(), golden)) == want,
+            without_startxref(&got) == without_startxref(&want),
             "{golden}: the binary's export is the golden"
         );
     }
+}
+
+/// `text` with the offset after a PDF's `startxref` dropped; any other
+/// text is unchanged.
+fn without_startxref(text: &str) -> String {
+    text.split_once("\nstartxref\n")
+        .map_or_else(|| text.to_owned(), |(head, _)| head.to_owned())
 }
 
 // ---- --palette (FR-59, FR-86, FR-87, FR-102, SC-18, SC-21)
