@@ -18,6 +18,8 @@ use crate::text::{Descriptor, FontError, FontMetrics, Fonts, Weight};
 
 /// The width of a PDF glyph space em.
 const EM: f64 = 1000.0;
+/// A subset tag's length: PDF 9.6.4's six capitals.
+const TAG_LEN: usize = 6;
 /// The most UTF-16 code units one `ToUnicode` entry maps a glyph to.
 /// poppler rejects a longer `bfchar` destination ("Illegal entry in
 /// bfchar block", checked at 64 units), which loses the glyph's text
@@ -270,13 +272,21 @@ impl FontObjects {
     }
 }
 
-/// The descriptor's numbers in PDF glyph space: thousandths of an em.
+/// The descriptor's numbers in PDF glyph space: each a thousandth of an
+/// em, but the italic angle.
 struct Scaled {
+    /// The face's bounding box: left, bottom, right, top; thousandths.
     bbox: [f64; 4],
+    /// Degrees counter-clockwise from vertical, unscaled: 0 for Inter.
     italic_angle: f64,
+    /// Above the baseline, in thousandths.
     ascent: f64,
+    /// Below the baseline, negative, in thousandths.
     descent: f64,
+    /// A capital's height, in thousandths.
     cap_height: f64,
+    /// The vertical stem's width, in thousandths: an estimate from the CSS
+    /// weight, since the face does not state one.
     stem_v: f64,
 }
 
@@ -460,21 +470,25 @@ fn clusters(face: &FontMetrics<'_>, text: &str) -> Vec<(u32, String)> {
         .collect()
 }
 
-/// PDF 9.6.4's subset tag: six capitals, here from FNV-1a over the face's
-/// name and its glyph ids, so a subset's tag depends only on what it
-/// holds (NFR-4) and two different subsets rarely share one.
+/// PDF 9.6.4's subset tag: [`TAG_LEN`] capitals, here from FNV-1a over
+/// the face's name and its glyph ids, so a subset's tag depends only on
+/// what it holds (NFR-4) and two different subsets rarely share one.
 fn tag(postscript: &str, gids: &[u16]) -> String {
     const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
     const PRIME: u64 = 0x0100_0000_01b3;
+    const LETTERS: &[u8; 26] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const RADIX: u64 = 26;
     let bytes = postscript
         .bytes()
         .chain(gids.iter().flat_map(|g| g.to_le_bytes()));
     let mut hash = bytes.fold(OFFSET, |h, b| (h ^ u64::from(b)).wrapping_mul(PRIME));
-    (0..6)
-        .map(|_| {
-            let letter = b'A' + u8::try_from(hash % 26).expect("below 26");
-            hash /= 26;
-            char::from(letter)
+    (0..TAG_LEN)
+        .filter_map(|_| {
+            let letter = usize::try_from(hash % RADIX)
+                .ok()
+                .and_then(|i| LETTERS.get(i));
+            hash /= RADIX;
+            letter.copied().map(char::from)
         })
         .collect()
 }
@@ -702,7 +716,7 @@ mod tests {
     #[test]
     fn the_tag_is_six_capitals_from_the_glyphs() {
         let a = tag("Inter-Regular", &[0, 3, 9]);
-        assert_eq!(a.len(), 6);
+        assert_eq!(a.len(), TAG_LEN);
         assert!(a.bytes().all(|b| b.is_ascii_uppercase()), "{a}");
         assert_eq!(a, tag("Inter-Regular", &[0, 3, 9]));
         assert_ne!(a, tag("Inter-Regular", &[0, 3, 10]));

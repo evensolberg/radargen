@@ -8,7 +8,7 @@ use pdf_writer::Content;
 use super::font::Faces;
 use super::geometry::{self, Step};
 use super::real;
-use crate::palette::{Hex, Palette};
+use crate::palette::Palette;
 use crate::palette::{Neutral, Role};
 use crate::svg::{Document, Group, Node, Paint, Point};
 use crate::text::{FontError, Fonts};
@@ -221,27 +221,16 @@ pub(super) fn trace(out: &mut Content, steps: &[Step]) {
     }
 }
 
-/// `paint` as a literal RGB triple from `palette`, or `None` for
+/// `paint` as an RGB triple of PDF reals from `palette`, or `None` for
 /// [`Paint::None`]: the PDF binds roles as the static SVG does
 /// (architecture §5).
 pub(super) fn colour(paint: Paint, palette: &Palette) -> Option<[f32; 3]> {
-    let value = match paint {
-        Paint::Role(role) => palette.value(role),
-        Paint::NumberOn(index) => palette.number_ink(index),
+    let rgb = match paint {
+        Paint::Role(role) => palette.rgb(role),
+        Paint::NumberOn(index) => palette.number_ink_rgb(index),
         Paint::None => return None,
     };
-    Some(literal(value))
-}
-
-/// A palette value as an RGB triple of PDF reals.
-///
-/// # Panics
-///
-/// If `value` is not `#RRGGBB`: a palette holds nothing else (FR-86).
-// qual:allow(complexity, error_handling) reason: "the documented # Panics: a palette holds only #RRGGBB values (FR-86)"
-fn literal(value: &str) -> [f32; 3] {
-    let hex = Hex::parse(value).expect("a palette holds only #RRGGBB values (FR-86)");
-    hex.rgb().map(|c| real(f64::from(c) / CHANNEL_MAX))
+    Some(rgb.map(|c| real(f64::from(c) / CHANNEL_MAX)))
 }
 
 #[cfg(test)]
@@ -418,7 +407,7 @@ mod tests {
     #[test]
     fn colours_are_the_palettes_literals() {
         let palette = Palette::built_in(Theme::Light);
-        let [r, g, b] = Hex::parse(palette.value(Role::Series(1)))
+        let [r, g, b] = crate::palette::Hex::parse(palette.value(Role::Series(1)))
             .expect("hex")
             .rgb();
         let want = [r, g, b].map(|c| real(f64::from(c) / CHANNEL_MAX));

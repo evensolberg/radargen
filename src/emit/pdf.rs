@@ -6,6 +6,7 @@ use pdf_writer::{Pdf, Rect, Ref, TextStr, writers};
 
 use super::{UNTITLED, intrinsic_size};
 use crate::diagnostics::Fatal;
+use crate::num::saturating_u32;
 use crate::palette::Palette;
 use crate::pdf::content::{Canvas, content};
 use crate::pdf::font::Faces;
@@ -14,7 +15,7 @@ use crate::svg::Document;
 use crate::text::{Fonts, Weight};
 
 /// PDF points per CSS pixel: 72 per inch over 96.
-pub const POINTS_PER_PX: f64 = 0.75;
+const POINTS_PER_PX: f64 = 0.75;
 /// The longest page side viewers accept, in points: 200 inches, Acrobat's
 /// limit (PDF 1.7, Annex C).
 const MAX_SIDE: f64 = 14_400.0;
@@ -99,8 +100,10 @@ impl Sheet {
     fn of(document: &Document, width: f64) -> Self {
         let natural = POINTS_PER_PX * width / document.width;
         let longest = (document.width * natural).max(document.height * natural);
-        let unit = (1_u16..=u16::MAX)
-            .find(|&u| longest / f64::from(u) <= MAX_SIDE)
+        // The smallest whole u with longest / u <= MAX_SIDE; 1 for a page
+        // that already fits. `saturating_u32` saturates, so a page past
+        // u16::MAX units fails the conversion rather than wrapping.
+        let unit = u16::try_from(saturating_u32((longest / MAX_SIDE).ceil()).max(1))
             .expect("no layout is 65,535 × 200 inches long");
         let scale = natural / f64::from(unit);
         Self {
@@ -291,7 +294,10 @@ mod tests {
             let points = f64::from(side * unit);
             side.fract().to_bits() == 0 && points >= want && points < want + f64::from(unit)
         };
-        assert!(kept(w, 75.0) && kept(h, 22_500.0), "{w} × {h} at {unit}");
+        assert!(
+            kept(w, 100.0 * POINTS_PER_PX) && kept(h, 30_000.0 * POINTS_PER_PX),
+            "{w} × {h} at {unit}"
+        );
     }
 
     /// FR-110, NFR-4: the same bytes twice; no date, no file identifier;

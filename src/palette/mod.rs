@@ -203,12 +203,13 @@ const fn ratio(a: f64, b: f64) -> f64 {
 /// rule is "more contrast", not "white unless it fails 4.5:1", which differ on
 /// a mid grey where both inks fail.
 fn ink_for(fill: &Hex) -> &'static str {
+    if light_ink(fill) { INK_LIGHT } else { INK_DARK }
+}
+
+/// Whether [`ink_for`] picks the light ink for `fill`.
+fn light_ink(fill: &Hex) -> bool {
     let y = luminance(fill.rgb());
-    if ratio(y, luminance(INK_LIGHT_RGB)) >= ratio(y, luminance(INK_DARK_RGB)) {
-        INK_LIGHT
-    } else {
-        INK_DARK
-    }
+    ratio(y, luminance(INK_LIGHT_RGB)) >= ratio(y, luminance(INK_DARK_RGB))
 }
 
 /// One complete set of colours: eight neutrals and a non-empty series, each
@@ -270,6 +271,17 @@ impl Palette {
         ink_for(self.hex(Role::Series(index)))
     }
 
+    /// [`Self::number_ink`] as red, green and blue, for a writer that draws
+    /// with channels rather than a colour's text (the PDF).
+    #[must_use]
+    pub fn number_ink_rgb(&self, index: usize) -> [u8; 3] {
+        if light_ink(self.hex(Role::Series(index))) {
+            INK_LIGHT_RGB
+        } else {
+            INK_DARK_RGB
+        }
+    }
+
     /// FR-67's cycling, at bind time and nowhere else (architecture §5): a
     /// series role reduced to the palette entry it names.
     const fn bind(&self, role: Role) -> Role {
@@ -289,6 +301,17 @@ impl Palette {
     #[must_use]
     pub fn value(&self, role: Role) -> &str {
         self.hex(role).as_str()
+    }
+
+    /// [`Self::value`] as red, green and blue, for a writer that draws with
+    /// channels rather than a colour's text (the PDF).
+    ///
+    /// # Panics
+    ///
+    /// As [`Self::value`]: never for a palette a constructor built.
+    #[must_use]
+    pub fn rgb(&self, role: Role) -> [u8; 3] {
+        self.hex(role).rgb()
     }
 
     /// The colour `role` binds to, FR-67's cycling applied.
@@ -629,6 +652,25 @@ mod tests {
         }
         assert_eq!(hex(INK_LIGHT).rgb(), INK_LIGHT_RGB);
         assert_eq!(hex(INK_DARK).rgb(), INK_DARK_RGB);
+    }
+
+    /// The channels are the literal's: every role, and a number's ink on
+    /// every series entry, past the cycle included.
+    #[test]
+    fn channels_are_the_literals() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let p = Palette::built_in(theme);
+            for role in Neutral::ALL
+                .into_iter()
+                .map(Role::Neutral)
+                .chain((0..10).map(Role::Series))
+            {
+                assert_eq!(p.rgb(role), hex(p.value(role)).rgb(), "{role}");
+            }
+            for index in 0..10 {
+                assert_eq!(p.number_ink_rgb(index), hex(p.number_ink(index)).rgb());
+            }
+        }
     }
 
     /// Plan RG-018A Ruling 4: a palette is dark when its ground is darker
