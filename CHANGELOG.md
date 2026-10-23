@@ -1,29 +1,37 @@
+## [1.21.0] - 2026-10-23
+
+### 🚀 Features
+
+- *(layout)* The table as a paper block (FR-112)
+- *(pdf)* The table's pages after the legend's (FR-112, SC-33)
+- *(cli)* --pdf full adds the table to a PDF on paper (FR-112)
+
+### 🐛 Bug Fixes
+
+- *(paper)* Cap an absurd title, warn on a page-tall legend row (rg-i95)
+- *(pdf)* The table after the final review (FR-112)
+- *(pdf)* A folded date's heading never breaks under the name (FR-112)
+
+### 📚 Documentation
+
+- *(prd)* Settle the full PDF's table (FR-112, SC-33; v0.108)
+- --pdf full in the README, manual checks and architecture (FR-112)
+
+### 🚜 Refactor
+
+- *(layout)* One paginator for paper, one page assignment (rg-mi2)
+- The published table, format-neutral (FR-78, FR-106)
+- *(pdf)* The simplify pass on the full PDF (FR-112)
+
+### 🧪 Testing
+
+- Pin paper PDFs and hostile HTML tables before 21b's refactors
+- *(paper)* Close the 21a review's gaps; polish paper wording
 ## [1.20.0] - 2026-10-22
 
 ### 🚀 Features
 
-- *(legend)* Break the legend into pieces for paper (FR-111)
-- *(layout)* Paper pages as documents (FR-111)
-- *(pdf)* Write a page per paper document (FR-111, SC-31)
-- *(cli)* --paper letter|a4|none puts the PDF on paper (FR-111)
-
-### 🐛 Bug Fixes
-
-- *(paper)* The final review's findings (FR-111)
-- *(paper)* A cut footer title always fits its room (FR-111)
-
-### 📚 Documentation
-
-- *(prd)* The full PDF's design (FR-111-114, D-104-107; v0.107)
-- --paper in the README, manual checks and architecture (FR-111)
-
-### 🚜 Refactor
-
-- *(paper)* The simplify pass (FR-111)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* 1.20.0; the PR 21a plan is done
+- *(pdf)* --paper puts the PDF on landscape Letter or A4 (1.20.0) (#145)
 ## [1.19.1] - 2026-10-22
 
 ### 📚 Documentation

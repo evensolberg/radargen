@@ -10,12 +10,12 @@ crumb_id: rg-4b8
 document_title: "PR 21b — The full PDF (--pdf full): Implementation Plan"
 created_date: 2026-10-23
 synopsis: "--pdf radar|full: full writes the paper PDF plus the HTML page's table on pages of its own — FR-78 and FR-106's rows, columns and headings, 9 pt text, wrapped cells, the header row repeated on every page, later pages headed with their sector and item numbers, a row never split unless it is taller than a page. First the outputs are pinned, then a generic paginator (rg-mi2) and a format-neutral published table, so the legend, the table and the HTML page share them. Carries rg-i95, rg-q1q and rg-mqw."
-status: draft
+status: complete
 type: Plan
-revision: "1.1"
+revision: "1.2"
 review_date: 2026-10-23
 reviewed_by: [rust-engineer, qa-expert, ui-designer, architect-reviewer, ux-researcher]
-completed_date:
+completed_date: "2026-10-23"
 comments: "Second of three plans for RG-104 (docs/design/full-pdf.md): 21a paper (shipped, 1.20.0), 21b the full PDF's table, 21c tagging and PDF/UA-1 (rg-ffj). Release: minor (1.21.0), done by the orchestrator."
 ---
 
@@ -597,3 +597,4 @@ Run `just ci`, then the review cycle; the five-agent panel stands in for Copilot
 | --- | --- | --- |
 | 1.0 | 2026-10-23 | Initial plan, from RG-104 rev 1.2 and the 21a final review's crumbs (rg-mi2, rg-i95, rg-q1q, rg-mqw; the last three by the maintainer's choice) |
 | 1.1 | 2026-10-23 | `--pdf light` renamed `radar` (maintainer). After the five-agent review (rust-engineer, qa-expert, ui-designer, architect-reviewer, ux-researcher), the maintainer ruled: prose at least 168 px (~27 characters), shared by content; flags displace a file's opposing key, and same-source `full` + `none` is a usage error; later table pages headed with sector and item numbers, a 2 px rule between sectors, and a page-1 pointer; a tall row marked on both parts. Builder's calls from the review: outputs pinned before refactoring (new Task 2); `paginate(count, open, fits)` returning openings and overflow, the legend's fit expression kept bit-identical; `page_of` a document page; `src/published.rs` with `line` not `&Item`, `paragraphs()` and a spoken number heading; `TableBlock::new` taking the page height and doing measure, split and paginate in one pass; `Sheets::table: Option<&Published>`, with results in `Bodies`; nodes nested row → cell → text, with decorative rules; name in semibold; heading at the legend heading's scale; padding 8, leading 17, ascent 12; `FullNeedsPaper` raised after the output is known; `PaperFrom` wording; FR-104 on table text; `OffRadar` `Listed` under full + all; warnings in house style; a CLI-level golden; dense-page damage tests with a 2× stop-rule; a small oracle fixture; 10k-row timing |
+| 1.2 | 2026-10-23 | Shipped as 1.21.0. Executed inline; rulings in the PR. Mid-way the maintainer lowered the prose minimum to 136 px and ruled headings break only at spaces and after underscores. After the five-agent final review the maintainer folded qualifier, status and dates under the name, kept the CSV headers, added the dropped-table warning; the table module split into columns, rows and draw for the rustqual gate |

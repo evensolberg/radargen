@@ -8,7 +8,7 @@ tags:
 - pdf
 - output
 created: 2026-10-12
-updated: 2026-10-22
+updated: 2026-10-23
 blocks:
 - rg-ffj
 phase: v1.2
@@ -27,3 +27,7 @@ First step (maintainer: not now, when the time comes): a Fullbleed spike (~1 day
 [start] 2026-10-22 22:15:03  PR 21a: paper
 
 [stop]  2026-10-22 23:38:01  1h 22m 58s  PR 21a done; 21b next
+
+[start] 2026-10-23 08:04:07  PR 21b: full PDF
+
+[stop]  2026-10-23 10:16:11  2h 12m 4s  PR 21b done; 21c next

@@ -1,7 +1,7 @@
 ---
 id: rg-mqw
 title: Paper wording polish (help values, remedies, README)
-status: open
+status: closed
 type: task
 priority: 4
 tags:
@@ -10,7 +10,8 @@ tags:
 - docs
 - cli
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-23
+closed_reason: PR 21b Task 9
 phase: v1.2
 ---
 
