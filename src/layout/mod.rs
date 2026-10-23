@@ -10,6 +10,7 @@ pub mod marker;
 mod paginate;
 pub mod paper;
 pub mod radar;
+pub mod table;
 pub mod title;
 
 // `pub`, not `pub(crate)`: clippy::redundant_pub_crate flags `pub(crate)`

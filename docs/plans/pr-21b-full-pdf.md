@@ -83,9 +83,9 @@ comments: "Second of three plans for RG-104 (docs/design/full-pdf.md): 21a paper
   - Rules are `StrokeDivider`: 1 px under each body row; 2 px under the header row, where the sector changes and before the first unplotted row. There are no fills.
 - **Columns:**
   - The **number** column is its widest number or `#` plus padding. It never wraps, and the header and digits are right-aligned (`Anchor::End` at the column's right edge less `TABLE_PAD_X`). Inter's digits are proportional, since the shaper takes no `tnum`: an accepted gap.
-  - The **label** columns are name, sector, ring, qualifier, status, the dates and link. Each takes the larger of its widest unwrapped cell and its heading's widest word, plus padding, up to `TABLE_LABEL_CAP` 168 px. Headings wrap between words.
+  - The **label** columns are name, sector, ring, qualifier, status, the dates and link. Each takes the larger of its widest unwrapped cell and its heading's widest piece, plus padding, up to `TABLE_LABEL_CAP` 168 px, and never less than that piece. A heading breaks only at a space or after an underscore (the maintainer, 2026-10-23).
   - Under `all` with any unplotted row, the name column is at least the flag's width plus padding, and that minimum is never lowered.
-  - The **prose** columns are description, domain, rationale and every `Other`. Each first gets `TABLE_PROSE_MIN` 168 px (about 27 characters at 9 pt; the maintainer's ruling). What is left is shared in proportion to each column's total characters.
+  - The **prose** columns are description, domain, rationale and every `Other`. Each first gets `TABLE_PROSE_MIN` 136 px (about 21 characters at 9 pt; the maintainer's ruling, lowered from 168 in Task 5 when the PRD example was cramped on both papers). What is left is shared in proportion to each column's total characters.
   - If the minimums do not fit, the label cap comes down by `fit_scale` between `TABLE_LABEL_FLOOR` 72 px and 168 px.
   - `cramped = ` the minimums still do not fit at the floor, computed separately from `fit_scale`'s result. When cramped, the prose columns share the room left at the floor equally, and `TableCramped` warns.
   - Text breaks between words, and inside a word only when the word alone is too wide (FR-79, `TextStyle::wrap`).
@@ -411,7 +411,7 @@ A refactor. **Every existing test passes unchanged, and all five PDF and five HT
   - From the file: `pdf = "full" in radar.toml needs paper, but paper = "none" in radar.toml asks for the drawing-sized page; set paper to "letter" or "a4", or remove the paper line`.
 - **`RenderKind::PdfNotPdf { pdf: Pdf }`** fires only for `Full` from the flag: `--pdf full applies to PDF; an HTML page already has the table, and PNG and SVG ignore it`.
 - **`RenderKind::TableCramped { columns: usize, table: Sourced<Table> }`.** `columns` counts the published columns, the number column included.
-  - The message: `the full PDF's table has {columns} columns, so its prose columns are narrower than about 27 characters`.
+  - The message: `the full PDF's table has {columns} columns, so its prose columns are narrower than about 21 characters`.
   - Under `all` from the flag, it continues `; --table radar leaves out the columns radargen does not read`. From the file, `; table = "radar" in radar.toml leaves out …`. Under `radar`, it adds nothing.
 - **`RenderKind::TableRowTall { line: usize, name: String }`:** `line {line}: '{name}' is taller than a page of the table, so it is split across pages and marked (continued); a shorter description or rationale keeps it on one page`.
 - **`TableStatic`** (rg-mqw) is silent for a full PDF.

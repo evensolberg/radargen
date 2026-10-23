@@ -280,7 +280,12 @@ mod tests {
     /// is right only because every unit holds a row.
     #[test]
     fn every_unit_holds_a_row() {
-        for shape in [long(1, 1, 30), long(4, 3, 5), with_empty(3, 1, 4), with_empty(3, 2, 4)] {
+        for shape in [
+            long(1, 1, 30),
+            long(4, 3, 5),
+            with_empty(3, 1, 4),
+            with_empty(3, 2, 4),
+        ] {
             let block = legend(shape);
             let entries = &block.layout.entries;
             let units = super::units(entries);
