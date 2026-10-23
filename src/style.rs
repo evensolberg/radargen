@@ -202,9 +202,6 @@ pub const LEGEND_ROW_TO_RING: f64 = 12.0;
 pub const LEGEND_GROUP_GAP: f64 = 8.0;
 /// From a sector's last row's bottom to the next sector's baseline.
 pub const LEGEND_ROW_TO_SECTOR: f64 = LEGEND_ROW_TO_RING + LEGEND_GROUP_GAP;
-/// From a sector with no rows to the next one: the heading-to-ring step plus
-/// the gap between groups.
-pub const LEGEND_EMPTY_GROUP_GAP: f64 = LEGEND_SECTOR_TO_RING + LEGEND_GROUP_GAP;
 /// A row's least height, at scale 1.
 ///
 /// FR-94: it renders at least `MIN_TARGET_PX` tall at `MIN_PX_PER_UNIT`
