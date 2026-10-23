@@ -11,7 +11,7 @@ created_date: 2026-10-13
 synopsis: "What only a person with a screen reader, a real browser's zoom or a keyboard on a real machine can judge, step by step, with the announcement to expect at each step and a results table to fill in before tagging 1.0.0. The automated audit (scripts/a11y-audit.mjs) covers everything a browser can measure; this covers the rest."
 status: draft
 type: Guide
-revision: "1.15"
+revision: "1.16"
 review_date:
 reviewed_by: []
 completed_date:
@@ -141,13 +141,15 @@ The expected names come from `three-sector.csv`.
     - *Expect, in Windows high-contrast mode with `dark-palette.html`:* the grounds take the system's Canvas colour and focus its Highlight; the sector colours keep the palette's values and stay visible.
     - *Expect, with a six-sector CSV (a copy of `three-sector.csv` with rows in three more sectors) and a palette of five `--series-` entries (a copy of the sample without `--series-6` to `--series-8`):* the sixth sector reuses `--series-1`, and its label and position still tell it apart.
 
-19. **The PDF** (FR-110, from 1.19.0). Render `three-sector.csv` with `--title "Technology Radar"` to `light.pdf`, again with `--theme dark` to `dark.pdf`, again with `--palette dark.css` (step 18) to `palette.pdf`, again without `--title` to `untitled.pdf`, and a copy of `three-sector.csv` with one item renamed `中文` to `cjk.pdf`. Open each in Preview, Acrobat Reader, Chrome (PDFium) and Firefox (pdf.js).
-    - *Expect:* each page looks like its PNG (step 16); at 400% zoom a ring name's halo is smooth; the dark page shows no light seam at its edges; the window title is "Technology Radar", for `untitled.pdf` too.
+19. **The PDF** (FR-110, from 1.19.0). Render `three-sector.csv` with `--title "Technology Radar"` to `light.pdf`, again with `--theme dark` (keeping `--title`) to `dark.pdf`, again with `--palette dark.css` (step 18, keeping `--title`) to `palette.pdf`, again without `--title` to `untitled.pdf`, and a copy of `three-sector.csv` with one item renamed `中文` to `cjk.pdf`. Render `long-legend.csv` to `long.pdf`, and `long-legend.csv --width 10000` to `huge.pdf`. Render a PNG of each of the first four with the same flags (`light.png`, `dark.png`, `palette.png`, `untitled.png`): step 16's PNGs have no `--title`, so they are not the comparison. `palette.pdf` compares to the PNG rendered with the same `--palette`. Open each PDF in Preview, Acrobat Reader, Chrome (PDFium) and Firefox (pdf.js).
+    - *Expect:* each page looks like its PNG; at 400% zoom a ring name's halo is smooth; the dark page shows no light seam at its edges; the window title is "Technology Radar", for `untitled.pdf` too.
     - *Expect, selecting:* drag-selecting a legend name and pasting it gives the name as written; a letter-spaced legend heading and a kerned name ("AVATAR" if the fixture has none, add one) paste as words, not spaced letters; a selection across a wrapped name pastes with a space or line break, not run together.
-    - *Expect, searching:* searching for an item name and for a ring name finds each.
-    - *Expect, Select All, copy, paste into a text editor:* the title, key, ring labels and legend in reading order. This is what a screen reader reads from an untagged PDF; record any disorder.
-    - *Expect, `cjk.pdf`:* the name draws as boxes, the file opens without a warning from the viewer, and copying it gives nothing for those characters.
+    - *Expect, searching:* searching for an item name and for a ring name finds each, once: a ring name has no second hit from its halo.
+    - *Expect, Select All, copy, paste into a text editor:* the title, key, ring labels and legend in reading order, each once. This is what a screen reader reads from an untagged PDF; record any disorder or repeat.
+    - *Expect, `cjk.pdf`:* the run prints a warning naming the line and saying the PDF draws the characters as boxes and they cannot be searched; the name draws as boxes, the file opens without a warning from the viewer, and copying it gives nothing for those characters.
     - *Expect, printing `light.pdf` to A4 or Letter with Fit to page:* the legend text is readable.
+    - *Expect, printing `long.pdf` to Letter or A4 with Fit to page, rendered with and without `--legend-columns 2`:* the single column prints small; two columns print larger. Record the smallest text you can read in each.
+    - *Expect, `huge.pdf`:* each viewer shows it at full size, not at 1/n: Document Properties gives the page size (about 104 inches wide). A viewer that ignores `/UserUnit` shows it small or refuses it; record that as a finding, and FR-110's "keeps its size" is then soften for that viewer.
     - If installed, `qpdf --check light.pdf` reports no errors and `pdffonts light.pdf` lists two embedded subset fonts with ToUnicode.
     - Small text on Windows may hint slightly differently from the PNG; that is expected. Screen-reader navigation is not checked: the PDF is untagged until rg-ffj.
 
@@ -169,6 +171,7 @@ The expected names come from `three-sector.csv`.
 | The SVG: Figma or Illustrator, light and dark | | | | |
 | A `--palette` page: scroll bars, NVDA + Firefox, VoiceOver + Safari, high contrast | | | | |
 | The PDF: Preview, Acrobat Reader, Chrome, Firefox; light, dark, palette | | | | |
+| The PDF, `long.pdf` printed with and without `--legend-columns 2`, and `huge.pdf` at full size: each of the four viewers | | | | |
 
 ## Revisions
 
@@ -190,3 +193,4 @@ The expected names come from `three-sector.csv`.
 | 1.13 | 2026-10-18 | Step 9: how to read the two breakpoints from `<main>`; checks for zoom with the mouse, a scrolled page, touch in landscape, a magnifier and a screen reader across a switch (rg-dok review). |
 | 1.14 | 2026-10-22 | Sectors, not quadrants: the expected announcements, headings and the `three-sector` fixture (D-101; rg-k16). |
 | 1.15 | 2026-10-22 | New step 19: the PDF, selecting, searching and reading order in four viewers (FR-110; rg-5uf). |
+| 1.16 | 2026-10-22 | Step 19: `long.pdf` printed Fit to page with and without two legend columns, `huge.pdf` at full size under `/UserUnit`, matching PNGs, the `cjk.pdf` warning and each name once (FR-110, FR-104). |

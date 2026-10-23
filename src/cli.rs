@@ -104,7 +104,7 @@ pub struct Cli {
     ///
     /// Not with --palette, which gives the colours itself. Written in any
     /// case. An HTML page carries both themes and follows the reader's
-    /// setting, with a button to switch.
+    /// setting, with a button to switch. Light suits printing.
     #[arg(short = 'T', long, value_enum, ignore_case = true)]
     pub theme: Option<Theme>,
 
@@ -138,7 +138,8 @@ pub struct Cli {
     /// The width in pixels for PNG, SVG and PDF.
     ///
     /// From 320 to 10000; the height follows. An HTML page fits the reader's
-    /// window.
+    /// window. A PDF's page is 96 pixels to the inch, so 1056 is 11 inches
+    /// wide; it is not a paper size.
     #[arg(short, long, value_parser = clap::value_parser!(u32).range(i64::from(MIN_EXPORT_WIDTH)..=i64::from(MAX_EXPORT_WIDTH)))]
     pub width: Option<u32>,
 

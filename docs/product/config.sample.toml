@@ -32,7 +32,8 @@
 # theme = "light"
 
 # The width in pixels for PNG, SVG and PDF, from 320 to 10000; the
-# height follows. The default is the drawing's own width.
+# height follows. The default is the drawing's own width. A PDF's page is
+# 96 pixels to the inch, so 1056 is 11 inches wide; it is not a paper size.
 # width = 1920
 
 # Flow a PNG, SVG or PDF legend into 1 to 4 columns beside the radar,
