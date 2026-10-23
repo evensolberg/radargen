@@ -1,12 +1,13 @@
 ---
 id: rg-5uf
 title: 'PR 20: PDF output, light (radar, key and legend)'
-status: in_progress
+status: closed
 type: feature
 priority: 2
 tags: []
 created: 2026-10-09
 updated: 2026-10-22
+closed_reason: 'PR 20: -o radar.pdf ships in 1.19.0 (light PDF: radar, key, legend)'
 phase: v1.2
 ---
 
@@ -27,3 +28,5 @@ Open questions for the spec: CLI selection (--format pdf vs pdf-full, or a --pdf
 [2026-10-22] Maintainer, 2026-10-22: option C. No SVG-to-PDF crate: svg2pdf 0.13.0 is on usvg 0.45 and krilla-svg 0.8.1 on usvg 0.47, while radargen is on 0.48 (two usvg versions would trip clippy allowed-duplicate-crates, and their trees are not ours). Write the PDF directly from our Document with pdf-writer (no usvg dependency), reusing the SVG export glyph outlining.
 
 [start] 2026-10-22 12:59:38  PR 20 plan
+
+[stop]  2026-10-22 18:06:00  5h 6m 22s

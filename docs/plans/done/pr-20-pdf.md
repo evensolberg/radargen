@@ -10,12 +10,12 @@ crumb_id: rg-5uf
 document_title: "PR 20 — PDF output, light (radar, key and legend): Implementation Plan"
 created_date: 2026-10-22
 synopsis: "-o radar.pdf writes the wide arrangement as a one-page vector PDF sized to the document, from the same Document PNG and SVG export. The PDF is written directly with pdf-writer (no SVG-to-PDF crate: none supports usvg 0.48), its text real text in an embedded Inter subset (subsetter) with a ToUnicode map, so it selects, copies and searches. Untagged (rg-ffj); no dates or ID, so it is byte-reproducible (NFR-4). Paper sizes are PR 21's."
-status: draft
+status: complete
 type: Plan
-revision: "1.1"
+revision: "1.2"
 review_date:
 reviewed_by: []
-completed_date:
+completed_date: "2026-10-22"
 comments: "Designed with the maintainer, 2026-10-22: option C (our own writer over Document), real text (A), untagged with a crumb for tagging (rg-ffj), page sized to the document with paper sizes in PR 21 (rg-4b8). Task 1 amends the PRD to 0.106. The release is a minor bump (1.19.0), done by the orchestrator, not by this plan."
 ---
 # PR 20 — PDF output, light (radar, key and legend): Implementation Plan
@@ -3251,3 +3251,4 @@ Per the repo's workflow: code review until clean; the review seat Copilot would 
 | --- | --- | --- |
 | 1.0 | 2026-10-22 | Initial version, from the PR 20 design with the maintainer. |
 | 1.1 | 2026-10-22 | After the five-agent plan review (rust-engineer, qa-expert, ui-designer, architect-reviewer, ux-researcher) and the maintainer's rulings (hayro as the render oracle; one PR). **Oracle:** hayro, an independent rasteriser, replaces the hand-written lopdf-to-SVG redraw (a trial add showed its duplicates are dev-only, which the lint does not count); it moves into Task 8, before `export`, with committed damage tests and a measured budget; the text oracle (Task 10) takes its names from the catalogue, collapses rather than deletes whitespace, and has a ToUnicode-stripped negative control. **Page:** the scale is written unrounded so the drawing meets the MediaBox; a side past 14,400 pt gets a `/UserUnit`; `/Subject` carries the radar's name. **Text:** each text in its own `q … Q`, so a halo's round join cannot reach later strokes; a cluster's text maps single-glyph clusters first; canonically equivalent spellings share a glyph's mapping. **Structure:** `Document::ground` and `emit::intrinsic_size` join `Node::static_runs` in Task 2; `content::Page` is `Canvas`; `pdf/text.rs` is `pdf/show.rs`; `mod pdf` is crate-private; `Faces::of` takes any set of roots (PR 21). **Fixes:** compile and lint faults (`Finish`, `Neutral::TextPrimary`, `unwrap_in_result`, unfulfilled and missing `#[expect]`s), SVG's per-axis corner clamp, the arc piece count at exact quarter turns, `miniz_oxide` 0.9, the text golden in place of a binary one. **Docs:** the README's PDF subsection (page size, print, accessibility), the manual check as step 19 with four viewers, SC-30 scoped to names the font can draw. |
+| 1.2 | 2026-10-22 | Shipped as 1.19.0. Beyond the tasks: rustqual's baseline gate (Task 12: IOSP splits, named constants); the five-agent panel's fixes (halos drawn as outlines so each label is text once; the page box rounded up to whole points with the ground over it; ToUnicode entries capped for poppler; the dark golden, interior-colour, halo, raised-mark and CLI tests); a simplify pass (one rounding helper, one line-start rule shared with the SVG outliner, shared test fixtures). The render oracle gates on the worst channel difference (93), measured, since hayro and tiny-skia antialias differently. |
