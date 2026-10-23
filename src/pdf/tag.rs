@@ -776,6 +776,40 @@ mod tests {
         );
     }
 
+    /// rg-2qs: a box offered by a group that opened nothing is not its
+    /// ancestor's, and a table offered one on three pages keeps none.
+    #[test]
+    fn a_box_from_a_group_that_opened_nothing_is_dropped() {
+        let mut tagger = Tagger::new();
+        let mut out = Content::new();
+        let bbox = [1.0, 2.0, 3.0, 4.0];
+        for _ in 0..3 {
+            tagger.begin_page();
+            let table = opened(&mut tagger, &mut out, Structure::Table);
+            let plain = tagger.open(&mut out, &Semantics::None);
+            assert_eq!(plain, Opened::Nothing);
+            tagger.extent(plain, bbox);
+            let marked = tagger.leaf(&mut out, &Leaf::Text { actual: None });
+            Tagger::end(&mut out, marked);
+            tagger.close(&mut out, plain);
+            tagger.close(&mut out, table);
+        }
+        let only_nothing = tagger.into_tree().expect("a tree");
+        assert!(only_nothing.elements.iter().all(|e| e.bbox.is_none()));
+        let mut tagger = Tagger::new();
+        for _ in 0..3 {
+            tagger.begin_page();
+            let table = opened(&mut tagger, &mut out, Structure::Table);
+            tagger.extent(table, bbox);
+            tagger.extent(table, bbox);
+            let marked = tagger.leaf(&mut out, &Leaf::Text { actual: None });
+            Tagger::end(&mut out, marked);
+            tagger.close(&mut out, table);
+        }
+        let three = tagger.into_tree().expect("a tree");
+        assert!(three.elements.iter().all(|e| e.bbox.is_none()), "{three:?}");
+    }
+
     /// rg-2qs with rg-969: a box stays on its figure or table when an
     /// element before it is pruned, and a header cell after it gains none.
     #[test]
