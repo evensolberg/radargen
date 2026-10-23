@@ -263,7 +263,7 @@ impl Block for LegendSpan<'_> {
 }
 
 /// The single column's panel at scale 1, or zero when there is no content
-/// (FR-42: with no sectors the legend is omitted).
+/// (FR-42: with nothing plotted the legend is omitted).
 // qual:allow(iosp) reason: "Size::default is the derived zero, not a step of ours; one FR-42 branch over arithmetic"
 fn own_panel(layout: &Layout) -> Size {
     if layout.entries.is_empty() {

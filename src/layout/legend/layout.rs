@@ -11,10 +11,9 @@ use crate::model::Catalogue;
 use crate::order::{Plotted, Run};
 use crate::palette::Neutral;
 use crate::style::{
-    INDENT_RING, INDENT_SECTOR, LEGEND_FIRST_GROUP, LEGEND_HEADING,
-    LEGEND_HEADING_BASELINE, LEGEND_RING, LEGEND_RING_TO_ROW, LEGEND_ROW_TO_RING,
-    LEGEND_ROW_TO_SECTOR, LEGEND_SECTOR, LEGEND_SECTOR_TO_RING, LEGEND_WIDTH_MAX, LINE_HEIGHT,
-    SWATCH_RADIUS, SWATCH_RAISE, TextStyle,
+    INDENT_RING, INDENT_SECTOR, LEGEND_FIRST_GROUP, LEGEND_HEADING, LEGEND_HEADING_BASELINE,
+    LEGEND_RING, LEGEND_RING_TO_ROW, LEGEND_ROW_TO_RING, LEGEND_ROW_TO_SECTOR, LEGEND_SECTOR,
+    LEGEND_SECTOR_TO_RING, LEGEND_WIDTH_MAX, LINE_HEIGHT, SWATCH_RADIUS, SWATCH_RAISE, TextStyle,
 };
 use crate::svg::{Anchor, ListKey, Point, TextRun};
 use crate::text::{Fonts, words};
@@ -70,7 +69,7 @@ pub(super) struct Layout {
     /// Every heading, swatch and row in reading order, which is document
     /// and Tab order.
     pub(super) entries: Vec<Entry>,
-    /// Where each sector's group starts, in order: what FR-100's columns
+    /// Where each plotted sector's group starts, in order: what FR-100's columns
     /// break between.
     pub(super) groups: Vec<GroupStart>,
 }
@@ -111,7 +110,7 @@ pub(super) enum Entry {
 }
 
 /// The legend for `catalogue`, its rows at least `min_row` tall: empty
-/// when it has no sectors (FR-42).
+/// when nothing is plotted, as with no sectors (FR-42).
 ///
 /// # Panics
 ///
@@ -165,9 +164,9 @@ struct Context<'a> {
 }
 
 impl Context<'_> {
-    /// Every sector's group in FR-10 order, each starting where the last
-    /// left off, and where each starts. A sector with no plotted rows has
-    /// no group (rg-i4a): its heading would stand over nothing, which a
+    /// Every plotted sector's group in FR-10 order, each starting where the
+    /// last left off, and where each starts. A sector with no plotted rows
+    /// has no group (rg-i4a): its heading would stand over nothing, which a
     /// screen reader announces as an empty section. The baseline after the
     /// last group is not needed: the height is the last entry's bottom.
     fn groups(&self) -> (Vec<Entry>, Vec<GroupStart>) {
@@ -301,7 +300,7 @@ pub(super) fn heading(tier: Tier, text: &str, baseline: f64, fonts: &Fonts) -> T
 }
 
 /// The legend's heading before its groups, or nothing with no groups:
-/// with no sectors the legend is omitted (FR-42).
+/// with nothing plotted the legend is omitted (FR-42).
 fn titled(title: Entry, groups: Vec<Entry>) -> Vec<Entry> {
     if groups.is_empty() {
         return groups;
@@ -662,18 +661,17 @@ mod tests {
         assert_eq!(lines(fit + 1), 2, "{} words do not", fit + 1);
     }
 
-    /// FR-17, FR-18, FR-35: a sector whose rows are all unplotted keeps
-    /// its heading and swatch; the next group is 26 below (18 + the
-    /// mockup's 8, l.755); numbers stay contiguous.
-    /// rg-i4a: a sector with no plotted rows has no group, so no heading
-    /// stands empty; the next sector's group takes its place.
+    /// FR-17, FR-18, FR-35, rg-i4a: a sector whose rows are all unplotted
+    /// has no group, so no heading stands empty; the next sector's group
+    /// takes its place, in its own colour; numbers stay contiguous.
     #[test]
     fn empty_rings_and_unplotted_rows() {
         let l = lay(&format!("{HEAD}A,Alpha,Nowhere,d\nB,Beta,Adopt,d\n"), None);
         let beta = only(&headings(&l, 3));
         assert_eq!(beta.lines, ["Beta"]);
         assert!(close(beta.origin.y, 36.0), "{beta:?}");
-        assert_eq!(swatches(&l).len(), 1);
+        // Beta keeps its FR-10 rank's colour, as its slice has it.
+        assert_eq!(swatches(&l).iter().map(|s| s.1).collect::<Vec<_>>(), [1]);
         assert_eq!(l.groups.len(), 1);
         assert_eq!(texts(&headings(&l, 4)), ["Adopt"]);
         assert!(close(only(&rows(&l)).top, 58.0));
@@ -684,7 +682,10 @@ mod tests {
         assert!(close(l.height, 94.0), "{}", l.height);
 
         // Nothing plotted: no group, so no legend at all (FR-42).
-        let l = lay(&format!("{HEAD}A,Alpha,Nowhere,d\nB,Beta,Nowhere,d\n"), None);
+        let l = lay(
+            &format!("{HEAD}A,Alpha,Nowhere,d\nB,Beta,Nowhere,d\n"),
+            None,
+        );
         assert!(l.entries.is_empty() && l.groups.is_empty(), "{l:?}");
         assert!(close(l.width, 0.0) && close(l.height, 0.0), "{l:?}");
 

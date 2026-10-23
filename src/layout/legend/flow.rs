@@ -289,6 +289,8 @@ mod tests {
             let entries = &block.layout.entries;
             let units = super::units(entries);
             assert_ne!(units.len(), 0);
+            // And together they hold every entry: none is left behind.
+            assert_eq!(units.last().map(|u| u.end), Some(entries.len()));
             for unit in units {
                 let held = entries.get(unit.clone()).unwrap_or_default();
                 assert!(held.iter().any(|e| matches!(e, Entry::Row(_))), "{unit:?}");

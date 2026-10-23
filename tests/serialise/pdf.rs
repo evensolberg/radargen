@@ -142,6 +142,30 @@ fn tree_golden(name: &str, csv: &str, paper: Paper, table: Option<Table>) {
     );
 }
 
+/// rg-i4a: a sector whose rows are all off the radar has no heading in
+/// the tagged PDF's legend, so a screen reader never lands on an empty
+/// section; with nothing plotted the legend is left out.
+#[test]
+fn an_unplotted_sector_has_no_legend_heading() {
+    let h3 = |csv: &str| -> Vec<String> {
+        super::pdf_tree::tree_outline(&on_paper(csv, Paper::Letter, None))
+            .lines()
+            .filter_map(|line| {
+                line.trim_start_matches(' ')
+                    .strip_prefix("H3 ")
+                    .map(str::to_owned)
+            })
+            .collect()
+    };
+    let mixed =
+        "name,sector,ring,description\na,Alpha,Adopt,d\nb,Beta,Rejected,d\nc,Gamma,Trial,d\n";
+    assert_eq!(h3(mixed), [r#"p1:"Alpha""#, r#"p1:"Gamma""#]);
+    let nothing = "name,sector,ring,description\nb,Beta,Rejected,d\n";
+    let tree = super::pdf_tree::tree_outline(&on_paper(nothing, Paper::Letter, None));
+    assert!(!tree.contains(r#"H2 p1:"Legend""#), "{tree}");
+    assert!(h3(nothing).is_empty(), "{tree}");
+}
+
 #[test]
 fn the_full_pdfs_tree_matches_its_golden() {
     tree_golden("prd-full", PRD, Paper::Letter, Some(Table::Radar));
