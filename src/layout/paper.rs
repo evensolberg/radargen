@@ -292,25 +292,22 @@ pub fn bodies(sheets: &Sheets<'_>, fonts: &Fonts) -> Bodies {
     let content = Content::of(sheets);
     let n = per_page(sheets, fonts);
     let t = title(sheets, fonts).size(1.0).height;
-    let page_room = content.height / PAPER_LEGEND_SCALE;
     let slots = PieceSlots {
         on_first: first.legend.is_some(),
         per_page: n,
     };
-    let room = if slots.on_first {
-        (content.height - t - LEGEND_WIDE_DROP).max(0.0) / PAPER_LEGEND_SCALE
-    } else {
-        page_room
-    };
+    // Every piece hangs where page 1's legend does, below the title's
+    // height, so every piece has the same room (the maintainer, 2026-10-23).
+    let room = (content.height - t - LEGEND_WIDE_DROP).max(0.0) / PAPER_LEGEND_SCALE;
     let pieces = sheets
         .legend
-        .flowed(room, page_room, &|k| slots.opens_page(k), fonts);
+        .flowed(room, room, &|k| slots.opens_page(k), fonts);
     // rg-i95: a piece taller than its room holds a row that could not fit
     // even alone, so it runs into the foot room.
     let tall_legend_rows: Vec<(usize, String)> = pieces
         .iter()
         .enumerate()
-        .filter(|(k, piece)| piece.size(1.0).height > if *k == 0 { room } else { page_room })
+        .filter(|(_, piece)| piece.size(1.0).height > room)
         .flat_map(|(_, piece)| piece.rows())
         .collect();
     let mut pages = legend_pages(sheets, &first, pieces, slots, fonts);
@@ -379,32 +376,40 @@ fn legend_pages(
         }
     }
     let width = piece_width(sheets, fonts);
+    let top = legend_top(sheets, fonts);
     let mut pages = vec![page_one];
     pages.extend(
         later
             .iter()
-            .map(|columns| continuation(columns, width, sheets)),
+            .map(|columns| continuation(columns, width, sheets, top)),
     );
     pages
 }
 
-/// A continuation page: `pieces` side by side, `width` each, the group
-/// centred across the content box, hung from the top margin.
+/// Where every legend piece's panel starts: page 1's, below the title by
+/// the wide arrangement's drop.
+fn legend_top(sheets: &Sheets<'_>, fonts: &Fonts) -> f64 {
+    PAPER_MARGIN + title(sheets, fonts).size(1.0).height + LEGEND_WIDE_DROP
+}
+
+/// A continuation page: `pieces` side by side, `width` each, hung from
+/// `top`, the last on the right margin: where page 1's legend sits.
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
 )]
-fn continuation(pieces: &[LegendBlock], width: f64, sheets: &Sheets<'_>) -> Vec<Node> {
-    let content = Content::of(sheets);
-    // `n` columns and the `n − 1` gaps between them.
+fn continuation(pieces: &[LegendBlock], width: f64, sheets: &Sheets<'_>, top: f64) -> Vec<Node> {
+    let (page_width, _) = sheets.size;
+    // `n` columns and the `n − 1` gaps between them, the last ending where
+    // page 1's legend ends: on the right margin.
     let n = real(pieces.len());
     let span = width * n + COLUMN_GAP * (n - 1.0);
-    let mut x = PAPER_MARGIN + (content.width - span) / 2.0;
+    let mut x = page_width - PAPER_MARGIN - span;
     pieces
         .iter()
         .map(|piece| {
             let node = piece.render(Placement {
-                origin: Point { x, y: PAPER_MARGIN },
+                origin: Point { x, y: top },
                 scale: PAPER_LEGEND_SCALE,
             });
             x += width + COLUMN_GAP;
@@ -980,10 +985,15 @@ mod tests {
     }
 
     #[test]
-    fn continuation_pages_hold_their_columns_centred() {
+    fn continuation_pages_sit_where_page_one_legend_sits() {
         let fixture = long(1, 1, 300);
         for paper in [Paper::Letter, Paper::A4] {
-            let pages = documents(&fixture.sheets(paper, "T", None));
+            let sheets = fixture.sheets(paper, "T", None);
+            let first = first_page(&sheets, fonts())
+                .legend
+                .expect("a legend beside the radar");
+            let right = first.origin.x + piece_width(&sheets, fonts());
+            let pages = documents(&sheets);
             assert!(pages.len() >= 3, "{paper:?}: {}", pages.len());
             let columns = |page: &Document| -> Vec<Rect> {
                 children(page)
@@ -997,15 +1007,16 @@ mod tests {
             for page in pages.iter().skip(1) {
                 let cols = columns(page);
                 assert!(cols.len() <= full.len());
-                let left = cols.first().expect("a column").left;
-                let right = cols.last().expect("a column").right;
+                // The last column's right edge is page 1's legend's.
+                let last = cols.last().expect("a column");
                 assert!(
-                    ((left - PAPER_MARGIN) - (page.width - PAPER_MARGIN - right)).abs() < 1.0,
-                    "centred"
+                    (last.right - right).abs() < 1.0,
+                    "{paper:?}: {} vs {right}",
+                    last.right
                 );
                 for col in &cols {
-                    assert!((col.top - PAPER_MARGIN).abs() < 1e-6, "{col:?}");
-                    assert!(col.bottom <= page.height - PAPER_MARGIN + 1e-6);
+                    assert!((col.top - first.origin.y).abs() < 1e-6, "{col:?}");
+                    assert!(col.bottom <= page.height - PAPER_FOOT_ROOM + 1e-6);
                 }
                 for pair in cols.windows(2) {
                     if let [a, b] = pair {
