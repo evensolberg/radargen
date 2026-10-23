@@ -822,6 +822,42 @@ fn an_omitted_flag_is_none_so_a_config_key_can_fill_it() {
 
 /// The defaults are written in the help as prose (plan RG-019A, Ruling 1);
 /// this keeps them the ones `settings` applies.
+// ---- --paper: a PDF on landscape paper (FR-111)
+
+#[test]
+fn paper_parses_in_any_case() {
+    use radargen::options::Paper;
+    let cli = parse(&["in.csv", "-o", "e.pdf"]).expect("parses");
+    assert_eq!(cli.paper, None, "not given");
+    for (given, want) in [
+        ("letter", Paper::Letter),
+        ("A4", Paper::A4),
+        ("a4", Paper::A4),
+        ("None", Paper::None),
+    ] {
+        let cli = parse(&["in.csv", "-o", "e.pdf", "--paper", given]).expect(given);
+        assert_eq!(cli.paper, Some(want), "{given}");
+    }
+    let err = parse(&["in.csv", "-o", "e.pdf", "--paper", "legal"])
+        .expect_err("not a paper")
+        .to_string();
+    assert!(
+        err.contains("letter") && err.contains("a4") && err.contains("none"),
+        "{err}"
+    );
+}
+
+#[test]
+fn help_describes_paper() {
+    use clap::CommandFactory;
+    let long = Cli::command().render_long_help().to_string();
+    assert!(
+        long.contains("Letter or A4, for printing: the radar page first"),
+        "{long}"
+    );
+    assert!(long.contains("Not with --paper."), "{long}");
+}
+
 #[test]
 fn help_names_each_default() {
     use clap::CommandFactory;

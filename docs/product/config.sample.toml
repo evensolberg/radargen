@@ -13,7 +13,8 @@
 # .svg or .pdf. With no output here, pass -o.
 # output = "radar.html"
 
-# A title above the radar. The default is none.
+# A title above the radar. The default is none; a PDF on paper always
+# shows one, "Technology Radar" if none is given.
 # title = "Technology Radar"
 
 # A second line under the title. {edition} becomes the edition's date, so
@@ -33,7 +34,8 @@
 
 # The width in pixels for PNG, SVG and PDF, from 320 to 10000; the
 # height follows. The default is the drawing's own width. A PDF's page is
-# 96 pixels to the inch, so 1056 is 11 inches wide; it is not a paper size.
+# 96 pixels to the inch, so 1056 is 11 inches wide; it is not a paper size
+# (see paper below).
 # width = 1920
 
 # Flow a PNG, SVG or PDF legend into 1 to 4 columns beside the radar,
@@ -46,6 +48,11 @@
 # What an HTML page's table lists: "radar", the default, for the rows on
 # the radar, or "all" for every row and every named column.
 # table = "radar"
+
+# Put a PDF on landscape paper: "letter" or "a4". "none", the default, is
+# one page the size of the drawing. Only PDF reads it; on paper, width and
+# legend_columns do not apply, and the title is always shown.
+# paper = "none"
 
 # Colours from a CSS file instead of the built-in themes, in every format.
 # Use palette or theme, not both; radargen --create-palette writes one.

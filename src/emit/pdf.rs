@@ -79,7 +79,8 @@ pub fn export_pages(pages: &[Document], export: &Export<'_>) -> Result<Vec<u8>, 
 /// each page and its content stream, numbered in that order; the fonts,
 /// subset once over every page, are numbered after them, and so would be
 /// any document-level object a later writer adds. In the file the fonts
-/// come before the pages, since each page names them.
+/// come before the pages, since each page names them, and the info
+/// dictionary comes last.
 fn write(pages: &[(&Document, Sheet)], export: &Export<'_>) -> Result<Vec<u8>, Fatal> {
     let faces = Faces::of(pages.iter().map(|(page, _)| &page.root), export.fonts)?;
     let mut next = Ref::new(1);
@@ -90,7 +91,6 @@ fn write(pages: &[(&Document, Sheet)], export: &Export<'_>) -> Result<Vec<u8>, F
     pdf.pages(tree)
         .kids(ids.iter().map(|&(page, _)| page))
         .count(i32::try_from(ids.len()).unwrap_or(i32::MAX));
-    info(&mut pdf, info_id, export);
     let fonts = faces.write(&mut pdf, &mut next, export.fonts)?;
     for (&(document, sheet), &(page_id, stream)) in pages.iter().zip(&ids) {
         page(&mut pdf, page_id, tree, stream, &sheet, &fonts);
@@ -103,6 +103,10 @@ fn write(pages: &[(&Document, Sheet)], export: &Export<'_>) -> Result<Vec<u8>, F
         })?;
         pdf.stream(stream, &drawn);
     }
+    // Last in the file, though numbered third: the producer's length,
+    // which moves with the version, then moves only the cross-reference
+    // offset after it.
+    info(&mut pdf, info_id, export);
     Ok(pdf.finish())
 }
 

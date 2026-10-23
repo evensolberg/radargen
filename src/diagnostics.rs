@@ -7,12 +7,12 @@ use std::sync::Arc;
 use crate::columns::{ColumnKind, SECTOR_ALIAS};
 use crate::csv::decode::MAX_BYTES as MAX_CSV_BYTES;
 use crate::options::OutputFormat;
-use crate::options::Table;
+use crate::options::{Paper, Table};
 use crate::palette::file::{MAX_BYTES, PaletteError};
 use crate::rings::RingsError;
 use crate::settings::edition::{Fallback, NOT_AN_EDITION, PLACEHOLDER};
 use crate::settings::file::{KeyProblem, MAX_BYTES as CONFIG_MAX_BYTES};
-use crate::settings::{NamedPath, Origin, Setting, Source};
+use crate::settings::{NamedPath, Origin, Setting, Source, Sourced};
 use crate::starter::Starter;
 use crate::style::{MIN_TARGET_PX, NARROW_MAX_WIDTH, NARROW_MIN_VIEWPORT_PX, WIDE_MIN_VIEWPORT_PX};
 use crate::text::FontError;
@@ -200,6 +200,30 @@ pub enum RenderKind {
     LegendStatic,
     /// FR-106: `--table all` on a PNG, SVG or PDF, which have no table.
     TableStatic,
+    /// FR-111: `--paper` from the flag with an HTML, PNG or SVG output.
+    PaperNotPdf {
+        /// The paper given.
+        paper: Paper,
+    },
+    /// FR-111: `--width` from the flag with a PDF on paper, which sets
+    /// the page's size.
+    PaperIgnoresWidth {
+        /// The width given.
+        width: u32,
+        /// The paper, and where it came from.
+        paper: Sourced<Paper>,
+    },
+    /// FR-111: `--legend-columns` from the flag with a PDF on paper, which
+    /// sets the legend's columns.
+    PaperIgnoresLegendColumns {
+        /// The columns given.
+        columns: u8,
+        /// The paper, and where it came from.
+        paper: Sourced<Paper>,
+    },
+    /// FR-111: the radar does not fit the first paper page even at its
+    /// smallest scale, so it runs past the margins.
+    PaperRadarWide,
     /// D-87: the document is wider than FR-64's ceiling and `--width` was
     /// not given, so the PNG is drawn at the ceiling.
     WidthClamped {
@@ -552,6 +576,20 @@ impl RenderKind {
             Self::TableStatic => {
                 "--table all applies to HTML pages; PNG, SVG and PDF have no table".to_owned()
             }
+            Self::PaperNotPdf { paper } => format!(
+                "--paper {paper} applies to PDF; HTML pages, PNG and SVG have no paper size"
+            ),
+            Self::PaperIgnoresWidth { width, paper } => paper_ignores(
+                &format!("--width {width}"),
+                paper,
+                "the paper sets the page's size",
+            ),
+            Self::PaperIgnoresLegendColumns { columns, paper } => paper_ignores(
+                &format!("--legend-columns {columns}"),
+                paper,
+                "the paper sets the legend's columns",
+            ),
+            Self::PaperRadarWide => "the radar does not fit on the paper's first page even at its smallest, so it runs past the margins; a shorter title, or shorter sector or ring names, would fix it".to_owned(),
             Self::WidthClamped { natural, drawn } => format!(
                 "the radar is {natural} pixels wide, past --width's limit; the PNG is drawn {drawn} wide, or pass --width to choose"
             ),
@@ -702,7 +740,22 @@ const fn wanted(setting: Setting) -> &'static str {
         | Setting::Theme
         | Setting::Legend
         | Setting::Table
+        | Setting::Paper
         | Setting::Palette => "a string",
+    }
+}
+
+/// FR-111: `flag`, given on the command line, does not apply on `paper`,
+/// for `why`. A paper from a file is named with its file, and how to undo
+/// it for one run.
+fn paper_ignores(flag: &str, paper: &Sourced<Paper>, why: &str) -> String {
+    if paper.origin.is_flag() {
+        format!("{flag} does not apply with --paper {}; {why}", paper.value)
+    } else {
+        format!(
+            "{flag} does not apply on paper ({}); {why}; pass --paper none for the drawing-sized page",
+            paper.origin.set_to(paper.value, "")
+        )
     }
 }
 

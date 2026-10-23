@@ -17,7 +17,7 @@ use toml::Value;
 use super::Setting;
 use super::edition::{self, Edition};
 use crate::decode::{NotUtf8, decode, line_at, read_capped};
-use crate::options::{Legend, Table};
+use crate::options::{Legend, Paper, Table};
 use crate::palette::Theme;
 use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
 use crate::{ECHO_CHARS, clip};
@@ -56,6 +56,8 @@ pub struct FileValues {
     pub legend: Option<Legend>,
     /// `table` (FR-106).
     pub table: Option<Table>,
+    /// `paper` (FR-111).
+    pub paper: Option<Paper>,
     /// `palette`, as written; resolved later.
     pub palette: Option<PathBuf>,
     /// `edition`, checked as `-e` is (FR-92).
@@ -281,6 +283,7 @@ fn take(v: &mut FileValues, setting: Setting, value: &Value) -> Result<(), Vec<K
         Setting::Theme => named(setting, value).map(|t| v.theme = Some(t)),
         Setting::Legend => named(setting, value).map(|l| v.legend = Some(l)),
         Setting::Table => named(setting, value).map(|t| v.table = Some(t)),
+        Setting::Paper => named(setting, value).map(|p| v.paper = Some(p)),
         Setting::Edition => {
             let text = string(setting, value)?;
             edition::parse(&text)
@@ -427,7 +430,7 @@ mod tests {
         let l = loaded(
             "output = \"out/r.png\"\ntitle = \"Radar\"\nsubtitle = \"Q3\"\nrings = [\" Hold \", \"Adopt\"]\n\
              unplotted_rings = [\"In Use\"]\ntheme = \"Dark\"\nwidth = 1920\nlegend_columns = 3\n\
-             legend = \"HIDE\"\ntable = \"All\"\npalette = \"brand.css\"\n",
+             legend = \"HIDE\"\ntable = \"All\"\npaper = \"A4\"\npalette = \"brand.css\"\n",
         );
         assert_eq!(l.problems, []);
         assert_eq!(&*l.file, "conf/radar.toml");
@@ -445,6 +448,7 @@ mod tests {
             (Some(Theme::Dark), Some(Legend::Hidden), Some(Table::All))
         );
         assert_eq!((v.width, v.legend_columns), (Some(1920), Some(3)));
+        assert_eq!(v.paper, Some(Paper::A4));
         assert_eq!(v.palette.as_deref(), Some(Path::new("brand.css")));
     }
 
@@ -608,6 +612,7 @@ mod tests {
             ("legend_columns = \"3\"", Setting::LegendColumns, "string"),
             ("legend = true", Setting::Legend, "boolean"),
             ("table = 1.5", Setting::Table, "float"),
+            ("paper = 1", Setting::Paper, "integer"),
             ("palette = 3", Setting::Palette, "integer"),
         ] {
             let l = loaded(text);
@@ -632,6 +637,21 @@ mod tests {
                 "{text}"
             );
         }
+    }
+
+    /// FR-111: a paper the flag would refuse is named with the three it
+    /// takes.
+    #[test]
+    fn a_paper_it_does_not_take_lists_the_three() {
+        assert_eq!(
+            loaded("paper = \"legal\"").problems,
+            [KeyProblem::NotAValue {
+                setting: Setting::Paper,
+                value: "legal".into(),
+                possible: vec!["letter".into(), "a4".into(), "none".into()],
+            }]
+        );
+        assert_eq!(loaded("paper = \"NONE\"").values.paper, Some(Paper::None));
     }
 
     /// QA review M-2: a file at the cap reads; one byte more does not.

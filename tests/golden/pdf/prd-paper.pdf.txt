@@ -20,14 +20,6 @@ endobj
 >>
 endobj
 
-3 0 obj
-<<
-  /Title (Technology Radar)
-  /Subject (Technology radar: 3 sectors, 4 rings, 6 items)
-  /Producer (radargen {version})
->>
-endobj
-
 6 0 obj
 <<
   /Type /Font
@@ -1740,24 +1732,32 @@ Q
 endstream
 endobj
 
+3 0 obj
+<<
+  /Title (Technology Radar)
+  /Subject (Technology radar: 3 sectors, 4 rings, 6 items)
+  /Producer (radargen {version})
+>>
+endobj
+
 xref
 0 16
 0000000000 65535 f\x0d
 0000000016 00000 n\x0d
 0000000138 00000 n\x0d
+0000045557 00000 n\x0d
+0000010841 00000 n\x0d
+0000011011 00000 n\x0d
 0000000202 00000 n\x0d
-0000010983 00000 n\x0d
-0000011153 00000 n\x0d
-0000000344 00000 n\x0d
-0000000503 00000 n\x0d
-0000001075 00000 n\x0d
-0000001322 00000 n\x0d
-0000004818 00000 n\x0d
-0000006068 00000 n\x0d
-0000006230 00000 n\x0d
-0000006713 00000 n\x0d
-0000006965 00000 n\x0d
-0000009901 00000 n\x0d
+0000000361 00000 n\x0d
+0000000933 00000 n\x0d
+0000001180 00000 n\x0d
+0000004676 00000 n\x0d
+0000005926 00000 n\x0d
+0000006088 00000 n\x0d
+0000006571 00000 n\x0d
+0000006823 00000 n\x0d
+0000009759 00000 n\x0d
 trailer
 <<
   /Size 16

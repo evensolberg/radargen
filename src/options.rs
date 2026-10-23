@@ -67,13 +67,23 @@ impl std::fmt::Display for OutputFormat {
 /// reads it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum Paper {
-    /// US Letter, 11 × 8.5 in.
+    /// US Letter, 11 × 8.5 inches
     Letter,
-    /// ISO A4, 297 × 210 mm.
+    /// ISO A4, 297 × 210 mm
     A4,
-    /// No paper: one page the size of the drawing (FR-110), the light
-    /// PDF's default, which undoes a file's `paper`.
+    /// No paper: one page the size of the drawing
     None,
+}
+
+impl std::fmt::Display for Paper {
+    /// As the flag and the key take it: `letter`, `a4` or `none`.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Letter => "letter",
+            Self::A4 => "a4",
+            Self::None => "none",
+        })
+    }
 }
 
 impl Paper {

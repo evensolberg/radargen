@@ -96,7 +96,14 @@ fn two_processes_write_the_same_svg() {
 fn two_processes_write_the_same_pdf() {
     let spacing = include_str!("fixtures/text-spacing.csv");
     let cjk = "name,sector,ring,description\n中文,Tools,Adopt,d\nKafka,Tools,Trial,d\n";
-    let cases: [(&str, &[&str]); 6] = [
+    let long = include_str!("fixtures/long-legend.csv");
+    let long_title = "A title long enough to be cut in a paper page's footer, since it runs on \
+        and on across the page well past the room the footer leaves beside its page number";
+    let cases: [(&str, &[&str]); 10] = [
+        (long, &["--paper", "a4", "--theme", "dark"]),
+        (PRD, &["--paper", "letter"]),
+        (HOSTILE, &["--paper", "a4", "--title", "Ærø (Q3) \\ test"]),
+        (PRD, &["--paper", "letter", "--title", long_title]),
         (PRD, &["--theme", "light"]),
         (PRD, &["--theme", "dark"]),
         (HOSTILE, &["--title", "Q3 (draft) \\ Ærø — 中 )"]),
