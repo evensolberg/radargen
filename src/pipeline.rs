@@ -1054,13 +1054,14 @@ fn render(
     warnings: &mut Warnings,
 ) -> Result<Vec<u8>, Fatal> {
     let plotted = resolve(catalogue);
-    let blocks = Blocks::new(
-        catalogue,
-        &plotted,
-        config.title(),
-        config.subtitle(),
-        fonts,
-    );
+    // A PDF always draws its title, so a tagged PDF opens with its H1
+    // (FR-65, FR-114).
+    let title = if matches!(config.format, OutputFormat::Pdf) {
+        Some(config.title().unwrap_or(UNTITLED))
+    } else {
+        config.title()
+    };
+    let blocks = Blocks::new(catalogue, &plotted, title, config.subtitle(), fonts);
     // FR-89 at the growth the radar is drawn with (D-86): only what still
     // overlaps is reported.
     warn_crowding(catalogue, &plotted, blocks.radar.growth(), warnings);

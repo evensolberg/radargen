@@ -1,0 +1,379 @@
+Document
+  H1 p1:1
+  Figure Alt="Technology radar: 1 sector, 4 rings, 120 items" p1:250
+  H2 p1:1
+  L
+    LI
+      LBody p1:1
+    LI
+      LBody p1:1
+    LI
+      LBody p1:1
+    LI
+      LBody p1:1
+    LI
+      LBody p1:1
+  H2 p1:1
+  H3 p1:1
+  H4 p1:1
+  L
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p2:1
+      LBody p2:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1
+    LI
+      Lbl p3:1
+      LBody p3:1

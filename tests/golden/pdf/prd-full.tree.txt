@@ -1,0 +1,92 @@
+Document
+  H1 p1:1
+  P p1:1
+  Figure Alt="Technology radar: 3 sectors, 4 rings, 6 items" p1:28
+  H2 p1:1
+  L
+    LI
+      LBody p1:1
+    LI
+      LBody p1:1
+    LI
+      LBody p1:1
+    LI
+      LBody p1:1
+    LI
+      LBody p1:1
+  H2 p1:1
+  H3 p1:1
+  H4 p1:1
+  L
+    LI
+      Lbl p1:1
+      LBody p1:1
+  H3 p1:1
+  H4 p1:1
+  L
+    LI
+      Lbl p1:1
+      LBody p1:1
+  H3 p1:1
+  H4 p1:1
+  L
+    LI
+      Lbl p1:1
+      LBody p1:1
+  H4 p1:1
+  L
+    LI
+      Lbl p1:1
+      LBody p1:1
+    LI
+      Lbl p1:1
+      LBody p1:1
+  H4 p1:1
+  L
+    LI
+      Lbl p1:1
+      LBody p1:1
+  H2 p2:1
+  Table
+    TR
+      TH Scope=Column p2:1
+      TH Scope=Column p2:1
+      TH Scope=Column p2:1
+      TH Scope=Column p2:1
+      TH Scope=Column p2:1
+    TR
+      TD p2:1
+      TH Scope=Row p2:2
+      TD p2:2
+      TD p2:1
+      TD p2:1
+    TR
+      TD p2:1
+      TH Scope=Row p2:2
+      TD p2:2
+      TD p2:1
+      TD p2:1
+    TR
+      TD p2:1
+      TH Scope=Row p2:2
+      TD p2:2
+      TD p2:1
+      TD p2:1
+    TR
+      TD p2:1
+      TH Scope=Row p2:2
+      TD p2:2
+      TD p2:1
+      TD p2:1
+    TR
+      TD p2:1
+      TH Scope=Row p2:2
+      TD p2:2
+      TD p2:1
+      TD p2:1
+    TR
+      TD p2:1
+      TH Scope=Row p2:2
+      TD p2:2
+      TD p2:1
+      TD p2:1

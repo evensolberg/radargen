@@ -7,10 +7,11 @@ use pdf_writer::Content;
 
 use super::font::Faces;
 use super::geometry::{self, Step};
+use super::tag::Tagger;
 use super::{Sheet, real};
 use crate::palette::Palette;
-use crate::svg::{Document, Group, Node, Paint, Point};
-use crate::text::{FontError, Fonts};
+use crate::svg::{Document, Group, Node, Paint, Point, TextPaint};
+use crate::text::{FontError, Fonts, words};
 
 /// SVG's default `stroke-miterlimit`; PDF's default is 10.
 const MITER_LIMIT: f32 = 4.0;
@@ -32,12 +33,14 @@ pub struct Canvas<'a> {
 }
 
 /// The whole page: the ground over the page box (D-87), then the
-/// transform and the document.
+/// transform and the document, each leaf marked into `tagger`'s tree
+/// (FR-114) as the next page.
 ///
 /// # Errors
 ///
 /// [`FontError`] when a halo's glyph cannot be outlined (NFR-15).
-pub fn content(canvas: &Canvas<'_>) -> Result<Vec<u8>, FontError> {
+pub fn content(canvas: &Canvas<'_>, tagger: &mut Tagger) -> Result<Vec<u8>, FontError> {
+    tagger.begin_page();
     let mut out = Content::new();
     out.save_state();
     // The document's own ground (D-87), in page space before the flip and
@@ -48,31 +51,92 @@ pub fn content(canvas: &Canvas<'_>) -> Result<Vec<u8>, FontError> {
         let steps = geometry::rect(Point::ORIGIN, page.width, page.height, 0.0);
         (steps, paints)
     });
+    let marked = tagger.ornament(&mut out);
     shape(&mut out, ground, canvas);
+    Tagger::end(&mut out, marked);
     // Unrounded (pdf::scale), so the drawing keeps its size; the
     // translate is the page box's own height, so the drawing hangs from
     // its top edge.
     let s = super::scale(canvas.page.scale);
     out.transform([s, 0.0, 0.0, -s, 0.0, real(canvas.page.height)])
         .set_miter_limit(MITER_LIMIT);
-    node(&mut out, &canvas.document.root, canvas)?;
+    node(&mut out, &canvas.document.root, (canvas, tagger))?;
     out.restore_state();
     Ok(out.finish().into_vec())
 }
 
-/// One node, or nothing for an interactive-only one.
-fn node(out: &mut Content, node: &Node, canvas: &Canvas<'_>) -> Result<(), FontError> {
+/// One node, marked (FR-114), or nothing for an interactive-only one.
+fn node(
+    out: &mut Content,
+    node: &Node,
+    (canvas, tagger): (&Canvas<'_>, &mut Tagger),
+) -> Result<(), FontError> {
     if node.is_interactive_only() {
         return Ok(());
     }
+    // Nothing drawn is nothing marked: an MCID always marks paint (FR-114).
+    if !draws(node, canvas) {
+        return Ok(());
+    }
     match node {
-        Node::Group(group) => self::group(out, group, canvas),
-        Node::Text { .. } => super::show::text(out, node, canvas),
+        Node::Group(group) => self::group(out, group, (canvas, tagger)),
+        Node::Text { ink, .. } => {
+            let marked = if matches!(ink, TextPaint::Halo { .. }) {
+                tagger.ornament(out)
+            } else {
+                tagger.text(out, spoken(node).as_deref())
+            };
+            let shown = super::show::text(out, node, canvas);
+            Tagger::end(out, marked);
+            shown
+        }
         _ => {
+            let marked = tagger.shape(out);
             shape(out, painted(node), canvas);
+            Tagger::end(out, marked);
             Ok(())
         }
     }
+}
+
+/// Whether `node` puts any paint on the page: a group always might; a text
+/// with a line or a tail to show; a shape with a fill or a stroke.
+fn draws(node: &Node, canvas: &Canvas<'_>) -> bool {
+    match node {
+        Node::Group(_) => true,
+        Node::Text { lines, tail, .. } => {
+            lines.iter().any(|line| !crate::trim(line).is_empty())
+                || tail
+                    .as_ref()
+                    .is_some_and(|t| !crate::trim(&t.text).is_empty())
+        }
+        _ => painted(node).is_some_and(|(_, paints)| {
+            colour(paints.fill, canvas.palette).is_some()
+                || colour(paints.stroke, canvas.palette).is_some()
+        }),
+    }
+}
+
+/// A text's words when they are not what its drawn lines read (D-88): a
+/// token broken mid-word, a title cut short, the number column's mark,
+/// read as `/ActualText` (FR-114); `None` when the lines read right.
+fn spoken(node: &Node) -> Option<String> {
+    let Node::Text {
+        lines,
+        words: said,
+        tail,
+        ..
+    } = node
+    else {
+        return None;
+    };
+    if words(&lines.join(" ")) == *said {
+        return None;
+    }
+    Some(tail.as_ref().map_or_else(
+        || said.clone(),
+        |tail| format!("{said} {}", words(&tail.text)),
+    ))
 }
 
 /// A shape node's path and paints; `None` for a group, a text or a hit
@@ -131,7 +195,13 @@ fn painted(node: &Node) -> Option<(Vec<Step>, Paints)> {
 
 /// A group: its children, translated by its offset, in its own saved
 /// state.
-fn group(out: &mut Content, group: &Group, canvas: &Canvas<'_>) -> Result<(), FontError> {
+fn group(
+    out: &mut Content,
+    group: &Group,
+    (canvas, tagger): (&Canvas<'_>, &mut Tagger),
+) -> Result<(), FontError> {
+    // An artifact's mark wraps its saved state, never the reverse.
+    let opened = tagger.open(out, &group.semantics);
     out.save_state();
     // Decided on the rounded value, as the SVG's `shows` decides, so a
     // 1e-13 trig residue cannot write a transform on one platform and
@@ -141,9 +211,10 @@ fn group(out: &mut Content, group: &Group, canvas: &Canvas<'_>) -> Result<(), Fo
         out.transform([1.0, 0.0, 0.0, 1.0, x, y]);
     }
     for child in &group.children {
-        node(out, child, canvas)?;
+        node(out, child, (canvas, &mut *tagger))?;
     }
     out.restore_state();
+    tagger.close(out, opened);
     Ok(())
 }
 
@@ -239,7 +310,7 @@ mod tests {
                 height: 76.0,
             },
         };
-        String::from_utf8(content(&canvas).expect("draws")).expect("ASCII")
+        String::from_utf8(content(&canvas, &mut Tagger::new()).expect("draws")).expect("ASCII")
     }
 
     fn rgb(palette: &Palette, role: Role) -> String {
@@ -248,7 +319,7 @@ mod tests {
     }
 
     /// The page opens with the theme's ground over the whole page box in
-    /// page space (D-87), then one flip into PDF's y-up space at the
+    /// page space (D-87), an artifact (FR-114), then one flip into PDF's y-up space at the
     /// export scale, translated by the page's height so the drawing hangs
     /// from its top edge, and SVG's miter limit; it closes the state it
     /// saved.
@@ -257,7 +328,7 @@ mod tests {
         let palette = Palette::built_in(Theme::Dark);
         let s = stream(Node::Group(Group::new(Point::ORIGIN, Vec::new())), &palette);
         let want = format!(
-            "q\n{} rg\n0 0 m\n151 0 l\n151 76 l\n0 76 l\nh\nf\n0.75 0 0 -0.75 0 76 cm\n4 M\n",
+            "q\n/Artifact BMC\n{} rg\n0 0 m\n151 0 l\n151 76 l\n0 76 l\nh\nf\nEMC\n0.75 0 0 -0.75 0 76 cm\n4 M\n",
             rgb(&palette, Role::Neutral(Neutral::Surface1))
         );
         assert!(s.starts_with(&want), "{s}");
@@ -291,7 +362,8 @@ mod tests {
                 height: 191.0,
             },
         };
-        let s = String::from_utf8(content(&canvas).expect("draws")).expect("ASCII");
+        let s =
+            String::from_utf8(content(&canvas, &mut Tagger::new()).expect("draws")).expect("ASCII");
         let first = s.lines().find(|l| l.ends_with(" cm")).expect("the cm line");
         let written: f64 = first
             .split(' ')

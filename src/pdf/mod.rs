@@ -6,6 +6,9 @@ pub mod font;
 pub mod geometry;
 mod halo;
 mod show;
+pub mod tag;
+pub mod tree;
+pub mod xmp;
 
 use crate::num::{MAX_MAGNITUDE, round_thousandths};
 

@@ -129,78 +129,33 @@ impl TableBlock {
     /// marks are furniture on every part (FR-114).
     fn row_node(&self, part: &Part, left: f64, top: f64) -> Node {
         let baseline = top + TABLE_PAD_Y + TABLE_ASCENT;
-        let at = |x: f64, line: usize| Point {
-            x,
-            y: line_y(baseline, line),
-        };
         let row = |cells| structure(Structure::Row(part.row), cells);
         if part.spanning {
             let text = part.cells.first().cloned().unwrap_or_default();
             let style = (TABLE_TEXT, Neutral::TextPrimary, Anchor::Start);
             let span = NonZeroUsize::new(self.columns.len());
+            let at = Point {
+                x: left + TABLE_PAD_X,
+                y: baseline,
+            };
             return row(vec![structure(
                 Structure::Cell { column: 0, span },
-                vec![run(at(left + TABLE_PAD_X, 0), style, text)],
+                vec![run(at, style, text)],
             )]);
         }
-        let repeat = |texts: Vec<Node>| {
-            if part.later {
-                vec![Node::Group(
-                    Group::new(Point::ORIGIN, texts).with(Semantics::Pagination),
-                )]
-            } else {
-                texts
-            }
-        };
-        let mut cells = Vec::new();
-        if let Some(column) = self.columns.first() {
-            let (x, anchor) = column_text_x(column, left);
-            let number = part.number.map(|n| n.to_string()).unwrap_or_default();
-            let text = run(
-                at(x, 0),
-                (TABLE_TEXT, Neutral::TextPrimary, anchor),
-                Lines::of_text(&number),
-            );
-            cells.push(structure(
-                Structure::Cell {
-                    column: 0,
-                    span: None,
-                },
-                repeat(vec![text]),
-            ));
-        }
+        let mut cells: Vec<Node> = self
+            .columns
+            .first()
+            .map(|column| number_cell(part, column, (left, baseline)))
+            .into_iter()
+            .collect();
         for (c, (lines, column)) in part
             .cells
             .iter()
             .zip(self.columns.iter().skip(1))
             .enumerate()
         {
-            let kind = column.kind.unwrap_or(CellKind::Label);
-            let (x, anchor) = column_text_x(column, left);
-            let mut texts = vec![run(
-                at(x, 0),
-                (style_of(kind), Neutral::TextPrimary, anchor),
-                lines.clone(),
-            )];
-            if let Some((_, ring)) = part.beneath.as_ref().filter(|(b, _)| *b == c) {
-                texts.push(run(
-                    at(x, lines.lines.len()),
-                    (TABLE_TEXT, Neutral::TextMuted, Anchor::Start),
-                    ring.clone(),
-                ));
-            }
-            if kind == CellKind::Name {
-                texts.extend(under_nodes(part, x, lines.lines.len(), &at));
-                cells.push(structure(Structure::Header(Scope::Row), repeat(texts)));
-            } else {
-                cells.push(structure(
-                    Structure::Cell {
-                        column: c + 1,
-                        span: None,
-                    },
-                    texts,
-                ));
-            }
+            cells.push(value_cell(part, (c, lines, column), (left, baseline)));
         }
         row(cells)
     }
@@ -222,6 +177,78 @@ impl TableBlock {
             )
             .with(Semantics::Decorative),
         )
+    }
+}
+
+/// A part's number cell, the first; on a split row's later part its
+/// number repeats as furniture (FR-114).
+fn number_cell(part: &Part, column: &Column, (left, baseline): (f64, f64)) -> Node {
+    let (x, anchor) = column_text_x(column, left);
+    let number = part.number.map(|n| n.to_string()).unwrap_or_default();
+    let text = run(
+        Point {
+            x,
+            y: line_y(baseline, 0),
+        },
+        (TABLE_TEXT, Neutral::TextPrimary, anchor),
+        Lines::of_text(&number),
+    );
+    structure(
+        Structure::Cell {
+            column: 0,
+            span: None,
+        },
+        repeated(part, vec![text]),
+    )
+}
+
+/// Drawn cell `c` of a part, in `column`: its lines, the ring under the
+/// sector, and under the name its folded line and marks, the name cell its
+/// row's header.
+fn value_cell(
+    part: &Part,
+    (c, lines, column): (usize, &Lines, &Column),
+    (left, baseline): (f64, f64),
+) -> Node {
+    let at = |x: f64, line: usize| Point {
+        x,
+        y: line_y(baseline, line),
+    };
+    let kind = column.kind.unwrap_or(CellKind::Label);
+    let (x, anchor) = column_text_x(column, left);
+    let mut texts = vec![run(
+        at(x, 0),
+        (style_of(kind), Neutral::TextPrimary, anchor),
+        lines.clone(),
+    )];
+    if let Some((_, ring)) = part.beneath.as_ref().filter(|(b, _)| *b == c) {
+        texts.push(run(
+            at(x, lines.lines.len()),
+            (TABLE_TEXT, Neutral::TextMuted, Anchor::Start),
+            ring.clone(),
+        ));
+    }
+    if kind == CellKind::Name {
+        texts.extend(under_nodes(part, x, lines.lines.len(), &at));
+        return structure(Structure::Header(Scope::Row), repeated(part, texts));
+    }
+    structure(
+        Structure::Cell {
+            column: c + 1,
+            span: None,
+        },
+        texts,
+    )
+}
+
+/// `texts` as furniture on a split row's later part, else as they are.
+fn repeated(part: &Part, texts: Vec<Node>) -> Vec<Node> {
+    if part.later {
+        vec![Node::Group(
+            Group::new(Point::ORIGIN, texts).with(Semantics::Pagination),
+        )]
+    } else {
+        texts
     }
 }
 

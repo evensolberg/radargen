@@ -438,7 +438,10 @@ pub fn footed(bodies: Bodies, sheets: &Sheets<'_>, fonts: &Fonts) -> Vec<Documen
         .enumerate()
         .map(|(i, mut children)| {
             if let Some(start) = table.filter(|_| i == 0) {
-                children.push(pointer(start + 1, height));
+                // Drawn in the foot room, read straight after the title,
+                // before the radar (FR-114): a tagged PDF reads in
+                // document order.
+                children.insert(1.min(children.len()), pointer(start + 1, height));
             }
             children.push(footer(sheets, i + 1, count, fonts));
             Document {
@@ -675,6 +678,13 @@ mod tests {
             .iter()
             .find(|node| texts(node) == [pointer(p)])
             .expect("the pointer");
+        // Read straight after the title, before the radar (FR-114).
+        assert_eq!(
+            children(page_one)
+                .iter()
+                .position(|node| texts(node) == [pointer(p)]),
+            Some(1)
+        );
         // A paragraph to a tagged PDF, and every footer furniture (PR 21c-1).
         assert!(matches!(
             node,
