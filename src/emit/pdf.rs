@@ -1,6 +1,8 @@
-//! The PDF export (FR-110, D-103): the wide document as one vector page
-//! the document's size, its text real text in embedded Inter subsets,
-//! untagged, with no date or identifier (NFR-4).
+//! The PDF export (FR-110, FR-111, D-103).
+//!
+//! The wide document as one vector page the document's size, or paper
+//! pages, its text real text in embedded Inter subsets, untagged, with no
+//! date or identifier (NFR-4).
 
 use pdf_writer::{Pdf, Rect, Ref, TextStr, writers};
 
@@ -11,11 +13,10 @@ use crate::palette::Palette;
 use crate::pdf::content::{Canvas, content};
 use crate::pdf::font::Faces;
 use crate::pdf::{Sheet, real};
+use crate::style::POINTS_PER_PX;
 use crate::svg::Document;
 use crate::text::{Fonts, Weight};
 
-/// PDF points per CSS pixel: 72 per inch over 96.
-pub const POINTS_PER_PX: f64 = 0.75;
 /// The longest page side viewers accept, in points: 200 inches, Acrobat's
 /// limit (PDF 1.7, Annex C).
 const MAX_SIDE: f64 = 14_400.0;
@@ -26,8 +27,6 @@ pub struct Export<'a> {
     pub palette: &'a Palette,
     /// The faces the text is placed and subset from.
     pub fonts: &'a Fonts,
-    /// `--width` (FR-57), in px.
-    pub width: Option<u32>,
     /// FR-65's title, resolved.
     pub title: Option<&'a str>,
     /// The radar's name (D-75), `/Subject`: what the SVG's `<desc>` holds.
@@ -37,31 +36,77 @@ pub struct Export<'a> {
     pub producer: &'a str,
 }
 
-/// `document` as a PDF file (FR-110).
+/// `document` as a one-page PDF the drawing's size, `width` px wide when
+/// `--width` gives one (FR-110, FR-57).
 ///
 /// # Errors
 ///
 /// [`Fatal::Font`] when a glyph cannot be measured or subset (NFR-15).
-pub fn export(document: &Document, export: &Export<'_>) -> Result<Vec<u8>, Fatal> {
-    let (width, _) = intrinsic_size(document, export.width);
-    let sheet = sheet(document, width);
-    let faces = Faces::of([&document.root], export.fonts)?;
+pub fn export(
+    document: &Document,
+    width: Option<u32>,
+    export: &Export<'_>,
+) -> Result<Vec<u8>, Fatal> {
+    let (width, _) = intrinsic_size(document, width);
+    write(&[(document, sheet(document, width))], export)
+}
+
+/// `pages` as a PDF on paper (FR-111): one page per document, each the
+/// paper's exact size in points, with no `/UserUnit`.
+///
+/// # Errors
+///
+/// [`Fatal::Font`] when a glyph cannot be measured or subset (NFR-15).
+pub fn export_pages(pages: &[Document], export: &Export<'_>) -> Result<Vec<u8>, Fatal> {
+    let sheets: Vec<(&Document, Sheet)> = pages
+        .iter()
+        .map(|page| {
+            (
+                page,
+                Sheet {
+                    unit: 1.0,
+                    scale: POINTS_PER_PX,
+                    width: page.width * POINTS_PER_PX,
+                    height: page.height * POINTS_PER_PX,
+                },
+            )
+        })
+        .collect();
+    write(&sheets, export)
+}
+
+/// The PDF file: the catalog, the page tree and the info dictionary, then
+/// each page and its content stream, numbered in that order; the fonts,
+/// subset once over every page, are numbered after them, and so would be
+/// any document-level object a later writer adds. In the file the fonts
+/// come before the pages, since each page names them, and the info
+/// dictionary comes last.
+fn write(pages: &[(&Document, Sheet)], export: &Export<'_>) -> Result<Vec<u8>, Fatal> {
+    let faces = Faces::of(pages.iter().map(|(page, _)| &page.root), export.fonts)?;
     let mut next = Ref::new(1);
-    let objects = Objects::numbered(&mut next);
+    let [catalog_id, tree, info_id] = std::array::from_fn(|_| next.bump());
+    let ids: Vec<(Ref, Ref)> = pages.iter().map(|_| (next.bump(), next.bump())).collect();
     let mut pdf = Pdf::new();
-    catalog(&mut pdf, &objects);
-    pdf.pages(objects.tree).kids([objects.page]).count(1);
+    catalog(&mut pdf, catalog_id, tree);
+    pdf.pages(tree)
+        .kids(ids.iter().map(|&(page, _)| page))
+        .count(i32::try_from(ids.len()).unwrap_or(i32::MAX));
     let fonts = faces.write(&mut pdf, &mut next, export.fonts)?;
-    page(&mut pdf, &objects, &sheet, &fonts);
-    let drawn = content(&Canvas {
-        document,
-        palette: export.palette,
-        fonts: export.fonts,
-        faces: &faces,
-        page: sheet,
-    })?;
-    pdf.stream(objects.stream, &drawn);
-    info(&mut pdf, objects.info, export);
+    for (&(document, sheet), &(page_id, stream)) in pages.iter().zip(&ids) {
+        page(&mut pdf, page_id, tree, stream, &sheet, &fonts);
+        let drawn = content(&Canvas {
+            document,
+            palette: export.palette,
+            fonts: export.fonts,
+            faces: &faces,
+            page: sheet,
+        })?;
+        pdf.stream(stream, &drawn);
+    }
+    // Last in the file, though numbered third: the producer's length,
+    // which moves with the version, then moves only the cross-reference
+    // offset after it.
+    info(&mut pdf, info_id, export);
     Ok(pdf.finish())
 }
 
@@ -94,46 +139,19 @@ fn whole(side: f64) -> f64 {
     round_thousandths(side).ceil()
 }
 
-/// The objects every light PDF numbers first, in this order: the catalog,
-/// the page tree, the page, its content stream and the info dictionary.
-/// The fonts' objects follow them.
-struct Objects {
-    catalog: Ref,
-    tree: Ref,
-    page: Ref,
-    stream: Ref,
-    info: Ref,
-}
-
-impl Objects {
-    /// The fixed objects numbered from `next`, which moves past them.
-    fn numbered(next: &mut Ref) -> Self {
-        let [catalog, tree, page, stream, info] = std::array::from_fn(|_| next.bump());
-        Self {
-            catalog,
-            tree,
-            page,
-            stream,
-            info,
-        }
-    }
-}
-
 /// The catalog: the page tree, `/Lang (en)`, and the title shown as the
 /// window's (D-75).
-fn catalog(pdf: &mut Pdf, objects: &Objects) {
-    let mut cat = pdf.catalog(objects.catalog);
-    cat.pages(objects.tree).lang(TextStr("en"));
+fn catalog(pdf: &mut Pdf, id: Ref, tree: Ref) {
+    let mut cat = pdf.catalog(id);
+    cat.pages(tree).lang(TextStr("en"));
     cat.viewer_preferences().display_doc_title(true);
 }
 
-/// The one page: its `MediaBox`, its `/UserUnit` when it needs one, its
-/// content stream and its fonts.
-fn page(pdf: &mut Pdf, objects: &Objects, sheet: &Sheet, fonts: &[(Weight, Ref)]) {
-    let mut p = pdf.page(objects.page);
-    p.parent(objects.tree)
-        .media_box(media_box(sheet))
-        .contents(objects.stream);
+/// A page: its `MediaBox`, its `/UserUnit` when it needs one, its content
+/// stream and its fonts.
+fn page(pdf: &mut Pdf, id: Ref, tree: Ref, stream: Ref, sheet: &Sheet, fonts: &[(Weight, Ref)]) {
+    let mut p = pdf.page(id);
+    p.parent(tree).media_box(media_box(sheet)).contents(stream);
     user_unit(&mut p, sheet.unit);
     p.resources().fonts().pairs(
         fonts
@@ -170,6 +188,7 @@ mod tests {
     use crate::layout::arrange::{Arrangement, Blocks, arrange};
     use crate::layout::block::fonts;
     use crate::layout::test_support::{PRD_EXAMPLE, plotted};
+    use crate::options::Paper;
     use crate::palette::Theme;
     use crate::svg::{Group, Node, Point};
 
@@ -183,10 +202,10 @@ mod tests {
         let palette = Palette::built_in(theme);
         export(
             doc,
+            width,
             &Export {
                 palette: &palette,
                 fonts: fonts(),
-                width,
                 title,
                 desc: "Technology radar: 3 sectors",
                 producer: "radargen 9.9",
@@ -410,6 +429,170 @@ mod tests {
         assert_eq!(
             lopdf::decode_text_string(got).expect("a text string"),
             title
+        );
+    }
+
+    /// The PRD example's radar beside a legend of 300 items on `paper`:
+    /// several pages.
+    fn paper_pages(paper: Paper) -> Vec<Document> {
+        use crate::layout::legend::LegendBlock;
+        use crate::layout::paper::{Sheets, bodies, footed, page_size};
+        let (catalogue, order) = crate::layout::test_support::long(1, 1, 300);
+        let legend = LegendBlock::on_paper(&catalogue, &order, fonts());
+        let (prd_catalogue, prd_order) = plotted(PRD_EXAMPLE, None);
+        let blocks = Blocks::new(&prd_catalogue, &prd_order, None, None, fonts());
+        let sheets = Sheets {
+            radar: &blocks.radar,
+            key: &blocks.key,
+            legend: &legend,
+            title: "Technology Radar",
+            subtitle: None,
+            size: page_size(paper.points().expect("a paper")),
+        };
+        footed(bodies(&sheets, fonts()).pages, &sheets, fonts())
+    }
+
+    fn paper_pdf(pages: &[Document], theme: Theme) -> Vec<u8> {
+        let palette = Palette::built_in(theme);
+        export_pages(
+            pages,
+            &Export {
+                palette: &palette,
+                fonts: fonts(),
+                title: None,
+                desc: "Technology radar: 1 sector",
+                producer: "radargen 9.9",
+            },
+        )
+        .expect("exports")
+    }
+
+    /// `object`'s reference as its number.
+    fn number(object: Option<&lopdf::Object>) -> u32 {
+        object
+            .and_then(|o| o.as_reference().ok())
+            .map(|(n, _)| n)
+            .expect("a reference")
+    }
+
+    /// The object order every PDF takes, light or paper: catalog, page
+    /// tree, info, each page and its stream, then the fonts (21c's
+    /// document-level objects will follow them).
+    #[test]
+    fn objects_are_catalog_tree_info_pages_then_fonts() {
+        let pages = paper_pages(Paper::Letter);
+        assert!(pages.len() >= 3, "{}", pages.len());
+        let bytes = paper_pdf(&pages, Theme::Light);
+        let doc = lopdf::Document::load_mem(&bytes).expect("parses");
+        assert_eq!(number(doc.trailer.get(b"Root").ok()), 1);
+        assert_eq!(number(doc.trailer.get(b"Info").ok()), 3);
+        let tree = doc.get_dictionary((2, 0)).expect("the page tree");
+        let kids: Vec<u32> = tree
+            .get(b"Kids")
+            .and_then(lopdf::Object::as_array)
+            .expect("kids")
+            .iter()
+            .map(|kid| number(Some(kid)))
+            .collect();
+        let want: Vec<u32> = (0..pages.len())
+            .map(|k| 4 + 2 * u32::try_from(k).expect("few pages"))
+            .collect();
+        assert_eq!(kids, want);
+        for &kid in &kids {
+            let page = doc.get_dictionary((kid, 0)).expect("a page");
+            assert_eq!(number(page.get(b"Contents").ok()), kid + 1);
+        }
+        let last_stream = want.last().expect("a page") + 1;
+        let fonts: Vec<u32> = doc
+            .objects
+            .iter()
+            .filter(|(_, object)| {
+                object.as_dict().is_ok_and(|d| {
+                    d.get(b"Type")
+                        .and_then(lopdf::Object::as_name)
+                        .is_ok_and(|t| t == b"Font")
+                })
+            })
+            .map(|(&(n, _), _)| n)
+            .collect();
+        assert!(
+            !fonts.is_empty() && fonts.iter().all(|&n| n > last_stream),
+            "{fonts:?}"
+        );
+        let light =
+            lopdf::Document::load_mem(&pdf(&prd(None), None, None, Theme::Light)).expect("parses");
+        assert_eq!(number(light.trailer.get(b"Info").ok()), 3);
+    }
+
+    /// FR-111: every page is the paper exactly, with no `/UserUnit`; the
+    /// flip is 0.75 and hangs the drawing from the page's top; the ground
+    /// fills the `MediaBox`.
+    #[test]
+    fn a_paper_page_is_the_paper() {
+        let bytes = paper_pdf(&paper_pages(Paper::A4), Theme::Dark);
+        let doc = lopdf::Document::load_mem(&bytes).expect("parses");
+        let pages = doc.get_pages();
+        assert!(pages.len() >= 3);
+        for &id in pages.values() {
+            let dict = doc.get_dictionary(id).expect("a page");
+            let mb: Vec<u32> = dict
+                .get(b"MediaBox")
+                .and_then(lopdf::Object::as_array)
+                .expect("a MediaBox")
+                .iter()
+                .map(|o| o.as_float().expect("a number").to_bits())
+                .collect();
+            assert_eq!(mb, [0.0_f32, 0.0, 841.89, 595.276].map(f32::to_bits));
+            assert!(dict.get(b"UserUnit").is_err());
+            let content = doc.get_page_content(id);
+            let ops = lopdf::content::Content::decode(&content)
+                .expect("decodes")
+                .operations;
+            let floats = |op: &lopdf::content::Operation| -> Vec<u32> {
+                op.operands
+                    .iter()
+                    .map(|o| o.as_float().expect("a number").to_bits())
+                    .collect()
+            };
+            // The ground: the first path, its points spanning the box.
+            let ground: Vec<f32> = ops
+                .iter()
+                .take_while(|op| op.operator != "f")
+                .filter(|op| matches!(op.operator.as_str(), "m" | "l" | "c"))
+                .flat_map(|op| op.operands.iter().map(|o| o.as_float().expect("a number")))
+                .collect();
+            let (xs, ys): (Vec<f32>, Vec<f32>) = ground
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|&pair| <(f32, f32)>::from(pair))
+                .unzip();
+            let span = |v: &[f32]| {
+                (
+                    v.iter().copied().fold(f32::INFINITY, f32::min).to_bits(),
+                    v.iter()
+                        .copied()
+                        .fold(f32::NEG_INFINITY, f32::max)
+                        .to_bits(),
+                )
+            };
+            assert_eq!(span(&xs), (0.0_f32.to_bits(), 841.89_f32.to_bits()));
+            assert_eq!(span(&ys), (0.0_f32.to_bits(), 595.276_f32.to_bits()));
+            let cm = ops.iter().find(|op| op.operator == "cm").expect("the flip");
+            assert_eq!(
+                floats(cm),
+                [0.75_f32, 0.0, 0.0, -0.75, 0.0, 595.276].map(f32::to_bits)
+            );
+        }
+    }
+
+    /// NFR-4: a paper PDF written twice is the same bytes.
+    #[test]
+    fn two_paper_exports_are_identical() {
+        let pages = paper_pages(Paper::Letter);
+        assert!(
+            paper_pdf(&pages, Theme::Light) == paper_pdf(&pages, Theme::Light),
+            "NFR-4"
         );
     }
 }

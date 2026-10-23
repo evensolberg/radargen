@@ -102,6 +102,9 @@ const fn style(weight: Weight, size: f64, letter_spacing: f64) -> TextStyle {
 pub const TITLE: TextStyle = style(Weight::SemiBold, 17.0, 0.0);
 /// Ink: `TextMuted`.
 pub const SUBTITLE: TextStyle = style(Weight::Regular, 12.0, 0.0);
+/// A paper page's footer (FR-111): 11 px, 8.25 pt printed, like the
+/// key's labels, so no printed text falls under 8 pt but the radar's own.
+pub const FOOTER: TextStyle = style(Weight::Regular, 11.0, 0.0);
 /// 0.04em at 12px. Ink: `TextPrimary` — FR-39's identity channel.
 pub const SECTOR_LABEL: TextStyle = style(Weight::SemiBold, 12.0, 0.48);
 /// Ink: `TextMuted`, over a `LABEL_HALO` (it sits on the 12 o'clock divider,
@@ -208,6 +211,27 @@ pub const LEGEND_EMPTY_GROUP_GAP: f64 = LEGEND_SECTOR_TO_RING + LEGEND_GROUP_GAP
 /// (asserted below, in every build). One line of name needs less; the rest
 /// is the target.
 pub const LEGEND_ROW_MIN_HEIGHT: f64 = 36.0;
+/// A legend row's least height on paper, at scale 1 (FR-111, D-105):
+/// the badge and a little padding, since paper has no touch target.
+pub const PAPER_ROW_MIN_HEIGHT: f64 = 26.0;
+/// The legend's scale on paper (FR-111, D-105): its ring headings, the
+/// smallest text, at 10 px are 7.5 pt; at 16/15 they print at 8 pt.
+pub const PAPER_LEGEND_SCALE: f64 = 16.0 / 15.0;
+/// PDF points per CSS pixel: 72 per inch over 96.
+pub const POINTS_PER_PX: f64 = 0.75;
+/// CSS pixels per millimetre: 96 per inch over 25.4.
+const PX_PER_MM: f64 = 96.0 / 25.4;
+/// A paper page's margin on every side (FR-111): 15 mm, in px.
+pub const PAPER_MARGIN: f64 = 15.0 * PX_PER_MM;
+/// How far a paper page's content stops above its bottom edge (FR-111):
+/// 20 mm, so the footer, its baseline at [`FOOTER_BASELINE`], sits clear
+/// of the content and does not read as part of it.
+pub const PAPER_FOOT_ROOM: f64 = 20.0 * PX_PER_MM;
+/// A paper footer's baseline above the page's bottom edge (FR-111): 10 mm,
+/// in px, so it survives Letter printed on A4 at actual size.
+pub const FOOTER_BASELINE: f64 = 10.0 * PX_PER_MM;
+/// What a heading repeated at the top of a paper column says it is.
+pub const CONTINUED: &str = " (continued)";
 /// A row's height beyond its text lines: `n · LINE_HEIGHT + LEGEND_ROW_PAD`.
 pub const LEGEND_ROW_PAD: f64 = 7.0;
 /// The least height of a row's text block, so a one-line row's text is centred

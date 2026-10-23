@@ -34,10 +34,10 @@ pub fn pdf(
 ) -> Vec<u8> {
     export(
         doc,
+        width,
         &Export {
             palette,
             fonts: fonts(),
-            width,
             title,
             desc,
             producer: PRODUCER,

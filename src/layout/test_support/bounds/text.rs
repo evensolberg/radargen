@@ -37,6 +37,9 @@ pub(super) fn text_bounds(node: &Node, fonts: &Fonts) -> Option<Rect> {
             let left = match anchor {
                 Anchor::Start => origin.x,
                 Anchor::Middle => origin.x - f64::midpoint(0.0, width),
+                // The ink ends at the origin; the layout width runs on past
+                // it by the room left for text spacing (D-78).
+                Anchor::End => origin.x - style.advance(line, fonts),
             };
             Rect {
                 left,

@@ -11,6 +11,8 @@ mod fonts;
 mod html;
 #[path = "../common/palette.rs"]
 mod palette;
+#[path = "../common/paper.rs"]
+mod paper;
 #[path = "../common/pdf_export.rs"]
 mod pdf_export;
 #[path = "../common/pdf.rs"]

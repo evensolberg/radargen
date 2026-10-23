@@ -36,6 +36,18 @@ pub fn csv_of(sectors: &[&str], ring: &str) -> String {
         })
 }
 
+/// A long legend's catalogue and order (FR-111's paper tests):
+/// `sectors` sectors `S0…`, each with `rings` rings `R0…` of `per_ring`
+/// items named `S{s}R{r}-{i:03}`, the rings declared in that order.
+pub fn long(sectors: usize, rings: usize, per_ring: usize) -> (Catalogue, Plotted) {
+    let rows: String = (0..sectors)
+        .flat_map(|s| (0..rings).map(move |r| (s, r)))
+        .flat_map(|(s, r)| (0..per_ring).map(move |i| format!("S{s}R{r}-{i:03},S{s},R{r},d\n")))
+        .collect();
+    let declared: Vec<String> = (0..rings).map(|r| format!("R{r}")).collect();
+    plotted(&format!("{HEAD}{rows}"), Some(&declared.join(",")))
+}
+
 /// A catalogue and its FR-10 order from CSV text and an optional `--rings`
 /// value.
 pub fn plotted(csv: &str, rings: Option<&str>) -> (Catalogue, Plotted) {

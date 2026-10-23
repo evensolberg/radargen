@@ -25,17 +25,19 @@ use crate::diagnostics::{Fatal, OffRadar, ReadFile, RenderKind, RowError, Warnin
 use crate::emit::html::{Page, page};
 use crate::emit::write::parent_dir;
 use crate::emit::write_atomic;
-use crate::emit::{OUTPUT_VERSION, pdf, png, svg};
+use crate::emit::{OUTPUT_VERSION, UNTITLED, pdf, png, svg};
 use crate::errors::render_errors;
 use crate::layout::arrange::{
     Arrangement, Blocks, arrange, narrow_parts, warn_narrow, warn_wide, wide_parts,
 };
 use crate::layout::geometry::warn_crowding;
 use crate::layout::glyphs::warn_missing_glyphs;
+use crate::layout::legend::LegendBlock;
+use crate::layout::paper::{self, Sheets, page_size};
 use crate::layout::title::shown;
 use crate::model::{Catalogue, build_catalogue};
-use crate::options::{Legend, OutputFormat, Table};
-use crate::order::resolve;
+use crate::options::{Legend, OutputFormat, Paper, Table};
+use crate::order::{Plotted, resolve};
 use crate::palette::file::{self, ReadError};
 use crate::palette::{Colours, Theme};
 use crate::rings::{RingSet, default_rings, parse_ring_list};
@@ -73,8 +75,13 @@ pub struct Config {
     /// with where it came from, so D-87's remedies can name it.
     pub width: Option<Sourced<u32>>,
     /// FR-100: the legend's columns from `--legend-columns`, the file or the
-    /// default, which HTML ignores.
-    pub legend_columns: u8,
+    /// default, which HTML ignores, with where they came from, so paper's
+    /// warning (FR-111) can tell the flag from the file.
+    pub legend_columns: Sourced<u8>,
+    /// FR-111: the paper a PDF is laid out on, from `--paper` or the file,
+    /// with where it came from; absent, or `none`, is the drawing-sized
+    /// page.
+    pub paper: Option<Sourced<Paper>>,
     /// FR-65, resolved: cleaned (FR-90), trimmed, and `None` when empty,
     /// with its origin, so FR-104 can name it.
     pub title: Option<Sourced<String>>,
@@ -101,6 +108,16 @@ impl Config {
     #[must_use]
     pub fn subtitle(&self) -> Option<&str> {
         self.subtitle.as_ref().map(|s| s.value.as_str())
+    }
+
+    /// FR-111: the paper's landscape page in points, when the output is a
+    /// PDF on paper.
+    #[must_use]
+    pub fn paper(&self) -> Option<(f64, f64)> {
+        self.paper
+            .as_ref()
+            .filter(|_| self.format == OutputFormat::Pdf)
+            .and_then(|paper| paper.value.points())
     }
 }
 
@@ -360,8 +377,8 @@ fn config(
         width: settings.width.given(),
         legend_columns: settings
             .legend_columns
-            .given()
-            .map_or(DEFAULT_LEGEND_COLUMNS, |c| c.value),
+            .or(Setting::LegendColumns, DEFAULT_LEGEND_COLUMNS),
+        paper: settings.paper.given(),
         title,
         subtitle,
         rings,
@@ -915,6 +932,36 @@ fn warn_static_flags(config: &Config, warnings: &mut Warnings) {
     }
 }
 
+/// FR-111: `--paper` from the flag on an output with no paper, and
+/// `--width` or `--legend-columns` from the flag on a PDF on paper, which
+/// sets both, are warned about. The same values from `--config` are
+/// silent, since one file serves every format (D-100).
+fn warn_paper_flags(config: &Config, warnings: &mut Warnings) {
+    let Some(paper) = config.paper.as_ref().filter(|p| p.value != Paper::None) else {
+        return;
+    };
+    if config.format != OutputFormat::Pdf {
+        if paper.origin.is_flag() {
+            warnings.push(Warning::Render(RenderKind::PaperNotPdf {
+                paper: paper.value,
+            }));
+        }
+        return;
+    }
+    if let Some(width) = config.width.as_ref().filter(|w| w.origin.is_flag()) {
+        warnings.push(Warning::Render(RenderKind::PaperIgnoresWidth {
+            width: width.value,
+            paper: paper.clone(),
+        }));
+    }
+    if config.legend_columns.origin.is_flag() {
+        warnings.push(Warning::Render(RenderKind::PaperIgnoresLegendColumns {
+            columns: config.legend_columns.value,
+            paper: paper.clone(),
+        }));
+    }
+}
+
 /// The order, the render warnings (FR-88, FR-89, FR-95, FR-104, FR-105, D-87), the blocks
 /// built once, and the output: the page around both arrangements (FR-68),
 /// or the wide arrangement as a PNG, an SVG or a PDF (FR-71).
@@ -936,6 +983,7 @@ fn render(
     // overlaps is reported.
     warn_crowding(catalogue, &plotted, blocks.radar.growth(), warnings);
     warn_static_flags(config, warnings);
+    warn_paper_flags(config, warnings);
     // FR-104: a static snapshot draws every text with the bundled font
     // alone, so a character it lacks is a box; the page falls back to the
     // reader's fonts, so it is not warned (D-93).
@@ -952,8 +1000,9 @@ fn render(
     }
     // FR-100: only a static output flows its legend; the page's scrolls
     // beside the radar, so HTML ignores the flag, silently (D-90).
-    let blocks = if config.format.is_snapshot() {
-        blocks.with_legend_columns(usize::from(config.legend_columns))
+    // FR-111: on paper the page sets the legend's columns instead.
+    let blocks = if config.format.is_snapshot() && config.paper().is_none() {
+        blocks.with_legend_columns(usize::from(config.legend_columns.value))
     } else {
         blocks
     };
@@ -1015,18 +1064,58 @@ fn render(
             },
         )?
         .into_bytes()),
+        OutputFormat::Pdf if let Some(points) = config.paper() => on_paper(
+            catalogue, &plotted, &blocks, config, points, fonts, warnings,
+        ),
         OutputFormat::Pdf => Ok(pdf::export(
             &arrange(Arrangement::Wide, &blocks),
+            config.width.as_ref().map(|w| w.value),
             &pdf::Export {
                 palette: &config.colours.snapshot(),
                 fonts,
-                width: config.width.as_ref().map(|w| w.value),
                 title: config.title(),
                 desc: &blocks.radar.name(),
                 producer: OUTPUT_VERSION,
             },
         )?),
     }
+}
+
+/// The PDF on paper (FR-111): the leading pages as the paper lays them
+/// out, the legend at paper's size, each page footed; a radar that does
+/// not fit the first page even at its smallest is warned about.
+fn on_paper(
+    catalogue: &Catalogue,
+    plotted: &Plotted,
+    blocks: &Blocks,
+    config: &Config,
+    points: (f64, f64),
+    fonts: &Fonts,
+    warnings: &mut Warnings,
+) -> Result<Vec<u8>, Fatal> {
+    let legend = LegendBlock::on_paper(catalogue, plotted, fonts);
+    let sheets = Sheets {
+        radar: &blocks.radar,
+        key: &blocks.key,
+        legend: &legend,
+        title: config.title().unwrap_or(UNTITLED),
+        subtitle: config.subtitle(),
+        size: page_size(points),
+    };
+    let bodies = paper::bodies(&sheets, fonts);
+    if bodies.radar_too_wide {
+        warnings.push(Warning::Render(RenderKind::PaperRadarWide));
+    }
+    pdf::export_pages(
+        &paper::footed(bodies.pages, &sheets, fonts),
+        &pdf::Export {
+            palette: &config.colours.snapshot(),
+            fonts,
+            title: config.title(),
+            desc: &blocks.radar.name(),
+            producer: OUTPUT_VERSION,
+        },
+    )
 }
 
 #[cfg(test)]

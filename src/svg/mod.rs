@@ -122,6 +122,8 @@ pub enum Anchor {
     Start,
     /// The line is centred on the origin.
     Middle,
+    /// The line ends at the origin (FR-111's footer page number).
+    End,
 }
 
 /// What a group is for: its accessibility role, or its part in the
@@ -382,6 +384,7 @@ impl Node {
                 let x = match anchor {
                     Anchor::Start => origin.x,
                     Anchor::Middle => origin.x - style.advance(line, fonts) * CENTRED,
+                    Anchor::End => origin.x - style.advance(line, fonts),
                 };
                 let y = origin.y + f64::from(i) * leading;
                 (line.as_str(), Point { x, y })
@@ -579,6 +582,18 @@ mod tests {
             group.with(Semantics::Heading(LEVEL_1)).semantics,
             Semantics::Heading(LEVEL_1)
         );
+    }
+
+    /// An end-anchored line ends at its origin: it starts one advance to
+    /// the left (FR-111's footer page number).
+    #[test]
+    fn an_end_anchored_line_ends_at_its_origin() {
+        let fonts = crate::layout::block::fonts();
+        let node = run(Anchor::End).node(Scale::uniform(1.0));
+        let starts = node.line_starts(fonts);
+        let (line, start) = starts.first().expect("a line");
+        let end = start.x + run(Anchor::End).style.advance(line, fonts);
+        assert!((end - 10.0).abs() < 1e-9, "{end}");
     }
 
     fn run(anchor: Anchor) -> TextRun {

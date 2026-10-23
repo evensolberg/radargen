@@ -26,9 +26,9 @@ use hayro::{RenderCache, RenderSettings, render_into};
 use lopdf::Object;
 use lopdf::content::{Content, Operation};
 use radargen::emit::intrinsic_size;
-use radargen::emit::pdf::POINTS_PER_PX;
 use radargen::emit::png::{PixelSize, pixel_size, rasterise};
 use radargen::palette::{Palette, Theme};
+use radargen::style::POINTS_PER_PX;
 use radargen::svg::Document;
 use resvg::tiny_skia::Pixmap;
 
@@ -40,6 +40,10 @@ mod fills;
 mod halos;
 #[path = "common/oracle.rs"]
 mod oracle;
+#[path = "common/paper.rs"]
+mod paper;
+#[path = "pdf_matches_png/paper.rs"]
+mod paper_pages;
 #[path = "common/pdf_export.rs"]
 mod pdf_export;
 #[path = "common/pdf_page.rs"]
@@ -68,6 +72,15 @@ const NOISE: u8 = 16;
 /// 1,100, though neither passes [`MAX_DELTA`]. A colour 10 levels off
 /// stays under both. Measured 2026-10-22, macOS arm64.
 const MAX_PPM: usize = 800;
+
+/// [`MAX_PPM`] for a paper page holding only legend columns (FR-111,
+/// SC-31): solid text has more antialiased edges than the wide
+/// arrangement, whose radar dilutes the count. A faithful Letter page
+/// reaches 848; the same page with its text 0.2 px off reaches 22,024,
+/// and with its text colour 20 levels off 4,559. The maintainer's ruling,
+/// 2026-10-22: legend pages get their own budget; the wide arrangement
+/// and page 1 keep [`MAX_PPM`]. Measured 2026-10-22, macOS arm64.
+const LEGEND_PAGE_MAX_PPM: usize = 1_600;
 
 /// The PDF's own cases beside the shared ones: a right-to-left name,
 /// names Inter lacks (Review Focus 2), accented names, and marks the
@@ -108,8 +121,13 @@ fn cases() -> impl Iterator<Item = (&'static str, &'static str, Option<&'static 
 /// pixmap. x and y are scaled separately, as the PNG's transform is,
 /// since the PNG's height is rounded to whole pixels.
 fn drawn(pdf: &[u8], size: PixelSize, drawing: (f64, f64)) -> Vec<u8> {
+    drawn_page(pdf, 0, size, drawing)
+}
+
+/// As [`drawn`], for the PDF's page `index`.
+fn drawn_page(pdf: &[u8], index: usize, size: PixelSize, drawing: (f64, f64)) -> Vec<u8> {
     let pdf = Pdf::new(pdf.to_vec()).expect("hayro parses the PDF");
-    let page = pdf.pages().first().expect("one page");
+    let page = pdf.pages().get(index).expect("the page");
     let w = u16::try_from(size.width()).expect("a test page fits u16");
     let h = u16::try_from(size.height()).expect("a test page fits u16");
     let fit = Affine::scale_non_uniform(
@@ -167,6 +185,12 @@ const fn within(c: &Compared) -> bool {
     c.worst <= MAX_DELTA && c.loud_ppm <= MAX_PPM
 }
 
+/// SC-31's criterion for a paper page of legend columns alone: as
+/// [`within`], with [`LEGEND_PAGE_MAX_PPM`].
+const fn within_legend_page(c: &Compared) -> bool {
+    c.worst <= MAX_DELTA && c.loud_ppm <= LEGEND_PAGE_MAX_PPM
+}
+
 /// `pixels` (RGBA, `width` wide) with each 2×2 block averaged into one.
 /// An odd last row is averaged with itself, so the bottom edge, where a
 /// sliver would show, is still compared; the width is always even.
@@ -205,11 +229,23 @@ fn halved(pixels: &[u8], width: usize) -> Vec<u8> {
 /// `pdf` drawn by hayro against `doc`'s PNG in `png_palette` at `width`,
 /// both drawn at twice the size and averaged down.
 fn against_png(doc: &Document, pdf: &[u8], png_palette: &Palette, width: Option<u32>) -> Compared {
+    against_page(doc, pdf, 0, png_palette, width)
+}
+
+/// As [`against_png`], for the PDF's page `index`, `doc` being that
+/// page's document.
+fn against_page(
+    doc: &Document,
+    pdf: &[u8],
+    index: usize,
+    png_palette: &Palette,
+    width: Option<u32>,
+) -> Compared {
     let once = pixel_size(doc, width).expect("fits");
     let twice = pixel_size(doc, Some(once.width() * 2)).expect("fits");
     let png =
         Pixmap::decode_png(&rasterise(doc, png_palette, twice).expect("renders")).expect("a PNG");
-    let drawn = drawn(pdf, twice, intrinsic_size(doc, width));
+    let drawn = drawn_page(pdf, index, twice, intrinsic_size(doc, width));
     let wide = usize::try_from(twice.width()).expect("a test page fits usize");
     let (png, drawn) = (halved(png.data(), wide), halved(&drawn, wide));
     let deltas = || png.iter().zip(&drawn).map(|(a, b)| a.abs_diff(*b));
@@ -273,8 +309,17 @@ fn the_pdf_at_a_set_width_draws_what_the_png_draws() {
 
 /// `pdf` with its page's content operators edited, re-saved by lopdf.
 fn damaged(pdf: &[u8], edit: impl FnOnce(&mut Vec<Operation>)) -> Vec<u8> {
+    let doc = lopdf::Document::load_mem(pdf).expect("parses");
+    damaged_page(pdf, first_page(&doc), edit)
+}
+
+/// As [`damaged`], for the page `page`.
+fn damaged_page(
+    pdf: &[u8],
+    page: lopdf::ObjectId,
+    edit: impl FnOnce(&mut Vec<Operation>),
+) -> Vec<u8> {
     let mut doc = lopdf::Document::load_mem(pdf).expect("parses");
-    let page = first_page(&doc);
     let mut content = Content::decode(&doc.get_page_content(page)).expect("decodes");
     edit(&mut content.operations);
     doc.change_page_content(page, content.encode().expect("encodes"))

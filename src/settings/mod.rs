@@ -13,7 +13,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::options::{Legend, Table};
+use crate::options::{Legend, Paper, Table};
 use crate::palette::Theme;
 use edition::Edition;
 use file::{FileValues, Loaded};
@@ -73,6 +73,8 @@ pub enum Setting {
     Legend,
     /// `--table`, `table`.
     Table,
+    /// `--paper`, `paper` (FR-111).
+    Paper,
     /// `--palette`, `palette`.
     Palette,
     /// `-e/--edition`, `edition` (FR-92; a key at the maintainer's
@@ -83,7 +85,7 @@ pub enum Setting {
 impl Setting {
     /// Every setting, in FR-91's order: the order a file's problems are
     /// reported in.
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::Input,
         Self::Output,
         Self::Title,
@@ -95,6 +97,7 @@ impl Setting {
         Self::LegendColumns,
         Self::Legend,
         Self::Table,
+        Self::Paper,
         Self::Palette,
         Self::Edition,
     ];
@@ -125,6 +128,7 @@ impl Setting {
             Self::LegendColumns => ("--legend-columns", "legend_columns"),
             Self::Legend => ("--legend", "legend"),
             Self::Table => ("--table", "table"),
+            Self::Paper => ("--paper", "paper"),
             Self::Palette => ("--palette", "palette"),
             Self::Edition => ("--edition", "edition"),
         }
@@ -191,16 +195,29 @@ impl Origin {
     /// depends on the source; the caller places the verb that follows.
     #[must_use]
     pub fn set_to(&self, value: impl fmt::Display, tail: &str) -> String {
+        let assignment = self.assignment(value, tail);
+        if self.source.is_config() {
+            format!("setting {assignment}")
+        } else {
+            assignment
+        }
+    }
+
+    /// The setting at `value`, with `tail` after the value, as its source
+    /// holds it: `--paper a4`, or `paper = "a4" in radar.toml`, a string
+    /// quoted as [`set_to`](Self::set_to) quotes it.
+    #[must_use]
+    pub fn assignment(&self, value: impl fmt::Display, tail: &str) -> String {
         match &self.source {
             Source::Config(file) => {
                 let key = self.setting.key();
                 match self.setting {
                     Setting::Width | Setting::LegendColumns => {
-                        format!("setting {key} = {value}{tail} in {file}")
+                        format!("{key} = {value}{tail} in {file}")
                     }
                     _ => {
                         let text = value.to_string().replace('\\', "\\\\").replace('"', "\\\"");
-                        format!("setting {key} = \"{text}\"{tail} in {file}")
+                        format!("{key} = \"{text}\"{tail} in {file}")
                     }
                 }
             }
@@ -374,6 +391,8 @@ pub struct Settings {
     pub legend: Effective<Legend>,
     /// `--table` or `table`.
     pub table: Effective<Table>,
+    /// `paper` (FR-111).
+    pub paper: Effective<Paper>,
     /// `--palette` or `palette`.
     pub palette: Effective<PathBuf>,
     /// `--edition` or `edition` (FR-92).
@@ -470,6 +489,7 @@ mod tests {
                 "legend_columns",
                 "legend",
                 "table",
+                "paper",
                 "palette",
                 "edition"
             ]
@@ -489,6 +509,7 @@ mod tests {
                 "--legend-columns",
                 "--legend",
                 "--table",
+                "--paper",
                 "--palette",
                 "--edition"
             ]

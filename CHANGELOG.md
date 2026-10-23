@@ -1,3 +1,29 @@
+## [1.20.0] - 2026-10-22
+
+### 🚀 Features
+
+- *(legend)* Break the legend into pieces for paper (FR-111)
+- *(layout)* Paper pages as documents (FR-111)
+- *(pdf)* Write a page per paper document (FR-111, SC-31)
+- *(cli)* --paper letter|a4|none puts the PDF on paper (FR-111)
+
+### 🐛 Bug Fixes
+
+- *(paper)* The final review's findings (FR-111)
+- *(paper)* A cut footer title always fits its room (FR-111)
+
+### 📚 Documentation
+
+- *(prd)* The full PDF's design (FR-111-114, D-104-107; v0.107)
+- --paper in the README, manual checks and architecture (FR-111)
+
+### 🚜 Refactor
+
+- *(paper)* The simplify pass (FR-111)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* 1.20.0; the PR 21a plan is done
 ## [1.19.1] - 2026-10-22
 
 ### 📚 Documentation
@@ -7,8 +33,7 @@
 
 ### 🧪 Testing
 
-- *(pdf)* Compare at 2x, averaged down, to catch shifts (rg-ho8)
-- *(pdf)* Compare the bottom row; ppm budget at --width 2400 too
+- *(pdf)* Compare at 2x to catch sub-pixel shifts (rg-ho8) (1.19.1) (#144)
 
 ### ⚙️ Miscellaneous Tasks
 

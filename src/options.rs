@@ -63,6 +63,42 @@ impl std::fmt::Display for OutputFormat {
     }
 }
 
+/// The paper a PDF is laid out on (FR-111, D-105), landscape. Only PDF
+/// reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum Paper {
+    /// US Letter, 11 × 8.5 inches
+    Letter,
+    /// ISO A4, 297 × 210 mm
+    A4,
+    /// No paper: one page the size of the drawing
+    None,
+}
+
+impl std::fmt::Display for Paper {
+    /// As the flag and the key take it: `letter`, `a4` or `none`.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Letter => "letter",
+            Self::A4 => "a4",
+            Self::None => "none",
+        })
+    }
+}
+
+impl Paper {
+    /// The landscape page in points, width first; `None` for no paper.
+    #[must_use]
+    pub const fn points(self) -> Option<(f64, f64)> {
+        match self {
+            Self::Letter => Some((792.0, 612.0)),
+            // 297 × 210 mm at 72 / 25.4 points per millimetre.
+            Self::A4 => Some((841.889_763_779_527_6, 595.275_590_551_181_2)),
+            Self::None => None,
+        }
+    }
+}
+
 /// Where the page's legend starts (RG-102). Only HTML reads it: PNG, SVG
 /// and PDF always draw the legend.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]

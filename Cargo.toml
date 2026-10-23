@@ -1,6 +1,6 @@
 [package]
 name = "radargen"
-version = "1.19.1"
+version = "1.20.0"
 edition = "2024"
 rust-version = "1.97"
 description = "Render a technology radar from CSV to a self-contained HTML page, a PNG image, an SVG file or a PDF"
@@ -108,6 +108,21 @@ opt-level = 3
 [profile.dev.package.read-fonts]
 opt-level = 3
 [profile.dev.package.skrifa]
+opt-level = 3
+# The PDF render oracle (dev only): hayro draws every PDF page, paper
+# pages at twice their size, so an unoptimised build spent most of the
+# oracle's time here (about 15% of the suite, PR 21a's simplify pass).
+[profile.dev.package.hayro]
+opt-level = 3
+[profile.dev.package.hayro-interpret]
+opt-level = 3
+[profile.dev.package.hayro-syntax]
+opt-level = 3
+[profile.dev.package.vello_cpu]
+opt-level = 3
+[profile.dev.package.vello_common]
+opt-level = 3
+[profile.dev.package.kurbo]
 opt-level = 3
 
 [profile.release]

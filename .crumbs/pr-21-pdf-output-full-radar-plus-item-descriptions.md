@@ -1,7 +1,7 @@
 ---
 id: rg-4b8
 title: 'PR 21: PDF output, full (radar plus item descriptions)'
-status: open
+status: in_progress
 type: feature
 priority: 3
 tags:
@@ -23,3 +23,7 @@ First step (maintainer: not now, when the time comes): a Fullbleed spike (~1 day
 [2026-10-22] Maintainer, 2026-10-22 (PR 20 design): paper sizes (A4, Letter, and orientation) belong here, in PR 21. PR 20 light PDF is one page sized to the document (CSS px x 0.75 pt, --width as for SVG).
 
 [2026-10-22] From rg-vvh (2026-10-22): /UserUnit pages are searchable in PDFKit, pdf.js and PDFium at any size tried (20k rows, unit 38); only poppler (pdftotext and the viewers built on it) loses text past roughly unit 6-10. Pagination for the full PDF can be decided on its own merits (print, the table); it is not needed to fix search.
+
+[start] 2026-10-22 22:15:03  PR 21a: paper
+
+[stop]  2026-10-22 23:38:01  1h 22m 58s  PR 21a done; 21b next
