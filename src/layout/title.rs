@@ -10,7 +10,7 @@ use crate::style::{
     SUBTITLE, SUBTITLE_AFTER_TITLE, SUBTITLE_ALONE, SUBTITLE_LEADING, TITLE, TITLE_BOTTOM,
     TITLE_FIRST_BASELINE, TITLE_LEADING, TITLE_TOP, TextStyle,
 };
-use crate::svg::{Anchor, Group, Node, Point, Scale, Semantics, TextRun};
+use crate::svg::{Anchor, Group, Node, Point, Scale, Semantics, Structure, TextRun};
 use crate::text::{Fonts, words};
 
 /// The title's heading level: the document's top.
@@ -268,7 +268,12 @@ impl Block for Wrap {
                 Group::new(origin, vec![run.node(at.scale)]).with(Semantics::Heading(TITLE_LEVEL)),
             )
         });
-        let subtitle = self.subtitle.iter().map(|run| run.node(at.scale));
+        let subtitle = self.subtitle.iter().map(|run| {
+            Node::Group(
+                Group::new(origin, vec![run.node(at.scale)])
+                    .with(Semantics::Structure(Structure::Paragraph)),
+            )
+        });
         Node::Group(Group::new(at.origin, heading.chain(subtitle).collect()))
     }
 }
@@ -333,15 +338,21 @@ mod tests {
         group
             .children
             .iter()
-            .map(|child| match child {
-                Node::Group(inner) => {
-                    assert_eq!(inner.semantics, Semantics::Heading(TITLE_LEVEL));
-                    let [text] = inner.children.as_slice() else {
-                        panic!("a heading holds one text");
-                    };
-                    (true, text)
-                }
-                text => (false, text),
+            .map(|child| {
+                // The title a heading, the subtitle a paragraph (PR 21c-1).
+                let Node::Group(inner) = child else {
+                    panic!("each run in its group, got {child:?}");
+                };
+                let [text] = inner.children.as_slice() else {
+                    panic!("a group holds one text");
+                };
+                let title = inner.semantics == Semantics::Heading(TITLE_LEVEL);
+                assert!(
+                    title || inner.semantics == Semantics::Structure(Structure::Paragraph),
+                    "{:?}",
+                    inner.semantics
+                );
+                (title, text)
             })
             .collect()
     }

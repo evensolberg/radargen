@@ -9,7 +9,7 @@ use crate::style::{
     LEGEND_BADGE_X, LEGEND_FIRST_BASELINE, LEGEND_META, LEGEND_NAME, LEGEND_NAME_COLUMN,
     LEGEND_NAME_X, LEGEND_ROW_PAD, LEGEND_TEXT_MIN_HEIGHT, LINE_HEIGHT, META_GAP,
 };
-use crate::svg::{Anchor, Control, ItemKey, Paint, Point, Tail, TextRun};
+use crate::svg::{Anchor, Control, ItemKey, ListKey, Paint, Point, Tail, TextRun};
 use crate::text::{Fonts, words};
 
 /// Between a row's qualifier and status (FR-74).
@@ -48,6 +48,9 @@ pub(super) struct Row {
     pub(super) badge: Point,
     /// The sector's FR-10 rank: its series index, unreduced (FR-67).
     pub(super) series: usize,
+    /// The ring's list in a tagged PDF: catalogue sector and ring
+    /// (FR-114), so a ring broken across columns or pages is one list.
+    pub(super) list: ListKey,
     /// Whether the badge is hollow (FR-20).
     pub(super) hollow: bool,
     /// FR-34's number.
@@ -63,10 +66,11 @@ pub(super) struct Row {
 
 impl Row {
     /// A numbered item as a row from `top`, at least `min_height` tall,
-    /// with its sector's `series` and FR-75's accessible name `label`.
+    /// with its sector's `series`, the `ring_list` it belongs to (FR-114)
+    /// and FR-75's accessible name `label`.
     pub(super) fn new(
         numbered: Numbered<'_>,
-        series: usize,
+        (series, ring_list): (usize, ListKey),
         label: String,
         top: f64,
         min_height: f64,
@@ -83,6 +87,7 @@ impl Row {
             height: frame.height,
             badge: frame.badge,
             series,
+            list: ring_list,
             hollow: item.hollow(),
             number,
             meta: meta.map(|meta| meta.line(last)),
@@ -266,7 +271,7 @@ mod tests {
             .map(|(number, item)| {
                 Row::new(
                     Numbered { item, number },
-                    0,
+                    (0, ListKey::Key),
                     String::new(),
                     0.0,
                     LEGEND_ROW_MIN_HEIGHT,

@@ -424,7 +424,11 @@ fn headers_nest_and_headings_repeat_plainly() {
         Point::ORIGIN,
         fonts(),
     );
-    let Some(Node::Group(header)) = first.get(1) else {
+    // The table's first child is the header row (PR 21c-1).
+    let Some(Node::Group(table)) = first.get(1) else {
+        panic!("the table")
+    };
+    let Some(Node::Group(header)) = table.children.first() else {
         panic!("a header row")
     };
     assert_eq!(header.children.len(), block.columns.len());
@@ -449,7 +453,8 @@ fn headers_nest_and_headings_repeat_plainly() {
         Point::ORIGIN,
         fonts(),
     );
-    assert_eq!(heading(&second), Semantics::None);
+    // A repeat is page furniture to a tagged PDF (PR 21c-1).
+    assert_eq!(heading(&second), Semantics::Pagination);
 }
 
 /// FR-106's empty table: its one line starts at the first column's
@@ -549,4 +554,215 @@ fn the_unplotted_boundary_at_a_page_top() {
     let page = texts(all_pages(&block).get(1).expect("page 2"));
     let heading = page.get(1).map(lines_of).unwrap_or_default().join(" ");
     assert_eq!(heading, "(continued): Tools", "no number range");
+}
+
+/// Every group's semantics under `node`, depth first, with the depth.
+fn outline(node: &Node, depth: usize, out: &mut Vec<(usize, Semantics)>) {
+    if let Node::Group(group) = node {
+        out.push((depth, group.semantics.clone()));
+        for child in &group.children {
+            outline(child, depth + 1, out);
+        }
+    }
+}
+
+/// PR 21c-1: a table page is the table, its header row of column headers
+/// on the first page only, each row keyed by its published row with the
+/// name as its row header; a split row's later parts repeat their number
+/// and name as furniture, and the marks are furniture everywhere.
+#[test]
+fn the_table_is_structured_for_tagging() {
+    let tall = (0..3_000)
+        .map(|i| format!("w{i}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let csv =
+        format!("name,sector,ring,description\nAlpha,Tools,Adopt,d\nBeta,Tools,Adopt,{tall}\n");
+    let block = block(&csv, Table::Radar);
+    let pages = all_pages(&block);
+    assert!(pages.len() >= 2);
+    for (k, page) in pages.iter().enumerate() {
+        let mut groups = Vec::new();
+        for node in page {
+            outline(node, 0, &mut groups);
+        }
+        let tables = groups
+            .iter()
+            .filter(|(_, s)| *s == Semantics::Structure(Structure::Table))
+            .count();
+        assert_eq!(tables, 1, "page {k}");
+        let headers = groups
+            .iter()
+            .filter(|(_, s)| *s == Semantics::Structure(Structure::Header(Scope::Column)))
+            .count();
+        let header_rows = groups
+            .iter()
+            .filter(|(_, s)| *s == Semantics::Structure(Structure::HeaderRow))
+            .count();
+        if k == 0 {
+            assert_eq!((header_rows, headers), (1, block.columns.len()));
+        } else {
+            assert_eq!(
+                (header_rows, headers),
+                (0, 0),
+                "page {k} repeats as furniture"
+            );
+            assert!(groups.iter().any(|(_, s)| *s == Semantics::Pagination));
+        }
+        // Every row has as many cells as there are columns.
+        for (at, (depth, semantics)) in groups.iter().enumerate() {
+            if !matches!(semantics, Semantics::Structure(Structure::Row(_))) {
+                continue;
+            }
+            let cells = groups
+                .iter()
+                .skip(at + 1)
+                .take_while(|(d, _)| d > depth)
+                .filter(|(d, s)| {
+                    *d == depth + 1
+                        && matches!(
+                            s,
+                            Semantics::Structure(
+                                Structure::Cell { .. } | Structure::Header(Scope::Row)
+                            )
+                        )
+                })
+                .count();
+            assert_eq!(cells, block.columns.len(), "page {k}");
+        }
+    }
+    let rows: Vec<usize> = block.parts.iter().map(|p| p.row).collect();
+    assert!(
+        rows.windows(2).any(|w| matches!(w, [a, b] if a == b)),
+        "Beta is split"
+    );
+}
+
+/// PR 21c-1: FR-106's one row spans every column.
+#[test]
+fn nothing_plotted_spans_as_one_cell() {
+    let block = block("name,sector,ring,description\n", Table::Radar);
+    let page = all_pages(&block).into_iter().next().expect("a page");
+    let mut groups = Vec::new();
+    for node in &page {
+        outline(node, 0, &mut groups);
+    }
+    let span = NonZeroUsize::new(block.columns.len());
+    assert!(
+        groups
+            .iter()
+            .any(|(_, s)| *s == Semantics::Structure(Structure::Cell { column: 0, span }))
+    );
+}
+
+/// Review of 21c-1: a mark is furniture because the split made it, not
+/// because a value reads like one; a qualifier of "(continued)" on a row
+/// that never splits stays content.
+#[test]
+fn a_value_that_reads_like_a_mark_stays_content() {
+    let csv = "name,sector,ring,description,qualifier\nAlpha,Tools,Adopt,d,(continued)\n";
+    let block = block(csv, Table::Radar);
+    let page = all_pages(&block).into_iter().next().expect("a page");
+    let mut groups = Vec::new();
+    for node in &page {
+        outline(node, 0, &mut groups);
+    }
+    assert!(
+        groups.iter().all(|(_, s)| *s != Semantics::Pagination),
+        "{groups:?}"
+    );
+}
+
+/// Every row group under `nodes`, in document order.
+fn row_groups(nodes: &[Node]) -> Vec<&crate::svg::Group> {
+    fn walk<'a>(node: &'a Node, out: &mut Vec<&'a crate::svg::Group>) {
+        if let Node::Group(group) = node {
+            if matches!(group.semantics, Semantics::Structure(Structure::Row(_))) {
+                out.push(group);
+            }
+            group.children.iter().for_each(|child| walk(child, out));
+        }
+    }
+    let mut out = Vec::new();
+    for node in nodes {
+        walk(node, &mut out);
+    }
+    out
+}
+
+/// Review of 21c-1: a split row renders as one key on every part; its
+/// cells run column by column with the name as the row header; on later
+/// parts the number and name cells hold furniture only, and the marks are
+/// furniture on the first part too.
+#[test]
+fn a_split_row_repeats_only_as_furniture() {
+    let tall = (0..3_000)
+        .map(|i| format!("w{i}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let csv =
+        format!("name,sector,ring,description\nAlpha,Tools,Adopt,d\nBeta,Tools,Adopt,{tall}\n");
+    let block = block(&csv, Table::Radar);
+    let pages = all_pages(&block);
+    let rows: Vec<&crate::svg::Group> = pages.iter().flat_map(|p| row_groups(p)).collect();
+    let beta: Vec<&&crate::svg::Group> = rows
+        .iter()
+        .filter(|g| g.semantics == Semantics::Structure(Structure::Row(1)))
+        .collect();
+    assert!(beta.len() >= 2, "{}", beta.len());
+    let name = block
+        .columns
+        .iter()
+        .position(|c| c.kind == Some(CellKind::Name))
+        .expect("a name column");
+    for row in &rows {
+        let cells: Vec<Semantics> = row
+            .children
+            .iter()
+            .map(|c| match c {
+                Node::Group(g) => g.semantics.clone(),
+                _ => Semantics::None,
+            })
+            .collect();
+        let expected: Vec<Semantics> = (0..block.columns.len())
+            .map(|column| {
+                Semantics::Structure(if column == name {
+                    Structure::Header(Scope::Row)
+                } else {
+                    Structure::Cell { column, span: None }
+                })
+            })
+            .collect();
+        assert_eq!(cells, expected);
+    }
+    let furniture_only = |cell: &Node| match cell {
+        Node::Group(g) => g
+            .children
+            .iter()
+            .all(|c| matches!(c, Node::Group(inner) if inner.semantics == Semantics::Pagination)),
+        _ => false,
+    };
+    for later in beta.iter().skip(1) {
+        let number = later.children.first().expect("the number cell");
+        let header = later.children.get(name).expect("the name cell");
+        assert!(furniture_only(number) && furniture_only(header));
+    }
+    let first_name = beta
+        .first()
+        .and_then(|row| row.children.get(name))
+        .expect("Beta's first name cell");
+    let Node::Group(first_name) = first_name else {
+        panic!("a cell")
+    };
+    assert!(
+        first_name
+            .children
+            .iter()
+            .any(|c| matches!(c, Node::Group(g) if g.semantics == Semantics::Pagination))
+    );
+    assert!(!furniture_only(
+        beta.first()
+            .and_then(|r| r.children.first())
+            .expect("a number")
+    ));
 }

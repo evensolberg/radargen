@@ -4,7 +4,7 @@
 //! role to a value late, so one tree serves every format and theme. Variants
 //! and [`Semantics`] values are added by the PR that first needs them.
 
-use std::num::NonZeroU8;
+use std::num::{NonZeroU8, NonZeroUsize};
 
 pub mod serialise;
 mod tail;
@@ -160,6 +160,66 @@ pub enum Semantics {
     /// its indicator, or a legend row's start bar. Shown by the page while
     /// the item is selected; interactive-only, and hidden until then.
     Selection(ItemKey),
+    /// Document structure a tagged PDF names (FR-114). The SVG writes
+    /// nothing for it, so a structure group at the origin is transparent.
+    Structure(Structure),
+    /// Page furniture repeated on a page (a footer, a repeated header row,
+    /// a continued heading): drawn alike, but a pagination artifact to a
+    /// tagged PDF (FR-114). Paper pages only.
+    Pagination,
+}
+
+/// The structure a tagged PDF gives a group (FR-114).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Structure {
+    /// A list; groups with one key are one list, wherever they fall.
+    List(ListKey),
+    /// A list's item (a key entry; a legend row is one by its control).
+    ListItem,
+    /// A list item's label: a legend row's number.
+    Label,
+    /// A list item's body.
+    Body,
+    /// The table; one per document, across every page.
+    Table,
+    /// The table's header row.
+    HeaderRow,
+    /// A table row: its published row index, the same on every part.
+    Row(usize),
+    /// A header cell and what it heads.
+    Header(Scope),
+    /// A data cell: its column, and the columns it spans when more than one.
+    Cell {
+        /// Its column among the drawn columns, the number column 0.
+        column: usize,
+        /// The columns it spans, when it spans several (FR-106's row).
+        span: Option<NonZeroUsize>,
+    },
+    /// A paragraph: the subtitle, the page-1 pointer.
+    Paragraph,
+}
+
+/// Which list a [`Structure::List`] group belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ListKey {
+    /// The key's entries (FR-66).
+    Key,
+    /// A ring's rows in the legend, by catalogue sector and ring.
+    Ring {
+        /// The catalogue's sector index.
+        sector: usize,
+        /// The catalogue's ring index.
+        ring: usize,
+    },
+}
+
+/// What a table header cell heads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Scope {
+    /// Its column.
+    Column,
+    /// Its row.
+    Row,
 }
 
 /// One step of a path outline.
@@ -403,11 +463,12 @@ impl Node {
             Self::HitArea { .. } => true,
             Self::Group(group) => match group.semantics {
                 Semantics::Indicator(_) | Semantics::FocusRing(_) | Semantics::Selection(_) => true,
-                Semantics::None => {
+                Semantics::None | Semantics::Structure(_) => {
                     !group.children.is_empty()
                         && group.children.iter().all(Self::is_interactive_only)
                 }
-                Semantics::Decorative
+                Semantics::Pagination
+                | Semantics::Decorative
                 | Semantics::Heading(_)
                 | Semantics::Group(_)
                 | Semantics::Marker(_)

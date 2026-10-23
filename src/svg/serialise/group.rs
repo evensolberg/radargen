@@ -26,7 +26,19 @@ pub(super) fn group(group: &Group, context: Context<'_>) -> String {
             ),
         "a control always draws something"
     );
+    if transparent(group) {
+        return children;
+    }
     enclose(&open(group, heading, context), &children)
+}
+
+/// Whether `group` writes no `<g>` of its own: structure for a tagged PDF
+/// at the origin, which the SVG has no use for, so wrappers added for it
+/// change no byte (PR 21c-1).
+fn transparent(group: &Group) -> bool {
+    matches!(group.semantics, Semantics::Structure(_))
+        && !shows(group.offset.x)
+        && !shows(group.offset.y)
 }
 
 /// The context for a group's children: inside a control once one opens,
@@ -94,7 +106,7 @@ fn heading_name<'g>(group: &'g Group, context: Context<'_>) -> Option<&'g str> {
 
 fn semantics(out: &mut String, semantics: &Semantics, context: Context<'_>) {
     match semantics {
-        Semantics::None => {}
+        Semantics::None | Semantics::Structure(_) | Semantics::Pagination => {}
         Semantics::Decorative => attr(out, "aria-hidden", "true"),
         Semantics::Heading(level) => {
             attr(out, "role", "heading");

@@ -23,7 +23,9 @@ use crate::style::{
     LEGEND_ROW_INDICATOR_INSET, LEGEND_ROW_LEFT_OUTSET, LEGEND_ROW_MIN_HEIGHT, LEGEND_ROW_RADIUS,
     LEGEND_ROW_RIGHT_OUTSET, PAPER_ROW_MIN_HEIGHT, SELECTION_BAR_WIDTH, SWATCH_RADIUS,
 };
-use crate::svg::{Group, ItemKey, Node, Paint, Point, Scale, Semantics, TextRun};
+use crate::svg::{
+    Group, ItemKey, ListKey, Node, Paint, Point, Scale, Semantics, Structure, TextRun,
+};
 use crate::text::Fonts;
 
 use layout::{Entry, Layout, layout};
@@ -358,8 +360,18 @@ fn content_node(layout: &Layout, columns: &[Column], s: f64) -> Node {
             .entries
             .get(range)
             .unwrap_or_default()
-            .iter()
-            .map(|entry| entry_node(entry, layout.width, s))
+            .chunk_by(|a, b| list_of(a).is_some() && list_of(a) == list_of(b))
+            .flat_map(|run| {
+                let nodes = run.iter().map(|entry| entry_node(entry, layout.width, s));
+                match run.first().and_then(list_of) {
+                    // A ring's adjacent rows are one list (FR-114).
+                    Some(key) => vec![Node::Group(
+                        Group::new(Point::ORIGIN, nodes.collect())
+                            .with(Semantics::Structure(Structure::List(key))),
+                    )],
+                    None => nodes.collect(),
+                }
+            })
             .collect()
     };
     let children = if columns.is_empty() {
@@ -378,9 +390,25 @@ fn content_node(layout: &Layout, columns: &[Column], s: f64) -> Node {
     Node::Group(Group::new(offset, children))
 }
 
+/// The list a legend row belongs to; `None` for any other entry.
+const fn list_of(entry: &Entry) -> Option<ListKey> {
+    match entry {
+        Entry::Row(row) => Some(row.list),
+        _ => None,
+    }
+}
+
 /// One entry at `s`; `width` is the content's, which a row's target spans.
 fn entry_node(entry: &Entry, width: f64, s: f64) -> Node {
     match entry {
+        Entry::Heading {
+            run,
+            level,
+            continued: true,
+        } => Node::Group(
+            Group::new(Point::ORIGIN, vec![heading_node(run, *level, s)])
+                .with(Semantics::Pagination),
+        ),
         Entry::Heading { run, level, .. } => heading_node(run, *level, s),
         Entry::Swatch { centre, series } => swatch_node(*centre, *series, s),
         Entry::Row(row) => row_node(row, width, s),
@@ -411,16 +439,19 @@ fn swatch_node(centre: Point, series: usize, s: f64) -> Node {
 fn row_node(row: &Row, width: f64, s: f64) -> Node {
     let scale = Scale::uniform(s);
     let target = target(row, width).scaled(s);
-    let children = [
+    // A list item's label and body to a tagged PDF (FR-114): its number,
+    // then its name and meta.
+    let part = |structure, children| {
+        Node::Group(Group::new(Point::ORIGIN, children).with(Semantics::Structure(structure)))
+    };
+    let children = vec![
         rect_node(target, LEGEND_ROW_RADIUS * s, SURFACE2),
         indicator_node(target, row.control.key, s),
         selection_node(target, row.control.key, s),
         badge_node(row, s),
-        number_node(row, s),
-    ]
-    .into_iter()
-    .chain(text_nodes(row, scale))
-    .collect();
+        part(Structure::Label, vec![number_node(row, s)]),
+        part(Structure::Body, text_nodes(row, scale)),
+    ];
     Node::Group(Group::new(Point::ORIGIN, children).with(Semantics::LegendRow(row.control.clone())))
 }
 
@@ -575,13 +606,26 @@ mod tests {
         group(child(&group(root).children, 1))
     }
 
-    /// Every legend row's control and children, in document order.
-    fn rows(root: &Node) -> Vec<(&Control, &[Node])> {
+    /// Every legend row's control and children, in document order, its
+    /// label and body unwrapped as the SVG writes them.
+    fn rows(root: &Node) -> Vec<(&Control, Vec<Node>)> {
         groups(root)
             .into_iter()
             .filter_map(|g| match &g.semantics {
-                Semantics::LegendRow(c) => Some((c, g.children.as_slice())),
+                Semantics::LegendRow(c) => Some((c, unwrapped(&g.children))),
                 _ => None,
+            })
+            .collect()
+    }
+
+    fn unwrapped(nodes: &[Node]) -> Vec<Node> {
+        nodes
+            .iter()
+            .flat_map(|node| match node {
+                Node::Group(group) if matches!(group.semantics, Semantics::Structure(_)) => {
+                    unwrapped(&group.children)
+                }
+                node => vec![node.clone()],
             })
             .collect()
     }
@@ -670,13 +714,13 @@ mod tests {
         let root = rendered(&csv);
         let mut tails = 0;
         for (_, children) in rows(&root) {
-            let name = child(children, NAME);
+            let name = child(&children, NAME);
             if !matches!(name, Node::Text { tail: Some(_), .. }) {
                 continue;
             }
             tails += 1;
             let end = bounds(name, fonts).expect("bounds").right;
-            let (target, width, ..) = rect(child(children, TARGET));
+            let (target, width, ..) = rect(child(&children, TARGET));
             assert!(target.x + width >= end, "{end} past {}", target.x + width);
         }
         assert_eq!(tails, 2, "both rows' metas ride inline");
@@ -690,7 +734,7 @@ mod tests {
         let root = rendered(&csv);
         let mut shown = 0;
         for (control, children) in rows(&root) {
-            let Some((visible, _)) = meta_of(children) else {
+            let Some((visible, _)) = meta_of(&children) else {
                 continue;
             };
             shown += 1;
@@ -731,8 +775,8 @@ mod tests {
     fn row_indicators_are_inset_and_interactive_only() {
         let root = rendered(PRD_EXAMPLE);
         for (control, children) in rows(&root) {
-            let (origin, width, height, _, _, _) = rect(child(children, TARGET));
-            let indicator = child(children, INDICATOR);
+            let (origin, width, height, _, _, _) = rect(child(&children, TARGET));
+            let indicator = child(&children, INDICATOR);
             let g = group(indicator);
             assert_eq!(g.semantics, Semantics::Indicator(control.key));
             assert!(near(g.offset, Point::ORIGIN));
@@ -758,7 +802,7 @@ mod tests {
             // FR-72, FR-73: selection is a bar at the row's start, inside the
             // indicator's edge, so focus keeps the outline and the two never
             // merge into one thicker edge.
-            let bar = child(children, SELECTION);
+            let bar = child(&children, SELECTION);
             let b = group(bar);
             assert_eq!(b.semantics, Semantics::Selection(control.key));
             assert!(bar.is_interactive_only());
@@ -964,11 +1008,11 @@ mod tests {
         let root = rendered(PRD_EXAMPLE);
         for (_, children) in rows(&root) {
             assert_eq!(
-                text(child(children, NAME)).2,
+                text(child(&children, NAME)).2,
                 fill(Neutral::TextPrimary),
                 "the name"
             );
-            if let Some((_, paint)) = meta_of(children) {
+            if let Some((_, paint)) = meta_of(&children) {
                 assert_eq!(
                     paint,
                     Paint::Role(Role::Neutral(Neutral::TextMuted)),
@@ -1062,6 +1106,106 @@ mod tests {
 
     fn controls(root: &Node) -> Vec<Control> {
         rows(root).into_iter().map(|(c, _)| c.clone()).collect()
+    }
+
+    /// Every group under `node` with its semantics, in document order.
+    fn all_semantics(node: &Node, out: &mut Vec<Semantics>) {
+        if let Node::Group(group) = node {
+            out.push(group.semantics.clone());
+            group
+                .children
+                .iter()
+                .for_each(|child| all_semantics(child, out));
+        }
+    }
+
+    /// A legend row's label holds its number and its body its name.
+    fn assert_label_and_body(row: &Group) {
+        let Semantics::LegendRow(control) = &row.semantics else {
+            panic!("a legend row");
+        };
+        let words = |s: Structure| -> Vec<String> {
+            row.children
+                .iter()
+                .filter_map(|c| match c {
+                    Node::Group(g) if g.semantics == Semantics::Structure(s) => Some(&g.children),
+                    _ => None,
+                })
+                .flatten()
+                .filter_map(|n| match n {
+                    Node::Text { words, .. } => Some(words.clone()),
+                    _ => None,
+                })
+                .collect()
+        };
+        let label = words(Structure::Label);
+        assert!(
+            matches!(label.as_slice(), [n] if n.parse::<usize>().is_ok()),
+            "{label:?}"
+        );
+        let body = words(Structure::Body);
+        let name = body.first().expect("a name");
+        assert!(
+            control.label.contains(name.as_str()),
+            "{name} in {}",
+            control.label
+        );
+    }
+
+    /// PR 21c-1: each ring's rows are one list, wherever a page breaks it;
+    /// a row's number is its label and its name and meta its body; a
+    /// continued heading is page furniture.
+    #[test]
+    fn rings_are_lists_of_labelled_rows() {
+        let (_, _, block) = legend(&flowed());
+        let pieces = block.flowed(150.0, 150.0, &|k| k > 0, fonts());
+        assert!(pieces.len() > 2, "{}", pieces.len());
+        let mut keys = Vec::new();
+        let mut pagination = 0;
+        for piece in &pieces {
+            let root = piece.render(at(1.0));
+            for list in groups(&root).into_iter().filter_map(|g| match g.semantics {
+                Semantics::Structure(Structure::List(key)) => Some((key, g)),
+                _ => None,
+            }) {
+                let (key, group) = list;
+                keys.push(key);
+                for row in &group.children {
+                    let Node::Group(row) = row else {
+                        panic!("a row")
+                    };
+                    assert!(matches!(row.semantics, Semantics::LegendRow(_)));
+                    let mut inner = Vec::new();
+                    row.children
+                        .iter()
+                        .for_each(|c| all_semantics(c, &mut inner));
+                    let count = |s: Structure| {
+                        inner
+                            .iter()
+                            .filter(|x| **x == Semantics::Structure(s))
+                            .count()
+                    };
+                    assert_eq!((count(Structure::Label), count(Structure::Body)), (1, 1));
+                    assert_label_and_body(row);
+                }
+            }
+            let mut all = Vec::new();
+            all_semantics(&root, &mut all);
+            pagination += all.iter().filter(|s| **s == Semantics::Pagination).count();
+            // No row outside a list.
+            let listed: usize = groups(&root)
+                .iter()
+                .filter(|g| matches!(g.semantics, Semantics::Structure(Structure::List(_))))
+                .map(|g| g.children.len())
+                .sum();
+            assert_eq!(listed, rows(&root).len());
+        }
+        assert!(pagination > 0, "a continued heading is furniture");
+        // Some ring is broken across pieces: its key appears twice.
+        let mut sorted = keys.clone();
+        sorted.sort_by_key(|k| format!("{k:?}"));
+        sorted.dedup();
+        assert!(sorted.len() < keys.len(), "{keys:?}");
     }
 
     /// FR-100: whole groups, side by side, each a single column's width

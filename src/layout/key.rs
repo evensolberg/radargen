@@ -12,7 +12,7 @@ use crate::style::{
     KEY_LABEL_DROP, KEY_LABEL_X, KEY_MARKER_RADIUS, KEY_ROW, KEY_SAMPLE_X,
     KEY_STATUS_MARKER_RADIUS, TextStyle,
 };
-use crate::svg::{Anchor, Group, Node, Point, Scale, Semantics, TextRun};
+use crate::svg::{Anchor, Group, ListKey, Node, Point, Scale, Semantics, Structure, TextRun};
 use crate::text::Fonts;
 
 /// The heading's text.
@@ -99,9 +99,10 @@ fn text(label: &str, origin: Point, style: TextStyle, ink: Neutral, scale: f64) 
     .node(Scale::uniform(scale))
 }
 
-/// One entry: its decorative sample, then its label, in grid row `index`
-/// and the column starting `column_x`.
-fn row_nodes(index: usize, column_x: f64, row: Row, scale: f64) -> [Node; 2] {
+/// One entry, a list item (FR-114): its decorative sample, then its label
+/// as the item's body, in grid row `index` and the column starting
+/// `column_x`.
+fn row_node(index: usize, column_x: f64, row: Row, scale: f64) -> Node {
     let centre = sample_centre(index, column_x);
     let glyph = Glyph {
         centre,
@@ -115,10 +116,19 @@ fn row_nodes(index: usize, column_x: f64, row: Row, scale: f64) -> [Node; 2] {
         x: column_x + KEY_LABEL_X,
         y: centre.y + KEY_LABEL_DROP,
     };
-    [
-        Node::Group(Group::new(Point::ORIGIN, glyph).with(Semantics::Decorative)),
-        text(row.label, origin, KEY_LABEL, Neutral::TextMuted, scale),
-    ]
+    let label = text(row.label, origin, KEY_LABEL, Neutral::TextMuted, scale);
+    structure(
+        Structure::ListItem,
+        vec![
+            Node::Group(Group::new(Point::ORIGIN, glyph).with(Semantics::Decorative)),
+            structure(Structure::Body, vec![label]),
+        ],
+    )
+}
+
+/// `children` as a structure group at the origin.
+fn structure(structure: Structure, children: Vec<Node>) -> Node {
+    Node::Group(Group::new(Point::ORIGIN, children).with(Semantics::Structure(structure)))
 }
 
 /// The heading, as a level-two heading group.
@@ -226,12 +236,10 @@ impl Block for KeyGrid<'_> {
             .flat_map(|(index, row)| {
                 row.iter()
                     .zip(&columns)
-                    .flat_map(move |(entry, (start, _))| row_nodes(index, *start, *entry, at.scale))
+                    .map(move |(entry, (start, _))| row_node(index, *start, *entry, at.scale))
             });
-        let children = std::iter::once(heading_node(at.scale))
-            .chain(rows)
-            .collect();
-        Node::Group(Group::new(at.origin, children))
+        let list = structure(Structure::List(ListKey::Key), rows.collect());
+        Node::Group(Group::new(at.origin, vec![heading_node(at.scale), list]))
     }
 }
 
@@ -255,11 +263,54 @@ mod tests {
         }
     }
 
+    /// The key's nodes with its structure groups unwrapped, as the SVG
+    /// writes them: the heading, then each entry's sample and label.
     fn rendered_in(n: usize, scale: f64) -> Vec<Node> {
         let Node::Group(group) = KeyBlock::new(fonts()).grid(columns(n)).render(at(scale)) else {
             panic!("the key renders a group");
         };
-        group.children
+        unwrapped(group.children)
+    }
+
+    fn unwrapped(nodes: Vec<Node>) -> Vec<Node> {
+        nodes
+            .into_iter()
+            .flat_map(|node| match node {
+                Node::Group(group) if matches!(group.semantics, Semantics::Structure(_)) => {
+                    unwrapped(group.children)
+                }
+                node => vec![node],
+            })
+            .collect()
+    }
+
+    /// PR 21c-1: the key's entries are one list, each an item whose body is
+    /// its label; the samples stay decorative.
+    #[test]
+    fn the_key_is_a_list() {
+        let Node::Group(key) = KeyBlock::new(fonts()).grid(columns(2)).render(at(1.0)) else {
+            panic!("the key renders a group");
+        };
+        let [_heading, Node::Group(list)] = key.children.as_slice() else {
+            panic!("a heading and a list: {:?}", key.children.len());
+        };
+        assert_eq!(
+            list.semantics,
+            Semantics::Structure(Structure::List(ListKey::Key))
+        );
+        assert_eq!(list.children.len(), ROWS.len());
+        for item in &list.children {
+            let Node::Group(item) = item else {
+                panic!("an item")
+            };
+            assert_eq!(item.semantics, Semantics::Structure(Structure::ListItem));
+            let [Node::Group(sample), Node::Group(body)] = item.children.as_slice() else {
+                panic!("a sample and a body");
+            };
+            assert_eq!(sample.semantics, Semantics::Decorative);
+            assert_eq!(body.semantics, Semantics::Structure(Structure::Body));
+            assert!(matches!(body.children.as_slice(), [Node::Text { .. }]));
+        }
     }
 
     /// One column: the key as it was before rg-zb9, so these tests pin it.

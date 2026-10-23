@@ -1,7 +1,7 @@
 ---
 id: rg-blz
 title: 'PR 21c notes: carry continued and the footer into Semantics'
-status: open
+status: closed
 type: task
 priority: 3
 tags:
@@ -10,6 +10,7 @@ tags:
 - tagging
 created: 2026-10-22
 updated: 2026-10-23
+closed_reason: '21c-1: continued headings, footer, table rows/cells, later heading run, split-row marks and the pointer carry Semantics; the refactor half moved to its own crumb'
 phase: v1.2
 ---
 

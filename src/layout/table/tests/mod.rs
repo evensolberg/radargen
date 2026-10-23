@@ -20,8 +20,9 @@ use crate::style::{
     TABLE_RULE, TABLE_RULE_HEAVY, TABLE_TEXT,
 };
 use crate::style::{TABLE_HEADING, TABLE_LEADING, TABLE_PAD_X, TABLE_PAD_Y};
-use crate::svg::{Anchor, Node, Point, Semantics};
+use crate::svg::{Anchor, Node, Point, Scope, Semantics, Structure};
 use crate::svg::{Paint, TextPaint};
+use std::num::NonZeroUsize;
 
 const HOSTILE: &str = include_str!("../../../../tests/fixtures/table-hostile.csv");
 

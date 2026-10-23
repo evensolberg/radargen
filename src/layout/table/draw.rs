@@ -2,7 +2,7 @@
 //! rows and their rules, in reading order, each row a group of cell groups
 //! so a tagged PDF can tell rows, cells and artifacts apart.
 
-use std::num::NonZeroU8;
+use std::num::{NonZeroU8, NonZeroUsize};
 
 use crate::palette::{Neutral, Role};
 use crate::published::{CellKind, NUMBER_SPOKEN};
@@ -11,7 +11,7 @@ use crate::style::{
     TABLE_HEADING_TO_HEAD, TABLE_LEADING, TABLE_PAD_X, TABLE_PAD_Y, TABLE_RULE, TABLE_RULE_HEAVY,
     TABLE_TEXT, TextStyle,
 };
-use crate::svg::{Anchor, Group, Node, Paint, Point, Scale, Semantics, TextRun};
+use crate::svg::{Anchor, Group, Node, Paint, Point, Scale, Scope, Semantics, Structure, TextRun};
 use crate::text::{Fonts, words};
 
 use super::columns::{Column, style_of};
@@ -20,15 +20,13 @@ use super::{TableBlock, TablePage, count};
 
 impl TableBlock {
     /// `page` drawn with its top-left at `origin`, in reading order: the
-    /// heading, the header row, then each row, its cells left to right and
-    /// its rule after it.
+    /// heading, then the table: the header row, then each row, its cells
+    /// left to right and its rule after it.
     #[must_use]
     pub fn render(&self, page: &TablePage, origin: Point, fonts: &Fonts) -> Vec<Node> {
         let parts = self.parts.get(page.parts.clone()).unwrap_or_default();
-        let mut out = vec![
-            self.heading_node(page, parts, origin, fonts),
-            self.header_node(origin),
-        ];
+        let heading = self.heading_node(page, parts, origin, fonts);
+        let mut out = vec![self.header_node(origin, page.first)];
         let mut y = origin.y + self.head_height;
         out.push(self.rule(origin.x, y, TABLE_RULE_HEAVY));
         for (i, part) in parts.iter().enumerate() {
@@ -45,12 +43,14 @@ impl TableBlock {
             }
             y = bottom;
         }
-        out
+        // One table to a tagged PDF however many pages hold it (FR-114).
+        vec![heading, structure(Structure::Table, out)]
     }
 
     /// The header row: a group per column, each holding its heading, the
-    /// number column's read as [`NUMBER_SPOKEN`].
-    fn header_node(&self, origin: Point) -> Node {
+    /// number column's read as [`NUMBER_SPOKEN`]. Column headers on the
+    /// `first` page; page furniture on every later one (FR-114).
+    fn header_node(&self, origin: Point, first: bool) -> Node {
         let baseline =
             origin.y + TABLE_HEADING_BASELINE + TABLE_HEADING_TO_HEAD + TABLE_PAD_Y + TABLE_ASCENT;
         let cells = self
@@ -71,10 +71,18 @@ impl TableBlock {
                         words: spoken,
                     },
                 );
-                Node::Group(Group::new(Point::ORIGIN, vec![text]))
+                if first {
+                    structure(Structure::Header(Scope::Column), vec![text])
+                } else {
+                    Node::Group(Group::new(Point::ORIGIN, vec![text]))
+                }
             })
             .collect();
-        Node::Group(Group::new(Point::ORIGIN, cells))
+        if first {
+            structure(Structure::HeaderRow, cells)
+        } else {
+            Node::Group(Group::new(Point::ORIGIN, cells).with(Semantics::Pagination))
+        }
     }
 
     /// The heading: on the first page a level-2 heading; on a later page a
@@ -112,34 +120,54 @@ impl TableBlock {
             + TABLE_HEADING.advance(self.heading, fonts)
             + TABLE_HEADING.advance(" ", fonts);
         children.push(run(Point { x, y: baseline }, style, Lines::of_text(&text)));
-        Node::Group(Group::new(Point::ORIGIN, children))
+        Node::Group(Group::new(Point::ORIGIN, children).with(Semantics::Pagination))
     }
 
-    /// One part's row: a group per cell, each holding its texts.
+    /// One part's row, keyed by its published row: a group per cell, each
+    /// holding its texts, the name cell its row's header. On a split row's
+    /// later parts the number and name repeat as furniture, and the split
+    /// marks are furniture on every part (FR-114).
     fn row_node(&self, part: &Part, left: f64, top: f64) -> Node {
         let baseline = top + TABLE_PAD_Y + TABLE_ASCENT;
         let at = |x: f64, line: usize| Point {
             x,
             y: line_y(baseline, line),
         };
-        let cell = |texts: Vec<Node>| Node::Group(Group::new(Point::ORIGIN, texts));
+        let row = |cells| structure(Structure::Row(part.row), cells);
         if part.spanning {
             let text = part.cells.first().cloned().unwrap_or_default();
             let style = (TABLE_TEXT, Neutral::TextPrimary, Anchor::Start);
-            return Node::Group(Group::new(
-                Point::ORIGIN,
-                vec![cell(vec![run(at(left + TABLE_PAD_X, 0), style, text)])],
-            ));
+            let span = NonZeroUsize::new(self.columns.len());
+            return row(vec![structure(
+                Structure::Cell { column: 0, span },
+                vec![run(at(left + TABLE_PAD_X, 0), style, text)],
+            )]);
         }
+        let repeat = |texts: Vec<Node>| {
+            if part.later {
+                vec![Node::Group(
+                    Group::new(Point::ORIGIN, texts).with(Semantics::Pagination),
+                )]
+            } else {
+                texts
+            }
+        };
         let mut cells = Vec::new();
         if let Some(column) = self.columns.first() {
             let (x, anchor) = column_text_x(column, left);
             let number = part.number.map(|n| n.to_string()).unwrap_or_default();
-            cells.push(cell(vec![run(
+            let text = run(
                 at(x, 0),
                 (TABLE_TEXT, Neutral::TextPrimary, anchor),
                 Lines::of_text(&number),
-            )]));
+            );
+            cells.push(structure(
+                Structure::Cell {
+                    column: 0,
+                    span: None,
+                },
+                repeat(vec![text]),
+            ));
         }
         for (c, (lines, column)) in part
             .cells
@@ -162,19 +190,19 @@ impl TableBlock {
                 ));
             }
             if kind == CellKind::Name {
-                let mut line = lines.lines.len();
-                for under in &part.under {
-                    texts.push(run(
-                        at(x, line),
-                        (TABLE_TEXT, Neutral::TextMuted, Anchor::Start),
-                        under.clone(),
-                    ));
-                    line += under.lines.len();
-                }
+                texts.extend(under_nodes(part, x, lines.lines.len(), &at));
+                cells.push(structure(Structure::Header(Scope::Row), repeat(texts)));
+            } else {
+                cells.push(structure(
+                    Structure::Cell {
+                        column: c + 1,
+                        span: None,
+                    },
+                    texts,
+                ));
             }
-            cells.push(cell(texts));
         }
-        Node::Group(Group::new(Point::ORIGIN, cells))
+        row(cells)
     }
 
     /// A rule across the table at `y`, `width` thick, decorative.
@@ -195,6 +223,34 @@ impl TableBlock {
             .with(Semantics::Decorative),
         )
     }
+}
+
+/// The muted runs under a part's name from line `line`: its folded line
+/// and flag, and the split marks, which are page furniture (FR-114).
+fn under_nodes(part: &Part, x: f64, line: usize, at: &dyn Fn(f64, usize) -> Point) -> Vec<Node> {
+    let mut line = line;
+    part.under
+        .iter()
+        .enumerate()
+        .map(|(i, under)| {
+            let text = run(
+                at(x, line),
+                (TABLE_TEXT, Neutral::TextMuted, Anchor::Start),
+                under.clone(),
+            );
+            line += under.lines.len();
+            if i >= part.content {
+                Node::Group(Group::new(Point::ORIGIN, vec![text]).with(Semantics::Pagination))
+            } else {
+                text
+            }
+        })
+        .collect()
+}
+
+/// `children` as a structure group at the origin (FR-114).
+fn structure(structure: Structure, children: Vec<Node>) -> Node {
+    Node::Group(Group::new(Point::ORIGIN, children).with(Semantics::Structure(structure)))
 }
 
 impl Lines {
