@@ -1,12 +1,17 @@
+## [1.24.2] - 2026-10-23
+
+### 🐛 Bug Fixes
+
+- *(pdf)* Prune empty structure elements; no clamped integers (rg-969)
+
+### 🧪 Testing
+
+- *(pdf)* Pin pruning across pages; check its invariants (rg-969)
 ## [1.24.1] - 2026-10-23
 
 ### 🐛 Bug Fixes
 
-- *(legend)* No sector group with nothing plotted under it (rg-i4a)
-
-### 🧪 Testing
-
-- *(legend)* Pin rg-i4a in the tagged PDF's tree; refresh docs
+- *(legend)* No sector group with nothing plotted under it (rg-i4a, 1.24.1) (#151)
 ## [1.24.0] - 2026-10-23
 
 ### 🚀 Features
