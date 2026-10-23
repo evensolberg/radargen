@@ -232,6 +232,9 @@ pub const PAPER_FOOT_ROOM: f64 = 20.0 * PX_PER_MM;
 pub const FOOTER_BASELINE: f64 = 10.0 * PX_PER_MM;
 /// What a heading repeated at the top of a paper column says it is.
 pub const CONTINUED: &str = " (continued)";
+/// The same mark on a line of its own: under a split table row's name,
+/// and after the table's heading on later pages (FR-112).
+pub const CONTINUED_MARK: &str = "(continued)";
 // --- The full PDF's table (FR-112) ------------------------------------------
 /// A table cell's text: 12 px, 9 pt on paper, `TextPrimary`.
 pub const TABLE_TEXT: TextStyle = style(Weight::Regular, 12.0, 0.0);

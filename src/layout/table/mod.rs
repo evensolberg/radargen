@@ -12,9 +12,10 @@ mod rows;
 
 use std::ops::Range;
 
+use crate::layout::geometry::real as count;
 use crate::layout::paginate::paginate;
 use crate::published::{Cell, NOTHING_PLOTTED, Published};
-use crate::style::{TABLE_HEADING_BASELINE, TABLE_HEADING_TO_HEAD};
+use crate::style::{CONTINUED_MARK, TABLE_HEADING_BASELINE, TABLE_HEADING_TO_HEAD};
 use crate::text::{Fonts, words};
 
 use columns::{Column, Sized, sized};
@@ -22,14 +23,6 @@ use rows::{Lines, Part, full, height_of, parts};
 
 /// Under the name of a row split across pages, on every part but its last.
 pub const CONTINUES: &str = "continues on the next page";
-
-/// Under the name on a split row's later parts.
-const CONTINUED_MARK: &str = "(continued)";
-
-/// `count` as an `f64`, exact for any count a table holds.
-fn count(count: usize) -> f64 {
-    f64::from(u32::try_from(count).unwrap_or(u32::MAX))
-}
 
 /// One table page: the parts it holds, and whether it is the first.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -180,7 +173,12 @@ impl TableBlock {
         let page = (width, page_height);
         let mut laid_out = laid(published, page, false, fonts);
         if laid_out.parts.iter().any(|part| !part.ruled) {
-            laid_out = laid(published, page, true, fonts);
+            // Only when the marks widen the name column does a row wrap
+            // differently, so only then are the rows laid out again.
+            let marked = sized(published, width, true, fonts);
+            if marked.columns != laid_out.sized.columns {
+                laid_out = laid(published, page, true, fonts);
+            }
         }
         let Laid {
             sized,

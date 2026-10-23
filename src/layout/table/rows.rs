@@ -220,6 +220,8 @@ pub(super) fn parts(
         .unwrap_or_default();
     let mark =
         |continues: bool| continues.then(|| Lines::wrapped(TABLE_TEXT, &[CONTINUES], width, fonts));
+    // A later part's name, the same on every part: cut once.
+    let later_name = Lines::of(short(&name_lines, width, fonts));
     let mut taken = vec![0; cells.len()];
     let mut out = Vec::new();
     loop {
@@ -236,7 +238,7 @@ pub(super) fn parts(
         let head = if first {
             name.and_then(|c| cells.get(c)).cloned().unwrap_or_default()
         } else {
-            Lines::of(short(&name_lines, width, fonts))
+            later_name.clone()
         };
         let drawn = next_part(&cells, (name, head), &mut taken, most);
         let mut below = if first {

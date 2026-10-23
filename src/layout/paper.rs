@@ -10,6 +10,7 @@ use std::num::NonZeroUsize;
 
 use crate::layout::arrange::{Rule, fit_scale, rule_node};
 use crate::layout::block::{Block, Placement};
+use crate::layout::geometry::real;
 use crate::layout::key::KeyBlock;
 use crate::layout::legend::LegendBlock;
 use crate::layout::radar::RadarBlock;
@@ -396,7 +397,7 @@ fn legend_pages(
 fn continuation(pieces: &[LegendBlock], width: f64, sheets: &Sheets<'_>) -> Vec<Node> {
     let content = Content::of(sheets);
     // `n` columns and the `n − 1` gaps between them.
-    let n = f64::from(u32::try_from(pieces.len()).unwrap_or(u32::MAX));
+    let n = real(pieces.len());
     let span = width * n + COLUMN_GAP * (n - 1.0);
     let mut x = PAPER_MARGIN + (content.width - span) / 2.0;
     pieces
@@ -448,16 +449,23 @@ pub fn footed(bodies: Bodies, sheets: &Sheets<'_>, fonts: &Fonts) -> Vec<Documen
 /// foot room, above the footer.
 fn pointer(page: usize, height: f64) -> Node {
     let text = format!("Each item's description and rationale: page {page} onward.");
+    let at = Point {
+        x: PAPER_MARGIN,
+        y: height - FOOTER_BASELINE - TABLE_POINTER_ABOVE,
+    };
+    foot_line(&text, at, Anchor::Start)
+}
+
+/// One muted line in the footer's style at `at`: a footer run, or page 1's
+/// pointer.
+fn foot_line(text: &str, at: Point, anchor: Anchor) -> Node {
     TextRun {
-        origin: Point {
-            x: PAPER_MARGIN,
-            y: height - FOOTER_BASELINE - TABLE_POINTER_ABOVE,
-        },
+        origin: at,
         style: FOOTER,
         ink: Neutral::TextMuted,
-        anchor: Anchor::Start,
-        lines: vec![text.clone()],
-        words: text,
+        anchor,
+        lines: vec![text.to_owned()],
+        words: words(text),
         leading: LINE_HEIGHT,
     }
     .node(Scale::uniform(1.0))
@@ -482,18 +490,8 @@ fn footer(sheets: &Sheets<'_>, page: usize, count: usize, fonts: &Fonts) -> Node
     );
     let room = Content::of(sheets).width - FOOTER.measure(&numbered, fonts) - COLUMN_GAP;
     let named = cut(FOOTER, &named, room, fonts);
-    let run = |text: &str, x: f64, anchor: Anchor| {
-        TextRun {
-            origin: Point { x, y: baseline },
-            style: FOOTER,
-            ink: Neutral::TextMuted,
-            anchor,
-            lines: vec![text.to_owned()],
-            words: words(text),
-            leading: LINE_HEIGHT,
-        }
-        .node(Scale::uniform(1.0))
-    };
+    let run =
+        |text: &str, x: f64, anchor: Anchor| foot_line(text, Point { x, y: baseline }, anchor);
     Node::Group(Group::new(
         Point::ORIGIN,
         vec![

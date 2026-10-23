@@ -8,10 +8,9 @@ use crate::layout::title::shown;
 use crate::model::Catalogue;
 use crate::options::OutputFormat;
 use crate::order::Plotted;
-use crate::published::{Cell, Published};
+use crate::published::{Cell, Published, PublishedColumn};
 use crate::settings::{Source, Sourced};
 use crate::text::{Fonts, words};
-use crate::trim;
 
 /// FR-104: one warning per drawn text with characters the bundled font
 /// lacks, pointing where the author wrote it.
@@ -107,11 +106,11 @@ pub fn warn_table_glyphs(
     warnings: &mut Warnings,
 ) {
     for row in &table.rows {
-        for (cell, published) in row.cells.iter().zip(&table.columns) {
-            let column = catalogue.columns.get(published.source);
-            if let Some(warning) =
-                column.and_then(|c| cell_glyphs(row.line, cell, c, format, fonts))
-            {
+        for (cell, column) in row.cells.iter().zip(&table.columns) {
+            let Some(position) = catalogue.columns.get(column.source).map(|c| c.position) else {
+                continue;
+            };
+            if let Some(warning) = cell_glyphs((row.line, position), cell, column, format, fonts) {
                 warnings.push(warning);
             }
         }
@@ -121,28 +120,32 @@ pub fn warn_table_glyphs(
 /// FR-104's warning for one table `cell` on `line`, under `column`; `None`
 /// when the radar or legend already warns about it, or Inter draws it all.
 fn cell_glyphs(
-    line: usize,
+    (line, position): (usize, usize),
     cell: &Cell<'_>,
-    column: &crate::model::Column,
+    column: &PublishedColumn<'_>,
     format: OutputFormat,
     fonts: &Fonts,
 ) -> Option<Warning> {
     let warned_elsewhere = match cell {
         Cell::Name { unplotted, .. } => !unplotted,
-        _ => matches!(column.kind, ColumnKind::Sector | ColumnKind::Ring),
+        _ => matches!(column.column, ColumnKind::Sector | ColumnKind::Ring),
     };
-    if warned_elsewhere {
+    let text = words(&cell.paragraphs().join(" "));
+    // Inter draws every printable ASCII character, so most cells need no
+    // shaping to know it.
+    if warned_elsewhere || text.is_ascii() {
         return None;
     }
-    let lacking = lacking(&words(&cell.paragraphs().join(" ")), format, fonts)?;
-    let name = if column.kind == ColumnKind::Other {
-        trim(&column.heading)
+    let lacking = lacking(&text, format, fonts)?;
+    // An `Other` column is named by its heading, as written and trimmed.
+    let name = if column.column == ColumnKind::Other {
+        column.heading
     } else {
-        column.kind.as_str()
+        column.column.as_str()
     };
     Some(Warning::Row {
         line,
-        column: column.position,
+        column: position,
         kind: RowKind::MissingGlyphs {
             column: name.to_owned(),
             lacking,

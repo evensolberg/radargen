@@ -132,7 +132,7 @@ pub(crate) fn cut(style: TextStyle, text: &str, room: f64, fonts: &Fonts) -> Str
 }
 
 /// The widest of `widths`; zero for none.
-fn widest(widths: impl Iterator<Item = f64>) -> f64 {
+pub(crate) fn widest(widths: impl Iterator<Item = f64>) -> f64 {
     widths.fold(0.0, f64::max)
 }
 

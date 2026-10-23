@@ -219,10 +219,7 @@ fn row<'a>(
     PublishedRow {
         line: item.line,
         number,
-        sector: catalogue
-            .sectors
-            .get(item.sector)
-            .map_or("", |q| q.label.as_str()),
+        sector: catalogue.sector_label(item),
         cells: columns
             .iter()
             .map(|&c| cell(catalogue, c, item, number.is_none()))
@@ -245,12 +242,7 @@ fn cell<'a>(catalogue: &'a Catalogue, column: usize, item: &'a Item, unplotted: 
             name: &item.name,
             unplotted,
         },
-        ColumnKind::Sector => Cell::Label(
-            catalogue
-                .sectors
-                .get(item.sector)
-                .map_or("", |q| q.label.as_str()),
-        ),
+        ColumnKind::Sector => Cell::Label(catalogue.sector_label(item)),
         ColumnKind::Ring => Cell::Label(catalogue.ring_label(item)),
         ColumnKind::Link => Cell::Link(item.link.as_ref()),
         ColumnKind::Description

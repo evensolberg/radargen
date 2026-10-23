@@ -7,7 +7,7 @@ use std::num::NonZeroU8;
 use crate::palette::{Neutral, Role};
 use crate::published::{CellKind, NUMBER_SPOKEN};
 use crate::style::{
-    CONTINUED, LINE_HEIGHT, TABLE_ASCENT, TABLE_HEAD, TABLE_HEADING, TABLE_HEADING_BASELINE,
+    CONTINUED_MARK, LINE_HEIGHT, TABLE_ASCENT, TABLE_HEAD, TABLE_HEADING, TABLE_HEADING_BASELINE,
     TABLE_HEADING_TO_HEAD, TABLE_LEADING, TABLE_PAD_X, TABLE_PAD_Y, TABLE_RULE, TABLE_RULE_HEAVY,
     TABLE_TEXT, TextStyle,
 };
@@ -107,8 +107,7 @@ impl TableBlock {
             (Some(a), Some(b)) => format!(", {a}\u{2013}{b}"),
             _ => String::new(),
         };
-        let continued = CONTINUED.strip_prefix(' ').unwrap_or(CONTINUED);
-        let text = format!("{continued}: {sector}{range}");
+        let text = format!("{CONTINUED_MARK}: {sector}{range}");
         let x = origin.x
             + TABLE_HEADING.advance(self.heading, fonts)
             + TABLE_HEADING.advance(" ", fonts);

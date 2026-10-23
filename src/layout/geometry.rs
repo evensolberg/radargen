@@ -320,7 +320,7 @@ fn far_enough(distance: f64) -> bool {
     clippy::as_conversions,
     reason = "usize has no lossless conversion to f64, and f64 holds every integer up to 2^53 exactly; a count is far below that"
 )]
-const fn real(n: usize) -> f64 {
+pub(crate) const fn real(n: usize) -> f64 {
     n as f64
 }
 

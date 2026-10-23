@@ -9,7 +9,7 @@
 
 use crate::columns::ColumnKind;
 use crate::layout::arrange::fit_scale;
-use crate::layout::title::cut;
+use crate::layout::title::{cut, widest};
 use crate::model::NOT_ON_THE_RADAR;
 use crate::published::{Cell, CellKind, NUMBER_HEADING, Published, PublishedColumn};
 use crate::style::{
@@ -111,11 +111,6 @@ pub(super) fn heading_lines(heading: &str, width: f64, fonts: &Fonts) -> Vec<Str
         lines.push(cut(TABLE_HEAD, &rest, width, fonts));
     }
     lines
-}
-
-/// The widest of `widths`; zero for none.
-fn widest(widths: impl Iterator<Item = f64>) -> f64 {
-    widths.fold(0.0, f64::max)
 }
 
 /// One column's measure before sizing: a label's natural and least
