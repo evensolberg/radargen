@@ -229,9 +229,7 @@ mod tests {
             .find(|p| p.y.to_bits() != placed.first().expect("glyphs").y.to_bits())
             .expect("a glyph the shaper raises");
         let (s, _) = written(&label(&[text], fill(), Anchor::Start, 0.0, None));
-        let ops = lopdf::content::Content::decode(s.as_bytes())
-            .expect("decodes")
-            .operations;
+        let ops = crate::pdf::decoded(s.as_bytes());
         assert_eq!(
             ops.iter().filter(|op| op.operator == "BT").count(),
             1,
@@ -287,9 +285,7 @@ mod tests {
         let stroke = Paint::Role(Role::Neutral(Neutral::Surface1));
         let halo = TextPaint::Halo { stroke, width: 3.0 };
         let (s, _) = written(&label(&["Adopt"], halo, Anchor::Start, 0.0, None));
-        let ops = lopdf::content::Content::decode(s.as_bytes())
-            .expect("decodes")
-            .operations;
+        let ops = crate::pdf::decoded(s.as_bytes());
         let count = |name: &str| ops.iter().filter(|op| op.operator == name).count();
         assert_eq!(count("BT") + count("Tr") + count("TJ"), 0, "not text: {s}");
         assert_eq!(count("S"), 1, "one stroke for the whole label: {s}");
@@ -354,9 +350,7 @@ mod tests {
         // Decoded by lopdf, not by hand: pdf-writer writes a CID string as
         // a literal `( … )` with octal escapes whenever every byte is below
         // 0x80, and as hex otherwise.
-        let ops = lopdf::content::Content::decode(s.as_bytes())
-            .expect("decodes")
-            .operations;
+        let ops = crate::pdf::decoded(s.as_bytes());
         let tj = ops.iter().find(|op| op.operator == "TJ").expect("a TJ");
         let items = tj
             .operands

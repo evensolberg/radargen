@@ -273,11 +273,7 @@ mod tests {
                 kept(w, want_w * POINTS_PER_PX) && kept(h, want_h * POINTS_PER_PX),
                 "--width {width:?}: {w} × {h} at {unit}"
             );
-            let parsed = lopdf::Document::load_mem(&bytes).expect("parses");
-            let id = *parsed.get_pages().values().next().expect("a page");
-            let ops = lopdf::content::Content::decode(&parsed.get_page_content(id))
-                .expect("decodes")
-                .operations;
+            let ops = crate::pdf::operations(&bytes);
             let cm = ops.iter().find(|op| op.operator == "cm").expect("the flip");
             let operand = |i: usize| {
                 cm.operands
@@ -335,12 +331,7 @@ mod tests {
     /// glyph by at least a hundredth of a thousandth of an em.
     #[test]
     fn no_adjustment_is_float_residue() {
-        let doc =
-            lopdf::Document::load_mem(&pdf(&prd(None), None, None, Theme::Light)).expect("parses");
-        let page = *doc.get_pages().values().next().expect("a page");
-        let ops = lopdf::content::Content::decode(&doc.get_page_content(page))
-            .expect("decodes")
-            .operations;
+        let ops = crate::pdf::operations(&pdf(&prd(None), None, None, Theme::Light));
         let adjustments: Vec<f32> = ops
             .iter()
             .filter(|op| op.operator == "TJ")
