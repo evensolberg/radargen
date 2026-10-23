@@ -149,7 +149,7 @@ The expected names come from `three-sector.csv`.
     - *Expect, `cjk.pdf`:* the run prints a warning naming the line and saying the PDF draws the characters as boxes and they cannot be searched; the name draws as boxes, the file opens without a warning from the viewer, and copying it gives nothing for those characters.
     - *Expect, printing `light.pdf` to A4 or Letter with Fit to page:* the legend text is readable.
     - *Expect, printing `long.pdf` to Letter or A4 with Fit to page, rendered with and without `--legend-columns 2`:* the single column prints small; two columns print larger. Record the smallest text you can read in each.
-    - *Expect, `huge.pdf`:* each viewer shows it at full size, not at 1/n: Document Properties gives the page size (about 104 inches wide). A viewer that ignores `/UserUnit` shows it small or refuses it; record that as a finding, and FR-110's "keeps its size" is then soften for that viewer.
+    - *Expect, `huge.pdf`:* each viewer shows it at full size, not at 1/n: Document Properties gives the page size (about 104 inches wide). A viewer that ignores `/UserUnit` shows it small or refuses it; record that as a finding, and FR-110's "keeps its size" is then softened for that viewer.
     - If installed, `qpdf --check light.pdf` reports no errors and `pdffonts light.pdf` lists two embedded subset fonts with ToUnicode.
     - Small text on Windows may hint slightly differently from the PNG; that is expected. Screen-reader navigation is not checked: the PDF is untagged until rg-ffj.
 
