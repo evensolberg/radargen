@@ -139,7 +139,7 @@ pub struct Cli {
     ///
     /// From 320 to 10000; the height follows. An HTML page fits the reader's
     /// window. A PDF's page is 96 pixels to the inch, so 1056 is 11 inches
-    /// wide; it is not a paper size. Not with --paper.
+    /// wide; it is not a paper size. Ignored on paper (--paper letter or a4).
     #[arg(short, long, value_parser = clap::value_parser!(u32).range(i64::from(MIN_EXPORT_WIDTH)..=i64::from(MAX_EXPORT_WIDTH)))]
     pub width: Option<u32>,
 
@@ -150,7 +150,7 @@ pub struct Cli {
     /// Flow a PNG, SVG or PDF legend into this many columns beside the radar; the default is 1.
     ///
     /// From 1 to 4; columns break only between sectors. An HTML page
-    /// ignores it. Not with --paper.
+    /// ignores it. Ignored on paper (--paper letter or a4).
     #[arg(long, value_name = "N", value_parser = clap::value_parser!(u8).range(1..=i64::from(MAX_LEGEND_COLUMNS)))]
     pub legend_columns: Option<u8>,
 

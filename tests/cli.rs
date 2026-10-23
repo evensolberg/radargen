@@ -855,7 +855,14 @@ fn help_describes_paper() {
         long.contains("Letter or A4, for printing: the radar page first"),
         "{long}"
     );
-    assert!(long.contains("Not with --paper."), "{long}");
+    // Accepted and ignored, not refused: "Not with" is a clap conflict.
+    assert_eq!(
+        long.matches("Ignored on paper (--paper letter or a4).")
+            .count(),
+        2,
+        "--width and --legend-columns: {long}"
+    );
+    assert!(!long.contains("Not with --paper"), "{long}");
 }
 
 #[test]

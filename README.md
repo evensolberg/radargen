@@ -159,8 +159,8 @@ radargen --create-config <PATH>
 | `-T`, `--theme <light\|dark>` | The colours for PNG, SVG and PDF; the default is light. Not with `--palette`. |
 | `--legend <shown\|hidden>` | Whether an HTML page starts with its legend shown or hidden; the default is shown. PNG, SVG and PDF always draw it, and warn if asked to hide it. |
 | `--table <radar\|all>` | What an HTML page's table and detail panels list: `radar` (the default), the rows on the radar and the columns radargen reads; `all`, every row and every named column. PNG, SVG and PDF have no table, and warn if given `all`. |
-| `-w`, `--width <WIDTH>` | The width in pixels for PNG, SVG and PDF, from 320 to 10000. Not with `--paper`. |
-| `--legend-columns <N>` | Flows a PNG, SVG or PDF legend into N columns beside the radar, from 1 (the default) to 4, breaking only between sectors. HTML ignores it. Not with `--paper`. |
+| `-w`, `--width <WIDTH>` | The width in pixels for PNG, SVG and PDF, from 320 to 10000. Ignored on paper (`--paper letter` or `a4`). |
+| `--legend-columns <N>` | Flows a PNG, SVG or PDF legend into N columns beside the radar, from 1 (the default) to 4, breaking only between sectors. HTML ignores it. Ignored on paper (`--paper letter` or `a4`). |
 | `--paper <letter\|a4\|none>` | The paper for a PDF, landscape: the radar page first, the legend continuing, every page numbered. `none` (the default) is one page the size of the drawing. |
 | `-p`, `--palette <FILE>` | Colours from a palette file instead of the built-in themes, in every format. Not with `--theme`; given with a config file's `theme` key, the palette wins. |
 | `-c`, `--config <FILE>` | Read settings from a TOML file: `input`, `output`, `title`, `subtitle`, `rings`, `unplotted_rings`, `theme`, `width`, `legend_columns`, `legend`, `table`, `paper`, `palette` and `edition`. A flag on the command line overrides its key. With `-c`, the CSV and `-o` are needed only when the file has no `input` or `output` key. |

@@ -17,7 +17,7 @@ use crate::layout::title::Wrap;
 use crate::palette::Neutral;
 use crate::style::{
     COLUMN_GAP, FOOTER, FOOTER_BASELINE, LEGEND_WIDE_DROP, LINE_HEIGHT, NARROW_MIN_SCALE,
-    PAPER_LEGEND_SCALE, PAPER_MARGIN, POINTS_PER_PX, RADAR_LABEL_PAD,
+    PAPER_FOOT_ROOM, PAPER_LEGEND_SCALE, PAPER_MARGIN, POINTS_PER_PX, RADAR_LABEL_PAD,
 };
 use crate::svg::{Anchor, Document, Group, Node, Point, Scale, TextRun};
 use crate::text::{Fonts, words};
@@ -81,7 +81,8 @@ pub(crate) struct FirstPage {
     pub fits: bool,
 }
 
-/// The page's content box: its margins inset, in px.
+/// The page's content box, in px: the margins inset, and the footer's room
+/// at the bottom.
 #[derive(Debug, Clone, Copy)]
 struct Content {
     width: f64,
@@ -93,7 +94,7 @@ impl Content {
         let (w, h) = sheets.size;
         Self {
             width: w - PAPER_MARGIN - PAPER_MARGIN,
-            height: h - PAPER_MARGIN - PAPER_MARGIN,
+            height: h - PAPER_MARGIN - PAPER_FOOT_ROOM,
         }
     }
 }
@@ -316,9 +317,17 @@ fn footer(sheets: &Sheets<'_>, page: usize, count: usize, fonts: &Fonts) -> Node
     let (width, height) = sheets.size;
     let baseline = height - FOOTER_BASELINE;
     let numbered = format!("Page {page} of {count}");
+    // Whitespace folded, as every other text is: a line break or tab a
+    // title may hold would draw as a box in one line.
     let named = sheets.subtitle.map_or_else(
-        || sheets.title.to_owned(),
-        |subtitle| format!("{}{FOOTER_SEPARATOR}{subtitle}", sheets.title),
+        || words(sheets.title),
+        |subtitle| {
+            format!(
+                "{}{FOOTER_SEPARATOR}{}",
+                words(sheets.title),
+                words(subtitle)
+            )
+        },
     );
     let room = Content::of(sheets).width - FOOTER.measure(&numbered, fonts) - COLUMN_GAP;
     let named = cut(&named, room, fonts);
@@ -338,10 +347,12 @@ fn footer(sheets: &Sheets<'_>, page: usize, count: usize, fonts: &Fonts) -> Node
         Point::ORIGIN,
         vec![
             run(&named, PAPER_MARGIN, Anchor::Start),
-            // Right-aligned by its layout width (D-78): the document has no end anchor.
+            // Right-aligned by its ink, so it ends at the margin: the
+            // document has no end anchor, and the layout width (D-78)
+            // would stop it short by the room left for text spacing.
             run(
                 &numbered,
-                width - PAPER_MARGIN - FOOTER.measure(&numbered, fonts),
+                width - PAPER_MARGIN - FOOTER.advance(&numbered, fonts),
                 Anchor::Start,
             ),
         ],
@@ -540,6 +551,11 @@ mod tests {
         };
         let first = first_page(&fixture.sheets(Paper::Letter, "T", None), fonts());
         assert!(first.legend.is_none(), "the legend starts on page 2");
+        assert!(!first.fits, "and the radar still does not fit");
+        assert!(bodies(&fixture.sheets(Paper::Letter, "T", None), fonts()).radar_too_wide);
+        let prd = prd();
+        let sheets = prd.sheets(Paper::Letter, "T", None);
+        assert!(first_page(&sheets, fonts()).fits && !bodies(&sheets, fonts()).radar_too_wide);
         let pages = documents(&fixture.sheets(Paper::Letter, "T", None));
         assert!(pages.len() >= 2);
         assert!(
@@ -720,10 +736,10 @@ mod tests {
             let footer = rect(children(&page).last().expect("a footer"));
             assert!(footer.top >= page.height - PAPER_MARGIN, "{footer:?}");
             assert!(footer.bottom <= page.height - 1.0);
-            assert!(
-                footer.left >= PAPER_MARGIN - 1e-6
-                    && footer.right <= page.width - PAPER_MARGIN + 1e-6
-            );
+            // The right edge is the page number's ink, pinned by
+            // `the_page_number_ends_at_the_margin`; its layout box runs on
+            // by the room left for text spacing (D-78).
+            assert!(footer.left >= PAPER_MARGIN - 1e-6);
         }
     }
 
@@ -755,6 +771,87 @@ mod tests {
         let footer = children(&page).last().map(texts).unwrap_or_default();
         let left = footer.first().expect("the footer's title");
         assert!(left.ends_with('…') && left.len() < word.len(), "{left}");
+    }
+
+    /// The footer's two runs: (origin, line) for the title and the page.
+    fn footer_runs(page: &Document) -> Vec<(crate::svg::Point, String)> {
+        let Some(Node::Group(footer)) = children(page).last() else {
+            panic!("a footer group")
+        };
+        footer
+            .children
+            .iter()
+            .map(|node| match node {
+                Node::Text { origin, lines, .. } => {
+                    (*origin, lines.first().cloned().unwrap_or_default())
+                }
+                other => panic!("footer text: {other:?}"),
+            })
+            .collect()
+    }
+
+    /// Final review (Rust): a title holding a line break or tab, as a TOML
+    /// string can, reads as words in the footer, not as boxes.
+    #[test]
+    fn the_footer_folds_whitespace() {
+        let fixture = prd();
+        let page = documents(&fixture.sheets(Paper::A4, "Line one\nLine\ttwo", Some("Sub  title")))
+            .into_iter()
+            .next()
+            .expect("page 1");
+        let runs = footer_runs(&page);
+        assert_eq!(
+            runs.first().map(|(_, line)| line.as_str()),
+            Some("Line one Line two · Sub title")
+        );
+    }
+
+    /// Final review (UI): *Page n of m*'s ink ends at the right margin.
+    #[test]
+    fn the_page_number_ends_at_the_margin() {
+        let fixture = long(1, 1, 300);
+        for paper in [Paper::Letter, Paper::A4] {
+            for page in documents(&fixture.sheets(paper, "T", None)) {
+                let runs = footer_runs(&page);
+                let (origin, line) = runs.get(1).expect("the page number");
+                let end = origin.x + crate::style::FOOTER.advance(line, fonts());
+                assert!(
+                    (end - (page.width - PAPER_MARGIN)).abs() < 1e-6,
+                    "{paper:?} {line}: ends at {end}, margin at {}",
+                    page.width - PAPER_MARGIN
+                );
+            }
+        }
+    }
+
+    /// Final review (UI): the page's content ends `PAPER_FOOT_ROOM` above
+    /// the bottom edge, at least 6 mm clear of the footer, so the footer
+    /// does not read as one more key row.
+    #[test]
+    fn content_stays_clear_of_the_footer() {
+        let six_mm = 6.0 * 96.0 / 25.4;
+        for fixture in [prd(), long(1, 1, 300)] {
+            for paper in [Paper::Letter, Paper::A4] {
+                for page in documents(&fixture.sheets(paper, LONG_TITLE, Some("S"))) {
+                    let footer = rect(children(&page).last().expect("a footer"));
+                    let bottom = children(&page)
+                        .iter()
+                        .take(children(&page).len() - 1)
+                        .filter_map(|node| bounds(node, fonts()))
+                        .map(|r| r.bottom)
+                        .fold(0.0, f64::max);
+                    assert!(
+                        bottom <= page.height - crate::style::PAPER_FOOT_ROOM + 1e-6,
+                        "{paper:?}: content to {bottom}"
+                    );
+                    assert!(
+                        footer.top - bottom >= six_mm,
+                        "{paper:?}: {bottom} vs {}",
+                        footer.top
+                    );
+                }
+            }
+        }
     }
 
     #[test]

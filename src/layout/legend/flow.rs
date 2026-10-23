@@ -119,8 +119,8 @@ pub(super) fn pieces(
 
 /// The entries in runs placed whole: every heading and swatch glued to
 /// what follows it, up to and including the row it leads to. A sector
-/// with no rows is glued to the next sector; only the legend's own last
-/// entries can end a unit without a row.
+/// with no rows is glued to the next sector, or, last, to the row before
+/// it; a legend with no rows at all is one unit.
 fn units(entries: &[Entry]) -> Vec<Range<usize>> {
     let mut out = Vec::new();
     let mut start = 0;
@@ -130,8 +130,12 @@ fn units(entries: &[Entry]) -> Vec<Range<usize>> {
             start = i + 1;
         }
     }
-    if start < entries.len() {
-        out.push(start..entries.len());
+    // An empty last sector has no row to lead to: it goes with the last
+    // row, so it never makes a piece, and a page, of its own.
+    match out.last_mut() {
+        Some(last) if start < entries.len() => last.end = entries.len(),
+        None if start < entries.len() => out.push(start..entries.len()),
+        _ => {}
     }
     out
 }
@@ -583,6 +587,33 @@ mod tests {
             Entry::Heading { run, .. } => run.words == words,
             _ => false,
         })
+    }
+
+    /// Final review (QA, Rust): an empty last sector, its rows all in
+    /// unplotted rings, never takes a piece, and so a page, of its own.
+    #[test]
+    fn a_trailing_empty_sector_never_stands_alone() {
+        let block = legend(with_empty(5, 4, 3));
+        // A first piece that holds every row, and so not the empty sector
+        // after them, were it a unit of its own.
+        let last_row = block
+            .layout
+            .entries
+            .iter()
+            .rposition(|entry| matches!(entry, Entry::Row(_)))
+            .expect("a row");
+        let first = through(&block, last_row + 1);
+        for piece in pieces(&block, first, first) {
+            assert!(
+                piece
+                    .layout
+                    .entries
+                    .iter()
+                    .any(|entry| matches!(entry, Entry::Row(_))),
+                "a piece without rows: {:?}",
+                openings(&piece)
+            );
+        }
     }
 
     #[test]

@@ -223,6 +223,10 @@ pub const POINTS_PER_PX: f64 = 0.75;
 const PX_PER_MM: f64 = 96.0 / 25.4;
 /// A paper page's margin on every side (FR-111): 15 mm, in px.
 pub const PAPER_MARGIN: f64 = 15.0 * PX_PER_MM;
+/// How far a paper page's content stops above its bottom edge (FR-111):
+/// 20 mm, so the footer, its baseline at [`FOOTER_BASELINE`], sits clear
+/// of the content and does not read as part of it.
+pub const PAPER_FOOT_ROOM: f64 = 20.0 * PX_PER_MM;
 /// A paper footer's baseline above the page's bottom edge (FR-111): 10 mm,
 /// in px, so it survives Letter printed on A4 at actual size.
 pub const FOOTER_BASELINE: f64 = 10.0 * PX_PER_MM;

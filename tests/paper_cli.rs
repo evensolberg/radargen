@@ -18,7 +18,8 @@ const PAPER_NOT_PDF: &str =
 const WIDTH_FLAG: &str =
     "warning: --width 800 does not apply with --paper a4; the paper sets the page's size";
 const COLUMNS_FLAG: &str = "warning: --legend-columns 2 does not apply with --paper a4; the paper sets the legend's columns";
-const WIDTH_FILE: &str = "warning: --width 800 does not apply on paper (setting paper = \"a4\" in radar.toml); the paper sets the page's size; pass --paper none for the drawing-sized page";
+const WIDTH_FILE: &str = "warning: --width 800 does not apply on paper (paper = \"a4\" in radar.toml); the paper sets the page's size; pass --paper none for the drawing-sized page";
+const COLUMNS_FILE: &str = "warning: --legend-columns 2 does not apply on paper (paper = \"a4\" in radar.toml); the paper sets the legend's columns; pass --paper none for the drawing-sized page";
 
 /// A run that must succeed.
 fn ok(dir: &Path, args: &[&str]) -> Ran {
@@ -203,6 +204,20 @@ fn width_and_columns_with_paper() {
     );
     let want: Vec<&str> = std::iter::once(WIDTH_FILE).chain(base.lines()).collect();
     assert_eq!(filed.lines(), want);
+    let columns = ok(
+        dir.path(),
+        &[
+            "radar.csv",
+            "-o",
+            "cols.pdf",
+            "-c",
+            "radar.toml",
+            "--legend-columns",
+            "2",
+        ],
+    );
+    let want: Vec<&str> = std::iter::once(COLUMNS_FILE).chain(base.lines()).collect();
+    assert_eq!(columns.lines(), want);
     let sized = ok(
         dir.path(),
         &[
@@ -300,4 +315,58 @@ fn an_unknown_paper_writes_nothing() {
     assert_eq!(ran.code, Some(2), "{}", ran.stderr);
     assert!(ran.stderr.contains("letter, a4, none"), "{}", ran.stderr);
     assert_eq!(snapshot(dir.path()), before);
+}
+
+const RADAR_WIDE: &str = "warning: the radar does not fit on the paper's first page even at its smallest, so it runs past the margins; a shorter title, or shorter sector or ring names, would fix it";
+
+/// A sector name too long for the page warns once on paper, and not
+/// without it.
+#[test]
+fn a_radar_too_wide_for_the_paper_warns_once() {
+    let wide = format!(
+        "name,sector,ring,description\nx,{},Adopt,d\n",
+        "S".repeat(120)
+    );
+    let dir = seeded(&[("radar.csv", wide.as_str())]);
+    let ran = ok(
+        dir.path(),
+        &["radar.csv", "-o", "r.pdf", "--paper", "letter"],
+    );
+    assert_eq!(
+        ran.lines().iter().filter(|l| **l == RADAR_WIDE).count(),
+        1,
+        "{}",
+        ran.stderr
+    );
+    let plain = ok(dir.path(), &["radar.csv", "-o", "plain.pdf"]);
+    assert!(!plain.lines().contains(&RADAR_WIDE));
+}
+
+/// D-105: with no --title, paper draws *Technology Radar* above the radar
+/// and in every footer; the drawing-sized PDF still draws no title.
+#[test]
+fn paper_titles_an_untitled_radar() {
+    let dir = seeded(&[("radar.csv", LONG)]);
+    ok(
+        dir.path(),
+        &["radar.csv", "-o", "r.pdf", "--paper", "letter"],
+    );
+    ok(dir.path(), &["radar.csv", "-o", "plain.pdf"]);
+    let text = |name: &str, page: u32| {
+        let doc = lopdf::Document::load_mem(&bytes(dir.path(), name)).expect("parses");
+        doc.extract_text(&[page]).expect("extracts")
+    };
+    let first = text("r.pdf", 1);
+    assert!(
+        radargen::trim(&first).starts_with("Technology Radar"),
+        "{first}"
+    );
+    let doc = lopdf::Document::load_mem(&bytes(dir.path(), "r.pdf")).expect("parses");
+    for page in 1..=u32::try_from(doc.get_pages().len()).expect("few pages") {
+        assert!(
+            text("r.pdf", page).contains("Technology Radar"),
+            "page {page}"
+        );
+    }
+    assert!(!text("plain.pdf", 1).contains("Technology Radar"));
 }
