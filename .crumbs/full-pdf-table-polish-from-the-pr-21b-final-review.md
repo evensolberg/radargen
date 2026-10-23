@@ -1,7 +1,7 @@
 ---
 id: rg-p82
 title: Full PDF table polish from the PR 21b final review
-status: in_progress
+status: closed
 type: task
 priority: 4
 tags:
@@ -10,6 +10,7 @@ tags:
 - polish
 created: 2026-10-23
 updated: 2026-10-23
+closed_reason: '1.22.1: punctuation keeps its cluster company, heading/pointer spacing, page-top and A4/legend-after goldens, rustqual refactors; the 4-line stacked header is unreachable (ring header is always ''ring'')'
 phase: v1.2
 ---
 
@@ -20,3 +21,5 @@ Minors deferred from the PR 21b final review: (1) a wrapped word can leave trail
 [2026-10-23] Sector/ring stack (1.22.0): the stacked header caps each heading at 3 lines, so a long user-written ring header can make the header 4 lines (Sector + 3). Cap the combined list or update HEADING_LINES doc.
 
 [start] 2026-10-23 11:06:38
+
+[stop]  2026-10-23 11:23:37  16m 59s
