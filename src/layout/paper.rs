@@ -363,18 +363,21 @@ fn footer(sheets: &Sheets<'_>, page: usize, count: usize, fonts: &Fonts) -> Node
 /// `text` as it fits `room` in the footer's style: whole, or its first
 /// line wrapped short of the room an ellipsis needs, with the ellipsis
 /// after it. The wrap breaks between words, and inside a word only when
-/// the first is too wide alone (FR-79).
+/// the first is too wide alone (FR-79). The cut is measured with its
+/// ellipsis, as kerning may join them; when no cut fits, the ellipsis
+/// stands alone.
 fn cut(text: &str, room: f64, fonts: &Fonts) -> String {
     if FOOTER.measure(text, fonts) <= room {
         return text.to_owned();
     }
     let short = room - FOOTER.measure(ELLIPSIS, fonts);
-    let first = FOOTER
+    FOOTER
         .wrap(text, short, fonts)
         .into_iter()
         .next()
-        .unwrap_or_default();
-    format!("{first}{ELLIPSIS}")
+        .map(|first| format!("{first}{ELLIPSIS}"))
+        .filter(|candidate| short > 0.0 && FOOTER.measure(candidate, fonts) <= room)
+        .unwrap_or_else(|| ELLIPSIS.to_owned())
 }
 
 #[cfg(test)]
@@ -838,6 +841,24 @@ mod tests {
                         footer.top
                     );
                 }
+            }
+        }
+    }
+
+    /// Final review: a cut footer title fits the room it was cut for,
+    /// however small, so it cannot run into the page number.
+    #[test]
+    fn a_cut_title_fits_its_room() {
+        let word = "W".repeat(300);
+        for text in [LONG_TITLE, word.as_str(), "Technology Radar · Edition 1"] {
+            for room in [400.0, 120.0, 20.0, 8.0, 0.0, -5.0] {
+                let got = cut(text, room, fonts());
+                assert!(
+                    FOOTER.measure(&got, fonts()) <= room || got == ELLIPSIS,
+                    "{room}: {got:?} is {} wide",
+                    FOOTER.measure(&got, fonts())
+                );
+                assert!(got == text || got.ends_with(ELLIPSIS), "{got:?}");
             }
         }
     }
