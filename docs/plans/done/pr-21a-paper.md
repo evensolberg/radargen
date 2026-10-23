@@ -10,12 +10,12 @@ crumb_id: rg-4b8
 document_title: "PR 21a — PDF on paper (Letter and A4, landscape): Implementation Plan"
 created_date: 2026-10-22
 synopsis: "--paper letter|a4|none puts the light PDF on landscape paper: the title (or 'Technology Radar') and subtitle, the radar and key, and the legend beside them at 16/15 scale with paper's tighter rows, the legend continuing on further pages under 'Legend (continued)' with its headings repeated, and a footer with the title, subtitle and 'Page n of m' on every page. The PRD gains the whole full-PDF section first, so PR 21b and 21c argue from it."
-status: draft
+status: complete
 type: Plan
-revision: "1.1"
+revision: "1.2"
 review_date: 2026-10-22
 reviewed_by: [rust-engineer, qa-expert, ui-designer, architect-reviewer, ux-researcher]
-completed_date:
+completed_date: "2026-10-22"
 comments: "First of three plans for RG-104 (docs/design/full-pdf.md): 21a paper, 21b the full PDF's table, 21c tagging and PDF/UA-1 (rg-ffj). 21b and 21c are planned after 21a ships. Release: minor (1.20.0), done by the orchestrator."
 ---
 
@@ -374,3 +374,4 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 | --- | --- | --- |
 | 1.0 | 2026-10-22 | Initial plan, from RG-104 |
 | 1.1 | 2026-10-22 | After the five-agent review (rust-engineer, qa-expert, ui-designer, architect-reviewer, ux-researcher) and the maintainer's rulings: legend at 16/15 with 26 px rows on paper; `--paper none`; footer carries the subtitle; `Legend (continued)` opens each continuation page. Radar scale by `fit_scale` per key column count, with a floor and a fallback; legend units defined (empty sectors), heights in panel space, continued baselines stated, one piece width; bodies then footers, footer one group, `continued` on headings; no `layout` → `emit` edge; `Export` loses `width`; object order with fonts last; goldens (light and dark) re-blessed with `UPDATE_GOLDEN` after a mechanical check; oracle stop-rule and paper damage tests; `warn_paper_flags` for every format, messages by origin; determinism moved to Task 5; many tests added |
+| 1.2 | 2026-10-22 | Shipped as 1.20.0. Executed inline; rulings in the PR. After the final five-agent review: footer whitespace folded, page number ends at the margin (Anchor::End), PAPER_FOOT_ROOM 20 mm, an empty last sector glued to the last row, file-origin wording, "Ignored on paper"; legend-only pages under their own oracle budget (maintainer). FirstPage lost title and key in the simplify pass |
