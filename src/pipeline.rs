@@ -83,6 +83,8 @@ pub struct Config {
     pub legend_columns: Sourced<u8>,
     /// FR-112: what a PDF holds, with where it came from.
     pub pdf: Sourced<Pdf>,
+    /// The file's `pdf = "full"` that `--paper none` displaced.
+    pub dropped_full: Option<Origin>,
     /// FR-111: the paper a PDF is laid out on, from `--paper` or the file,
     /// with where it came from; absent, or `none`, is the drawing-sized
     /// page.
@@ -119,13 +121,21 @@ impl Config {
     /// PDF on paper; FR-112: a full PDF with no paper is on Letter.
     #[must_use]
     pub fn paper(&self) -> Option<(f64, f64)> {
+        self.sheet().and_then(Paper::points)
+    }
+
+    /// The paper a PDF is laid out on: `--paper letter` or `a4`, or Letter
+    /// for a full PDF that names none; `None` for the drawing-sized page or
+    /// another format.
+    #[must_use]
+    pub fn sheet(&self) -> Option<Paper> {
         if self.format != OutputFormat::Pdf {
             return None;
         }
         match &self.paper {
-            Some(paper) => paper.value.points(),
-            None if self.full() => Paper::Letter.points(),
-            None => None,
+            Some(paper) if paper.value != Paper::None => Some(paper.value),
+            Some(_) => None,
+            None => self.full().then_some(Paper::Letter),
         }
     }
 
@@ -349,19 +359,8 @@ fn config(
     };
     let reads = read_files(input.as_ref(), cli.config.as_deref(), palette_path.as_ref());
     let format = checked_output(&mut gate, output.as_ref(), &reads)?;
-    // FR-112: a full PDF needs paper. `none` against `full` from the same
-    // source is a usage error; across sources the flag has already won
-    // (`Settings::displace`).
-    if format == Some(OutputFormat::Pdf)
-        && let (Effective::Given(pdf), Effective::Given(paper)) = (&settings.pdf, &settings.paper)
-        && pdf.value == Pdf::Full
-        && paper.value == Paper::None
-    {
-        gate.errors.push(Fatal::FullNeedsPaper {
-            pdf: pdf.origin.clone(),
-            paper: paper.origin.clone(),
-        });
-    }
+    gate.errors
+        .extend(full_needs_paper(format, &settings.pdf, &settings.paper));
     let ring_set = checked_rings(&mut gate, &rings, &unplotted)?;
     let colours = checked_colours(
         &mut gate,
@@ -408,7 +407,8 @@ fn config(
             .legend_columns
             .or(Setting::LegendColumns, DEFAULT_LEGEND_COLUMNS),
         paper: settings.paper.given(),
-        pdf: settings.pdf.or(Setting::Pdf, DEFAULT_PDF),
+        pdf: settings.pdf.clone().or(Setting::Pdf, DEFAULT_PDF),
+        dropped_full: settings.dropped_full.clone(),
         title,
         subtitle,
         rings,
@@ -590,6 +590,29 @@ fn merged(cli: &Cli) -> Result<(Settings, Gate), Vec<Fatal>> {
     gate.errors
         .extend(loaded.iter().flat_map(|l| merge_errors(&settings, l)));
     Ok((settings, gate))
+}
+
+/// FR-112: a full PDF needs paper. `none` against `full` from the same
+/// source is a usage error; across sources the flag has already won
+/// (`Settings::displace`).
+fn full_needs_paper(
+    format: Option<OutputFormat>,
+    pdf: &Effective<Pdf>,
+    paper: &Effective<Paper>,
+) -> Option<Fatal> {
+    match (pdf, paper) {
+        (Effective::Given(pdf), Effective::Given(paper))
+            if format == Some(OutputFormat::Pdf)
+                && pdf.value == Pdf::Full
+                && paper.value == Paper::None =>
+        {
+            Some(Fatal::FullNeedsPaper {
+                pdf: pdf.origin.clone(),
+                paper: paper.origin.clone(),
+            })
+        }
+        _ => None,
+    }
 }
 
 /// What the merge finds wrong beyond each key's own problems, usage errors
@@ -971,27 +994,22 @@ fn warn_static_flags(config: &Config, warnings: &mut Warnings) {
 /// output that is not a PDF (FR-112). The same values from `--config` are
 /// silent, since one file serves every format (D-100).
 fn warn_paper_flags(config: &Config, warnings: &mut Warnings) {
-    if config.format != OutputFormat::Pdf
-        && config.pdf.value == Pdf::Full
-        && config.pdf.origin.is_flag()
-    {
-        warnings.push(Warning::Render(RenderKind::PdfNotPdf {
-            pdf: config.pdf.value,
+    if config.format != OutputFormat::Pdf {
+        warn_no_paper(config, warnings);
+        return;
+    }
+    if let Some(pdf) = config.dropped_full.as_ref() {
+        warnings.push(Warning::Render(RenderKind::FullDropped {
+            pdf: pdf.clone(),
         }));
     }
     let paper = config.paper.as_ref().filter(|p| p.value != Paper::None);
-    if config.format != OutputFormat::Pdf {
-        if let Some(paper) = paper.filter(|p| p.origin.is_flag()) {
-            warnings.push(Warning::Render(RenderKind::PaperNotPdf {
-                paper: paper.value,
-            }));
-        }
+    if paper.is_none() && !config.full() {
         return;
     }
-    let from = match paper {
-        Some(paper) => PaperFrom::Paper(paper.clone()),
-        None if config.full() => PaperFrom::Pdf(config.pdf.origin.clone()),
-        None => return,
+    let from = PaperFrom {
+        paper: paper.cloned(),
+        full: config.full().then(|| config.pdf.origin.clone()),
     };
     if let Some(width) = config.width.as_ref().filter(|w| w.origin.is_flag()) {
         warnings.push(Warning::Render(RenderKind::PaperIgnoresWidth {
@@ -1003,6 +1021,25 @@ fn warn_paper_flags(config: &Config, warnings: &mut Warnings) {
         warnings.push(Warning::Render(RenderKind::PaperIgnoresLegendColumns {
             columns: config.legend_columns.value,
             paper: from,
+        }));
+    }
+}
+
+/// `--pdf full` and `--paper` from the flag on an output that is not a
+/// PDF (FR-111, FR-112).
+fn warn_no_paper(config: &Config, warnings: &mut Warnings) {
+    if config.pdf.value == Pdf::Full && config.pdf.origin.is_flag() {
+        warnings.push(Warning::Render(RenderKind::PdfNotPdf {
+            pdf: config.pdf.value,
+        }));
+    }
+    let flagged = config
+        .paper
+        .as_ref()
+        .filter(|p| p.value != Paper::None && p.origin.is_flag());
+    if let Some(paper) = flagged {
+        warnings.push(Warning::Render(RenderKind::PaperNotPdf {
+            paper: paper.value,
         }));
     }
 }
@@ -1157,15 +1194,14 @@ fn on_paper(
     };
     let bodies = paper::bodies(&sheets, fonts);
     if bodies.radar_too_wide {
-        let paper = config.paper.as_ref().map_or(Paper::Letter, |p| p.value);
         warnings.push(Warning::Render(RenderKind::PaperRadarWide {
-            paper,
+            paper: config.sheet().unwrap_or(Paper::Letter),
             full: config.full(),
         }));
     }
-    if let Some(table) = table.as_ref().filter(|_| bodies.table_cramped) {
+    if let Some(columns) = bodies.table_cramped {
         warnings.push(Warning::Render(RenderKind::TableCramped {
-            columns: table.columns.len() + 1,
+            columns,
             table: config.table.clone(),
         }));
     }

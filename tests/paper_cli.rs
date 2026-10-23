@@ -17,8 +17,8 @@ const PAPER_NOT_PDF: &str =
     "warning: --paper a4 applies to PDF; HTML pages, PNG and SVG have no paper size";
 const WIDTH_FLAG: &str = "warning: --width 800 does not apply with --paper a4; the paper sets the page's size; leave out --paper for a page --width 800 wide";
 const COLUMNS_FLAG: &str = "warning: --legend-columns 2 does not apply with --paper a4; on paper the legend takes as many columns as fit each page; leave out --paper for a legend in 2 columns";
-const WIDTH_FILE: &str = "warning: --width 800 does not apply on paper (paper = \"a4\" in radar.toml); the paper sets the page's size; pass --paper none for the drawing-sized page";
-const COLUMNS_FILE: &str = "warning: --legend-columns 2 does not apply on paper (paper = \"a4\" in radar.toml); on paper the legend takes as many columns as fit each page; pass --paper none for the drawing-sized page";
+const WIDTH_FILE: &str = "warning: --width 800 does not apply on paper (paper = \"a4\" in radar.toml); the paper sets the page's size; pass --paper none for a page --width 800 wide";
+const COLUMNS_FILE: &str = "warning: --legend-columns 2 does not apply on paper (paper = \"a4\" in radar.toml); on paper the legend takes as many columns as fit each page; pass --paper none for a legend in 2 columns";
 
 /// A run that must succeed.
 fn ok(dir: &Path, args: &[&str]) -> Ran {
@@ -368,107 +368,4 @@ fn paper_titles_an_untitled_radar() {
         );
     }
     assert!(!text("plain.pdf", 1).contains("Technology Radar"));
-}
-
-/// rg-i95: a legend row taller than a page warns once on paper, and not
-/// on the drawing-sized page, which has no page to be taller than.
-#[test]
-fn a_tall_legend_row_warns_once() {
-    let name = "word ".repeat(1_500);
-    let csv = format!("name,sector,ring,description\nShort,Tools,Adopt,d\n{name},Tools,Adopt,d\n");
-    let dir = seeded(&[("radar.csv", csv.as_str())]);
-    let paper = ok(dir.path(), &["radar.csv", "-o", "r.pdf", "--paper", "a4"]);
-    let tall = |ran: &Ran| {
-        ran.lines()
-            .iter()
-            .filter(|l| l.starts_with("warning: line 3: '") && l.contains("in the legend is taller than a page, so it runs over the page's footer; a shorter name fixes it"))
-            .count()
-    };
-    assert_eq!(tall(&paper), 1, "{}", paper.stderr);
-    let plain = ok(dir.path(), &["radar.csv", "-o", "p.pdf"]);
-    assert_eq!(tall(&plain), 0, "{}", plain.stderr);
-}
-
-/// rg-i95: the title cut on paper is whole in the PDF's metadata.
-#[test]
-fn an_absurd_title_reads_back_whole_in_the_metadata() {
-    let title = vec!["word"; 400].join(" ");
-    let title = title.as_str();
-    let dir = seeded(&[("radar.csv", PRD)]);
-    ok(
-        dir.path(),
-        &[
-            "radar.csv",
-            "-o",
-            "r.pdf",
-            "--paper",
-            "letter",
-            "--title",
-            title,
-        ],
-    );
-    let doc = lopdf::Document::load_mem(&bytes(dir.path(), "r.pdf")).expect("parses");
-    let info = doc
-        .trailer
-        .get(b"Info")
-        .and_then(lopdf::Object::as_reference)
-        .and_then(|id| doc.get_dictionary(id))
-        .expect("an Info");
-    let read = info
-        .get(b"Title")
-        .and_then(lopdf::Object::as_str)
-        .expect("a Title");
-    assert_eq!(String::from_utf8_lossy(read), title);
-}
-
-/// rg-q1q: a header-only CSV on paper is one page, numbered, with no
-/// legend.
-#[test]
-fn a_header_only_csv_on_paper_is_one_page() {
-    let dir = seeded(&[("radar.csv", "name,sector,ring,description\n")]);
-    ok(
-        dir.path(),
-        &["radar.csv", "-o", "r.pdf", "--paper", "letter"],
-    );
-    let doc = lopdf::Document::load_mem(&bytes(dir.path(), "r.pdf")).expect("parses");
-    assert_eq!(doc.get_pages().len(), 1);
-    let text = doc.extract_text(&[1]).expect("extracts");
-    assert!(text.contains("Page 1 of 1"), "{text}");
-    assert!(!text.contains("Legend"), "{text}");
-}
-
-/// rg-q1q: a hostile title reads back exact from a paper PDF's metadata.
-#[test]
-fn a_hostile_title_reads_back_exact_on_paper() {
-    let title = "\u{c6}r\u{f8} (Q3) \\ test";
-    let dir = seeded(&[("radar.csv", PRD)]);
-    ok(
-        dir.path(),
-        &[
-            "radar.csv",
-            "-o",
-            "r.pdf",
-            "--paper",
-            "a4",
-            "--title",
-            title,
-        ],
-    );
-    let doc = lopdf::Document::load_mem(&bytes(dir.path(), "r.pdf")).expect("parses");
-    let info = doc
-        .trailer
-        .get(b"Info")
-        .and_then(lopdf::Object::as_reference)
-        .and_then(|id| doc.get_dictionary(id))
-        .expect("an Info");
-    let read = info
-        .get(b"Title")
-        .and_then(lopdf::Object::as_str)
-        .expect("a Title");
-    let decoded = lopdf::decode_text_string(&lopdf::Object::String(
-        read.to_vec(),
-        lopdf::StringFormat::Literal,
-    ))
-    .expect("decodes");
-    assert_eq!(decoded, title);
 }

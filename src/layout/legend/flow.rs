@@ -83,33 +83,40 @@ pub(super) fn pieces(
     paginate(units.len(), &mut open, &fits)
         .into_iter()
         .map(|piece| {
-            let Opening {
-                mut placed,
-                dy,
-                mut groups,
-            } = piece.opening;
-            let Range { start, end } = entry_range(piece.units);
-            let base = placed.len();
-            let carried = entries.get(start..end).unwrap_or_default();
-            placed.extend(carried.iter().map(|entry| entry.shifted(dy)));
-            groups.extend(
-                layout
-                    .groups
-                    .iter()
-                    .filter(|group| (start..end).contains(&group.entry))
-                    .map(|group| GroupStart {
-                        entry: group.entry - start + base,
-                        baseline: group.baseline + dy,
-                    }),
-            );
-            Layout {
-                width,
-                height: height(&placed),
-                entries: placed,
-                groups,
-            }
+            let carried = entry_range(piece.units.clone());
+            built(layout, width, piece.opening, carried)
         })
         .collect()
+}
+
+/// One piece of `layout`, `width` wide: its opening, then the entries
+/// `carried` shifted by the opening's `dy`, with the groups they start.
+fn built(layout: &Layout, width: f64, opening: Opening, carried: Range<usize>) -> Layout {
+    let Opening {
+        mut placed,
+        dy,
+        mut groups,
+    } = opening;
+    let Range { start, end } = carried;
+    let base = placed.len();
+    let entries = layout.entries.get(start..end).unwrap_or_default();
+    placed.extend(entries.iter().map(|entry| entry.shifted(dy)));
+    groups.extend(
+        layout
+            .groups
+            .iter()
+            .filter(|group| (start..end).contains(&group.entry))
+            .map(|group| GroupStart {
+                entry: group.entry - start + base,
+                baseline: group.baseline + dy,
+            }),
+    );
+    Layout {
+        width,
+        height: height(&placed),
+        entries: placed,
+        groups,
+    }
 }
 
 /// The entries in runs placed whole: every heading and swatch glued to

@@ -354,12 +354,20 @@ fn html_cells(html: &str) -> Vec<String> {
     cells
 }
 
-/// SC-33: the full PDF's table reads back the HTML table's cells, in
-/// order, for a hostile CSV: both render one published table.
+/// SC-33: the full PDF's table reads back the HTML table's cells, row by
+/// row, for a hostile CSV with a 200-character address: both render one
+/// published table. Within a row the PDF folds the short columns under
+/// the name (the maintainer's ruling, 2026-10-23), so a row's cells are
+/// matched in its own stretch of text, not in column order. A character
+/// Inter lacks copies as nothing until FR-113, so the CSV has none.
 #[test]
 fn pdf_table_words_equal_html_cells() {
-    let csv = include_str!("fixtures/table-hostile.csv");
-    let catalogue = catalogue::catalogue(csv, None);
+    let url = format!("https://example.com/{}", "segment/".repeat(23));
+    let csv = format!(
+        "{}Long link,Tools,Adopt,d,{url},,,,\n",
+        include_str!("fixtures/table-hostile.csv")
+    );
+    let catalogue = catalogue::catalogue(&csv, None);
     let plotted = resolve(&catalogue);
     let blocks = Blocks::new(&catalogue, &plotted, None, None, fonts());
     let html = page(&Page {
@@ -373,22 +381,44 @@ fn pdf_table_words_equal_html_cells() {
         table: Table::All,
     });
     let squeezed = |text: &str| text.split_whitespace().collect::<String>();
-    let pdf =
-        squeezed(&table_pages(&full_pages(csv, Table::All, Paper::Letter), "Every item").join(" "));
-    let cells = html_cells(&html);
-    for expected in ["javascript:x", "\u{c6}r\u{f8} (Q3) \\ test", "x1"] {
-        assert!(
-            cells.iter().any(|c| c.contains(expected)),
-            "the HTML table has {expected}: {cells:?}"
-        );
+    let pdf = squeezed(
+        &table_pages(&full_pages(&csv, Table::All, Paper::Letter), "Every item").join(" "),
+    );
+    let rows: Vec<Vec<String>> = html
+        .split("<tr data-row")
+        .skip(1)
+        .map(|row| html_cells(&format!("<tbody><tr data-row{row}</tbody>")))
+        .collect();
+    assert_eq!(rows.len(), 6, "every row");
+    // Each row's stretch runs from its name to the next row's name.
+    let starts: Vec<usize> = rows
+        .iter()
+        .map(|row| {
+            let name = squeezed(row.get(1).map_or("", String::as_str));
+            let name = name.split(',').next().unwrap_or_default().to_owned();
+            pdf.find(&name).unwrap_or_else(|| panic!("{name} in {pdf}"))
+        })
+        .collect();
+    assert!(
+        starts.windows(2).all(|w| w.first() < w.get(1)),
+        "rows in order"
+    );
+    for (k, row) in rows.iter().enumerate() {
+        let start = starts.get(k).copied().unwrap_or(0);
+        let end = starts.get(k + 1).copied().unwrap_or(pdf.len());
+        let stretch = pdf.get(start..end).unwrap_or_default();
+        for cell in row
+            .iter()
+            .skip(1)
+            .map(|c| squeezed(c))
+            .filter(|c| !c.is_empty())
+        {
+            let cell = cell.replace(",notontheradar", "notontheradar");
+            assert!(stretch.contains(&cell), "row {k}: {cell} not in {stretch}");
+        }
     }
-    assert!(cells.len() > 40, "{} cells", cells.len());
-    let mut from = 0;
-    for cell in cells.iter().map(|c| squeezed(c)).filter(|c| !c.is_empty()) {
-        let at = pdf
-            .get(from..)
-            .and_then(|rest| rest.find(cell.as_str()))
-            .unwrap_or_else(|| panic!("{cell} not in order in {pdf}"));
-        from += at + cell.len();
-    }
+    assert!(
+        pdf.contains(&squeezed(&url)),
+        "the address reads back whole"
+    );
 }

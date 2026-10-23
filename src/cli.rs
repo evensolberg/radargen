@@ -122,13 +122,13 @@ pub struct Cli {
 
     // FR-106, D-95: the page publishes what the radar draws unless asked
     // for everything, so a CSV that doubles as an internal register is not
-    // published whole by default. PNG, SVG and PDF have no table, so the pipeline
-    // warns on `all` there, as it does on `--legend hidden`. No aliases and
-    // no short form: it is set once per radar, like --legend.
-    /// What an HTML page's table publishes; the default is radar.
+    // published whole by default. PNG, SVG and the radar PDF have no table, so
+    // the pipeline warns on `all` there, as it does on `--legend hidden`. No
+    // aliases and no short form: it is set once per radar, like --legend.
+    /// What the table lists; the default is radar.
     ///
-    /// It also decides what the detail panels show. Accepted in any letter
-    /// case. PNG, SVG and PDF have no table.
+    /// On an HTML page and in a full PDF (--pdf full). It also decides what an HTML page's detail panels show. Accepted in
+    /// any letter case. PNG, SVG and the radar PDF have no table.
     #[arg(long, value_enum, ignore_case = true)]
     pub table: Option<Table>,
 
@@ -139,7 +139,7 @@ pub struct Cli {
     ///
     /// From 320 to 10000; the height follows. An HTML page fits the reader's
     /// window. A PDF's page is 96 pixels to the inch, so 1056 is 11 inches
-    /// wide; it is not a paper size. Ignored on paper (--paper letter or a4).
+    /// wide; it is not a paper size. Ignored on paper (--paper letter or a4, or --pdf full).
     #[arg(short, long, value_parser = clap::value_parser!(u32).range(i64::from(MIN_EXPORT_WIDTH)..=i64::from(MAX_EXPORT_WIDTH)))]
     pub width: Option<u32>,
 
@@ -150,7 +150,7 @@ pub struct Cli {
     /// Flow a PNG, SVG or PDF legend into this many columns beside the radar; the default is 1.
     ///
     /// From 1 to 4; columns break only between sectors. An HTML page
-    /// ignores it. Ignored on paper (--paper letter or a4).
+    /// ignores it. Ignored on paper (--paper letter or a4, or --pdf full).
     #[arg(long, value_name = "N", value_parser = clap::value_parser!(u8).range(1..=i64::from(MAX_LEGEND_COLUMNS)))]
     pub legend_columns: Option<u8>,
 
@@ -161,16 +161,17 @@ pub struct Cli {
     /// Put a PDF on landscape paper; the default is none.
     ///
     /// Letter or A4, for printing: the radar page first, the legend
-    /// continuing on further pages, each page numbered. "none" is one page the size of the drawing. --width
-    /// and --legend-columns do not apply on paper. Accepted in any letter
-    /// case. PDF only.
+    /// continuing on further pages, each page numbered. "none" is one page
+    /// the size of the drawing; a full PDF (--pdf full) is on Letter unless
+    /// told otherwise and cannot use "none". --width and --legend-columns do
+    /// not apply on paper. Accepted in any letter case. PDF only.
     #[arg(long, value_enum, ignore_case = true)]
     pub paper: Option<Paper>,
 
     // FR-112, D-104: the full PDF adds the table, always on paper. Other
     // formats warn when `full` came from the flag (D-100). No short form,
     // like --paper.
-    /// With full, a PDF adds the table; the default is radar.
+    /// Radar, or full with the table; the default is radar.
     ///
     /// "radar" draws the radar, key and legend; "full" adds the table of
     /// items, with each one's description and rationale, on the pages
@@ -343,6 +344,7 @@ impl Cli {
             table: pick(Setting::Table, self.table, file, |v| v.table),
             paper: pick(Setting::Paper, self.paper, file, |v| v.paper),
             pdf: pick(Setting::Pdf, self.pdf, file, |v| v.pdf),
+            dropped_full: None,
             palette: pick(Setting::Palette, self.palette.clone(), file, |v| {
                 v.palette.clone()
             }),

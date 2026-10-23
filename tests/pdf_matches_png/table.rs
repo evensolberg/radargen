@@ -130,10 +130,11 @@ fn a_slightly_wrong_text_colour_fails_on_a_table_page() {
     }));
 }
 
-/// The rules dropped (every stroke) fails: they are the table's new
-/// geometry.
+/// Every rule dropped (every stroke) fails. One 1 px rule alone is about
+/// 1,100 ppm, under the budget, so a single missing rule is the
+/// `prd-full` golden's to catch, not this oracle's (final review, QA 6).
 #[test]
-fn a_dropped_rule_fails_on_a_table_page() {
+fn every_rule_dropped_fails_on_a_table_page() {
     assert!(!damaged_table_page(|ops| {
         let strokes = ops.iter().filter(|op| op.operator == "S").count();
         assert_ne!(strokes, 0, "a table page has rules");

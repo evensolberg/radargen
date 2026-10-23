@@ -107,18 +107,30 @@ pub struct PublishedRow<'a> {
     pub cells: Vec<Cell<'a>>,
 }
 
+/// One published column, the number column aside.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PublishedColumn<'a> {
+    /// What the column means (FR-27).
+    pub column: ColumnKind,
+    /// How its cells are written.
+    pub cell: CellKind,
+    /// Its heading, unescaped: the header as written, trimmed, or
+    /// [`SECTOR_HEADING`] (D-101).
+    pub heading: &'a str,
+    /// Its index in [`Catalogue::columns`], so a warning about a cell
+    /// names its column (NFR-10).
+    pub source: usize,
+}
+
 /// The table as published.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Published<'a> {
     /// The heading that names it (FR-106).
     pub heading: &'static str,
-    /// Each column's kind and heading, unescaped, the number column
-    /// aside. The kinds are here as well as on each cell because a layout
-    /// sizes the columns before it reads the rows.
-    pub columns: Vec<(CellKind, &'a str)>,
-    /// Each column's index in [`Catalogue::columns`], in the same order,
-    /// so a warning about a cell names its column (NFR-10).
-    pub sources: Vec<usize>,
+    /// The columns, in order, the number column aside. Their kinds are
+    /// here as well as on each cell because a layout sizes the columns
+    /// before it reads the rows.
+    pub columns: Vec<PublishedColumn<'a>>,
     /// The rows, in FR-34's order, then (under `all`) the unplotted ones
     /// in CSV order (FR-78).
     pub rows: Vec<PublishedRow<'a>>,
@@ -148,16 +160,20 @@ pub fn published<'a>(catalogue: &'a Catalogue, plotted: &Plotted, publish: Table
         columns: columns
             .iter()
             .map(|&c| {
-                let kind_of = catalogue
+                let column = catalogue
                     .columns
                     .get(c)
                     .map_or(ColumnKind::Other, |c| c.kind);
-                (kind(kind_of), column_heading(catalogue, c))
+                PublishedColumn {
+                    column,
+                    cell: kind(column),
+                    heading: column_heading(catalogue, c),
+                    source: c,
+                }
             })
             .collect(),
         says_empty: publish == Table::Radar && rows.is_empty(),
         rows,
-        sources: columns,
     }
 }
 
@@ -257,7 +273,7 @@ mod tests {
     const HOSTILE: &str = include_str!("../tests/fixtures/table-hostile.csv");
 
     fn headings<'a>(table: &'a Published<'_>) -> Vec<&'a str> {
-        table.columns.iter().map(|(_, heading)| *heading).collect()
+        table.columns.iter().map(|column| column.heading).collect()
     }
 
     fn lines(table: &Published<'_>) -> Vec<usize> {
@@ -402,7 +418,7 @@ mod tests {
         let kinds: Vec<CellKind> = published(&catalogue, &order, Table::Radar)
             .columns
             .iter()
-            .map(|(kind, _)| *kind)
+            .map(|column| column.cell)
             .collect();
         assert_eq!(
             kinds.get(..4),

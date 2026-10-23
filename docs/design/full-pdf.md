@@ -9,7 +9,7 @@ created_date: 2026-10-22
 synopsis: "--pdf full writes a landscape Letter or A4 PDF: the radar, key and legend first, then the HTML page's table of items, paginated with a repeated header and rows never split. --paper puts the radar PDF on paper too. Both PDFs are tagged to PDF/UA-1 and checked by veraPDF."
 status: active
 type: Spec
-revision: "1.4"
+revision: "1.5"
 review_date:
 reviewed_by: []
 completed_date:
@@ -258,3 +258,4 @@ These are the builder's calls, to be made in the plan and noted there:
 | 1.2 | 2026-10-22 | Paper (PR 21a) built: the leading pages keep the legend at 16/15 with 26 px rows and the key at its size, and shrink the radar; legend-only pages are checked against their PNGs under a budget of their own (1,600 ppm; the maintainer's ruling) |
 | 1.3 | 2026-10-23 | The maintainer, for PR 21b: `--pdf radar|full` (renamed from `light`, which reads as a colour); flags displace a file's opposing `pdf` or `paper`; prose columns at least about 21 characters (first 27, lowered when the PRD example was cramped), shared by content; headings break at a space or after an underscore; later table pages headed with their sector and item numbers; a 2 px rule between sectors; page 1 names where the table starts; a page-tall row split at lines with both parts marked. The builder's (RG-021B): column caps, type, link as text |
 | 1.4 | 2026-10-23 | The full PDF (PR 21b) built: table pages after the legend's, prose columns at least 136 px, headings breaking only at spaces and underscores, later pages headed with sector and item numbers, a page-1 pointer, split rows marked on both parts. Table pages are checked against their PNGs under the legend pages' budget: faithful pages at most 697 ppm (worst 33) against 1,600 (44); damage measures 4,304 to 12,027 ppm |
+| 1.5 | 2026-10-23 | After the final review, the maintainer: qualifier, status and the dates fold into a muted line under the item's name in the PDF's table, so description and rationale get the width; the CSV's headers stay; `--paper none` over a file's `pdf = "full"` warns that the table is dropped; the edition reaches the footer through `--subtitle`, as a README tip. A label column never breaks a word; a heading is cut at three lines |

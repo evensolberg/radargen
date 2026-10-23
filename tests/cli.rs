@@ -283,8 +283,8 @@ fn the_table_long_help_says_what_each_value_publishes() {
         block,
         [
             "--table <TABLE>",
-            "What an HTML page's table publishes; the default is radar.",
-            "It also decides what the detail panels show. Accepted in any letter case. PNG, SVG and PDF have no table.",
+            "What the table lists; the default is radar.",
+            "On an HTML page and in a full PDF (--pdf full). It also decides what an HTML page's detail panels show. Accepted in any letter case. PNG, SVG and the radar PDF have no table.",
             "Possible values:",
             "- radar: Only the rows the radar draws and the columns radargen reads",
             "- all:   Every row, including those not on the radar, and every column with a header name. Anyone with the page can read them",
@@ -855,7 +855,10 @@ fn help_describes_paper() {
     );
     // Accepted and ignored, not refused: "Not with" is a clap conflict.
     assert_eq!(
-        long.matches("Ignored on paper (--paper letter or a4).")
+        long.split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .matches("Ignored on paper (--paper letter or a4, or --pdf full).")
             .count(),
         2,
         "--width and --legend-columns: {long}"
@@ -897,7 +900,7 @@ fn help_describes_pdf() {
     );
     let short = Cli::command().render_help().to_string();
     assert!(
-        short.contains("With full, a PDF adds the table; the default is radar"),
+        short.contains("Radar, or full with the table; the default is radar"),
         "{short}"
     );
 }

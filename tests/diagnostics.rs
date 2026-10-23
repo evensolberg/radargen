@@ -580,6 +580,20 @@ fn the_ring_warning_says_where_the_row_went() {
 }
 
 /// FR-106's warning: `--table all` on a PNG, SVG or PDF, which have no table.
+/// FR-112's cramped table: under `--table radar` there is no column to
+/// leave out, so the remedy is the wider paper or the HTML page.
+#[test]
+fn a_cramped_radar_table_names_a4_and_the_page() {
+    let table = radargen::settings::Sourced {
+        value: radargen::options::Table::Radar,
+        origin: Origin::new(Setting::Table, Source::Default),
+    };
+    assert_eq!(
+        Warning::Render(RenderKind::TableCramped { columns: 9, table }).to_string(),
+        "--pdf full: the table has 9 columns, so its prose columns are narrower than about 21 characters; --paper a4 is a little wider, and the HTML page shows the table in full"
+    );
+}
+
 #[test]
 fn table_all_on_a_snapshot_says_it_has_no_table() {
     assert_eq!(

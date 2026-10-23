@@ -401,6 +401,10 @@ pub struct Settings {
     pub paper: Effective<Paper>,
     /// `--pdf` or `pdf` (FR-112).
     pub pdf: Effective<Pdf>,
+    /// The file's `pdf = "full"` that `--paper none` displaced, so the run
+    /// can say the table was dropped (the maintainer's ruling after the
+    /// final review, 2026-10-23).
+    pub dropped_full: Option<Origin>,
     /// `--palette` or `palette`.
     pub palette: Effective<PathBuf>,
     /// `--edition` or `edition` (FR-92).
@@ -462,6 +466,28 @@ fn by_flag<T>(value: &Effective<T>) -> bool {
 }
 
 impl Settings {
+    /// FR-112's half of [`displace`](Self::displace): `--pdf full` drops
+    /// the file's `paper = "none"`, and `--paper none` drops its
+    /// `pdf = "full"`, recording that the table was dropped.
+    fn displace_pdf_paper(&mut self) {
+        let full = self.pdf.as_given().is_some_and(|p| p.value == Pdf::Full);
+        let none = self
+            .paper
+            .as_given()
+            .is_some_and(|p| p.value == Paper::None);
+        if !(full && none) {
+            return;
+        }
+        match (by_flag(&self.pdf), by_flag(&self.paper)) {
+            (true, false) => self.paper = Effective::Absent,
+            (false, true) => {
+                self.dropped_full = self.pdf.as_given().map(|pdf| pdf.origin.clone());
+                self.pdf = Effective::Absent;
+            }
+            _ => {}
+        }
+    }
+
     /// FR-59 across sources (rg-ahj; the maintainer's ruling, 2026-10-18):
     /// the command line wins over the opposing key, so `--palette` drops
     /// the file's `theme` and `--theme` drops its `palette`. The dropped key
@@ -477,15 +503,7 @@ impl Settings {
         if by_flag(&self.theme) && !by_flag(&self.palette) {
             self.palette = Effective::Absent;
         }
-        let full = |pdf: &Effective<Pdf>| pdf.as_given().is_some_and(|p| p.value == Pdf::Full);
-        let none =
-            |paper: &Effective<Paper>| paper.as_given().is_some_and(|p| p.value == Paper::None);
-        if by_flag(&self.pdf) && full(&self.pdf) && !by_flag(&self.paper) && none(&self.paper) {
-            self.paper = Effective::Absent;
-        }
-        if by_flag(&self.paper) && none(&self.paper) && !by_flag(&self.pdf) && full(&self.pdf) {
-            self.pdf = Effective::Absent;
-        }
+        self.displace_pdf_paper();
     }
 }
 

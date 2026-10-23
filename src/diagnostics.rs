@@ -205,6 +205,12 @@ pub enum RenderKind {
         /// The output it was given for.
         format: OutputFormat,
     },
+    /// FR-112: `--paper none` from the flag displaced the file's
+    /// `pdf = "full"`, so the run writes the radar PDF without the table.
+    FullDropped {
+        /// Where `full` came from: the file.
+        pdf: Origin,
+    },
     /// FR-112: `--pdf full` from the flag with an HTML, PNG or SVG output.
     PdfNotPdf {
         /// The value given.
@@ -615,24 +621,15 @@ impl RenderKind {
             }
             Self::TableStatic { format } => table_static(*format).to_owned(),
             Self::PdfNotPdf { pdf } => pdf_not_pdf(*pdf),
+            Self::FullDropped { pdf } => full_dropped(pdf),
             Self::TableCramped { columns, table } => cramped(*columns, table),
             Self::TableRowTall { line, name } => tall_row(*line, name),
             Self::LegendRowTall { line, name } => tall_legend_row(*line, name),
             Self::PaperNotPdf { paper } => format!(
                 "--paper {paper} applies to PDF; HTML pages, PNG and SVG have no paper size"
             ),
-            Self::PaperIgnoresWidth { width, paper } => paper_ignores(
-                &format!("--width {width}"),
-                paper,
-                "the paper sets the page's size",
-                &format!("a page --width {width} wide"),
-            ),
-            Self::PaperIgnoresLegendColumns { columns, paper } => paper_ignores(
-                &format!("--legend-columns {columns}"),
-                paper,
-                "on paper the legend takes as many columns as fit each page",
-                &format!("a legend in {columns} columns"),
-            ),
+            Self::PaperIgnoresWidth { width, paper } => ignores_width(*width, paper),
+            Self::PaperIgnoresLegendColumns { columns, paper } => ignores_columns(*columns, paper),
             Self::PaperRadarWide { paper, full } => radar_wide(*paper, *full),
             Self::WidthClamped { natural, drawn } => format!(
                 "the radar is {natural} pixels wide, past --width's limit; the PNG is drawn {drawn} wide, or pass --width to choose"
@@ -795,31 +792,31 @@ const fn wanted(setting: Setting) -> &'static str {
 /// for `why`. A paper from a file is named with its file, and how to undo
 /// it for one run.
 fn paper_ignores(flag: &str, from: &PaperFrom, why: &str, instead: &str) -> String {
-    match from {
-        PaperFrom::Paper(paper) => {
-            let given = paper.origin.assignment(paper.value, "");
-            if paper.origin.source.is_config() {
-                let none = Origin::flag(Setting::Paper).assignment(Paper::None, "");
-                format!(
-                    "{flag} does not apply on paper ({given}); {why}; pass {none} for the drawing-sized page"
-                )
-            } else {
-                format!(
-                    "{flag} does not apply with {given}; {why}; leave out --paper for {instead}"
-                )
-            }
-        }
-        PaperFrom::Pdf(origin) => {
-            let radar = Origin::flag(Setting::Pdf).assignment(Pdf::Radar, "");
-            let ending = format!("{why}; use {radar} for the drawing-sized page");
-            if origin.source.is_config() {
-                let given = origin.assignment(Pdf::Full, "");
-                format!("{flag} does not apply on paper ({given}); {ending}")
-            } else {
-                format!("{flag} does not apply with --pdf full, which is always on paper; {ending}")
-            }
-        }
-    }
+    let fact = match (&from.paper, &from.full) {
+        (Some(paper), _) if paper.origin.source.is_config() => format!(
+            "{flag} does not apply on paper ({})",
+            paper.origin.assignment(paper.value, "")
+        ),
+        (Some(paper), _) => format!(
+            "{flag} does not apply with {}",
+            paper.origin.assignment(paper.value, "")
+        ),
+        (None, Some(full)) if full.source.is_config() => format!(
+            "{flag} does not apply on paper ({})",
+            full.assignment(Pdf::Full, "")
+        ),
+        (None, _) => format!("{flag} does not apply with --pdf full, which is always on paper"),
+    };
+    // The remedy must leave the drawing-sized page: a full PDF needs
+    // --pdf radar, and paper given beside it --paper none as well, since
+    // --pdf full --paper none is a usage error (final review, QA 1).
+    let remedy = match (&from.paper, &from.full) {
+        (Some(_), Some(_)) => "pass --pdf radar --paper none".to_owned(),
+        (None, Some(_)) => "pass --pdf radar".to_owned(),
+        (Some(paper), None) if paper.origin.source.is_config() => "pass --paper none".to_owned(),
+        (_, None) => "leave out --paper".to_owned(),
+    };
+    format!("{fact}; {why}; {remedy} for {instead}")
 }
 
 /// FR-111: the radar does not fit `paper`'s first page even at its
@@ -835,24 +832,52 @@ fn radar_wide(paper: Paper, full: bool) -> String {
     )
 }
 
+/// FR-111: `--width` given for a PDF on paper.
+fn ignores_width(width: u32, paper: &PaperFrom) -> String {
+    paper_ignores(
+        &format!("--width {width}"),
+        paper,
+        "the paper sets the page's size",
+        &format!("a page --width {width} wide"),
+    )
+}
+
+/// FR-111: `--legend-columns` given for a PDF on paper.
+fn ignores_columns(columns: u8, paper: &PaperFrom) -> String {
+    paper_ignores(
+        &format!("--legend-columns {columns}"),
+        paper,
+        "on paper the legend takes as many columns as fit each page",
+        &format!("a legend in {columns} columns"),
+    )
+}
+
+/// FR-112: `--paper none` displaced the file's `pdf = "full"`.
+fn full_dropped(pdf: &Origin) -> String {
+    format!(
+        "--paper none: {} needs paper, so this writes the radar PDF without the table; pass --pdf radar to say so, or leave out --paper none for the table",
+        pdf.assignment(Pdf::Full, "")
+    )
+}
+
 /// FR-112: `--pdf full` from the flag on an output that is not a PDF.
 fn pdf_not_pdf(pdf: Pdf) -> String {
     format!(
-        "--pdf {pdf} applies to PDF; an HTML page already has the table, and PNG and SVG ignore it"
+        "--pdf {pdf} applies to PDF and is ignored here; an HTML page already has the table, and PNG and SVG have none"
     )
 }
 
 /// FR-112: the row on `line`, named `name`, is taller than a table page.
 fn tall_row(line: usize, name: &str) -> String {
     format!(
-        "line {line}: '{name}' is taller than a page of the table, so it is split across pages and marked (continued); a shorter description or rationale keeps it on one page"
+        "line {line}: '{name}' is taller than a page of the table, so it runs on across pages, marked (continued); shorter text in its row keeps it on one page"
     )
 }
 
 /// rg-i95: the legend row on `line`, named `name`, is taller than a page.
 fn tall_legend_row(line: usize, name: &str) -> String {
     format!(
-        "line {line}: '{name}' in the legend is taller than a page, so it runs over the page's footer; a shorter name fixes it"
+        "line {line}: '{name}' in the legend is taller than the room on its page, so it runs over the page's footer; a shorter name fixes it"
     )
 }
 
@@ -870,12 +895,14 @@ fn table_static(format: OutputFormat) -> &'static str {
 /// it is `all`: under `radar` there is no column to drop.
 fn cramped(columns: usize, table: &Sourced<Table>) -> String {
     let fact = format!(
-        "the full PDF's table has {columns} columns, so its prose columns are narrower than about 21 characters"
+        "--pdf full: the table has {columns} columns, so its prose columns are narrower than about 21 characters"
     );
     if table.value != Table::All {
-        return fact;
+        return format!(
+            "{fact}; --paper a4 is a little wider, and the HTML page shows the table in full"
+        );
     }
-    let radar = table.origin.assignment("radar", "");
+    let radar = table.origin.set_to("radar", "");
     format!("{fact}; {radar} leaves out the columns radargen does not read")
 }
 
@@ -885,11 +912,11 @@ fn needs_paper(pdf: &Origin, paper: &Origin) -> String {
     let none = paper.assignment(Paper::None, "");
     if paper.source.is_config() {
         format!(
-            "{full} needs paper, but {none} asks for the drawing-sized page; set paper to \"letter\" or \"a4\", or remove the paper line"
+            "{full} needs paper, but {none} asks for the drawing-sized page; set paper to \"letter\" or \"a4\", remove the paper line, or set pdf = \"radar\""
         )
     } else {
         format!(
-            "{full} needs paper, but {none} asks for the drawing-sized page; use --paper letter or --paper a4, or drop {none}"
+            "{full} needs paper, but {none} asks for the drawing-sized page; use --paper letter or --paper a4, or --pdf radar for the drawing-sized page without the table"
         )
     }
 }
@@ -1108,14 +1135,14 @@ fn needs_escape(c: char) -> bool {
 pub struct Warnings(Vec<Warning>);
 
 /// What puts a PDF on paper (FR-111, FR-112), so a flag paper ignores is
-/// warned about in words that name it.
+/// warned about in words that name it, with a remedy that works.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PaperFrom {
-    /// `--paper letter` or `a4`, from the flag or the file.
-    Paper(Sourced<Paper>),
-    /// `--pdf full` with no paper, which is on Letter: where `full` came
-    /// from.
-    Pdf(Origin),
+pub struct PaperFrom {
+    /// `--paper letter` or `a4`, from the flag or the file; `None` for a
+    /// full PDF on its default Letter.
+    pub paper: Option<Sourced<Paper>>,
+    /// Where `--pdf full` came from, when the PDF is full.
+    pub full: Option<Origin>,
 }
 
 /// Where a row FR-17 leaves off the radar ends up, which its warning says

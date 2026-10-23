@@ -71,9 +71,10 @@ pub struct Bodies {
     pub pages: Vec<Vec<Node>>,
     /// What each page holds, one per page.
     pub kinds: Vec<PageKind>,
-    /// Whether the table's prose columns are narrower than they should
-    /// be even with its label columns at their floor (FR-112).
-    pub table_cramped: bool,
+    /// When the table's prose columns are narrower than they should be
+    /// even with its label columns at their floor (FR-112), its drawn
+    /// columns, the number column included.
+    pub table_cramped: Option<usize>,
     /// Each table row split across pages: its CSV line and name.
     pub tall_table_rows: Vec<(usize, String)>,
     /// Each legend row taller than a page: its CSV line and name.
@@ -311,6 +312,45 @@ pub fn bodies(sheets: &Sheets<'_>, fonts: &Fonts) -> Bodies {
         .filter(|(k, piece)| piece.size(1.0).height > if *k == 0 { room } else { page_room })
         .flat_map(|(_, piece)| piece.rows())
         .collect();
+    let mut pages = legend_pages(sheets, &first, pieces, slots, fonts);
+    let mut kinds = vec![PageKind::Front];
+    kinds.resize(pages.len(), PageKind::Legend);
+    // FR-112: the table starts on a page of its own, after the legend's.
+    let table = sheets
+        .table
+        .map(|published| TableBlock::new(published, content.width, content.height, fonts));
+    if let Some(table) = &table {
+        let origin = Point {
+            x: PAPER_MARGIN,
+            y: PAPER_MARGIN,
+        };
+        for page in table.pages() {
+            pages.push(table.render(page, origin, fonts));
+            kinds.push(PageKind::Table);
+        }
+    }
+    Bodies {
+        pages,
+        kinds,
+        table_cramped: table.as_ref().and_then(TableBlock::cramped),
+        tall_table_rows: table
+            .as_ref()
+            .map(|table| table.tall_rows().to_vec())
+            .unwrap_or_default(),
+        tall_legend_rows,
+        radar_too_wide: !first.fits,
+    }
+}
+
+/// Page 1 and the legend's continuation pages: each piece on the page
+/// `slots` gives it, page 1's beside the radar, the rest side by side.
+fn legend_pages(
+    sheets: &Sheets<'_>,
+    first: &FirstPage,
+    pieces: Vec<LegendBlock>,
+    slots: PieceSlots,
+    fonts: &Fonts,
+) -> Vec<Vec<Node>> {
     let mut page_one = vec![
         title(sheets, fonts).render(Placement::at(Point {
             x: PAPER_MARGIN,
@@ -323,8 +363,6 @@ pub fn bodies(sheets: &Sheets<'_>, fonts: &Fonts) -> Bodies {
             .grid(first.key_columns)
             .render(Placement::at(first.rule.from)),
     ];
-    // Each piece on the page `slots` gives it: page 1's beside the radar,
-    // the rest side by side on the pages after.
     let mut later: Vec<Vec<LegendBlock>> = Vec::new();
     for (k, piece) in pieces.into_iter().enumerate() {
         match (slots.page_of(k), first.legend) {
@@ -346,33 +384,7 @@ pub fn bodies(sheets: &Sheets<'_>, fonts: &Fonts) -> Bodies {
             .iter()
             .map(|columns| continuation(columns, width, sheets)),
     );
-    let mut kinds = vec![PageKind::Front];
-    kinds.resize(pages.len(), PageKind::Legend);
-    // FR-112: the table starts on a page of its own, after the legend's.
-    let table = sheets
-        .table
-        .map(|published| TableBlock::new(published, content.width, content.height, fonts));
-    if let Some(table) = &table {
-        let origin = Point {
-            x: PAPER_MARGIN,
-            y: PAPER_MARGIN,
-        };
-        for page in table.pages() {
-            pages.push(table.render(page, origin, fonts));
-            kinds.push(PageKind::Table);
-        }
-    }
-    Bodies {
-        pages,
-        kinds,
-        table_cramped: table.as_ref().is_some_and(TableBlock::cramped),
-        tall_table_rows: table
-            .as_ref()
-            .map(|table| table.tall_rows().to_vec())
-            .unwrap_or_default(),
-        tall_legend_rows,
-        radar_too_wide: !first.fits,
-    }
+    pages
 }
 
 /// A continuation page: `pieces` side by side, `width` each, the group

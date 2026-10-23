@@ -65,7 +65,7 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted, publish: Table) ->
     let head: String = table
         .columns
         .iter()
-        .map(|(_, heading)| ["<th scope=\"col\">", &xml_text(heading), "</th>"].concat())
+        .map(|column| ["<th scope=\"col\">", &xml_text(column.heading), "</th>"].concat())
         .collect();
     // FR-106: `radar` says when nothing is plotted; `all`'s empty body,
     // from a headers-only CSV, is left as it was, so its page is unchanged

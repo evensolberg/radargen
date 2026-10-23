@@ -107,34 +107,47 @@ pub fn warn_table_glyphs(
     warnings: &mut Warnings,
 ) {
     for row in &table.rows {
-        for (cell, &c) in row.cells.iter().zip(&table.sources) {
-            let Some(column) = catalogue.columns.get(c) else {
-                continue;
-            };
-            let warned_elsewhere = match cell {
-                Cell::Name { unplotted, .. } => !unplotted,
-                _ => matches!(column.kind, ColumnKind::Sector | ColumnKind::Ring),
-            };
-            if warned_elsewhere {
-                continue;
-            }
-            if let Some(lacking) = lacking(&words(&cell.paragraphs().join(" ")), format, fonts) {
-                let name = if column.kind == ColumnKind::Other {
-                    trim(&column.heading)
-                } else {
-                    column.kind.as_str()
-                };
-                warnings.push(Warning::Row {
-                    line: row.line,
-                    column: column.position,
-                    kind: RowKind::MissingGlyphs {
-                        column: name.to_owned(),
-                        lacking,
-                    },
-                });
+        for (cell, published) in row.cells.iter().zip(&table.columns) {
+            let column = catalogue.columns.get(published.source);
+            if let Some(warning) =
+                column.and_then(|c| cell_glyphs(row.line, cell, c, format, fonts))
+            {
+                warnings.push(warning);
             }
         }
     }
+}
+
+/// FR-104's warning for one table `cell` on `line`, under `column`; `None`
+/// when the radar or legend already warns about it, or Inter draws it all.
+fn cell_glyphs(
+    line: usize,
+    cell: &Cell<'_>,
+    column: &crate::model::Column,
+    format: OutputFormat,
+    fonts: &Fonts,
+) -> Option<Warning> {
+    let warned_elsewhere = match cell {
+        Cell::Name { unplotted, .. } => !unplotted,
+        _ => matches!(column.kind, ColumnKind::Sector | ColumnKind::Ring),
+    };
+    if warned_elsewhere {
+        return None;
+    }
+    let lacking = lacking(&words(&cell.paragraphs().join(" ")), format, fonts)?;
+    let name = if column.kind == ColumnKind::Other {
+        trim(&column.heading)
+    } else {
+        column.kind.as_str()
+    };
+    Some(Warning::Row {
+        line,
+        column: column.position,
+        kind: RowKind::MissingGlyphs {
+            column: name.to_owned(),
+            lacking,
+        },
+    })
 }
 
 /// What `text` lacks in `format`, or `None` when the font draws all of it.
