@@ -25,8 +25,6 @@ use crate::svg::serialise::DATA_ROW;
 /// The heading's `id`, written once outside both arrangements (architecture
 /// §5's exception): it names the table and its scroll region.
 const HEADING_ID: &str = "table-heading";
-/// Neutral, since a screen reader adds "collapsed" or "expanded".
-const SUMMARY: &str = "The table";
 
 const OPEN_HEADING: &str = "<h2 class=\"table-heading\" id=\"";
 /// The table view's `<details>` (FR-41). The script finds it by this class:
@@ -90,7 +88,7 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted, publish: Table) ->
         OPEN_TOGGLE,
         TABLE_VIEW_CLASS,
         TOGGLE_REST,
-        SUMMARY,
+        &summary(table.rows.len()),
         OPEN_REGION,
         HEADING_ID,
         OPEN_TABLE,
@@ -105,6 +103,17 @@ pub(super) fn table(catalogue: &Catalogue, plotted: &Plotted, publish: Table) ->
         CLOSE,
     ]
     .concat()
+}
+
+/// The toggle's text: the table's row count, since the heading above it
+/// already names the table (rg-zr8). Neutral, so it reads the same open or
+/// closed, where a screen reader adds "collapsed" or "expanded".
+fn summary(rows: usize) -> String {
+    match rows {
+        0 => "Table of no items".to_owned(),
+        1 => "Table of 1 item".to_owned(),
+        n => format!("Table of {n} items"),
+    }
 }
 
 /// One item's row, keyed on its CSV line as its marker and legend row are

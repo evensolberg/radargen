@@ -274,8 +274,12 @@ fn the_table_is_closed_under_a_visible_heading() {
         !html.contains("<details class=\"table-view\" open"),
         "closed by default"
     );
+    // rg-zr8: the toggle adds the count rather than repeating the heading,
+    // and reads the same open or closed.
+    let rows = table_of(&html).matches("<tr data-row").count();
+    assert!(rows > 1);
     assert!(
-        html.contains("<summary>The table</summary>"),
+        html.contains(&format!("<summary>Table of {rows} items</summary>")),
         "FR-41's toggle, worded for both states"
     );
     let table = table_of(&html);
@@ -587,5 +591,24 @@ fn a_headers_only_all_table_matches_its_golden() {
         "html",
         "headers-only-all.html",
         &table_section("name,sector,ring,description\n", Table::All),
+    );
+}
+
+/// rg-zr8: one row is one item, and an empty table says none.
+#[test]
+fn the_toggle_counts_its_rows() {
+    let one = build(
+        "name,sector,ring,description\nA,Tools,Adopt,d\n",
+        None,
+        Some("T"),
+    );
+    assert!(
+        one.page(Some("T"))
+            .contains("<summary>Table of 1 item</summary>")
+    );
+    let none = build("name,sector,ring,description\n", None, Some("T"));
+    assert!(
+        none.page(Some("T"))
+            .contains("<summary>Table of no items</summary>")
     );
 }

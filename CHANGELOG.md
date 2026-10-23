@@ -8,6 +8,7 @@
 ### ⚙️ Miscellaneous Tasks
 
 - *(crumbs)* Close rg-p82
+- *(release)* 1.22.1
 ## [1.22.0] - 2026-10-23
 
 ### 🚀 Features
