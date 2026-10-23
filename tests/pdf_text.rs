@@ -359,7 +359,8 @@ fn html_cells(html: &str) -> Vec<String> {
 /// published table. Within a row the PDF folds the short columns under
 /// the name (the maintainer's ruling, 2026-10-23), so a row's cells are
 /// matched in its own stretch of text, not in column order. A character
-/// Inter lacks copies as nothing until FR-113, so the CSV has none.
+/// Inter lacks reads only through its `/ActualText` (FR-113), which
+/// lopdf's extraction ignores, so the CSV has none.
 #[test]
 fn pdf_table_words_equal_html_cells() {
     let url = format!("https://example.com/{}", "segment/".repeat(23));

@@ -4,11 +4,10 @@
 //! (D-78). A halo is drawn as its glyphs' stroked outlines, not as text,
 //! so a label extracts, copies and is searched once.
 
-use pdf_writer::Content;
-use pdf_writer::Str;
 use pdf_writer::types::TextRenderingMode;
+use pdf_writer::{Content, Name, Str, TextStr};
 
-use super::content::{Canvas, colour};
+use super::content::{Canvas, colour, trace};
 use super::font::Faces;
 use super::{EM, real};
 use crate::style::TextStyle;
@@ -23,6 +22,9 @@ const RESIDUE: f32 = 0.01;
 /// The text matrix's y scale: it flips glyph space, y up, back against
 /// the page's flipped transform, so the glyphs stand upright.
 const UPRIGHT: f32 = -1.0;
+/// The missing-glyph box's id in every face: what the shaper places for a
+/// character the face lacks (FR-104).
+const NOTDEF: u32 = 0;
 
 /// `node`'s lines, then its tail; or, for a halo, its outlines. Anything
 /// but a text writes nothing.
@@ -55,13 +57,13 @@ pub(super) fn text(out: &mut Content, node: &Node, canvas: &Canvas<'_>) -> Resul
                 return Ok(());
             }
             for &(line, at) in &starts {
-                run(out, line, *style, at, canvas);
+                run(out, line, *style, at, canvas)?;
             }
             if let (Some(tail), Some(x)) = (tail, node.tail_x(canvas.fonts))
                 && fill_with(out, tail.ink, canvas)
             {
                 let at = Point { x, y: last.y };
-                run(out, &tail.text, tail.style, at, canvas);
+                run(out, &tail.text, tail.style, at, canvas)?;
             }
             out.restore_state();
             Ok(())
@@ -77,16 +79,89 @@ fn fill_with(out: &mut Content, fill: Paint, canvas: &Canvas<'_>) -> bool {
     })
 }
 
-/// One line of `text` from `at`, its glyphs split wherever the vertical
-/// offset changes, each piece one text matrix and one TJ.
-fn run(out: &mut Content, text: &str, style: TextStyle, at: Point, canvas: &Canvas<'_>) {
-    let placed = canvas
-        .fonts
-        .face(style.weight)
-        .place(text, style.size, style.letter_spacing);
-    if placed.is_empty() {
-        return;
+/// One line of `text` from `at`: its glyphs as text objects, and each
+/// glyph the face lacks as a box (FR-113), the two never mixed, since a
+/// path cannot be drawn inside a text object.
+///
+/// # Errors
+///
+/// [`FontError`] when the face cannot outline its missing-glyph box.
+fn run(
+    out: &mut Content,
+    text: &str,
+    style: TextStyle,
+    at: Point,
+    canvas: &Canvas<'_>,
+) -> Result<(), FontError> {
+    let face = canvas.fonts.face(style.weight);
+    let placed = face.place(text, style.size, style.letter_spacing);
+    // A box run is one cluster's missing glyphs, so one character each.
+    let runs = placed.chunk_by(|a, b| {
+        (a.glyph == NOTDEF) == (b.glyph == NOTDEF) && (a.glyph != NOTDEF || a.cluster == b.cluster)
+    });
+    for piece in runs {
+        match piece.first() {
+            Some(first) if first.glyph == NOTDEF => {
+                let ends = placed
+                    .iter()
+                    .map(|p| p.cluster)
+                    .filter(|&c| c > first.cluster);
+                let end = ends.min().unwrap_or(text.len());
+                let character = text.get(first.cluster..end).unwrap_or_default();
+                boxes(out, piece, (character, style, at), canvas)?;
+            }
+            Some(_) => text_object(out, piece, style, at, canvas),
+            None => {}
+        }
     }
+    Ok(())
+}
+
+/// Glyphs the face lacks, drawn as its missing-glyph box's outline in the
+/// fill already set, inside a span whose `/ActualText` is the `character`
+/// they stand for (FR-113): no glyph without text (ISO 14289-1, 7.21.7
+/// and 7.21.8).
+///
+/// # Errors
+///
+/// [`FontError`] when the face cannot outline the box.
+fn boxes(
+    out: &mut Content,
+    piece: &[Placed],
+    (character, style, at): (&str, TextStyle, Point),
+    canvas: &Canvas<'_>,
+) -> Result<(), FontError> {
+    let face = canvas.fonts.face(style.weight);
+    let outline = face.outline(NOTDEF)?;
+    let scale = style.size / face.units_per_em();
+    let steps: Vec<_> = piece
+        .iter()
+        .flat_map(|glyph| {
+            let origin = Point {
+                x: at.x + glyph.x,
+                y: at.y + glyph.y,
+            };
+            super::halo::contours(&outline, origin, scale)
+        })
+        .collect();
+    out.begin_marked_content_with_properties(Name(b"Span"))
+        .properties()
+        .actual_text(TextStr(character));
+    trace(out, &steps);
+    out.fill_nonzero();
+    out.end_marked_content();
+    Ok(())
+}
+
+/// Glyphs the face holds as one text object, split wherever the vertical
+/// offset changes, each piece one text matrix and one TJ.
+fn text_object(
+    out: &mut Content,
+    placed: &[Placed],
+    style: TextStyle,
+    at: Point,
+    canvas: &Canvas<'_>,
+) {
     out.begin_text();
     out.set_font(Faces::resource(style.weight), real(style.size));
     out.set_text_rendering_mode(TextRenderingMode::Fill);

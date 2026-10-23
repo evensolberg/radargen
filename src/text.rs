@@ -179,6 +179,9 @@ pub struct ShapedGlyph {
 pub struct Placed {
     /// The glyph's id in its face.
     pub glyph: u32,
+    /// The byte offset in the text of the cluster it draws, so a glyph the
+    /// face lacks can say what it stands for (FR-113).
+    pub cluster: usize,
     /// From the line's start.
     pub x: f64,
     /// From the baseline, down.
@@ -433,6 +436,7 @@ impl<'a> FontMetrics<'a> {
                 previous = Some(glyph.cluster);
                 let placed = Placed {
                     glyph: glyph.id,
+                    cluster: usize::try_from(glyph.cluster).unwrap_or(usize::MAX),
                     x: pen + f64::from(glyph.x_offset) * scale,
                     y: -f64::from(glyph.y_offset) * scale,
                 };

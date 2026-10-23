@@ -75,7 +75,7 @@ fn outlines(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
 )]
-fn contours(segments: &[Segment], origin: Point, scale: f64) -> Vec<Step> {
+pub(super) fn contours(segments: &[Segment], origin: Point, scale: f64) -> Vec<Step> {
     let at = |x: f32, y: f32| Point {
         x: origin.x + f64::from(x) * scale,
         y: origin.y - f64::from(y) * scale,

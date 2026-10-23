@@ -818,7 +818,7 @@ fn a_pdf_warns_about_missing_glyphs() {
     assert_eq!(ran.code, Some(0), "{}", ran.stderr);
     assert!(
         ran.stderr
-            .contains("the PDF draws them as boxes and they cannot be searched"),
+            .contains("the PDF draws them as boxes, though they still read and copy as themselves"),
         "{}",
         ran.stderr
     );
@@ -827,7 +827,7 @@ fn a_pdf_warns_about_missing_glyphs() {
 /// FR-104's ending for several missing characters, in the format named.
 fn boxes(format: &str) -> String {
     let searched = if format == "PDF" {
-        " and they cannot be searched"
+        ", though they still read and copy as themselves"
     } else {
         ""
     };
