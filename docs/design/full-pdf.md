@@ -6,10 +6,10 @@ doc_name: full-pdf
 crumb_id: rg-4b8
 document_title: "The full PDF: radar, legend and every item's write-up, on paper"
 created_date: 2026-10-22
-synopsis: "--pdf full writes a landscape Letter or A4 PDF: the radar, key and legend first, then the HTML page's table of items, paginated with a repeated header and rows never split. --paper puts the light PDF on paper too. Both PDFs are tagged to PDF/UA-1 and checked by veraPDF."
+synopsis: "--pdf full writes a landscape Letter or A4 PDF: the radar, key and legend first, then the HTML page's table of items, paginated with a repeated header and rows never split. --paper puts the radar PDF on paper too. Both PDFs are tagged to PDF/UA-1 and checked by veraPDF."
 status: active
 type: Spec
-revision: "1.2"
+revision: "1.3"
 review_date:
 reviewed_by: []
 completed_date:
@@ -53,7 +53,7 @@ write-up in a table they can scan, on paper they can print.
   shows its address as text. (Builder's call to keep; see below.)
 - Paper sizes other than Letter and A4, portrait pages, and page margins
   or font sizes the user sets.
-- Changing the light PDF's default. Without `--paper` it is the one page
+- Changing the radar PDF's default. Without `--paper` it is the one page
   sized to the drawing it is today.
 
 ## Anti-goals
@@ -69,20 +69,21 @@ The maintainer named what would make this a failure even if it works:
 
 | Flag | Values | Default | `--config` key |
 | --- | --- | --- | --- |
-| `--pdf` | `light`, `full` | `light` | `pdf` |
-| `--paper` | `letter`, `a4`, `none` | Letter for `full`; `none` for `light` | `paper` |
+| `--pdf` | `radar`, `full` | `radar` | `pdf` |
+| `--paper` | `letter`, `a4`, `none` | Letter for `full`; `none` for `radar` | `paper` |
 
-- `-o radar.pdf` alone writes the light PDF, unchanged.
+- `-o radar.pdf` alone writes the radar PDF, unchanged.
 - `-o radar.pdf --pdf full` writes the full PDF on Letter; `--paper a4`
   puts it on A4.
 - `--paper none` is the drawing-sized page, so a command line can undo a
-  `paper` set in a config file. With `--pdf full` it is a usage error.
-- `-o radar.pdf --paper a4` writes the **light PDF on paper**: the same
+  `paper` set in a config file. With `--pdf full` from the same source it
+  is a usage error; across sources the command line wins (FR-59).
+- `-o radar.pdf --paper a4` writes the **radar PDF on paper**: the same
   leading pages the full PDF has, without the table. The maintainer wants
   this opt-in, so a reader who wants the drawing-sized page can still
   scale it down to print.
 - `--table radar|all` sets the full PDF's table exactly as it sets the HTML
-  page's (FR-106). On the light PDF, which has no table, `all` warns as it
+  page's (FR-106). On the radar PDF, which has no table, `all` warns as it
   does today.
 - `--pdf` or `--paper` with a non-PDF output warns and is ignored, as
   `--table all` does for a PNG. Values match case-insensitively, as
@@ -99,14 +100,14 @@ On paper the **title is always drawn**: FR-65's, or *Technology Radar*
 when there is none, with the subtitle under it when one is given. This is
 a deliberate exception to FR-65's "an omitted flag renders nothing", for
 paper pages only, at the maintainer's request: a printed radar page needs
-a name. The drawing-sized light PDF keeps FR-65 as it is. The radar,
-key and legend are drawn as the light PDF draws them, at a scale that fits the
+a name. The drawing-sized radar PDF keeps FR-65 as it is. The radar,
+key and legend are drawn as the radar PDF draws them, at a scale that fits the
 landscape page. When the legend is longer than the page holds, it
 continues on the following pages, breaking between legend rows (never
 inside one) and repeating the sector and ring subheading it continues
 under, marked as continued; each continuation page opens with *Legend
 (continued)*. These pages hold nothing else. On paper the legend is drawn
-at 16/15 of the light PDF's size, so its smallest text (ring headings)
+at 16/15 of the radar PDF's size, so its smallest text (ring headings)
 prints at 8 pt, with rows at least 26 px tall instead of the screen's 36
 (a touch target paper does not need). The radar's own ring labels (7.5 pt)
 and marker numbers (about 5.3 pt) are accepted as they are.
@@ -123,7 +124,7 @@ the heading the HTML page gives it: *Items on the radar* under
   marked as the HTML page marks them) and every named column. Headings are
   the HTML table's (FR-27, D-101). Cells hold what the HTML cells hold:
   prose keeps the author's line breaks (FR-97).
-- **Body text is 9 pt** Inter, the embedded subset the light PDF uses; the
+- **Body text is 9 pt** Inter, the embedded subset the radar PDF uses; the
   header row is the semibold weight. The HTML table's text is 9.75 pt
   (13 px); 8 pt is the floor for print.
 - **Cells wrap.** Short label columns (number, name, sector, ring,
@@ -142,7 +143,7 @@ the heading the HTML page gives it: *Items on the radar* under
 then the subtitle when one is given, and *Page n of m*, so a printed
 stack can be put back in order and a reader can say which page they mean.
 
-**Unchanged from the light PDF:** text is real text in the embedded Inter
+**Unchanged from the radar PDF:** text is real text in the embedded Inter
 subset, searchable and copyable (FR-110); characters Inter lacks still
 draw as boxes with FR-104's warning, but each box now carries the real
 character it stands for (see Accessibility), so it searches and copies as
@@ -193,12 +194,12 @@ New requirements and decisions, numbered when written:
 
 - The full PDF reverses **D-26** for one output: per-item prose reaches a
   static format, in the full PDF only, because its reader consults rather
-  than glances. The light PDF, PNG and SVG keep D-26.
-- `--pdf light|full`, `--paper letter|a4` and their `--config` keys, with
+  than glances. The radar PDF, PNG and SVG keep D-26.
+- `--pdf radar|full`, `--paper letter|a4` and their `--config` keys, with
   the defaults above (FR-91, NFR-14's flag table, the starter config,
   FR-109).
 - The full PDF's table **is** the HTML page's table (FR-78, FR-106), so
-  `--table` now applies to it; FR-106's warning narrows to the light PDF,
+  `--table` now applies to it; FR-106's warning narrows to the radar PDF,
   PNG and SVG.
 - The pages, the never-split row and the table-free front page above.
 - An exception to FR-65 for paper pages: the title, or *Technology
@@ -214,7 +215,7 @@ New requirements and decisions, numbered when written:
 
 Three PRs, each one concern and each a minor release:
 
-1. **Paper** (`--paper`): the leading pages on Letter or A4 for the light
+1. **Paper** (`--paper`): the leading pages on Letter or A4 for the radar
    PDF, with the paginated legend and footers. This builds the page
    machinery the table then uses.
 2. **The full PDF** (`--pdf full`, `--table` for PDF): the table pages.
@@ -255,3 +256,4 @@ These are the builder's calls, to be made in the plan and noted there:
 | 1.0 | 2026-10-22 | Initial version, from the design conversation with the maintainer. After a builder check: boxes carry their real characters for PDF/UA; the Fullbleed spike is dropped; paper pages always draw a title and the subtitle; too many columns warn; /Lang stays en |
 | 1.1 | 2026-10-22 | After the five-agent review of the PR 21a plan, the maintainer ruled: the legend is drawn at 16/15 on paper with 26 px rows; `--paper none` undoes a file's paper; the footer carries the subtitle; each continuation page opens with *Legend (continued)*. The radar's 7.5 pt ring labels and ~5.3 pt marker numbers are accepted |
 | 1.2 | 2026-10-22 | Paper (PR 21a) built: the leading pages keep the legend at 16/15 with 26 px rows and the key at its size, and shrink the radar; legend-only pages are checked against their PNGs under a budget of their own (1,600 ppm; the maintainer's ruling) |
+| 1.3 | 2026-10-23 | The maintainer, for PR 21b: `--pdf radar|full` (renamed from `light`, which reads as a colour); flags displace a file's opposing `pdf` or `paper`; prose columns at least about 27 characters, shared by content; later table pages headed with their sector and item numbers; a 2 px rule between sectors; page 1 names where the table starts; a page-tall row split at lines with both parts marked. The builder's (RG-021B): column caps, type, link as text |
