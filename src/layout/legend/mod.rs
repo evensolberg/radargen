@@ -122,6 +122,19 @@ impl LegendBlock {
             .collect()
     }
 
+    /// Each row's CSV line and name, in order (rg-i95's warning names them).
+    #[must_use]
+    pub fn rows(&self) -> Vec<(usize, String)> {
+        self.layout
+            .entries
+            .iter()
+            .filter_map(|entry| match entry {
+                Entry::Row(row) => Some((row.control.key.0, row.name.words.clone())),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// The legend flowed into `columns` columns beside one another
     /// (FR-100, D-90), breaking only between sector groups, or as it is
     /// when that is one column.

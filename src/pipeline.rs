@@ -1165,6 +1165,12 @@ fn on_paper(
             table: config.table.clone(),
         }));
     }
+    for (line, name) in &bodies.tall_legend_rows {
+        warnings.push(Warning::Render(RenderKind::LegendRowTall {
+            line: *line,
+            name: name.clone(),
+        }));
+    }
     for (line, name) in &bodies.tall_table_rows {
         warnings.push(Warning::Render(RenderKind::TableRowTall {
             line: *line,

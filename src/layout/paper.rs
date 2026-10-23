@@ -14,7 +14,7 @@ use crate::layout::key::KeyBlock;
 use crate::layout::legend::LegendBlock;
 use crate::layout::radar::RadarBlock;
 use crate::layout::table::TableBlock;
-use crate::layout::title::Wrap;
+use crate::layout::title::{Wrap, cut};
 use crate::palette::Neutral;
 use crate::published::Published;
 use crate::style::{
@@ -27,8 +27,6 @@ use crate::text::{Fonts, words};
 
 /// Between the footer's title and subtitle.
 const FOOTER_SEPARATOR: &str = " \u{b7} ";
-/// Where a footer's title is cut.
-const ELLIPSIS: &str = "\u{2026}";
 
 /// What the paper pages are made of.
 #[derive(Debug, Clone, Copy)]
@@ -122,13 +120,18 @@ impl Content {
 
 /// The title block for `sheets`, wrapped across the content box.
 fn title(sheets: &Sheets<'_>, fonts: &Fonts) -> Wrap {
-    Wrap::new(
+    Wrap::capped(
         Some(sheets.title),
         sheets.subtitle,
         Content::of(sheets).width,
+        PAPER_TITLE_LINES,
         fonts,
     )
 }
+
+/// The most lines a title and a subtitle take on paper (rg-i95): enough
+/// for any real title, short of pushing the radar off its page.
+const PAPER_TITLE_LINES: (usize, usize) = (3, 2);
 
 /// One legend piece's width on the page.
 fn piece_width(sheets: &Sheets<'_>, fonts: &Fonts) -> f64 {
@@ -300,6 +303,14 @@ pub fn bodies(sheets: &Sheets<'_>, fonts: &Fonts) -> Bodies {
     let pieces = sheets
         .legend
         .flowed(room, page_room, &|k| slots.opens_page(k), fonts);
+    // rg-i95: a piece taller than its room holds a row that could not fit
+    // even alone, so it runs into the foot room.
+    let tall_legend_rows: Vec<(usize, String)> = pieces
+        .iter()
+        .enumerate()
+        .filter(|(k, piece)| piece.size(1.0).height > if *k == 0 { room } else { page_room })
+        .flat_map(|(_, piece)| piece.rows())
+        .collect();
     let mut page_one = vec![
         title(sheets, fonts).render(Placement::at(Point {
             x: PAPER_MARGIN,
@@ -359,7 +370,7 @@ pub fn bodies(sheets: &Sheets<'_>, fonts: &Fonts) -> Bodies {
             .as_ref()
             .map(|table| table.tall_rows().to_vec())
             .unwrap_or_default(),
-        tall_legend_rows: Vec::new(),
+        tall_legend_rows,
         radar_too_wide: !first.fits,
     }
 }
@@ -455,7 +466,7 @@ fn footer(sheets: &Sheets<'_>, page: usize, count: usize, fonts: &Fonts) -> Node
         },
     );
     let room = Content::of(sheets).width - FOOTER.measure(&numbered, fonts) - COLUMN_GAP;
-    let named = cut(&named, room, fonts);
+    let named = cut(FOOTER, &named, room, fonts);
     let run = |text: &str, x: f64, anchor: Anchor| {
         TextRun {
             origin: Point { x, y: baseline },
@@ -475,26 +486,6 @@ fn footer(sheets: &Sheets<'_>, page: usize, count: usize, fonts: &Fonts) -> Node
             run(&numbered, width - PAPER_MARGIN, Anchor::End),
         ],
     ))
-}
-
-/// `text` as it fits `room` in the footer's style: whole, or its first
-/// line wrapped short of the room an ellipsis needs, with the ellipsis
-/// after it. The wrap breaks between words, and inside a word only when
-/// the first is too wide alone (FR-79). The cut is measured with its
-/// ellipsis, as kerning may join them; when no cut fits, the ellipsis
-/// stands alone.
-fn cut(text: &str, room: f64, fonts: &Fonts) -> String {
-    if FOOTER.measure(text, fonts) <= room {
-        return text.to_owned();
-    }
-    let short = room - FOOTER.measure(ELLIPSIS, fonts);
-    FOOTER
-        .wrap(text, short, fonts)
-        .into_iter()
-        .next()
-        .map(|first| format!("{first}{ELLIPSIS}"))
-        .filter(|candidate| short > 0.0 && FOOTER.measure(candidate, fonts) <= room)
-        .unwrap_or_else(|| ELLIPSIS.to_owned())
 }
 
 #[cfg(test)]
@@ -858,6 +849,39 @@ mod tests {
         assert!(long < short, "{long} < {short}");
     }
 
+    /// rg-i95: a title of 2,000 words is cut on paper, so the radar keeps
+    /// its page.
+    #[test]
+    fn an_absurd_title_leaves_the_radar_its_page() {
+        let fixture = prd();
+        let title = "word ".repeat(2_000);
+        let sheets = fixture.sheets(Paper::Letter, &title, Some("subtitle"));
+        let first = first_page(&sheets, fonts());
+        assert!(first.fits);
+        let (_, height) = sheets.size;
+        let radar = fixture.blocks.radar.size(first.radar.scale);
+        assert!(first.radar.origin.y + radar.height <= height - PAPER_FOOT_ROOM);
+    }
+
+    /// rg-i95: a legend row taller than a page is reported with its line
+    /// and name.
+    #[test]
+    fn a_legend_row_taller_than_a_page_is_reported() {
+        let name = "word ".repeat(1_500);
+        let csv = format!("{HEAD}Short,Tools,Adopt,d\n{name},Tools,Adopt,d\n");
+        let (fixture, _) = full(&csv);
+        let sheets = fixture.sheets(Paper::Letter, "Technology Radar", None);
+        let bodies = bodies(&sheets, fonts());
+        assert_eq!(bodies.tall_legend_rows, [(3, words(&name))]);
+        let fine = long(1, 1, 300);
+        let sheets = fine.sheets(Paper::Letter, "Technology Radar", None);
+        assert_eq!(bodies_of(&sheets).tall_legend_rows.len(), 0);
+    }
+
+    fn bodies_of(sheets: &Sheets<'_>) -> Bodies {
+        bodies(sheets, fonts())
+    }
+
     #[test]
     fn a_very_wide_radar_falls_back() {
         let name = "S".repeat(120);
@@ -1179,13 +1203,13 @@ mod tests {
         let word = "W".repeat(300);
         for text in [LONG_TITLE, word.as_str(), "Technology Radar · Edition 1"] {
             for room in [400.0, 120.0, 20.0, 8.0, 0.0, -5.0] {
-                let got = cut(text, room, fonts());
+                let got = cut(FOOTER, text, room, fonts());
                 assert!(
-                    FOOTER.measure(&got, fonts()) <= room || got == ELLIPSIS,
+                    FOOTER.measure(&got, fonts()) <= room || got == "\u{2026}",
                     "{room}: {got:?} is {} wide",
                     FOOTER.measure(&got, fonts())
                 );
-                assert!(got == text || got.ends_with(ELLIPSIS), "{got:?}");
+                assert!(got == text || got.ends_with('\u{2026}'), "{got:?}");
             }
         }
     }

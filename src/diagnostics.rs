@@ -218,6 +218,14 @@ pub enum RenderKind {
         /// `--table`, and where it came from, which the remedy names.
         table: Sourced<Table>,
     },
+    /// FR-111 (rg-i95): a legend row taller than a page, which runs into
+    /// the page's foot room since a row never splits.
+    LegendRowTall {
+        /// Its CSV line (NFR-10).
+        line: usize,
+        /// Its name.
+        name: String,
+    },
     /// FR-112: a row taller than a page of the table, split across pages.
     TableRowTall {
         /// Its CSV line (NFR-10).
@@ -604,6 +612,7 @@ impl RenderKind {
             Self::PdfNotPdf { pdf } => pdf_not_pdf(*pdf),
             Self::TableCramped { columns, table } => cramped(*columns, table),
             Self::TableRowTall { line, name } => tall_row(*line, name),
+            Self::LegendRowTall { line, name } => tall_legend_row(*line, name),
             Self::PaperNotPdf { paper } => format!(
                 "--paper {paper} applies to PDF; HTML pages, PNG and SVG have no paper size"
             ),
@@ -815,6 +824,13 @@ fn pdf_not_pdf(pdf: Pdf) -> String {
 fn tall_row(line: usize, name: &str) -> String {
     format!(
         "line {line}: '{name}' is taller than a page of the table, so it is split across pages and marked (continued); a shorter description or rationale keeps it on one page"
+    )
+}
+
+/// rg-i95: the legend row on `line`, named `name`, is taller than a page.
+fn tall_legend_row(line: usize, name: &str) -> String {
+    format!(
+        "line {line}: '{name}' in the legend is taller than a page, so it runs over the page's footer; a shorter name fixes it"
     )
 }
 

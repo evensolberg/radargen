@@ -63,6 +63,24 @@ impl Run {
         }
     }
 
+    /// The run cut to at most `most` lines, the last ending in an
+    /// ellipsis (rg-i95); its name, `words`, stays whole (D-88).
+    fn capped(mut self, most: usize, measure: f64, fonts: &Fonts) -> Self {
+        let keep = most.max(1) - 1;
+        if self.lines.len() <= most {
+            return self;
+        }
+        let rest = self.lines.get(keep..).unwrap_or_default().join(" ");
+        self.lines.truncate(keep);
+        self.lines.push(cut(self.style, &rest, measure, fonts));
+        self.width = widest(
+            self.lines
+                .iter()
+                .map(|line| self.style.measure(line, fonts)),
+        );
+        self
+    }
+
     const fn last_baseline(&self) -> f64 {
         #[expect(
             clippy::cast_precision_loss,
@@ -89,6 +107,28 @@ impl Run {
         }
         .node(Scale::uniform(scale))
     }
+}
+
+/// Where a cut text ends.
+const ELLIPSIS: &str = "\u{2026}";
+
+/// `text` as it fits `room` in `style`: whole, or its first line wrapped
+/// short of the room an ellipsis needs, with the ellipsis after it. The
+/// wrap breaks between words, and inside a word only when the first is too
+/// wide alone (FR-79). The cut is measured with its ellipsis, as kerning
+/// may join them; when no cut fits, the ellipsis stands alone.
+pub(crate) fn cut(style: TextStyle, text: &str, room: f64, fonts: &Fonts) -> String {
+    if style.measure(text, fonts) <= room {
+        return text.to_owned();
+    }
+    let short = room - style.measure(ELLIPSIS, fonts);
+    style
+        .wrap(text, short, fonts)
+        .into_iter()
+        .next()
+        .map(|first| format!("{first}{ELLIPSIS}"))
+        .filter(|candidate| short > 0.0 && style.measure(candidate, fonts) <= room)
+        .unwrap_or_else(|| ELLIPSIS.to_owned())
 }
 
 /// The widest of `widths`; zero for none.
@@ -135,12 +175,28 @@ impl Wrap {
     /// empty and reserves no space.
     #[must_use]
     pub fn new(title: Option<&str>, subtitle: Option<&str>, measure: f64, fonts: &Fonts) -> Self {
+        Self::capped(title, subtitle, measure, (usize::MAX, usize::MAX), fonts)
+    }
+
+    /// As [`new`](Self::new), the title cut to at most `lines.0` lines and
+    /// the subtitle to `lines.1`, each cut ending in an ellipsis (rg-i95):
+    /// on paper, so an absurd title cannot push the radar off its page.
+    #[must_use]
+    pub fn capped(
+        title: Option<&str>,
+        subtitle: Option<&str>,
+        measure: f64,
+        lines: (usize, usize),
+        fonts: &Fonts,
+    ) -> Self {
         let title = shown(title).map(|t| {
             let first = TITLE_TOP + TITLE_FIRST_BASELINE;
-            Run::wrap(t, TITLE_PART, first, measure, fonts)
+            Run::wrap(t, TITLE_PART, first, measure, fonts).capped(lines.0, measure, fonts)
         });
         let first = subtitle_baseline(title.as_ref());
-        let subtitle = shown(subtitle).map(|t| Run::wrap(t, SUBTITLE_PART, first, measure, fonts));
+        let subtitle = shown(subtitle).map(|t| {
+            Run::wrap(t, SUBTITLE_PART, first, measure, fonts).capped(lines.1, measure, fonts)
+        });
         let size = size_of(title.as_ref(), subtitle.as_ref());
         Self {
             title,
@@ -221,6 +277,46 @@ impl Block for Wrap {
 mod tests {
     use super::*;
     use crate::layout::block::{at, close, fonts};
+
+    /// rg-i95: a title past its lines is cut, its last line ending in an
+    /// ellipsis within the measure, while its name stays whole.
+    #[test]
+    fn capped_cuts_with_an_ellipsis() {
+        let long = "word ".repeat(200);
+        let capped = Wrap::capped(Some(&long), Some(&long), 500.0, (3, 2), fonts());
+        let title = capped.title.as_ref().expect("a title");
+        assert_eq!(title.lines.len(), 3);
+        assert!(title.lines.last().is_some_and(|l| l.ends_with('\u{2026}')));
+        assert!(
+            title
+                .lines
+                .iter()
+                .all(|l| TITLE.measure(l, fonts()) <= 500.0)
+        );
+        assert_eq!(title.words, words(&long));
+        let subtitle = capped.subtitle.as_ref().expect("a subtitle");
+        assert_eq!(subtitle.lines.len(), 2);
+        assert!(
+            subtitle
+                .lines
+                .last()
+                .is_some_and(|l| l.ends_with('\u{2026}'))
+        );
+        let short = Wrap::capped(Some("Radar"), Some("Q3"), 500.0, (3, 2), fonts());
+        assert_eq!(short, Wrap::new(Some("Radar"), Some("Q3"), 500.0, fonts()));
+    }
+
+    /// The footer's cut and the title's are one: a text cut to `room`
+    /// ends in the ellipsis and fits, or is the ellipsis alone.
+    #[test]
+    fn cut_fits_its_room() {
+        let text = "a long footer title that cannot fit";
+        let cut_text = cut(TITLE, text, 100.0, fonts());
+        assert!(cut_text.ends_with('\u{2026}'));
+        assert!(TITLE.measure(&cut_text, fonts()) <= 100.0);
+        assert_eq!(cut(TITLE, text, 1.0, fonts()), "\u{2026}");
+        assert_eq!(cut(TITLE, "fits", 500.0, fonts()), "fits");
+    }
     use crate::layout::test_support::assert_inside;
     use crate::style::LEGEND_WIDTH_MAX;
 

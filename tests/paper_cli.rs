@@ -370,3 +370,54 @@ fn paper_titles_an_untitled_radar() {
     }
     assert!(!text("plain.pdf", 1).contains("Technology Radar"));
 }
+
+/// rg-i95: a legend row taller than a page warns once on paper, and not
+/// on the drawing-sized page, which has no page to be taller than.
+#[test]
+fn a_tall_legend_row_warns_once() {
+    let name = "word ".repeat(1_500);
+    let csv = format!("name,sector,ring,description\nShort,Tools,Adopt,d\n{name},Tools,Adopt,d\n");
+    let dir = seeded(&[("radar.csv", csv.as_str())]);
+    let paper = ok(dir.path(), &["radar.csv", "-o", "r.pdf", "--paper", "a4"]);
+    let tall = |ran: &Ran| {
+        ran.lines()
+            .iter()
+            .filter(|l| l.starts_with("warning: line 3: '") && l.contains("in the legend is taller than a page, so it runs over the page's footer; a shorter name fixes it"))
+            .count()
+    };
+    assert_eq!(tall(&paper), 1, "{}", paper.stderr);
+    let plain = ok(dir.path(), &["radar.csv", "-o", "p.pdf"]);
+    assert_eq!(tall(&plain), 0, "{}", plain.stderr);
+}
+
+/// rg-i95: the title cut on paper is whole in the PDF's metadata.
+#[test]
+fn an_absurd_title_reads_back_whole_in_the_metadata() {
+    let title = vec!["word"; 400].join(" ");
+    let title = title.as_str();
+    let dir = seeded(&[("radar.csv", PRD)]);
+    ok(
+        dir.path(),
+        &[
+            "radar.csv",
+            "-o",
+            "r.pdf",
+            "--paper",
+            "letter",
+            "--title",
+            title,
+        ],
+    );
+    let doc = lopdf::Document::load_mem(&bytes(dir.path(), "r.pdf")).expect("parses");
+    let info = doc
+        .trailer
+        .get(b"Info")
+        .and_then(lopdf::Object::as_reference)
+        .and_then(|id| doc.get_dictionary(id))
+        .expect("an Info");
+    let read = info
+        .get(b"Title")
+        .and_then(lopdf::Object::as_str)
+        .expect("a Title");
+    assert_eq!(String::from_utf8_lossy(read), title);
+}
