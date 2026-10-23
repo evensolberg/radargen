@@ -16,7 +16,7 @@ use super::{against_page, damaged_page, drawn_page, within, within_legend_page};
 /// The long legend on `paper` in `theme`: pages, PDF, palette.
 fn on(paper: Paper, theme: Theme) -> (Vec<Document>, Vec<u8>, Palette) {
     let title = Some("Technology Radar");
-    let (pages, desc) = paper_pages(&long_csv(), title, Some("Edition 1"), paper);
+    let (pages, desc) = paper_pages(&long_csv(), title, Some("Edition 1"), paper, None);
     let palette = Palette::built_in(theme);
     let pdf = paper_pdf(&pages, &desc, &palette, title);
     (pages, pdf, palette)

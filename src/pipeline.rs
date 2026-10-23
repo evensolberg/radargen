@@ -1101,13 +1101,14 @@ fn on_paper(
         title: config.title().unwrap_or(UNTITLED),
         subtitle: config.subtitle(),
         size: page_size(points),
+        table: None,
     };
     let bodies = paper::bodies(&sheets, fonts);
     if bodies.radar_too_wide {
         warnings.push(Warning::Render(RenderKind::PaperRadarWide));
     }
     pdf::export_pages(
-        &paper::footed(bodies.pages, &sheets, fonts),
+        &paper::footed(bodies, &sheets, fonts),
         &pdf::Export {
             palette: &config.colours.snapshot(),
             fonts,

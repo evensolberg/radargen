@@ -81,7 +81,10 @@ mod tests {
 
     /// Each piece's units as (start, end).
     fn ranges(pieces: &[Piece<f64>]) -> Vec<(usize, usize)> {
-        pieces.iter().map(|p| (p.units.start, p.units.end)).collect()
+        pieces
+            .iter()
+            .map(|p| (p.units.start, p.units.end))
+            .collect()
     }
 
     #[test]
@@ -128,7 +131,11 @@ mod tests {
         assert_eq!(ranges(&pieces), [(0, 1), (1, 4)]);
         let openings: Vec<f64> = pieces.iter().map(|p| p.opening).collect();
         assert_eq!(openings.len(), 2);
-        assert!(openings.first().is_some_and(|r| r.to_bits() == 15.0_f64.to_bits()));
+        assert!(
+            openings
+                .first()
+                .is_some_and(|r| r.to_bits() == 15.0_f64.to_bits())
+        );
     }
 
     #[test]

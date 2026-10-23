@@ -563,7 +563,11 @@ fn table_section(csv: &str, table: Table) -> String {
 #[test]
 fn a_hostile_table_matches_its_golden() {
     let csv = include_str!("../fixtures/table-hostile.csv");
-    golden("html", "table-hostile.html", &table_section(csv, Table::All));
+    golden(
+        "html",
+        "table-hostile.html",
+        &table_section(csv, Table::All),
+    );
 }
 
 /// A headers-only CSV's table under `radar`: it says nothing is plotted.

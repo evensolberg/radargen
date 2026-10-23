@@ -145,7 +145,10 @@ pub fn published<'a>(catalogue: &'a Catalogue, plotted: &Plotted, publish: Table
         columns: columns
             .iter()
             .map(|&c| {
-                let kind_of = catalogue.columns.get(c).map_or(ColumnKind::Other, |c| c.kind);
+                let kind_of = catalogue
+                    .columns
+                    .get(c)
+                    .map_or(ColumnKind::Other, |c| c.kind);
                 (kind(kind_of), column_heading(catalogue, c))
             })
             .collect(),
@@ -264,7 +267,15 @@ mod tests {
         assert_eq!(table.heading, RADAR_HEADING);
         assert_eq!(
             headings(&table),
-            ["name", "Sector", "ring", "description", "link", "qualifier", "last_affirmed"]
+            [
+                "name",
+                "Sector",
+                "ring",
+                "description",
+                "link",
+                "qualifier",
+                "last_affirmed"
+            ]
         );
         let expected: Vec<usize> = order
             .items
@@ -318,11 +329,7 @@ mod tests {
     fn prose_is_verbatim_and_labels_are_trimmed() {
         let (catalogue, order) = plotted(HOSTILE, None);
         let table = published(&catalogue, &order, Table::All);
-        let padded = table
-            .rows
-            .iter()
-            .find(|row| row.line == 2)
-            .expect("line 2");
+        let padded = table.rows.iter().find(|row| row.line == 2).expect("line 2");
         assert_eq!(
             padded.cells.get(3),
             Some(&Cell::Prose(
@@ -395,7 +402,14 @@ mod tests {
             .collect();
         assert_eq!(
             kinds.get(..4),
-            Some(&[CellKind::Name, CellKind::Label, CellKind::Label, CellKind::Prose][..])
+            Some(
+                &[
+                    CellKind::Name,
+                    CellKind::Label,
+                    CellKind::Label,
+                    CellKind::Prose
+                ][..]
+            )
         );
     }
 }

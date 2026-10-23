@@ -13,11 +13,14 @@ use crate::layout::block::{Block, Placement};
 use crate::layout::key::KeyBlock;
 use crate::layout::legend::LegendBlock;
 use crate::layout::radar::RadarBlock;
+use crate::layout::table::TableBlock;
 use crate::layout::title::Wrap;
 use crate::palette::Neutral;
+use crate::published::Published;
 use crate::style::{
     COLUMN_GAP, FOOTER, FOOTER_BASELINE, LEGEND_WIDE_DROP, LINE_HEIGHT, NARROW_MIN_SCALE,
     PAPER_FOOT_ROOM, PAPER_LEGEND_SCALE, PAPER_MARGIN, POINTS_PER_PX, RADAR_LABEL_PAD,
+    TABLE_POINTER_ABOVE,
 };
 use crate::svg::{Anchor, Document, Group, Node, Point, Scale, TextRun};
 use crate::text::{Fonts, words};
@@ -42,6 +45,8 @@ pub struct Sheets<'a> {
     pub subtitle: Option<&'a str>,
     /// The page in px, width first ([`page_size`]).
     pub size: (f64, f64),
+    /// The full PDF's table (FR-112); `None` for the radar PDF.
+    pub table: Option<&'a Published<'a>>,
 }
 
 /// A paper's landscape `points`, width first, as a page in px.
@@ -50,11 +55,31 @@ pub fn page_size(points: (f64, f64)) -> (f64, f64) {
     (points.0 / POINTS_PER_PX, points.1 / POINTS_PER_PX)
 }
 
+/// What a page holds (FR-111, FR-112).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PageKind {
+    /// Page 1: the title, radar, key and the legend's start.
+    Front,
+    /// A page of the legend continued.
+    Legend,
+    /// A page of the full PDF's table.
+    Table,
+}
+
 /// The pages' contents, before their footers.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bodies {
     /// Each page's nodes, page 1 first, in reading order.
     pub pages: Vec<Vec<Node>>,
+    /// What each page holds, one per page.
+    pub kinds: Vec<PageKind>,
+    /// Whether the table's prose columns are narrower than they should
+    /// be even with its label columns at their floor (FR-112).
+    pub table_cramped: bool,
+    /// Each table row split across pages: its CSV line and name.
+    pub tall_table_rows: Vec<(usize, String)>,
+    /// Each legend row taller than a page: its CSV line and name.
+    pub tall_legend_rows: Vec<(usize, String)>,
     /// Whether the radar, at its smallest, still runs past the first
     /// page's margins: labels never shrink, so a long enough sector name
     /// can be wider than the page.
@@ -310,8 +335,31 @@ pub fn bodies(sheets: &Sheets<'_>, fonts: &Fonts) -> Bodies {
             .iter()
             .map(|columns| continuation(columns, width, sheets)),
     );
+    let mut kinds = vec![PageKind::Front];
+    kinds.resize(pages.len(), PageKind::Legend);
+    // FR-112: the table starts on a page of its own, after the legend's.
+    let table = sheets
+        .table
+        .map(|published| TableBlock::new(published, content.width, content.height, fonts));
+    if let Some(table) = &table {
+        let origin = Point {
+            x: PAPER_MARGIN,
+            y: PAPER_MARGIN,
+        };
+        for page in table.pages() {
+            pages.push(table.render(page, origin, fonts));
+            kinds.push(PageKind::Table);
+        }
+    }
     Bodies {
         pages,
+        kinds,
+        table_cramped: table.as_ref().is_some_and(TableBlock::cramped),
+        tall_table_rows: table
+            .as_ref()
+            .map(|table| table.tall_rows().to_vec())
+            .unwrap_or_default(),
+        tall_legend_rows: Vec::new(),
         radar_too_wide: !first.fits,
     }
 }
@@ -341,16 +389,25 @@ fn continuation(pieces: &[LegendBlock], width: f64, sheets: &Sheets<'_>) -> Vec<
 /// `bodies` as page documents, each with its footer (FR-111).
 ///
 /// The footer holds the title, and the subtitle when given, at the left,
-/// cut to fit, and *Page n of m* at the right. The footer is one group, so a tagged PDF can mark it as a
-/// pagination artifact.
+/// cut to fit, and *Page n of m* at the right. The footer is one group, so
+/// a tagged PDF can mark it as a pagination artifact. A full PDF's first
+/// page also names the page its table starts on (FR-112).
 #[must_use]
-pub fn footed(bodies: Vec<Vec<Node>>, sheets: &Sheets<'_>, fonts: &Fonts) -> Vec<Document> {
+pub fn footed(bodies: Bodies, sheets: &Sheets<'_>, fonts: &Fonts) -> Vec<Document> {
     let (width, height) = sheets.size;
-    let count = bodies.len();
+    let count = bodies.pages.len();
+    let table = bodies
+        .kinds
+        .iter()
+        .position(|kind| *kind == PageKind::Table);
     bodies
+        .pages
         .into_iter()
         .enumerate()
         .map(|(i, mut children)| {
+            if let Some(start) = table.filter(|_| i == 0) {
+                children.push(pointer(start + 1, height));
+            }
             children.push(footer(sheets, i + 1, count, fonts));
             Document {
                 width,
@@ -359,6 +416,25 @@ pub fn footed(bodies: Vec<Vec<Node>>, sheets: &Sheets<'_>, fonts: &Fonts) -> Vec
             }
         })
         .collect()
+}
+
+/// Page 1's line naming `page`, where the table starts (FR-112): in the
+/// foot room, above the footer.
+fn pointer(page: usize, height: f64) -> Node {
+    let text = format!("Each item's description and rationale: page {page} onward.");
+    TextRun {
+        origin: Point {
+            x: PAPER_MARGIN,
+            y: height - FOOTER_BASELINE - TABLE_POINTER_ABOVE,
+        },
+        style: FOOTER,
+        ink: Neutral::TextMuted,
+        anchor: Anchor::Start,
+        lines: vec![text.clone()],
+        words: text,
+        leading: LINE_HEIGHT,
+    }
+    .node(Scale::uniform(1.0))
 }
 
 /// Page `page` of `count`'s footer.
@@ -438,7 +514,10 @@ mod tests {
     use crate::layout::block::fonts;
     use crate::layout::legend::LegendBlock;
     use crate::layout::test_support::{HEAD, PRD_EXAMPLE, Rect, bounds, plotted};
-    use crate::options::Paper;
+    use crate::model::Catalogue;
+    use crate::options::{Paper, Table};
+    use crate::order::Plotted;
+    use crate::published::{ALL_HEADING, Published, RADAR_HEADING, published};
     use crate::style::{PAPER_LEGEND_SCALE, PAPER_MARGIN};
     use crate::svg::{Document, Node};
 
@@ -462,7 +541,194 @@ mod tests {
                 title,
                 subtitle,
                 size: page_size(paper.points().expect("a paper")),
+                table: None,
             }
+        }
+    }
+
+    /// `csv`'s radar, legend and catalogue, for a full PDF's pages.
+    fn full(csv: &str) -> (Fixture, (Catalogue, Plotted)) {
+        let shape = plotted(csv, None);
+        let fixture = Fixture {
+            blocks: Blocks::new(&shape.0, &shape.1, None, None, fonts()),
+            legend: LegendBlock::on_paper(&shape.0, &shape.1, fonts()),
+        };
+        (fixture, shape)
+    }
+
+    /// `n` items with a paragraph or two each, in two sectors.
+    fn prose_csv(n: usize) -> String {
+        let rows = (0..n)
+            .map(|i| {
+                let sector = if i < n / 2 { "Tools" } else { "Platforms" };
+                format!("item {i:03},{sector},Adopt,\"About item {i}, at some length.\n\nWhy it sits here.\"\n")
+            })
+            .collect::<Vec<_>>()
+            .concat();
+        format!("{HEAD}{rows}")
+    }
+
+    /// The full PDF's pages for `fixture` with `table`, on Letter.
+    fn full_sheets<'a>(fixture: &'a Fixture, table: &'a Published<'a>, paper: Paper) -> Sheets<'a> {
+        Sheets {
+            table: Some(table),
+            ..fixture.sheets(paper, "Technology Radar", None)
+        }
+    }
+
+    /// The pointer page 1 carries to the table on page `p`.
+    fn pointer(p: usize) -> String {
+        format!("Each item's description and rationale: page {p} onward.")
+    }
+
+    #[test]
+    fn the_table_starts_on_a_page_of_its_own() {
+        let nothing = format!("{HEAD}a,Tools,Gone,d\n");
+        for (csv, table) in [
+            (PRD_EXAMPLE.to_owned(), Table::Radar),
+            (prose_csv(60), Table::Radar),
+            (nothing.clone(), Table::Radar),
+            (HEAD.to_owned(), Table::All),
+            (nothing, Table::All),
+        ] {
+            let (fixture, shape) = full(&csv);
+            let published = published(&shape.0, &shape.1, table);
+            let sheets = full_sheets(&fixture, &published, Paper::Letter);
+            let bodies = bodies(&sheets, fonts());
+            assert_eq!(bodies.kinds.len(), bodies.pages.len());
+            assert_eq!(bodies.kinds.first(), Some(&PageKind::Front));
+            let first_table = bodies
+                .kinds
+                .iter()
+                .position(|kind| *kind == PageKind::Table)
+                .expect("a table page");
+            assert!(
+                bodies
+                    .kinds
+                    .get(1..first_table)
+                    .unwrap_or_default()
+                    .iter()
+                    .all(|k| *k == PageKind::Legend)
+            );
+            assert!(
+                bodies
+                    .kinds
+                    .get(first_table..)
+                    .unwrap_or_default()
+                    .iter()
+                    .all(|k| *k == PageKind::Table)
+            );
+            for (page, kind) in bodies.pages.iter().zip(&bodies.kinds) {
+                let words: Vec<String> = page.iter().flat_map(texts).collect();
+                let headed = words
+                    .first()
+                    .is_some_and(|w| w == RADAR_HEADING || w == ALL_HEADING);
+                assert_eq!(headed, *kind == PageKind::Table, "{csv:.30} {kind:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn every_table_page_is_footed_and_numbered() {
+        let (fixture, shape) = full(&prose_csv(120));
+        let published = published(&shape.0, &shape.1, Table::Radar);
+        let sheets = full_sheets(&fixture, &published, Paper::A4);
+        let pages = footed(bodies(&sheets, fonts()), &sheets, fonts());
+        let count = pages.len();
+        assert!(count > 3);
+        for (i, page) in pages.iter().enumerate() {
+            let words = texts(&page.root);
+            assert!(words.contains(&format!("Page {} of {count}", i + 1)), "{i}");
+        }
+    }
+
+    #[test]
+    fn the_pointer_names_the_first_table_page() {
+        let (fixture, shape) = full(&prose_csv(60));
+        let published = published(&shape.0, &shape.1, Table::Radar);
+        let sheets = full_sheets(&fixture, &published, Paper::Letter);
+        let bodies = bodies(&sheets, fonts());
+        let p = 1 + bodies
+            .kinds
+            .iter()
+            .position(|k| *k == PageKind::Table)
+            .expect("a table");
+        let pages = footed(bodies, &sheets, fonts());
+        let page_one = pages.first().expect("page 1");
+        let node = children(page_one)
+            .iter()
+            .find(|node| texts(node) == [pointer(p)])
+            .expect("the pointer");
+        let at = rect(node);
+        let (width, height) = sheets.size;
+        assert!(at.top >= height - PAPER_FOOT_ROOM, "{at:?}");
+        assert!(
+            at.bottom <= height - FOOTER_BASELINE - FOOTER.size,
+            "{at:?}"
+        );
+        assert!(at.left >= PAPER_MARGIN - 1e-9 && at.right <= width - PAPER_MARGIN);
+        for later in pages.iter().skip(1) {
+            assert!(!texts(&later.root).contains(&pointer(p)));
+        }
+    }
+
+    #[test]
+    fn table_pages_stay_clear_of_the_footer_and_margins() {
+        let others = format!(
+            "name,sector,ring,description,rationale,notes,more\n{}",
+            (0..80)
+                .map(|i| format!(
+                    "item {i:02},Tools,{},\"Some prose.\n\nMore.\",Why.,n,m\n",
+                    if i % 3 == 0 { "Gone" } else { "Adopt" }
+                ))
+                .collect::<Vec<_>>()
+                .concat()
+        );
+        for (csv, table) in [(prose_csv(300), Table::Radar), (others, Table::All)] {
+            let (fixture, shape) = full(&csv);
+            let published = published(&shape.0, &shape.1, table);
+            for paper in [Paper::Letter, Paper::A4] {
+                let sheets = full_sheets(&fixture, &published, paper);
+                let bodies = bodies(&sheets, fonts());
+                let (width, height) = sheets.size;
+                for (page, kind) in bodies.pages.iter().zip(&bodies.kinds) {
+                    if *kind != PageKind::Table {
+                        continue;
+                    }
+                    for node in page {
+                        let Some(at) = bounds(node, fonts()) else {
+                            continue;
+                        };
+                        let reach = crate::style::TABLE_RULE_HEAVY / 2.0 + 1e-9;
+                        assert!(
+                            at.left >= PAPER_MARGIN - reach
+                                && at.right <= width - PAPER_MARGIN + reach,
+                            "{at:?}"
+                        );
+                        assert!(
+                            at.top >= PAPER_MARGIN - 1e-9
+                                && at.bottom <= height - PAPER_FOOT_ROOM + reach,
+                            "{at:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_radar_pdf_has_no_table_and_no_pointer() {
+        let fixture = long(1, 1, 300);
+        let sheets = fixture.sheets(Paper::Letter, "Technology Radar", None);
+        let bodies = bodies(&sheets, fonts());
+        assert!(bodies.kinds.iter().all(|k| *k != PageKind::Table));
+        let pages = footed(bodies, &sheets, fonts());
+        for page in &pages {
+            assert!(
+                texts(&page.root)
+                    .iter()
+                    .all(|w| !w.starts_with("Each item's"))
+            );
         }
     }
 
@@ -486,7 +752,7 @@ mod tests {
     }
 
     fn documents(sheets: &Sheets<'_>) -> Vec<Document> {
-        footed(bodies(sheets, fonts()).pages, sheets, fonts())
+        footed(bodies(sheets, fonts()), sheets, fonts())
     }
 
     /// Every text's words, in document order.

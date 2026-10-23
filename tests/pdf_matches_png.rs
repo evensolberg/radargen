@@ -50,6 +50,8 @@ mod paper_pages;
 mod pdf_export;
 #[path = "common/pdf_page.rs"]
 mod pdf_page;
+#[path = "pdf_matches_png/table.rs"]
+mod table_pages;
 
 use oracle::{CASES, wide};
 use pdf_export::{fonts, pdf};

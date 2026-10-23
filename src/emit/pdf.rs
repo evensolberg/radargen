@@ -448,8 +448,9 @@ mod tests {
             title: "Technology Radar",
             subtitle: None,
             size: page_size(paper.points().expect("a paper")),
+            table: None,
         };
-        footed(bodies(&sheets, fonts()).pages, &sheets, fonts())
+        footed(bodies(&sheets, fonts()), &sheets, fonts())
     }
 
     fn paper_pdf(pages: &[Document], theme: Theme) -> Vec<u8> {

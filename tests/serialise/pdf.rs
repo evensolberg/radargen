@@ -4,7 +4,7 @@
 use radargen::layout::arrange::{Arrangement, arrange};
 use radargen::palette::{Palette, Theme};
 
-use radargen::options::Paper;
+use radargen::options::{Paper, Table};
 
 use super::golden::golden;
 use super::long_legend::long_csv;
@@ -55,6 +55,7 @@ fn prd_paper_pdf_matches_its_golden() {
         title,
         None,
         Paper::Letter,
+        None,
     );
     let pdf = paper_pdf(&pages, &desc, &Palette::built_in(Theme::Light), title);
     golden("pdf", "prd-paper.pdf.txt", &readable(&pdf));
@@ -64,17 +65,42 @@ fn prd_paper_pdf_matches_its_golden() {
 /// pages, their openers and grouping before PR 21b's refactors (RG-021B).
 fn long_paper(paper: Paper) -> String {
     let title = Some("Technology Radar");
-    let (pages, desc) = paper_pages(&long_csv(), title, Some("Edition 1"), paper);
+    let (pages, desc) = paper_pages(&long_csv(), title, Some("Edition 1"), paper, None);
     assert!(pages.len() >= 3, "{}", pages.len());
-    readable(&paper_pdf(&pages, &desc, &Palette::built_in(Theme::Light), title))
+    readable(&paper_pdf(
+        &pages,
+        &desc,
+        &Palette::built_in(Theme::Light),
+        title,
+    ))
 }
 
 #[test]
 fn prd_long_paper_letter_matches_its_golden() {
-    golden("pdf", "prd-long-paper-letter.pdf.txt", &long_paper(Paper::Letter));
+    golden(
+        "pdf",
+        "prd-long-paper-letter.pdf.txt",
+        &long_paper(Paper::Letter),
+    );
 }
 
 #[test]
 fn prd_long_paper_a4_matches_its_golden() {
     golden("pdf", "prd-long-paper-a4.pdf.txt", &long_paper(Paper::A4));
+}
+
+/// The PRD example as a full PDF on Letter (FR-112, SC-33): the leading
+/// pages, then the table's.
+#[test]
+fn prd_full_pdf_matches_its_golden() {
+    let title = Some("Technology Radar");
+    let (pages, desc) = paper_pages(
+        include_str!("../fixtures/three-sector.csv"),
+        title,
+        None,
+        Paper::Letter,
+        Some(Table::Radar),
+    );
+    let pdf = paper_pdf(&pages, &desc, &Palette::built_in(Theme::Light), title);
+    golden("pdf", "prd-full.pdf.txt", &readable(&pdf));
 }
