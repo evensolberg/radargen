@@ -11,6 +11,7 @@ pub mod tag;
 pub mod tree;
 pub mod xmp;
 
+use crate::diagnostics::Fatal;
 use crate::num::{MAX_MAGNITUDE, round_thousandths};
 
 /// PDF glyph space units per em: a font's widths, and a TJ adjustment,
@@ -80,6 +81,17 @@ pub fn scale(v: f64) -> f32 {
     narrow(v)
 }
 
+/// A count or index as the integer the PDF writes (rg-969): a page's
+/// number, an MCID, a key, a span. Past `i32::MAX` it is
+/// [`Fatal::PdfTooLarge`] naming `what`, rather than a repeated number.
+///
+/// # Errors
+///
+/// [`Fatal::PdfTooLarge`] when `n` exceeds `i32::MAX`.
+pub fn integer(n: usize, what: &'static str) -> Result<i32, Fatal> {
+    i32::try_from(n).map_err(|_| Fatal::PdfTooLarge { what, count: n })
+}
+
 /// `f64` to the `f32` pdf-writer writes: the crate's one narrowing.
 #[expect(
     clippy::cast_possible_truncation,
@@ -112,7 +124,25 @@ pub mod test_support {
 
 #[cfg(test)]
 mod tests {
-    use super::scale;
+    use super::{integer, scale};
+    use crate::diagnostics::Fatal;
+
+    /// rg-969: a count up to `i32::MAX` is written; one past it is an
+    /// error naming what was counted, not a clamped duplicate.
+    #[test]
+    fn an_integer_past_i32_is_an_error() {
+        let max = usize::try_from(i32::MAX).expect("fits a usize");
+        assert_eq!(integer(max, "pages").ok(), Some(i32::MAX));
+        let past = integer(max + 1, "pages");
+        assert!(
+            matches!(past, Err(Fatal::PdfTooLarge { what: "pages", count }) if count == max + 1),
+            "{past:?}"
+        );
+        assert_eq!(
+            past.map_err(|e| e.to_string()).err().as_deref(),
+            Some("the PDF would number 2147483648 pages, more than a PDF can (2147483647)")
+        );
+    }
 
     /// The page scale keeps its precision: not rounded to thousandths.
     #[test]

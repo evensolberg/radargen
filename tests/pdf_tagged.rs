@@ -245,6 +245,25 @@ fn the_parent_tree_and_the_elements_agree() {
     }
 }
 
+/// rg-969: no element is empty but a table cell, which keeps its row's
+/// count: an `L` or `LI` with nothing under it is an empty node to
+/// assistive technology.
+#[test]
+fn only_a_cell_is_ever_empty() {
+    for (name, bytes) in fixtures() {
+        let (doc, _) = pages(&bytes);
+        for element in tree(&doc).elements.values() {
+            assert!(
+                !element.mcids.is_empty()
+                    || !element.kids.is_empty()
+                    || matches!(element.role.as_str(), "TD" | "TH"),
+                "{name}: an empty {}",
+                element.role
+            );
+        }
+    }
+}
+
 /// Every MCID drawn, with its page, and the tag that opened it.
 fn drawn(
     doc: &Document,

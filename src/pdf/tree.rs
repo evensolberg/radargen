@@ -7,39 +7,57 @@ use pdf_writer::types::TableHeaderScope;
 use pdf_writer::writers::{StructChildren, StructTreeRoot};
 use pdf_writer::{Pdf, Ref, TextStr};
 
+use super::integer;
 use super::tag::{Element, Kid, Role, Tree};
+use crate::diagnostics::Fatal;
 use crate::svg::Scope;
 
 /// Writes `tree` with the root at `root`, numbering its elements and
 /// parent-tree arrays from `next`; `pages` are the page objects in order.
-pub fn write(pdf: &mut Pdf, tree: &Tree, root: Ref, next: &mut Ref, pages: &[Ref]) {
+///
+/// # Errors
+///
+/// [`Fatal::PdfTooLarge`] when the pages, or a cell's span, are past what
+/// a PDF can number.
+pub fn write(
+    pdf: &mut Pdf,
+    tree: &Tree,
+    root: Ref,
+    next: &mut Ref,
+    pages: &[Ref],
+) -> Result<(), Fatal> {
     let ids: Vec<Ref> = tree.elements.iter().map(|_| next.bump()).collect();
     let arrays: Vec<Ref> = tree.parents.iter().map(|_| next.bump()).collect();
-    root_dict(pdf, root, ids.first().copied(), &arrays);
+    root_dict(pdf, root, ids.first().copied(), &arrays)?;
     for (element, &id) in tree.elements.iter().zip(&ids) {
-        write_element(pdf, (element, id), (&ids, root), pages);
+        write_element(pdf, (element, id), (&ids, root), pages)?;
     }
     for (parents, &array) in tree.parents.iter().zip(&arrays) {
         pdf.indirect(array)
             .array()
             .items(parents.iter().filter_map(|&e| ids.get(e).copied()));
     }
+    Ok(())
 }
 
 /// The root: its one kid, the document, and the parent tree, page `k`'s
 /// array keyed `k`.
-fn root_dict(pdf: &mut Pdf, root: Ref, document: Option<Ref>, arrays: &[Ref]) {
+fn root_dict(pdf: &mut Pdf, root: Ref, document: Option<Ref>, arrays: &[Ref]) -> Result<(), Fatal> {
     let mut dict = pdf.indirect(root).start::<StructTreeRoot>();
     dict.children().items(document);
     let mut tree = dict.parent_tree();
     let mut entries = tree.nums();
     for (page, &array) in arrays.iter().enumerate() {
-        entries.insert(i32::try_from(page).unwrap_or(i32::MAX), array);
+        entries.insert(integer(page, PAGES)?, array);
     }
     drop(entries);
     drop(tree);
-    dict.parent_tree_next_key(i32::try_from(arrays.len()).unwrap_or(i32::MAX));
+    dict.parent_tree_next_key(integer(arrays.len(), PAGES)?);
+    Ok(())
 }
+
+/// What a page count or index counts, for [`Fatal::PdfTooLarge`].
+pub const PAGES: &str = "pages";
 
 /// One element: its role, parent, page, `/Alt`, attributes and kids.
 fn write_element(
@@ -47,7 +65,7 @@ fn write_element(
     (element, id): (&Element, Ref),
     (ids, root): (&[Ref], Ref),
     pages: &[Ref],
-) {
+) -> Result<(), Fatal> {
     let parent = element
         .parent
         .and_then(|p| ids.get(p).copied())
@@ -65,11 +83,12 @@ fn write_element(
     if let Some(alt) = &element.alt {
         dict.alt(TextStr(alt));
     }
-    attributes(&mut dict, element.role);
+    attributes(&mut dict, element.role)?;
     let mut kids = dict.children();
     for kid in &element.kids {
         write_kid(&mut kids, *kid, first, (ids, pages));
     }
+    Ok(())
 }
 
 /// One kid: an element by reference, an MCID on the element's own page, or
@@ -98,7 +117,7 @@ fn write_kid(
 }
 
 /// A header cell's scope; a spanning data cell's span.
-fn attributes(dict: &mut pdf_writer::writers::StructElement<'_>, role: Role) {
+fn attributes(dict: &mut pdf_writer::writers::StructElement<'_>, role: Role) -> Result<(), Fatal> {
     match role {
         Role::Th(scope) => {
             dict.attributes().push().table().scope(match scope {
@@ -110,8 +129,9 @@ fn attributes(dict: &mut pdf_writer::writers::StructElement<'_>, role: Role) {
             dict.attributes()
                 .push()
                 .table()
-                .col_span(i32::try_from(span.get()).unwrap_or(i32::MAX));
+                .col_span(integer(span.get(), "columns in one cell")?);
         }
         _ => {}
     }
+    Ok(())
 }

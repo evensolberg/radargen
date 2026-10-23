@@ -17,7 +17,9 @@ use std::num::{NonZeroU8, NonZeroUsize};
 use pdf_writer::types::{ArtifactType, StructRole};
 use pdf_writer::{Content, Name, TextStr};
 
+use super::integer;
 use super::leaf::Leaf;
+use crate::diagnostics::Fatal;
 use crate::svg::{ListKey, Scope, Semantics, Structure};
 
 /// A standard structure role (ISO 32000-1, 14.8.4).
@@ -164,6 +166,9 @@ pub struct Tagger {
     /// How deep inside the radar's figure.
     figures: usize,
     parents: Vec<Vec<usize>>,
+    /// The first count past what the PDF can number (rg-969), which
+    /// [`into_tree`](Self::into_tree) returns: the file is not written.
+    too_large: Option<Fatal>,
 }
 
 impl Default for Tagger {
@@ -188,6 +193,7 @@ impl Tagger {
             artifacts: 0,
             figures: 0,
             parents: Vec::new(),
+            too_large: None,
         }
     }
 
@@ -203,13 +209,70 @@ impl Tagger {
         self.figures = 0;
     }
 
-    /// The tree, once every page is drawn.
-    #[must_use]
-    pub fn into_tree(self) -> Tree {
-        Tree {
-            elements: self.elements,
-            parents: self.parents,
+    /// The tree, once every page is drawn, without the elements whose
+    /// content drew nothing (rg-969): a legend `LI` or `L` with no text
+    /// would be an empty node to assistive technology. A `TD` or `TH`
+    /// stays however empty, so every row keeps its cell count.
+    ///
+    /// # Errors
+    ///
+    /// [`Fatal::PdfTooLarge`] when a page held more marked sequences than
+    /// a PDF can number.
+    pub fn into_tree(self) -> Result<Tree, Fatal> {
+        if let Some(error) = self.too_large {
+            return Err(error);
         }
+        // A child always follows its parent, so walking back settles each
+        // element's children before it.
+        let mut live = vec![false; self.elements.len()];
+        for (i, element) in self.elements.iter().enumerate().rev() {
+            let kept = i == 0
+                || matches!(element.role, Role::Td(_) | Role::Th(_))
+                || element.kids.iter().any(|kid| match kid {
+                    Kid::Mcid { .. } => true,
+                    Kid::Element(e) => live.get(*e).copied().unwrap_or(false),
+                });
+            if let Some(slot) = live.get_mut(i) {
+                *slot = kept;
+            }
+        }
+        // Each kept element's new index, in the old order.
+        let mut count = 0;
+        let renumbered: Vec<Option<usize>> = live
+            .iter()
+            .map(|&kept| {
+                kept.then(|| {
+                    count += 1;
+                    count - 1
+                })
+            })
+            .collect();
+        let new = |old: usize| renumbered.get(old).copied().flatten();
+        let elements = self
+            .elements
+            .into_iter()
+            .zip(&live)
+            .filter(|(_, kept)| **kept)
+            .map(|(element, _)| Element {
+                parent: element.parent.and_then(new),
+                kids: element
+                    .kids
+                    .iter()
+                    .filter_map(|kid| match *kid {
+                        Kid::Element(e) => new(e).map(Kid::Element),
+                        mcid @ Kid::Mcid { .. } => Some(mcid),
+                    })
+                    .collect(),
+                ..element
+            })
+            .collect();
+        // An element holding an MCID is always kept.
+        let parents = self
+            .parents
+            .iter()
+            .map(|page| page.iter().filter_map(|&e| new(e)).collect())
+            .collect();
+        Ok(Tree { elements, parents })
     }
 
     /// Opens what `semantics` means, writing an artifact's mark to `out`.
@@ -412,7 +475,15 @@ impl Tagger {
         let Some(parents) = self.parents.last_mut() else {
             return;
         };
-        let mcid = i32::try_from(parents.len()).unwrap_or(i32::MAX);
+        let mcid = match integer(parents.len(), "marked sequences on one page") {
+            Ok(mcid) => mcid,
+            Err(error) => {
+                // The page is discarded with the error, so its stream
+                // need not be balanced.
+                self.too_large.get_or_insert(error);
+                return;
+            }
+        };
         parents.push(element);
         let role = self.elements.get(element).map_or(Role::P, |e| e.role);
         let mut marked = out.begin_marked_content_with_properties(role.struct_role().to_name());
@@ -466,7 +537,7 @@ mod tests {
             tagger.close(&mut out, row);
             tagger.close(&mut out, table);
         }
-        let tree = tagger.into_tree();
+        let tree = tagger.into_tree().expect("a tree");
         let roles: Vec<Role> = tree.elements.iter().map(|e| e.role).collect();
         assert_eq!(
             roles,
@@ -497,6 +568,60 @@ mod tests {
         assert_eq!(tree.parents, [vec![3, 4, 5], vec![5]]);
     }
 
+    /// rg-969: an element whose content drew nothing is left out, a list
+    /// emptied by it too, and the rest renumber; an empty cell stays, so
+    /// its row keeps its count.
+    #[test]
+    fn elements_with_no_content_are_pruned() {
+        let mut tagger = Tagger::new();
+        let mut out = Content::new();
+        let text = Leaf::Text { actual: None };
+        tagger.begin_page();
+        let list = opened(&mut tagger, &mut out, Structure::List(ListKey::Key));
+        let item = opened(&mut tagger, &mut out, Structure::ListItem);
+        tagger.close(&mut out, item);
+        tagger.close(&mut out, list);
+        let heading = tagger.open(&mut out, &Semantics::Heading(NonZeroU8::MIN));
+        let marked = tagger.leaf(&mut out, &text);
+        Tagger::end(&mut out, marked);
+        tagger.close(&mut out, heading);
+        let table = opened(&mut tagger, &mut out, Structure::Table);
+        let row = opened(&mut tagger, &mut out, Structure::Row(0));
+        for column in 0..2 {
+            let cell = opened(
+                &mut tagger,
+                &mut out,
+                Structure::Cell { column, span: None },
+            );
+            if column == 1 {
+                let marked = tagger.leaf(&mut out, &text);
+                Tagger::end(&mut out, marked);
+            }
+            tagger.close(&mut out, cell);
+        }
+        tagger.close(&mut out, row);
+        tagger.close(&mut out, table);
+        let tree = tagger.into_tree().expect("a tree");
+        let roles: Vec<Role> = tree.elements.iter().map(|e| e.role).collect();
+        assert_eq!(
+            roles,
+            [
+                Role::Document,
+                Role::Heading(NonZeroU8::MIN),
+                Role::Table,
+                Role::Tr,
+                Role::Td(None),
+                Role::Td(None)
+            ]
+        );
+        let kids = |e: usize| tree.elements.get(e).map(|e| e.kids.clone());
+        assert_eq!(kids(0), Some(vec![Kid::Element(1), Kid::Element(2)]));
+        assert_eq!(kids(3), Some(vec![Kid::Element(4), Kid::Element(5)]));
+        assert_eq!(tree.parents, [vec![1, 5]]);
+        let parents: Vec<Option<usize>> = tree.elements.iter().map(|e| e.parent).collect();
+        assert_eq!(parents, [None, Some(0), Some(0), Some(2), Some(3), Some(3)]);
+    }
+
     /// Nothing inside an artifact is marked or opens an element.
     #[test]
     fn an_artifact_is_opaque() {
@@ -513,7 +638,7 @@ mod tests {
             Marked(false)
         );
         tagger.close(&mut out, artifact);
-        assert_eq!(tagger.into_tree().elements.len(), 1);
+        assert_eq!(tagger.into_tree().expect("a tree").elements.len(), 1);
     }
 
     /// Text no element claims is a paragraph of its own; inside the figure
@@ -531,7 +656,7 @@ mod tests {
         let marked = tagger.leaf(&mut out, &Leaf::Shape);
         Tagger::end(&mut out, marked);
         tagger.close(&mut out, figure);
-        let tree = tagger.into_tree();
+        let tree = tagger.into_tree().expect("a tree");
         let p = tree.elements.get(1).expect("a paragraph");
         assert_eq!((p.role, p.kids.len()), (Role::P, 1));
         let figure = tree.elements.get(2).expect("the figure");

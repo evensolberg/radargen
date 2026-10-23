@@ -1705,6 +1705,18 @@ pub enum Fatal {
     /// NFR-15: an embedded font face does not parse.
     #[error(transparent)]
     Font(#[from] FontError),
+    /// FR-114 (rg-969): a count the PDF writes as an integer is past the
+    /// largest one it holds, so writing it would repeat a number.
+    #[error(
+        "the PDF would number {count} {what}, more than a PDF can ({})",
+        i32::MAX
+    )]
+    PdfTooLarge {
+        /// What is counted.
+        what: &'static str,
+        /// How many.
+        count: usize,
+    },
     /// FR-61: the input does not exist, cannot be read, or is a directory.
     #[error("{path}: cannot be read: {}", io_reason(source))]
     Unreadable {
