@@ -195,16 +195,29 @@ impl Origin {
     /// depends on the source; the caller places the verb that follows.
     #[must_use]
     pub fn set_to(&self, value: impl fmt::Display, tail: &str) -> String {
+        let assignment = self.assignment(value, tail);
+        if self.source.is_config() {
+            format!("setting {assignment}")
+        } else {
+            assignment
+        }
+    }
+
+    /// The setting at `value`, with `tail` after the value, as its source
+    /// holds it: `--paper a4`, or `paper = "a4" in radar.toml`, a string
+    /// quoted as [`set_to`](Self::set_to) quotes it.
+    #[must_use]
+    pub fn assignment(&self, value: impl fmt::Display, tail: &str) -> String {
         match &self.source {
             Source::Config(file) => {
                 let key = self.setting.key();
                 match self.setting {
                     Setting::Width | Setting::LegendColumns => {
-                        format!("setting {key} = {value}{tail} in {file}")
+                        format!("{key} = {value}{tail} in {file}")
                     }
                     _ => {
                         let text = value.to_string().replace('\\', "\\\\").replace('"', "\\\"");
-                        format!("setting {key} = \"{text}\"{tail} in {file}")
+                        format!("{key} = \"{text}\"{tail} in {file}")
                     }
                 }
             }

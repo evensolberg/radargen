@@ -92,8 +92,10 @@ fn style(out: &mut String, style: TextStyle, anchor: Anchor) {
     if shows(style.letter_spacing) {
         coord(out, "letter-spacing", style.letter_spacing);
     }
-    if anchor == Anchor::Middle {
-        attr(out, "text-anchor", "middle");
+    match anchor {
+        Anchor::Start => {}
+        Anchor::Middle => attr(out, "text-anchor", "middle"),
+        Anchor::End => attr(out, "text-anchor", "end"),
     }
 }
 

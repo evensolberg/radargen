@@ -340,6 +340,26 @@ impl Entry {
         }
     }
 
+    /// `run` as a heading of `tier` repeated at the top of a paper column
+    /// (FR-111).
+    pub(super) const fn continued(run: TextRun, tier: Tier) -> Self {
+        Self::Heading {
+            run,
+            level: tier.level,
+            continued: true,
+        }
+    }
+
+    /// The entry's top as the layout places it: a heading's first
+    /// baseline, a swatch's centre, a row's top edge.
+    pub(super) const fn top(&self) -> f64 {
+        match self {
+            Self::Heading { run, .. } => run.origin.y,
+            Self::Swatch { centre, .. } => centre.y,
+            Self::Row(row) => row.top,
+        }
+    }
+
     /// The entry moved down by `dy`: every position it holds.
     pub(super) fn shifted(&self, dy: f64) -> Self {
         let moved = |run: &TextRun| TextRun {
@@ -366,19 +386,16 @@ impl Entry {
                 },
                 series: *series,
             },
-            Self::Row(row) => Self::Row(Box::new(Row {
-                top: row.top + dy,
-                badge: Point {
-                    y: row.badge.y + dy,
-                    ..row.badge
-                },
-                name: moved(&row.name),
-                meta: row.meta.as_ref().map(|meta| match meta {
-                    MetaLine::OwnLine(run) => MetaLine::OwnLine(moved(run)),
-                    MetaLine::Inline(tail) => MetaLine::Inline(tail.clone()),
-                }),
-                ..(**row).clone()
-            })),
+            Self::Row(row) => {
+                let mut row = row.clone();
+                row.top += dy;
+                row.badge.y += dy;
+                row.name.origin.y += dy;
+                if let Some(MetaLine::OwnLine(run)) = &mut row.meta {
+                    run.origin.y += dy;
+                }
+                Self::Row(row)
+            }
         }
     }
 

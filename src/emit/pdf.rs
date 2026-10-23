@@ -437,11 +437,7 @@ mod tests {
     fn paper_pages(paper: Paper) -> Vec<Document> {
         use crate::layout::legend::LegendBlock;
         use crate::layout::paper::{Sheets, bodies, footed, page_size};
-        use crate::layout::test_support::HEAD;
-        let csv = (0..300).fold(HEAD.to_owned(), |csv, i| {
-            csv + &format!("n{i:03},S,Adopt,d\n")
-        });
-        let (catalogue, order) = plotted(&csv, None);
+        let (catalogue, order) = crate::layout::test_support::long(1, 1, 300);
         let legend = LegendBlock::on_paper(&catalogue, &order, fonts());
         let (prd_catalogue, prd_order) = plotted(PRD_EXAMPLE, None);
         let blocks = Blocks::new(&prd_catalogue, &prd_order, None, None, fonts());

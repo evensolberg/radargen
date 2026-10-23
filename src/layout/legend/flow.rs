@@ -13,7 +13,6 @@ use crate::style::{
     CONTINUED, LEGEND_FIRST_GROUP, LEGEND_HEADING_BASELINE, LEGEND_RING_TO_ROW,
     LEGEND_SECTOR_TO_RING, SWATCH_RAISE,
 };
-use crate::svg::TextRun;
 use crate::text::Fonts;
 
 /// The content width every piece of `layout` gets: its own, widened to
@@ -26,12 +25,10 @@ pub(super) fn widest(layout: &Layout, fonts: &Fonts) -> f64 {
         .entries
         .iter()
         .filter_map(|entry| match entry {
-            Entry::Heading { run, level, .. } if *level == SECTOR_TIER.level => {
-                Some(continued(SECTOR_TIER, &run.words))
-            }
-            Entry::Heading { run, level, .. } if *level == RING_TIER.level => {
-                Some(continued(RING_TIER, &run.words))
-            }
+            Entry::Heading { run, level, .. } => [SECTOR_TIER, RING_TIER]
+                .into_iter()
+                .find(|tier| tier.level == *level)
+                .map(|tier| continued(tier, &run.words)),
             _ => None,
         })
         .chain([continued(TITLE_TIER, LEGEND_TITLE)])
@@ -90,13 +87,7 @@ pub(super) fn pieces(
             }
         }
         let carried = entries.get(start..end).unwrap_or_default();
-        placed.extend(carried.iter().map(|entry| {
-            if k == 0 {
-                entry.clone()
-            } else {
-                entry.shifted(dy)
-            }
-        }));
+        placed.extend(carried.iter().map(|entry| entry.shifted(dy)));
         groups.extend(
             layout
                 .groups
@@ -190,21 +181,16 @@ fn opening(first: Option<&Entry>, under: &Under, page: bool, fonts: &Fonts) -> O
     let mut baseline = LEGEND_HEADING_BASELINE;
     if page {
         let title = format!("{LEGEND_TITLE}{CONTINUED}");
-        out.placed.push(continued(
+        out.placed.push(Entry::continued(
             heading(TITLE_TIER, &title, baseline, fonts),
             TITLE_TIER,
         ));
         baseline = LEGEND_FIRST_GROUP;
     }
-    let top = |entry: &Entry| match entry {
-        Entry::Heading { run, .. } => run.origin.y,
-        Entry::Swatch { centre, .. } => centre.y,
-        Entry::Row(row) => row.top,
-    };
     if !inside_sector(first) {
         // The carried swatch's heading takes the baseline; the swatch sits
         // `SWATCH_RAISE` above it in both places, so one shift moves both.
-        out.dy = first.map_or(0.0, |entry| baseline - heading_baseline(entry, top(entry)));
+        out.dy = first.map_or(0.0, |entry| baseline - heading_baseline(entry));
         return out;
     }
     let Some((series, words)) = &under.sector else {
@@ -217,7 +203,7 @@ fn opening(first: Option<&Entry>, under: &Under, page: bool, fonts: &Fonts) -> O
     out.placed.push(swatch(*series, baseline));
     let sector = heading(SECTOR_TIER, &format!("{words}{CONTINUED}"), baseline, fonts);
     let ring_baseline = sector.last_baseline() + LEGEND_SECTOR_TO_RING;
-    out.placed.push(continued(sector, SECTOR_TIER));
+    out.placed.push(Entry::continued(sector, SECTOR_TIER));
     match first {
         Some(Entry::Row(row)) => {
             let words = under.ring.as_deref().unwrap_or_default();
@@ -228,9 +214,9 @@ fn opening(first: Option<&Entry>, under: &Under, page: bool, fonts: &Fonts) -> O
                 fonts,
             );
             out.dy = ring.last_baseline() + LEGEND_RING_TO_ROW - row.top;
-            out.placed.push(continued(ring, RING_TIER));
+            out.placed.push(Entry::continued(ring, RING_TIER));
         }
-        Some(entry) => out.dy = ring_baseline - top(entry),
+        Some(entry) => out.dy = ring_baseline - entry.top(),
         None => {}
     }
     out
@@ -248,19 +234,10 @@ fn inside_sector(first: Option<&Entry>) -> bool {
 
 /// The baseline of the sector heading a carried `entry` starts: a
 /// swatch's is its heading's, `SWATCH_RAISE` below its centre.
-fn heading_baseline(entry: &Entry, top: f64) -> f64 {
+fn heading_baseline(entry: &Entry) -> f64 {
     match entry {
         Entry::Swatch { centre, .. } => centre.y + SWATCH_RAISE,
-        _ => top,
-    }
-}
-
-/// `run` as a continued heading of `tier`.
-const fn continued(run: TextRun, tier: Tier) -> Entry {
-    Entry::Heading {
-        run,
-        level: tier.level,
-        continued: true,
+        _ => entry.top(),
     }
 }
 
@@ -269,29 +246,11 @@ mod tests {
     use super::super::LegendBlock;
     use super::super::layout::Entry;
     use crate::layout::block::{Block, Placement, fonts};
-    use crate::layout::test_support::{HEAD, assert_inside, plotted};
+    use crate::layout::test_support::{HEAD, assert_inside, long, plotted};
     use crate::model::Catalogue;
     use crate::order::Plotted;
     use crate::style::{LEGEND_FIRST_GROUP, LEGEND_HEADING_BASELINE};
     use crate::svg::Point;
-
-    /// `rings` ring names `R0`, `R1`, … for `--rings`.
-    fn ring_list(rings: usize) -> String {
-        (0..rings)
-            .map(|r| format!("R{r}"))
-            .collect::<Vec<_>>()
-            .join(",")
-    }
-
-    /// `sectors` sectors `S0…` of `rings` rings of `per_ring` items each,
-    /// named `S{s}R{r}-{i:03}`.
-    fn long(sectors: usize, rings: usize, per_ring: usize) -> (Catalogue, Plotted) {
-        let rows: String = (0..sectors)
-            .flat_map(|s| (0..rings).map(move |r| (s, r)))
-            .flat_map(|(s, r)| (0..per_ring).map(move |i| format!("S{s}R{r}-{i:03},S{s},R{r},d\n")))
-            .collect();
-        plotted(&format!("{HEAD}{rows}"), Some(&ring_list(rings)))
-    }
 
     /// As `long`, with an empty sector (its one row in an undeclared ring,
     /// so it is drawn with no rows, FR-17) after sector `after`.
@@ -367,16 +326,7 @@ mod tests {
     /// Each entry's top: a row's top, a heading's first baseline, a
     /// swatch's centre.
     fn tops(block: &LegendBlock) -> Vec<f64> {
-        block
-            .layout
-            .entries
-            .iter()
-            .map(|entry| match entry {
-                Entry::Heading { run, .. } => run.origin.y,
-                Entry::Swatch { centre, .. } => centre.y,
-                Entry::Row(row) => row.top,
-            })
-            .collect()
+        block.layout.entries.iter().map(Entry::top).collect()
     }
 
     fn shapes() -> Vec<LegendBlock> {
@@ -453,17 +403,16 @@ mod tests {
     }
 
     /// The index of the entry whose heading or row reads `words`.
+    fn index_of_opt(block: &LegendBlock, words: &str) -> Option<usize> {
+        block.layout.entries.iter().position(|entry| match entry {
+            Entry::Heading { run, .. } => run.words == words,
+            Entry::Row(row) => row.name.words == words,
+            Entry::Swatch { .. } => false,
+        })
+    }
+
     fn index_of(block: &LegendBlock, words: &str) -> usize {
-        block
-            .layout
-            .entries
-            .iter()
-            .position(|entry| match entry {
-                Entry::Heading { run, .. } => run.words == words,
-                Entry::Row(row) => row.name.words == words,
-                Entry::Swatch { .. } => false,
-            })
-            .expect("the entry")
+        index_of_opt(block, words).expect("the entry")
     }
 
     #[test]
@@ -580,13 +529,6 @@ mod tests {
                 .any(|entry| matches!(entry, Entry::Row(_))),
             "the empty sector's heading ends its piece"
         );
-    }
-
-    fn index_of_opt(block: &LegendBlock, words: &str) -> Option<usize> {
-        block.layout.entries.iter().position(|entry| match entry {
-            Entry::Heading { run, .. } => run.words == words,
-            _ => false,
-        })
     }
 
     /// Final review (QA, Rust): an empty last sector, its rows all in

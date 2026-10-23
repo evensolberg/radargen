@@ -25,7 +25,7 @@ use crate::text::{Fonts, words};
 /// Between the footer's title and subtitle.
 const FOOTER_SEPARATOR: &str = " \u{b7} ";
 /// Where a footer's title is cut.
-const ELLIPSIS: char = '\u{2026}';
+const ELLIPSIS: &str = "\u{2026}";
 
 /// What the paper pages are made of.
 #[derive(Debug, Clone, Copy)]
@@ -64,14 +64,10 @@ pub struct Bodies {
 /// Where page 1's parts go.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct FirstPage {
-    /// The title and subtitle.
-    pub title: Placement,
     /// The radar, at the scale that fits.
     pub radar: Placement,
-    /// The rule over the key.
+    /// The rule over the key; the key hangs from its start, at scale 1.
     pub rule: Rule,
-    /// The key, at scale 1.
-    pub key: Placement,
     /// The key's columns.
     pub key_columns: NonZeroUsize,
     /// The legend's first piece, at `PAPER_LEGEND_SCALE`; `None` when the
@@ -143,7 +139,7 @@ fn column(sheets: &Sheets<'_>, beside: bool, fonts: &Fonts) -> (f64, f64) {
 /// scale, so that scale is found by halving; the key's own width must
 /// then fit under the radar's ink there, since ink only narrows below it.
 fn largest(sheets: &Sheets<'_>, (width, height): (f64, f64)) -> Option<f64> {
-    let least = NARROW_MIN_SCALE / sheets.radar.growth();
+    let least = least(sheets);
     (1..=5)
         .filter_map(NonZeroUsize::new)
         .filter_map(|columns| {
@@ -159,15 +155,27 @@ fn largest(sheets: &Sheets<'_>, (width, height): (f64, f64)) -> Option<f64> {
         .reduce(f64::max)
 }
 
+/// The radar's smallest scale on paper: the narrow arrangement's floor
+/// (FR-70), lower for a grown radar (D-86).
+fn least(sheets: &Sheets<'_>) -> f64 {
+    NARROW_MIN_SCALE / sheets.radar.growth()
+}
+
 /// Page 1's placements: the radar beside the legend's first piece when
 /// it fits there, else across the whole page with the legend starting on
 /// page 2, else at its floor, marked as not fitting.
 pub(crate) fn first_page(sheets: &Sheets<'_>, fonts: &Fonts) -> FirstPage {
     let has_legend = !sheets.legend.size(1.0).is_empty();
-    let beside = has_legend && largest(sheets, column(sheets, true, fonts)).is_some();
-    let col = column(sheets, beside, fonts);
-    let found = largest(sheets, col);
-    let s = found.unwrap_or_else(|| NARROW_MIN_SCALE / sheets.radar.growth());
+    let beside_col = column(sheets, true, fonts);
+    let beside_fit = has_legend.then(|| largest(sheets, beside_col)).flatten();
+    let beside = beside_fit.is_some();
+    let col = if beside {
+        beside_col
+    } else {
+        column(sheets, false, fonts)
+    };
+    let found = beside_fit.or_else(|| largest(sheets, col));
+    let s = found.unwrap_or_else(|| least(sheets));
     let radar = sheets.radar.size(s);
     let ink = radar.width - RADAR_LABEL_PAD - RADAR_LABEL_PAD;
     let key_columns = sheets.key.columns_within(ink);
@@ -178,10 +186,6 @@ pub(crate) fn first_page(sheets: &Sheets<'_>, fonts: &Fonts) -> FirstPage {
     let top = PAPER_MARGIN + t;
     let key_y = top + radar.height;
     FirstPage {
-        title: Placement::at(Point {
-            x: PAPER_MARGIN,
-            y: PAPER_MARGIN,
-        }),
         radar: Placement {
             origin: Point { x, y: top },
             scale: s,
@@ -196,10 +200,6 @@ pub(crate) fn first_page(sheets: &Sheets<'_>, fonts: &Fonts) -> FirstPage {
                 y: key_y,
             },
         },
-        key: Placement::at(Point {
-            x: x + RADAR_LABEL_PAD,
-            y: key_y,
-        }),
         key_columns,
         legend: beside.then(|| Placement {
             origin: Point {
@@ -232,22 +232,30 @@ pub fn bodies(sheets: &Sheets<'_>, fonts: &Fonts) -> Bodies {
     let content = Content::of(sheets);
     let n = per_page(sheets, fonts);
     let t = title(sheets, fonts).size(1.0).height;
-    let rest = content.height / PAPER_LEGEND_SCALE;
+    let page_room = content.height / PAPER_LEGEND_SCALE;
     let pieces = match first.legend {
         Some(_) => {
             let room = (content.height - t - LEGEND_WIDE_DROP).max(0.0) / PAPER_LEGEND_SCALE;
             sheets
                 .legend
-                .flowed(room, rest, &|k| k >= 1 && (k - 1) % n == 0, fonts)
+                .flowed(room, page_room, &|k| k >= 1 && (k - 1) % n == 0, fonts)
         }
-        None => sheets.legend.flowed(rest, rest, &|k| k % n == 0, fonts),
+        None => sheets
+            .legend
+            .flowed(page_room, page_room, &|k| k % n == 0, fonts),
     };
     let mut pieces = pieces.into_iter();
     let mut page_one = vec![
-        title(sheets, fonts).render(first.title),
+        title(sheets, fonts).render(Placement::at(Point {
+            x: PAPER_MARGIN,
+            y: PAPER_MARGIN,
+        })),
         sheets.radar.render(first.radar),
         rule_node(first.rule),
-        sheets.key.grid(first.key_columns).render(first.key),
+        sheets
+            .key
+            .grid(first.key_columns)
+            .render(Placement::at(first.rule.from)),
     ];
     if let Some(at) = first.legend
         && let Some(piece) = pieces.next()
@@ -271,10 +279,10 @@ pub fn bodies(sheets: &Sheets<'_>, fonts: &Fonts) -> Bodies {
 /// centred across the content box, hung from the top margin.
 fn continuation(pieces: &[LegendBlock], width: f64, sheets: &Sheets<'_>) -> Vec<Node> {
     let content = Content::of(sheets);
-    let mut span = 0.0;
-    for (i, _) in pieces.iter().enumerate() {
-        span += if i == 0 { width } else { COLUMN_GAP + width };
-    }
+    let span = pieces
+        .iter()
+        .skip(1)
+        .fold(width, |span, _| span + COLUMN_GAP + width);
     let mut x = PAPER_MARGIN + (content.width - span) / 2.0;
     pieces
         .iter()
@@ -347,42 +355,26 @@ fn footer(sheets: &Sheets<'_>, page: usize, count: usize, fonts: &Fonts) -> Node
         Point::ORIGIN,
         vec![
             run(&named, PAPER_MARGIN, Anchor::Start),
-            // Right-aligned by its ink, so it ends at the margin: the
-            // document has no end anchor, and the layout width (D-78)
-            // would stop it short by the room left for text spacing.
-            run(
-                &numbered,
-                width - PAPER_MARGIN - FOOTER.advance(&numbered, fonts),
-                Anchor::Start,
-            ),
+            run(&numbered, width - PAPER_MARGIN, Anchor::End),
         ],
     ))
 }
 
-/// `text` as it fits `room` in the footer's style: whole, or with words
-/// dropped from the end and an ellipsis, or, when even its first word is
-/// too wide, cut by characters with an ellipsis.
+/// `text` as it fits `room` in the footer's style: whole, or its first
+/// line wrapped short of the room an ellipsis needs, with the ellipsis
+/// after it. The wrap breaks between words, and inside a word only when
+/// the first is too wide alone (FR-79).
 fn cut(text: &str, room: f64, fonts: &Fonts) -> String {
-    let fits = |candidate: &str| FOOTER.measure(candidate, fonts) <= room;
-    if fits(text) {
+    if FOOTER.measure(text, fonts) <= room {
         return text.to_owned();
     }
-    let words: Vec<&str> = text.split_whitespace().collect();
-    for n in (1..words.len()).rev() {
-        let candidate = format!("{}{ELLIPSIS}", words.get(..n).unwrap_or_default().join(" "));
-        if fits(&candidate) {
-            return candidate;
-        }
-    }
-    let mut kept = String::new();
-    for ch in text.chars() {
-        let candidate = format!("{kept}{ch}{ELLIPSIS}");
-        if !fits(&candidate) {
-            break;
-        }
-        kept.push(ch);
-    }
-    format!("{kept}{ELLIPSIS}")
+    let short = room - FOOTER.measure(ELLIPSIS, fonts);
+    let first = FOOTER
+        .wrap(text, short, fonts)
+        .into_iter()
+        .next()
+        .unwrap_or_default();
+    format!("{first}{ELLIPSIS}")
 }
 
 #[cfg(test)]
@@ -441,12 +433,7 @@ mod tests {
     /// The PRD example's radar beside a legend of `sectors` × `rings` ×
     /// `per_ring` items.
     fn long(sectors: usize, rings: usize, per_ring: usize) -> Fixture {
-        let ring_list: Vec<String> = (0..rings).map(|r| format!("R{r}")).collect();
-        let rows: String = (0..sectors)
-            .flat_map(|s| (0..rings).map(move |r| (s, r)))
-            .flat_map(|(s, r)| (0..per_ring).map(move |i| format!("S{s}R{r}-{i:03},S{s},R{r},d\n")))
-            .collect();
-        let (catalogue, order) = plotted(&format!("{HEAD}{rows}"), Some(&ring_list.join(",")));
+        let (catalogue, order) = crate::layout::test_support::long(sectors, rings, per_ring);
         let (prd_catalogue, prd_order) = plotted(PRD_EXAMPLE, None);
         Fixture {
             blocks: Blocks::new(&prd_catalogue, &prd_order, None, None, fonts()),
@@ -773,7 +760,8 @@ mod tests {
         assert!(left.ends_with('…') && left.len() < word.len(), "{left}");
     }
 
-    /// The footer's two runs: (origin, line) for the title and the page.
+    /// The footer's two runs: (where drawn from, line) for the title and
+    /// the page number.
     fn footer_runs(page: &Document) -> Vec<(crate::svg::Point, String)> {
         let Some(Node::Group(footer)) = children(page).last() else {
             panic!("a footer group")
@@ -781,11 +769,11 @@ mod tests {
         footer
             .children
             .iter()
-            .map(|node| match node {
-                Node::Text { origin, lines, .. } => {
-                    (*origin, lines.first().cloned().unwrap_or_default())
-                }
-                other => panic!("footer text: {other:?}"),
+            .map(|node| {
+                // Where the line is drawn from, its anchor resolved.
+                let starts = node.line_starts(fonts());
+                let (line, start) = starts.first().expect("footer text");
+                (*start, (*line).to_owned())
             })
             .collect()
     }
@@ -862,6 +850,5 @@ mod tests {
             first.legend.map(|at| at.scale.to_bits()),
             Some(PAPER_LEGEND_SCALE.to_bits())
         );
-        assert_eq!(first.key.scale.to_bits(), 1.0_f64.to_bits());
     }
 }

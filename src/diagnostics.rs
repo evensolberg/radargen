@@ -749,15 +749,14 @@ const fn wanted(setting: Setting) -> &'static str {
 /// for `why`. A paper from a file is named with its file, and how to undo
 /// it for one run.
 fn paper_ignores(flag: &str, paper: &Sourced<Paper>, why: &str) -> String {
-    match &paper.origin.source {
-        Source::Config(file) => format!(
-            "{flag} does not apply on paper ({} = \"{}\" in {file}); {why}; pass --paper none for the drawing-sized page",
-            paper.origin.setting.key(),
-            paper.value
-        ),
-        Source::Flag | Source::Default => {
-            format!("{flag} does not apply with --paper {}; {why}", paper.value)
-        }
+    let given = paper.origin.assignment(paper.value, "");
+    if paper.origin.source.is_config() {
+        let none = Origin::flag(Setting::Paper).assignment(Paper::None, "");
+        format!(
+            "{flag} does not apply on paper ({given}); {why}; pass {none} for the drawing-sized page"
+        )
+    } else {
+        format!("{flag} does not apply with {given}; {why}")
     }
 }
 
