@@ -330,6 +330,30 @@ mod tests {
         assert!(first.starts_with(b"%PDF-1.7\n"));
     }
 
+    /// No TJ carries a float-residue adjustment: every one written moves a
+    /// glyph by at least a hundredth of a thousandth of an em.
+    #[test]
+    fn no_adjustment_is_float_residue() {
+        let doc =
+            lopdf::Document::load_mem(&pdf(&prd(None), None, None, Theme::Light)).expect("parses");
+        let page = *doc.get_pages().values().next().expect("a page");
+        let ops = lopdf::content::Content::decode(&doc.get_page_content(page))
+            .expect("decodes")
+            .operations;
+        let adjustments: Vec<f32> = ops
+            .iter()
+            .filter(|op| op.operator == "TJ")
+            .filter_map(|op| op.operands.first().and_then(|a| a.as_array().ok()))
+            .flatten()
+            .filter_map(|item| item.as_float().ok())
+            .collect();
+        assert!(!adjustments.is_empty(), "the PRD kerns");
+        assert!(
+            adjustments.iter().all(|a| a.abs() >= 0.01),
+            "{adjustments:?}"
+        );
+    }
+
     /// A halo and its fill, as the radar draws a ring label: the label
     /// extracts once, since only the fill is text.
     #[test]

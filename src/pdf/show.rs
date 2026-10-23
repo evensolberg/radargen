@@ -20,6 +20,11 @@ use crate::text::{FontError, Placed};
 const CENTRED: f64 = 0.5;
 /// Glyph space units per em in a TJ adjustment.
 const EM: f64 = 1000.0;
+/// The smallest TJ adjustment written, in thousandths of an em. Anything
+/// smaller is float residue between the widths array's rounded advance
+/// and the shaper's, about 1e-5 em per glyph: a hundredth of a pixel
+/// across a long line, and written it would only bloat the stream.
+const RESIDUE: f32 = 0.01;
 /// The text matrix's y scale: it flips glyph space, y up, back against
 /// the page's flipped transform, so the glyphs stand upright.
 const UPRIGHT: f32 = -1.0;
@@ -150,7 +155,7 @@ fn show(out: &mut Content, piece: &[Placed], style: TextStyle, canvas: &Canvas<'
         let Some(next) = piece.get(i + 1) else { break };
         let advance = f64::from(canvas.faces.width(style.weight, cid)) * style.size / EM;
         let adjust = real((glyph.x + advance - next.x) * EM / style.size);
-        if adjust != 0.0 {
+        if adjust.abs() >= RESIDUE {
             items.show(Str(&bytes));
             bytes.clear();
             items.adjust(adjust);
