@@ -9,6 +9,7 @@ use super::layout::{
     height, swatch,
 };
 use super::panel_size;
+use crate::layout::paginate::paginate;
 use crate::style::{
     CONTINUED, LEGEND_FIRST_GROUP, LEGEND_HEADING_BASELINE, LEGEND_RING_TO_ROW,
     LEGEND_SECTOR_TO_RING, SWATCH_RAISE,
@@ -52,66 +53,70 @@ pub(super) fn pieces(
 ) -> Vec<Layout> {
     let entries = &layout.entries;
     let units = units(entries);
-    let mut out = Vec::new();
+    let entry_range = |range: Range<usize>| {
+        let start = units.get(range.start).map_or(0, |unit| unit.start);
+        let end = units.get(range.end - 1).map_or(start, |unit| unit.end);
+        start..end
+    };
+    // The walk up to each piece's first entry, carried from piece to
+    // piece: `open` is asked in order, its starts increasing.
     let mut under = Under::default();
-    let mut next = units.iter().peekable();
-    while let Some(&start) = next.peek().map(|unit| &unit.start) {
-        let k = out.len();
-        let limit = if k == 0 { first } else { rest };
-        let Opening {
-            mut placed,
-            dy,
-            mut groups,
-        } = if k == 0 {
+    let mut walked = 0;
+    let mut open = |k: usize, start: usize| {
+        let first_entry = units.get(start).map_or(entries.len(), |unit| unit.start);
+        for entry in entries.get(walked..first_entry).unwrap_or_default() {
+            under.update(entry);
+        }
+        walked = first_entry;
+        if k == 0 {
             Opening::default()
         } else {
-            opening(entries.get(start), &under, opens_page(k), fonts)
-        };
-        let base = placed.len();
-        let mut end = start;
-        let mut rows = false;
-        while let Some(unit) = next.peek() {
-            let bottom = entries.get(unit.end - 1).map_or(0.0, Entry::bottom) + dy;
-            let fits = panel_size(width, bottom).height <= limit;
-            if !fits && rows {
-                break;
-            }
-            let unit = next.next().expect("peeked");
-            for entry in entries.get(unit.clone()).unwrap_or_default() {
-                under.update(entry);
-                rows |= matches!(entry, Entry::Row(_));
-            }
-            end = unit.end;
-            if !fits {
-                break;
-            }
+            opening(entries.get(first_entry), &under, opens_page(k), fonts)
         }
-        let carried = entries.get(start..end).unwrap_or_default();
-        placed.extend(carried.iter().map(|entry| entry.shifted(dy)));
-        groups.extend(
-            layout
-                .groups
-                .iter()
-                .filter(|group| (start..end).contains(&group.entry))
-                .map(|group| GroupStart {
-                    entry: group.entry - start + base,
-                    baseline: group.baseline + dy,
-                }),
-        );
-        out.push(Layout {
-            width,
-            height: height(&placed),
-            entries: placed,
-            groups,
-        });
-    }
-    out
+    };
+    let fits = |opened: &Opening, k: usize, range: Range<usize>| {
+        let limit = if k == 0 { first } else { rest };
+        let end = entry_range(range).end;
+        let bottom = entries.get(end - 1).map_or(0.0, Entry::bottom) + opened.dy;
+        panel_size(width, bottom).height <= limit
+    };
+    paginate(units.len(), &mut open, &fits)
+        .into_iter()
+        .map(|piece| {
+            let Opening {
+                mut placed,
+                dy,
+                mut groups,
+            } = piece.opening;
+            let Range { start, end } = entry_range(piece.units);
+            let base = placed.len();
+            let carried = entries.get(start..end).unwrap_or_default();
+            placed.extend(carried.iter().map(|entry| entry.shifted(dy)));
+            groups.extend(
+                layout
+                    .groups
+                    .iter()
+                    .filter(|group| (start..end).contains(&group.entry))
+                    .map(|group| GroupStart {
+                        entry: group.entry - start + base,
+                        baseline: group.baseline + dy,
+                    }),
+            );
+            Layout {
+                width,
+                height: height(&placed),
+                entries: placed,
+                groups,
+            }
+        })
+        .collect()
 }
 
 /// The entries in runs placed whole: every heading and swatch glued to
 /// what follows it, up to and including the row it leads to. A sector
 /// with no rows is glued to the next sector, or, last, to the row before
-/// it; a legend with no rows at all is one unit.
+/// it; a legend with no rows at all is one unit. So every unit but that
+/// one holds a row, and so does every piece.
 fn units(entries: &[Entry]) -> Vec<Range<usize>> {
     let mut out = Vec::new();
     let mut start = 0;
@@ -269,6 +274,22 @@ mod tests {
     fn legend(shape: (Catalogue, Plotted)) -> LegendBlock {
         let (catalogue, order) = shape;
         LegendBlock::new(&catalogue, &order, fonts())
+    }
+
+    /// RG-021B: the paginator closes a piece once it holds a unit, which
+    /// is right only because every unit holds a row.
+    #[test]
+    fn every_unit_holds_a_row() {
+        for shape in [long(1, 1, 30), long(4, 3, 5), with_empty(3, 1, 4), with_empty(3, 2, 4)] {
+            let block = legend(shape);
+            let entries = &block.layout.entries;
+            let units = super::units(entries);
+            assert_ne!(units.len(), 0);
+            for unit in units {
+                let held = entries.get(unit.clone()).unwrap_or_default();
+                assert!(held.iter().any(|e| matches!(e, Entry::Row(_))), "{unit:?}");
+            }
+        }
     }
 
     fn never(_: usize) -> bool {

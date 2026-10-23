@@ -225,6 +225,36 @@ fn per_page(sheets: &Sheets<'_>, fonts: &Fonts) -> usize {
         + 1
 }
 
+/// Which page each legend piece lands on (rg-mi2): decided once, so the
+/// pieces that open a page and the pages' columns cannot disagree.
+#[derive(Debug, Clone, Copy)]
+struct PieceSlots {
+    /// The first piece sits beside the radar on page 1.
+    on_first: bool,
+    /// Pieces side by side on each later page.
+    per_page: usize,
+}
+
+impl PieceSlots {
+    /// Piece `k`'s page, 0 being page 1.
+    const fn page_of(self, k: usize) -> usize {
+        match (self.on_first, k) {
+            (true, 0) => 0,
+            (true, k) => 1 + (k - 1) / self.per_page,
+            (false, k) => 1 + k / self.per_page,
+        }
+    }
+
+    /// Whether piece `k` is the first on its page: such a piece opens
+    /// with *Legend (continued)*, unless it starts the legend.
+    const fn opens_page(self, k: usize) -> bool {
+        match k {
+            0 => !self.on_first,
+            k => self.page_of(k) != self.page_of(k - 1),
+        }
+    }
+}
+
 /// Every page's content, before footers (FR-111).
 #[must_use]
 pub fn bodies(sheets: &Sheets<'_>, fonts: &Fonts) -> Bodies {
@@ -233,18 +263,18 @@ pub fn bodies(sheets: &Sheets<'_>, fonts: &Fonts) -> Bodies {
     let n = per_page(sheets, fonts);
     let t = title(sheets, fonts).size(1.0).height;
     let page_room = content.height / PAPER_LEGEND_SCALE;
-    let pieces = match first.legend {
-        Some(_) => {
-            let room = (content.height - t - LEGEND_WIDE_DROP).max(0.0) / PAPER_LEGEND_SCALE;
-            sheets
-                .legend
-                .flowed(room, page_room, &|k| k >= 1 && (k - 1) % n == 0, fonts)
-        }
-        None => sheets
-            .legend
-            .flowed(page_room, page_room, &|k| k % n == 0, fonts),
+    let slots = PieceSlots {
+        on_first: first.legend.is_some(),
+        per_page: n,
     };
-    let mut pieces = pieces.into_iter();
+    let room = if slots.on_first {
+        (content.height - t - LEGEND_WIDE_DROP).max(0.0) / PAPER_LEGEND_SCALE
+    } else {
+        page_room
+    };
+    let pieces = sheets
+        .legend
+        .flowed(room, page_room, &|k| slots.opens_page(k), fonts);
     let mut page_one = vec![
         title(sheets, fonts).render(Placement::at(Point {
             x: PAPER_MARGIN,
@@ -257,17 +287,28 @@ pub fn bodies(sheets: &Sheets<'_>, fonts: &Fonts) -> Bodies {
             .grid(first.key_columns)
             .render(Placement::at(first.rule.from)),
     ];
-    if let Some(at) = first.legend
-        && let Some(piece) = pieces.next()
-    {
-        page_one.push(piece.render(at));
+    // Each piece on the page `slots` gives it: page 1's beside the radar,
+    // the rest side by side on the pages after.
+    let mut later: Vec<Vec<LegendBlock>> = Vec::new();
+    for (k, piece) in pieces.into_iter().enumerate() {
+        match (slots.page_of(k), first.legend) {
+            (0, Some(at)) => page_one.push(piece.render(at)),
+            (page, _) => {
+                if later.len() < page {
+                    later.push(Vec::new());
+                }
+                if let Some(columns) = later.last_mut() {
+                    columns.push(piece);
+                }
+            }
+        }
     }
-    let rest: Vec<LegendBlock> = pieces.collect();
     let width = piece_width(sheets, fonts);
     let mut pages = vec![page_one];
     pages.extend(
-        rest.chunks(n)
-            .map(|chunk| continuation(chunk, width, sheets)),
+        later
+            .iter()
+            .map(|columns| continuation(columns, width, sheets)),
     );
     Bodies {
         pages,
@@ -476,6 +517,26 @@ mod tests {
     const LONG_TITLE: &str = "A title long enough to wrap onto three lines across a landscape \
         page of either size, which the radar makes room for by drawing smaller, as it must when \
         a team writes a title this long for its edition";
+
+    /// rg-mi2: each piece's page is decided once, and its openers follow.
+    #[test]
+    fn piece_slots_assign_pages_once() {
+        let pages = |slots: PieceSlots| (0..7).map(|k| slots.page_of(k)).collect::<Vec<_>>();
+        let openers =
+            |slots: PieceSlots| (0..7).filter(|&k| slots.opens_page(k)).collect::<Vec<_>>();
+        let beside = PieceSlots {
+            on_first: true,
+            per_page: 3,
+        };
+        assert_eq!(pages(beside), [0, 1, 1, 1, 2, 2, 2]);
+        assert_eq!(openers(beside), [1, 4]);
+        let after = PieceSlots {
+            on_first: false,
+            per_page: 3,
+        };
+        assert_eq!(pages(after), [1, 1, 1, 2, 2, 2, 3]);
+        assert_eq!(openers(after), [0, 3, 6]);
+    }
 
     #[test]
     fn paper_sizes_in_points() {

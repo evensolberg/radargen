@@ -7,6 +7,7 @@ pub mod glyphs;
 pub mod key;
 pub mod legend;
 pub mod marker;
+mod paginate;
 pub mod paper;
 pub mod radar;
 pub mod title;
