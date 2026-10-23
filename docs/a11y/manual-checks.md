@@ -11,7 +11,7 @@ created_date: 2026-10-13
 synopsis: "What only a person with a screen reader, a real browser's zoom or a keyboard on a real machine can judge, step by step, with the announcement to expect at each step and a results table to fill in before tagging 1.0.0. The automated audit (scripts/a11y-audit.mjs) covers everything a browser can measure; this covers the rest."
 status: draft
 type: Guide
-revision: "1.19"
+revision: "1.20"
 review_date:
 reviewed_by: []
 completed_date:
@@ -146,7 +146,7 @@ The expected names come from `three-sector.csv`.
     - *Expect, selecting:* drag-selecting a legend name and pasting it gives the name as written; a letter-spaced legend heading and a kerned name ("AVATAR" if the fixture has none, add one) paste as words, not spaced letters; a selection across a wrapped name pastes with a space or line break, not run together.
     - *Expect, searching:* searching for an item name and for a ring name finds each, once: a ring name has no second hit from its halo.
     - *Expect, Select All, copy, paste into a text editor:* the title, key, ring labels and legend in reading order, each once. This is the copy order, the content stream's, which Preview and VoiceOver read; record any disorder or repeat. The screen-reader order follows the tags: step 20.
-    - *Expect, `cjk.pdf`:* the run prints a warning naming the line and saying the PDF draws the characters as boxes and they cannot be searched; the name draws as boxes, the file opens without a warning from the viewer, and copying it gives nothing for those characters.
+    - *Expect, `cjk.pdf`:* the run prints a warning naming the line and saying the PDF draws the characters as boxes, though a screen reader still reads them as themselves; the name draws as boxes, the file opens without a warning from the viewer, and copying it gives the characters (from 1.24.0; Acrobat and Chrome honour the box's `/ActualText`, Preview may not).
     - *Expect, printing `light.pdf` to A4 or Letter with Fit to page:* the legend text is readable.
     - *Expect, printing `long.pdf` to Letter or A4 with Fit to page, rendered with and without `--legend-columns 2`:* the single column prints small; two columns print larger. Record the smallest text you can read in each.
     - *Expect, `huge.pdf`:* each viewer shows it at full size, not at 1/n: Document Properties gives the page size (about 104 inches wide). A viewer that ignores `/UserUnit` shows it small or refuses it; record that as a finding, and FR-110's "keeps its size" is then softened for that viewer.
@@ -215,3 +215,4 @@ The expected names come from `three-sector.csv`.
 | 1.17 | 2026-10-22 | Step 19: PDFs on paper (`--paper letter`, `--paper a4`, dark, a 300-item legend): landscape pages, page 1's parts, *Legend (continued)* and *(continued)* headings, footers, and printing at Actual size and Fit to page on both papers (FR-111; rg-4b8). |
 | 1.18 | 2026-10-23 | Step 19: the full PDF (`--pdf full`): the page-1 pointer, the table on its own pages, the repeated header row, later headings with sector and item numbers, no split rows, reading order, and printing at 9 pt in both themes (FR-112; rg-4b8). |
 | 1.19 | 2026-10-23 | New step 20: the tagged PDF in NVDA + Acrobat, PAC 2024 and Chrome, VoiceOver + Preview as a smoke test: tag order, headings, the figure's name, lists across pages, table headers and row-header verbosity, a split row, empty tables, the separator; `untitled.pdf` now draws its title (FR-114, rg-ffj, rg-v1o). |
+| 1.20 | 2026-10-23 | Step 19: `cjk.pdf`'s boxes copy as their characters, and the warning says so (FR-113, rg-ffj); step 20's `PDFUA_KEEP` set includes `rtl.pdf` and `boxes.pdf`. |

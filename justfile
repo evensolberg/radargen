@@ -148,10 +148,10 @@ browser-setup:
 
 # PDF/UA-1 (FR-114, SC-32): renders a fixture set with the release binary
 # and validates every PDF with veraPDF's PDF/UA-1 profile in one run. It
-# passes only when every fixture is compliant, a copy of one with its
-# MarkInfo broken is not (so the gate can fail), and the right-to-left
-# fixture, whose characters the bundled font lacks, fails on exactly
-# FR-113's two clauses until FR-113 lands. It fails rather than skips when
+# passes only when every fixture is compliant and a copy of one with its
+# MarkInfo broken is not, so the gate can fail. Names the bundled font
+# lacks draw as boxes that carry their characters (FR-113), so their
+# fixtures are among the compliant ones. It fails rather than skips when
 # veraPDF is missing or not 1.30.x (`just pdfua-setup`). PDFUA_KEEP=dir
 # keeps the PDFs there, for the manual checks (step 20).
 pdfua: release-build pdfua-only
@@ -202,6 +202,11 @@ pdfua-only:
     printf 'name,sector,ring,description\n' > "$out/headers.csv"
     $r "$out/headers.csv" -o "$pdfs/headers.pdf" "${t[@]}" --pdf full --table all 2>/dev/null
     $r $f/table-hostile.csv -o "$pdfs/hostile.pdf" --title $'A & B <C> ]]> "q"\r\nnext' --pdf full --table all 2>/dev/null
+    $r $f/text-spacing-rtl.csv -o "$pdfs/rtl.pdf" 2>/dev/null
+    printf 'name,sector,ring,description\nA\xe4\xb8\xadB,Tools,Adopt,\xe4\xb8\xad\xe6\x96\x87 d\nSmile \xf0\x9f\x99\x82,Tools,Trial,d\n' > "$out/boxes.csv"
+    $r "$out/boxes.csv" -o "$pdfs/boxes.pdf" "${t[@]}" --pdf full 2>/dev/null
+    printf 'name,sector,ring,description\nx\xcc\x81,Tools,Adopt,d\ne\xcc\x81\xcc\xa3,Tools,Trial,d\nGreek \xcd\x84,Tools,Assess,d\nMark \xe4\xb8\xad\xcc\x81 z,Data,Adopt,d\nFam \xf0\x9f\x91\xa8\xe2\x80\x8d\xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x91\xa7,Data,Trial,d\nKey 1\xef\xb8\x8f\xe2\x83\xa3,Data,Assess,d\n' > "$out/marks.csv"
+    $r "$out/marks.csv" -o "$pdfs/marks.pdf" "${t[@]}" --pdf full 2>/dev/null
     good=("$pdfs"/*.pdf)
     for pdf in "${good[@]}"; do
         [ -s "$pdf" ] || { echo "not written: $pdf" >&2; exit 1; }
@@ -209,28 +214,20 @@ pdfua-only:
     if [ -n "${PDFUA_KEEP:-}" ]; then
         mkdir -p "$PDFUA_KEEP" && cp "${good[@]}" "$PDFUA_KEEP"/
     fi
-    # The control and the known failure run in the same batch, so the
-    # counting below is what proves the gate can fail.
+    # The control runs in the same batch, so the counting below is what
+    # proves the gate can fail.
     cp "$pdfs/light.pdf" "$out/broken.pdf"
     LC_ALL=C perl -pi -e 's{/MarkInfo}{/MarkInfZ}g' "$out/broken.pdf"
-    $r $f/text-spacing-rtl.csv -o "$out/rtl.pdf" 2>/dev/null
-    verapdf --flavour ua1 --format mrr "${good[@]}" "$out/broken.pdf" "$out/rtl.pdf" > "$out/report.xml" 2>/dev/null || true
+    verapdf --flavour ua1 --format mrr "${good[@]}" "$out/broken.pdf" > "$out/report.xml" 2>/dev/null || true
     jobs="$(grep -c '<job>' "$out/report.xml" || true)"
     compliant="$(grep -c 'isCompliant="true"' "$out/report.xml" || true)"
     expected="${#good[@]}"
-    if [ "$jobs" != "$((expected + 2))" ] || [ "$compliant" != "$expected" ]; then
+    if [ "$jobs" != "$((expected + 1))" ] || [ "$compliant" != "$expected" ]; then
         echo "PDF/UA-1: $compliant compliant of $expected expected ($jobs reports)" >&2
         grep -o 'clause="[^"]*" testNumber="[^"]*" status="failed"' "$out/report.xml" | sort | uniq -c >&2 || true
         exit 1
     fi
-    # The right-to-left fixture fails on FR-113's clauses alone: glyphs with
-    # no Unicode and .notdef (ISO 14289-1, 7.21.7 and 7.21.8).
-    rtl="$({ verapdf --flavour ua1 --format mrr "$out/rtl.pdf" 2>/dev/null || true; } | grep -o 'clause="[^"]*" testNumber="[^"]*" status="failed"' | sed -E 's/clause="([^"]*)".*/\1/' | sort -u | tr '\n' ' ')"
-    if [ "$rtl" != "7.21.7 7.21.8 " ]; then
-        echo "PDF/UA-1: the right-to-left fixture fails on '$rtl', not FR-113's 7.21.7 7.21.8" >&2
-        exit 1
-    fi
-    echo "PDF/UA-1: $expected PDFs compliant; the broken control and FR-113's known failure fail"
+    echo "PDF/UA-1: $expected PDFs compliant; the broken control fails"
 
 # WCAG 1.4.12 text spacing in a browser (plan RG-014C, D-78, rg-497):
 # renders the fixtures and checks every text fits and none overlaps, at five

@@ -10,9 +10,9 @@ crumb_id: rg-ffj
 document_title: "PR 21c — Tagged PDF and PDF/UA-1: Implementation Plan"
 created_date: 2026-10-23
 synopsis: "Every PDF radargen writes becomes PDF/UA-1, in three PRs: 21c-1 gives the scene graph the structure the PDF must tell apart, with every output byte-identical; 21c-2 tags it (one document-wide tagger whose elements resume across pages, marked content, artifacts, the structure tree, XMP) behind a veraPDF gate in just ci; 21c-3 makes every glyph carry text (FR-104/FR-113's boxes as outlines with /ActualText, mark glyphs in ToUnicode). Carries rg-blz's semantic notes and rg-v1o's PDF steps."
-status: draft
+status: complete
 type: Plan
-revision: "1.2"
+revision: "1.3"
 review_date: 2026-10-23
 reviewed_by: [rust-engineer, qa-expert, accessibility-tester, architect-reviewer, ux-researcher]
 comments: "Third of three plans for RG-104 (docs/design/full-pdf.md). Revision 1.1 folds in the five-seat review: three PRs, keyed elements across pages, one marking rule, nested Structure semantics, the gate first. rg-zr8 shipped on its own (1.22.2); rg-blz's refactors moved to their own crumb."
@@ -55,6 +55,8 @@ comments: "Third of three plans for RG-104 (docs/design/full-pdf.md). Revision 1
 - `content.rs` was not split into walk and paint, and no `&mut Page` writer bundles `Content`, `&Canvas` and `&mut Tagger`: the walk stays 13 lines and takes `(canvas, tagger)`. Instead the marking rule moved into one place, `src/pdf/leaf.rs` (`Leaf`, `leaf::of`, `spoken`) and `Tagger::leaf`, which 21c-3's boxes extend. Cost if wrong: a later split touches the same lines.
 - `src/layout/table/draw.rs`'s `row_node` was split into `number_cell`, `value_cell` and `repeated` to keep rustqual at its baseline, with no change to what is drawn.
 - Every text of several lines carries `/ActualText` (its words), not only those whose words differ: each line is drawn as its own text, so a reader taking text from the tags would run the words either side of a break together. A tail reads after a comma ("Kubernetes, Default").
+
+- 21c-3 (rg-ffj): a first probe found only the missing-glyph box failing 7.21.7 and 7.21.8; its review found more. A cluster mixing missing and present glyphs (a ZWJ family, a keycap, a mark on a missing base) was split, its text said several times, so a cluster with any missing glyph is now boxed whole. A separate combining mark with no composed glyph (`x` + U+0301) had no `ToUnicode` entry, so clusters of as many glyphs as characters map glyph by character, and a glyph still unmapped takes the face's reverse-cmap character or its cluster's last (U+0344 then copies with its acute twice). The PNG oracle already held box cases; SC-30's lopdf read-back ignores `/ActualText`, so box names stay out of its shared cases. The gate gains a marks fixture (21).
 
 ## Global Constraints
 

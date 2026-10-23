@@ -179,6 +179,9 @@ pub struct ShapedGlyph {
 pub struct Placed {
     /// The glyph's id in its face.
     pub glyph: u32,
+    /// The byte offset in the text of the cluster it draws, so a glyph the
+    /// face lacks can say what it stands for (FR-113).
+    pub cluster: usize,
     /// From the line's start.
     pub x: f64,
     /// From the baseline, down.
@@ -382,6 +385,21 @@ impl<'a> FontMetrics<'a> {
         self.upem
     }
 
+    /// The character the face maps to each glyph it maps one to, the
+    /// lowest where several share it: what a glyph drawn for part of a
+    /// cluster reads as when the cluster does not say (FR-114, 7.21.7).
+    #[must_use]
+    pub fn characters(&self) -> std::collections::BTreeMap<u32, char> {
+        use skrifa::MetadataProvider as _;
+        let mut out = std::collections::BTreeMap::new();
+        for (code, glyph) in self.font.charmap().mappings() {
+            if let Some(c) = char::from_u32(code) {
+                out.entry(glyph.to_u32()).or_insert(c);
+            }
+        }
+        out
+    }
+
     /// Advance width of `text` in pixels at `size_px`, with `letter_spacing_px`
     /// applied between clusters, as resvg applies it.
     ///
@@ -433,6 +451,7 @@ impl<'a> FontMetrics<'a> {
                 previous = Some(glyph.cluster);
                 let placed = Placed {
                     glyph: glyph.id,
+                    cluster: usize::try_from(glyph.cluster).unwrap_or(usize::MAX),
                     x: pen + f64::from(glyph.x_offset) * scale,
                     y: -f64::from(glyph.y_offset) * scale,
                 };

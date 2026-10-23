@@ -1059,11 +1059,17 @@ pub const fn plural<'a>(n: usize, one: &'a str, many: &'a str) -> &'a str {
 }
 
 /// FR-104's ending, which says what to do about `count` boxes in `format`.
-/// A PDF's other text is searchable, so its warning says a box is not.
+/// A PDF's box carries its character (FR-113), so its warning says a
+/// screen reader still reads it; whether it copies depends on the viewer.
 fn boxes(format: OutputFormat, count: usize) -> String {
     let (them, boxes) = (plural(count, "it", "them"), plural(count, "a box", "boxes"));
     let searched = if format == OutputFormat::Pdf {
-        format!(" and {} cannot be searched", plural(count, "it", "they"))
+        plural(
+            count,
+            ", though a screen reader still reads it as itself",
+            ", though a screen reader still reads them as themselves",
+        )
+        .to_owned()
     } else {
         String::new()
     };
