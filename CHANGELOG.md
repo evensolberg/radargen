@@ -2,65 +2,11 @@
 
 ### 🚀 Features
 
-- *(pdf)* Béziers for circles, rounded rects and SVG arcs
-- *(text)* The face's bytes, advances and descriptor for PDF
-- *(pdf)* Inter subsets with a ToUnicode map
-- *(pdf)* The content stream's shapes, groups and colours
-- *(pdf)* Text placed glyph by glyph from the shaper
-- *(emit)* The PDF file, checked by an independent rasteriser
-- *(cli)* -o radar.pdf writes the PDF (FR-110)
-- *(cli)* The about line and test notes name PDF
-
-### 🐛 Bug Fixes
-
-- *(pdf)* Draw halos as stroked outlines, not text
-- *(pdf)* Whole-point page box, one value for the box and the flip
-- *(pdf)* Cap a ToUnicode entry at 62 UTF-16 units
-- *(pdf)* FR-104's PDF warning says the boxes cannot be searched
+- *(pdf)* -o radar.pdf writes a vector PDF (1.19.0) (#142)
 
 ### 📚 Documentation
 
 - *(changelog)* Reconcile 1.15.0-1.18.0 with the squash merges
-- *(plan)* PR 20, PDF output light (RG-020A)
-- *(plan)* PR 20 plan revised after the five-agent review (RG-020A 1.1)
-- *(prd)* PDF export, light (FR-110, D-103, SC-30; v0.106)
-- *(prd)* Name PDF wherever the static formats are listed
-- PDF output in the README, CSV guide, checks and architecture
-- *(prd)* Tidy the 0.106 amendment
-- Name PDF where the architecture lists the static outputs
-- *(prd)* SC-30 names the gate it ships
-- PDF page size in help; manual checks; architecture rows
-- *(prd)* FR-110, SC-30, FR-58, D-103 on halos and the page box
-- "softened" in manual step 19; SC-30's page box rounds up
-
-### 🚜 Refactor
-
-- *(svg)* The glyphs, ground and size every static output shares
-- *(pdf)* Split the PDF and font writers for rustqual's IOSP rule
-- *(pdf)* Name the writers' constants; tighten their suppressions
-- *(pdf)* Drop float-residue TJ adjustments
-- *(pdf)* Channels from the palette, a closed-form unit, named tag
-- *(pdf)* One thousandths rounding; the PDF em declared once
-- *(pdf)* Canvas holds the page; the user unit is an f64
-- *(pdf)* One line-start rule, Node::line_starts
-- *(pdf)* Content.rs draws a shape through painted()
-- *(pdf)* Object numbers via array::from_fn; tag takes an iterator
-
-### 🧪 Testing
-
-- *(pdf)* The render oracle gates on the worst channel difference
-- *(pdf)* The PDF reads back as its names; two processes agree
-- *(pdf)* Accented glyphs, the two-pass map rule and raised-glyph split
-- *(pdf)* A dark golden beside the light one
-- *(pdf)* Look inside filled shapes, check halos, raise marks
-- *(pdf)* The binary's PDF: dark ground, width, golden, no PNG warnings
-- *(pdf)* The /UserUnit test draws real content, with and without width
-- *(pdf)* A name of every printable ASCII character; whole-name order
-- *(pdf)* The fill and halo checks in their own modules
-- *(pdf)* One lopdf decode helper for the src unit tests
-- *(pdf)* The src decode helpers in a cfg(test) test_support module
-- *(pdf)* Shared oracle fixtures, export and page helpers, one Fonts
-- *(pdf)* The PDF producer is the version placeholder
 ## [1.18.0] - 2026-10-22
 
 ### 🚀 Features
