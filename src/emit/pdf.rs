@@ -19,10 +19,6 @@ const POINTS_PER_PX: f64 = 0.75;
 /// The longest page side viewers accept, in points: 200 inches, Acrobat's
 /// limit (PDF 1.7, Annex C).
 const MAX_SIDE: f64 = 14_400.0;
-/// The objects every light PDF numbers first, in this order: the catalog,
-/// the page tree, the page, its content stream and the info dictionary.
-/// The fonts' objects follow them.
-const FIXED_OBJECTS: usize = 5;
 
 /// What one export needs besides the document.
 pub struct Export<'a> {
@@ -98,7 +94,9 @@ fn whole(side: f64) -> f64 {
     round_thousandths(side).ceil()
 }
 
-/// The fixed objects' numbers, the first [`FIXED_OBJECTS`] in order.
+/// The objects every light PDF numbers first, in this order: the catalog,
+/// the page tree, the page, its content stream and the info dictionary.
+/// The fonts' objects follow them.
 struct Objects {
     catalog: Ref,
     tree: Ref,
@@ -110,7 +108,7 @@ struct Objects {
 impl Objects {
     /// The fixed objects numbered from `next`, which moves past them.
     fn numbered(next: &mut Ref) -> Self {
-        let [catalog, tree, page, stream, info] = [(); FIXED_OBJECTS].map(|()| next.bump());
+        let [catalog, tree, page, stream, info] = std::array::from_fn(|_| next.bump());
         Self {
             catalog,
             tree,

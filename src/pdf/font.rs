@@ -41,9 +41,6 @@ pub struct Faces {
     subsets: BTreeMap<Weight, Subset>,
 }
 
-/// The objects each font numbers, in this order: the Type0 font, its
-/// `CIDFont`, the descriptor, the font file and the `ToUnicode` map.
-const FONT_OBJECTS: usize = 5;
 /// The stem width the descriptor states (`/StemV`) for CSS weight `w`:
 /// `BASE + PER_WEIGHT × (w − ORIGIN)`, the usual estimate for a face that
 /// does not state one. The stem at the origin, in thousandths of an em.
@@ -161,7 +158,7 @@ impl Subset {
     fn of(face: &FontMetrics<'_>, glyphs: BTreeSet<u16>) -> Result<Self, FontError> {
         let sorted: Vec<u16> = glyphs.into_iter().collect();
         let remapper = GlyphRemapper::new_from_glyphs_sorted(&sorted);
-        let scale = em_scale(face.units_per_em());
+        let scale = EM / face.units_per_em();
         let widths = remapper
             .remapped_gids()
             .map(|g| face.advance(u32::from(g)).map(|a| real(a * scale)))
@@ -247,7 +244,8 @@ impl Subset {
     }
 }
 
-/// One font's object numbers, the [`FONT_OBJECTS`] in order.
+/// One font's object numbers, in this order: the Type0 font, its
+/// `CIDFont`, the descriptor, the font file and the `ToUnicode` map.
 struct FontObjects {
     type0: Ref,
     cid_font: Ref,
@@ -259,7 +257,7 @@ struct FontObjects {
 impl FontObjects {
     /// A font's objects numbered from `next`, which moves past them.
     fn numbered(next: &mut Ref) -> Self {
-        let [type0, cid_font, descriptor, file, cmap] = [(); FONT_OBJECTS].map(|()| next.bump());
+        let [type0, cid_font, descriptor, file, cmap] = std::array::from_fn(|_| next.bump());
         Self {
             type0,
             cid_font,
@@ -289,13 +287,14 @@ struct Scaled {
 }
 
 impl Scaled {
-    /// `d` at `scale` glyph-space units per font unit, with the stem
+    /// `d`, from a face of `units_per_em`, in glyph space, with the stem
     /// width estimated for CSS weight `weight`.
     #[expect(
         clippy::suboptimal_flops,
         reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
     )]
-    fn of(d: &Descriptor, scale: f64, weight: u16) -> Self {
+    fn of(d: &Descriptor, units_per_em: f64, weight: u16) -> Self {
+        let scale = EM / units_per_em;
         Self {
             bbox: d.bbox.map(|v| v * scale),
             italic_angle: d.italic_angle,
@@ -370,17 +369,11 @@ fn capped(chars: &str) -> String {
     }
 }
 
-/// PDF glyph space units per font unit for a face of `units_per_em`.
-fn em_scale(units_per_em: f64) -> f64 {
-    EM / units_per_em
-}
-
 /// The subset's `BaseFont`: its tag, then the face's PostScript name.
 fn base_font(weight: Weight, remapper: &GlyphRemapper) -> String {
-    let gids: Vec<u16> = remapper.remapped_gids().collect();
     format!(
         "{}+{}",
-        tag(weight.postscript(), &gids),
+        tag(weight.postscript(), remapper.remapped_gids()),
         weight.postscript()
     )
 }
@@ -402,11 +395,7 @@ fn descriptor(
     weight: Weight,
     face: &FontMetrics<'_>,
 ) -> Result<(), FontError> {
-    let d = Scaled::of(
-        &face.descriptor()?,
-        em_scale(face.units_per_em()),
-        weight.css(),
-    );
+    let d = Scaled::of(&face.descriptor()?, face.units_per_em(), weight.css());
     let [left, bottom, right, top] = d.bbox.map(real);
     pdf.font_descriptor(objects.descriptor)
         .name(base)
@@ -471,14 +460,14 @@ fn clusters(face: &FontMetrics<'_>, text: &str) -> Vec<(u32, String)> {
 /// PDF 9.6.4's subset tag: [`TAG_LEN`] capitals, here from FNV-1a over
 /// the face's name and its glyph ids, so a subset's tag depends only on
 /// what it holds (NFR-4) and two different subsets rarely share one.
-fn tag(postscript: &str, gids: &[u16]) -> String {
+fn tag(postscript: &str, gids: impl IntoIterator<Item = u16>) -> String {
     const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
     const PRIME: u64 = 0x0100_0000_01b3;
     const LETTERS: &[u8; 26] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     const RADIX: u64 = 26;
     let bytes = postscript
         .bytes()
-        .chain(gids.iter().flat_map(|g| g.to_le_bytes()));
+        .chain(gids.into_iter().flat_map(u16::to_le_bytes));
     let mut hash = bytes.fold(OFFSET, |h, b| (h ^ u64::from(b)).wrapping_mul(PRIME));
     (0..TAG_LEN)
         .filter_map(|_| {
@@ -713,12 +702,12 @@ mod tests {
     /// The subset tag is six capitals, fixed by the face and its glyphs.
     #[test]
     fn the_tag_is_six_capitals_from_the_glyphs() {
-        let a = tag("Inter-Regular", &[0, 3, 9]);
+        let a = tag("Inter-Regular", [0, 3, 9]);
         assert_eq!(a.len(), TAG_LEN);
         assert!(a.bytes().all(|b| b.is_ascii_uppercase()), "{a}");
-        assert_eq!(a, tag("Inter-Regular", &[0, 3, 9]));
-        assert_ne!(a, tag("Inter-Regular", &[0, 3, 10]));
-        assert_ne!(a, tag("Inter-SemiBold", &[0, 3, 9]));
+        assert_eq!(a, tag("Inter-Regular", [0, 3, 9]));
+        assert_ne!(a, tag("Inter-Regular", [0, 3, 10]));
+        assert_ne!(a, tag("Inter-SemiBold", [0, 3, 9]));
     }
 
     /// Writing produces one Type0 font per used weight, in Weight order,
