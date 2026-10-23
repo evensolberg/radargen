@@ -1,7 +1,7 @@
 ---
 id: rg-4b8
 title: 'PR 21: PDF output, full (radar plus item descriptions)'
-status: in_progress
+status: closed
 type: feature
 priority: 3
 tags:
@@ -9,6 +9,7 @@ tags:
 - output
 created: 2026-10-12
 updated: 2026-10-23
+closed_reason: 'RG-104 complete: paper (1.20.0), the full PDF (1.21.0-1.22.x), tagged PDF/UA-1 (1.23.0, 1.24.0)'
 blocks:
 - rg-ffj
 phase: v1.2

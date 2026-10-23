@@ -1,22 +1,23 @@
+## [1.24.0] - 2026-10-23
+
+### 🚀 Features
+
+- *(pdf)* A box carries its character (FR-113, 21c-3)
+
+### 🐛 Bug Fixes
+
+- *(pdf)* Box a mixed cluster whole; every glyph drawn has text
+- *(pdf)* A reordered mark glyph maps to its own character
 ## [1.23.0] - 2026-10-23
 
 ### 🚀 Features
 
 - *(svg)* Structure for a tagged PDF in the scene graph (21c-1) (#148)
-- *(pdf)* Tag every PDF to PDF/UA-1 (FR-114, 21c-2)
-
-### 🐛 Bug Fixes
-
-- *(pdf)* Words at line breaks and in split rows read whole (21c-2)
+- *(pdf)* Tag every PDF to PDF/UA-1 (21c-2, 1.23.0) (#149)
 
 ### 📚 Documentation
 
 - *(changelog)* Record 1.22.2's table toggle fix
-- *(prd)* The PDFs are tagged to PDF/UA-1 (FR-114, PRD 0.111)
-
-### 🧪 Testing
-
-- *(pdf)* Just pdfua validates PDF/UA-1 with veraPDF, failing first
 ## [1.22.2] - 2026-10-23
 
 ### 🐛 Bug Fixes
