@@ -12,12 +12,10 @@ use pdf_writer::types::{CidFontType, FontFlags, SystemInfo, UnicodeCmap};
 use pdf_writer::{Filter, Name, Pdf, Rect, Ref, Str};
 use subsetter::GlyphRemapper;
 
-use super::real;
+use super::{EM, real};
 use crate::svg::Node;
 use crate::text::{Descriptor, FontError, FontMetrics, Fonts, Weight};
 
-/// The width of a PDF glyph space em.
-const EM: f64 = 1000.0;
 /// A subset tag's length: PDF 9.6.4's six capitals.
 const TAG_LEN: usize = 6;
 /// The most UTF-16 code units one `ToUnicode` entry maps a glyph to.

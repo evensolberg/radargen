@@ -6,7 +6,7 @@ use pdf_writer::{Pdf, Rect, Ref, TextStr, writers};
 
 use super::{UNTITLED, intrinsic_size};
 use crate::diagnostics::Fatal;
-use crate::num::saturating_u32;
+use crate::num::{round_thousandths, saturating_u32};
 use crate::palette::Palette;
 use crate::pdf::content::{Canvas, content};
 use crate::pdf::font::Faces;
@@ -23,9 +23,6 @@ const MAX_SIDE: f64 = 14_400.0;
 /// the page tree, the page, its content stream and the info dictionary.
 /// The fonts' objects follow them.
 const FIXED_OBJECTS: usize = 5;
-/// The grid a page side is taken to before it is rounded up: thousandths,
-/// as [`real`] rounds a coordinate.
-const THOUSANDTHS: f64 = 1000.0;
 
 /// What one export needs besides the document.
 pub struct Export<'a> {
@@ -122,7 +119,7 @@ impl Sheet {
 /// first, as [`real`] takes a coordinate, so a float residue past an
 /// exact side (`240.00000000000003`) cannot add a whole point.
 fn whole(side: f64) -> f64 {
-    ((side * THOUSANDTHS).round() / THOUSANDTHS).ceil()
+    round_thousandths(side).ceil()
 }
 
 /// The fixed objects' numbers, the first [`FIXED_OBJECTS`] in order.

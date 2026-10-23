@@ -10,7 +10,7 @@ use pdf_writer::types::TextRenderingMode;
 
 use super::content::{Canvas, colour};
 use super::font::Faces;
-use super::real;
+use super::{EM, real};
 use crate::style::TextStyle;
 use crate::svg::{Anchor, Node, Paint, Point, TextPaint};
 use crate::text::{FontError, Placed};
@@ -18,8 +18,6 @@ use crate::text::{FontError, Placed};
 /// How much of its advance a middle-anchored line starts before its
 /// origin, as the SVG outliner and resvg place it.
 const CENTRED: f64 = 0.5;
-/// Glyph space units per em in a TJ adjustment.
-const EM: f64 = 1000.0;
 /// The smallest TJ adjustment written, in thousandths of an em. Anything
 /// smaller is float residue between the widths array's rounded advance
 /// and the shaper's, about 1e-5 em per glyph: a hundredth of a pixel

@@ -7,9 +7,11 @@ pub mod geometry;
 mod halo;
 mod show;
 
-/// The grid every coordinate is rounded to: thousandths, as
-/// [`fmt_coord`](crate::num::fmt_coord) writes them.
-const THOUSANDTHS: f64 = 1000.0;
+use crate::num::{MAX_MAGNITUDE, round_thousandths};
+
+/// PDF glyph space units per em: a font's widths, and a TJ adjustment,
+/// are in thousandths of an em.
+pub const EM: f64 = 1000.0;
 
 /// The one path a number takes into the PDF (NFR-17): rounded to
 /// thousandths, half away from zero, as [`fmt_coord`] rounds it, then
@@ -27,12 +29,12 @@ const THOUSANDTHS: f64 = 1000.0;
 #[must_use]
 pub fn real(v: f64) -> f32 {
     assert!(
-        v.is_finite() && v.abs() < 1e12,
+        v.is_finite() && v.abs() < MAX_MAGNITUDE,
         "pdf::real: {v} is not a drawable coordinate"
     );
     // pdf-writer writes an integral float, -0.0 included, as an integer,
     // so `-0` never reaches the file.
-    narrow((v * THOUSANDTHS).round() / THOUSANDTHS)
+    narrow(round_thousandths(v))
 }
 
 /// The page's px-to-pt scale (FR-110), narrowed unrounded. It is a
