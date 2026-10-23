@@ -1,3 +1,8 @@
+## [1.22.2] - 2026-10-23
+
+### 🐛 Bug Fixes
+
+- *(html)* The table toggle counts its rows (rg-zr8)
 ## [1.22.1] - 2026-10-23
 
 ### 🐛 Bug Fixes

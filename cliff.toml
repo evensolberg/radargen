@@ -53,6 +53,9 @@ require_conventional = false
 split_commits = false
 # An array of regex based parsers to modify commit messages prior to further processing.
 commit_preprocessors = [
+    # 1.22.2's fix landed in its release commit when the fix's own commit
+    # was refused by the subject-length hook; name it as the fix it is.
+    { pattern = '^chore\(release\): 1\.22\.2', replace = 'fix(html): the table toggle counts its rows (rg-zr8)' },
     # Replace issue numbers with link templates to be updated in `changelog.postprocessors`.
     #{ pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](<REPO>/issues/${2}))"},
     # Check spelling of the commit message using https://github.com/crate-ci/typos.
