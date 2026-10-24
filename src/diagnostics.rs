@@ -1971,7 +1971,7 @@ pub enum RowError {
         first_name: String,
     },
     /// D-101, as FR-4's repeat: the header names the sector column twice,
-    /// once by its former name, [`SECTOR_ALIAS`]. The earlier column is
+    /// once by its former name, `SECTOR_ALIAS`. The earlier column is
     /// named first; both names are as written, trimmed.
     #[error(
         "line {line}: {} '{first_name}' and {} '{name}' both name the {} column ({SECTOR_ALIAS} is its former name); keep one, and remove or rename the other",

@@ -47,7 +47,7 @@ pub enum PaletteError {
     OtherRule {
         /// Where it starts.
         line: usize,
-        /// The selector or at-rule, quoted by [`excerpt`].
+        /// The selector or at-rule, quoted by `excerpt`.
         selector: String,
     },
     /// A second `:root` rule.
@@ -61,7 +61,7 @@ pub enum PaletteError {
     TextOutside {
         /// Where it starts.
         line: usize,
-        /// The text, quoted by [`excerpt`].
+        /// The text, quoted by `excerpt`.
         text: String,
     },
     /// A declaration with no `:`, or an empty name.
@@ -72,7 +72,7 @@ pub enum PaletteError {
     Malformed {
         /// Where it starts.
         line: usize,
-        /// The declaration, quoted by [`excerpt`].
+        /// The declaration, quoted by `excerpt`.
         text: String,
     },
     /// A property that is not one of FR-82's roles or `--series-N`.
@@ -84,7 +84,7 @@ pub enum PaletteError {
     Unknown {
         /// Where it is declared.
         line: usize,
-        /// The name, quoted by [`excerpt`].
+        /// The name, quoted by `excerpt`.
         name: String,
     },
     /// A property declared again; both lines are named (FR-102).
@@ -92,7 +92,7 @@ pub enum PaletteError {
     Duplicate {
         /// The repeat's line.
         line: usize,
-        /// The name, quoted by [`excerpt`].
+        /// The name, quoted by `excerpt`.
         name: String,
         /// The first declaration's line.
         first: usize,
@@ -108,7 +108,7 @@ pub enum PaletteError {
         line: usize,
         /// The property.
         name: String,
-        /// The value, quoted by [`excerpt`].
+        /// The value, quoted by `excerpt`.
         value: String,
     },
     /// A value runs onto a later line that declares a property: a forgotten

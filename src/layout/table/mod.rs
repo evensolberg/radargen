@@ -2,7 +2,7 @@
 //! for a page, split into whole rows per page, each page drawn under its
 //! heading and the header row.
 //!
-//! [`columns`] decides which columns are drawn and how wide; [`rows`] wraps
+//! `columns` decides which columns are drawn and how wide; `rows` wraps
 //! each row, folds the short columns under the name and splits a row taller
 //! than a page; this module cuts the rows into pages and draws them.
 
