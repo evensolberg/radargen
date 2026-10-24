@@ -20,3 +20,6 @@ target/
 
 # Node — the browser checks' dev dependencies (package.json)
 node_modules/
+
+# Brainstorming mockups (superpowers visual companion)
+.superpowers/
