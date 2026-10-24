@@ -685,7 +685,7 @@ mod tests {
     /// on the surfaces.
     #[test]
     fn everything_on_the_band_stays_legible() {
-        let slate = file::parse(include_str!("../../docs/product/palette.slate.css"))
+        let slate = file::parse(include_str!("../../docs/examples/palette.slate.css"))
             .expect("a valid palette");
         for (name, p) in [
             ("light", Palette::built_in(Theme::Light)),
@@ -720,12 +720,12 @@ mod tests {
         }
     }
 
-    /// rg-new: `docs/product/palette.slate.css`, the example palette the
+    /// rg-new: `docs/examples/palette.slate.css`, the example palette the
     /// guide offers, is a valid `--palette` file and clears every pair its
     /// header claims, so an author starting from it starts legible.
     #[test]
     fn the_slate_example_clears_its_contrast() {
-        let p = file::parse(include_str!("../../docs/product/palette.slate.css"))
+        let p = file::parse(include_str!("../../docs/examples/palette.slate.css"))
             .expect("a valid palette");
         let value = |role: Neutral| p.value(Role::Neutral(role));
         let surfaces = [Neutral::Surface1, Neutral::Surface2].map(value);

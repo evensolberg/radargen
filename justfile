@@ -94,6 +94,15 @@ publish:
     git push origin main "$version"
     gh release create "$version" --repo evensolberg/{{application}} --title "$version" --generate-notes
 
+# Regenerates docs/examples/'s outputs from its CSV and config, every
+# format. tests/examples.rs fails when the committed ones drift.
+examples: release-build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for format in html png svg pdf; do
+        ./target/release/radargen -c docs/examples/radar.toml -o "docs/examples/radar.$format"
+    done
+
 # Build the documentation
 @doc:
     cargo doc --no-deps

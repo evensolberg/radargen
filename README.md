@@ -18,6 +18,10 @@ radargen radar.csv -o radar.pdf --theme light
 radargen radar.csv -o edition.pdf --pdf full --paper a4
 ```
 
+![An example edition: four sectors on five rings, every other ring shaded, with the legend beside it](docs/examples/radar.png)
+
+The [example](docs/examples/) above is made by `radargen -c docs/examples/radar.toml`, from a CSV kept as the [intake and maturation process](docs/process.md) describes.
+
 ## Install
 
 There are no release binaries yet. Install from source with a recent stable [Rust toolchain](https://rustup.rs) (1.97 or later; on Windows, rustup also asks for the MSVC build tools). Replace `vX.Y.Z` with the newest tag on the [releases page](https://github.com/evensolberg/radargen/releases):
@@ -65,6 +69,8 @@ radargen radar.csv -o radar.html --rings "Hold, Assess, Trial, Adopt"
 ```
 
 The list replaces the default set rather than adding to it. A ring name cannot contain a comma, and an empty or repeated entry is an error. The innermost ring has the least room, about a tenth of the outermost, so put the ring that holds the fewest items there.
+
+`--ring-shading alternate` fills every other ring faintly, from the centre out, so the rings are easier to tell apart; the default, `none`, is the standard look. The shade is mixed from the palette's own surfaces, so it works with `--palette` too.
 
 A row whose ring is not in the list is left off the radar and the legend, with a warning naming the rings it could have used. By default it is left out of the HTML page's table too; `--table all` keeps it there, marked as not on the radar. So one CSV can track more than the radar shows: rows with a ring such as `In Use` or `Rejected` stay on record in the CSV, and in the table with `--table all`, while the radar shows only the rings you declare. Each run warns about them in one line, which counts the rows under each ring, unless you name those rings in `--unplotted-rings`:
 
@@ -270,7 +276,11 @@ The same CSV, flags and radargen version always produce the same bytes, so an ed
 
 ## Documentation
 
+- [`docs/examples/`](docs/examples/) — a worked example: a CSV, its config, a palette to try, and the outputs in every format
+- [`docs/process.md`](docs/process.md) — the technology radar intake and maturation process: how items are nominated, assessed, trialled, adopted and retired, and how the register maps onto radargen's CSV
+- [`docs/csv-format.md`](docs/csv-format.md) — every column radargen reads, and what each value means
 - [`docs/palette.md`](docs/palette.md) — the palette guide: each colour, where it is drawn, and the contrast it needs
+- [`docs/a11y/manual-checks.md`](docs/a11y/manual-checks.md) — the accessibility checks only a person can make, with what to expect at each step
 - [`docs/product/radargen-prd.md`](docs/product/radargen-prd.md) — requirements, decisions, and the reasoning behind both
 - [`docs/product/palette-proof.html`](docs/product/palette-proof.html) — the built-in palette, with contrast and colour-vision verification
 - [`docs/product/mockup.html`](docs/product/mockup.html) — the layout prototype
