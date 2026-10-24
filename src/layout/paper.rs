@@ -48,6 +48,18 @@ pub struct Sheets<'a> {
     pub table: Option<&'a Published<'a>>,
 }
 
+impl<'a> Sheets<'a> {
+    /// What the pages' footers read.
+    #[must_use]
+    pub const fn footing(&self) -> Footing<'a> {
+        Footing {
+            title: self.title,
+            subtitle: self.subtitle,
+            size: self.size,
+        }
+    }
+}
+
 /// A paper's landscape `points`, width first, as a page in px.
 #[must_use]
 pub fn page_size(points: (f64, f64)) -> (f64, f64) {
@@ -135,7 +147,7 @@ fn title(sheets: &Sheets<'_>, fonts: &Fonts) -> Wrap {
 /// than per page and per part (rg-h5l): the title block and the width of
 /// one legend piece.
 #[derive(Debug, Clone)]
-pub(crate) struct Measured {
+struct Measured {
     /// The title block, wrapped across the content box.
     title: Wrap,
     /// One legend piece's width on the page.
@@ -144,7 +156,7 @@ pub(crate) struct Measured {
 
 impl Measured {
     /// `sheets`'s measures.
-    pub(crate) fn of(sheets: &Sheets<'_>, fonts: &Fonts) -> Self {
+    fn of(sheets: &Sheets<'_>, fonts: &Fonts) -> Self {
         Self {
             title: title(sheets, fonts),
             piece: piece_width(sheets, fonts),
@@ -220,7 +232,7 @@ fn least(sheets: &Sheets<'_>) -> f64 {
 /// Page 1's placements: the radar beside the legend's first piece when
 /// it fits there, else across the whole page with the legend starting on
 /// page 2, else at its floor, marked as not fitting.
-pub(crate) fn first_page(sheets: &Sheets<'_>, measured: &Measured) -> FirstPage {
+fn first_page(sheets: &Sheets<'_>, measured: &Measured) -> FirstPage {
     let has_legend = !sheets.legend.size(1.0).is_empty();
     let beside_col = column(sheets, true, measured);
     let beside_fit = has_legend.then(|| largest(sheets, beside_col)).flatten();
@@ -296,8 +308,7 @@ impl PieceSlots {
     const fn page_of(self, k: usize) -> usize {
         match (self.on_first, k) {
             (true, 0) => 0,
-            // A NonZeroUsize divisor, read with get: dividing by one is
-            // not yet const.
+            // Read with `get`: `usize / NonZeroUsize` is not yet const.
             (true, k) => 1 + (k - 1) / self.per_page.get(),
             (false, k) => 1 + k / self.per_page.get(),
         }
@@ -500,18 +511,6 @@ pub struct Footing<'a> {
     pub size: (f64, f64),
 }
 
-impl<'a> Sheets<'a> {
-    /// What the pages' footers read.
-    #[must_use]
-    pub const fn footing(&self) -> Footing<'a> {
-        Footing {
-            title: self.title,
-            subtitle: self.subtitle,
-            size: self.size,
-        }
-    }
-}
-
 /// `bodies` as page documents, each with its footer (FR-111).
 ///
 /// The footer holds the title, and the subtitle when given, at the left,
@@ -640,6 +639,11 @@ mod tests {
         let key = sheets.key.grid(sheets.key.columns_within(ink)).size(1.0);
         radar.width <= width && radar.height + key.height <= height
     }
+    /// Page 1's placements for `sheets`, measured as `bodies` measures them.
+    fn first_of(sheets: &Sheets<'_>) -> FirstPage {
+        first_page(sheets, &Measured::of(sheets, fonts()))
+    }
+
     use crate::layout::block::fonts;
     use crate::layout::legend::LegendBlock;
     use crate::layout::test_support::{HEAD, PRD_EXAMPLE, Rect, bounds, plotted};
@@ -983,7 +987,7 @@ mod tests {
         let fixture = prd();
         for paper in [Paper::Letter, Paper::A4] {
             let sheets = fixture.sheets(paper, "T", None);
-            let first = first_page(&sheets, &Measured::of(&sheets, fonts()));
+            let first = first_of(&sheets);
             let s = first.radar.scale;
             assert!(first.fits && s <= 1.0 && s > 0.5, "{paper:?}: {s}");
             assert!(fits(&sheets, &first, s, fonts()));
@@ -992,21 +996,12 @@ mod tests {
                 "{paper:?}: {s} is not the largest"
             );
         }
-        let short = first_page(
-            &fixture.sheets(Paper::Letter, "T", None),
-            &Measured::of(&fixture.sheets(Paper::Letter, "T", None), fonts()),
-        )
-        .radar
-        .scale;
-        let long = first_page(
-            &fixture.sheets(Paper::Letter, LONG_TITLE, Some("S")),
-            &Measured::of(
-                &fixture.sheets(Paper::Letter, LONG_TITLE, Some("S")),
-                fonts(),
-            ),
-        )
-        .radar
-        .scale;
+        let short = first_of(&fixture.sheets(Paper::Letter, "T", None))
+            .radar
+            .scale;
+        let long = first_of(&fixture.sheets(Paper::Letter, LONG_TITLE, Some("S")))
+            .radar
+            .scale;
         assert!(long < short, "{long} < {short}");
     }
 
@@ -1017,7 +1012,7 @@ mod tests {
         let fixture = prd();
         let title = "word ".repeat(2_000);
         let sheets = fixture.sheets(Paper::Letter, &title, Some("subtitle"));
-        let first = first_page(&sheets, &Measured::of(&sheets, fonts()));
+        let first = first_of(&sheets);
         assert!(first.fits);
         let (_, height) = sheets.size;
         let radar = fixture.blocks.radar.size(first.radar.scale);
@@ -1054,7 +1049,7 @@ mod tests {
             legend: LegendBlock::on_paper(&catalogue, &order, fonts()),
         };
         let sheets = fixture.sheets(Paper::Letter, "T", None);
-        let first = first_page(&sheets, &Measured::of(&sheets, fonts()));
+        let first = first_of(&sheets);
         assert!(first.legend.is_none() && first.fits);
         let bodies = bodies_of(&sheets);
         assert_eq!(bodies.kinds.get(1), Some(&PageKind::Legend));
@@ -1072,19 +1067,13 @@ mod tests {
             blocks: Blocks::new(&catalogue, &order, None, None, fonts()),
             legend: LegendBlock::on_paper(&catalogue, &order, fonts()),
         };
-        let first = first_page(
-            &fixture.sheets(Paper::Letter, "T", None),
-            &Measured::of(&fixture.sheets(Paper::Letter, "T", None), fonts()),
-        );
+        let first = first_of(&fixture.sheets(Paper::Letter, "T", None));
         assert!(first.legend.is_none(), "the legend starts on page 2");
         assert!(!first.fits, "and the radar still does not fit");
         assert!(bodies(&fixture.sheets(Paper::Letter, "T", None), fonts()).radar_too_wide);
         let prd = prd();
         let sheets = prd.sheets(Paper::Letter, "T", None);
-        assert!(
-            first_page(&sheets, &Measured::of(&sheets, fonts())).fits
-                && !bodies(&sheets, fonts()).radar_too_wide
-        );
+        assert!(first_of(&sheets).fits && !bodies(&sheets, fonts()).radar_too_wide);
         let pages = documents(&fixture.sheets(Paper::Letter, "T", None));
         assert!(pages.len() >= 2);
         assert!(
@@ -1159,9 +1148,7 @@ mod tests {
         let fixture = long(1, 1, 300);
         for paper in [Paper::Letter, Paper::A4] {
             let sheets = fixture.sheets(paper, "T", None);
-            let first = first_page(&sheets, &Measured::of(&sheets, fonts()))
-                .legend
-                .expect("a legend beside the radar");
+            let first = first_of(&sheets).legend.expect("a legend beside the radar");
             let right = first.origin.x + piece_width(&sheets, fonts());
             let pages = documents(&sheets);
             assert!(pages.len() >= 3, "{paper:?}: {}", pages.len());
