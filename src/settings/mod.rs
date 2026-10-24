@@ -293,8 +293,9 @@ impl NamedPath {
 
     /// What a message adds when a path from the file resolved somewhere
     /// its author likely did not mean (FR-91): a `~`, which no shell
-    /// expanded (UX review 5), or a relative path under the folder a
-    /// process substitution names, such as `/dev/fd` (rg-37u); empty
+    /// expanded (UX review 5), or a relative path from a config read off a
+    /// descriptor, such as a process substitution's `/dev/fd/63` or
+    /// `/dev/stdin`, which resolves in that file's folder (rg-37u); empty
     /// otherwise.
     #[must_use]
     pub fn hint(&self) -> String {
@@ -304,10 +305,12 @@ impl NamedPath {
         if self.shown == "~" || self.shown.starts_with("~/") {
             return "; ~ is not expanded in a config file, so write the full path".to_owned();
         }
-        match Path::new(&**file).parent() {
-            Some(folder) if Path::new(&self.shown).is_relative() && descriptors(folder) => {
+        let file = Path::new(&**file);
+        match file.parent() {
+            Some(folder) if Path::new(&self.shown).is_relative() && descriptor(file, folder) => {
                 format!(
-                    "; a config file read through a process substitution resolves relative paths under {}, so write the full path",
+                    "; a config file read from {} resolves relative paths under {}, so write the full path",
+                    file.display(),
                     folder.display()
                 )
             }
@@ -316,9 +319,16 @@ impl NamedPath {
     }
 }
 
+/// Whether `file`, in `folder`, is a descriptor rather than a file in a
+/// folder its author chose: `/dev/stdin`, or anything under [`descriptors`].
+fn descriptor(file: &Path, folder: &Path) -> bool {
+    file == Path::new("/dev/stdin") || descriptors(folder)
+}
+
 /// Whether `folder` is where a shell's process substitution names its
 /// pipe: `/dev/fd`, or Linux's `/proc/<pid>/fd` (`/proc/self/fd` among
-/// them). A relative path read from a file there cannot name a real one.
+/// them). A relative path there names another descriptor, if anything:
+/// almost never what the author meant.
 fn descriptors(folder: &Path) -> bool {
     let under_proc = folder.starts_with("/proc")
         && folder.components().count() == 4
@@ -551,8 +561,10 @@ mod tests {
         }
     }
 
-    /// rg-37u: only a relative path from a file read under /dev/fd gets
-    /// the hint; `~` keeps its own.
+    /// rg-37u: only a relative path from a config read off a descriptor
+    /// gets the hint; `~` keeps its own. Unix only: on Windows `/tmp/r.html`
+    /// is relative, and there is no `/dev/fd`.
+    #[cfg(unix)]
     #[test]
     fn the_hint_names_the_folder_a_path_resolved_under() {
         let from = |file: &str, path: &str| {
@@ -564,8 +576,13 @@ mod tests {
         };
         assert_eq!(
             from("/dev/fd/63", "r.html"),
-            "; a config file read through a process substitution resolves relative paths under /dev/fd, so write the full path"
+            "; a config file read from /dev/fd/63 resolves relative paths under /dev/fd, so write the full path"
         );
+        assert_eq!(
+            from("/dev/stdin", "r.html"),
+            "; a config file read from /dev/stdin resolves relative paths under /dev, so write the full path"
+        );
+        assert_eq!(from("/dev/null", "r.html"), "");
         assert_eq!(from("/dev/fd/63", "/tmp/r.html"), "");
         assert_eq!(from("radar.toml", "r.html"), "");
         assert!(from("/dev/fd/63", "~/r.html").starts_with("; ~ is not expanded"));

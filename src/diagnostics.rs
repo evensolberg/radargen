@@ -1718,10 +1718,13 @@ pub enum Fatal {
         count: usize,
     },
     /// FR-61: the input does not exist, cannot be read, or is a directory.
-    #[error("{path}: cannot be read: {}", io_reason(source))]
+    #[error("{path}: cannot be read: {}{hint}", io_reason(source))]
     Unreadable {
         /// The input path as given.
         path: String,
+        /// What a config's `input` key adds ([`NamedPath::hint`]); empty
+        /// for the command line's.
+        hint: String,
         /// The underlying I/O failure.
         #[source]
         source: std::io::Error,

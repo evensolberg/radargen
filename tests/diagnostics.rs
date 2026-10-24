@@ -1101,6 +1101,7 @@ fn csv_file_messages() {
         (
             Fatal::Unreadable {
                 path: "in.csv".into(),
+                hint: String::new(),
                 source: std::io::Error::new(std::io::ErrorKind::NotFound, "not found"),
             },
             "error: in.csv: cannot be read: not found",
@@ -1483,6 +1484,7 @@ fn io_reasons_read_one_way() {
     assert_eq!(
         Fatal::Unreadable {
             path: "in.csv".into(),
+            hint: String::new(),
             source: windows,
         }
         .render(),

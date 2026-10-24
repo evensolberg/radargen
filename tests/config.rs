@@ -5,6 +5,8 @@
 mod binary;
 
 use std::fs;
+#[cfg(unix)]
+use std::path::Path;
 
 use binary::{run_in, seeded, snapshot};
 
@@ -252,37 +254,95 @@ fn a_tilde_is_not_expanded() {
     );
 }
 
-/// rg-37u: a config read through a process substitution resolves its
-/// relative paths under /dev/fd (FR-91), which the error now says. Skipped
-/// where there is no bash to make one.
-#[test]
-fn a_process_substitution_config_says_where_paths_resolve() {
+/// rg-37u: `toml` as a config read through a bash process substitution
+/// in `dir`, and the run's exit code and stderr; `None` where there is no
+/// bash to make one. The binary is `$0`, so no path of it is re-parsed.
+#[cfg(unix)]
+fn through_a_process_substitution(dir: &Path, toml: &str) -> Option<(Option<i32>, String)> {
     use std::process::Command;
-    let dir = seeded(&[("radar.csv", CSV)]);
-    let line = format!(
-        "{} radar.csv -c <(printf 'output = \"r.html\"\\n')",
-        env!("CARGO_BIN_EXE_radargen")
-    );
-    let Ok(out) = Command::new("bash")
-        .args(["-c", &line])
-        .current_dir(dir.path())
+    let out = Command::new("bash")
+        .args([
+            "-c",
+            r#""$0" -c <(printf '%s' "$1")"#,
+            env!("CARGO_BIN_EXE_radargen"),
+            toml,
+        ])
+        .current_dir(dir)
         .output()
-    else {
-        return;
-    };
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert_eq!(out.status.code(), Some(1), "{stderr}");
-    let fd = stderr
+        .ok()?;
+    Some((
+        out.status.code(),
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+    ))
+}
+
+/// rg-37u: the line of `stderr` naming `key` from a config under
+/// /dev/fd, which must end by saying where its relative paths resolve.
+#[cfg(unix)]
+fn assert_resolves_under(stderr: &str, key: &str, folder: &str) {
+    let line = stderr
         .lines()
-        .find(|l| l.starts_with("error: the output key in /dev/fd/"))
+        .find(|l| l.starts_with(&format!("error: the {key} key in /dev/")))
         .unwrap_or_else(|| panic!("{stderr}"));
     assert!(
-        fd.ends_with(
-            "; a config file read through a process substitution resolves relative paths under /dev/fd, so write the full path"
-        ),
-        "{fd}"
+        line.contains("; a config file read from /dev/")
+            && line.ends_with(&format!(
+                " resolves relative paths under {folder}, so write the full path"
+            )),
+        "{line}"
     );
+}
+
+/// rg-37u: a config read through a process substitution resolves its
+/// relative paths under /dev/fd (FR-91), which the error now says, for the
+/// output and the input alike.
+#[cfg(unix)]
+#[test]
+fn a_process_substitution_config_says_where_paths_resolve() {
+    let dir = seeded(&[("radar.csv", CSV)]);
+    let csv = dir.path().join("radar.csv");
+    let toml = format!("input = \"{}\"\noutput = \"r.html\"\n", csv.display());
+    let Some((code, stderr)) = through_a_process_substitution(dir.path(), &toml) else {
+        return;
+    };
+    assert_eq!(code, Some(1), "{stderr}");
+    assert_resolves_under(&stderr, "output", "/dev/fd");
     assert!(!dir.path().join("r.html").exists());
+    let out = dir.path().join("r.html");
+    let toml = format!("input = \"radar.csv\"\noutput = \"{}\"\n", out.display());
+    let Some((code, stderr)) = through_a_process_substitution(dir.path(), &toml) else {
+        return;
+    };
+    assert_eq!(code, Some(1), "{stderr}");
+    assert_resolves_under(&stderr, "input", "/dev/fd");
+}
+
+/// rg-37u: `-c /dev/stdin` resolves relative paths under /dev, which the
+/// error says too.
+#[cfg(unix)]
+#[test]
+fn a_config_on_stdin_says_where_paths_resolve() {
+    use std::io::Write as _;
+    use std::process::{Command, Stdio};
+    let dir = seeded(&[("radar.csv", CSV)]);
+    let mut child = Command::new(env!("CARGO_BIN_EXE_radargen"))
+        .args(["radar.csv", "-c", "/dev/stdin"])
+        .current_dir(dir.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the binary runs");
+    child
+        .stdin
+        .take()
+        .expect("a stdin")
+        .write_all(b"output = \"r.html\"\n")
+        .expect("writes");
+    let out = child.wait_with_output().expect("waits");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(1), "{stderr}");
+    assert_resolves_under(&stderr, "output", "/dev");
 }
 
 /// SC-26: with neither -o nor output, a usage error.
