@@ -1,13 +1,18 @@
+## [1.25.2] - 2026-10-23
+
+### 🐛 Bug Fixes
+
+- *(paper)* Continuation panels end level (rg-73x)
+- *(paper)* Cap level panels at the room (rg-73x)
+
+### 🧪 Testing
+
+- *(paper)* The tall row shares its page (rg-73x)
 ## [1.25.1] - 2026-10-23
 
 ### 🐛 Bug Fixes
 
-- *(config)* Say where a process substitution's paths resolve (rg-37u)
-- *(config)* Hint the input key and -c /dev/stdin too (rg-37u)
-
-### 🧪 Testing
-
-- *(config)* A stdin config test root cannot pass (rg-37u)
+- *(config)* Say where a descriptor config resolves paths (rg-37u, 1.25.1) (#155)
 ## [1.25.0] - 2026-10-23
 
 ### 🚀 Features
