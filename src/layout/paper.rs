@@ -378,10 +378,12 @@ fn legend_pages(
     let width = piece_width(sheets, fonts);
     let top = legend_top(sheets, fonts);
     let mut pages = vec![page_one];
+    let last = later.len().saturating_sub(1);
     pages.extend(
         later
             .iter()
-            .map(|columns| continuation(columns, width, sheets, top)),
+            .enumerate()
+            .map(|(i, columns)| continuation(columns, (width, i == last), sheets, top)),
     );
     pages
 }
@@ -393,13 +395,27 @@ fn legend_top(sheets: &Sheets<'_>, fonts: &Fonts) -> f64 {
 }
 
 /// A continuation page: `pieces` side by side, `width` each, hung from
-/// `top`, the last on the right margin: where page 1's legend sits.
+/// `top`, the last on the right margin: where page 1's legend sits. Each
+/// panel is drawn to the tallest one's height, so the columns end level
+/// (rg-73x), but the legend's own last piece, on the `final` page, which
+/// ends where its rows do rather than as an empty box.
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
 )]
-fn continuation(pieces: &[LegendBlock], width: f64, sheets: &Sheets<'_>, top: f64) -> Vec<Node> {
+fn continuation(
+    pieces: &[LegendBlock],
+    (width, last): (f64, bool),
+    sheets: &Sheets<'_>,
+    top: f64,
+) -> Vec<Node> {
     let (page_width, _) = sheets.size;
+    let level = pieces.len().saturating_sub(usize::from(last));
+    let tallest = pieces
+        .iter()
+        .take(level)
+        .map(|piece| piece.size(1.0).height)
+        .fold(0.0, f64::max);
     // `n` columns and the `n − 1` gaps between them, the last ending where
     // page 1's legend ends: on the right margin.
     let n = real(pieces.len());
@@ -407,11 +423,17 @@ fn continuation(pieces: &[LegendBlock], width: f64, sheets: &Sheets<'_>, top: f6
     let mut x = page_width - PAPER_MARGIN - span;
     pieces
         .iter()
-        .map(|piece| {
-            let node = piece.render(Placement {
+        .enumerate()
+        .map(|(k, piece)| {
+            let at = Placement {
                 origin: Point { x, y: top },
                 scale: PAPER_LEGEND_SCALE,
-            });
+            };
+            let node = if k < level {
+                piece.spanning(0.0).tall(tallest).render(at)
+            } else {
+                piece.render(at)
+            };
             x += width + COLUMN_GAP;
             node
         })
@@ -1350,6 +1372,42 @@ mod tests {
                         (b.left - a.left - width - COLUMN_GAP).abs() < 1e-6,
                         "{paper:?}"
                     );
+                }
+            }
+        }
+    }
+
+    /// rg-73x: the panels side by side on a continuation page end level,
+    /// each drawn to the tallest one's height, but the legend's last,
+    /// which ends where its rows do.
+    #[test]
+    fn continuation_panels_end_level() {
+        for fixture in [long(4, 3, 80), long(40, 1, 6)] {
+            for paper in [Paper::Letter, Paper::A4] {
+                let pages = documents(&fixture.sheets(paper, "T", None));
+                assert!(pages.len() >= 3, "{paper:?}");
+                let last = pages.len() - 1;
+                for (i, page) in pages.iter().enumerate().skip(1) {
+                    let mut columns: Vec<Rect> = children(page)
+                        .iter()
+                        .take(children(page).len() - 1)
+                        .map(rect)
+                        .collect();
+                    if i == last {
+                        columns.pop();
+                    }
+                    let Some(first) = columns.first() else {
+                        continue;
+                    };
+                    for column in &columns {
+                        assert!(
+                            (column.bottom - first.bottom).abs() < 1e-6,
+                            "{paper:?} page {}: {} vs {}",
+                            i + 1,
+                            column.bottom,
+                            first.bottom
+                        );
+                    }
                 }
             }
         }
