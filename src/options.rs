@@ -130,6 +130,15 @@ pub enum Legend {
     Hidden,
 }
 
+/// Whether the radar's rings are shaded (rg-74n). Every format draws it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum RingShading {
+    /// Ring circles only, as the standard radar draws them.
+    None,
+    /// Every other ring filled faintly, the innermost first.
+    Alternate,
+}
+
 /// What the page's table publishes, and so its detail panels (FR-106).
 /// Only HTML reads it: PNG, SVG and PDF have no table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]

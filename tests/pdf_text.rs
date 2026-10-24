@@ -25,7 +25,7 @@ use paper::{paper_pages, paper_pdf};
 use pdf_export::{fonts, pdf};
 use radargen::emit::html::{Page, page};
 use radargen::layout::arrange::{Blocks, narrow_parts, wide_parts};
-use radargen::options::{Legend, Paper, Table};
+use radargen::options::{Legend, Paper, RingShading, Table};
 use radargen::palette::Colours;
 
 /// Whitespace runs as one space, the ends dropped: lopdf may break a
@@ -380,6 +380,7 @@ fn pdf_table_words_equal_html_cells() {
         colours: &Colours::BuiltIn(Theme::Light),
         legend: Legend::Shown,
         table: Table::All,
+        ring_shading: RingShading::None,
     });
     let squeezed = |text: &str| text.split_whitespace().collect::<String>();
     let pdf = squeezed(

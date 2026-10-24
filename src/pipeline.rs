@@ -38,7 +38,7 @@ use crate::layout::legend::LegendBlock;
 use crate::layout::paper::{self, Sheets, page_size};
 use crate::layout::title::shown;
 use crate::model::{Catalogue, build_catalogue};
-use crate::options::{Legend, OutputFormat, Paper, Pdf, Table};
+use crate::options::{Legend, OutputFormat, Paper, Pdf, RingShading, Table};
 use crate::order::{Plotted, resolve};
 use crate::palette::file::{self, ReadError};
 use crate::palette::{Colours, Theme};
@@ -47,8 +47,9 @@ use crate::rings::{RingSet, default_rings, parse_ring_list};
 use crate::settings::edition::{Edition, Problem, Today, expand, uses};
 use crate::settings::file::{self as config_file, MAX_KEY_PROBLEMS};
 use crate::settings::{
-    DEFAULT_LEGEND, DEFAULT_LEGEND_COLUMNS, DEFAULT_PDF, DEFAULT_TABLE, DEFAULT_THEME, Effective,
-    NamedPath, Origin, Setting, Settings, Source, Sourced, resolve as resolve_path,
+    DEFAULT_LEGEND, DEFAULT_LEGEND_COLUMNS, DEFAULT_PDF, DEFAULT_RING_SHADING, DEFAULT_TABLE,
+    DEFAULT_THEME, Effective, NamedPath, Origin, Setting, Settings, Source, Sourced,
+    resolve as resolve_path,
 };
 use crate::text::Fonts;
 use crate::{ECHO_CHARS, clip};
@@ -74,6 +75,8 @@ pub struct Config {
     /// FR-106: what an HTML page's table publishes. PNG, SVG and PDF have no
     /// table, and warn only when `all` came from the flag (D-100).
     pub table: Sourced<Table>,
+    /// FR-115: whether every other ring is shaded, in every format.
+    pub ring_shading: RingShading,
     /// FR-57: the width from `--width` or the file, which HTML ignores,
     /// with where it came from, so D-87's remedies can name it.
     pub width: Option<Sourced<u32>>,
@@ -412,6 +415,10 @@ fn config(
         colours,
         legend: settings.legend.or(Setting::Legend, DEFAULT_LEGEND),
         table: settings.table.or(Setting::Table, DEFAULT_TABLE),
+        ring_shading: settings
+            .ring_shading
+            .or(Setting::RingShading, DEFAULT_RING_SHADING)
+            .value,
         width: settings.width.given(),
         legend_columns: settings
             .legend_columns
@@ -1072,7 +1079,8 @@ fn render(
     } else {
         config.title()
     };
-    let blocks = Blocks::new(catalogue, &plotted, title, config.subtitle(), fonts);
+    let mut blocks = Blocks::new(catalogue, &plotted, title, config.subtitle(), fonts);
+    blocks.radar.set_ring_shading(config.ring_shading);
     // FR-89 at the growth the radar is drawn with (D-86): only what still
     // overlaps is reported.
     warn_crowding(catalogue, &plotted, blocks.radar.growth(), warnings);
@@ -1116,6 +1124,7 @@ fn render(
                 colours: &config.colours,
                 legend: config.legend.value,
                 table: config.table.value,
+                ring_shading: config.ring_shading,
             })
             .into_bytes())
         }

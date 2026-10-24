@@ -11,7 +11,7 @@ created_date: 2026-10-17
 synopsis: "How to draw a radar in your own colours with --palette: what the file holds, where each of its colours is drawn, the contrast each needs, and how the sector colours cycle."
 status: active
 type: Guide
-revision: "1.5"
+revision: "1.6"
 review_date:
 reviewed_by: []
 completed_date:
@@ -20,6 +20,8 @@ comments: "Written for PR 18 (rg-cdo), from PRD FR-81, FR-82, FR-86, FR-87, FR-1
 # Palettes
 
 `--palette <file.css>` draws a radar in your colours instead of radargen's built-in themes, in every format. Start from the file `radargen --create-palette brand.css` writes, which holds the built-in light colours. [`docs/product/palette.sample.css`](product/palette.sample.css) holds the same bytes.
+
+With `--ring-shading alternate`, every other ring is filled with a colour mixed three fifths of the way from your `--surface-1` to your `--surface-2`; you do not declare it. When each of `--surface-2`'s red, green and blue is on the same side of `--surface-1`'s, as for any two greys or tinted greys, and the two are close in lightness, as a page and a panel are, everything legible on both surfaces is legible on that band too.
 
 For a ready-made palette of a different look, [`docs/product/palette.slate.css`](product/palette.slate.css) is a light cool-grey ground with blue accents. Every pair in the table below clears its minimum, and its sector colours stay as distinct under colour-vision deficiency as the built-in ones. Use it as it is, or copy it and change it; once you change a colour, its contrast is yours to check.
 
@@ -65,7 +67,7 @@ A contrast ratio says how far apart two colours are in lightness, from 1:1 (the 
 
 | Property | Where it is drawn | Light | Dark | Minimum contrast against |
 | --- | --- | --- | --- | --- |
-| `--surface-1` | The page and the radar's ground; the halo behind ring labels; the thin outline around solid markers; the backing of the focus ring; a selected table row | `#FFFFFF` | `#15181D` | — |
+| `--surface-1` | The page and the radar's ground; the halo behind ring labels (on a shaded ring, the band's colour instead); the thin outline around solid markers; the backing of the focus ring; a selected table row | `#FFFFFF` | `#15181D` | — |
 | `--surface-2` | The legend, the detail panel, the table, and the page's buttons | `#F4F5F7` | `#1E222A` | — |
 | `--text-primary` | Names, headings, table text and links, the number in a hollow marker, and the marks that show a selected item | `#16191F` | `#E8EAEE` | 4.5:1 against `--surface-1`, `--surface-2` and `--marker-hollow` |
 | `--text-muted` | Ring labels, the subtitle, legend ring headings, the key, column headings, and an item's details | `#585F6B` | `#A6AEBB` | 4.5:1 against `--surface-1` and `--surface-2` |
@@ -117,3 +119,4 @@ radargen checks that the file is complete and well formed, never that its colour
 | 1.3 | 2026-10-17 | A forgotten `;` is its own error, and the next line is checked at once (rg-p9a). |
 | 1.4 | 2026-10-22 | Sectors, not quadrants (D-101; rg-k16); the property names are unchanged. |
 | 1.5 | 2026-10-23 | An example palette, slate: light grey with blue accents (rg-new). |
+| 1.6 | 2026-10-23 | Where `--ring-shading`'s band colour comes from (FR-115, rg-74n). |

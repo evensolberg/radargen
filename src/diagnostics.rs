@@ -779,6 +779,7 @@ const fn wanted(setting: Setting) -> &'static str {
         | Setting::Edition
         | Setting::Title
         | Setting::Subtitle
+        | Setting::RingShading
         | Setting::Theme
         | Setting::Legend
         | Setting::Table

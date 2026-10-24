@@ -1751,7 +1751,7 @@ fn config_messages() {
                 near: Some(Setting::Rings),
                 table: false,
             }),
-            "error: --config radar.toml: unknown key 'ring'; did you mean 'rings'? The keys are input, output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table, paper, pdf, palette and edition",
+            "error: --config radar.toml: unknown key 'ring'; did you mean 'rings'? The keys are input, output, title, subtitle, rings, unplotted_rings, ring_shading, theme, width, legend_columns, legend, table, paper, pdf, palette and edition",
         ),
         (
             key(KeyProblem::WrongType {
@@ -1829,7 +1829,7 @@ fn config_hint_messages() {
                 near: None,
                 table: true,
             }),
-            "error: --config radar.toml: unknown key 'radar'; the keys are input, output, title, subtitle, rings, unplotted_rings, theme, width, legend_columns, legend, table, paper, pdf, palette and edition; keys go at the top of the file, not under [radar]",
+            "error: --config radar.toml: unknown key 'radar'; the keys are input, output, title, subtitle, rings, unplotted_rings, ring_shading, theme, width, legend_columns, legend, table, paper, pdf, palette and edition; keys go at the top of the file, not under [radar]",
         ),
         (
             key(KeyProblem::WrongType {

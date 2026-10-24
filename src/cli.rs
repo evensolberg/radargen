@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use crate::diagnostics::{Fatal, RenderKind, Warning, Warnings};
 use crate::escape::remove_undisplayable;
-use crate::options::{Legend, Paper, Pdf, Table};
+use crate::options::{Legend, Paper, Pdf, RingShading, Table};
 pub use crate::palette::Theme;
 use crate::settings::edition::{self, Edition};
 use crate::settings::file::Loaded;
@@ -198,6 +198,19 @@ pub struct Cli {
     #[arg(short, long, value_name = "FILE", conflicts_with = "theme")]
     pub palette: Option<PathBuf>,
 
+    // FR-115 (rg-74n): off by default, as the standard radar is drawn. A
+    // named value, not a bare switch, so the command line can undo a
+    // file's `ring_shading`, and another style can join later. No short
+    // form: it is set once per radar, like --legend.
+    /// Shade every other ring; the default is none.
+    ///
+    /// "alternate" fills every other ring, counting from the centre, a
+    /// little toward the legend's colour, so the rings are easier to tell
+    /// apart. "none" draws the ring circles only. Every format draws it.
+    /// Accepted in any letter case.
+    #[arg(long, value_name = "STYLE", value_enum, ignore_case = true)]
+    pub ring_shading: Option<RingShading>,
+
     // FR-91, D-57: read only when named, never discovered. `-c` (OQ-2,
     // provisional in D-57). The keys mean what their flags mean; a flag
     // here overrides its key, and a relative path in the file is read from
@@ -258,7 +271,7 @@ pub struct Cli {
 
 /// `--config`'s long help (UX review 8).
 const CONFIG_HELP: &str = "Read settings from a TOML file.\n\n\
-Its keys are input, output, title, subtitle, rings, unplotted_rings, theme, width, \
+Its keys are input, output, title, subtitle, rings, unplotted_rings, ring_shading, theme, width, \
 legend_columns, legend, table, paper, pdf, palette and edition, each meaning what its flag \
 means; input names the CSV. rings and unplotted_rings are arrays of strings, such as [\"Adopt\", \"Trial\"]; \
 width and legend_columns are integers; the rest are strings, edition a date \
@@ -335,6 +348,9 @@ impl Cli {
                 file,
                 |v| v.unplotted_rings.clone(),
             ),
+            ring_shading: pick(Setting::RingShading, self.ring_shading, file, |v| {
+                v.ring_shading
+            }),
             theme: pick(Setting::Theme, self.theme, file, |v| v.theme),
             width: pick(Setting::Width, self.width, file, |v| v.width),
             legend_columns: pick(Setting::LegendColumns, self.legend_columns, file, |v| {

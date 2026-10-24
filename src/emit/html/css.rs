@@ -13,7 +13,8 @@ use base64::engine::general_purpose::STANDARD;
 
 use crate::layout::arrange::WideParts;
 use crate::num::fmt_coord;
-use crate::palette::{Colours, Neutral, Palette, Theme};
+use crate::options::RingShading;
+use crate::palette::{Colours, Neutral, Palette, Role, Theme};
 use crate::style::{FOCUS_RING_STROKE, WIDE_MIN_SCALE};
 use crate::svg::serialise::{
     DATA_FOCUS_RING, DATA_HIT, DATA_LEGEND_ROW, DATA_MARKER, DATA_MARKER_INDICATOR,
@@ -257,15 +258,17 @@ const FILE_OPEN: &str = ":root{color-scheme:";
 /// when the page is set dark; the theme toggle sets `data-theme` on
 /// `<html>`, and each block says which of its icons shows (rg-1ru). From a
 /// `--palette` file: that one set, with no preference and no toggle
-/// (§6.6). Forced colours apply to both (rg-min, Ruling 5).
+/// (§6.6). Forced colours apply to both (rg-min, Ruling 5). Shaded rings
+/// add the band to every block, each theme's own (rg-74n); without them the
+/// page declares no band, since nothing paints with one.
 ///
 /// Values are written as `Palette` holds them, each a `Hex`, which admits
 /// only `#RRGGBB` (NFR-6 context 5).
-pub(super) fn palettes(colours: &Colours) -> String {
+pub(super) fn palettes(colours: &Colours, shading: RingShading) -> String {
     let block = match colours {
         Colours::BuiltIn(_) => {
-            let light = declarations(&Palette::built_in(Theme::Light));
-            let dark = declarations(&Palette::built_in(Theme::Dark));
+            let light = declarations(&Palette::built_in(Theme::Light), shading);
+            let dark = declarations(&Palette::built_in(Theme::Dark), shading);
             [
                 LIGHT_OPEN,
                 &light,
@@ -288,7 +291,7 @@ pub(super) fn palettes(colours: &Colours) -> String {
         }
         Colours::File(palette) => {
             let scheme = if palette.is_dark() { "dark;" } else { "light;" };
-            [FILE_OPEN, scheme, &declarations(palette), CLOSE].concat()
+            [FILE_OPEN, scheme, &declarations(palette, shading), CLOSE].concat()
         }
     };
     [
@@ -296,7 +299,7 @@ pub(super) fn palettes(colours: &Colours) -> String {
         FORCED_OPEN,
         DATA_THEME,
         FORCED_REST,
-        &forced(),
+        &forced(shading),
         CLOSE_TWICE,
     ]
     .concat()
@@ -307,12 +310,20 @@ pub(super) fn palettes(colours: &Colours) -> String {
 /// background the palette never saw (rg-min). There, every neutral role
 /// takes its system colour; the series keep theirs, since colour is never
 /// the only cue (FR-39). After the themes, at their specificity, so it wins
-/// in every theme.
-fn forced() -> String {
+/// in every theme. A shaded ring's band is the canvas too, as the surfaces
+/// it is mixed from are (rg-74n).
+fn forced(shading: RingShading) -> String {
+    let band = shades(shading).then(|| [Role::RingBand.to_string().as_str(), ":Canvas;"].concat());
     Neutral::ALL
         .into_iter()
         .map(|role| [role.as_str(), ":", system_colour(role), ";"].concat())
+        .chain(band)
         .collect()
+}
+
+/// Whether the page paints a ring band, and so declares one (rg-74n).
+const fn shades(shading: RingShading) -> bool {
+    matches!(shading, RingShading::Alternate)
 }
 
 /// The CSS system colour standing for `role` in forced colours.
@@ -327,11 +338,14 @@ const fn system_colour(role: Neutral) -> &'static str {
     }
 }
 
-/// `palette`'s custom properties, `--name:value;` each.
-fn declarations(palette: &Palette) -> String {
+/// `palette`'s custom properties, `--name:value;` each, and its ring band
+/// when the rings are shaded (rg-74n).
+fn declarations(palette: &Palette, shading: RingShading) -> String {
+    let band = shades(shading).then(|| (Role::RingBand, palette.value(Role::RingBand)));
     palette
         .declarations()
         .into_iter()
+        .chain(band)
         .map(|(role, value)| [role.to_string().as_str(), ":", value, ";"].concat())
         .collect()
 }

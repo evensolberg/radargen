@@ -361,6 +361,57 @@ mod tests {
         }
     }
 
+    /// rg-74n: drawn, not just declared. Below the centre, mid-way through
+    /// each band, a shaded ring's pixel is the band and an unshaded one's
+    /// the ground. One item, in Adopt, leaves the other bands empty and the
+    /// radar ungrown.
+    #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    fn a_shaded_ring_rasterises_in_its_band() {
+        use crate::layout::arrange::placements;
+        use crate::layout::block::Block;
+        use crate::options::RingShading;
+        use crate::style::BAND_OUTER_RADIUS;
+        let (catalogue, order) = plotted("name,sector,ring,description\nx,Tools,Adopt,d\n", None);
+        let mut blocks = Blocks::new(&catalogue, &order, None, None, fonts());
+        blocks.radar.set_ring_shading(RingShading::Alternate);
+        let doc = arrange(Arrangement::Wide, &blocks);
+        let at = placements(Arrangement::Wide, &blocks).radar;
+        let size = blocks.radar.size(at.scale);
+        let px = 800.0 / doc.width;
+        let width = BAND_OUTER_RADIUS / 4.0 * at.scale * blocks.radar.growth();
+        let palette = Palette::built_in(Theme::Light);
+        let image = decode(
+            &rasterise(&doc, &palette, pixel_size(&doc, Some(800)).expect("fits"))
+                .expect("renders"),
+        );
+        // Retire, Adopt, Trial, Assess, from the centre out.
+        for (band, role) in [
+            (0.5, Role::RingBand),
+            (2.5, Role::RingBand),
+            (3.5, Role::Neutral(Neutral::Surface1)),
+        ] {
+            let x = (at.origin.x + size.width / 2.0) * px;
+            let y = (at.origin.y + size.height / 2.0 + band * width) * px;
+            #[expect(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                clippy::as_conversions,
+                reason = "a pixel inside an 800-pixel image"
+            )]
+            let (x, y) = (x as u32 + 3, y as u32);
+            let p = image.pixel(x, y).expect("a pixel").demultiply();
+            assert_eq!(
+                [p.red(), p.green(), p.blue()],
+                palette.rgb(role),
+                "band {band} at ({x}, {y})"
+            );
+        }
+    }
+
     /// Architecture §5: an unresolved `var()`, or a default black, would
     /// render black on the dark ground. No pixel is darker than it by more
     /// than anti-aliasing allows.

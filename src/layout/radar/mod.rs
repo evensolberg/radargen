@@ -22,6 +22,7 @@ use crate::diagnostics::{Binding, plural};
 use crate::layout::block::{Block, Placement, Size};
 use crate::layout::geometry::{Geometry, growth, polar};
 use crate::model::Catalogue;
+use crate::options::RingShading;
 use crate::order::Plotted;
 use crate::palette::{Neutral, Role};
 use crate::settings::Origin;
@@ -167,6 +168,9 @@ pub struct RadarBlock {
     /// How much the geometry has grown to fit the markers (D-86): 1 until
     /// `Blocks::new` chooses otherwise.
     growth: f64,
+    /// Whether every other ring is shaded (rg-74n): none until the run
+    /// asks.
+    shading: RingShading,
 }
 
 impl RadarBlock {
@@ -225,6 +229,7 @@ impl RadarBlock {
             ring_origin: catalogue.ring_origin.clone(),
             markers: markers(catalogue, plotted),
             growth: 1.0,
+            shading: RingShading::None,
         }
     }
 
@@ -237,6 +242,27 @@ impl RadarBlock {
     /// Sets the geometry's growth to `growth`, one of D-86's steps.
     pub(crate) const fn set_growth(&mut self, growth: f64) {
         self.growth = growth;
+    }
+
+    /// Shades the rings as `shading` says (rg-74n).
+    pub const fn set_ring_shading(&mut self, shading: RingShading) {
+        self.shading = shading;
+    }
+
+    /// Whether ring `i`, outermost first, is shaded: every other one,
+    /// counting from the innermost, which always is (rg-74n).
+    const fn is_shaded(&self, i: usize) -> bool {
+        matches!(self.shading, RingShading::Alternate)
+            && (self.rings.len() - 1 - i).is_multiple_of(2)
+    }
+
+    /// The colour under ring `i`'s name: its band's, or the ground's.
+    const fn ground_of(&self, i: usize) -> Paint {
+        if self.is_shaded(i) {
+            Paint::Role(Role::RingBand)
+        } else {
+            Paint::Role(Role::Neutral(Neutral::Surface1))
+        }
     }
 
     /// The least growth step at which every two markers clear (D-86),
@@ -333,6 +359,24 @@ impl RadarBlock {
         }
     }
 
+    /// The shading under the rings (rg-74n): a filled disc per ring from
+    /// the outermost shaded one inward, each covering its ring and all
+    /// inside it, so the next one in cuts it down to its band. A shaded
+    /// ring's disc is the band's colour and an unshaded one's the ground's.
+    /// None when the rings are unshaded.
+    fn bands(&self, r: RadarScale) -> impl Iterator<Item = Node> + '_ {
+        let first = (0..self.rings.len())
+            .find(|&i| self.is_shaded(i))
+            .unwrap_or(self.rings.len());
+        (first..self.rings.len()).map(move |i| Node::Circle {
+            centre: Point::ORIGIN,
+            radius: self.geometry.band(i).outer * r.geometry,
+            fill: self.ground_of(i),
+            stroke: Paint::None,
+            stroke_width: 0.0,
+        })
+    }
+
     /// One circle per declared ring, at its band's outer edge (FR-32).
     fn ring_circles(&self, r: RadarScale) -> impl Iterator<Item = Node> + '_ {
         (0..self.rings.len()).map(move |i| Node::Circle {
@@ -396,7 +440,8 @@ impl RadarBlock {
     fn ring_labels(&self, r: RadarScale) -> impl Iterator<Item = Node> + '_ {
         let halos = self
             .ring_runs()
-            .map(move |run| run.halo(LABEL_HALO, r.text()));
+            .enumerate()
+            .map(move |(i, run)| run.halo_on(self.ground_of(i), LABEL_HALO, r.text()));
         let names = self.ring_runs().map(move |run| run.node(r.text()));
         halos.chain(names)
     }
@@ -415,7 +460,8 @@ impl Block for RadarBlock {
     fn render(&self, at: Placement) -> Node {
         let r = self.scale(at.scale);
         let frame = self
-            .ring_circles(r)
+            .bands(r)
+            .chain(self.ring_circles(r))
             .chain(self.dividers(r))
             .chain(self.sector_labels(r))
             .chain(self.ring_labels(r));
@@ -965,6 +1011,137 @@ mod tests {
             }
             _ => false,
         }
+    }
+
+    /// rg-74n: the filled discs that shade the rings, as (radius, fill), in
+    /// drawing order. A ring circle is never filled, so these are the rest.
+    fn bands(nodes: &[Node]) -> Vec<(f64, Paint)> {
+        nodes
+            .iter()
+            .filter_map(|n| match n {
+                Node::Circle {
+                    centre,
+                    radius,
+                    fill,
+                    stroke: Paint::None,
+                    ..
+                } => {
+                    assert_eq!(*centre, Point::ORIGIN, "a band is centred");
+                    Some((*radius, *fill))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The ring circles' radii, outermost first.
+    fn ring_radii(nodes: &[Node]) -> Vec<f64> {
+        nodes
+            .iter()
+            .filter_map(|n| match n {
+                Node::Circle {
+                    radius,
+                    stroke: Paint::Role(Role::Neutral(Neutral::StrokeRing)),
+                    ..
+                } => Some(*radius),
+                _ => None,
+            })
+            .collect()
+    }
+
+    const BAND: Paint = Paint::Role(Role::RingBand);
+    const GROUND: Paint = Paint::Role(Role::Neutral(Neutral::Surface1));
+
+    fn shaded(rings: Option<&str>) -> RadarBlock {
+        let mut b = block(fonts(), PRD_EXAMPLE, rings);
+        b.set_ring_shading(RingShading::Alternate);
+        b
+    }
+
+    /// rg-74n: off by default, as the standard radar draws it.
+    #[test]
+    fn rings_are_unshaded_by_default() {
+        let b = block(fonts(), PRD_EXAMPLE, None);
+        assert_eq!(bands(&frame_at(&b, 1.0)), []);
+    }
+
+    /// rg-74n: every other ring from the centre. Each disc covers its ring
+    /// and everything inside, so the next one in cuts the band down to its
+    /// ring: a ground disc under an unshaded ring, a band disc under a
+    /// shaded one, and nothing outside the outermost shaded ring.
+    #[test]
+    fn alternate_shades_every_other_ring_from_the_centre() {
+        // Four rings, Assess outermost: Trial and Retire are shaded.
+        let nodes = frame_at(&shaded(None), 1.0);
+        let r = ring_radii(&nodes);
+        let want = |picks: &[(usize, Paint)]| -> Vec<(f64, Paint)> {
+            picks
+                .iter()
+                .map(|&(i, paint)| (*r.get(i).expect("a ring"), paint))
+                .collect()
+        };
+        assert_eq!(bands(&nodes), want(&[(1, BAND), (2, GROUND), (3, BAND)]));
+        // Three: the outermost is shaded too, counting from the centre.
+        let nodes = frame_at(&shaded(Some("Adopt,Trial,Assess")), 1.0);
+        let r = ring_radii(&nodes);
+        let picks = [(0, BAND), (1, GROUND), (2, BAND)];
+        let want: Vec<(f64, Paint)> = picks
+            .iter()
+            .map(|&(i, paint)| (*r.get(i).expect("a ring"), paint))
+            .collect();
+        assert_eq!(bands(&nodes), want);
+    }
+
+    /// rg-74n: the edge cases of counting from the centre. One ring is
+    /// one band; two shade the inner only, with nothing outside it.
+    #[test]
+    fn one_and_two_rings_shade_from_the_centre() {
+        let nodes = frame_at(&shaded(Some("Adopt")), 1.0);
+        let r = ring_radii(&nodes);
+        assert_eq!(bands(&nodes), [(*r.first().expect("a ring"), BAND)]);
+        let nodes = frame_at(&shaded(Some("Adopt,Trial")), 1.0);
+        let r = ring_radii(&nodes);
+        assert_eq!(bands(&nodes), [(*r.get(1).expect("two rings"), BAND)]);
+    }
+
+    /// rg-74n: the bands lie under everything else the radar draws.
+    #[test]
+    fn bands_are_drawn_first() {
+        let nodes = frame_at(&shaded(None), 1.0);
+        let n = bands(&nodes).len();
+        assert!(n > 0);
+        assert!(nodes.iter().take(n).all(|node| matches!(
+            node,
+            Node::Circle {
+                stroke: Paint::None,
+                ..
+            }
+        )));
+        assert!(!nodes.iter().skip(n).any(|node| matches!(
+            node,
+            Node::Circle {
+                stroke: Paint::None,
+                ..
+            }
+        )));
+    }
+
+    /// rg-74n: a ring name's halo is its band's colour, so no pale patch
+    /// shows round a name on a shaded ring.
+    #[test]
+    fn a_shaded_rings_name_sits_on_a_band_halo() {
+        let nodes = frame_at(&shaded(None), 1.0);
+        let texts = ring_texts(&nodes);
+        let (halos, _) = texts.split_at(texts.len() / 2);
+        let strokes: Vec<Paint> = halos
+            .iter()
+            .map(|halo| match halo.ink {
+                TextPaint::Halo { stroke, .. } => stroke,
+                other @ TextPaint::Fill(_) => panic!("expected a halo, got {other:?}"),
+            })
+            .collect();
+        // Outermost first: Assess, Trial, Adopt, Retire.
+        assert_eq!(strokes, [GROUND, BAND, GROUND, BAND]);
     }
 
     #[test]

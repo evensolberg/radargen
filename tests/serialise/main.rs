@@ -42,7 +42,7 @@ use radargen::layout::arrange::{
     Arrangement, Blocks, NarrowParts, WideParts, narrow_parts, wide_parts,
 };
 use radargen::model::Catalogue;
-use radargen::options::{Legend, Table};
+use radargen::options::{Legend, RingShading, Table};
 use radargen::order::{Plotted, resolve};
 use radargen::palette::{Colours, Palette, Theme};
 use radargen::svg::Target;
@@ -93,6 +93,7 @@ impl Built {
             colours,
             legend,
             table,
+            ring_shading: RingShading::None,
         })
     }
 

@@ -5,7 +5,7 @@ mod chrome;
 mod css;
 mod table;
 
-use crate::options::{Legend, Table};
+use crate::options::{Legend, RingShading, Table};
 
 use crate::emit::OUTPUT_VERSION;
 use crate::emit::UNTITLED;
@@ -53,6 +53,8 @@ pub struct Page<'a> {
     pub legend: Legend,
     /// FR-106: what the table publishes.
     pub table: Table,
+    /// FR-115: whether the rings are shaded, so the page declares the band.
+    pub ring_shading: RingShading,
 }
 
 /// The page for `input` (FR-68).
@@ -77,6 +79,7 @@ pub fn page(input: &Page<'_>) -> String {
         colours,
         legend,
         table,
+        ring_shading,
     } = *input;
     let bound = colours.interactive();
     let toggle = colours.has_toggle();
@@ -109,7 +112,7 @@ pub fn page(input: &Page<'_>) -> String {
         &xml_text(title.unwrap_or(UNTITLED)),
         "</title>\n<style>\n",
         &css::font_faces(),
-        &css::palettes(colours),
+        &css::palettes(colours, ring_shading),
         &css::layout(&sizes, narrow.body.width),
         &css::legend_hiding(&sizes),
         &css::indicators(),

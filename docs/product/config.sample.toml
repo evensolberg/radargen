@@ -28,6 +28,11 @@
 # is none.
 # unplotted_rings = ["In Use", "Rejected"]
 
+# Shade every other ring faintly, from the centre out, so the rings are
+# easier to tell apart: "alternate". "none", the default, draws the ring
+# circles only, as the standard radar does. Every format draws it.
+# ring_shading = "none"
+
 # The colours for PNG, SVG and PDF: "light", the default, or "dark". Use
 # theme or palette, not both.
 # theme = "light"
