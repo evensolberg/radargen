@@ -4,6 +4,7 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 
 use super::*;
+use crate::options::RingShading;
 use crate::palette::file::parse;
 use crate::palette::{Colours, Palette, Theme};
 use crate::text::{FAMILY, Weight};
@@ -103,9 +104,9 @@ fn palettes_override_in_order() {
     .concat();
     // The forced-colours block follows (forced_colours_map_the_neutrals_…).
     assert!(
-        palettes(&BUILT_IN).starts_with(&want),
+        palettes(&BUILT_IN, RingShading::None).starts_with(&want),
         "{}",
-        palettes(&BUILT_IN)
+        palettes(&BUILT_IN, RingShading::None)
     );
     // The number inks are literals because the series agree (§5).
     let series = |theme| {
@@ -217,7 +218,7 @@ fn legend_focus_is_unchanged() {
 fn the_stylesheet_requests_nothing_but_fonts() {
     let css = [
         font_faces(),
-        palettes(&BUILT_IN),
+        palettes(&BUILT_IN, RingShading::None),
         layout(&WIDE, NARROW),
         indicators(),
         [VISUALLY_HIDDEN, HIDDEN_BOX].concat(),
@@ -237,7 +238,7 @@ fn the_stylesheet_requests_nothing_but_fonts() {
 /// after the themes, at their specificity, so it wins in every theme.
 #[test]
 fn forced_colours_map_the_neutrals_to_system_colours() {
-    let css = palettes(&BUILT_IN);
+    let css = palettes(&BUILT_IN, RingShading::None);
     let forced = concat!(
         "@media (forced-colors: active){:root,:root[data-theme]{",
         "--surface-1:Canvas;--surface-2:Canvas;--text-primary:CanvasText;",
@@ -294,8 +295,8 @@ fn sample() -> Colours {
 /// kept (plan RG-018A, Ruling 5).
 #[test]
 fn a_palette_file_gives_one_set() {
-    let css = palettes(&sample());
-    let light = declarations(&Palette::built_in(Theme::Light));
+    let css = palettes(&sample(), RingShading::None);
+    let light = declarations(&Palette::built_in(Theme::Light), RingShading::None);
     assert!(
         css.starts_with(&format!(":root{{color-scheme:light;{light}}}\n")),
         "{css}"
@@ -314,7 +315,10 @@ fn a_palette_file_gives_one_set() {
 #[test]
 fn a_dark_palette_declares_a_dark_scheme() {
     let dark = Colours::from(Palette::built_in(Theme::Dark));
-    assert!(palettes(&dark).starts_with(":root{color-scheme:dark;--surface-1:#15181D;"));
+    assert!(
+        palettes(&dark, RingShading::None)
+            .starts_with(":root{color-scheme:dark;--surface-1:#15181D;")
+    );
 }
 
 /// NFR-6 context 5, pinned where the values are written (R21): a palette
@@ -322,7 +326,7 @@ fn a_dark_palette_declares_a_dark_scheme() {
 /// produce.
 #[test]
 fn a_palette_block_holds_only_safe_characters() {
-    let css = palettes(&sample());
+    let css = palettes(&sample(), RingShading::None);
     let colours = css.split("@media").next().unwrap_or_default();
     assert!(
         colours
@@ -379,5 +383,29 @@ fn a_hidden_legend_hides_both_parts_on_screen_under_the_script_only() {
     assert!(
         !css.contains("grid-template-columns"),
         "the tracks stay: {css}"
+    );
+}
+
+/// rg-74n: a page with shaded rings declares the band in every block, each
+/// theme's own, and forced colours make it the canvas, as the surfaces
+/// are; a page without declares nothing more than it did.
+#[test]
+fn shaded_rings_declare_the_band_in_every_block() {
+    let off = palettes(&BUILT_IN, RingShading::None);
+    assert!(!off.contains("--ring-band"), "{off}");
+    let on = palettes(&BUILT_IN, RingShading::Alternate);
+    assert_eq!(on.matches("--ring-band:#F8F9FA;").count(), 1, "{on}");
+    assert_eq!(on.matches("--ring-band:#1A1E25;").count(), 2, "{on}");
+    assert!(
+        on.ends_with("--focus:Highlight;--ring-band:Canvas;}}\n"),
+        "{on}"
+    );
+    // A file's one set, with its own band.
+    let file = palettes(&sample(), RingShading::Alternate);
+    assert_eq!(file.matches("--ring-band:#F8F9FA;").count(), 1, "{file}");
+    assert_eq!(
+        file.matches("--ring-band:").count(),
+        2,
+        "and the forced block: {file}"
     );
 }

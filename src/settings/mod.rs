@@ -13,7 +13,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::options::{Legend, Paper, Pdf, Table};
+use crate::options::{Legend, Paper, Pdf, RingShading, Table};
 use crate::palette::Theme;
 use edition::Edition;
 use file::{FileValues, Loaded};
@@ -22,6 +22,8 @@ use file::{FileValues, Loaded};
 pub const DEFAULT_THEME: Theme = Theme::Light;
 /// FR-103's default.
 pub const DEFAULT_LEGEND: Legend = Legend::Shown;
+/// FR-115's default: unshaded, as the standard radar is drawn (rg-74n).
+pub const DEFAULT_RING_SHADING: RingShading = RingShading::None;
 /// FR-106's default.
 pub const DEFAULT_TABLE: Table = Table::Radar;
 /// FR-112: the radar PDF, unless `--pdf full` asks for the table too.
@@ -65,6 +67,8 @@ pub enum Setting {
     Rings,
     /// `--unplotted-rings`, `unplotted_rings`.
     UnplottedRings,
+    /// `--ring-shading`, `ring_shading` (FR-115).
+    RingShading,
     /// `--theme`, `theme`.
     Theme,
     /// `--width`, `width`.
@@ -89,13 +93,14 @@ pub enum Setting {
 impl Setting {
     /// Every setting, in FR-91's order: the order a file's problems are
     /// reported in.
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 16] = [
         Self::Input,
         Self::Output,
         Self::Title,
         Self::Subtitle,
         Self::Rings,
         Self::UnplottedRings,
+        Self::RingShading,
         Self::Theme,
         Self::Width,
         Self::LegendColumns,
@@ -128,6 +133,7 @@ impl Setting {
             Self::Subtitle => ("--subtitle", "subtitle"),
             Self::Rings => ("--rings", "rings"),
             Self::UnplottedRings => ("--unplotted-rings", "unplotted_rings"),
+            Self::RingShading => ("--ring-shading", "ring_shading"),
             Self::Theme => ("--theme", "theme"),
             Self::Width => ("--width", "width"),
             Self::LegendColumns => ("--legend-columns", "legend_columns"),
@@ -419,6 +425,8 @@ pub struct Settings {
     pub rings: Effective<String>,
     /// `--unplotted-rings` or `unplotted_rings`, as a comma list.
     pub unplotted_rings: Effective<String>,
+    /// `--ring-shading` or `ring_shading` (FR-115).
+    pub ring_shading: Effective<RingShading>,
     /// `--theme` or `theme`.
     pub theme: Effective<Theme>,
     /// `--width` or `width`.
@@ -605,6 +613,7 @@ mod tests {
                 "subtitle",
                 "rings",
                 "unplotted_rings",
+                "ring_shading",
                 "theme",
                 "width",
                 "legend_columns",
@@ -626,6 +635,7 @@ mod tests {
                 "--subtitle",
                 "--rings",
                 "--unplotted-rings",
+                "--ring-shading",
                 "--theme",
                 "--width",
                 "--legend-columns",

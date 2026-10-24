@@ -164,6 +164,7 @@ radargen --create-config <PATH>
 | `-o`, `--output <OUTPUT>` | Where to write the radar. The extension, in any case, picks the format: `.html`, `.png`, `.svg` or `.pdf`. |
 | `-r`, `--rings <RINGS>` | The rings, outermost first, separated by commas. Replaces the default `Assess, Trial, Adopt, Retire`. |
 | `--unplotted-rings <RINGS>` | Rings whose rows are left off the radar without a warning, separated by commas. Other undeclared rings still warn. |
+| `--ring-shading <none\|alternate>` | Shade every other ring faintly, from the centre out, so the rings are easier to tell apart; the default is none, the standard look. Every format draws it. |
 | `-t`, `--title <TITLE>` | A title above the radar. A PDF always draws one: *Technology Radar* if none. |
 | `-s`, `--subtitle <SUBTITLE>` | A second line under the title, such as the edition's date. |
 | `-T`, `--theme <light\|dark>` | The colours for PNG, SVG and PDF; the default is light. Not with `--palette`. |
@@ -174,7 +175,7 @@ radargen --create-config <PATH>
 | `--paper <letter\|a4\|none>` | The paper for a PDF, landscape: the radar page first, the legend continuing, every page numbered. `none`, the radar PDF's default, is one page the size of the drawing; a full PDF defaults to `letter` and cannot use `none`. |
 | `--pdf <radar\|full>` | What a PDF holds: `radar` (the default), the radar, key and legend; `full` adds the table of items on the pages after them, always on paper. |
 | `-p`, `--palette <FILE>` | Colours from a palette file instead of the built-in themes, in every format. Not with `--theme`; given with a config file's `theme` key, the palette wins. |
-| `-c`, `--config <FILE>` | Read settings from a TOML file: `input`, `output`, `title`, `subtitle`, `rings`, `unplotted_rings`, `theme`, `width`, `legend_columns`, `legend`, `table`, `paper`, `pdf`, `palette` and `edition`. A flag on the command line overrides its key. With `-c`, the CSV and `-o` are needed only when the file has no `input` or `output` key. |
+| `-c`, `--config <FILE>` | Read settings from a TOML file: `input`, `output`, `title`, `subtitle`, `rings`, `unplotted_rings`, `ring_shading`, `theme`, `width`, `legend_columns`, `legend`, `table`, `paper`, `pdf`, `palette` and `edition`. A flag on the command line overrides its key. With `-c`, the CSV and `-o` are needed only when the file has no `input` or `output` key. |
 | `-e`, `--edition <YYYY-MM-DD>` | The edition's date, which `{edition}` in the output, title or subtitle becomes; `today` for the local date. Overrides a config file's `edition` key. |
 | `--create-template <PATH>` | Write a starter CSV, and render nothing. Given alone. |
 | `--create-palette <PATH>` | Write a starter palette, and render nothing. Given alone. |

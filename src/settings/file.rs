@@ -17,7 +17,7 @@ use toml::Value;
 use super::Setting;
 use super::edition::{self, Edition};
 use crate::decode::{NotUtf8, decode, line_at, read_capped};
-use crate::options::{Legend, Paper, Pdf, Table};
+use crate::options::{Legend, Paper, Pdf, RingShading, Table};
 use crate::palette::Theme;
 use crate::style::{MAX_EXPORT_WIDTH, MAX_LEGEND_COLUMNS, MIN_EXPORT_WIDTH};
 use crate::{ECHO_CHARS, clip};
@@ -46,6 +46,8 @@ pub struct FileValues {
     pub rings: Option<String>,
     /// `unplotted_rings`, as `rings`.
     pub unplotted_rings: Option<String>,
+    /// `ring_shading` (FR-115).
+    pub ring_shading: Option<RingShading>,
     /// `theme` (FR-56).
     pub theme: Option<Theme>,
     /// `width` (FR-64).
@@ -285,6 +287,7 @@ fn take(v: &mut FileValues, setting: Setting, value: &Value) -> Result<(), Vec<K
         Setting::Palette => path(setting, value).map(|s| v.palette = Some(s)),
         Setting::Rings => list(setting, value).map(|s| v.rings = Some(s)),
         Setting::UnplottedRings => list(setting, value).map(|s| v.unplotted_rings = Some(s)),
+        Setting::RingShading => named(setting, value).map(|r| v.ring_shading = Some(r)),
         Setting::Theme => named(setting, value).map(|t| v.theme = Some(t)),
         Setting::Legend => named(setting, value).map(|l| v.legend = Some(l)),
         Setting::Table => named(setting, value).map(|t| v.table = Some(t)),
@@ -435,7 +438,7 @@ mod tests {
     fn every_key_of_its_type_is_read() {
         let l = loaded(
             "output = \"out/r.png\"\ntitle = \"Radar\"\nsubtitle = \"Q3\"\nrings = [\" Hold \", \"Adopt\"]\n\
-             unplotted_rings = [\"In Use\"]\ntheme = \"Dark\"\nwidth = 1920\nlegend_columns = 3\n\
+             unplotted_rings = [\"In Use\"]\nring_shading = \"Alternate\"\ntheme = \"Dark\"\nwidth = 1920\nlegend_columns = 3\n\
              legend = \"HIDE\"\ntable = \"All\"\npaper = \"A4\"\npdf = \"FULL\"\npalette = \"brand.css\"\n",
         );
         assert_eq!(l.problems, []);
@@ -448,6 +451,11 @@ mod tests {
             "joined as the flag holds it"
         );
         assert_eq!(v.unplotted_rings.as_deref(), Some("In Use"));
+        assert_eq!(
+            v.ring_shading,
+            Some(RingShading::Alternate),
+            "rg-74n, any case"
+        );
         // FR-56, FR-103, FR-106: any case, and --legend's aliases.
         assert_eq!(
             (v.theme, v.legend, v.table),
@@ -614,6 +622,7 @@ mod tests {
                 Setting::UnplottedRings,
                 "string",
             ),
+            ("ring_shading = true", Setting::RingShading, "boolean"),
             ("theme = 1", Setting::Theme, "integer"),
             ("width = \"1920\"", Setting::Width, "string"),
             ("legend_columns = \"3\"", Setting::LegendColumns, "string"),
@@ -632,6 +641,11 @@ mod tests {
             assert!(l.is_broken(setting), "{text}");
         }
         for (text, setting, possible) in [
+            (
+                "ring_shading = \"nope\"",
+                Setting::RingShading,
+                ["none", "alternate"],
+            ),
             ("legend = \"nope\"", Setting::Legend, ["shown", "hidden"]),
             ("table = \"nope\"", Setting::Table, ["radar", "all"]),
             ("pdf = \"nope\"", Setting::Pdf, ["radar", "full"]),

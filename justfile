@@ -183,6 +183,8 @@ pdfua-only:
     $r $f/three-sector.csv -o "$pdfs/untitled.pdf" 2>/dev/null
     $r $f/three-sector.csv -o "$pdfs/subtitled.pdf" --subtitle "Edition 4" 2>/dev/null
     $r $f/three-sector.csv -o "$pdfs/palette.pdf" "${t[@]}" --palette docs/product/palette.sample.css 2>/dev/null
+    $r $f/three-sector.csv -o "$pdfs/shaded.pdf" "${t[@]}" --ring-shading alternate 2>/dev/null
+    $r $f/long-legend.csv -o "$pdfs/shaded-paper.pdf" "${t[@]}" --ring-shading alternate --paper a4 --theme dark 2>/dev/null
     $r $f/long-legend.csv -o "$pdfs/narrow.pdf" "${t[@]}" --width 320 --legend-columns 3 2>/dev/null
     printf 'name,sector,ring,description\n' > "$out/huge.csv"
     for i in $(seq 800); do printf 'item %d,Sector %d,Adopt,d\n' "$i" "$((i % 4))" >> "$out/huge.csv"; done

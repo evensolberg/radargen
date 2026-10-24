@@ -88,6 +88,9 @@ pub enum Role {
     /// layout never reads; reducing here would make one radar two different
     /// documents under two palettes (architecture §5).
     Series(usize),
+    /// The fill of a shaded ring (rg-74n): mixed from `Surface1` and
+    /// `Surface2`, never declared by a file, so FR-86 asks nothing more.
+    RingBand,
 }
 
 impl fmt::Display for Role {
@@ -95,6 +98,7 @@ impl fmt::Display for Role {
         match self {
             Self::Neutral(n) => n.fmt(f),
             Self::Series(i) => write!(f, "--series-{}", i + 1),
+            Self::RingBand => f.write_str("--ring-band"),
         }
     }
 }
@@ -212,6 +216,35 @@ fn light_ink(fill: &Hex) -> bool {
     ratio(y, luminance(INK_LIGHT_RGB)) >= ratio(y, luminance(INK_DARK_RGB))
 }
 
+/// How far [`Role::RingBand`] lies from `Surface1` toward `Surface2`:
+/// `BAND_TOWARD` parts in `BAND_PARTS`, the maintainer's "three fifths"
+/// (rg-74n).
+const BAND_TOWARD: u16 = 3;
+const BAND_PARTS: u16 = 5;
+
+/// [`Role::RingBand`] for `neutrals`: three fifths of the way from
+/// `Surface1` to `Surface2`, channel by channel, to the nearest integer
+/// (rg-74n). In fifths a channel never falls on a half, so there is no tie
+/// to break, and in integers no float to differ between targets (NFR-4).
+/// When each of `Surface2`'s channels is on the same side of `Surface1`'s,
+/// as for any two greys or tinted greys, the band is between them in every
+/// channel and so in luminance, which rises with each: whatever is legible
+/// on both surfaces is legible on it, unless an ink's own lightness falls
+/// between two sharply different surfaces. Surfaces of opposed hues are
+/// not held to that; a custom palette's contrast is its author's (D-44).
+// qual:allow(complexity, error_handling) reason: "two `{:02X}` channels after `#` always parse; formatting goes through `Hex::parse`, NFR-6 context 5's one door"
+fn band_of(neutrals: &[Hex; 8]) -> Hex {
+    // `Neutral::ALL` order: `Surface1`, then `Surface2`, lead the array.
+    let [s1, s2, ..] = neutrals;
+    let mix = |a: u8, b: u8| {
+        let (a, b) = (u16::from(a), u16::from(b));
+        ((BAND_PARTS - BAND_TOWARD) * a + BAND_TOWARD * b + BAND_PARTS / 2) / BAND_PARTS
+    };
+    let ([r1, g1, b1], [r2, g2, b2]) = (s1.rgb(), s2.rgb());
+    let (r, g, b) = (mix(r1, r2), mix(g1, g2), mix(b1, b2));
+    Hex::parse(&format!("#{r:02X}{g:02X}{b:02X}")).expect("two hex digits per channel")
+}
+
 /// One complete set of colours: eight neutrals and a non-empty series, each
 /// a [`Hex`], so every value has passed FR-86's check.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -219,6 +252,8 @@ pub struct Palette {
     neutrals: [Hex; 8],
     /// Never empty — FR-87 requires `--series-1` — so the modulo below is safe.
     series: Vec<Hex>,
+    /// [`Role::RingBand`], mixed from the surfaces once, when built.
+    band: Hex,
 }
 
 impl Palette {
@@ -226,7 +261,11 @@ impl Palette {
     /// `None` when `series` is empty, which FR-87 rules out.
     #[must_use]
     pub fn new(neutrals: [Hex; 8], series: Vec<Hex>) -> Option<Self> {
-        (!series.is_empty()).then_some(Self { neutrals, series })
+        (!series.is_empty()).then(|| Self {
+            band: band_of(&neutrals),
+            neutrals,
+            series,
+        })
     }
 
     /// The built-in palette for `theme` (FR-81, FR-82).
@@ -241,8 +280,10 @@ impl Palette {
             Theme::Dark => DARK,
         };
         let hex = |v: &str| Hex::parse(v).expect("FR-81 and FR-82's values are #RRGGBB");
+        let neutrals = neutrals.map(hex);
         Self {
-            neutrals: neutrals.map(hex),
+            band: band_of(&neutrals),
+            neutrals,
             series: BUILT_IN_SERIES.map(hex).into(),
         }
     }
@@ -287,7 +328,7 @@ impl Palette {
     const fn bind(&self, role: Role) -> Role {
         match role {
             Role::Series(i) => Role::Series(i % self.series.len()),
-            neutral @ Role::Neutral(_) => neutral,
+            other @ (Role::Neutral(_) | Role::RingBand) => other,
         }
     }
 
@@ -335,6 +376,7 @@ impl Palette {
                 .series
                 .get(i)
                 .expect("`bind` reduced the index modulo the series length"),
+            Role::RingBand => &self.band,
         }
     }
 
@@ -572,6 +614,99 @@ mod tests {
     }
 
     /// The legend swatch and badge are a series entry on the panel, so each
+    /// rg-74n: the ring band is three fifths of the way from `Surface1` to
+    /// `Surface2`, channel by channel, rounded to the nearest.
+    #[test]
+    fn the_ring_band_mixes_the_surfaces() {
+        let band = |theme| Palette::built_in(theme).value(Role::RingBand).to_owned();
+        assert_eq!(band(Theme::Light), "#F8F9FA");
+        assert_eq!(band(Theme::Dark), "#1A1E25");
+        assert_eq!(Role::RingBand.to_string(), "--ring-band");
+        let p = Palette::built_in(Theme::Light);
+        assert_eq!(p.var(Role::RingBand), "var(--ring-band)");
+        assert_eq!(p.rgb(Role::RingBand), [0xF8, 0xF9, 0xFA]);
+    }
+
+    /// rg-74n: a file's palette gets its own band, and the band is not a
+    /// declaration a file makes (FR-86 is unchanged).
+    #[test]
+    fn a_files_band_follows_its_surfaces() {
+        let mut neutrals = light_neutrals();
+        let [s1, s2, ..] = &mut neutrals;
+        *s1 = hex("#000000");
+        *s2 = hex("#FFFFFF");
+        let p = Palette::new(neutrals, vec![hex("#0072B2")]).expect("a palette");
+        // 3/5 of 255 is 153: no tie, so no rounding question.
+        assert_eq!(p.value(Role::RingBand), "#999999");
+        assert!(
+            p.declarations()
+                .iter()
+                .all(|(role, _)| *role != Role::RingBand)
+        );
+    }
+
+    /// rg-74n: the band lies between the surfaces in luminance whenever
+    /// each channel of one is on the same side of the other's, as for any
+    /// greys, so anything legible on both is legible on it.
+    #[test]
+    fn the_band_lies_between_the_surfaces() {
+        let ordered = |a: &str, b: &str| {
+            let (a, b) = (hex(a).rgb(), hex(b).rgb());
+            a.iter().zip(&b).all(|(x, y)| x <= y) || a.iter().zip(&b).all(|(x, y)| x >= y)
+        };
+        let samples = [
+            "#000000", "#FFFFFF", "#15181D", "#1E222A", "#F3F5F8", "#F4F5F7", "#D1E0F6", "#808080",
+            "#0072B2", "#C25400",
+        ];
+        for a in samples {
+            for b in samples.into_iter().filter(|b| ordered(a, b)) {
+                let mut neutrals = light_neutrals();
+                let [s1, s2, ..] = &mut neutrals;
+                *s1 = hex(a);
+                *s2 = hex(b);
+                let p = Palette::new(neutrals, vec![hex("#0072B2")]).expect("a palette");
+                let y = |role| luminance(p.rgb(role));
+                let (lo, hi) = {
+                    let (u, v) = (
+                        y(Role::Neutral(Neutral::Surface1)),
+                        y(Role::Neutral(Neutral::Surface2)),
+                    );
+                    (u.min(v), u.max(v))
+                };
+                let band = y(Role::RingBand);
+                assert!(lo <= band && band <= hi, "{a} {b}: {band}");
+            }
+        }
+    }
+
+    /// rg-74n, the maintainer's one worry: shading must not make a marker
+    /// or a ring name harder to read. On the band, in both themes and in
+    /// the slate example, text clears 4.5:1 and every mark 3:1, as they do
+    /// on the surfaces.
+    #[test]
+    fn everything_on_the_band_stays_legible() {
+        let slate = file::parse(include_str!("../../docs/product/palette.slate.css"))
+            .expect("a valid palette");
+        for (name, p) in [
+            ("light", Palette::built_in(Theme::Light)),
+            ("dark", Palette::built_in(Theme::Dark)),
+            ("slate", slate),
+        ] {
+            let band = p.value(Role::RingBand);
+            for ink in [Neutral::TextPrimary, Neutral::TextMuted] {
+                let ratio = contrast(p.value(Role::Neutral(ink)), band);
+                assert!(ratio >= 4.5, "{name} {ink:?}: {ratio:.2}");
+            }
+            let marks = [Neutral::StrokeRing, Neutral::StrokeDivider, Neutral::Focus]
+                .map(|n| p.value(Role::Neutral(n)).to_owned());
+            let series = (0..p.series_len()).map(|i| p.value(Role::Series(i)).to_owned());
+            for mark in marks.into_iter().chain(series) {
+                let ratio = contrast(&mark, band);
+                assert!(ratio >= 3.0, "{name} {mark}: {ratio:.2}");
+            }
+        }
+    }
+
     /// entry clears 3:1 (WCAG 1.4.11) against `Surface2`, in both themes.
     #[test]
     fn series_clear_3_on_surface2() {

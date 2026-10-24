@@ -20,7 +20,8 @@ mod tests {
     use crate::rings::DEFAULT_RINGS;
     use crate::settings::file::{FileValues, Loaded, load};
     use crate::settings::{
-        DEFAULT_LEGEND, DEFAULT_LEGEND_COLUMNS, DEFAULT_TABLE, DEFAULT_THEME, Setting,
+        DEFAULT_LEGEND, DEFAULT_LEGEND_COLUMNS, DEFAULT_RING_SHADING, DEFAULT_TABLE, DEFAULT_THEME,
+        Setting,
     };
 
     /// The setting a line sets once [`COMMENT`] is removed, if it is a key
@@ -78,6 +79,7 @@ mod tests {
                     Setting::Subtitle => file.values.subtitle.is_some(),
                     Setting::Rings => file.values.rings.is_some(),
                     Setting::UnplottedRings => file.values.unplotted_rings.is_some(),
+                    Setting::RingShading => file.values.ring_shading.is_some(),
                     Setting::Theme => file.values.theme.is_some(),
                     Setting::Width => file.values.width.is_some(),
                     Setting::LegendColumns => file.values.legend_columns.is_some(),
@@ -98,6 +100,7 @@ mod tests {
     fn each_key_with_a_default_shows_it() {
         let values = loaded(&uncommented(Setting::Palette)).values;
         assert_eq!(values.rings, Some(DEFAULT_RINGS.join(",")));
+        assert_eq!(values.ring_shading, Some(DEFAULT_RING_SHADING));
         assert_eq!(values.theme, Some(DEFAULT_THEME));
         assert_eq!(values.legend_columns, Some(DEFAULT_LEGEND_COLUMNS));
         assert_eq!(values.legend, Some(DEFAULT_LEGEND));

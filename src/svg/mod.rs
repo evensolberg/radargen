@@ -577,9 +577,16 @@ impl TextRun {
     /// short of the glyphs.
     #[must_use]
     pub fn halo(&self, width: f64, scale: Scale) -> Node {
+        self.halo_on(Paint::Role(Role::Neutral(Neutral::Surface1)), width, scale)
+    }
+
+    /// [`Self::halo`] in `ground`, the colour the text sits on: a shaded
+    /// ring's band (rg-74n).
+    #[must_use]
+    pub fn halo_on(&self, ground: Paint, width: f64, scale: Scale) -> Node {
         self.painted(
             TextPaint::Halo {
-                stroke: Paint::Role(Role::Neutral(Neutral::Surface1)),
+                stroke: ground,
                 width: width * scale.size,
             },
             scale,
