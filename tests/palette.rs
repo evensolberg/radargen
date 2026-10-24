@@ -29,18 +29,24 @@ fn each_neutral_line_names_its_dark_value() {
     }
 }
 
-/// FR-101's order: the series first, then FR-82's roles in order.
+/// The example palette the guide offers (rg-new), beside the sample.
+const SLATE: &str = include_str!("../docs/product/palette.slate.css");
+
+/// FR-101's order: the series first, then FR-82's roles in order. The
+/// slate example keeps it, so the two files read alike.
 #[test]
 fn declarations_are_in_fr_101_order() {
-    let names: Vec<&str> = SAMPLE
-        .lines()
-        .map(unindented)
-        .filter(|l| l.starts_with("--"))
-        .filter_map(|l| l.split_once(':').map(|(name, _)| name))
-        .collect();
-    let mut want: Vec<String> = (1..=8).map(|i| format!("--series-{i}")).collect();
-    want.extend(Neutral::ALL.iter().map(ToString::to_string));
-    assert_eq!(names, want);
+    for file in [SAMPLE, SLATE] {
+        let names: Vec<&str> = file
+            .lines()
+            .map(unindented)
+            .filter(|l| l.starts_with("--"))
+            .filter_map(|l| l.split_once(':').map(|(name, _)| name))
+            .collect();
+        let mut want: Vec<String> = (1..=8).map(|i| format!("--series-{i}")).collect();
+        want.extend(Neutral::ALL.iter().map(ToString::to_string));
+        assert_eq!(names, want);
+    }
 }
 
 /// The header names no requirement and no flag a release lacks (plan
@@ -48,10 +54,13 @@ fn declarations_are_in_fr_101_order() {
 /// no byte-order mark (NFR-17).
 #[test]
 fn the_sample_reads_as_a_users_file() {
-    assert!(!SAMPLE.contains("FR-") && !SAMPLE.contains("--create-palette"));
-    assert!(!SAMPLE.contains('\r') && SAMPLE.ends_with("}\n"));
-    assert!(!SAMPLE.starts_with('\u{feff}'), "no byte-order mark");
-    assert!(SAMPLE.contains("https://github.com/evensolberg/radargen/blob/main/docs/palette.md"));
+    assert!(!SAMPLE.contains("--create-palette"));
+    for file in [SAMPLE, SLATE] {
+        assert!(!file.contains("FR-"));
+        assert!(!file.contains('\r') && file.ends_with("}\n"));
+        assert!(!file.starts_with('\u{feff}'), "no byte-order mark");
+        assert!(file.contains("https://github.com/evensolberg/radargen/blob/main/docs/palette.md"));
+    }
 }
 
 /// The guide's tables give each value the code draws.

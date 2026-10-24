@@ -585,6 +585,36 @@ mod tests {
         }
     }
 
+    /// rg-new: `docs/product/palette.slate.css`, the example palette the
+    /// guide offers, is a valid `--palette` file and clears every pair its
+    /// header claims, so an author starting from it starts legible.
+    #[test]
+    fn the_slate_example_clears_its_contrast() {
+        let p = file::parse(include_str!("../../docs/product/palette.slate.css"))
+            .expect("a valid palette");
+        let value = |role: Neutral| p.value(Role::Neutral(role));
+        let surfaces = [Neutral::Surface1, Neutral::Surface2].map(value);
+        for surface in surfaces {
+            for ink in [Neutral::TextPrimary, Neutral::TextMuted] {
+                let ratio = contrast(value(ink), surface);
+                assert!(ratio >= 4.5, "{ink:?} on {surface}: {ratio:.2}");
+            }
+            let marks = [Neutral::StrokeRing, Neutral::StrokeDivider, Neutral::Focus];
+            let series = (0..p.series_len()).map(|i| p.value(Role::Series(i)));
+            for mark in marks.map(value).into_iter().chain(series) {
+                let ratio = contrast(mark, surface);
+                assert!(ratio >= 3.0, "{mark} on {surface}: {ratio:.2}");
+            }
+        }
+        let hollow = contrast(value(Neutral::TextPrimary), value(Neutral::MarkerHollow));
+        assert!(hollow >= 4.5, "text on hollow: {hollow:.2}");
+        assert_eq!(p.series_len(), 8);
+        for i in 0..p.series_len() {
+            let ratio = contrast(p.value(Role::Series(i)), p.number_ink(i));
+            assert!(ratio >= 4.5, "series-{} number: {ratio:.2}", i + 1);
+        }
+    }
+
     #[test]
     fn contrast_matches_wcag_reference_values() {
         assert!((contrast("#FFFFFF", "#000000") - 21.0).abs() < 1e-9);
