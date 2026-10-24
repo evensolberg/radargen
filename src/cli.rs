@@ -361,9 +361,9 @@ impl Cli {
 /// FR-90 on a setting's value, from the command line or the file.
 ///
 /// Removes every character the output cannot display (the set
-/// [`displayable`] rejects, the one FR-90 removes from CSV fields) and warns
-/// once, naming the value's setting and source (NFR-10), when it removed
-/// any.
+/// [`crate::escape::displayable`] rejects, the one FR-90 removes from CSV
+/// fields) and warns once, naming the value's setting and source (NFR-10),
+/// when it removed any.
 ///
 /// For the rings the caller cleans before [`crate::rings::parse_ring_list`],
 /// and for `--unplotted-rings` before

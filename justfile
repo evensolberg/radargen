@@ -357,6 +357,7 @@ focus-cost: release-build
 @ci:
     cargo fmt --check
     cargo clippy --locked --all-targets -- -D warnings
+    RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps
     just lint
     cargo test --locked
     cargo deny check licenses advisories sources bans

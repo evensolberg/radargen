@@ -6,9 +6,9 @@
 //! and PNG's: colours are the chosen palette's literals, and those nodes are
 //! dropped at any depth.
 //!
-//! Every attribute is written by [`attr`] (always through
-//! [`escape::xml_attr`]) or [`coord`] (always through [`num::fmt_coord`]),
-//! so no value is quoted by hand and no float is formatted any other way.
+//! Every attribute is written by `attr` (always through [`escape::xml_attr`])
+//! or `coord` (always through [`num::fmt_coord`]), so no value is quoted by
+//! hand and no float is formatted any other way.
 //! Output is one element per line (a text keeps its tspans on its own
 //! line), so a golden file diffs by element.
 //!
