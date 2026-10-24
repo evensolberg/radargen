@@ -1520,6 +1520,7 @@ mod tests {
         for paper in [Paper::Letter, Paper::A4] {
             let sheets = fixture.sheets(paper, "T", None);
             assert_ne!(bodies(&sheets, fonts()).tall_legend_rows.len(), 0);
+            let mut shared = false;
             for page in documents(&sheets).iter().skip(1) {
                 let floor = page.height - PAPER_FOOT_ROOM + 1e-6;
                 let columns: Vec<&Node> = children(page)
@@ -1533,7 +1534,10 @@ mod tests {
                     .collect();
                 // At most the tall piece itself runs past the floor.
                 assert!(over.len() <= 1, "{paper:?}: {over:?}");
+                shared |= over.len() == 1 && columns.len() > 1;
             }
+            // The case is real: the tall piece shares a page with others.
+            assert!(shared, "{paper:?}: the tall row had a page to itself");
         }
     }
 
