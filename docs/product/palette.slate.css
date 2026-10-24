@@ -33,10 +33,10 @@
   --series-8: #7F439D; /* purple */
 
   --surface-1: #F3F5F8;      /* the page and the radar's ground: cool grey */
-  --surface-2: #E6EAF0;      /* legend, detail panel, table and buttons */
+  --surface-2: #d1e0f6;      /* legend, detail panel, table and buttons */
   --text-primary: #18202B;   /* names, headings, the number in a hollow marker */
   --text-muted: #4B5666;     /* ring labels, subtitle, key and details */
-  --stroke-ring: #7C8796;    /* ring circles */
+  --stroke-ring: #727D8D;    /* ring circles */
   --stroke-divider: #737E8E; /* sector dividers, table rules and borders */
   --marker-hollow: #FFFFFF;  /* inside a hollow marker or badge */
   --focus: #1F5FBF;          /* the keyboard focus ring: the lead blue */
