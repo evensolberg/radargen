@@ -11,7 +11,7 @@ created_date: 2026-10-17
 synopsis: "How to draw a radar in your own colours with --palette: what the file holds, where each of its colours is drawn, the contrast each needs, and how the sector colours cycle."
 status: active
 type: Guide
-revision: "1.4"
+revision: "1.5"
 review_date:
 reviewed_by: []
 completed_date:
@@ -20,6 +20,8 @@ comments: "Written for PR 18 (rg-cdo), from PRD FR-81, FR-82, FR-86, FR-87, FR-1
 # Palettes
 
 `--palette <file.css>` draws a radar in your colours instead of radargen's built-in themes, in every format. Start from the file `radargen --create-palette brand.css` writes, which holds the built-in light colours. [`docs/product/palette.sample.css`](product/palette.sample.css) holds the same bytes.
+
+For a ready-made palette of a different look, [`docs/product/palette.slate.css`](product/palette.slate.css) is a light cool-grey ground with blue accents. Every pair in the table below clears its minimum, and its sector colours stay as distinct under colour-vision deficiency as the built-in ones. Use it as it is, or copy it and change it; once you change a colour, its contrast is yours to check.
 
 ![Diagram of where each palette colour is drawn; the table below lists the same](palette-roles.svg)
 
@@ -114,3 +116,4 @@ radargen checks that the file is complete and well formed, never that its colour
 | 1.2 | 2026-10-17 | Start from `--create-palette` rather than copying the sample (rg-0fm). |
 | 1.3 | 2026-10-17 | A forgotten `;` is its own error, and the next line is checked at once (rg-p9a). |
 | 1.4 | 2026-10-22 | Sectors, not quadrants (D-101; rg-k16); the property names are unchanged. |
+| 1.5 | 2026-10-23 | An example palette, slate: light grey with blue accents (rg-new). |

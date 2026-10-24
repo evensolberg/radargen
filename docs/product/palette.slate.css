@@ -1,0 +1,43 @@
+/* radargen palette: slate, a light grey ground with blue accents.
+ *
+ * An example of a palette of your own: give this file to --palette to
+ * draw a radar in these colours, in every format. Like any --palette file
+ * it is one set of colours, so it cannot be combined with --theme, and an
+ * HTML page drawn with it has no theme button.
+ *
+ * Every value is a #RRGGBB colour, and each one clears the contrast the
+ * palette guide asks of it. Text clears 4.5:1 against both surfaces, and
+ * --text-primary also against --marker-hollow. Sector colours, strokes
+ * and --focus clear 3:1 against both surfaces, and each sector colour
+ * 4.5:1 against white or #16191F, the two colours its marker numbers are
+ * drawn in. The sector colours stay as distinct as the built-in ones under
+ * the common colour-vision deficiencies, the first three most of all.
+ *
+ * Once you change a colour, its contrast is yours to check. The palette
+ * guide shows where each colour is drawn:
+ * https://github.com/evensolberg/radargen/blob/main/docs/palette.md
+ */
+
+:root {
+  /* Sector colours, in the sectors' sorted order, starting again from
+   * --series-1 when there are more sectors than entries. Add or remove
+   * entries freely, numbered from --series-1 with no gaps. The first
+   * entries are the most distinct, so a short list stays readable. */
+  --series-1: #1F5FBF; /* blue */
+  --series-2: #A85A00; /* amber */
+  --series-3: #0F7A82; /* teal */
+  --series-4: #B03D5E; /* rose */
+  --series-5: #3D7A2E; /* green */
+  --series-6: #4A6A8F; /* slate blue */
+  --series-7: #8A5A7A; /* mauve */
+  --series-8: #7F439D; /* purple */
+
+  --surface-1: #F3F5F8;      /* the page and the radar's ground: cool grey */
+  --surface-2: #E6EAF0;      /* legend, detail panel, table and buttons */
+  --text-primary: #18202B;   /* names, headings, the number in a hollow marker */
+  --text-muted: #4B5666;     /* ring labels, subtitle, key and details */
+  --stroke-ring: #7C8796;    /* ring circles */
+  --stroke-divider: #737E8E; /* sector dividers, table rules and borders */
+  --marker-hollow: #FFFFFF;  /* inside a hollow marker or badge */
+  --focus: #1F5FBF;          /* the keyboard focus ring: the lead blue */
+}
