@@ -1,8 +1,22 @@
+## [1.26.0] - 2026-10-23
+
+### 🚀 Features
+
+- *(radar)* --ring-shading shades every other ring (rg-74n)
+
+### 📚 Documentation
+
+- *(prd)* Page 2 opens with Legend when page 1 has none (rg-jas) (#160)
+- *(palette)* A slate example palette, grey with blue accents (rg-new) (#161)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(git)* Ignore the brainstorming mockups folder
 ## [1.25.3] - 2026-10-23
 
 ### 🐛 Bug Fixes
 
-- *(paper)* Continuation columns start their groups level (rg-jao)
+- *(paper)* Continuation columns start their groups level (rg-jao, 1.25.3) (#159)
 
 ### 📚 Documentation
 
