@@ -191,6 +191,18 @@ impl LegendBlock {
         }
     }
 
+    /// The legend with its panel at least `height` tall at scale 1 and the
+    /// content where it was: how a paper page's columns end level
+    /// (rg-73x). An empty legend stays empty.
+    #[must_use]
+    pub const fn tall(&self, height: f64) -> LegendSpan<'_> {
+        LegendSpan {
+            legend: self,
+            width: 0.0,
+            height,
+        }
+    }
+
     /// The legend with its panel at least `width` wide at scale 1 and the
     /// content where it was: how the narrow arrangement spans its column
     /// (rg-zch). An empty legend stays empty.
@@ -231,7 +243,7 @@ impl Block for LegendBlock {
 }
 
 /// A legend whose panel spans a width wider than its content
-/// ([`LegendBlock::spanning`]), or a height taller ([`LegendSpan::tall`]).
+/// ([`LegendBlock::spanning`]), or a height taller ([`LegendBlock::tall`]).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LegendSpan<'a> {
     legend: &'a LegendBlock,
@@ -240,14 +252,6 @@ pub struct LegendSpan<'a> {
 }
 
 impl LegendSpan<'_> {
-    /// The legend with its panel also at least `height` tall at scale 1
-    /// and the content where it was: how a paper page's columns end level
-    /// (rg-73x). An empty legend stays empty.
-    #[must_use]
-    pub const fn tall(self, height: f64) -> Self {
-        Self { height, ..self }
-    }
-
     /// The panel at scale 1: the legend's, widened to `width` and
     /// lengthened to `height`.
     fn panel(&self) -> Size {
@@ -1097,7 +1101,7 @@ mod tests {
         let natural = block.size(1.0);
         let taller = natural.height + 50.0;
         for s in [1.0, 0.5] {
-            let tall = block.spanning(0.0).tall(taller);
+            let tall = block.tall(taller);
             let size = tall.size(s);
             assert!(close(size.width, natural.width * s) && close(size.height, taller * s));
             let root = tall.render(at(s));
@@ -1105,9 +1109,9 @@ mod tests {
             assert!(close(width, size.width) && close(height, size.height));
             assert_eq!(content(&root), content(&block.render(at(s))));
         }
-        assert_eq!(block.spanning(0.0).tall(10.0).size(1.0), natural);
+        assert_eq!(block.tall(10.0).size(1.0), natural);
         let empty = LegendBlock::new(&empty_catalogue(), &Plotted::default(), fonts());
-        assert!(empty.spanning(0.0).tall(400.0).size(1.0).is_empty());
+        assert!(empty.tall(400.0).size(1.0).is_empty());
     }
 
     #[test]

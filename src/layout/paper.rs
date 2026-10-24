@@ -310,7 +310,7 @@ pub fn bodies(sheets: &Sheets<'_>, fonts: &Fonts) -> Bodies {
         .filter(|(_, piece)| piece.size(1.0).height > room)
         .flat_map(|(_, piece)| piece.rows())
         .collect();
-    let mut pages = legend_pages(sheets, &first, pieces, slots, fonts);
+    let mut pages = legend_pages(sheets, (&first, room), pieces, slots, fonts);
     let mut kinds = vec![PageKind::Front];
     kinds.resize(pages.len(), PageKind::Legend);
     // FR-112: the table starts on a page of its own, after the legend's.
@@ -344,7 +344,7 @@ pub fn bodies(sheets: &Sheets<'_>, fonts: &Fonts) -> Bodies {
 /// `slots` gives it, page 1's beside the radar, the rest side by side.
 fn legend_pages(
     sheets: &Sheets<'_>,
-    first: &FirstPage,
+    (first, room): (&FirstPage, f64),
     pieces: Vec<LegendBlock>,
     slots: PieceSlots,
     fonts: &Fonts,
@@ -378,13 +378,15 @@ fn legend_pages(
     let width = piece_width(sheets, fonts);
     let top = legend_top(sheets, fonts);
     let mut pages = vec![page_one];
-    let last = later.len().saturating_sub(1);
-    pages.extend(
-        later
-            .iter()
-            .enumerate()
-            .map(|(i, columns)| continuation(columns, (width, i == last), sheets, top)),
-    );
+    let final_page = later.len().saturating_sub(1);
+    pages.extend(later.iter().enumerate().map(|(i, pieces)| {
+        let columns = Columns {
+            width,
+            room,
+            ends_legend: i == final_page,
+        };
+        continuation(pieces, columns, sheets, top)
+    }));
     pages
 }
 
@@ -394,28 +396,45 @@ fn legend_top(sheets: &Sheets<'_>, fonts: &Fonts) -> f64 {
     PAPER_MARGIN + title(sheets, fonts).size(1.0).height + LEGEND_WIDE_DROP
 }
 
-/// A continuation page: `pieces` side by side, `width` each, hung from
-/// `top`, the last on the right margin: where page 1's legend sits. Each
-/// panel is drawn to the tallest one's height, so the columns end level
-/// (rg-73x), but the legend's own last piece, on the `final` page, which
-/// ends where its rows do rather than as an empty box.
+/// How a continuation page's columns are drawn.
+#[derive(Debug, Clone, Copy)]
+struct Columns {
+    /// Each piece's width on the page.
+    width: f64,
+    /// The room a piece has, at scale 1: no panel is stretched past it.
+    room: f64,
+    /// Whether this page holds the legend's last piece, its last column.
+    ends_legend: bool,
+}
+
+/// A continuation page: `pieces` side by side, hung from `top`, the last
+/// on the right margin: where page 1's legend sits. The panels end level
+/// (rg-73x): each is drawn to the tallest one's height, but never past the
+/// room, so a row taller than a page (rg-i95) overruns alone. The legend's
+/// last piece is not stretched; it ends where its rows do, not as an
+/// empty box, though a taller one still sets the level for the others.
 #[expect(
     clippy::suboptimal_flops,
     reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
 )]
 fn continuation(
     pieces: &[LegendBlock],
-    (width, last): (f64, bool),
+    columns: Columns,
     sheets: &Sheets<'_>,
     top: f64,
 ) -> Vec<Node> {
+    let Columns {
+        width,
+        room,
+        ends_legend,
+    } = columns;
     let (page_width, _) = sheets.size;
-    let level = pieces.len().saturating_sub(usize::from(last));
-    let tallest = pieces
+    let stretched = pieces.len().saturating_sub(usize::from(ends_legend));
+    let level = pieces
         .iter()
-        .take(level)
         .map(|piece| piece.size(1.0).height)
-        .fold(0.0, f64::max);
+        .fold(0.0, f64::max)
+        .min(room);
     // `n` columns and the `n − 1` gaps between them, the last ending where
     // page 1's legend ends: on the right margin.
     let n = real(pieces.len());
@@ -429,8 +448,8 @@ fn continuation(
                 origin: Point { x, y: top },
                 scale: PAPER_LEGEND_SCALE,
             };
-            let node = if k < level {
-                piece.spanning(0.0).tall(tallest).render(at)
+            let node = if k < stretched {
+                piece.tall(level).render(at)
             } else {
                 piece.render(at)
             };
@@ -1409,6 +1428,111 @@ mod tests {
                         );
                     }
                 }
+            }
+        }
+    }
+
+    /// rg-73x, directly: three pieces of different heights, the tallest
+    /// last. Mid-legend all end level with it; ending the legend, the last
+    /// keeps its own height and still sets the others'; under a smaller
+    /// room the stretched ones stop at the room and the last overruns
+    /// alone.
+    #[test]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "NFR-4: plain * and + are bit-identical on every target; mul_add falls back to a libm fma where the CPU lacks one"
+    )]
+    fn continuation_levels_to_the_tallest_within_the_room() {
+        let rows = |n: usize| {
+            let csv = (0..n)
+                .map(|i| format!("item {i},Tools,Adopt,d\n"))
+                .collect::<Vec<_>>()
+                .concat();
+            full(&format!("{HEAD}{csv}")).0.legend
+        };
+        let pieces = [rows(2), rows(5), rows(9)];
+        let heights: Vec<f64> = pieces.iter().map(|p| p.size(1.0).height).collect();
+        assert!(
+            heights
+                .windows(2)
+                .all(|pair| matches!(pair, [a, b] if a < b)),
+            "{heights:?}"
+        );
+        let tallest = heights.last().copied().unwrap_or_default();
+        let fixture = prd();
+        let sheets = fixture.sheets(Paper::Letter, "T", None);
+        let top = legend_top(&sheets, fonts());
+        let width = piece_width(&sheets, fonts());
+        let bottoms = |room: f64, ends_legend: bool| -> Vec<f64> {
+            let columns = Columns {
+                width,
+                room,
+                ends_legend,
+            };
+            continuation(&pieces, columns, &sheets, top)
+                .iter()
+                .map(|node| rect(node).bottom)
+                .collect()
+        };
+        let at = |h: f64| top + h * PAPER_LEGEND_SCALE;
+        let near = |got: &[f64], want: &[f64]| {
+            got.len() == want.len() && got.iter().zip(want).all(|(g, w)| (g - w).abs() < 1e-6)
+        };
+        let all = bottoms(1_000.0, false);
+        assert!(near(&all, &[at(tallest); 3]), "{all:?}");
+        let ending = bottoms(1_000.0, true);
+        assert!(near(&ending, &[at(tallest); 3]), "{ending:?}");
+        let room = heights.get(1).copied().unwrap_or_default();
+        let capped = bottoms(room, true);
+        assert!(
+            near(&capped, &[at(room), at(room), at(tallest)]),
+            "{capped:?}"
+        );
+        // Ending the legend, a short last piece is not stretched.
+        let short = [rows(5), rows(9), rows(2)];
+        let columns = Columns {
+            width,
+            room: 1_000.0,
+            ends_legend: true,
+        };
+        let got: Vec<f64> = continuation(&short, columns, &sheets, top)
+            .iter()
+            .map(|node| rect(node).bottom)
+            .collect();
+        let two = heights.first().copied().unwrap_or_default();
+        assert!(near(&got, &[at(tallest), at(tallest), at(two)]), "{got:?}");
+    }
+
+    /// rg-73x with rg-i95: a row taller than a page overruns alone; the
+    /// panels beside it stop at the content box.
+    #[test]
+    fn a_tall_row_does_not_stretch_its_neighbours_past_the_page() {
+        let name = "word ".repeat(1_500);
+        let before = (0..120)
+            .map(|i| format!("a{i:03},Tools,Adopt,d\n"))
+            .collect::<Vec<_>>()
+            .concat();
+        let after = (0..120)
+            .map(|i| format!("z{i:03},Tools,Adopt,d\n"))
+            .collect::<Vec<_>>()
+            .concat();
+        let (fixture, _) = full(&format!("{HEAD}{before}{name},Tools,Adopt,d\n{after}"));
+        for paper in [Paper::Letter, Paper::A4] {
+            let sheets = fixture.sheets(paper, "T", None);
+            assert_ne!(bodies(&sheets, fonts()).tall_legend_rows.len(), 0);
+            for page in documents(&sheets).iter().skip(1) {
+                let floor = page.height - PAPER_FOOT_ROOM + 1e-6;
+                let columns: Vec<&Node> = children(page)
+                    .iter()
+                    .take(children(page).len() - 1)
+                    .collect();
+                let over: Vec<Rect> = columns
+                    .iter()
+                    .map(|node| rect(node))
+                    .filter(|r| r.bottom > floor)
+                    .collect();
+                // At most the tall piece itself runs past the floor.
+                assert!(over.len() <= 1, "{paper:?}: {over:?}");
             }
         }
     }
