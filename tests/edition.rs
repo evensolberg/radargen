@@ -299,8 +299,8 @@ fn a_bad_edition_key_is_collected() {
     assert_eq!(
         ran.lines(),
         [
-            "error: invalid value 'sepia' for the theme key in radar.toml [possible values: light, dark]",
-            "error: invalid value '2026-02-30' for the edition key in radar.toml: not a calendar date written YYYY-MM-DD, or today",
+            "error: invalid value 'sepia' for the theme key in radar.toml, line 3 [possible values: light, dark]",
+            "error: invalid value '2026-02-30' for the edition key in radar.toml, line 2: not a calendar date written YYYY-MM-DD, or today",
         ]
     );
     assert_eq!(snapshot(dir.path()), before);

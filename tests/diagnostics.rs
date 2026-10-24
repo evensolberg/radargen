@@ -1742,6 +1742,7 @@ fn config_messages() {
     let file: std::sync::Arc<str> = std::sync::Arc::from("radar.toml");
     let key = |problem| Fatal::ConfigKey {
         file: file.clone(),
+        line: None,
         problem,
     };
     let cases = [
@@ -1814,12 +1815,59 @@ fn config_messages() {
     );
 }
 
+/// rg-1bw: with its line, a key problem names it after the file, as a
+/// syntax error does, in each of the messages' three shapes.
+#[test]
+fn config_messages_name_the_line() {
+    let file: std::sync::Arc<str> = std::sync::Arc::from("radar.toml");
+    let at = |problem| Fatal::ConfigKey {
+        file: file.clone(),
+        line: Some(3),
+        problem,
+    };
+    let cases = [
+        (
+            at(KeyProblem::WrongType {
+                setting: Setting::Width,
+                found: "float",
+            }),
+            "error: the width key in radar.toml, line 3: must be an integer, not a float",
+        ),
+        (
+            at(KeyProblem::NotAValue {
+                setting: Setting::Theme,
+                value: "sepia".into(),
+                possible: vec!["light".into(), "dark".into()],
+            }),
+            "error: invalid value 'sepia' for the theme key in radar.toml, line 3 [possible values: light, dark]",
+        ),
+        (
+            at(KeyProblem::BadEdition {
+                value: "soon".into(),
+            }),
+            "error: invalid value 'soon' for the edition key in radar.toml, line 3: not a calendar date written YYYY-MM-DD, or today",
+        ),
+        (
+            at(KeyProblem::Unknown {
+                key: "zebra".into(),
+                near: None,
+                table: false,
+            }),
+            "error: --config radar.toml, line 3: unknown key 'zebra'; the keys are input, output, title, subtitle, rings, unplotted_rings, ring_shading, theme, width, legend_columns, legend, table, paper, pdf, palette and edition",
+        ),
+    ];
+    for (fatal, expected) in cases {
+        assert_eq!(fatal.render(), expected);
+    }
+}
+
 /// UX review 3 and 11, Rust review M6: the hints a key problem adds.
 #[test]
 fn config_hint_messages() {
     let file: std::sync::Arc<str> = std::sync::Arc::from("radar.toml");
     let key = |problem| Fatal::ConfigKey {
         file: file.clone(),
+        line: None,
         problem,
     };
     let cases = [

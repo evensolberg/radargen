@@ -922,11 +922,13 @@ fn needs_paper(pdf: &Origin, paper: &Origin) -> String {
     }
 }
 
-/// FR-91: one key's problem, named by the key and the file (NFR-10).
-fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
-    let key = |setting: Setting| Origin::new(setting, Source::Config(Arc::clone(file)));
+/// FR-91: one key's problem, named by the key and the file (NFR-10), and
+/// by its line after the file when known, as a syntax error is (rg-1bw).
+fn key_problem(file: &Arc<str>, line: Option<usize>, problem: &KeyProblem) -> String {
+    let at = at_line_of(line);
+    let key = |setting: Setting| located(file, setting, &at);
     match problem {
-        KeyProblem::Unknown { key, near, table } => unknown_key(file, key, *near, *table),
+        KeyProblem::Unknown { key, near, table } => unknown_key(file, &at, key, *near, *table),
         KeyProblem::WrongType { setting, found } => format!(
             "{}: must be {}, not {}{}",
             key(*setting),
@@ -942,13 +944,11 @@ fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
             setting,
             index,
             found,
-        } => {
-            format!(
-                "{}: entry {index} must be a string, not {}",
-                key(*setting),
-                article(found)
-            )
-        }
+        } => format!(
+            "{}: entry {index} must be a string, not {}",
+            key(*setting),
+            article(found)
+        ),
         KeyProblem::Comma {
             setting,
             index,
@@ -984,9 +984,22 @@ fn key_problem(file: &Arc<str>, problem: &KeyProblem) -> String {
     }
 }
 
+/// `, line n` after a file's name when the line is known (rg-1bw).
+fn at_line_of(line: Option<usize>) -> String {
+    line.map_or_else(String::new, |n| format!(", line {n}"))
+}
+
+/// `setting`'s key in `file`, then `at`: `the width key in radar.toml, line 3`.
+fn located(file: &Arc<str>, setting: Setting, at: &str) -> String {
+    format!(
+        "{}{at}",
+        Origin::new(setting, Source::Config(Arc::clone(file)))
+    )
+}
+
 /// FR-91's unknown key, with the key it is near (UX review 3) and, for a
 /// table such as `[radar]`, where keys go.
-fn unknown_key(file: &str, key: &str, near: Option<Setting>, table: bool) -> String {
+fn unknown_key(file: &str, at: &str, key: &str, near: Option<Setting>, table: bool) -> String {
     let guess = near.map_or_else(
         || "; the keys".to_owned(),
         |s| format!("; did you mean '{}'? The keys", s.key()),
@@ -997,7 +1010,7 @@ fn unknown_key(file: &str, key: &str, near: Option<Setting>, table: bool) -> Str
         String::new()
     };
     format!(
-        "--config {file}: unknown key '{key}'{guess} are {}{section}",
+        "--config {file}{at}: unknown key '{key}'{guess} are {}{section}",
         known_keys()
     )
 }
@@ -1814,10 +1827,12 @@ pub enum Fatal {
         message: String,
     },
     /// FR-91: one key's problem, a usage error.
-    #[error("{}", key_problem(file, problem))]
+    #[error("{}", key_problem(file, *line, problem))]
     ConfigKey {
         /// The file as named.
         file: Arc<str>,
+        /// The line the key is written on, when known (rg-1bw).
+        line: Option<usize>,
         /// What is wrong with which key.
         problem: KeyProblem,
     },
