@@ -180,17 +180,20 @@ struct Opening {
 /// and heading, continued, unless `first` starts a sector; the ring's
 /// heading, continued, when `first` is a row. The carried entries move by
 /// one `dy` so the first sits where a fresh legend's spacing puts it.
+///
+/// The first group starts below the title's room whether or not the title
+/// is drawn (rg-jao), as the screen legend's columns do (FR-100), so the
+/// pieces side by side on a page start their groups level.
 fn opening(first: Option<&Entry>, under: &Under, page: bool, fonts: &Fonts) -> Opening {
     let mut out = Opening::default();
-    let mut baseline = LEGEND_HEADING_BASELINE;
     if page {
         let title = format!("{LEGEND_TITLE}{CONTINUED}");
         out.placed.push(Entry::continued(
-            heading(TITLE_TIER, &title, baseline, fonts),
+            heading(TITLE_TIER, &title, LEGEND_HEADING_BASELINE, fonts),
             TITLE_TIER,
         ));
-        baseline = LEGEND_FIRST_GROUP;
     }
+    let baseline = LEGEND_FIRST_GROUP;
     if !inside_sector(first) {
         // The carried swatch's heading takes the baseline; the swatch sits
         // `SWATCH_RAISE` above it in both places, so one shift moves both.
@@ -484,18 +487,41 @@ mod tests {
         }
     }
 
+    /// rg-jao: with or without *Legend (continued)* above it, a later
+    /// piece's sector heading sits where a fresh legend's first one does,
+    /// below the title's room, so columns side by side line up.
     #[test]
     fn a_continued_heading_sits_where_a_fresh_one_does() {
         let block = legend(long(1, 1, 60));
+        let fresh = baselines(&block).into_iter().find(|&(level, _)| level == 3);
+        assert_eq!(fresh, Some((3, LEGEND_FIRST_GROUP)));
         let plain = pieces(&block, 300.0, 300.0);
         let second = plain.get(1).expect("a second piece");
         let sector = baselines(second).into_iter().find(|&(level, _)| level == 3);
-        assert_eq!(sector, Some((3, LEGEND_HEADING_BASELINE)));
+        assert_eq!(sector, fresh);
         let paged = block.flowed(300.0, 300.0, &|k| k == 1, fonts());
         let second = paged.get(1).expect("a second piece");
         let heads = baselines(second);
         assert_eq!(heads.first(), Some(&(2, LEGEND_HEADING_BASELINE)));
         assert_eq!(heads.get(1), Some(&(3, LEGEND_FIRST_GROUP)));
+    }
+
+    /// rg-jao: every piece after the first opens its first group at
+    /// `LEGEND_FIRST_GROUP`, whether it opens a page or not, however the
+    /// break falls.
+    #[test]
+    fn every_later_piece_opens_its_first_group_below_the_title() {
+        fn odd(k: usize) -> bool {
+            k % 2 == 1
+        }
+        for block in shapes() {
+            let all = block.flowed(300.0, 300.0, &odd, fonts());
+            assert!(all.len() > 2);
+            for (k, piece) in all.iter().enumerate().skip(1) {
+                let sector = baselines(piece).into_iter().find(|&(level, _)| level == 3);
+                assert_eq!(sector, Some((3, LEGEND_FIRST_GROUP)), "piece {k}");
+            }
+        }
     }
 
     /// The gap from a block's first ring heading to the row after it.

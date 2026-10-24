@@ -1448,6 +1448,55 @@ mod tests {
         }
     }
 
+    /// The page y of the first sector heading's baseline in `node`, its
+    /// groups' offsets added (a group never scales).
+    fn first_sector_y(node: &Node, above: f64) -> Option<f64> {
+        match node {
+            Node::Group(group) => {
+                let y = above + group.offset.y;
+                match group.semantics {
+                    crate::svg::Semantics::Heading(level) if level.get() == 3 => {
+                        group.children.iter().find_map(|child| match child {
+                            Node::Text { origin, .. } => Some(y + origin.y),
+                            _ => None,
+                        })
+                    }
+                    _ => group
+                        .children
+                        .iter()
+                        .find_map(|child| first_sector_y(child, y)),
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// rg-jao: on a continuation page only the first column says *Legend
+    /// (continued)*, yet every column's first sector heading sits at one
+    /// height, so the rows beside it line up.
+    #[test]
+    fn continuation_columns_start_their_groups_level() {
+        for fixture in [long(1, 1, 300), long(4, 3, 80), long(40, 1, 6)] {
+            for paper in [Paper::Letter, Paper::A4] {
+                let pages = documents(&fixture.sheets(paper, "T", None));
+                assert!(pages.len() >= 3, "{paper:?}");
+                for (i, page) in pages.iter().enumerate().skip(1) {
+                    let columns = children(page).len() - 1;
+                    let ys: Vec<f64> = children(page)
+                        .iter()
+                        .take(columns)
+                        .map(|column| first_sector_y(column, 0.0).expect("a sector heading"))
+                        .collect();
+                    assert!(ys.len() >= 2 || i == pages.len() - 1, "{paper:?}");
+                    let first = ys.first().expect("a column");
+                    for y in &ys {
+                        assert!((y - first).abs() < 1e-6, "{paper:?} page {}: {ys:?}", i + 1);
+                    }
+                }
+            }
+        }
+    }
+
     /// rg-73x: the panels side by side on a continuation page end level,
     /// each drawn to the tallest one's height, but the legend's last,
     /// which ends where its rows do.
