@@ -288,7 +288,9 @@ The same CSV, flags and radargen version always produce the same bytes, so an ed
 
 ## Development
 
-`just ci` is the local gate. Besides the Rust toolchain and the tools `just install` lists, its browser checks need [Node.js](https://nodejs.org) 22 or later (the Chromium checks use its built-in WebSocket) and [`just`](https://github.com/casey/just). Install the checks' one dependency, [Playwright](https://playwright.dev), and the browsers it drives, once and after each Playwright upgrade:
+To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md): a pull request needs `cargo fmt`, `cargo clippy`, `cargo test` and `cargo deny` to pass, as GitHub CI runs them. To report a security problem, see [SECURITY.md](SECURITY.md).
+
+`just ci` is the maintainer's fuller local gate. Besides the Rust toolchain and the tools `just install` lists, its browser checks need [Node.js](https://nodejs.org) 22 or later (the Chromium checks use its built-in WebSocket) and [`just`](https://github.com/casey/just). Install the checks' one dependency, [Playwright](https://playwright.dev), and the browsers it drives, once and after each Playwright upgrade:
 
 ```sh
 just browser-setup
