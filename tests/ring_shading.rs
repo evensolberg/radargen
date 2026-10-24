@@ -15,7 +15,7 @@ use binary::{Ran, run_in, seeded, snapshot};
 const PRD: &str = "name,sector,ring,description\n\
     Terraform,Tools,Adopt,d\nKafka,Platforms,Trial,d\nRust,Languages,Assess,d\n\
     Perl,Languages,Retire,d\n";
-const SLATE: &str = include_str!("../docs/product/palette.slate.css");
+const SLATE: &str = include_str!("../docs/examples/palette.slate.css");
 
 /// The light theme's band: 3/5 of the way from `#FFFFFF` to `#F4F5F7`.
 const LIGHT_BAND: &str = "#F8F9FA";

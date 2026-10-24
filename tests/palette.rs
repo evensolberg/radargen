@@ -30,7 +30,7 @@ fn each_neutral_line_names_its_dark_value() {
 }
 
 /// The example palette the guide offers (rg-new), beside the sample.
-const SLATE: &str = include_str!("../docs/product/palette.slate.css");
+const SLATE: &str = include_str!("../docs/examples/palette.slate.css");
 
 /// FR-101's order: the series first, then FR-82's roles in order. The
 /// slate example keeps it, so the two files read alike.

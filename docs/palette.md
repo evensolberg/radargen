@@ -23,7 +23,7 @@ comments: "Written for PR 18 (rg-cdo), from PRD FR-81, FR-82, FR-86, FR-87, FR-1
 
 With `--ring-shading alternate`, every other ring is filled with a colour mixed three fifths of the way from your `--surface-1` to your `--surface-2`; you do not declare it. When each of `--surface-2`'s red, green and blue is on the same side of `--surface-1`'s, as for any two greys or tinted greys, and the two are close in lightness, as a page and a panel are, everything legible on both surfaces is legible on that band too.
 
-For a ready-made palette of a different look, [`docs/product/palette.slate.css`](product/palette.slate.css) is a light cool-grey ground with blue accents. Every pair in the table below clears its minimum, and its sector colours stay as distinct under colour-vision deficiency as the built-in ones. Use it as it is, or copy it and change it; once you change a colour, its contrast is yours to check.
+For a ready-made palette of a different look, [`docs/examples/palette.slate.css`](examples/palette.slate.css) is a light cool-grey ground with blue accents. Every pair in the table below clears its minimum, and its sector colours stay as distinct under colour-vision deficiency as the built-in ones. Use it as it is, or copy it and change it; once you change a colour, its contrast is yours to check.
 
 ![Diagram of where each palette colour is drawn; the table below lists the same](palette-roles.svg)
 

@@ -1,0 +1,21 @@
+# radargen config for the example edition in this folder. From the
+# repository root, run: radargen -c docs/examples/radar.toml
+# Relative paths are read from this file's folder. -o picks another format:
+# radargen -c docs/examples/radar.toml -o docs/examples/radar.pdf
+
+input = "radar.csv"
+output = "radar.html"
+title = "Technology Radar"
+subtitle = "Example edition {edition}"
+edition = "2026-10-01"
+
+# All five rings of the intake and maturation process (docs/process.md),
+# outermost first. The optional Hold ring sits outside Assess.
+rings = ["Hold", "Assess", "Trial", "Adopt", "Retire"]
+
+# Register-only states: kept in the CSV, left off the radar without a
+# warning, and listed with every other row by table = "all".
+unplotted_rings = ["Candidate", "In Use", "Rejected", "Retired", "Archived"]
+
+# Faint shading on every other ring, from the centre out.
+ring_shading = "alternate"
