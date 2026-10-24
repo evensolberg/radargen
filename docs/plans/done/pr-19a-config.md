@@ -703,9 +703,9 @@ Expected: FAIL to compile: `parse_ring_list`, `Source` in `rings` and the struct
 - [ ] **Step 3: The rename.** `RingSource` and `Source` have the same two variants, and the variant names are kept, so the rename is mechanical:
 
 ```bash
-/Users/evensolberg/.cargo/bin/sd 'RingSource' 'Source' src/model.rs src/diagnostics.rs src/layout/arrange.rs src/layout/radar/mod.rs src/layout/glyphs.rs src/layout/geometry.rs src/layout/test_support/fixtures.rs tests/rings.rs tests/diagnostics.rs src/rings.rs
-/Users/evensolberg/.cargo/bin/sd 'crate::rings::Source' 'crate::settings::Source' src/layout/*.rs src/layout/*/*.rs src/model.rs src/diagnostics.rs
-/Users/evensolberg/.cargo/bin/sd 'radargen::rings::\{Source, RingsError\}' 'radargen::{rings::RingsError, settings::Source}' tests/diagnostics.rs
+sd 'RingSource' 'Source' src/model.rs src/diagnostics.rs src/layout/arrange.rs src/layout/radar/mod.rs src/layout/glyphs.rs src/layout/geometry.rs src/layout/test_support/fixtures.rs tests/rings.rs tests/diagnostics.rs src/rings.rs
+sd 'crate::rings::Source' 'crate::settings::Source' src/layout/*.rs src/layout/*/*.rs src/model.rs src/diagnostics.rs
+sd 'radargen::rings::\{Source, RingsError\}' 'radargen::{rings::RingsError, settings::Source}' tests/diagnostics.rs
 ```
 
 Then fix each `use` list the compiler names (`rings::{RingMatch, RingSet, Source}` becomes `rings::{RingMatch, RingSet}` plus `settings::Source`). Where `Copy` ended:
@@ -864,9 +864,9 @@ fn a_value_from_the_file_names_its_key_when_cleaned() {
 In the existing tests, `clean_flag(Flag::X, …)` becomes `clean_setting(&Origin::flag(Setting::X), …)`. The two loops over `(Flag::Title, "--title")` become loops over `(Setting::Title, "--title")` calling `clean_setting(&Origin::flag(setting), …)`, with expectations unchanged:
 
 ```bash
-/Users/evensolberg/.cargo/bin/sd 'clean_flag\(Flag::(\w+),' 'clean_setting(&Origin::flag(Setting::$1),' tests/cli.rs
-/Users/evensolberg/.cargo/bin/sd '\(Flag::(\w+), "' '(Setting::$1, "' tests/cli.rs
-/Users/evensolberg/.cargo/bin/sd 'clean_flag\(flag,' 'clean_setting(&Origin::flag(flag),' tests/cli.rs
+sd 'clean_flag\(Flag::(\w+),' 'clean_setting(&Origin::flag(Setting::$1),' tests/cli.rs
+sd '\(Flag::(\w+), "' '(Setting::$1, "' tests/cli.rs
+sd 'clean_flag\(flag,' 'clean_setting(&Origin::flag(flag),' tests/cli.rs
 ```
 
 In `src/layout/glyphs.rs`'s tests, add one case: a catalogue whose `ring_source` is `Source::Config(Arc::from("radar.toml"))`, with a ring `採用`, gives `FlagMissingGlyphs { flag: Origin::new(Setting::Rings, that source), … }`, rendered `warning: the rings key in radar.toml: '採用' has …`. Under the old `== Source::Flag` test it gives no warning, so it fails first.
@@ -1034,7 +1034,7 @@ git commit -m "refactor(diagnostics): FR-90 and FR-104 name a setting's origin" 
 The existing cases change only their constructors: `path: "radar.pdf".into()` becomes `output: NamedPath::flag(Setting::Output, Path::new("radar.pdf"))`, with expectations unchanged. In `tests/cli.rs`, `format(…)` results compare against `Some(OutputFormat::…)` and `None`:
 
 ```bash
-/Users/evensolberg/.cargo/bin/sd 'Ok\(OutputFormat::' 'Some(OutputFormat::' tests/cli.rs
+sd 'Ok\(OutputFormat::' 'Some(OutputFormat::' tests/cli.rs
 ```
 
 The test near line 105 that matched `Err(Fatal::UnrecognisedExtension { path: named })` becomes `assert_eq!(format(Path::new(path)), None, "{path}")`.
@@ -2991,7 +2991,7 @@ In `## Errors and warnings`, the exit-codes bullet's 2 becomes: `2 for a command
 - [ ] **Step 3: Crumb notes.** Record what shipped; do not close (the orchestrator does, with the bump):
 
 ```bash
-CRUMBS=/Users/evensolberg/.cargo/bin/crumbs
+CRUMBS=crumbs
 $CRUMBS show rg-u6u >/dev/null && $CRUMBS --help | rg -i 'note|append' | head -3
 ```
 

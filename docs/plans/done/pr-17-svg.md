@@ -2067,7 +2067,7 @@ Expected: green, except the known browser check "a long legend scrolls beside th
 - [x] **Step 5: Crumbs, changelog, plan**
 
 ```bash
-CRUMBS=/Users/evensolberg/.cargo/bin/crumbs
+CRUMBS=crumbs
 $CRUMBS create 'A line broken mid-token reads with a space in its SVG name' --type bug --priority 3 --tags svg,a11y --message 'D-88 names an outlined text by its lines joined with spaces; a token wrap_by broke mid-token reads "Kuber netes". Document holds lines, not the source. Check too whether the HTML multi-line <text> (tspans with no space between) is named without one, the mirror fault. From the PR 17 plan reviews.'
 $CRUMBS create 'Letter-spacing on scripts usvg does not space' --type bug --priority 4 --tags png,svg,layout --message 'usvg skips letter-spacing for some scripts (layout.rs, Devanagari and others); measure and place add it, so layout and the SVG differ from the PNG there. Inter draws none of those scripts (.notdef), so the effect is box spacing. From the PR 17 plan QA review.'
 $CRUMBS close rg-m2l --reason "PR 17: SVG export (1.2.0)"

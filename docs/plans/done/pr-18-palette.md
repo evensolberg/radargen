@@ -1952,7 +1952,7 @@ Run: `cargo test --test palette 2>&1 | tail -5`. Expected: 5 passed.
 
 and add to the Documentation list: ``- [`docs/palette.md`](docs/palette.md) — the palette guide: each colour, where it is drawn, and its contrast``.
 
-Run: `/Users/evensolberg/.cargo/bin/lychee --offline README.md docs/palette.md`. Expected: no broken links.
+Run: `lychee --offline README.md docs/palette.md`. Expected: no broken links.
 
 - [x] **Step 5: Commit**
 
@@ -2002,7 +2002,7 @@ Expected: green, except the known browser check "a long legend scrolls beside th
 - [x] **Step 5: Crumbs, changelog, plan.**
 
 ```bash
-CRUMBS=/Users/evensolberg/.cargo/bin/crumbs
+CRUMBS=crumbs
 $CRUMBS close rg-cdo --reason "PR 18: --palette (1.3.0)"
 git mv docs/plans/pr-18-palette.md docs/plans/done/pr-18-palette.md
 ```

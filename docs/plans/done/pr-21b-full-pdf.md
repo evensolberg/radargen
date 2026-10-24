@@ -583,7 +583,7 @@ A refactor. **Every existing test passes unchanged, and all five PDF and five HT
     - header-row groups after the first, the heading's `(continued): …` run, split-part markers, the pointer and the footers are pagination artifacts;
     - rules are already `Decorative`, and the heading is already `Heading(2)`.
 - [ ] **Step 4: The design.** `full-pdf.md` goes to revision 1.4: "PR 21b shipped", with the measured oracle figures.
-- [ ] **Step 5: Links and commit.** `/Users/evensolberg/.cargo/bin/lychee --offline README.md docs/a11y/manual-checks.md` reports no broken links. Commit `docs: --pdf full in the README, manual checks and architecture (FR-112)`.
+- [ ] **Step 5: Links and commit.** `lychee --offline README.md docs/a11y/manual-checks.md` reports no broken links. Commit `docs: --pdf full in the README, manual checks and architecture (FR-112)`.
 
 ---
 

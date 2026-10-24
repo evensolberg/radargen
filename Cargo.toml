@@ -9,6 +9,21 @@ repository = "https://github.com/evensolberg/radargen"
 readme = "README.md"
 keywords = ["radar", "technology-radar", "svg", "visualisation", "cli"]
 categories = ["command-line-utilities", "visualization"]
+# What a crate on crates.io holds: the source, the fonts and the two sample
+# files the binary writes (--create-palette, --create-config), not the
+# repository's docs, crumbs, goldens or tooling. Anchored with a leading
+# slash: a bare README.md would match one in any folder.
+include = [
+    "/src/**",
+    "/assets/**",
+    "/docs/product/palette.sample.css",
+    "/docs/product/config.sample.toml",
+    "/Cargo.toml",
+    "/Cargo.lock",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+]
 
 [dependencies]
 base64 = "0.23"

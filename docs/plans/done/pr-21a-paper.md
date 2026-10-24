@@ -360,7 +360,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 4: The design.** `docs/design/full-pdf.md`: revision 1.2, a Revisions row: "Paper (PR 21a) shipped: legend at 16/15 with 26 px rows, `--paper none`, footer with the subtitle, `Legend (continued)`."
 
-- [ ] **Step 5: Links and commit.** `/Users/evensolberg/.cargo/bin/lychee --offline README.md docs/a11y/manual-checks.md` → no broken links. Commit `docs: --paper in the README, manual checks and architecture (FR-111)`.
+- [ ] **Step 5: Links and commit.** `lychee --offline README.md docs/a11y/manual-checks.md` → no broken links. Commit `docs: --paper in the README, manual checks and architecture (FR-111)`.
 
 ---
 

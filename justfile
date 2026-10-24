@@ -130,7 +130,6 @@ examples: release-build
 # Formats the project source files
 @format:
     cargo fmt -- --emit files
-    # treefmt --config-file="/Volumes/SSD/CloudStation/source/_Templates/treefmt.toml"
 
 # Tests the project
 @test:
@@ -422,40 +421,6 @@ quality-baseline:
 @lintfixd:
     cargo lclippy --fix --allow-dirty --all-targets -- -D warnings
 
-# Initialize directory for various services such as cargo deny
-@init:
-    -cp /Volumes/SSD/CloudStation/Source/_Templates/deny.toml {{invocation_directory()}}/deny.toml
-    -cp /Volumes/SSD/CloudStation/Source/_Templates/main_template.rs {{invocation_directory()}}/src/main.rs
-    -cp /Volumes/SSD/CloudStation/Source/_Templates/cliff.toml {{invocation_directory()}}/cliff.toml
-    -cargo add clap --features cargo color
-    -cargo add log
-    -cargo add env_logger
-    -echo "# {{application}}\n\n" > README.md
-    -git mit-install
-    -git mit-config lint enable subject-line-not-capitalized
-    -git mit-config lint enable subject-line-ends-with-period
-    -git mit-config lint enable not-conventional-commit
-    -git mit-config lint disable not-emoji-log
-    -git mit-config mit set es "Even Solberg" even.solberg@gmail.com
-    -git mit es
-    -git remote add {{application}} https://github.com/evensolberg/{{application}}
-    -git commit -m doc:Initial
-    -git tag Initial
-    -git cliff --init
-    -cp /Volumes/SSD/CloudStation/Source/_Templates/cliff.toml {{invocation_directory()}}/
-    -scaffold add cli
-
-# Re-initialize the directory for various services -- stripped down version of init
-
-@reinit:
-    git mit-install
-    git mit-config lint enable subject-line-not-capitalized
-    git mit-config lint enable subject-line-ends-with-period
-    git mit-config mit set es "Even Solberg" even.solberg@gmail.com
-    git mit es
-    git cliff --init
-    cp /Volumes/SSD/CloudStation/Source/_Templates/cliff.toml {{invocation_directory()}}/
-
 # Read the documentation
 @read:
     open file://{{invocation_directory()}}/target/doc/{{application}}/index.html
@@ -486,18 +451,12 @@ quality-baseline:
 
 # Spellcheck the documents except CHANGELOG
 @spell:
-    typos --exclude CHANGELOG.md -c /Volumes/SSD/CloudStation/Automation/_typos.toml
+    typos --exclude CHANGELOG.md
 
 # Check for new versions of crates and upgrade accordingly
 @upgrade:
     cargo update
     cargo upgrade --workspace
-
-# Copy this settings files to the templates directory
-@just:
-    -sed "s#{{application}}#my_application#" justfile > /Volumes/SSD/CloudStation/Source/_Templates/justfile.template
-    -cp {{invocation_directory()}}/deny.toml /Volumes/SSD/CloudStation/Source/_Templates/deny.toml
-    -cp {{invocation_directory()}}/cliff.toml /Volumes/SSD/CloudStation/Source/_Templates/cliff.toml
 
 # Check, but verbose
 @checkv:
@@ -522,7 +481,6 @@ quality-baseline:
     -cargo install --locked rustqual --version 1.8.3
     -brew install PurpleBooth/repo/git-mit
     -brew install graphviz
-    -cp /Volumes/SSD/CloudStation/Source/_Templates/deny.toml {{invocation_directory()}}/deny.toml
 
 # Testing actions
 
