@@ -102,6 +102,9 @@ pub struct Config {
     /// How a message names the input: the path as written, or the key and
     /// file with it (NFR-10).
     pub input_shown: String,
+    /// What an unreadable input's message adds, when a config file named
+    /// it ([`NamedPath::hint`], rg-37u).
+    pub input_hint: String,
 }
 
 impl Config {
@@ -420,6 +423,7 @@ fn config(
         subtitle,
         rings,
         input_shown: input_shown(&input_named),
+        input_hint: input_named.hint(),
         input,
     })
 }
@@ -963,7 +967,7 @@ fn catalogue(
     warnings: &mut Warnings,
 ) -> Result<Catalogue, Failure> {
     let rings = &config.rings;
-    let text = decode::read_as(&config.input, &config.input_shown)?;
+    let text = decode::read_as(&config.input, &config.input_shown, &config.input_hint)?;
     let (table, mut errors) = parse(&text, warnings)?;
     let built =
         build_catalogue(&table, rings, off_radar, warnings).map_err(|more| errors.extend(more));
