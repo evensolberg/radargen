@@ -1,13 +1,21 @@
+## [1.25.3] - 2026-10-23
+
+### 🐛 Bug Fixes
+
+- *(paper)* Continuation columns start their groups level (rg-jao)
+
+### 📚 Documentation
+
+- *(rustdoc)* Fix cargo doc warnings, gate them in ci (rg-lp8) (#158)
+
+### 🚜 Refactor
+
+- *(paper)* Measure once, foot from a Footing (rg-h5l) (#157)
 ## [1.25.2] - 2026-10-23
 
 ### 🐛 Bug Fixes
 
-- *(paper)* Continuation panels end level (rg-73x)
-- *(paper)* Cap level panels at the room (rg-73x)
-
-### 🧪 Testing
-
-- *(paper)* The tall row shares its page (rg-73x)
+- *(paper)* Continuation panels end level (rg-73x, 1.25.2) (#156)
 ## [1.25.1] - 2026-10-23
 
 ### 🐛 Bug Fixes
