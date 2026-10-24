@@ -337,7 +337,8 @@ fn a_config_on_stdin_says_where_paths_resolve() {
         .stdin
         .take()
         .expect("a stdin")
-        .write_all(b"output = \"r.html\"\n")
+        // A missing folder, not /dev/r.html, which root could write.
+        .write_all(b"output = \"no-such-dir/r.html\"\n")
         .expect("writes");
     let out = child.wait_with_output().expect("waits");
     let stderr = String::from_utf8_lossy(&out.stderr);
