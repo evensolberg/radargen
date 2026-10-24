@@ -1,17 +1,18 @@
+## [1.27.0] - 2026-10-23
+
+### 🚀 Features
+
+- *(config)* Key problems name their line (rg-1bw)
 ## [1.26.0] - 2026-10-23
 
 ### 🚀 Features
 
-- *(radar)* --ring-shading shades every other ring (rg-74n)
+- *(radar)* --ring-shading shades every other ring (rg-74n, 1.26.0) (#162)
 
 ### 📚 Documentation
 
 - *(prd)* Page 2 opens with Legend when page 1 has none (rg-jas) (#160)
 - *(palette)* A slate example palette, grey with blue accents (rg-new) (#161)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(git)* Ignore the brainstorming mockups folder
 ## [1.25.3] - 2026-10-23
 
 ### 🐛 Bug Fixes

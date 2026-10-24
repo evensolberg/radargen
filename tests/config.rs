@@ -95,9 +95,9 @@ fn every_problem_in_the_file_is_reported_together() {
     assert_eq!(
         ran.lines(),
         [
-            "error: invalid value 'sepia' for the theme key in radar.toml [possible values: light, dark]",
-            "error: the width key in radar.toml: must be an integer, not a float",
-            "error: --config radar.toml: unknown key 'ring'; did you mean 'rings'? The keys are input, output, title, subtitle, rings, unplotted_rings, ring_shading, theme, width, legend_columns, legend, table, paper, pdf, palette and edition",
+            "error: invalid value 'sepia' for the theme key in radar.toml, line 4 [possible values: light, dark]",
+            "error: the width key in radar.toml, line 3: must be an integer, not a float",
+            "error: --config radar.toml, line 2: unknown key 'ring'; did you mean 'rings'? The keys are input, output, title, subtitle, rings, unplotted_rings, ring_shading, theme, width, legend_columns, legend, table, paper, pdf, palette and edition",
         ]
     );
     assert_eq!(snapshot(dir.path()), before);
@@ -639,7 +639,7 @@ fn key_problems_and_later_checks_report_together() {
     assert_eq!(
         ran.lines(),
         [
-            "error: the width key in radar.toml: must be an integer, not a float",
+            "error: the width key in radar.toml, line 2: must be an integer, not a float",
             "error: the output key in radar.toml (a.txt): the output file name must end in .html, .png, .svg or .pdf",
         ]
     );
@@ -657,7 +657,7 @@ fn a_broken_key_fails_though_a_flag_overrides_it() {
     assert_eq!(ran.code, Some(2), "{}", ran.stderr);
     assert_eq!(
         ran.lines(),
-        ["error: the width key in radar.toml: 5 is out of range; use 320 to 10000"]
+        ["error: the width key in radar.toml, line 2: 5 is out of range; use 320 to 10000"]
     );
     assert!(!dir.path().join("a.png").exists());
 }
@@ -776,7 +776,7 @@ fn a_broken_output_key_is_not_also_missing() {
     assert_eq!(
         ran.lines(),
         [
-            "error: the output key in radar.toml: must be a string, not an integer; put the value in quotes"
+            "error: the output key in radar.toml, line 1: must be a string, not an integer; put the value in quotes"
         ]
     );
 }

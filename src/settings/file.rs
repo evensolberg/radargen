@@ -7,6 +7,7 @@
 //! Imports nothing from `diagnostics`: the pipeline names each problem by
 //! its key and file (plan RG-018A, R1).
 
+use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -79,9 +80,18 @@ pub struct Loaded {
     pub values: FileValues,
     /// Every key that did not, in FR-91's order, then unknown keys sorted.
     pub problems: Vec<KeyProblem>,
+    /// The line each problem's key is written on, 1-based, in step with
+    /// `problems` (rg-1bw).
+    lines: Vec<Option<usize>>,
 }
 
 impl Loaded {
+    /// Each problem with the line its key is written on, so its message
+    /// can name it as a syntax error's does (rg-1bw).
+    pub fn located_problems(&self) -> impl Iterator<Item = (&KeyProblem, Option<usize>)> {
+        self.problems.iter().zip(self.lines.iter().copied())
+    }
+
     /// Whether `setting`'s key had a problem, so it has no value to use.
     #[must_use]
     pub fn is_broken(&self, setting: Setting) -> bool {
@@ -234,13 +244,35 @@ pub fn load(text: &str, path: &Path) -> Result<Loaded, ReadError> {
             line: e.span().map(|span| line_at(text.as_bytes(), span.start)),
             message: one_line(e.message()),
         })?;
-    let (values, problems) = check(&table);
+    let (values, located) = check(&table, &key_lines(text));
+    let (problems, lines) = located.into_iter().unzip();
     Ok(Loaded {
         file: file_name(path),
         dir: path.parent().unwrap_or_else(|| Path::new("")).to_path_buf(),
         values,
         problems,
+        lines,
     })
+}
+
+/// The line each top-level key of `text` starts on (rg-1bw). `text` has
+/// already parsed as a [`toml::Table`], which the checks read; the spanned
+/// parse is only for where each key sits, so the checks stay as they are;
+/// it cannot fail where the first succeeded, since that one parses through
+/// it. A table's line is its `[header]`'s, the last when it has several.
+fn key_lines(text: &str) -> BTreeMap<String, usize> {
+    toml::de::DeTable::parse(text)
+        .map(|table| {
+            table
+                .get_ref()
+                .keys()
+                .map(|key| {
+                    let line = line_at(text.as_bytes(), key.span().start);
+                    (key.get_ref().to_string(), line)
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// The file as messages name it: the path as given on the command line
@@ -262,17 +294,27 @@ fn one_line(message: &str) -> String {
 
 /// Every key FR-91 lists, in its order, then every other key, sorted
 /// (`toml::Table` is ordered by key without `preserve_order`).
-fn check(table: &toml::Table) -> (FileValues, Vec<KeyProblem>) {
+/// Each with its key's line from `lines`, looked up by the key as written
+/// before a message clips it (rg-1bw).
+fn check(
+    table: &toml::Table,
+    lines: &BTreeMap<String, usize>,
+) -> (FileValues, Vec<(KeyProblem, Option<usize>)>) {
+    let line = |key: &str| lines.get(key).copied();
     let mut values = FileValues::default();
-    let mut problems: Vec<KeyProblem> = Setting::ALL
+    let mut problems: Vec<(KeyProblem, Option<usize>)> = Setting::ALL
         .into_iter()
         .filter_map(|setting| table.get(setting.key()).map(|value| (setting, value)))
-        .filter_map(|(setting, value)| take(&mut values, setting, value).err())
-        .flatten()
+        .filter_map(|(setting, value)| {
+            take(&mut values, setting, value)
+                .err()
+                .map(|found| (found, line(setting.key())))
+        })
+        .flat_map(|(found, at)| found.into_iter().map(move |problem| (problem, at)))
         .collect();
     // Only the problems a run prints get a guess (efficiency review 1).
     let guesses = MAX_KEY_PROBLEMS.saturating_sub(problems.len());
-    problems.extend(unknown(table, guesses));
+    problems.extend(unknown(table, guesses).map(|(key, problem)| (problem, line(key))));
     (values, problems)
 }
 
@@ -317,15 +359,18 @@ fn take(v: &mut FileValues, setting: Setting, value: &Value) -> Result<(), Vec<K
 
 /// Every key FR-91 does not list, so a typo is not ignored; the first
 /// `guesses` get a near miss.
-fn unknown(table: &toml::Table, guesses: usize) -> impl Iterator<Item = KeyProblem> + '_ {
+fn unknown(table: &toml::Table, guesses: usize) -> impl Iterator<Item = (&str, KeyProblem)> + '_ {
     table
         .iter()
         .filter(|(key, _)| !Setting::ALL.iter().any(|s| s.key() == key.as_str()))
         .enumerate()
-        .map(move |(i, (key, value))| KeyProblem::Unknown {
-            key: clip(key, ECHO_CHARS),
-            near: if i < guesses { near_miss(key) } else { None },
-            table: value.is_table(),
+        .map(move |(i, (key, value))| {
+            let problem = KeyProblem::Unknown {
+                key: clip(key, ECHO_CHARS),
+                near: if i < guesses { near_miss(key) } else { None },
+                table: value.is_table(),
+            };
+            (key.as_str(), problem)
         })
 }
 
@@ -465,6 +510,44 @@ mod tests {
         assert_eq!(v.paper, Some(Paper::A4));
         assert_eq!(v.pdf, Some(Pdf::Full));
         assert_eq!(v.palette.as_deref(), Some(Path::new("brand.css")));
+    }
+
+    /// rg-1bw: each problem's key is found on its line, so a message can
+    /// name it; a key under a table header is found by the header's line.
+    #[test]
+    fn a_problem_knows_its_line() {
+        let l = loaded(
+            "title = \"T\"\n\n# a comment\nwidth = \"1920\"\nzebra = 1\n[radar]\ntheme = \"dark\"\n",
+        );
+        let lines: Vec<Option<usize>> = l.located_problems().map(|(_, line)| line).collect();
+        assert_eq!(l.problems.len(), 3, "{:?}", l.problems);
+        // width, then the unknown keys sorted: radar, zebra.
+        assert_eq!(lines, [Some(4), Some(6), Some(5)]);
+    }
+
+    /// rg-1bw, the forms a key takes: quoted, dotted, after a multi-line
+    /// string, under CRLF; and an unknown key long enough that its message
+    /// clips it is still found by the key as written.
+    #[test]
+    fn every_form_of_key_is_found_on_its_line() {
+        let long = "k".repeat(ECHO_CHARS + 10);
+        let text = format!(
+            "subtitle = \"\"\"a\r\nb\"\"\"\r\n\"width\" = \"1\"\r\nlegend.x = 1\r\n{long} = 1\r\n"
+        );
+        let l = loaded(&text);
+        let found: Vec<(Option<Setting>, Option<usize>)> = l
+            .located_problems()
+            .map(|(problem, line)| (problem.setting(), line))
+            .collect();
+        // width and legend in FR-91's order, then the long unknown key.
+        assert_eq!(
+            found,
+            [
+                (Some(Setting::Width), Some(3)),
+                (Some(Setting::Legend), Some(4)),
+                (None, Some(5))
+            ]
+        );
     }
 
     /// FR-91: every problem, in FR-91's key order, then unknown keys sorted.

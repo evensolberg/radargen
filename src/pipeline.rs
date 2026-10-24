@@ -659,11 +659,11 @@ fn merge_errors(settings: &Settings, loaded: &config_file::Loaded) -> Vec<Fatal>
 fn key_errors(loaded: &config_file::Loaded) -> impl Iterator<Item = Fatal> + '_ {
     let more = loaded.problems.len().saturating_sub(MAX_KEY_PROBLEMS);
     let listed = loaded
-        .problems
-        .iter()
+        .located_problems()
         .take(MAX_KEY_PROBLEMS)
-        .map(|problem| Fatal::ConfigKey {
+        .map(|(problem, line)| Fatal::ConfigKey {
             file: Arc::clone(&loaded.file),
+            line,
             problem: problem.clone(),
         });
     listed.chain((more > 0).then(|| Fatal::ConfigMore {
