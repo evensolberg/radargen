@@ -37,8 +37,9 @@ pub(super) fn widest(layout: &Layout, fonts: &Fonts) -> f64 {
 }
 
 /// `layout` cut into pieces `width` wide: the first at most `first` tall
-/// as a panel, each later one at most `rest`. A piece `k` for which
-/// `opens_page(k)` holds opens with *Legend (continued)*.
+/// as a panel, each later one at most `rest`. A piece `k ≥ 1` for which
+/// `opens_page(k)` holds opens with *Legend (continued)*; piece 0 keeps
+/// the legend's own *Legend*.
 ///
 /// Entries are placed in units (see [`units`]); a unit that does not fit
 /// closes the piece once it holds a row, and goes in anyway when it does

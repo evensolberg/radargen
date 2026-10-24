@@ -314,8 +314,9 @@ impl PieceSlots {
         }
     }
 
-    /// Whether piece `k` is the first on its page: such a piece opens
-    /// with *Legend (continued)*, unless it starts the legend.
+    /// Whether piece `k` is the first on its page. `flow::pieces` gives
+    /// such a piece *Legend (continued)*, except piece 0, which starts the
+    /// legend with its own *Legend* (rg-jas).
     const fn opens_page(self, k: usize) -> bool {
         match k {
             0 => !self.on_first,
@@ -1053,6 +1054,15 @@ mod tests {
         assert!(first.legend.is_none() && first.fits);
         let bodies = bodies_of(&sheets);
         assert_eq!(bodies.kinds.get(1), Some(&PageKind::Legend));
+        // rg-jas: page 2 starts the legend, so it says *Legend*; nothing
+        // came before it to continue.
+        let pages = documents(&sheets);
+        let page_two = texts(&pages.get(1).expect("page 2").root);
+        assert_eq!(page_two.first().map(String::as_str), Some("Legend"));
+        assert!(
+            !page_two.iter().any(|t| t.starts_with("Legend (")),
+            "{page_two:?}"
+        );
     }
 
     fn bodies_of(sheets: &Sheets<'_>) -> Bodies {
