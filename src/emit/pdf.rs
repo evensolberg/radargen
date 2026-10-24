@@ -506,7 +506,7 @@ mod tests {
             size: page_size(paper.points().expect("a paper")),
             table: None,
         };
-        footed(bodies(&sheets, fonts()), &sheets, fonts())
+        footed(bodies(&sheets, fonts()), sheets.footing(), fonts())
     }
 
     fn paper_pdf(pages: &[Document], theme: Theme) -> Vec<u8> {

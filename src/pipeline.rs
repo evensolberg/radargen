@@ -1230,7 +1230,7 @@ fn on_paper(
         }));
     }
     pdf::export_pages(
-        &paper::footed(bodies, &sheets, fonts),
+        &paper::footed(bodies, sheets.footing(), fonts),
         &pdf::Export {
             palette: &config.colours.snapshot(),
             fonts,

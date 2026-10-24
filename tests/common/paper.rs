@@ -39,7 +39,7 @@ pub fn paper_pages(
         size: page_size(paper.points().expect("a paper")),
         table: published.as_ref(),
     };
-    let pages = footed(bodies(&sheets, fonts()), &sheets, fonts());
+    let pages = footed(bodies(&sheets, fonts()), sheets.footing(), fonts());
     (pages, blocks.radar.name())
 }
 
