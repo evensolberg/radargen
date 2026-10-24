@@ -1,16 +1,18 @@
+## [1.25.1] - 2026-10-23
+
+### 🐛 Bug Fixes
+
+- *(config)* Say where a process substitution's paths resolve (rg-37u)
+- *(config)* Hint the input key and -c /dev/stdin too (rg-37u)
+
+### 🧪 Testing
+
+- *(config)* A stdin config test root cannot pass (rg-37u)
 ## [1.25.0] - 2026-10-23
 
 ### 🚀 Features
 
-- *(pdf)* A Layout BBox on the figure and a one-page table (rg-2qs)
-
-### 🐛 Bug Fixes
-
-- *(pdf)* A box stays on its element through pruning (rg-2qs)
-
-### 🧪 Testing
-
-- *(pdf)* A box from a group that opened nothing is dropped (rg-2qs)
+- *(pdf)* A Layout BBox on the figure and a one-page table (rg-2qs, 1.25.0) (#154)
 ## [1.24.2] - 2026-10-23
 
 ### 🐛 Bug Fixes
