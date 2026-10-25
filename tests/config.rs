@@ -537,14 +537,18 @@ fn a_config_path_must_be_a_regular_file() {
         ("folder.toml", "output = \"out.html\"\n"),
     ]);
     fs::create_dir(dir.path().join("out.html")).expect("mkdir");
-    let ran = run_in(dir.path(), &["radar.csv", "-c", "stdin.toml"]);
-    assert_eq!(ran.code, Some(1), "{}", ran.stderr);
-    assert_eq!(
-        ran.lines(),
-        [
-            "error: the palette key in stdin.toml (/dev/stdin): not a regular file; a path in a config file must name a file, not a device, pipe or folder"
-        ]
-    );
+    // Windows has no /dev/stdin, so there the path is missing rather
+    // than a device; the folder below covers the check on every OS.
+    if cfg!(unix) {
+        let ran = run_in(dir.path(), &["radar.csv", "-c", "stdin.toml"]);
+        assert_eq!(ran.code, Some(1), "{}", ran.stderr);
+        assert_eq!(
+            ran.lines(),
+            [
+                "error: the palette key in stdin.toml (/dev/stdin): not a regular file; a path in a config file must name a file, not a device, pipe or folder"
+            ]
+        );
+    }
     let ran = run_in(dir.path(), &["radar.csv", "-c", "folder.toml"]);
     assert_eq!(ran.code, Some(1), "{}", ran.stderr);
     assert_eq!(
