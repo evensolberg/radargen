@@ -1,6 +1,6 @@
 [package]
 name = "radargen"
-version = "1.27.1"
+version = "1.28.0"
 edition = "2024"
 rust-version = "1.97"
 description = "Render a technology radar from CSV to a self-contained HTML page, a PNG image, an SVG file or a PDF"
@@ -143,3 +143,9 @@ opt-level = 3
 [profile.release]
 strip = true
 lto = true
+
+# The prebuilt binaries on GitHub releases (dist-workspace.toml): the same
+# full LTO and stripping as a local release build, so a download matches
+# what `cargo install` builds.
+[profile.dist]
+inherits = "release"

@@ -1,3 +1,16 @@
+## [1.28.0] - 2026-10-24
+
+### 🚀 Features
+
+- *(release)* Prebuilt binaries on every GitHub release (rg-g4v)
+
+### 📚 Documentation
+
+- Install from crates.io, and publish there on release (#167)
+
+### 🧪 Testing
+
+- *(config)* Run the /dev/stdin case on Unix only (#168)
 ## [1.27.1] - 2026-10-24
 
 ### 📚 Documentation
