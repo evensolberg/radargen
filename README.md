@@ -1,5 +1,7 @@
 # radargen
 
+[![crates.io](https://img.shields.io/crates/v/radargen.svg)](https://crates.io/crates/radargen)
+
 Render a technology radar from a CSV to a self-contained HTML page, a PNG
 image, an SVG file or a PDF. One binary, no runtime, no network.
 
@@ -24,7 +26,13 @@ The [example](docs/examples/) above is made by `radargen -c docs/examples/radar.
 
 ## Install
 
-There are no release binaries yet. Install from source with a recent stable [Rust toolchain](https://rustup.rs) (1.97 or later; on Windows, rustup also asks for the MSVC build tools). Replace `vX.Y.Z` with the newest tag on the [releases page](https://github.com/evensolberg/radargen/releases):
+There are no release binaries yet. Install from [crates.io](https://crates.io/crates/radargen) with a recent stable [Rust toolchain](https://rustup.rs) (1.97 or later; on Windows, rustup also asks for the MSVC build tools):
+
+```sh
+cargo install --locked radargen
+```
+
+To build a particular release from the repository instead, replace `vX.Y.Z` with its tag on the [releases page](https://github.com/evensolberg/radargen/releases):
 
 ```sh
 cargo install --locked --git https://github.com/evensolberg/radargen --tag vX.Y.Z
