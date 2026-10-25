@@ -40,7 +40,7 @@ unicode-properties = { version = "0.1.4", default-features = false, features = [
 # PNG export (FR-55). Only `text`: no system fonts (NFR-7), no raster
 # image decoders, no svgz. usvg sees only the font database the emitter
 # builds.
-resvg = { version = "0.48", default-features = false, features = ["text"] }
+resvg = { version = "0.49", default-features = false, features = ["text"] }
 # SVG export (D-88): glyph outlines, read only by text.rs. The version usvg
 # reads fonts with, sharing read-fonts with harfrust, so no second copy
 # builds (rg-v3a).
