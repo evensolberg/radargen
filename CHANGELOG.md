@@ -1,8 +1,18 @@
+## [1.27.1] - 2026-10-24
+
+### 📚 Documentation
+
+- An example edition, the intake process, and fuller doc links (#164)
+
+### ⚙️ Miscellaneous Tasks
+
+- Ready the repository for the public (#165)
+- *(ci)* Bump Swatinem/rust-cache (#152)
 ## [1.27.0] - 2026-10-23
 
 ### 🚀 Features
 
-- *(config)* Key problems name their line (rg-1bw)
+- *(config)* Key problems name their line (rg-1bw, 1.27.0) (#163)
 ## [1.26.0] - 2026-10-23
 
 ### 🚀 Features
