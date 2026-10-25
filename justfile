@@ -76,8 +76,9 @@ alias tp := testp
     cargo install --path . --target aarch64-apple-darwin
     cargo clean
 
-# Tag the current version, push to GitHub, create a release with
-# auto-generated notes, and publish the crate to crates.io. The dry run
+# Tag the current version, push to GitHub, and publish the crate to
+# crates.io. The pushed tag starts release.yml, where dist builds the
+# binaries and creates the GitHub release from CHANGELOG.md. The dry run
 # goes first so a packaging problem stops the release before anything is
 # tagged; the upload goes last, as it is the one step that cannot be undone.
 publish:
@@ -96,7 +97,6 @@ publish:
     echo "Publishing $version"
     git tag "$version"
     git push origin main "$version"
-    gh release create "$version" --repo evensolberg/{{application}} --title "$version" --generate-notes
     cargo publish
 
 # Regenerates docs/examples/'s outputs from its CSV and config, every

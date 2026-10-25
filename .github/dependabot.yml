@@ -1,9 +1,13 @@
 version: 2
 updates:
   # Keeps ci.yml's SHA-pinned actions current; Dependabot rewrites the
-  # SHA and its version comment together.
+  # SHA and its version comment together. release.yml is dist's: its
+  # pins live in dist-workspace.toml, and an edit to the file alone
+  # fails dist's plan job.
   - package-ecosystem: github-actions
     directory: /
+    exclude-paths:
+      - .github/workflows/release.yml
     schedule:
       interval: weekly
     commit-message:

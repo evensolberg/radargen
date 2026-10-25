@@ -26,7 +26,19 @@ The [example](docs/examples/) above is made by `radargen -c docs/examples/radar.
 
 ## Install
 
-There are no release binaries yet. Install from [crates.io](https://crates.io/crates/radargen) with a recent stable [Rust toolchain](https://rustup.rs) (1.97 or later; on Windows, rustup also asks for the MSVC build tools):
+Each [release](https://github.com/evensolberg/radargen/releases) has prebuilt binaries for macOS (Apple Silicon and Intel), Linux (x86_64 and ARM64) and Windows (x86_64). An installer script downloads the right one and puts it in `~/.cargo/bin`:
+
+```sh
+# macOS and Linux
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/evensolberg/radargen/releases/latest/download/radargen-installer.sh | sh
+```
+
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/evensolberg/radargen/releases/latest/download/radargen-installer.ps1 | iex"
+```
+
+With [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), `cargo binstall radargen` fetches the same binary. To build from source instead, install from [crates.io](https://crates.io/crates/radargen) with a recent stable [Rust toolchain](https://rustup.rs) (1.97 or later; on Windows, rustup also asks for the MSVC build tools):
 
 ```sh
 cargo install --locked radargen
