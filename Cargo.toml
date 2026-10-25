@@ -44,7 +44,7 @@ resvg = { version = "0.49", default-features = false, features = ["text"] }
 # SVG export (D-88): glyph outlines, read only by text.rs. The version usvg
 # reads fonts with, sharing read-fonts with harfrust, so no second copy
 # builds (rg-v3a).
-skrifa = { version = "0.44", default-features = false, features = ["std"] }
+skrifa = { version = "0.46", default-features = false, features = ["std"] }
 # FR-91's --config file. Parse only: no writer (display), no order-preserving map.
 toml = { version = "1.1.8", default-features = false, features = ["parse", "serde", "std"] }
 # -e today's local date (D-58), the one clock read. The system zone, or
