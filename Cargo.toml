@@ -65,7 +65,7 @@ miniz_oxide = "0.9"
 [dev-dependencies]
 sha2 = "0.11.1"
 roxmltree = "0.21"
-html5ever = "0.39"
+html5ever = "0.40"
 markup5ever_rcdom = "0.39"
 # SC-30's render oracle: an independent pure-Rust PDF rasteriser, so the
 # PDF is checked by a reading of the format that is not ours. Its second
