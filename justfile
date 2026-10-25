@@ -76,7 +76,10 @@ alias tp := testp
     cargo install --path . --target aarch64-apple-darwin
     cargo clean
 
-# Tag the current version, push to GitHub, and create a release with auto-generated notes
+# Tag the current version, push to GitHub, create a release with
+# auto-generated notes, and publish the crate to crates.io. The dry run
+# goes first so a packaging problem stops the release before anything is
+# tagged; the upload goes last, as it is the one step that cannot be undone.
 publish:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -89,10 +92,12 @@ publish:
         echo "Tag $version already exists; bump the version first." >&2
         exit 1
     fi
+    cargo publish --dry-run
     echo "Publishing $version"
     git tag "$version"
     git push origin main "$version"
     gh release create "$version" --repo evensolberg/{{application}} --title "$version" --generate-notes
+    cargo publish
 
 # Regenerates docs/examples/'s outputs from its CSV and config, every
 # format. tests/examples.rs fails when the committed ones drift.
