@@ -71,7 +71,7 @@ markup5ever_rcdom = "0.39"
 # PDF is checked by a reading of the format that is not ours. Its second
 # skrifa, read-fonts and fearless_simd are dev-only, which
 # clippy::multiple_crate_versions does not count.
-hayro = "0.8"
+hayro = "0.9"
 # Reads the PDF's text and structure back in tests (SC-30).
 lopdf = { version = "0.46", default-features = false }
 
